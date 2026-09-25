@@ -1043,9 +1043,9 @@ body.portrait .topbar {
   right: 4px;
   transform: none;
   justify-content: space-between;
-  gap: 6px;
-  padding: 5px 8px;
-  font-size: 13px;
+  gap: 5px;
+  padding: 4px 6px;
+  font-size: 12px;
   border-radius: 10px;
 }
 
@@ -1054,7 +1054,11 @@ body.portrait .gold {
 }
 
 body.portrait .heart .bar {
-  width: 64px;
+  width: 58px;
+}
+
+body.portrait .heart .icon {
+  display: none;
 }
 
 body.portrait .stat .label {
@@ -1062,69 +1066,35 @@ body.portrait .stat .label {
 }
 
 body.portrait #call-early {
-  font-size: 12px;
-  padding: 6px 8px;
+  font-size: 11px;
+  padding: 6px 6px;
 }
 
-/* Control strip under the map: slim hero row on top, joystick + skill arc below
-   (positioned from JS for the chosen thumb layout). The map is never under it. */
+/* Controls overlaid on the bottom of the map (over Spire's forest rows). The
+   hero panel becomes a transparent box holding the skill buttons and the joystick,
+   positioned from JS for the chosen thumb layout. Only the buttons and the stick
+   take touches. */
 body.portrait .hero-panel {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: calc(248px + env(safe-area-inset-bottom));
+  height: calc(176px + env(safe-area-inset-bottom));
   transform: none;
-  border-radius: 14px 14px 0 0;
-  border-bottom: none;
-  padding: 6px 8px env(safe-area-inset-bottom);
-  display: grid;
-  grid-template-columns: auto 1fr 1fr;
-  grid-template-rows: 26px;
-  grid-template-areas: 'head hp mana';
-  align-content: start;
-  column-gap: 6px;
-  pointer-events: auto;
-  touch-action: none;
+  padding: 0 0 env(safe-area-inset-bottom);
+  background: none;
+  border: none;
+  border-radius: 0;
+  display: block;
+  pointer-events: none;
 }
 
-body.portrait .hero-head {
-  grid-area: head;
-  gap: 5px;
+body.portrait .hero-panel.leveled {
+  animation: none;
 }
 
-body.portrait .hero-meta {
-  width: 34px;
-  gap: 2px;
-}
-
-body.portrait #hero-name,
-body.portrait .hero-name .role {
+body.portrait .hero-head,
+body.portrait .hero-panel > .bar {
   display: none;
-}
-
-body.portrait .hero-name {
-  font-size: 11px;
-  line-height: 1;
-}
-
-body.portrait .level {
-  margin-left: 0;
-}
-
-body.portrait .portrait {
-  width: 22px;
-  height: 22px;
-  border-width: 2px;
-}
-
-body.portrait .bar.hp {
-  grid-area: hp;
-  height: 14px;
-}
-
-body.portrait .bar.mana {
-  grid-area: mana;
-  height: 14px;
 }
 
 body.portrait .skills {
@@ -1136,18 +1106,19 @@ body.portrait .respawn {
   position: absolute;
   left: 0;
   right: 0;
-  top: 36px;
+  top: -26px;
+  text-shadow: 0 1px 3px #000;
 }
 
 body.portrait .skill-wrap {
   position: absolute;
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
 }
 
 body.portrait .skill-wrap.badge {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
 }
 
 body.portrait .skill {
@@ -1158,8 +1129,13 @@ body.portrait .skill {
   align-items: center;
   justify-content: center;
   touch-action: none;
-  border-width: 2px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(20, 28, 38, 0.45);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+body.portrait .skill:disabled {
+  opacity: 0.4;
 }
 
 body.portrait .skill .name,
@@ -1172,34 +1148,35 @@ body.portrait .skill .meta {
 }
 
 body.portrait .skill .meta kbd {
-  font-size: 22px;
+  font-size: 20px;
   padding: 0;
   background: none;
   border: none;
   color: var(--text);
+  text-shadow: 0 1px 3px #000;
 }
 
 body.portrait .skill .pips {
   position: absolute;
-  bottom: 8px;
+  bottom: 6px;
   gap: 2px;
 }
 
 body.portrait .skill .pip {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 body.portrait .skill .cd-text {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 body.portrait .badge .skill .meta kbd {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 body.portrait .badge .skill .pips {
-  bottom: 4px;
+  bottom: 3px;
 }
 
 body.portrait .badge .skill .pip {
@@ -1208,12 +1185,12 @@ body.portrait .badge .skill .pip {
 }
 
 body.portrait .learn {
-  width: 26px;
-  height: 26px;
-  font-size: 18px;
-  line-height: 24px;
-  top: -6px;
-  right: -6px;
+  width: 24px;
+  height: 24px;
+  font-size: 17px;
+  line-height: 22px;
+  top: -8px;
+  right: -8px;
   border-radius: 50%;
 }
 
@@ -1236,7 +1213,7 @@ body.portrait .skill.cancel {
   }
 }
 
-/* Fixed joystick in the strip; the knob follows the thumb. */
+/* Fixed joystick: faint when idle, solid while touched. */
 .joy {
   display: none;
 }
@@ -1244,30 +1221,66 @@ body.portrait .skill.cancel {
 body.portrait .joy {
   display: block;
   position: absolute;
-  width: 110px;
-  height: 110px;
-  margin: -55px 0 0 -55px;
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.07);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: rgba(20, 28, 38, 0.5);
   touch-action: none;
+  pointer-events: auto;
+  opacity: 0.35;
+  transition: opacity 120ms;
 }
 
 body.portrait .joy.held {
-  border-color: rgba(255, 255, 255, 0.6);
+  opacity: 1;
 }
 
 .joy-knob {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 48px;
-  height: 48px;
-  margin: -24px 0 0 -24px;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.9);
   pointer-events: none;
+}
+
+/* Level, XP and skill points in the top bar. */
+.pt-level {
+  display: none;
+}
+
+body.portrait .pt-level {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 3px;
+  row-gap: 2px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+body.portrait .pt-level .bar {
+  grid-column: 1 / -1;
+  width: 34px;
+  height: 4px;
+}
+
+body.portrait .pt-level .fill {
+  background: var(--xp);
+}
+
+.pt-pts {
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--gold);
+  color: #2b2000;
+  font-size: 10px;
 }
 
 /* Tie-break picker when a tap is equally close to two targets. */
@@ -1314,7 +1327,7 @@ body.portrait #tower-panel {
   right: 0;
   top: auto !important;
   bottom: 0;
-  max-height: calc(248px + env(safe-area-inset-bottom));
+  max-height: 60vh;
   overflow-y: auto;
   font-size: 12px;
   padding: 8px 10px calc(env(safe-area-inset-bottom) + 8px);
@@ -1339,7 +1352,7 @@ body.portrait #tower-panel .btn {
 }
 
 body.portrait .toasts {
-  bottom: 260px;
+  bottom: 200px;
 }
 
 body.portrait .radial {

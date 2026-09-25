@@ -1,7 +1,8 @@
-// Portrait spike (?map=spire on a phone held upright): a control strip under
-// the map with a fixed joystick and a skill arc (one thumb, or two thumbs
-// either way round), smart casting, tap-to-select with snapping and a radial
-// build menu. Throwaway exploration code.
+// Portrait spike (?map=spire on a phone held upright): the map fills the
+// screen under the top bar, with a fixed joystick and a skill arc overlaid on
+// its bottom forest rows (one thumb, or two thumbs either way round), smart
+// casting, tap-to-select with snapping and a radial build menu. Throwaway
+// exploration code.
 //
 // It listens on `window` in the capture phase and swallows canvas / control
 // touches, so the desktop Controls never see them while the layout is active.
@@ -27,15 +28,17 @@ const SNAP_PX = 44;
 const TIE_PX = 6;
 const RADIAL_R = 74;
 /** Joystick knob travel (px), dead zone (px), move point lookahead (tiles) and resend interval. */
-const STICK_R = 42;
+const STICK_R = 38;
 const STICK_DEAD = 8;
 const STICK_AHEAD = 2.5;
 const STICK_RESEND_MS = 100;
 /** Creeps, towers and heroes are drawn this much larger in the portrait layout. */
 const ENTITY_SCALE = 1.6;
 /** Skill button and E badge diameters (px). */
-const SKILL_PX = 64;
-const BADGE_PX = 40;
+const SKILL_PX = 52;
+const BADGE_PX = 34;
+/** Height (px) of the control zone overlaid on the bottom of the map; map taps there are ignored. */
+const CONTROL_H = 176;
 /** Instant skills that buff the hero: smart cast always fires them. */
 const SELF_BUFFS = new Set(['warden.R']);
 
@@ -105,7 +108,11 @@ export class PortraitMode {
   private readonly settings: HTMLElement;
   private readonly joyBase: HTMLElement;
   private readonly joyKnob: HTMLElement;
+  /** The HUD's hero panel, turned into a transparent overlay that holds the skill buttons and the joystick. */
   private readonly strip = document.getElementById('hero-panel')!;
+  private readonly levelText!: HTMLElement;
+  private readonly levelPts!: HTMLElement;
+  private readonly levelXp!: HTMLElement;
 
   constructor(private readonly d: PortraitDeps) {
     document.body.classList.add('spire');
@@ -129,7 +136,16 @@ export class PortraitMode {
     gear.textContent = '⚙';
     gear.title = 'Settings';
     gear.addEventListener('click', () => this.toggleSettings());
-    document.querySelector('.topbar')!.appendChild(gear);
+    const level = document.createElement('div');
+    level.id = 'pt-level';
+    level.className = 'stat pt-level';
+    level.innerHTML = '<span class="pt-lv"></span><span class="pt-pts hidden" title="Skill points: tap + on a skill"></span><div class="bar"><div class="fill"></div></div>';
+    this.levelText = level.querySelector('.pt-lv')!;
+    this.levelPts = level.querySelector('.pt-pts')!;
+    this.levelXp = level.querySelector('.fill')!;
+    const topbar = document.querySelector('.topbar')!;
+    topbar.insertBefore(level, topbar.firstChild);
+    topbar.appendChild(gear);
     this.applyLayout(this.layoutKind);
 
     const opts = { capture: true, passive: false } as const;
@@ -185,16 +201,45 @@ export class PortraitMode {
     this.active = on;
   }
 
-  /** The whole map, never under the top bar or the control strip: fit width and height. */
+  /**
+   * Fit the map's width (no side margins) with its top under the top bar. If the
+   * playable rows would then reach under the controls (short screens), follow the
+   * hero vertically, between "map top at the top bar" and "forest edge at the
+   * controls". Nothing is clamped by the camera itself: this runs every frame.
+   */
   private fitCamera(): void {
     const cam = this.d.camera;
-    const top = document.querySelector('.topbar')!.getBoundingClientRect().bottom + 4;
-    const bottom = window.innerHeight - this.strip.getBoundingClientRect().top + 4;
-    const fit = Math.min(cam.viewW / cam.worldW, Math.max(1, cam.viewH - top - bottom) / cam.worldH);
-    cam.minZoom = Math.min(MIN_ZOOM, fit);
-    cam.zoom = fit;
-    cam.insets = { top, bottom };
-    cam.clamp();
+    const top = document.querySelector('.topbar')!.getBoundingClientRect().bottom + 2;
+    const zoom = cam.viewW / cam.worldW;
+    cam.minZoom = Math.min(MIN_ZOOM, zoom);
+    cam.zoom = zoom;
+    cam.insets = { top, bottom: 0 };
+    cam.x = cam.worldW / 2;
+    const yTop = (cam.viewH / 2 - top) / zoom;
+    const safeRow = getMap().safeFromY ?? cam.worldH / TILE_PX;
+    const ySafe = safeRow * TILE_PX - (cam.viewH / 2 - CONTROL_H) / zoom;
+    if (ySafe <= yTop) {
+      cam.y = yTop;
+      return;
+    }
+    const hero = this.myHero();
+    const band = (top + cam.viewH - CONTROL_H) / 2;
+    const want = hero ? hero.y * TILE_PX - (band - cam.viewH / 2) / zoom : yTop;
+    cam.y = Math.max(yTop, Math.min(ySafe, want));
+  }
+
+  /** Level, XP and skill points for the top bar (the hero row is gone). */
+  private updateLevel(): void {
+    const hero = this.myHero();
+    if (!hero) return;
+    const span = hero.xpNextLevel - hero.xpLevelStart;
+    const frac = hero.level >= hero.maxLevel || span <= 0 ? 1 : (hero.xp - hero.xpLevelStart) / span;
+    const text = `Lv ${hero.level}`;
+    if (this.levelText.textContent !== text) this.levelText.textContent = text;
+    this.levelXp.style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
+    const pts = hero.skillPoints > 0 ? `+${hero.skillPoints}` : '';
+    if (this.levelPts.textContent !== pts) this.levelPts.textContent = pts;
+    this.levelPts.classList.toggle('hidden', !pts);
   }
 
   private applyLayout(kind: ThumbLayout): void {
@@ -245,17 +290,17 @@ export class PortraitMode {
     let spots: Record<SkillSlot, Pt>;
     if (this.layoutKind === 'one') {
       // Joystick bottom-centre; Q / W / R in an arc just above it, E as a badge to the right.
-      stick = { x: w / 2, y: h - 66 };
-      const r = 104;
+      stick = { x: w / 2, y: h - 62 };
+      const r = 84;
       const at = (deg: number) => ({ x: stick.x + r * Math.cos((deg * Math.PI) / 180), y: stick.y - r * Math.sin((deg * Math.PI) / 180) });
-      spots = { Q: at(155), W: at(90), R: at(25), E: { x: stick.x + 150, y: stick.y - 118 } };
+      spots = { Q: at(155), W: at(90), R: at(25), E: { x: stick.x + 122, y: stick.y - 84 } };
     } else {
       // Joystick in one bottom corner, skills arcing around the other thumb.
       const mirror = this.layoutKind === 'twoLeft';
       const X = (x: number) => (mirror ? w - x : x);
-      stick = { x: X(88), y: h - 82 };
-      const pivot = { x: w - 42, y: h - 46 };
-      const r = 118;
+      stick = { x: X(74), y: h - 74 };
+      const pivot = { x: w - 40, y: h - 44 };
+      const r = 92;
       const at = (deg: number) => ({ x: X(pivot.x + r * Math.cos((deg * Math.PI) / 180)), y: pivot.y - r * Math.sin((deg * Math.PI) / 180) });
       spots = { Q: at(180), W: at(135), R: at(90), E: { x: X(pivot.x), y: pivot.y } };
     }
@@ -276,6 +321,7 @@ export class PortraitMode {
     if (!this.active) return;
     this.placeControls();
     this.fitCamera();
+    this.updateLevel();
     this.driveStick();
     this.updateRadial();
   }
@@ -419,8 +465,10 @@ export class PortraitMode {
     if (target !== this.d.canvas) return;
     e.stopPropagation();
     e.preventDefault();
-    if (this.mapTouch) return;
-    this.mapTouch = { id: e.pointerId, start: this.screenPt(e), moved: false };
+    const p = this.screenPt(e);
+    // The control zone: the controls sit over forest, so touches there never select map objects.
+    if (this.mapTouch || p.y >= this.controlTop()) return;
+    this.mapTouch = { id: e.pointerId, start: p, moved: false };
   }
 
   private onMove(e: PointerEvent): void {
@@ -591,7 +639,7 @@ export class PortraitMode {
     const w = this.picker.offsetWidth;
     const h = this.picker.offsetHeight;
     const x = Math.max(8, Math.min(this.d.camera.viewW - w - 8, p.x + 16));
-    const y = Math.max(50, Math.min(this.stripTop() - h - 8, p.y - h / 2));
+    const y = Math.max(50, Math.min(this.controlTop() - h - 8, p.y - h / 2));
     this.picker.style.left = `${Math.round(x)}px`;
     this.picker.style.top = `${Math.round(y)}px`;
   }
@@ -637,7 +685,7 @@ export class PortraitMode {
     const p = this.toScreen(pad.x, pad.y);
     const m = RADIAL_R + 34;
     const x = Math.max(m, Math.min(cam.viewW - m, p.x));
-    const y = Math.max(m + 40, Math.min(this.stripTop() - m, p.y));
+    const y = Math.max(m + 40, Math.min(this.controlTop() - m, p.y));
     this.radial.style.left = `${Math.round(x)}px`;
     this.radial.style.top = `${Math.round(y)}px`;
     this.radial.classList.remove('hidden');
@@ -653,8 +701,9 @@ export class PortraitMode {
   // Helpers
   // -------------------------------------------------------------------------
 
-  private stripTop(): number {
-    return this.strip.getBoundingClientRect().top;
+  /** Screen y where the control zone starts. */
+  private controlTop(): number {
+    return window.innerHeight - CONTROL_H;
   }
 
   private myHero(): HeroSnap | undefined {

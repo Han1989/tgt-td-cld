@@ -48,6 +48,8 @@ export interface GameMap {
   heroSpawn: Vec2;
   /** Pad edge in tiles: 2 on Crossroads, 3 on the portrait spike's Spire. */
   padSize: number;
+  /** Portrait spike: first row of the forest under the touch controls (Spire only). */
+  safeFromY?: number;
 }
 
 const DEFAULT_LANE_HALF_WIDTH = 1.6;
@@ -67,6 +69,8 @@ interface MapLayout {
   padSize?: number;
   padSpacing?: number;
   padOffset?: number;
+  /** Rows from this one down are solid forest (portrait spike: the area under the touch controls). */
+  safeFromY?: number;
 }
 
 const HEART: Vec2 = { x: 40, y: 55 };
@@ -105,26 +109,28 @@ const LANE_WAYPOINTS: Vec2[][] = [
 
 const CROSSROADS: MapLayout = { name: 'Crossroads', width: 80, height: 60, heart: HEART, lanes: LANE_WAYPOINTS };
 
-// Portrait spike: a narrow 31 × 42 map for phones held upright, with 3-tile
-// lanes and fewer, larger (3 × 3) pads. Columns: border | pads | lane | pads |
-// gap | pads | lane | pads | gap | pads | lane | pads | border.
-const SPIRE_HEART: Vec2 = { x: 15.5, y: 38 };
+// Portrait spike: a narrow 26 × 56 map for phones held upright. Columns:
+// border | pads | walk | lane | walk | pads | walk | lane | walk | pads | walk |
+// lane | walk | pads | border (2-tile lanes, 3 × 3 pads). Rows 37+ are forest:
+// the joystick and skill buttons sit over them, so nothing playable is there.
+const SPIRE_HEART: Vec2 = { x: 13, y: 33 };
 const SPIRE: MapLayout = {
   name: 'Spire',
-  width: 31,
-  height: 42,
+  width: 26,
+  height: 56,
   heart: SPIRE_HEART,
   laneHalfWidth: 1,
   padSize: 3,
   padSpacing: 4,
-  padOffset: 3,
+  padOffset: 3.5,
+  safeFromY: 37,
   lanes: [
     // Left
-    [{ x: 5.5, y: 0.5 }, { x: 5.5, y: 26 }, SPIRE_HEART],
+    [{ x: 6, y: 0.5 }, { x: 6, y: 22 }, SPIRE_HEART],
     // Middle
-    [{ x: 15.5, y: 0.5 }, SPIRE_HEART],
+    [{ x: 13, y: 0.5 }, SPIRE_HEART],
     // Right
-    [{ x: 25.5, y: 0.5 }, { x: 25.5, y: 26 }, SPIRE_HEART],
+    [{ x: 20, y: 0.5 }, { x: 20, y: 22 }, SPIRE_HEART],
   ],
 };
 
@@ -208,6 +214,7 @@ function buildMap(layout: MapLayout): GameMap {
         const tx = ptx + dx;
         const ty = pty + dy;
         if (tx < 1 || ty < 4 || tx >= WIDTH - 1 || ty >= HEIGHT - 1) return false;
+        if (layout.safeFromY !== undefined && ty >= layout.safeFromY - 1) return false;
         if (tiles[idx(tx, ty)] !== Tile.Open) return false;
         if (laneDist[idx(tx, ty)]! < LANE_HALF_WIDTH + 0.4) return false;
         if (Math.hypot(tx + 0.5 - HEART.x, ty + 0.5 - HEART.y) < 4) return false;
@@ -250,7 +257,8 @@ function buildMap(layout: MapLayout): GameMap {
     for (let tx = 0; tx < WIDTH; tx++) {
       const i = idx(tx, ty);
       if (tiles[i] !== Tile.Open) continue;
-      const border = tx === 0 || ty === 0 || tx === WIDTH - 1 || ty === HEIGHT - 1;
+      const border =
+        tx === 0 || ty === 0 || tx === WIDTH - 1 || ty === HEIGHT - 1 || (layout.safeFromY !== undefined && ty >= layout.safeFromY);
       const nearPad = pads.some((p) => Math.hypot(p.x - (tx + 0.5), p.y - (ty + 0.5)) < 2.5);
       const nearHeart = Math.hypot(tx + 0.5 - HEART.x, ty + 0.5 - HEART.y) < 8;
       const grove =
@@ -298,6 +306,7 @@ function buildMap(layout: MapLayout): GameMap {
     heart: { ...HEART },
     heroSpawn: { x: HEART.x, y: HEART.y - 3 },
     padSize: PAD,
+    ...(layout.safeFromY !== undefined ? { safeFromY: layout.safeFromY } : {}),
   };
 }
 
