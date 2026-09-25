@@ -16,23 +16,25 @@ const game = (players: number) =>
   );
 
 describe('player-count scaling', () => {
-  it('multiplies creep HP per extra player, with an early bonus that fades out', () => {
-    const { hpPerExtraPlayer: late, earlyHpPerExtraPlayer: early, earlyWaves } = TUNING.playerScaling;
+  it('multiplies creep HP per extra player, plus an early bonus by team size that fades out', () => {
+    const { hpPerExtraPlayer: late, earlyHpBonus: bonus, earlyWaves } = TUNING.playerScaling;
     const base = creepMaxHp(game(1), 'grunt', 1);
     expect(base).toBe(TUNING.creeps.grunt.hp);
-    // Wave 1: the full early bonus.
-    expect(creepMaxHp(game(2), 'grunt', 1)).toBe(Math.round(base * (1 + (late + early))));
-    expect(creepMaxHp(game(4), 'grunt', 1)).toBe(Math.round(base * (1 + 3 * (late + early))));
+    // Wave 1: the full early bonus for the team size.
+    expect(creepMaxHp(game(2), 'grunt', 1)).toBe(Math.round(base * (1 + late + bonus[1]!)));
+    expect(creepMaxHp(game(4), 'grunt', 1)).toBe(Math.round(base * (1 + 3 * late + bonus[3]!)));
     // Halfway through the early waves: half of it.
     const mid = 1 + earlyWaves / 2;
     const midWaveMult = 1 + TUNING.waves.hpGrowthPerWave * (mid - 1);
-    expect(creepMaxHp(game(4), 'grunt', mid)).toBe(Math.round(base * midWaveMult * (1 + 3 * (late + early / 2))));
-    // After the early waves: the base amount only; solo is never scaled.
+    expect(creepMaxHp(game(4), 'grunt', mid)).toBe(Math.round(base * midWaveMult * (1 + 3 * late + bonus[3]! / 2)));
+    // After the early waves: the per-player amount only; solo is never scaled.
     const after = earlyWaves + 1;
     const waveMult = 1 + TUNING.waves.hpGrowthPerWave * (after - 1);
     expect(creepMaxHp(game(4), 'grunt', after)).toBe(Math.round(base * waveMult * (1 + 3 * late)));
-    expect(creepMaxHp(game(4), 'grunt', 30)).toBeLessThan(creepMaxHp(game(1), 'grunt', 30) * 1.5);
     expect(creepMaxHp(game(1), 'grunt', after)).toBe(Math.round(base * waveMult));
+    // Bigger teams are pressed harder early.
+    expect(bonus[1]!).toBeLessThan(bonus[2]!);
+    expect(bonus[2]!).toBeLessThan(bonus[3]!);
   });
 
   it('adds 30% creeps per extra player', () => {

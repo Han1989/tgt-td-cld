@@ -17,6 +17,8 @@ export class GameView {
   me: PlayerId | null = null;
   /** Called when the player clicks "Leave room" on the end screen (online). */
   onLeave: () => void = () => {};
+  /** Called when the player clicks "Change hero" on the solo end screen. */
+  onChangeHero: () => void = () => {};
 
   private transport: Transport | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -68,6 +70,7 @@ export class GameView {
       learn: (slot) => controls.learnSkill(slot),
       pressSkill: (slot) => controls.pressSkill(slot),
       restart: () => send({ t: 'restart' }),
+      changeHero: () => view.onChangeHero(),
       leave: () => view.onLeave(),
       closeMenus: () => controls.clearSelection(),
     });

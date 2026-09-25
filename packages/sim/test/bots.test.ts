@@ -5,6 +5,7 @@ import { createBalanceBot } from '../src/bots';
 import { applyCommand } from '../src/commands';
 import { snapshot } from '../src/game';
 import { getMap } from '../src/map';
+import { TUNING } from '../src/tuning';
 import { labGame, placeCreep } from './helpers';
 
 describe('balance bot', () => {
@@ -42,5 +43,57 @@ describe('balance bot', () => {
     const cmds = bot.decide(snapshot(state));
     expect(cmds).toContainEqual({ type: 'setPriority', towerId: tower.id, priority: 'strongest' });
     expect(cmds).toContainEqual({ type: 'attackMove', x: boss.x, y: boss.y });
+  });
+
+  /** A lab game on `wave` where p1 already owns `kinds` (on the first pads) and has `gold`. */
+  function withTowers(wave: number, kinds: ('arrow' | 'frost' | 'cannon' | 'arcane' | 'flak')[], gold: number) {
+    const state = labGame();
+    state.wave = wave;
+    state.players[0]!.gold = 1_000_000;
+    kinds.forEach((tower, i) => applyCommand(state, 'p1', { type: 'build', padId: getMap().pads[i]!.id, tower }));
+    state.players[0]!.gold = gold;
+    return state;
+  }
+  const builds = (state: ReturnType<typeof labGame>) =>
+    createBalanceBot('p1').decide(snapshot(state)).flatMap((c) => (c.type === 'build' ? [c.tower] : []));
+
+  it('adds a Flak before a Wisp wave, then an Arcane before Brutes', () => {
+    const firstWisps = TUNING.waves.list.findIndex((w) => w.some((g) => TUNING.creeps[g.kind].flying)) + 1;
+    // Early waves: no counters before a few general towers.
+    expect(builds(withTowers(firstWisps - 1, ['arrow'], 100))).toEqual(['frost']);
+    expect(builds(withTowers(firstWisps - 1, ['arrow', 'frost', 'cannon'], 100))).toEqual(['flak']);
+    expect(builds(withTowers(firstWisps - 1, ['arrow', 'frost', 'cannon', 'flak'], 100))).toEqual(['arcane']);
+    // No flyers coming yet: no Flak.
+    expect(builds(withTowers(1, ['arrow', 'frost', 'cannon'], 100))).not.toContain('flak');
+  });
+
+  it('upgrades Arcane towers first while a Stone-hide boss is coming', () => {
+    const state = labGame();
+    state.players[0]!.gold = 1_000_000;
+    const pads = getMap().pads;
+    pads.forEach((pad, i) =>
+      applyCommand(state, 'p1', { type: 'build', padId: pad.id, tower: i === pads.length - 1 ? 'arcane' : 'arrow' }),
+    );
+    const arcane = state.towers.find((t) => t.kind === 'arcane')!;
+    state.players[0]!.gold = TUNING.towers.arcane.tiers[1]!.cost;
+    state.wave = TUNING.waves.list.length; // the Shardback's wave
+    const upgrades = createBalanceBot('p1').decide(snapshot(state)).filter((c) => c.type === 'upgrade');
+    expect(upgrades).toEqual([{ type: 'upgrade', towerId: arcane.id }]);
+  });
+
+  it('plays forward on its lane in later waves once it has its ultimate', () => {
+    const goalY = (wave: number, ultimate: boolean) => {
+      const state = labGame();
+      state.wave = wave;
+      const hero = state.heroes[0]!;
+      if (ultimate) hero.ranks.R = 1;
+      hero.skillCd.R = 1_000; // not ready: it holds its post
+      const move = createBalanceBot('p1').decide(snapshot(state)).find((c) => c.type === 'attackMove');
+      return move?.type === 'attackMove' ? move.y : undefined;
+    };
+    const heart = getMap().heart;
+    expect(heart.y - goalY(20, false)!).toBeLessThan(10);
+    expect(heart.y - goalY(5, true)!).toBeLessThan(10);
+    expect(heart.y - goalY(20, true)!).toBeGreaterThan(15);
   });
 });

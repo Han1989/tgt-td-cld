@@ -70,24 +70,24 @@ export function heroMaxMana(state: GameState, hero: Hero): number {
 }
 
 /**
- * Strongest aura of `kind` reaching `hero`: the highest E rank among living
- * heroes of that kind within `radius` (the hero itself included). Auras of
- * the same kind don't stack. Returns the rank index, or -1 for none.
+ * Strongest aura of `kind` reaching `target` (a hero or a tower): the highest
+ * E rank among living heroes of that kind within `radius` (a hero's own aura
+ * included). Auras of the same kind don't stack. Returns the rank index, or -1 for none.
  */
-function auraRank(state: GameState, hero: Hero, kind: HeroKind, radius: number): number {
+function auraRank(state: GameState, target: { x: number; y: number }, kind: HeroKind, radius: number): number {
   let best = -1;
   for (const h of state.heroes) {
     if (h.kind !== kind || !h.alive || h.ranks.E === 0) continue;
-    if (h !== hero && dist(h.x, h.y, hero.x, hero.y) > radius) continue;
+    if (h !== target && dist(h.x, h.y, target.x, target.y) > radius) continue;
     best = Math.max(best, h.ranks.E - 1);
   }
   return best;
 }
 
-/** Armour bonus from a Warden's Bulwark Aura. */
-export function bulwarkBonus(state: GameState, hero: Hero): number {
+/** Armour bonus from a Warden's Bulwark Aura, for a hero or a tower. */
+export function bulwarkBonus(state: GameState, target: { x: number; y: number }): number {
   const aura = state.tuning.hero.warden.bulwarkAura;
-  const rank = auraRank(state, hero, 'warden', aura.radius);
+  const rank = auraRank(state, target, 'warden', aura.radius);
   return rank < 0 ? 0 : (aura.armor[rank] ?? 0);
 }
 
@@ -202,7 +202,8 @@ export function respawnHero(state: GameState, hero: Hero): void {
 export function damageTower(state: GameState, tower: Tower, amount: number, type: DamageType): void {
   if (tower.dead) return;
   const s = state.tuning.towers[tower.kind];
-  tower.hp -= amount * damageMultiplier(state.tuning, type, s.armor, s.magicResist);
+  const armor = s.armor + bulwarkBonus(state, tower);
+  tower.hp -= amount * damageMultiplier(state.tuning, type, armor, s.magicResist);
   if (tower.hp > 0) return;
   tower.hp = 0;
   tower.dead = true;
