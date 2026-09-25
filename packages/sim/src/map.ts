@@ -27,7 +27,7 @@ export interface Lane {
 
 export interface BuildPad {
   id: number;
-  /** Top-left tile of the 2 × 2 pad. */
+  /** Top-left tile of the pad (`GameMap.padSize` tiles square). */
   tx: number;
   ty: number;
   /** Centre in tile units (where a tower stands). */
@@ -46,9 +46,11 @@ export interface GameMap {
   pads: BuildPad[];
   heart: Vec2;
   heroSpawn: Vec2;
+  /** Pad edge in tiles: 2 on Crossroads, 3 on the portrait spike's Spire. */
+  padSize: number;
 }
 
-const LANE_HALF_WIDTH = 1.6;
+const DEFAULT_LANE_HALF_WIDTH = 1.6;
 const PAD_SPACING = 5;
 const PAD_OFFSET = 3.3;
 const TREE_CLEARANCE = 5.5;
@@ -59,6 +61,12 @@ interface MapLayout {
   height: number;
   heart: Vec2;
   lanes: Vec2[][];
+  /** Lane half width in tiles (default 1.6). */
+  laneHalfWidth?: number;
+  /** Pad edge in tiles (default 2), pad spacing along a lane and offset from its centre line. */
+  padSize?: number;
+  padSpacing?: number;
+  padOffset?: number;
 }
 
 const HEART: Vec2 = { x: 40, y: 55 };
@@ -97,44 +105,26 @@ const LANE_WAYPOINTS: Vec2[][] = [
 
 const CROSSROADS: MapLayout = { name: 'Crossroads', width: 80, height: 60, heart: HEART, lanes: LANE_WAYPOINTS };
 
-// Portrait spike: a tall 45 × 80 map for phones held upright. Heart at the
-// bottom, three portals on the top edge.
-const SPIRE_HEART: Vec2 = { x: 22.5, y: 75 };
+// Portrait spike: a narrow 31 × 42 map for phones held upright, with 3-tile
+// lanes and fewer, larger (3 × 3) pads. Columns: border | pads | lane | pads |
+// gap | pads | lane | pads | gap | pads | lane | pads | border.
+const SPIRE_HEART: Vec2 = { x: 15.5, y: 38 };
 const SPIRE: MapLayout = {
   name: 'Spire',
-  width: 45,
-  height: 80,
+  width: 31,
+  height: 42,
   heart: SPIRE_HEART,
+  laneHalfWidth: 1,
+  padSize: 3,
+  padSpacing: 4,
+  padOffset: 3,
   lanes: [
     // Left
-    [
-      { x: 6.5, y: 0.5 },
-      { x: 6.5, y: 26 },
-      { x: 11, y: 34 },
-      { x: 11, y: 54 },
-      { x: 19, y: 68 },
-      SPIRE_HEART,
-    ],
+    [{ x: 5.5, y: 0.5 }, { x: 5.5, y: 26 }, SPIRE_HEART],
     // Middle
-    [
-      { x: 22.5, y: 0.5 },
-      { x: 22.5, y: 12 },
-      { x: 18.5, y: 18 },
-      { x: 18.5, y: 32 },
-      { x: 26.5, y: 40 },
-      { x: 26.5, y: 52 },
-      { x: 22.5, y: 58 },
-      SPIRE_HEART,
-    ],
+    [{ x: 15.5, y: 0.5 }, SPIRE_HEART],
     // Right
-    [
-      { x: 38.5, y: 0.5 },
-      { x: 38.5, y: 26 },
-      { x: 34, y: 34 },
-      { x: 34, y: 54 },
-      { x: 26, y: 68 },
-      SPIRE_HEART,
-    ],
+    [{ x: 25.5, y: 0.5 }, { x: 25.5, y: 26 }, SPIRE_HEART],
   ],
 };
 
@@ -172,11 +162,16 @@ export function isWalkable(map: GameMap, x: number, y: number): boolean {
 
 /** Returns the pad covering tile (tx, ty), if any. */
 export function padAtTile(map: GameMap, tx: number, ty: number): BuildPad | undefined {
-  return map.pads.find((p) => tx >= p.tx && tx < p.tx + 2 && ty >= p.ty && ty < p.ty + 2);
+  const n = map.padSize;
+  return map.pads.find((p) => tx >= p.tx && tx < p.tx + n && ty >= p.ty && ty < p.ty + n);
 }
 
 function buildMap(layout: MapLayout): GameMap {
   const { width: WIDTH, height: HEIGHT, heart: HEART } = layout;
+  const PAD = layout.padSize ?? 2;
+  const spacing = layout.padSpacing ?? PAD_SPACING;
+  const offset = layout.padOffset ?? PAD_OFFSET;
+  const LANE_HALF_WIDTH = layout.laneHalfWidth ?? DEFAULT_LANE_HALF_WIDTH;
   const tiles = new Uint8Array(WIDTH * HEIGHT).fill(Tile.Open);
   const idx = (tx: number, ty: number) => ty * WIDTH + tx;
 
@@ -208,8 +203,8 @@ function buildMap(layout: MapLayout): GameMap {
   // Build pads: 2 × 2 blocks on both sides of each lane at regular spacing.
   const pads: BuildPad[] = [];
   const padFits = (ptx: number, pty: number) => {
-    for (let dy = 0; dy < 2; dy++) {
-      for (let dx = 0; dx < 2; dx++) {
+    for (let dy = 0; dy < PAD; dy++) {
+      for (let dx = 0; dx < PAD; dx++) {
         const tx = ptx + dx;
         const ty = pty + dy;
         if (tx < 1 || ty < 4 || tx >= WIDTH - 1 || ty >= HEIGHT - 1) return false;
@@ -218,14 +213,14 @@ function buildMap(layout: MapLayout): GameMap {
         if (Math.hypot(tx + 0.5 - HEART.x, ty + 0.5 - HEART.y) < 4) return false;
         // Keep a one-tile walkable gap between pads.
         for (const p of pads) {
-          if (tx >= p.tx - 1 && tx <= p.tx + 2 && ty >= p.ty - 1 && ty <= p.ty + 2) return false;
+          if (tx >= p.tx - 1 && tx <= p.tx + PAD && ty >= p.ty - 1 && ty <= p.ty + PAD) return false;
         }
       }
     }
     return true;
   };
   for (const lane of lanes) {
-    let carry = PAD_SPACING / 2;
+    let carry = spacing / 2;
     for (let w = 0; w < lane.waypoints.length - 1; w++) {
       const a = lane.waypoints[w]!;
       const b = lane.waypoints[w + 1]!;
@@ -233,17 +228,17 @@ function buildMap(layout: MapLayout): GameMap {
       const nx = -(b.y - a.y) / len;
       const ny = (b.x - a.x) / len;
       let s = carry;
-      for (; s < len; s += PAD_SPACING) {
+      for (; s < len; s += spacing) {
         const cx = a.x + ((b.x - a.x) * s) / len;
         const cy = a.y + ((b.y - a.y) * s) / len;
         for (const side of [1, -1]) {
-          const px = cx + nx * PAD_OFFSET * side;
-          const py = cy + ny * PAD_OFFSET * side;
-          const ptx = Math.round(px - 1);
-          const pty = Math.round(py - 1);
+          const px = cx + nx * offset * side;
+          const py = cy + ny * offset * side;
+          const ptx = Math.round(px - PAD / 2);
+          const pty = Math.round(py - PAD / 2);
           if (!padFits(ptx, pty)) continue;
-          pads.push({ id: pads.length, tx: ptx, ty: pty, x: ptx + 1, y: pty + 1, lane: lane.id });
-          for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) tiles[idx(ptx + dx, pty + dy)] = Tile.Pad;
+          pads.push({ id: pads.length, tx: ptx, ty: pty, x: ptx + PAD / 2, y: pty + PAD / 2, lane: lane.id });
+          for (let dy = 0; dy < PAD; dy++) for (let dx = 0; dx < PAD; dx++) tiles[idx(ptx + dx, pty + dy)] = Tile.Pad;
         }
       }
       carry = s - len;
@@ -302,6 +297,7 @@ function buildMap(layout: MapLayout): GameMap {
     pads,
     heart: { ...HEART },
     heroSpawn: { x: HEART.x, y: HEART.y - 3 },
+    padSize: PAD,
   };
 }
 

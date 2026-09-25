@@ -77,6 +77,8 @@ export class WorldRenderer {
   private drawnTowers: TowerSnap[] = [];
 
   private readonly map: GameMap = getMap();
+  /** Portrait spike: draws creeps, towers and heroes this much larger (1 on desktop). */
+  entityScale = 1;
 
   constructor(
     app: Application,
@@ -111,6 +113,15 @@ export class WorldRenderer {
       }
     }
     return best;
+  }
+
+  /** Portrait spike: creeps and towers as last drawn, for touch snapping. */
+  drawnCreepList(): readonly CreepSnap[] {
+    return this.drawnCreeps;
+  }
+
+  drawnTowerList(): readonly TowerSnap[] {
+    return this.drawnTowers;
   }
 
   /** Tower under a world point (tile units), if any. */
@@ -219,7 +230,7 @@ export class WorldRenderer {
       }
     }
     for (const pad of m.pads) {
-      g.roundRect(pad.tx * S + 2, pad.ty * S + 2, 2 * S - 4, 2 * S - 4, 5)
+      g.roundRect(pad.tx * S + 2, pad.ty * S + 2, m.padSize * S - 4, m.padSize * S - 4, 5)
         .fill(COLORS.pad)
         .stroke({ width: 2, color: COLORS.padEdge, alpha: 0.8 });
     }
@@ -261,6 +272,7 @@ export class WorldRenderer {
         this.creeps.set(c.id, s);
       }
       s.root.position.set(c.x * S, c.y * S);
+      s.root.scale.set(this.entityScale);
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
@@ -288,6 +300,7 @@ export class WorldRenderer {
         this.towers.set(t.id, s);
       }
       s.root.position.set(t.x * S, t.y * S);
+      s.root.scale.set(this.entityScale);
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
       const statusKey = `${t.tier}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
@@ -330,6 +343,7 @@ export class WorldRenderer {
       seen.add(h.id);
       s.root.visible = true;
       s.root.position.set(h.x * S, h.y * S);
+      s.root.scale.set(this.entityScale);
       s.facing.rotation = h.facing;
       const r = TUNING.hero[h.kind].radius * S;
       const key = `${h.hp}/${h.maxHp}/${h.mana}/${h.maxMana}`;
@@ -457,11 +471,12 @@ export class WorldRenderer {
     if (selected) {
       g.circle(selected.x * S, selected.y * S, selected.range * S).fill({ color: 0xffffff, alpha: 0.06 });
       g.circle(selected.x * S, selected.y * S, selected.range * S).stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
-      g.rect((selected.x - 1) * S, (selected.y - 1) * S, 2 * S, 2 * S).stroke({ width: 2, color: 0xffffff });
+      const half = this.map.padSize / 2;
+      g.rect((selected.x - half) * S, (selected.y - half) * S, 2 * half * S, 2 * half * S).stroke({ width: 2, color: 0xffffff });
     }
     if (ui.selectedPadId !== null) {
       const pad = this.map.pads[ui.selectedPadId];
-      if (pad) g.rect(pad.tx * S, pad.ty * S, 2 * S, 2 * S).stroke({ width: 3, color: 0xffffff });
+      if (pad) g.rect(pad.tx * S, pad.ty * S, this.map.padSize * S, this.map.padSize * S).stroke({ width: 3, color: 0xffffff });
     }
 
     const hover = ui.hover;
@@ -481,7 +496,7 @@ export class WorldRenderer {
     } else if (hover && mode.type === 'none') {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
       if (pad && !snap.towers.some((t) => t.padId === pad.id)) {
-        g.rect(pad.tx * S, pad.ty * S, 2 * S, 2 * S).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
+        g.rect(pad.tx * S, pad.ty * S, this.map.padSize * S, this.map.padSize * S).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
       }
     }
 

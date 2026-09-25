@@ -1025,13 +1025,8 @@ body.spire button {
   touch-action: manipulation;
 }
 
-.portrait-only,
 .radial {
   display: none;
-}
-
-body.portrait .portrait-only {
-  display: inline-block;
 }
 
 body.portrait .help,
@@ -1071,6 +1066,7 @@ body.portrait #call-early {
   padding: 6px 8px;
 }
 
+/* One slim row (portrait + level, HP, mana) above big skill buttons. */
 body.portrait .hero-panel {
   bottom: 0;
   left: 0;
@@ -1078,51 +1074,145 @@ body.portrait .hero-panel {
   transform: none;
   border-radius: 14px 14px 0 0;
   border-bottom: none;
-  padding: 8px 8px calc(env(safe-area-inset-bottom) + 8px);
-  gap: 4px;
+  padding: 6px 8px calc(env(safe-area-inset-bottom) + 8px);
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  grid-template-areas:
+    'head hp mana'
+    'skills skills skills'
+    'respawn respawn respawn';
+  column-gap: 6px;
+  row-gap: 6px;
+  align-items: center;
+}
+
+body.portrait .hero-head {
+  grid-area: head;
+  gap: 5px;
+}
+
+body.portrait .hero-meta {
+  width: 34px;
+  gap: 2px;
+}
+
+body.portrait #hero-name,
+body.portrait .hero-name .role {
+  display: none;
+}
+
+body.portrait .hero-name {
+  font-size: 11px;
+  line-height: 1;
+}
+
+body.portrait .level {
+  margin-left: 0;
 }
 
 body.portrait .portrait {
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-}
-
-body.portrait #hero-btn {
-  padding: 10px 14px;
-  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
 }
 
 body.portrait .bar.hp {
-  height: 12px;
+  grid-area: hp;
+  height: 14px;
 }
 
 body.portrait .bar.mana {
-  height: 12px;
+  grid-area: mana;
+  height: 14px;
+}
+
+body.portrait .skills {
+  grid-area: skills;
+  margin-top: 0;
+  gap: 8px;
+}
+
+body.portrait .respawn {
+  grid-area: respawn;
 }
 
 body.portrait .skill {
-  height: 68px;
+  height: 82px;
   touch-action: none;
+  align-items: center;
+  text-align: center;
+}
+
+body.portrait .skill .meta {
+  width: 100%;
+}
+
+body.portrait .skill .meta kbd {
+  font-size: 18px;
+  padding: 2px 9px;
 }
 
 body.portrait .skill .name {
   font-size: 10.5px;
+  max-width: 100%;
+}
+
+body.portrait .skill .cd-text {
+  font-size: 26px;
 }
 
 body.portrait .learn {
-  width: 28px;
-  height: 28px;
-  font-size: 18px;
-  line-height: 26px;
-  top: -12px;
+  width: 30px;
+  height: 30px;
+  font-size: 20px;
+  line-height: 28px;
+  top: -14px;
+}
+
+/* Floating joystick (drawn where the finger went down; the base trails the finger). */
+.joy,
+.joy-knob {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.joy {
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.joy-knob {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+/* Tie-break picker when a tap is equally close to two targets. */
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+}
+
+.picker .btn {
+  padding: 10px 14px;
 }
 
 body.portrait #tower-panel {
   left: 8px !important;
   right: 8px;
   top: auto !important;
-  bottom: 196px;
+  bottom: 150px;
   max-height: 50vh;
   overflow-y: auto;
 }
@@ -1137,7 +1227,7 @@ body.portrait #tower-panel .btn {
 }
 
 body.portrait .toasts {
-  bottom: 200px;
+  bottom: 150px;
 }
 
 body.portrait .radial {
