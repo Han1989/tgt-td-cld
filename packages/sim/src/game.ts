@@ -36,6 +36,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     events: [],
     pendingEvents: [],
   };
+  if (config.moveAndShoot) state.moveAndShoot = true;
 
   const spawn = getMap().heroSpawn;
   const n = config.players.length;

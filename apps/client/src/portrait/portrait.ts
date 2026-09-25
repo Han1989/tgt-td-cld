@@ -1,11 +1,13 @@
-// Portrait spike (?map=spire on a phone held upright): floating joystick,
-// tap-to-select with snapping, a radial build menu and skill drag-aiming.
-// Throwaway exploration code.
+// Portrait spike (?map=spire on a phone held upright): a control strip under
+// the map with a fixed joystick and a skill arc (one thumb, or two thumbs
+// either way round), smart casting, tap-to-select with snapping and a radial
+// build menu. Throwaway exploration code.
 //
-// It listens on `window` in the capture phase and swallows canvas touches, so
-// the desktop Controls never see them while the portrait layout is active.
+// It listens on `window` in the capture phase and swallows canvas / control
+// touches, so the desktop Controls never see them while the layout is active.
 
-import { TOWER_KINDS, type Command, type PlayerId, type SkillSlot, type Snapshot } from '@tdt/protocol';
+import type { Command, HeroSnap, PlayerId, SkillSlot, SkillSnap, Snapshot } from '@tdt/protocol';
+import { TOWER_KINDS } from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { Hud } from '../hud/hud';
 import { buildCost } from '../hud/towerInfo';
@@ -15,22 +17,35 @@ import { COLORS, CREEP_NAMES, TOWER_NAMES } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
 import type { UiState } from '../uiState';
 
-/** Finger travel (screen px) before a touch becomes a joystick or an aim. */
+/** Finger travel (screen px) before a touch counts as a drag. */
 const TAP_SLOP = 10;
-/** Aim point sits this far above the finger so it stays visible. */
-const AIM_OFFSET = 56;
+/** Skill drag distance (px) that aims at the skill's full range. */
+const AIM_DRAG_PX = 90;
 /** Taps snap to the nearest pad / tower / creep within this many screen px. */
 const SNAP_PX = 44;
 /** Two candidates closer than this (px) to each other's distance count as a tie: show the picker. */
 const TIE_PX = 6;
 const RADIAL_R = 74;
-/** Joystick: knob travel radius, dead zone (px), how far ahead the move point is (tiles), resend interval. */
-const STICK_R = 50;
+/** Joystick knob travel (px), dead zone (px), move point lookahead (tiles) and resend interval. */
+const STICK_R = 42;
 const STICK_DEAD = 8;
 const STICK_AHEAD = 2.5;
 const STICK_RESEND_MS = 100;
 /** Creeps, towers and heroes are drawn this much larger in the portrait layout. */
 const ENTITY_SCALE = 1.6;
+/** Skill button and E badge diameters (px). */
+const SKILL_PX = 64;
+const BADGE_PX = 40;
+/** Instant skills that buff the hero: smart cast always fires them. */
+const SELF_BUFFS = new Set(['warden.R']);
+
+export type ThumbLayout = 'one' | 'two' | 'twoLeft';
+const LAYOUT_KEY = 'tdt.spike.layout';
+const LAYOUT_NAMES: Record<ThumbLayout, string> = {
+  one: 'One thumb',
+  two: 'Two thumbs',
+  twoLeft: 'Two thumbs, left-handed',
+};
 
 export interface PortraitDeps {
   canvas: HTMLCanvasElement;
@@ -61,35 +76,61 @@ function arrowTo(from: Pt, to: Pt): string {
   return ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'][((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8]!;
 }
 
+function loadLayout(): ThumbLayout {
+  try {
+    const v = localStorage.getItem(LAYOUT_KEY);
+    if (v === 'one' || v === 'two' || v === 'twoLeft') return v;
+  } catch {
+    // Storage unavailable: use the default.
+  }
+  return 'one';
+}
+
 export class PortraitMode {
   active = false;
-  /** The one canvas touch we track: a tap until it moves, then a joystick. */
-  private touch: { id: number; start: Pt; base: Pt; at: Pt; stick: boolean } | null = null;
+  private layoutKind: ThumbLayout = loadLayout();
+  /** A map touch: a tap unless it moves. */
+  private mapTouch: { id: number; start: Pt; moved: boolean } | null = null;
+  /** The joystick touch; `vec` is the knob offset from the base centre (px). */
+  private stick: { id: number; vec: Pt } | null = null;
   private lastSend = 0;
   private lastDir = 0;
-  private aim: { slot: SkillSlot; id: number; start: Pt; moved: boolean } | null = null;
+  /** A skill-button touch: a tap (smart cast) or, once dragged, a manual aim. */
+  private aim: { slot: SkillSlot; id: number; start: Pt; moved: boolean; button: HTMLElement } | null = null;
   private radialPad: number | null = null;
   private radialKey = '';
+  private placedKey = '';
   private readonly radial: HTMLElement;
   private readonly picker: HTMLElement;
+  private readonly settings: HTMLElement;
   private readonly joyBase: HTMLElement;
   private readonly joyKnob: HTMLElement;
-  private readonly heroPanel = document.getElementById('hero-panel')!;
+  private readonly strip = document.getElementById('hero-panel')!;
 
   constructor(private readonly d: PortraitDeps) {
     document.body.classList.add('spire');
     const hud = document.getElementById('hud')!;
-    const el = (id: string, className: string) => {
+    const el = (id: string, className: string, parent: HTMLElement = hud) => {
       const e = document.createElement('div');
       e.id = id;
       e.className = className;
-      hud.appendChild(e);
+      parent.appendChild(e);
       return e;
     };
     this.radial = el('radial', 'radial hidden');
     this.picker = el('picker', 'picker popup hidden');
-    this.joyBase = el('joy-base', 'joy hidden');
-    this.joyKnob = el('joy-knob', 'joy-knob hidden');
+    this.settings = el('settings', 'settings popup hidden');
+    this.joyBase = el('joy-base', 'joy', this.strip);
+    this.joyKnob = el('joy-knob', 'joy-knob', this.joyBase);
+
+    const gear = document.createElement('button');
+    gear.id = 'settings-btn';
+    gear.className = 'btn';
+    gear.textContent = '⚙';
+    gear.title = 'Settings';
+    gear.addEventListener('click', () => this.toggleSettings());
+    document.querySelector('.topbar')!.appendChild(gear);
+    this.applyLayout(this.layoutKind);
 
     const opts = { capture: true, passive: false } as const;
     window.addEventListener('pointerdown', (e) => this.onDown(e), opts);
@@ -104,12 +145,12 @@ export class PortraitMode {
       },
       true,
     );
-    // No synthesized clicks from canvas / skill touches: they would land on the menu a tap just opened.
+    // No synthesized clicks from canvas / control touches: they would land on whatever a tap just opened.
     window.addEventListener(
       'touchstart',
       (e) => {
         const t = e.target as Element | null;
-        if (this.active && (t === d.canvas || t?.closest?.('#skills .skill'))) e.preventDefault();
+        if (this.active && (t === d.canvas || t?.closest?.('#skills .skill, #joy-base'))) e.preventDefault();
       },
       opts,
     );
@@ -119,253 +160,361 @@ export class PortraitMode {
     this.layout();
   }
 
+  // -------------------------------------------------------------------------
+  // Layout, camera, settings
+  // -------------------------------------------------------------------------
+
   /** Switches the portrait layout on or off with the phone's orientation. */
   private layout(): void {
     const on = window.innerHeight > window.innerWidth;
     const cam = this.d.camera;
     document.body.classList.toggle('portrait', on);
     if (on) {
-      // The map's full width, always; no zooming in portrait.
-      const fit = cam.viewW / cam.worldW;
-      cam.minZoom = Math.min(MIN_ZOOM, fit);
-      cam.zoom = fit;
-      this.measureBars();
       this.d.renderer.entityScale = ENTITY_SCALE;
+      this.placedKey = '';
     } else if (this.active) {
       cam.minZoom = MIN_ZOOM;
       cam.insets = null;
-      this.d.controls.heroOffsetY = 0;
       cam.zoom = Math.max(cam.zoom, MIN_ZOOM);
       cam.clamp();
       this.d.renderer.entityScale = 1;
-      this.endTouch();
+      this.releaseStick();
       this.closeRadial();
       this.closePicker();
     }
     this.active = on;
   }
 
-  /** Tells the camera how much screen the top and bottom bars cover. */
-  private measureBars(): void {
-    const top = document.querySelector('.topbar')!.getBoundingClientRect().bottom;
-    const bottom = window.innerHeight - this.barTop();
-    this.d.camera.insets = { top, bottom };
-    this.d.controls.heroOffsetY = (bottom - top) / 2;
+  /** The whole map, never under the top bar or the control strip: fit width and height. */
+  private fitCamera(): void {
+    const cam = this.d.camera;
+    const top = document.querySelector('.topbar')!.getBoundingClientRect().bottom + 4;
+    const bottom = window.innerHeight - this.strip.getBoundingClientRect().top + 4;
+    const fit = Math.min(cam.viewW / cam.worldW, Math.max(1, cam.viewH - top - bottom) / cam.worldH);
+    cam.minZoom = Math.min(MIN_ZOOM, fit);
+    cam.zoom = fit;
+    cam.insets = { top, bottom };
+    cam.clamp();
   }
 
-  /**
-   * Called every frame: camera (whole map when it fits, else follow the hero
-   * vertically), joystick commands and the radial menu.
-   */
+  private applyLayout(kind: ThumbLayout): void {
+    this.layoutKind = kind;
+    try {
+      localStorage.setItem(LAYOUT_KEY, kind);
+    } catch {
+      // Not remembered; fine for a spike.
+    }
+    this.placedKey = '';
+    this.renderSettings();
+  }
+
+  private toggleSettings(): void {
+    this.settings.classList.toggle('hidden');
+    this.renderSettings();
+  }
+
+  private renderSettings(): void {
+    this.settings.innerHTML = '<h3>Layout</h3>';
+    for (const kind of ['one', 'two', 'twoLeft'] as const) {
+      const b = document.createElement('button');
+      b.className = `btn${kind === this.layoutKind ? ' active' : ''}`;
+      b.textContent = LAYOUT_NAMES[kind];
+      b.addEventListener('click', () => {
+        this.applyLayout(kind);
+        this.settings.classList.add('hidden');
+      });
+      this.settings.appendChild(b);
+    }
+  }
+
+  /** Positions the joystick, the skill arc and the E badge inside the strip for the chosen layout. */
+  private placeControls(): void {
+    const w = this.strip.clientWidth;
+    const h = this.strip.clientHeight - parseFloat(getComputedStyle(this.strip).paddingBottom || '0');
+    const wraps = new Map<SkillSlot, HTMLElement>();
+    for (const b of this.strip.querySelectorAll<HTMLElement>('#skills .skill')) {
+      const wrap = b.parentElement;
+      if (wrap) wraps.set(b.dataset.slot as SkillSlot, wrap);
+    }
+    // The HUD rebuilds the skill buttons when the hero changes, so check each wrap, not just the key.
+    const key = `${this.layoutKind}:${w}:${h}`;
+    if (key === this.placedKey && [...wraps.values()].every((x) => x.dataset.placed === key)) return;
+    this.placedKey = key;
+
+    let stick: Pt;
+    let spots: Record<SkillSlot, Pt>;
+    if (this.layoutKind === 'one') {
+      // Joystick bottom-centre; Q / W / R in an arc just above it, E as a badge to the right.
+      stick = { x: w / 2, y: h - 66 };
+      const r = 104;
+      const at = (deg: number) => ({ x: stick.x + r * Math.cos((deg * Math.PI) / 180), y: stick.y - r * Math.sin((deg * Math.PI) / 180) });
+      spots = { Q: at(155), W: at(90), R: at(25), E: { x: stick.x + 150, y: stick.y - 118 } };
+    } else {
+      // Joystick in one bottom corner, skills arcing around the other thumb.
+      const mirror = this.layoutKind === 'twoLeft';
+      const X = (x: number) => (mirror ? w - x : x);
+      stick = { x: X(88), y: h - 82 };
+      const pivot = { x: w - 42, y: h - 46 };
+      const r = 118;
+      const at = (deg: number) => ({ x: X(pivot.x + r * Math.cos((deg * Math.PI) / 180)), y: pivot.y - r * Math.sin((deg * Math.PI) / 180) });
+      spots = { Q: at(180), W: at(135), R: at(90), E: { x: X(pivot.x), y: pivot.y } };
+    }
+    this.joyBase.style.left = `${stick.x}px`;
+    this.joyBase.style.top = `${stick.y}px`;
+    for (const [slot, wrap] of wraps) {
+      const size = slot === 'E' ? BADGE_PX : SKILL_PX;
+      const p = spots[slot];
+      wrap.style.left = `${Math.round(p.x - size / 2)}px`;
+      wrap.style.top = `${Math.round(p.y - size / 2)}px`;
+      wrap.classList.toggle('badge', slot === 'E');
+      wrap.dataset.placed = key;
+    }
+  }
+
+  /** Called every frame: layout, camera, joystick commands and the radial menu. */
   update(): void {
     if (!this.active) return;
-    this.measureBars();
-    // Centring on the hero only moves the camera vertically (the width always fits), and the camera
-    // clamp keeps the whole map centred when it fits between the bars.
-    this.d.controls.centerOnHero();
-    this.d.camera.clamp();
+    this.placeControls();
+    this.fitCamera();
     this.driveStick();
     this.updateRadial();
   }
 
+  // -------------------------------------------------------------------------
+  // Joystick
+  // -------------------------------------------------------------------------
+
   private driveStick(): void {
-    const t = this.touch;
-    if (!t?.stick) return;
-    const vx = t.at.x - t.base.x;
-    const vy = t.at.y - t.base.y;
-    const len = Math.hypot(vx, vy);
+    const s = this.stick;
+    if (!s) return;
+    const len = Math.hypot(s.vec.x, s.vec.y);
     if (len < STICK_DEAD) return;
     const hero = this.myHero();
     if (!hero?.alive) return;
-    const dir = Math.atan2(vy, vx);
+    const dir = Math.atan2(s.vec.y, s.vec.x);
     const now = performance.now();
     const turned = Math.abs(Math.atan2(Math.sin(dir - this.lastDir), Math.cos(dir - this.lastDir))) > 0.25;
     if (!turned && now - this.lastSend < STICK_RESEND_MS) return;
     this.lastSend = now;
     this.lastDir = dir;
-    this.d.send({ type: 'move', x: hero.x + (vx / len) * STICK_AHEAD, y: hero.y + (vy / len) * STICK_AHEAD });
+    this.d.send({ type: 'move', x: hero.x + (s.vec.x / len) * STICK_AHEAD, y: hero.y + (s.vec.y / len) * STICK_AHEAD });
   }
 
-  private updateRadial(): void {
-    if (this.radialPad === null) return;
-    const snap = this.d.latest();
-    const pad = getMap().pads[this.radialPad];
-    if (!snap || !pad || this.d.ui.selectedPadId !== pad.id || snap.towers.some((t) => t.padId === pad.id)) {
-      this.closeRadial();
+  private moveStick(e: PointerEvent): void {
+    const r = this.joyBase.getBoundingClientRect();
+    let vx = e.clientX - (r.left + r.width / 2);
+    let vy = e.clientY - (r.top + r.height / 2);
+    const len = Math.hypot(vx, vy);
+    if (len > STICK_R) {
+      vx = (vx / len) * STICK_R;
+      vy = (vy / len) * STICK_R;
+    }
+    this.stick!.vec = { x: vx, y: vy };
+    this.joyKnob.style.transform = `translate(${vx}px, ${vy}px)`;
+  }
+
+  private releaseStick(): void {
+    this.stick = null;
+    this.joyKnob.style.transform = '';
+    this.joyBase.classList.remove('held');
+  }
+
+  // -------------------------------------------------------------------------
+  // Skills: tap = smart cast, drag = manual aim
+  // -------------------------------------------------------------------------
+
+  /** The skill if it can be cast now; otherwise shakes the button, says why and returns null. */
+  private castable(slot: SkillSlot, button: HTMLElement): { hero: HeroSnap; skill: SkillSnap } | null {
+    const hero = this.myHero();
+    const skill = hero?.skills.find((s) => s.slot === slot);
+    const fail = (why: string) => {
+      this.shake(button);
+      this.d.hud.toast(why);
+      return null;
+    };
+    if (!hero || !skill) return null;
+    if (!hero.alive) return fail('Hero is dead');
+    if (skill.rank === 0) return fail(skill.nextRankLevel > hero.level ? `Unlocks at level ${skill.nextRankLevel}` : 'Tap + to learn');
+    if (skill.passive) return fail('Passive — always active');
+    if (skill.cooldown > 0) return fail('On cooldown');
+    if (hero.mana < skill.manaCost) return fail('Not enough mana');
+    return { hero, skill };
+  }
+
+  private shake(button: HTMLElement): void {
+    button.classList.remove('shake');
+    void button.offsetWidth;
+    button.classList.add('shake');
+  }
+
+  /** Tap: instant skills fire, point skills hit the densest group in range, self-buffs cast on self. */
+  private smartCast(slot: SkillSlot, button: HTMLElement): void {
+    const ok = this.castable(slot, button);
+    if (!ok) return;
+    const { hero, skill } = ok;
+    if (SELF_BUFFS.has(`${hero.kind}.${slot}`)) {
+      this.d.send({ type: 'cast', slot });
       return;
     }
-    const gold = snap.players.find((p) => p.id === this.d.me())?.gold ?? 0;
-    const key = `${pad.id}:${TOWER_KINDS.map((k) => gold >= buildCost(k)).join()}`;
-    if (key !== this.radialKey) {
-      this.radialKey = key;
-      this.radial.innerHTML = '';
-      TOWER_KINDS.forEach((kind, i) => {
-        const a = -Math.PI / 2 + (i / TOWER_KINDS.length) * Math.PI * 2;
-        const b = document.createElement('button');
-        b.className = 'radial-btn';
-        b.disabled = gold < buildCost(kind);
-        b.style.transform = `translate(${Math.cos(a) * RADIAL_R}px, ${Math.sin(a) * RADIAL_R}px)`;
-        b.innerHTML = `<span>${TOWER_NAMES[kind]}</span><span class="cost">${buildCost(kind)}</span>`;
-        b.addEventListener('click', () => {
-          this.d.send({ type: 'build', padId: pad.id, tower: kind });
-          this.d.controls.clearSelection();
-          this.closeRadial();
-        });
-        this.radial.appendChild(b);
-      });
+    const creeps = this.d.latest()?.creeps ?? [];
+    const reach = (c: { kind: keyof typeof TUNING.creeps }) => TUNING.creeps[c.kind].radius;
+    if (!skill.targeted) {
+      const range = skill.range > 0 ? skill.range : skill.radius;
+      const any = creeps.some((c) => Math.hypot(c.x - hero.x, c.y - hero.y) <= range + reach(c));
+      if (any) this.d.send({ type: 'cast', slot });
+      else this.shake(button);
+      return;
     }
-    const cam = this.d.camera;
-    const p = cam.worldToScreen(pad.x * TILE_PX, pad.y * TILE_PX);
-    const m = RADIAL_R + 34;
-    const x = Math.max(m, Math.min(cam.viewW - m, p.x));
-    const y = Math.max(m + 40, Math.min(this.barTop() - m, p.y));
-    this.radial.style.left = `${Math.round(x)}px`;
-    this.radial.style.top = `${Math.round(y)}px`;
-    this.radial.classList.remove('hidden');
+    const inRange = creeps.filter((c) => Math.hypot(c.x - hero.x, c.y - hero.y) <= skill.range);
+    if (inRange.length === 0) return this.shake(button);
+    const area = Math.max(1, skill.radius);
+    let best = inRange[0]!;
+    let bestCount = -1;
+    for (const c of inRange) {
+      const count = creeps.filter((o) => Math.hypot(o.x - c.x, o.y - c.y) <= area).length;
+      if (count > bestCount) {
+        best = c;
+        bestCount = count;
+      }
+    }
+    this.d.send({ type: 'cast', slot, x: best.x, y: best.y });
+    this.marker(best.x, best.y, COLORS.root);
   }
 
-  private closeRadial(): void {
-    this.radialPad = null;
-    this.radialKey = '';
-    this.radial.classList.add('hidden');
+  /** While dragging a point skill: the aim point, from the drag vector scaled to the skill's range. */
+  private aimPoint(hero: HeroSnap, skill: SkillSnap, drag: Pt): Pt {
+    const len = Math.hypot(drag.x, drag.y);
+    const k = len > 0 ? (Math.min(1, len / AIM_DRAG_PX) * skill.range) / len : 0;
+    return { x: hero.x + drag.x * k, y: hero.y + drag.y * k };
   }
 
-  private closePicker(): void {
-    this.picker.classList.add('hidden');
-    this.picker.innerHTML = '';
-  }
-
-  private barTop(): number {
-    return this.heroPanel.getBoundingClientRect().top;
-  }
-
-  private myHero() {
-    const me = this.d.me();
-    return this.d.latest()?.heroes.find((h) => h.owner === me);
-  }
-
-  private toTiles(p: Pt): Pt {
-    const w = this.d.camera.screenToWorld(p.x, p.y);
-    return { x: w.x / TILE_PX, y: w.y / TILE_PX };
-  }
-
-  private toScreen(x: number, y: number): Pt {
-    return this.d.camera.worldToScreen(x * TILE_PX, y * TILE_PX);
-  }
-
-  private screenPt(e: PointerEvent): Pt {
-    const r = this.d.canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  }
-
-  private marker(x: number, y: number, color: number): void {
-    this.d.ui.markers.push({ x, y, color, born: performance.now() });
-  }
+  // -------------------------------------------------------------------------
+  // Pointer input
+  // -------------------------------------------------------------------------
 
   private onDown(e: PointerEvent): void {
     if (!this.active) return;
     const target = e.target as Element | null;
+    if (!target?.closest?.('#settings, #settings-btn')) this.settings.classList.add('hidden');
     const skillBtn = target?.closest?.('#skills .skill') as HTMLElement | null;
     if (skillBtn) {
       e.stopPropagation();
       e.preventDefault();
       const slot = skillBtn.dataset.slot as SkillSlot | undefined;
       if (!slot || this.aim) return;
-      // Instant skills cast right away; targeted ones enter targeting mode, which the drag then aims.
-      this.d.controls.pressSkill(slot);
-      const mode = this.d.ui.mode;
-      if (mode.type === 'target' && mode.slot === slot) {
-        this.aim = { slot, id: e.pointerId, start: this.screenPt(e), moved: false };
-      }
+      const r = skillBtn.getBoundingClientRect();
+      this.aim = { slot, id: e.pointerId, start: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, moved: false, button: skillBtn };
+      return;
+    }
+    if (target?.closest?.('#joy-base')) {
+      e.stopPropagation();
+      e.preventDefault();
+      if (this.stick) return;
+      this.stick = { id: e.pointerId, vec: { x: 0, y: 0 } };
+      this.lastSend = 0;
+      this.joyBase.classList.add('held');
+      this.moveStick(e);
       return;
     }
     if (target !== this.d.canvas) return;
     e.stopPropagation();
     e.preventDefault();
-    if (this.touch) return; // One finger drives the map; extra fingers are ignored.
-    const p = this.screenPt(e);
-    this.touch = { id: e.pointerId, start: p, base: p, at: p, stick: false };
+    if (this.mapTouch) return;
+    this.mapTouch = { id: e.pointerId, start: this.screenPt(e), moved: false };
   }
 
   private onMove(e: PointerEvent): void {
     if (!this.active) return;
     // Keep touches away from the desktop Controls (edge scrolling, hover).
     if (e.pointerType !== 'mouse') e.stopPropagation();
-    const p = this.screenPt(e);
-    if (this.aim && e.pointerId === this.aim.id) {
+    if (this.stick && e.pointerId === this.stick.id) {
       e.stopPropagation();
-      if (Math.hypot(p.x - this.aim.start.x, p.y - this.aim.start.y) > TAP_SLOP) this.aim.moved = true;
-      if (this.aim.moved) this.d.ui.hover = this.toTiles({ x: p.x, y: p.y - AIM_OFFSET });
+      this.moveStick(e);
       return;
     }
-    const t = this.touch;
-    if (!t || e.pointerId !== t.id) return;
-    e.stopPropagation();
-    t.at = p;
-    if (!t.stick && Math.hypot(p.x - t.start.x, p.y - t.start.y) > TAP_SLOP) {
-      t.stick = true;
-      this.lastSend = 0;
-      this.closePicker();
+    const a = this.aim;
+    if (a && e.pointerId === a.id) {
+      e.stopPropagation();
+      const drag = { x: e.clientX - a.start.x, y: e.clientY - a.start.y };
+      if (!a.moved && Math.hypot(drag.x, drag.y) > TAP_SLOP) {
+        if (!this.castable(a.slot, a.button)) {
+          this.aim = null;
+          return;
+        }
+        a.moved = true;
+      }
+      if (!a.moved) return;
+      const hero = this.myHero();
+      const skill = hero?.skills.find((s) => s.slot === a.slot);
+      if (!hero || !skill) return;
+      if (skill.targeted) {
+        // Range ring around the hero and the area at the aim point (drawn by the renderer's targeting overlay).
+        this.d.controls.setMode({ type: 'target', slot: a.slot });
+        this.d.ui.hover = this.aimPoint(hero, skill, drag);
+      }
+      a.button.classList.toggle('cancel', this.overButton(e, a.button));
+      return;
     }
-    if (!t.stick) return;
-    // Floating stick: the base trails the finger once it goes past the knob's reach.
-    const vx = p.x - t.base.x;
-    const vy = p.y - t.base.y;
-    const len = Math.hypot(vx, vy);
-    if (len > STICK_R) t.base = { x: p.x - (vx / len) * STICK_R, y: p.y - (vy / len) * STICK_R };
-    this.showStick(t.base, p);
+    const t = this.mapTouch;
+    if (t && e.pointerId === t.id) {
+      e.stopPropagation();
+      const p = this.screenPt(e);
+      if (Math.hypot(p.x - t.start.x, p.y - t.start.y) > TAP_SLOP) t.moved = true;
+    }
   }
 
-  private showStick(base: Pt, knob: Pt): void {
-    this.joyBase.classList.remove('hidden');
-    this.joyKnob.classList.remove('hidden');
-    this.joyBase.style.transform = `translate(${base.x}px, ${base.y}px)`;
-    this.joyKnob.style.transform = `translate(${knob.x}px, ${knob.y}px)`;
-  }
-
-  private endTouch(): void {
-    this.touch = null;
-    this.joyBase.classList.add('hidden');
-    this.joyKnob.classList.add('hidden');
+  private overButton(e: PointerEvent, button: HTMLElement): boolean {
+    const r = button.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
   }
 
   private onUp(e: PointerEvent): void {
     if (!this.active) return;
-    const p = this.screenPt(e);
-    if (this.aim && e.pointerId === this.aim.id) {
+    if (this.stick && e.pointerId === this.stick.id) {
       e.stopPropagation();
-      const { slot, moved } = this.aim;
-      this.aim = null;
-      if (!moved) return; // A plain tap: stay in targeting mode, the next ground tap casts.
-      if (e.type === 'pointerup' && p.y < this.barTop()) {
-        const at = this.toTiles({ x: p.x, y: p.y - AIM_OFFSET });
-        this.d.send({ type: 'cast', slot, x: at.x, y: at.y });
-        this.marker(at.x, at.y, COLORS.root);
-      }
-      this.d.controls.setMode({ type: 'none' });
-      this.d.ui.hover = null;
+      this.releaseStick();
+      // Stop walking; the idle hero keeps shooting the nearest enemy in range.
+      this.d.send({ type: 'stop' });
       return;
     }
-    const t = this.touch;
-    if (!t || e.pointerId !== t.id) return;
-    e.stopPropagation();
-    this.endTouch();
-    // Letting go of the stick stops the hero; an idle hero attacks the nearest enemy in range.
-    if (t.stick) this.d.send({ type: 'stop' });
-    else if (e.type === 'pointerup') this.tap(p);
+    const a = this.aim;
+    if (a && e.pointerId === a.id) {
+      e.stopPropagation();
+      this.aim = null;
+      a.button.classList.remove('cancel');
+      const hover = this.d.ui.hover;
+      this.d.controls.setMode({ type: 'none' });
+      this.d.ui.hover = null;
+      if (e.type !== 'pointerup') return;
+      if (!a.moved) return this.smartCast(a.slot, a.button);
+      // Dragged back onto the button: cancel.
+      if (this.overButton(e, a.button)) return;
+      const hero = this.myHero();
+      const skill = hero?.skills.find((s) => s.slot === a.slot);
+      if (!skill) return;
+      if (skill.targeted && hover) {
+        this.d.send({ type: 'cast', slot: a.slot, x: hover.x, y: hover.y });
+        this.marker(hover.x, hover.y, COLORS.root);
+      } else if (!skill.targeted) {
+        this.d.send({ type: 'cast', slot: a.slot });
+      }
+      return;
+    }
+    const t = this.mapTouch;
+    if (t && e.pointerId === t.id) {
+      e.stopPropagation();
+      this.mapTouch = null;
+      if (!t.moved && e.type === 'pointerup') this.tap(this.screenPt(e));
+    }
   }
+
+  // -------------------------------------------------------------------------
+  // Map taps: select only
+  // -------------------------------------------------------------------------
 
   /** A tap only selects: pad → build menu, own tower → tower panel, enemy → focus. It never moves the hero. */
   private tap(p: Pt): void {
-    const { ui, controls } = this.d;
-    if (ui.mode.type === 'target') {
-      const at = this.toTiles(p);
-      this.d.send({ type: 'cast', slot: ui.mode.slot, x: at.x, y: at.y });
-      this.marker(at.x, at.y, COLORS.root);
-      controls.setMode({ type: 'none' });
-      ui.hover = null;
-      return;
-    }
+    const { controls } = this.d;
     controls.clearSelection();
     this.closeRadial();
     this.closePicker();
@@ -442,8 +591,87 @@ export class PortraitMode {
     const w = this.picker.offsetWidth;
     const h = this.picker.offsetHeight;
     const x = Math.max(8, Math.min(this.d.camera.viewW - w - 8, p.x + 16));
-    const y = Math.max(50, Math.min(this.barTop() - h - 8, p.y - h / 2));
+    const y = Math.max(50, Math.min(this.stripTop() - h - 8, p.y - h / 2));
     this.picker.style.left = `${Math.round(x)}px`;
     this.picker.style.top = `${Math.round(y)}px`;
+  }
+
+  private closePicker(): void {
+    this.picker.classList.add('hidden');
+    this.picker.innerHTML = '';
+  }
+
+  // -------------------------------------------------------------------------
+  // Radial build menu
+  // -------------------------------------------------------------------------
+
+  private updateRadial(): void {
+    if (this.radialPad === null) return;
+    const snap = this.d.latest();
+    const pad = getMap().pads[this.radialPad];
+    if (!snap || !pad || this.d.ui.selectedPadId !== pad.id || snap.towers.some((t) => t.padId === pad.id)) {
+      this.closeRadial();
+      return;
+    }
+    const gold = snap.players.find((p) => p.id === this.d.me())?.gold ?? 0;
+    const key = `${pad.id}:${TOWER_KINDS.map((k) => gold >= buildCost(k)).join()}`;
+    if (key !== this.radialKey) {
+      this.radialKey = key;
+      this.radial.innerHTML = '';
+      TOWER_KINDS.forEach((kind, i) => {
+        const a = -Math.PI / 2 + (i / TOWER_KINDS.length) * Math.PI * 2;
+        const b = document.createElement('button');
+        b.className = 'radial-btn';
+        b.disabled = gold < buildCost(kind);
+        b.style.transform = `translate(${Math.cos(a) * RADIAL_R}px, ${Math.sin(a) * RADIAL_R}px)`;
+        b.innerHTML = `<span>${TOWER_NAMES[kind]}</span><span class="cost">${buildCost(kind)}</span>`;
+        b.addEventListener('click', () => {
+          this.d.send({ type: 'build', padId: pad.id, tower: kind });
+          this.d.controls.clearSelection();
+          this.closeRadial();
+        });
+        this.radial.appendChild(b);
+      });
+    }
+    const cam = this.d.camera;
+    const p = this.toScreen(pad.x, pad.y);
+    const m = RADIAL_R + 34;
+    const x = Math.max(m, Math.min(cam.viewW - m, p.x));
+    const y = Math.max(m + 40, Math.min(this.stripTop() - m, p.y));
+    this.radial.style.left = `${Math.round(x)}px`;
+    this.radial.style.top = `${Math.round(y)}px`;
+    this.radial.classList.remove('hidden');
+  }
+
+  private closeRadial(): void {
+    this.radialPad = null;
+    this.radialKey = '';
+    this.radial.classList.add('hidden');
+  }
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  private stripTop(): number {
+    return this.strip.getBoundingClientRect().top;
+  }
+
+  private myHero(): HeroSnap | undefined {
+    const me = this.d.me();
+    return this.d.latest()?.heroes.find((h) => h.owner === me);
+  }
+
+  private toScreen(x: number, y: number): Pt {
+    return this.d.camera.worldToScreen(x * TILE_PX, y * TILE_PX);
+  }
+
+  private screenPt(e: PointerEvent): Pt {
+    const r = this.d.canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  private marker(x: number, y: number, color: number): void {
+    this.d.ui.markers.push({ x, y, color, born: performance.now() });
   }
 }

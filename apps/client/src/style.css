@@ -1066,24 +1066,25 @@ body.portrait #call-early {
   padding: 6px 8px;
 }
 
-/* One slim row (portrait + level, HP, mana) above big skill buttons. */
+/* Control strip under the map: slim hero row on top, joystick + skill arc below
+   (positioned from JS for the chosen thumb layout). The map is never under it. */
 body.portrait .hero-panel {
   bottom: 0;
   left: 0;
   width: 100%;
+  height: calc(248px + env(safe-area-inset-bottom));
   transform: none;
   border-radius: 14px 14px 0 0;
   border-bottom: none;
-  padding: 6px 8px calc(env(safe-area-inset-bottom) + 8px);
+  padding: 6px 8px env(safe-area-inset-bottom);
   display: grid;
   grid-template-columns: auto 1fr 1fr;
-  grid-template-areas:
-    'head hp mana'
-    'skills skills skills'
-    'respawn respawn respawn';
+  grid-template-rows: 26px;
+  grid-template-areas: 'head hp mana';
+  align-content: start;
   column-gap: 6px;
-  row-gap: 6px;
-  align-items: center;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 body.portrait .hero-head {
@@ -1111,8 +1112,8 @@ body.portrait .level {
 }
 
 body.portrait .portrait {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-width: 2px;
 }
 
@@ -1127,72 +1128,146 @@ body.portrait .bar.mana {
 }
 
 body.portrait .skills {
-  grid-area: skills;
-  margin-top: 0;
-  gap: 8px;
+  display: block;
+  margin: 0;
 }
 
 body.portrait .respawn {
-  grid-area: respawn;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 36px;
+}
+
+body.portrait .skill-wrap {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+}
+
+body.portrait .skill-wrap.badge {
+  width: 40px;
+  height: 40px;
 }
 
 body.portrait .skill {
-  height: 82px;
-  touch-action: none;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: 50%;
   align-items: center;
-  text-align: center;
+  justify-content: center;
+  touch-action: none;
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+body.portrait .skill .name,
+body.portrait .skill .meta .tag {
+  display: none;
 }
 
 body.portrait .skill .meta {
-  width: 100%;
+  justify-content: center;
 }
 
 body.portrait .skill .meta kbd {
-  font-size: 18px;
-  padding: 2px 9px;
+  font-size: 22px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text);
 }
 
-body.portrait .skill .name {
-  font-size: 10.5px;
-  max-width: 100%;
+body.portrait .skill .pips {
+  position: absolute;
+  bottom: 8px;
+  gap: 2px;
+}
+
+body.portrait .skill .pip {
+  width: 5px;
+  height: 5px;
 }
 
 body.portrait .skill .cd-text {
-  font-size: 26px;
+  font-size: 22px;
+}
+
+body.portrait .badge .skill .meta kbd {
+  font-size: 14px;
+}
+
+body.portrait .badge .skill .pips {
+  bottom: 4px;
+}
+
+body.portrait .badge .skill .pip {
+  width: 3px;
+  height: 3px;
 }
 
 body.portrait .learn {
-  width: 30px;
-  height: 30px;
-  font-size: 20px;
-  line-height: 28px;
-  top: -14px;
+  width: 26px;
+  height: 26px;
+  font-size: 18px;
+  line-height: 24px;
+  top: -6px;
+  right: -6px;
+  border-radius: 50%;
 }
 
-/* Floating joystick (drawn where the finger went down; the base trails the finger). */
-.joy,
+body.portrait .skill.cancel {
+  box-shadow: 0 0 0 3px var(--bad);
+}
+
+.skill.shake {
+  animation: shake 0.35s ease-in-out;
+}
+
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+/* Fixed joystick in the strip; the knob follows the thumb. */
+.joy {
+  display: none;
+}
+
+body.portrait .joy {
+  display: block;
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  margin: -55px 0 0 -55px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.07);
+  touch-action: none;
+}
+
+body.portrait .joy.held {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
 .joy-knob {
   position: absolute;
-  left: 0;
-  top: 0;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
   border-radius: 50%;
-  pointer-events: none;
-}
-
-.joy {
-  width: 100px;
-  height: 100px;
-  margin: -50px 0 0 -50px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.joy-knob {
-  width: 44px;
-  height: 44px;
-  margin: -22px 0 0 -22px;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.4);
   border: 2px solid rgba(255, 255, 255, 0.7);
+  pointer-events: none;
 }
 
 /* Tie-break picker when a tap is equally close to two targets. */
@@ -1208,26 +1283,63 @@ body.portrait .learn {
   padding: 10px 14px;
 }
 
-body.portrait #tower-panel {
-  left: 8px !important;
-  right: 8px;
-  top: auto !important;
-  bottom: 150px;
-  max-height: 50vh;
-  overflow-y: auto;
+#settings-btn {
+  display: none;
 }
 
+body.portrait #settings-btn {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 16px;
+}
+
+.settings {
+  right: 8px;
+  top: 56px;
+  min-width: 220px;
+}
+
+.settings .btn {
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.settings .btn.active {
+  outline: 2px solid var(--accent);
+}
+
+/* The tower panel slides over the control strip, not over the map. */
 body.portrait #tower-panel {
+  left: 0 !important;
+  right: 0;
+  top: auto !important;
+  bottom: 0;
+  max-height: calc(248px + env(safe-area-inset-bottom));
+  overflow-y: auto;
   font-size: 12px;
-  padding: 8px 10px;
+  padding: 8px 10px calc(env(safe-area-inset-bottom) + 8px);
+  border-radius: 14px 14px 0 0;
+  background: #0e141c;
+  z-index: 2;
+}
+
+body.portrait #tower-panel:not(.hidden) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 14px;
+  row-gap: 4px;
+}
+
+body.portrait #tower-panel > :not(.row) {
+  grid-column: 1 / -1;
 }
 
 body.portrait #tower-panel .btn {
-  padding: 10px 12px;
+  padding: 9px 12px;
 }
 
 body.portrait .toasts {
-  bottom: 150px;
+  bottom: 260px;
 }
 
 body.portrait .radial {
@@ -1271,4 +1383,8 @@ body.portrait .radial.hidden {
 .radial-btn:disabled {
   border-color: #4a5a6d;
   opacity: 0.55;
+}
+
+body.portrait .skill:has(.cd-text:not(:empty)) .meta {
+  visibility: hidden;
 }

@@ -25,6 +25,8 @@ export interface GameConfig {
   players: PlayerConfig[];
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
+  /** Portrait spike: heroes also auto-attack while walking a move order. Off by default. */
+  moveAndShoot?: boolean;
 }
 
 export interface PlayerState {
@@ -204,6 +206,8 @@ export interface PendingSpawn {
 }
 
 export interface GameState {
+  /** Portrait spike: see GameConfig.moveAndShoot. Absent (off) unless the host asks for it. */
+  moveAndShoot?: boolean;
   tick: number;
   rng: number;
   tuning: Tuning;

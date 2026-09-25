@@ -24,6 +24,7 @@ ctx.onmessage = (e) => {
   const data = e.data as { spikeMap?: unknown } | null;
   if (data && typeof data === 'object' && data.spikeMap === 'spire') {
     setActiveMap('spire');
+    host.moveAndShoot = true;
     return;
   }
   host.receive(e.data);

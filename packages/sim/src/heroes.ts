@@ -48,9 +48,13 @@ function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>
       if (target) tryAttack(state, hero, target);
       break;
     }
-    case 'move':
+    case 'move': {
+      // Portrait spike: shoot the nearest enemy in range while walking (the path is kept).
+      const target = state.moveAndShoot ? acquire(state, hero, s.attackRange) : undefined;
+      if (target) tryAttack(state, hero, target);
       if (followPath(state, hero)) hero.order = { type: 'idle' };
       break;
+    }
     case 'attack': {
       const target = creepsById.get(order.targetId);
       if (!target || target.dead) hero.order = { type: 'idle' };

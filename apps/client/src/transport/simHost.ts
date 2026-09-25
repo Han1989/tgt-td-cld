@@ -17,6 +17,8 @@ export class SimHost {
   private state!: GameState;
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
+  /** Portrait spike: heroes shoot while moving. */
+  moveAndShoot = false;
 
   constructor(
     private readonly emit: (raw: string) => void,
@@ -27,7 +29,10 @@ export class SimHost {
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
-    this.state = createGame({ players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }] }, this.nextSeed());
+    this.state = createGame(
+      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], moveAndShoot: this.moveAndShoot },
+      this.nextSeed(),
+    );
     this.queue = [];
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
