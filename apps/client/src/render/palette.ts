@@ -1,4 +1,4 @@
-import type { CreepKind, TowerKind } from '@tdt/protocol';
+import type { AoeEffect, CreepKind, HeroKind, TowerKind, ZoneKind } from '@tdt/protocol';
 
 export const COLORS = {
   background: 0x0b0f14,
@@ -13,8 +13,8 @@ export const COLORS = {
   heart: 0xff4d6d,
   heartCore: 0xffc2cf,
   portal: 0x9b5de5,
-  hero: 0x3ddc84,
   heroRing: 0xffffff,
+  shield: 0xffd24a,
   towerBase: 0x2c343f,
   hpHigh: 0x4cd964,
   hpMid: 0xf5c542,
@@ -44,6 +44,27 @@ export const CREEP_COLORS: Record<CreepKind, number> = {
 /** Shardback's two hides. */
 export const HIDE_COLORS = { stone: 0xc9b58a, ether: 0x9f7bff } as const;
 
+export const HERO_COLORS: Record<HeroKind, { fill: number; edge: number }> = {
+  ranger: { fill: 0x3ddc84, edge: 0x0b3d20 },
+  warden: { fill: 0x4f9dff, edge: 0x0d2a55 },
+  arcanist: { fill: 0xff8fd8, edge: 0x5a1747 },
+};
+
+export const AOE_COLORS: Record<AoeEffect, number> = {
+  cleave: 0xdfe8f5,
+  taunt: 0xff5b5b,
+  lastStand: 0xffd24a,
+  fireball: 0xff8a3d,
+  frostNova: 0x9fe3ff,
+  meteor: 0xff5a1f,
+  arrowStorm: 0xe6ff7a,
+};
+
+export const ZONE_COLORS: Record<ZoneKind, number> = {
+  arrowStorm: 0xe6ff7a,
+  meteor: 0xff5a1f,
+};
+
 export const TOWER_COLORS: Record<TowerKind, number> = {
   arrow: 0xd4b483,
   cannon: 0x9aa5b1,
@@ -58,7 +79,10 @@ export const PROJECTILE_COLORS: Record<string, number> = {
   frost: 0xbfeaff,
   arcane: 0xe0aaff,
   flak: 0xffb870,
-  hero: 0xb6ff9e,
+  ranger: 0xb6ff9e,
+  arcanist: 0xffb3ea,
+  crit: 0xffffff,
+  fireball: 0xff8a3d,
   multishot: 0xe6ff7a,
   archer: 0xffb36b,
 };

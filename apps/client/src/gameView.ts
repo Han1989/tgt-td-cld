@@ -65,7 +65,7 @@ export class GameView {
       setPriority: (towerId, priority) => send({ t: 'cmd', cmd: { type: 'setPriority', towerId, priority } }),
       callEarly: () => send({ t: 'cmd', cmd: { type: 'callEarly' } }),
       gift: (to, amount) => send({ t: 'cmd', cmd: { type: 'gift', to, amount } }),
-      learn: (slot) => send({ t: 'cmd', cmd: { type: 'learn', slot } }),
+      learn: (slot) => controls.learnSkill(slot),
       pressSkill: (slot) => controls.pressSkill(slot),
       restart: () => send({ t: 'restart' }),
       leave: () => view.onLeave(),

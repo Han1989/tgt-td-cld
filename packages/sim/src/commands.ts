@@ -3,9 +3,10 @@
 
 import type { Command, PlayerId } from '@tdt/protocol';
 import { emit, HERO_SKILLS, newId } from './combat';
-import { castBlocker, castMultishot, setPath, skillInfo } from './heroes';
+import { setPath } from './heroes';
 import { getMap } from './map';
 import { nearestWalkable } from './pathfinding';
+import { castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
 import type { GameState, Tower } from './state';
 import { upgradeTower } from './towers';
 import { towerTier } from './tuning';
@@ -52,14 +53,14 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
     case 'cast': {
       if (!HERO_SKILLS[hero.kind].includes(command.slot)) return reject('Unknown skill');
       const info = skillInfo(state, hero, command.slot);
-      if (!info) return reject('Unknown skill');
-      if (!info.targeted) {
-        const reason = castMultishot(state, hero);
+      if (info.mode === 'instant') {
+        if (command.x !== undefined) return reject('This skill takes no target');
+        const reason = castInstant(state, hero, command.slot);
         return reason ? reject(reason) : true;
       }
-      if (command.x === undefined || command.y === undefined) return reject('Pick a target point');
       const blocker = castBlocker(state, hero, command.slot);
       if (blocker) return reject(blocker);
+      if (command.x === undefined || command.y === undefined) return reject('Pick a target point');
       const x = Math.max(0, Math.min(map.width, command.x));
       const y = Math.max(0, Math.min(map.height, command.y));
       hero.order = { type: 'castPoint', slot: command.slot, x, y };
@@ -69,8 +70,8 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
     }
     case 'learn': {
       if (!HERO_SKILLS[hero.kind].includes(command.slot)) return reject('Unknown skill');
-      if (hero.skillPoints <= 0) return reject('No skill points');
-      if (hero.ranks[command.slot] >= state.tuning.hero.maxSkillRank) return reject('Skill at max rank');
+      const blocker = learnBlocker(state, hero, command.slot);
+      if (blocker) return reject(blocker);
       hero.ranks[command.slot]++;
       hero.skillPoints--;
       return true;

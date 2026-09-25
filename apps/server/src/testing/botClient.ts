@@ -9,6 +9,7 @@ import {
   encodeClientMessage,
   PROTOCOL_VERSION,
   type ClientMessage,
+  type HeroKind,
   type LobbyState,
   type PlayerId,
   type ServerMessage,
@@ -21,6 +22,8 @@ export interface BotClientOptions {
   url: string;
   origin: string;
   name: string;
+  /** Hero picked in the lobby (default: Ranger). */
+  hero?: HeroKind;
   /** Balance-bot guard spot. */
   index?: number;
   /** Decide every N snapshots (default 5 = 4 decisions/s at 20 Hz). */
@@ -77,7 +80,7 @@ export class BotClient {
 
   async create(): Promise<string> {
     await this.open();
-    this.send({ t: 'create', v: PROTOCOL_VERSION, name: this.opts.name, hero: 'ranger' });
+    this.send({ t: 'create', v: PROTOCOL_VERSION, name: this.opts.name, hero: this.opts.hero ?? 'ranger' });
     await this.waitFor(() => this.code !== null || this.errors.length > 0);
     if (!this.code) throw new Error(`create failed: ${JSON.stringify(this.errors)}`);
     return this.code;
@@ -85,7 +88,7 @@ export class BotClient {
 
   async join(code: string): Promise<void> {
     await this.open();
-    this.send({ t: 'join', v: PROTOCOL_VERSION, code, name: this.opts.name, hero: 'ranger' });
+    this.send({ t: 'join', v: PROTOCOL_VERSION, code, name: this.opts.name, hero: this.opts.hero ?? 'ranger' });
     await this.waitFor(() => this.playerId !== null || this.errors.length > 0);
     if (!this.playerId) throw new Error(`join failed: ${JSON.stringify(this.errors)}`);
   }

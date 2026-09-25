@@ -295,8 +295,10 @@ describe('snapshot', () => {
     expect(snap).toMatchObject({ heartHp: 100, wave: 0, totalWaves: 30, phase: 'build' });
     expect(snap.nextWaveIn).toBe(secondsToTicks(30) - 1);
     const hero = snap.heroes[0]!;
-    expect(hero.skills.map((s) => s.slot)).toEqual(['Q', 'W']);
-    expect(hero.skills.every((s) => s.rank === 1)).toBe(true);
-    expect(hero.maxLevel).toBe(5);
+    expect(hero.skills.map((s) => s.slot)).toEqual(['Q', 'W', 'E', 'R']);
+    expect(hero.skills.map((s) => s.rank)).toEqual([1, 1, 0, 0]);
+    expect(hero.skills.map((s) => s.maxRank)).toEqual([4, 4, 4, 3]);
+    expect(hero.maxLevel).toBe(10);
+    expect(snap.zones).toEqual([]);
   });
 });

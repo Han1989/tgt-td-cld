@@ -4,9 +4,10 @@
 import type { EntityId, SkillSlot, Snapshot } from '@tdt/protocol';
 import { emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
 import { updateCreeps } from './creeps';
-import { skillInfo, updateHeroes } from './heroes';
+import { updateHeroes } from './heroes';
 import { getMap } from './map';
 import { seedRng } from './rng';
+import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import type { GameConfig, GameState, Hero } from './state';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
 import { secondsToTicks, TICK_RATE, towerTier, TUNING } from './tuning';
@@ -30,6 +31,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     towers: [],
     projectiles: [],
     traps: [],
+    zones: [],
     spawnQueue: [],
     events: [],
     pendingEvents: [],
@@ -59,6 +61,8 @@ export function createGame(config: GameConfig, seed: number): GameState {
       alive: true,
       respawnTick: 0,
       stunUntil: 0,
+      shieldUntil: 0,
+      shieldPct: 0,
       facing: -Math.PI / 2,
     };
     for (const slot of tuning.hero.startingSkills) {
@@ -86,12 +90,14 @@ export function step(state: GameState): void {
     updateTowers(state);
     updateCreeps(state);
     updateTraps(state);
+    updateZones(state);
     updateProjectiles(state, creepsById);
 
     state.creeps = state.creeps.filter((c) => !c.dead);
     state.towers = state.towers.filter((t) => !t.dead);
     state.projectiles = state.projectiles.filter((p) => !p.done);
     state.traps = state.traps.filter((t) => !t.done);
+    state.zones = state.zones.filter((z) => !z.done);
 
     if (state.heartHp <= 0) {
       state.phase = 'defeat';
@@ -156,12 +162,16 @@ export function snapshot(state: GameState): Snapshot {
           return {
             slot,
             rank: h.ranks[slot],
-            maxRank: t.hero.maxSkillRank,
+            maxRank: maxRank(state, slot),
             cooldown: h.skillCd[slot],
-            cooldownTotal: secondsToTicks(info?.cooldown ?? 0),
-            manaCost: info?.manaCost ?? 0,
-            range: info?.range ?? 0,
-            targeted: info?.targeted ?? false,
+            cooldownTotal: secondsToTicks(info.cooldown),
+            manaCost: info.manaCost,
+            range: info.range,
+            radius: info.radius,
+            targeted: info.mode === 'point',
+            passive: info.mode === 'passive',
+            learnable: learnBlocker(state, h, slot) === null,
+            nextRankLevel: nextRankLevel(state, h, slot),
           };
         }),
         alive: h.alive,
@@ -169,6 +179,7 @@ export function snapshot(state: GameState): Snapshot {
         attackRange: s.attackRange,
         facing: r2(h.facing),
         stunned: h.alive && state.tick < h.stunUntil,
+        shielded: h.alive && state.tick < h.shieldUntil,
       };
     }),
     creeps: state.creeps.map((c) => ({
@@ -182,6 +193,7 @@ export function snapshot(state: GameState): Snapshot {
       rooted: state.tick < c.rootUntil,
       armor: r2(c.armor),
       magicResist: r2(c.magicResist),
+      stunned: state.tick < c.stunUntil,
     })),
     towers: state.towers.map((tw) => ({
       id: tw.id,
@@ -205,6 +217,15 @@ export function snapshot(state: GameState): Snapshot {
       y: r2(tr.y),
       armed: state.tick >= tr.armTick,
       radius: t.hero.ranger.snareTrap.rootRadius,
+    })),
+    zones: state.zones.map((z) => ({
+      id: z.id,
+      kind: z.kind,
+      x: r2(z.x),
+      y: r2(z.y),
+      radius: z.radius,
+      startTick: z.startTick,
+      endTick: z.endTick,
     })),
     events: state.events.slice(),
   };

@@ -1,4 +1,5 @@
 import type {
+  AoeEffect,
   CreepKind,
   DamageType,
   EntityId,
@@ -10,6 +11,7 @@ import type {
   SkillSlot,
   TargetPriority,
   TowerKind,
+  ZoneKind,
 } from '@tdt/protocol';
 import type { Tuning } from './tuning';
 
@@ -65,6 +67,9 @@ export interface Hero {
   alive: boolean;
   respawnTick: number;
   stunUntil: number;
+  /** Last Stand: damage taken is reduced by `shieldPct` until this tick. */
+  shieldUntil: number;
+  shieldPct: number;
   facing: number;
 }
 
@@ -103,6 +108,10 @@ export interface Creep {
   slowPct: number;
   slowUntil: number;
   rootUntil: number;
+  /** Stunned creeps neither move nor attack. */
+  stunUntil: number;
+  /** A taunted creep keeps chasing its target and ignores its leash until this tick. */
+  tauntUntil: number;
   /** Path distance left to the Heart; lower = further along ("First"). */
   remaining: number;
   dead: boolean;
@@ -126,7 +135,8 @@ export interface Tower {
   dead: boolean;
 }
 
-export type TargetKind = 'creep' | 'hero' | 'tower';
+/** 'point': a projectile that flies to (tx, ty) and explodes there (Fireball). */
+export type TargetKind = 'creep' | 'hero' | 'tower' | 'point';
 
 export interface Projectile {
   id: EntityId;
@@ -146,8 +156,12 @@ export interface Projectile {
   /** Which creeps a splash hurts (single-target shots only hit their target). */
   splashGround: boolean;
   splashAir: boolean;
+  /** Event emitted when a splash lands; null = a plain 'splash' event. */
+  aoe: AoeEffect | null;
   slow: number;
   slowTicks: number;
+  /** A critical hit (shown to players on impact). */
+  crit: boolean;
   /** Player credited for kills, or null for creep projectiles. */
   source: PlayerId | null;
   done: boolean;
@@ -161,6 +175,24 @@ export interface Trap {
   rank: number;
   armTick: number;
   expireTick: number;
+  done: boolean;
+}
+
+/** A lingering or delayed hero-ultimate effect on the ground. */
+export interface Zone {
+  id: EntityId;
+  kind: ZoneKind;
+  owner: PlayerId;
+  x: number;
+  y: number;
+  radius: number;
+  rank: number;
+  startTick: number;
+  /** Last tick of the effect; the zone is removed after it. */
+  endTick: number;
+  /** Next tick that deals damage; pulses repeat every `pulseTicks` until `endTick`. */
+  nextPulseTick: number;
+  pulseTicks: number;
   done: boolean;
 }
 
@@ -187,6 +219,7 @@ export interface GameState {
   towers: Tower[];
   projectiles: Projectile[];
   traps: Trap[];
+  zones: Zone[];
   spawnQueue: PendingSpawn[];
   /** Events produced by the last step (and commands applied before it). */
   events: GameEvent[];

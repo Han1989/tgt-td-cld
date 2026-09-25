@@ -31,6 +31,24 @@ describe('SimHost (local transport backend)', () => {
     expect(snap.players[0]!.gold).toBe(150 - 60);
   });
 
+  it('starts a new match with the picked hero, and keeps it for "play again"', () => {
+    const { host, snaps } = harness();
+    host.tick();
+    host.receive(encodeClientMessage({ t: 'hero', hero: 'warden' }));
+    let snap = snaps().at(-1)!;
+    expect(snap.tick).toBe(0);
+    expect(snap.heroes[0]!.kind).toBe('warden');
+    expect(snap.heroes[0]!.skills.map((s) => s.slot)).toEqual(['Q', 'W', 'E', 'R']);
+    // Once waves run, the hero can't be swapped.
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'callEarly' } }));
+    host.tick();
+    host.tick();
+    host.receive(encodeClientMessage({ t: 'hero', hero: 'arcanist' }));
+    snap = snaps().at(-1)!;
+    expect(snap.phase).toBe('waves');
+    expect(snap.heroes[0]!.kind).toBe('warden');
+  });
+
   it('only restarts a finished match', () => {
     const { host, out } = harness();
     host.tick();

@@ -1,6 +1,6 @@
 // Shared combat rules: damage reduction, kills, bounties, XP and levelling.
 
-import type { DamageType, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
+import type { AoeEffect, DamageType, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
 import { getMap } from './map';
 import { nextRandom } from './rng';
 import type { Creep, GameState, Hero, Projectile, TargetKind, Tower } from './state';
@@ -11,7 +11,9 @@ import { dist } from './vec';
 export const TOWER_RADIUS = 1;
 
 export const HERO_SKILLS: Record<HeroKind, SkillSlot[]> = {
-  ranger: ['Q', 'W'],
+  ranger: ['Q', 'W', 'E', 'R'],
+  warden: ['Q', 'W', 'E', 'R'],
+  arcanist: ['Q', 'W', 'E', 'R'],
 };
 
 export function emit(state: GameState, event: GameEvent): void {
@@ -67,9 +69,47 @@ export function heroMaxMana(state: GameState, hero: Hero): number {
   return s.mana + s.manaPerLevel * (hero.level - 1);
 }
 
+/**
+ * Strongest aura of `kind` reaching `hero`: the highest E rank among living
+ * heroes of that kind within `radius` (the hero itself included). Auras of
+ * the same kind don't stack. Returns the rank index, or -1 for none.
+ */
+function auraRank(state: GameState, hero: Hero, kind: HeroKind, radius: number): number {
+  let best = -1;
+  for (const h of state.heroes) {
+    if (h.kind !== kind || !h.alive || h.ranks.E === 0) continue;
+    if (h !== hero && dist(h.x, h.y, hero.x, hero.y) > radius) continue;
+    best = Math.max(best, h.ranks.E - 1);
+  }
+  return best;
+}
+
+/** Armour bonus from a Warden's Bulwark Aura. */
+export function bulwarkBonus(state: GameState, hero: Hero): number {
+  const aura = state.tuning.hero.warden.bulwarkAura;
+  const rank = auraRank(state, hero, 'warden', aura.radius);
+  return rank < 0 ? 0 : (aura.armor[rank] ?? 0);
+}
+
+/** Mana regeneration bonus (per second) from an Arcanist's Clarity Aura. */
+export function clarityBonus(state: GameState, hero: Hero): number {
+  const aura = state.tuning.hero.arcanist.clarityAura;
+  const rank = auraRank(state, hero, 'arcanist', aura.radius);
+  return rank < 0 ? 0 : (aura.manaRegen[rank] ?? 0);
+}
+
 export function heroArmor(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  return s.armor + s.armorPerLevel * (hero.level - 1);
+  return s.armor + s.armorPerLevel * (hero.level - 1) + bulwarkBonus(state, hero);
+}
+
+export function heroManaRegen(state: GameState, hero: Hero): number {
+  return heroStats(state, hero).manaRegen + clarityBonus(state, hero);
+}
+
+/** Whether the hero's attacks and targeted skills can hit this creep (melee heroes can't reach flyers). */
+export function heroCanHit(state: GameState, hero: Hero, creep: Creep): boolean {
+  return !state.tuning.creeps[creep.kind].flying || heroStats(state, hero).ranged;
 }
 
 export function heroDamage(state: GameState, hero: Hero): number {
@@ -132,7 +172,9 @@ export function grantXp(state: GameState, hero: Hero, amount: number): void {
 
 export function damageHero(state: GameState, hero: Hero, amount: number, type: DamageType): void {
   if (!hero.alive) return;
-  hero.hp -= amount * damageMultiplier(state.tuning, type, heroArmor(state, hero), heroStats(state, hero).magicResist);
+  const mult = damageMultiplier(state.tuning, type, heroArmor(state, hero), heroStats(state, hero).magicResist);
+  const shield = state.tick < hero.shieldUntil ? 1 - hero.shieldPct : 1;
+  hero.hp -= amount * mult * shield;
   if (hero.hp > 0) return;
   hero.hp = 0;
   hero.alive = false;
@@ -151,6 +193,7 @@ export function respawnHero(state: GameState, hero: Hero): void {
   hero.hp = heroMaxHp(state, hero);
   hero.mana = heroMaxMana(state, hero);
   hero.stunUntil = 0;
+  hero.shieldUntil = 0;
   hero.order = { type: 'idle' };
   hero.path = [];
   emit(state, { type: 'heroRespawned', heroId: hero.id });
@@ -180,8 +223,10 @@ export function spawnProjectile(
     /** Splash targets; default ground only. */
     splashGround?: boolean;
     splashAir?: boolean;
+    aoe?: AoeEffect;
     slow?: number;
     slowDuration?: number;
+    crit?: boolean;
   },
 ): void {
   const p: Projectile = {
@@ -199,8 +244,10 @@ export function spawnProjectile(
     splash: opts.splash ?? 0,
     splashGround: opts.splashGround ?? true,
     splashAir: opts.splashAir ?? false,
+    aoe: opts.aoe ?? null,
     slow: opts.slow ?? 0,
     slowTicks: secondsToTicks(opts.slowDuration ?? 0),
+    crit: opts.crit ?? false,
     source: opts.source,
     done: false,
   };
@@ -212,4 +259,24 @@ export function applySlow(state: GameState, creep: Creep, pct: number, ticks: nu
   if (state.tick >= creep.slowUntil) creep.slowPct = pct;
   else creep.slowPct = Math.max(creep.slowPct, pct);
   creep.slowUntil = Math.max(creep.slowUntil, state.tick + ticks);
+}
+
+/** Crowd control lasts `bossControlFactor` as long on bosses. */
+export function controlTicks(state: GameState, creep: Creep, ticks: number): number {
+  return state.tuning.creeps[creep.kind].boss ? Math.round(ticks * state.tuning.combat.bossControlFactor) : ticks;
+}
+
+/** Stuns a creep: it neither moves nor attacks. Stuns don't stack; the longer one wins. */
+export function stunCreep(state: GameState, creep: Creep, ticks: number): void {
+  creep.stunUntil = Math.max(creep.stunUntil, state.tick + controlTicks(state, creep, ticks));
+}
+
+/** Living creeps within `radius` of (x, y), measured to their edge. */
+export function creepsInRadius(state: GameState, x: number, y: number, radius: number, hitsAir: boolean): Creep[] {
+  return state.creeps.filter((c) => {
+    if (c.dead) return false;
+    const s = state.tuning.creeps[c.kind];
+    if (s.flying && !hitsAir) return false;
+    return dist(x, y, c.x, c.y) <= radius + s.radius;
+  });
 }

@@ -279,7 +279,7 @@ describe('hero', () => {
     hero.skillPoints = 10;
     for (let i = 0; i < 10; i++) applyCommand(state, 'p1', { type: 'learn', slot: 'Q' });
     expect(hero.ranks.Q).toBe(TUNING.hero.maxSkillRank);
-    expect(applyCommand(state, 'p1', { type: 'learn', slot: 'E' })).toBe(false);
+    expect(hero.skillPoints).toBe(10 - (TUNING.hero.maxSkillRank - 1));
   });
 });
 

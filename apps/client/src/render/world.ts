@@ -6,6 +6,7 @@ import type {
   CreepKind,
   CreepSnap,
   GameEvent,
+  HeroKind,
   HeroSnap,
   PlayerId,
   Snapshot,
@@ -17,7 +18,17 @@ import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
-import { COLORS, CREEP_COLORS, HIDE_COLORS, hpColor, PROJECTILE_COLORS, TOWER_COLORS } from './palette';
+import {
+  AOE_COLORS,
+  COLORS,
+  CREEP_COLORS,
+  HERO_COLORS,
+  HIDE_COLORS,
+  hpColor,
+  PROJECTILE_COLORS,
+  TOWER_COLORS,
+  ZONE_COLORS,
+} from './palette';
 
 const S = TILE_PX;
 const TOWER_SIZE = 1.7;
@@ -43,6 +54,7 @@ export class WorldRenderer {
   private readonly mapLayer = new Graphics();
   private readonly heart = new Graphics();
   private readonly trapLayer = new Container();
+  private readonly zoneLayer = new Container();
   private readonly towerLayer = new Container();
   private readonly groundLayer = new Container();
   private readonly heroLayer = new Container();
@@ -53,9 +65,10 @@ export class WorldRenderer {
 
   private readonly creeps = new Map<number, EntitySprite>();
   private readonly towers = new Map<number, EntitySprite>();
-  private readonly heroes = new Map<number, EntitySprite & { facing: Graphics }>();
+  private readonly heroes = new Map<number, EntitySprite & { facing: Graphics; kind: HeroKind; look: string }>();
   private readonly projectiles = new Map<number, Graphics>();
   private readonly traps = new Map<number, Graphics>();
+  private readonly zones = new Map<number, Graphics>();
   private fx: Fx[] = [];
   private heartPulse = 0;
 
@@ -72,6 +85,7 @@ export class WorldRenderer {
     this.world.addChild(
       this.mapLayer,
       this.heart,
+      this.zoneLayer,
       this.trapLayer,
       this.towerLayer,
       this.groundLayer,
@@ -123,6 +137,7 @@ export class WorldRenderer {
     this.syncHeroes(heroes, me);
     this.syncProjectiles(projectiles);
     this.syncTraps(latest);
+    this.syncZones(from, from.tick + (to.tick - from.tick) * alpha, now);
     this.drawHeart(now);
     this.updateFx(now);
     this.drawOverlay(latest, heroes, me, ui, now);
@@ -159,9 +174,18 @@ export class WorldRenderer {
           if (hero) this.floatText(`Level ${e.level}!`, hero.root.x / S, hero.root.y / S - 1, COLORS.good, now);
           break;
         }
-        case 'cast':
-          if (e.slot === 'Q') this.ring(e.x, e.y, 1.2, PROJECTILE_COLORS.multishot!, now, 250);
+        case 'aoe':
+          this.ring(e.x, e.y, e.radius, AOE_COLORS[e.effect], now, e.effect === 'meteor' ? 700 : 400);
+          if (e.effect === 'meteor' || e.effect === 'frostNova') this.disc(e.x, e.y, e.radius, AOE_COLORS[e.effect], now, 500);
           break;
+        case 'crit':
+          this.floatText(`${e.damage}!`, e.x, e.y - 0.6, 0xffffff, now);
+          break;
+        case 'cast': {
+          const hero = this.heroes.get(e.heroId);
+          if (hero && e.slot === 'Q' && hero.kind === 'ranger') this.ring(e.x, e.y, 1.2, PROJECTILE_COLORS.multishot!, now, 250);
+          break;
+        }
         default:
           break;
       }
@@ -240,13 +264,14 @@ export class WorldRenderer {
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
-      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${hide}`;
+      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${c.stunned ? 't' : ''}${hide}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
         if (hide) s.status.circle(0, 0, r + 1).stroke({ width: 4, color: HIDE_COLORS[hide] });
         if (c.slowed) s.status.circle(0, 0, r + 3).stroke({ width: 2, color: COLORS.slow });
         if (c.rooted) s.status.circle(0, 0, r + 6).stroke({ width: 3, color: COLORS.root });
+        if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
       }
     }
     removeMissing(this.creeps, seen);
@@ -283,15 +308,21 @@ export class WorldRenderer {
     const seen = new Set<number>();
     for (const h of heroes) {
       let s = this.heroes.get(h.id);
+      // A new match can reuse the id for a different hero (or owner).
+      const look = `${h.kind}:${h.owner === me}`;
+      if (s && s.look !== look) {
+        s.root.destroy({ children: true });
+        this.heroes.delete(h.id);
+        s = undefined;
+      }
       if (!s) {
-        const r = TUNING.hero.ranger.radius * S;
-        const body = new Graphics();
-        if (h.owner === me) body.circle(0, 0, r + 4).stroke({ width: 2, color: COLORS.heroRing });
-        body.circle(0, 0, r).fill(COLORS.hero).stroke({ width: 2, color: 0x0b3d20 });
+        const r = TUNING.hero[h.kind].radius * S;
+        const body = heroBody(h.kind, r);
+        if (h.owner === me) body.circle(0, 0, r + 5).stroke({ width: 2, color: COLORS.heroRing });
         const facing = new Graphics().poly([r + 7, 0, r - 1, -5, r - 1, 5]).fill(0xffffff);
         const sprite = makeSprite(body);
         sprite.root.addChild(facing);
-        s = { ...sprite, facing };
+        s = { ...sprite, facing, kind: h.kind, look };
         this.heroLayer.addChild(s.root);
         this.heroes.set(h.id, s);
       }
@@ -300,20 +331,25 @@ export class WorldRenderer {
       s.root.visible = true;
       s.root.position.set(h.x * S, h.y * S);
       s.facing.rotation = h.facing;
+      const r = TUNING.hero[h.kind].radius * S;
       const key = `${h.hp}/${h.maxHp}/${h.mana}/${h.maxMana}`;
       if (key !== s.barKey) {
         s.barKey = key;
         const w = 34;
-        const y = -TUNING.hero.ranger.radius * S - 12;
+        const y = -r - 12;
         s.bar.clear();
         s.bar.rect(-w / 2 - 1, y - 1, w + 2, 9).fill({ color: 0x000000, alpha: 0.7 });
         s.bar.rect(-w / 2, y, (w * h.hp) / h.maxHp, 4).fill(hpColor(h.hp / h.maxHp));
         s.bar.rect(-w / 2, y + 5, (w * h.mana) / Math.max(1, h.maxMana), 2).fill(COLORS.mana);
       }
-      const statusKey = h.stunned ? 'st' : '';
+      const statusKey = `${h.stunned ? 'st' : ''}${h.shielded ? 'sh' : ''}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
+        if (h.shielded) {
+          s.status.circle(0, 0, r + 8).fill({ color: COLORS.shield, alpha: 0.18 });
+          s.status.circle(0, 0, r + 8).stroke({ width: 3, color: COLORS.shield, alpha: 0.9 });
+        }
         if (h.stunned) s.status.star(0, -S * 0.9, 5, 7, 3).fill(COLORS.stun);
       }
     }
@@ -328,7 +364,9 @@ export class WorldRenderer {
       if (!g) {
         g = new Graphics();
         const color = PROJECTILE_COLORS[p.style] ?? 0xffffff;
-        const r = p.style === 'cannon' || p.style === 'flak' ? 5 : p.style === 'frost' || p.style === 'arcane' ? 4 : 3;
+        const r =
+          p.style === 'fireball' ? 6 : p.style === 'cannon' || p.style === 'flak' ? 5 : p.style === 'frost' || p.style === 'arcane' || p.style === 'crit' ? 4 : 3;
+        if (p.style === 'fireball') g.circle(0, 0, r + 4).fill({ color, alpha: 0.3 });
         g.circle(0, 0, r).fill(color).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
         this.projectileLayer.addChild(g);
         this.projectiles.set(p.id, g);
@@ -362,6 +400,45 @@ export class WorldRenderer {
       if (!seen.has(id)) {
         g.destroy();
         this.traps.delete(id);
+      }
+    }
+  }
+
+  /** Arrow Storm: a flickering circle; Meteor: a target circle that closes in until impact. */
+  private syncZones(snap: Snapshot, tick: number, now: number): void {
+    const seen = new Set<number>();
+    for (const z of snap.zones) {
+      seen.add(z.id);
+      let g = this.zones.get(z.id);
+      if (!g) {
+        g = new Graphics();
+        this.zoneLayer.addChild(g);
+        this.zones.set(z.id, g);
+      }
+      const color = ZONE_COLORS[z.kind];
+      const r = z.radius * S;
+      g.clear();
+      g.position.set(z.x * S, z.y * S);
+      if (z.kind === 'meteor') {
+        const t = Math.max(0, Math.min(1, (tick - z.startTick) / Math.max(1, z.endTick - z.startTick)));
+        g.circle(0, 0, r).fill({ color, alpha: 0.12 + 0.2 * t });
+        g.circle(0, 0, r).stroke({ width: 2, color, alpha: 0.8 });
+        g.circle(0, 0, r * (1 - t)).stroke({ width: 3, color: 0xffffff, alpha: 0.8 });
+      } else {
+        const flicker = 0.12 + 0.06 * Math.sin(now / 60);
+        g.circle(0, 0, r).fill({ color, alpha: flicker });
+        g.circle(0, 0, r).stroke({ width: 2, color, alpha: 0.7 });
+        for (let i = 0; i < 7; i++) {
+          const a = (i * 2.4 + now / 90) % (Math.PI * 2);
+          const d = r * (0.25 + ((i * 37) % 70) / 100);
+          g.moveTo(Math.cos(a) * d, Math.sin(a) * d - 6).lineTo(Math.cos(a) * d, Math.sin(a) * d + 6).stroke({ width: 2, color });
+        }
+      }
+    }
+    for (const [id, g] of this.zones) {
+      if (!seen.has(id)) {
+        g.destroy();
+        this.zones.delete(id);
       }
     }
   }
@@ -412,10 +489,9 @@ export class WorldRenderer {
       const skill = hero.skills.find((s) => s.slot === mode.slot);
       if (skill) {
         g.circle(hero.x * S, hero.y * S, skill.range * S).stroke({ width: 2, color: COLORS.root, alpha: 0.4 });
-        if (hover) {
-          const radius = TUNING.hero.ranger.snareTrap.rootRadius;
-          g.circle(hover.x * S, hover.y * S, radius * S).fill({ color: COLORS.root, alpha: 0.2 });
-          g.circle(hover.x * S, hover.y * S, radius * S).stroke({ width: 2, color: COLORS.root });
+        if (hover && skill.radius > 0) {
+          g.circle(hover.x * S, hover.y * S, skill.radius * S).fill({ color: COLORS.root, alpha: 0.2 });
+          g.circle(hover.x * S, hover.y * S, skill.radius * S).stroke({ width: 2, color: COLORS.root });
         }
       }
     }
@@ -449,6 +525,14 @@ export class WorldRenderer {
         g.circle(0, 0, radius * S * (0.5 + 0.5 * t)).stroke({ width: 3, color, alpha: 1 - t });
       },
     });
+  }
+
+  private disc(x: number, y: number, radius: number, color: number, now: number, life: number): void {
+    const g = new Graphics();
+    g.position.set(x * S, y * S);
+    g.circle(0, 0, radius * S).fill(color);
+    this.fxLayer.addChild(g);
+    this.fx.push({ obj: g, born: now, life, update: (t) => (g.alpha = 0.35 * (1 - t)) });
   }
 
   private floatText(text: string, x: number, y: number, color: number, now: number): void {
@@ -568,6 +652,29 @@ function creepBody(kind: CreepKind): Graphics {
       // Spiky crystal body.
       g.star(0, 0, 7, r, r * 0.62).fill(color).stroke({ width: 3, color: 0x14202c });
       g.circle(0, 0, r * 0.3).fill(0xffd24a);
+      break;
+  }
+  return g;
+}
+
+/** Ranger: circle; Warden: shield (rounded square); Arcanist: four-point star. */
+function heroBody(kind: HeroKind, r: number): Graphics {
+  const g = new Graphics();
+  const { fill, edge } = HERO_COLORS[kind];
+  const outline = { width: 2, color: edge };
+  switch (kind) {
+    case 'ranger':
+      g.circle(0, 0, r).fill(fill).stroke(outline);
+      break;
+    case 'warden':
+      g.roundRect(-r, -r, r * 2, r * 2, r * 0.45).fill(fill).stroke(outline);
+      g.rect(-r * 0.12, -r * 0.6, r * 0.24, r * 1.2).fill(edge);
+      g.rect(-r * 0.6, -r * 0.12, r * 1.2, r * 0.24).fill(edge);
+      break;
+    case 'arcanist':
+      g.circle(0, 0, r * 0.95).fill({ color: fill, alpha: 0.25 });
+      g.star(0, 0, 4, r * 1.15, r * 0.5).fill(fill).stroke(outline);
+      g.circle(0, 0, r * 0.22).fill(0xffffff);
       break;
   }
   return g;
