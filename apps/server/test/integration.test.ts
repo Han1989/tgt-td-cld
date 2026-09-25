@@ -30,6 +30,8 @@ describe('4-bot integration', () => {
     room.paused = true;
     expect(state.wave).toBeGreaterThanOrEqual(5);
     expect(state.players).toHaveLength(4);
+    // All three heroes took part (fullRoom cycles through them).
+    expect(state.heroes.map((h) => h.kind)).toEqual(['ranger', 'warden', 'arcanist', 'ranger']);
 
     // Let the last messages arrive, then compare.
     await Promise.all(clients.map((c) => c.waitFor(() => c.snap?.tick === room.lastSnap!.tick, 5_000)));

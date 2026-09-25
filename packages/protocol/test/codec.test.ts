@@ -18,6 +18,9 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'cast', slot: 'Q' } },
     { t: 'cmd', cmd: { type: 'cast', slot: 'W', x: 4, y: 5 } },
     { t: 'cmd', cmd: { type: 'learn', slot: 'W' } },
+    { t: 'cmd', cmd: { type: 'learn', slot: 'R' } },
+    { t: 'cmd', cmd: { type: 'cast', slot: 'E' } },
+    { t: 'cmd', cmd: { type: 'cast', slot: 'R', x: 12.5, y: 30 } },
     { t: 'cmd', cmd: { type: 'build', padId: 3, tower: 'frost' } },
     { t: 'cmd', cmd: { type: 'sell', towerId: 7 } },
     { t: 'cmd', cmd: { type: 'build', padId: 4, tower: 'arcane' } },
@@ -37,6 +40,10 @@ describe('client message codec', () => {
     // Another version still decodes: the server answers it with version_mismatch.
     { t: 'create', v: 1, name: 'Old', hero: 'ranger' },
     { t: 'hero', hero: 'ranger' },
+    { t: 'hero', hero: 'warden' },
+    { t: 'hero', hero: 'arcanist' },
+    { t: 'create', v: PROTOCOL_VERSION, name: 'Cy', hero: 'arcanist' },
+    { t: 'join', v: PROTOCOL_VERSION, code: 'ABCDE', name: 'Di', hero: 'warden' },
     { t: 'ready', ready: true },
   ];
 
@@ -57,6 +64,10 @@ describe('client message codec', () => {
     ['fractional id', '{"t":"cmd","cmd":{"type":"attack","targetId":1.5}}'],
     ['bad tower', '{"t":"cmd","cmd":{"type":"build","padId":1,"tower":"laser"}}'],
     ['bad slot', '{"t":"cmd","cmd":{"type":"cast","slot":"X"}}'],
+    ['lower-case slot', '{"t":"cmd","cmd":{"type":"learn","slot":"r"}}'],
+    ['learn with a target', '{"t":"cmd","cmd":{"type":"learn","slot":"R","x":1,"y":2}}'],
+    ['non-finite cast point', '{"t":"cmd","cmd":{"type":"cast","slot":"R","x":1e999,"y":2}}'],
+    ['hero id as a number', '{"t":"hero","hero":1}'],
     ['half a target point', '{"t":"cmd","cmd":{"type":"cast","slot":"W","x":1}}'],
     ['empty name', '{"t":"create","v":2,"name":"   ","hero":"ranger"}'],
     ['long name', '{"t":"create","v":2,"name":"abcdefghijklmnopq","hero":"ranger"}'],

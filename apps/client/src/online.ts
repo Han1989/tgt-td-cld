@@ -18,7 +18,7 @@ export class OnlineController {
     this.ui = new LobbyUi({
       create: (name, hero) => this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…'),
       join: (code, name, hero) => this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`),
-      playOffline: () => this.playOffline(),
+      playOffline: (hero) => this.playOffline(hero),
       setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
       setReady: (ready) => this.transport?.send({ t: 'ready', ready }),
       start: () => this.transport?.send({ t: 'start' }),
@@ -123,10 +123,17 @@ export class OnlineController {
     this.view.hud.setReconnecting(false);
   }
 
-  private playOffline(): void {
+  private playOffline(hero: HeroKind): void {
     this.transport?.close();
     this.drop();
     this.ui.hide();
-    this.view.attach(new LocalTransport());
+    playSolo(this.view, hero);
   }
+}
+
+/** Starts a local solo match (simulation in a Web Worker) with `hero`. */
+export function playSolo(view: GameView, hero: HeroKind): void {
+  const transport = new LocalTransport();
+  view.attach(transport);
+  transport.send({ t: 'hero', hero });
 }

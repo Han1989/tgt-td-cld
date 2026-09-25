@@ -1,16 +1,17 @@
 // Online lobby screens (HTML): home (nickname, hero, create / join), room
 // (code + invite link, players, hero, ready / start) and a busy state.
 
-import { HERO_KINDS, MAX_NAME_LENGTH, normalizeName, normalizeRoomCode, type HeroKind, type LobbyState, type PlayerId } from '@tdt/protocol';
+import { MAX_NAME_LENGTH, normalizeName, normalizeRoomCode, type HeroKind, type LobbyState, type PlayerId } from '@tdt/protocol';
+import { HERO_INFO } from '../heroInfo';
+import { HERO_COLORS, toCss } from '../render/palette';
+import { HeroPicker, storedHero, storeHero } from './heroPicker';
 
-const HERO_NAMES: Record<HeroKind, string> = { ranger: 'Ranger' };
 const NAME_KEY = 'tdt.name';
-const HERO_KEY = 'tdt.hero';
 
 export interface LobbyActions {
   create(name: string, hero: HeroKind): void;
   join(code: string, name: string, hero: HeroKind): void;
-  playOffline(): void;
+  playOffline(hero: HeroKind): void;
   setHero(hero: HeroKind): void;
   setReady(ready: boolean): void;
   start(): void;
@@ -63,7 +64,9 @@ export class LobbyUi {
   private readonly start = $('lobby-start') as HTMLButtonElement;
   private readonly refresh = $('lobby-refresh');
 
-  private hero: HeroKind = (HERO_KINDS as readonly string[]).includes(stored(HERO_KEY)) ? (stored(HERO_KEY) as HeroKind) : 'ranger';
+  private hero: HeroKind = storedHero();
+  private readonly homePicker: HeroPicker;
+  private readonly roomPicker: HeroPicker;
   private amReady = false;
   private current: LobbyState | null = null;
 
@@ -88,7 +91,7 @@ export class LobbyUi {
     this.code.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') join();
     });
-    $('lobby-offline').addEventListener('click', () => actions.playOffline());
+    $('lobby-offline').addEventListener('click', () => actions.playOffline(this.hero));
     this.refresh.addEventListener('click', () => location.reload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
     this.ready.addEventListener('click', () => actions.setReady(!this.amReady));
@@ -101,13 +104,13 @@ export class LobbyUi {
         () => this.flash(link),
       );
     });
-    this.renderHeroes($('lobby-heroes-home'), (hero) => {
+    this.homePicker = new HeroPicker($('lobby-heroes-home'), this.hero, (hero) => {
       this.hero = hero;
-      store(HERO_KEY, hero);
+      storeHero(hero);
     });
-    this.renderHeroes($('lobby-heroes-room'), (hero) => {
+    this.roomPicker = new HeroPicker($('lobby-heroes-room'), this.hero, (hero) => {
       this.hero = hero;
-      store(HERO_KEY, hero);
+      storeHero(hero);
       actions.setHero(hero);
     });
   }
@@ -128,6 +131,7 @@ export class LobbyUi {
     this.room.classList.add('hidden');
     this.busy.classList.add('hidden');
     this.refresh.classList.add('hidden');
+    this.homePicker.select(this.hero);
     this.showError(error);
     const focus = !this.name.value ? this.name : this.code.value ? $('lobby-join') : $('lobby-create');
     focus.focus();
@@ -161,7 +165,7 @@ export class LobbyUi {
     const self = lobby.players.find((p) => p.id === me);
     this.amReady = !!self?.ready;
     if (self) this.hero = self.hero;
-    this.renderHeroSelection($('lobby-heroes-room'));
+    this.roomPicker.select(this.hero);
 
     this.players.innerHTML = '';
     for (const p of lobby.players) {
@@ -169,6 +173,7 @@ export class LobbyUi {
       li.classList.toggle('away', !p.connected);
       const dot = document.createElement('span');
       dot.className = 'hero-dot';
+      dot.style.background = toCss(HERO_COLORS[p.hero].fill);
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = p.name + (p.id === me ? ' (you)' : '');
@@ -177,7 +182,7 @@ export class LobbyUi {
       tag.textContent = p.id === lobby.hostId ? 'HOST' : '';
       const hero = document.createElement('span');
       hero.className = 'state';
-      hero.textContent = HERO_NAMES[p.hero];
+      hero.textContent = HERO_INFO[p.hero].name;
       const state = document.createElement('span');
       state.className = `state${p.ready ? ' ready' : ''}`;
       state.textContent = !p.connected ? 'reconnecting…' : p.id === lobby.hostId ? '' : p.ready ? 'Ready' : 'Not ready';
@@ -218,27 +223,5 @@ export class LobbyUi {
     }
     store(NAME_KEY, name);
     return name;
-  }
-
-  private renderHeroes(container: HTMLElement, onPick: (hero: HeroKind) => void): void {
-    container.innerHTML = '';
-    for (const kind of HERO_KINDS) {
-      const btn = document.createElement('button');
-      btn.className = 'btn hero-pick';
-      btn.dataset.hero = kind;
-      btn.innerHTML = `<span class="hero-dot"></span>${HERO_NAMES[kind]}`;
-      btn.addEventListener('click', () => {
-        onPick(kind);
-        this.renderHeroSelection(container);
-      });
-      container.appendChild(btn);
-    }
-    this.renderHeroSelection(container);
-  }
-
-  private renderHeroSelection(container: HTMLElement): void {
-    for (const btn of container.querySelectorAll<HTMLButtonElement>('.hero-pick')) {
-      btn.classList.toggle('selected', btn.dataset.hero === this.hero);
-    }
   }
 }

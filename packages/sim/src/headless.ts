@@ -1,7 +1,7 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { GamePhase } from '@tdt/protocol';
+import type { GamePhase, HeroKind } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
@@ -20,6 +20,8 @@ export interface HeadlessResult {
 export function runHeadlessMatch(opts: {
   bots: Bot[];
   seed: number;
+  /** Hero of each bot (default: Ranger). */
+  heroes?: HeroKind[];
   tuning?: Tuning;
   /** Bots think this many times per second. */
   decisionsPerSecond?: number;
@@ -27,7 +29,7 @@ export function runHeadlessMatch(opts: {
 }): HeadlessResult {
   const state = createGame(
     {
-      players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: 'ranger' })),
+      players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' })),
       ...(opts.tuning ? { tuning: opts.tuning } : {}),
     },
     opts.seed,

@@ -1,7 +1,7 @@
 // Mouse and keyboard controls (desktop). Turns input into protocol commands
 // and client-only UI state; it never edits game state.
 
-import { TOWER_KINDS, type Command, type PlayerId, type Snapshot, type TowerKind } from '@tdt/protocol';
+import { TOWER_KINDS, type Command, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
 import { getMap, padAtTile, TILE_PX } from '@tdt/sim';
 import { COLORS } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
@@ -193,16 +193,33 @@ export class Controls {
   }
 
   /** Q/W/E/R: instant skills cast now, targeted skills wait for a left-click. */
-  pressSkill(slot: 'Q' | 'W' | 'E' | 'R'): void {
+  pressSkill(slot: SkillSlot): void {
     const hero = this.myHero();
     const skill = hero?.skills.find((s) => s.slot === slot);
     if (!hero || !skill) return;
     if (!hero.alive) return this.actions.toast('Hero is dead');
-    if (skill.rank === 0) return this.actions.toast('Skill not learned');
+    if (skill.rank === 0) {
+      const locked = skill.nextRankLevel > hero.level;
+      return this.actions.toast(locked ? `Unlocks at level ${skill.nextRankLevel}` : 'Skill not learned — Shift+' + slot);
+    }
+    if (skill.passive) return this.actions.toast('Passive skill — always active');
     if (skill.cooldown > 0) return this.actions.toast('Skill on cooldown');
     if (hero.mana < skill.manaCost) return this.actions.toast('Not enough mana');
     if (skill.targeted) this.setMode({ type: 'target', slot });
     else this.actions.send({ type: 'cast', slot });
+  }
+
+  /** Shift+Q/W/E/R (or the HUD "+"): spend a skill point. The host re-checks everything. */
+  learnSkill(slot: SkillSlot): void {
+    const hero = this.myHero();
+    const skill = hero?.skills.find((s) => s.slot === slot);
+    if (!hero || !skill) return;
+    if (!skill.learnable) {
+      if (hero.skillPoints === 0) return this.actions.toast('No skill points');
+      if (skill.rank >= skill.maxRank) return this.actions.toast('Skill at max rank');
+      return this.actions.toast(`Needs hero level ${skill.nextRankLevel}`);
+    }
+    this.actions.send({ type: 'learn', slot });
   }
 
   /** Build hotkeys: build on the selected pad, or pick a tower to place. */
@@ -245,7 +262,8 @@ export class Controls {
       case 'w':
       case 'e':
       case 'r':
-        this.pressSkill(key.toUpperCase() as 'Q' | 'W' | 'E' | 'R');
+        if (e.shiftKey) this.learnSkill(key.toUpperCase() as SkillSlot);
+        else this.pressSkill(key.toUpperCase() as SkillSlot);
         break;
       case 'b':
         this.setMode({ type: 'buildMenu' });

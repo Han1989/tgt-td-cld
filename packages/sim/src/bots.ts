@@ -2,7 +2,7 @@
 // load tests). Bots only read snapshots and static data and only act through
 // commands, exactly like a human client.
 
-import type { Command, CreepSnap, PlayerId, Snapshot, TowerKind } from '@tdt/protocol';
+import type { Command, CreepSnap, HeroKind, PlayerId, SkillSlot, SkillSnap, Snapshot, TowerKind } from '@tdt/protocol';
 import { getMap, type BuildPad } from './map';
 import { TUNING, type Tuning } from './tuning';
 import { dist } from './vec';
@@ -19,6 +19,11 @@ export function createIdleBot(playerId: PlayerId): Bot {
 }
 
 const BUILD_ORDER: TowerKind[] = ['arrow', 'frost', 'cannon', 'arrow', 'cannon', 'frost', 'arrow', 'cannon'];
+
+/** Skills that only affect ground creeps (static knowledge, like a player would have). */
+const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W', 'R'], arcanist: ['R'] };
+/** Creeps a skill should catch before the bot spends mana on it. */
+const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 4 };
 
 /**
  * A sensible-build bot: builds towers on the pads that cover the most lane,
@@ -46,10 +51,11 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
       const hero = me && snap.heroes.find((h) => h.id === me.heroId);
       if (!me || !hero) return cmds;
 
-      // Skills: spend points on the lower-ranked skill, Q first.
+      // Skills: the ultimate as soon as it unlocks, otherwise the lowest-ranked skill (Q first).
       if (hero.skillPoints > 0) {
-        const learnable = hero.skills.filter((s) => s.rank < s.maxRank).sort((a, b) => a.rank - b.rank);
-        if (learnable[0]) cmds.push({ type: 'learn', slot: learnable[0].slot });
+        const learnable = hero.skills.filter((s) => s.learnable);
+        const pick = learnable.find((s) => s.slot === 'R') ?? [...learnable].sort((a, b) => a.rank - b.rank)[0];
+        if (pick) cmds.push({ type: 'learn', slot: pick.slot });
       }
 
       // Towers: follow the build order on the best free pads.
@@ -82,31 +88,51 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
         lastGuardOrderTick = snap.tick;
       }
 
-      const near = (range: number, ground = false): CreepSnap[] =>
+      const near = (range: number, ground: boolean): CreepSnap[] =>
         snap.creeps.filter(
           (c) => dist(hero.x, hero.y, c.x, c.y) <= range && (!ground || !tuning.creeps[c.kind].flying),
         );
-      const q = hero.skills.find((s) => s.slot === 'Q');
-      if (q && q.rank > 0 && q.cooldown === 0 && hero.mana >= q.manaCost && near(q.range).length >= 2) {
-        cmds.push({ type: 'cast', slot: 'Q' });
-      }
-      const w = hero.skills.find((s) => s.slot === 'W');
-      if (w && w.rank > 0 && w.cooldown === 0 && hero.mana >= w.manaCost + (q?.manaCost ?? 0)) {
-        const candidates = near(w.range, true);
-        let best: CreepSnap | undefined;
-        let bestCount = 2;
-        for (const c of candidates) {
-          const count = candidates.filter((o) => dist(o.x, o.y, c.x, c.y) <= 2.5).length;
-          if (count > bestCount) {
-            best = c;
-            bestCount = count;
-          }
-        }
-        if (best) cmds.push({ type: 'cast', slot: 'W', x: best.x, y: best.y });
+      // Ultimate first, then Q, then W. A ready ultimate keeps its mana; W also keeps enough for Q.
+      let mana = hero.mana;
+      const skill = (slot: SkillSlot) => hero.skills.find((s) => s.slot === slot);
+      const r = skill('R');
+      let ultReserve = r && r.rank > 0 && r.cooldown === 0 ? r.manaCost : 0;
+      for (const slot of ['R', 'Q', 'W'] as const) {
+        const s = skill(slot);
+        const reserve = (slot === 'R' ? 0 : ultReserve) + (slot === 'W' ? (skill('Q')?.manaCost ?? 0) : 0);
+        if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost + reserve) continue;
+        const ground = GROUND_ONLY[hero.kind].includes(slot);
+        const cmd = skillCommand(s, near(Math.max(s.range, s.radius), ground), hero, MIN_TARGETS[slot]);
+        if (!cmd) continue;
+        cmds.push(cmd);
+        mana -= s.manaCost;
+        if (slot === 'R') ultReserve = 0;
       }
       return cmds;
     },
   };
+}
+
+/** A cast of `skill` that catches at least `min` of `creeps`, or null. */
+function skillCommand(skill: SkillSnap, creeps: CreepSnap[], hero: { x: number; y: number }, min: number): Command | null {
+  if (!skill.targeted) {
+    // Self-centred skills (and Multishot, whose range is its reach).
+    const reach = Math.max(skill.range, skill.radius);
+    const count = creeps.filter((c) => dist(hero.x, hero.y, c.x, c.y) <= reach).length;
+    return count >= min ? { type: 'cast', slot: skill.slot } : null;
+  }
+  // Point skills: aim at the creep with the most others within the radius.
+  let best: CreepSnap | undefined;
+  let bestCount = min - 1;
+  for (const c of creeps) {
+    if (dist(hero.x, hero.y, c.x, c.y) > skill.range) continue;
+    const count = creeps.filter((o) => dist(o.x, o.y, c.x, c.y) <= skill.radius).length;
+    if (count > bestCount) {
+      best = c;
+      bestCount = count;
+    }
+  }
+  return best ? { type: 'cast', slot: skill.slot, x: best.x, y: best.y } : null;
 }
 
 /** Pads ordered by how much lane (and wisp flight line) they cover. */

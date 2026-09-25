@@ -57,18 +57,22 @@ export interface TowerStats {
   tiers: TowerTierStats[];
 }
 
-export interface MultishotStats {
+/** Every active skill has a mana cost and cooldown per rank. */
+export interface ActiveSkillStats {
   manaCost: number[];
   cooldown: number[];
+}
+
+// Ranger ---------------------------------------------------------------------
+
+export interface MultishotStats extends ActiveSkillStats {
   targets: number[];
   damage: number[];
   /** Extra range on top of the hero's attack range. */
   bonusRange: number;
 }
 
-export interface SnareTrapStats {
-  manaCost: number[];
-  cooldown: number[];
+export interface SnareTrapStats extends ActiveSkillStats {
   castRange: number;
   armDelay: number;
   lifetime: number;
@@ -80,6 +84,84 @@ export interface SnareTrapStats {
   bossRootFactor: number;
 }
 
+/** Passive: auto-attacks sometimes crit. */
+export interface KeenEyeStats {
+  critChance: number[];
+  critMultiplier: number[];
+}
+
+/** Ultimate: arrows rain on an area in pulses (ground and air). */
+export interface ArrowStormStats extends ActiveSkillStats {
+  castRange: number;
+  radius: number;
+  duration: number;
+  pulseInterval: number;
+  damagePerPulse: number[];
+}
+
+// Warden ---------------------------------------------------------------------
+
+/** Instant physical hit on every ground creep around the Warden. */
+export interface CleaveStats extends ActiveSkillStats {
+  radius: number;
+  damage: number[];
+}
+
+/** Instant: nearby ground creeps must attack the Warden and ignore their leash. */
+export interface TauntStats extends ActiveSkillStats {
+  radius: number;
+  duration: number[];
+}
+
+/** Passive: armour for allied heroes (the Warden included) within the radius. */
+export interface BulwarkAuraStats {
+  radius: number;
+  armor: number[];
+}
+
+/** Ultimate: the Warden takes less damage for a while and stuns nearby ground creeps. */
+export interface LastStandStats extends ActiveSkillStats {
+  duration: number[];
+  damageReduction: number[];
+  stunRadius: number;
+  stun: number[];
+}
+
+// Arcanist -------------------------------------------------------------------
+
+/** A bolt that explodes at a point: magic damage to ground and air creeps. */
+export interface FireballStats extends ActiveSkillStats {
+  castRange: number;
+  radius: number;
+  damage: number[];
+  projectileSpeed: number;
+}
+
+/** Instant magic burst at a point that slows ground and air creeps. */
+export interface FrostNovaStats extends ActiveSkillStats {
+  castRange: number;
+  radius: number;
+  damage: number[];
+  slow: number[];
+  slowDuration: number;
+}
+
+/** Passive: mana regeneration (per second) for allied heroes within the radius. */
+export interface ClarityAuraStats {
+  radius: number;
+  manaRegen: number[];
+}
+
+/** Ultimate: after a delay, a meteor hits ground creeps in an area and stuns them. */
+export interface MeteorStats extends ActiveSkillStats {
+  castRange: number;
+  radius: number;
+  delay: number;
+  damage: number[];
+  stun: number[];
+}
+
+/** Base stats shared by every hero. */
 export interface HeroStats {
   hp: number;
   hpPerLevel: number;
@@ -92,17 +174,37 @@ export interface HeroStats {
   magicResist: number;
   damage: number;
   damagePerLevel: number;
+  damageType: DamageType;
   attackCooldown: number;
   attackRange: number;
-  /** Ranged heroes can hit flying creeps. */
+  /** Ranged heroes fire projectiles and can hit flying creeps; melee hits land instantly. */
   ranged: boolean;
   projectileSpeed: number;
   speed: number;
   radius: number;
   /** Idle / attack-moving heroes engage creeps within this range. */
   acquireRange: number;
+}
+
+export interface RangerStats extends HeroStats {
   multishot: MultishotStats;
   snareTrap: SnareTrapStats;
+  keenEye: KeenEyeStats;
+  arrowStorm: ArrowStormStats;
+}
+
+export interface WardenStats extends HeroStats {
+  cleave: CleaveStats;
+  taunt: TauntStats;
+  bulwarkAura: BulwarkAuraStats;
+  lastStand: LastStandStats;
+}
+
+export interface ArcanistStats extends HeroStats {
+  fireball: FireballStats;
+  frostNova: FrostNovaStats;
+  clarityAura: ClarityAuraStats;
+  meteor: MeteorStats;
 }
 
 export interface WaveGroup {
@@ -176,6 +278,8 @@ export interface Tuning {
     /** Magic resist never goes above this (1 would be immunity). */
     maxMagicResist: number;
     xpShareRadius: number;
+    /** Bosses are stunned / taunted for this fraction of the duration. */
+    bossControlFactor: number;
   };
   creepAi: {
     aggroRange: number;
@@ -195,12 +299,17 @@ export interface Tuning {
     maxLevel: number;
     /** Total XP needed to reach level i+1 (index 0 = level 1). */
     xpForLevel: number[];
+    /** Max rank of Q, W and E. */
     maxSkillRank: number;
+    /** Hero level needed for each rank of R; its length is R's max rank. */
+    ultimateLevels: number[];
     /** Skills that start at rank 1. */
     startingSkills: SkillSlot[];
     respawnBase: number;
     respawnPerLevel: number;
-    ranger: HeroStats;
+    ranger: RangerStats;
+    warden: WardenStats;
+    arcanist: ArcanistStats;
   };
 }
 
@@ -272,7 +381,7 @@ export const TUNING: Tuning = {
     ],
   },
   playerScaling: { hpPerExtraPlayer: 0.5, countPerExtraPlayer: 0.25 },
-  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 12 },
+  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 12, bossControlFactor: 0.5 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10 },
   bosses: {
     ironhorn: { stomp: { cooldown: 7, radius: 3, damage: 40, stun: 2 } },
@@ -373,9 +482,10 @@ export const TUNING: Tuning = {
     },
   },
   hero: {
-    maxLevel: 5,
-    xpForLevel: [0, 100, 250, 450, 700],
+    maxLevel: 10,
+    xpForLevel: [0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700],
     maxSkillRank: 4,
+    ultimateLevels: [6, 8, 10],
     startingSkills: ['Q', 'W'],
     respawnBase: 5,
     respawnPerLevel: 2,
@@ -383,7 +493,7 @@ export const TUNING: Tuning = {
       hp: 320, hpPerLevel: 40, hpRegen: 1.5,
       mana: 120, manaPerLevel: 20, manaRegen: 1.5,
       armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
-      damage: 20, damagePerLevel: 3,
+      damage: 20, damagePerLevel: 3, damageType: 'physical',
       attackCooldown: 0.9, attackRange: 6, ranged: true, projectileSpeed: 16,
       speed: 3.4, radius: 0.4, acquireRange: 7,
       multishot: {
@@ -404,6 +514,89 @@ export const TUNING: Tuning = {
         rootDuration: [2, 2.5, 3, 3.5],
         damage: [20, 35, 50, 65],
         bossRootFactor: 0.5,
+      },
+      keenEye: {
+        critChance: [0.15, 0.2, 0.25, 0.3],
+        critMultiplier: [1.75, 2, 2.25, 2.5],
+      },
+      arrowStorm: {
+        manaCost: [100, 125, 150],
+        cooldown: [60, 55, 50],
+        castRange: 10,
+        radius: 3,
+        duration: 3,
+        pulseInterval: 0.5,
+        damagePerPulse: [30, 45, 60],
+      },
+    },
+    warden: {
+      hp: 480, hpPerLevel: 60, hpRegen: 2.5,
+      mana: 100, manaPerLevel: 15, manaRegen: 1.2,
+      armor: 5, armorPerLevel: 0.7, magicResist: 0.1,
+      damage: 24, damagePerLevel: 3.5, damageType: 'physical',
+      attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
+      speed: 3.2, radius: 0.5, acquireRange: 6,
+      cleave: {
+        manaCost: [25, 30, 35, 40],
+        cooldown: [6, 5.5, 5, 4.5],
+        radius: 2.2,
+        damage: [40, 65, 90, 115],
+      },
+      taunt: {
+        manaCost: [40, 45, 50, 55],
+        cooldown: [16, 15, 14, 13],
+        radius: 4.5,
+        duration: [2, 2.5, 3, 3.5],
+      },
+      bulwarkAura: {
+        radius: 8,
+        armor: [2, 4, 6, 8],
+      },
+      lastStand: {
+        manaCost: [100, 125, 150],
+        cooldown: [70, 65, 60],
+        duration: [6, 7, 8],
+        damageReduction: [0.4, 0.5, 0.6],
+        stunRadius: 3,
+        stun: [1.5, 2, 2.5],
+      },
+    },
+    arcanist: {
+      hp: 280, hpPerLevel: 35, hpRegen: 1.2,
+      mana: 200, manaPerLevel: 30, manaRegen: 2.2,
+      armor: 1, armorPerLevel: 0.4, magicResist: 0.2,
+      damage: 18, damagePerLevel: 2.5, damageType: 'magic',
+      attackCooldown: 1, attackRange: 5.5, ranged: true, projectileSpeed: 12,
+      speed: 3.3, radius: 0.4, acquireRange: 6.5,
+      fireball: {
+        manaCost: [35, 45, 55, 65],
+        cooldown: [7, 6.5, 6, 5.5],
+        castRange: 8,
+        radius: 2,
+        damage: [50, 80, 110, 140],
+        projectileSpeed: 12,
+      },
+      frostNova: {
+        manaCost: [50, 55, 60, 65],
+        cooldown: [12, 11, 10, 9],
+        castRange: 7,
+        radius: 2.5,
+        damage: [25, 40, 55, 70],
+        slow: [0.35, 0.4, 0.45, 0.5],
+        slowDuration: 3,
+      },
+      clarityAura: {
+        radius: 8,
+        manaRegen: [1, 1.75, 2.5, 3.25],
+      },
+      meteor: {
+        manaCost: [150, 175, 200],
+        cooldown: [60, 55, 50],
+        castRange: 9,
+        radius: 3,
+        delay: 1.2,
+        damage: [220, 330, 440],
+        stun: [1, 1.5, 2],
       },
     },
   },

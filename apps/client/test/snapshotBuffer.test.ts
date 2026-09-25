@@ -15,10 +15,13 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
     callEarlyBonus: 5,
     players: [],
     heroes: [],
-    creeps: [{ id: 1, kind: 'grunt', x, y: 0, hp: 10, maxHp: 10, slowed: false, rooted: false, armor: 1, magicResist: 0 }],
+    creeps: [
+      { id: 1, kind: 'grunt', x, y: 0, hp: 10, maxHp: 10, slowed: false, rooted: false, stunned: false, armor: 1, magicResist: 0 },
+    ],
     towers: [],
     projectiles: [],
     traps: [],
+    zones: [],
     events,
   };
 }

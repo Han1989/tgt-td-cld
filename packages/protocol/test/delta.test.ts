@@ -5,7 +5,8 @@ import { applySnapshotDelta, diffSnapshot, type Snapshot } from '../src';
 describe('snapshot deltas', () => {
   it('reconstructs every tick of a real match exactly, through JSON', () => {
     const players = ['a', 'b', 'c'];
-    const state = createGame({ players: players.map((id) => ({ id, name: id, hero: 'ranger' as const })) }, 4);
+    const heroes = ['ranger', 'warden', 'arcanist'] as const;
+    const state = createGame({ players: players.map((id, i) => ({ id, name: id, hero: heroes[i]! })) }, 4);
     const bots = players.map((id, i) => createBalanceBot(id, undefined, i));
     let server: Snapshot = snapshot(state);
     let client: Snapshot = JSON.parse(JSON.stringify(server)) as Snapshot;
@@ -14,6 +15,13 @@ describe('snapshot deltas', () => {
     for (let t = 0; t < 2400; t++) {
       if (t % 5 === 0) for (const bot of bots) for (const cmd of bot.decide(server)) applyCommand(state, bot.playerId, cmd);
       if (t === 700) applyCommand(state, 'a', { type: 'callEarly' });
+      // Put ground zones (Arrow Storm, Meteor) into the stream too.
+      if (t === 1500) {
+        for (const h of state.heroes) h.ranks.R = 1;
+        applyCommand(state, 'a', { type: 'cast', slot: 'R', x: 40, y: 45 });
+        applyCommand(state, 'c', { type: 'cast', slot: 'R', x: 42, y: 45 });
+      }
+      if (t === 1540) expect(server.zones.length).toBeGreaterThan(0);
       step(state);
       const next = snapshot(state);
       const wire = JSON.stringify(diffSnapshot(server, next));

@@ -1,4 +1,4 @@
-import { encodeClientMessage, PROTOCOL_VERSION, type GameEvent } from '@tdt/protocol';
+import { encodeClientMessage, PROTOCOL_VERSION, type ClientMessage, type GameEvent } from '@tdt/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { CLOSE_VERSION_MISMATCH, type GameServer, type HealthReport } from '../src/server';
@@ -116,6 +116,52 @@ describe('lobby', () => {
     // The two restarts travel on different sockets, so the guest's error may arrive after the lobby.
     await guest!.waitFor(() => guest!.errors.some((e) => e.t === 'error' && e.code === 'not_host'));
     expect(guest!.lobby!.players.map((p) => p.ready)).toEqual([true, false]);
+  });
+});
+
+describe('hero commands', () => {
+  it('starts each player with the hero they picked and validates skill commands on the server', async () => {
+    const { server, url } = await start();
+    const events: GameEvent[] = [];
+    const [host, guest] = await fullRoom(url, 2, {
+      onSnapshot: (c, snap) => {
+        if (c.playerId === 'p2') events.push(...snap.events);
+      },
+    });
+    host!.acting = false;
+    guest!.acting = false;
+    guest!.send({ t: 'hero', hero: 'arcanist' });
+    await host!.waitFor(() => host!.lobby?.players[1]?.hero === 'arcanist');
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    expect(guest!.snap!.heroes.map((h) => h.kind)).toEqual(['ranger', 'arcanist']);
+
+    const rejected = (reason: string) => events.some((e) => e.type === 'rejected' && e.player === 'p2' && e.reason === reason);
+    const cmd = (c: ClientMessage) => guest!.send(c);
+    cmd({ t: 'cmd', cmd: { type: 'learn', slot: 'R' } }); // level 1, no points
+    cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'E' } }); // not learned yet
+    cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'Q' } }); // Fireball needs a point
+    await guest!.waitFor(() => rejected('No skill points') && rejected('Skill not learned') && rejected('Pick a target point'));
+
+    // Give the guest levels on the server: R still needs level 6.
+    const hero = server.rooms.get(host!.code!)!.state!.heroes[1]!;
+    hero.skillPoints = 2;
+    hero.level = 5;
+    cmd({ t: 'cmd', cmd: { type: 'learn', slot: 'R' } });
+    await guest!.waitFor(() => rejected('Needs hero level 6'));
+    hero.level = 6;
+    cmd({ t: 'cmd', cmd: { type: 'learn', slot: 'R' } });
+    cmd({ t: 'cmd', cmd: { type: 'learn', slot: 'E' } });
+    await guest!.waitFor(() => {
+      const skills = guest!.snap!.heroes[1]!.skills;
+      return skills[3]!.rank === 1 && skills[2]!.rank === 1;
+    });
+    cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'E' } });
+    await guest!.waitFor(() => rejected('Passive skill'));
+    const snapHero = guest!.snap!.heroes[1]!;
+    cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'R', x: snapHero.x, y: snapHero.y - 4 } });
+    await guest!.waitFor(() => (guest!.snap?.zones.length ?? 0) > 0);
+    expect(guest!.snap!.zones[0]).toMatchObject({ kind: 'meteor' });
   });
 });
 

@@ -7,6 +7,7 @@ import {
   TOWER_KINDS,
   type BossKind,
   type GameEvent,
+  type HeroKind,
   type HeroSnap,
   type LobbyState,
   type PlayerId,
@@ -19,7 +20,8 @@ import {
 } from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { Camera } from '../input/camera';
-import { CREEP_NAMES, TOWER_NAMES } from '../render/palette';
+import { HERO_INFO } from '../heroInfo';
+import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { buildCost, maxTier, PRIORITY_HINTS, PRIORITY_NAMES, targetsText, towerStatRows, upgradeCost } from './towerInfo';
 
@@ -32,8 +34,6 @@ interface TeamRow {
   gold: HTMLElement;
   gifts: HTMLButtonElement[];
 }
-
-const SKILL_NAMES: Partial<Record<SkillSlot, string>> = { Q: 'Multishot', W: 'Snare Trap' };
 
 const BOSS_HINTS: Record<BossKind, string> = {
   ironhorn: 'Ironhorn stomps: it stuns heroes and towers close to it',
@@ -48,6 +48,16 @@ const TOWER_BLURBS: Record<TowerKind, string> = {
   arcane: 'Heavy magic damage, ignores armour. Hits air.',
   flak: 'High burst damage with splash. Air only.',
 };
+
+interface SkillButton {
+  root: HTMLButtonElement;
+  learn: HTMLButtonElement;
+  cd: HTMLElement;
+  cdText: HTMLElement;
+  pips: HTMLElement;
+  /** Mana cost, "passive", or the level that unlocks it. */
+  tag: HTMLElement;
+}
 
 export interface HudActions {
   build(padId: number, tower: TowerKind): void;
@@ -94,7 +104,12 @@ export class Hud {
   private readonly timer = $('timer');
   private readonly callEarly = $('call-early') as HTMLButtonElement;
   private readonly buildHint = $('build-hint');
+  private readonly heroPanel = $('hero-panel');
+  private readonly heroName = $('hero-name');
+  private readonly heroRole = $('hero-role');
+  private readonly portrait = $('portrait');
   private readonly heroLevel = $('hero-level');
+  private readonly skillPoints = $('skill-points');
   private readonly xpFill = $('xp-fill');
   private readonly hpFill = $('hp-fill');
   private readonly hpText = $('hp-text');
@@ -124,7 +139,9 @@ export class Hud {
   private teamKey = '';
   private readonly teamRows = new Map<PlayerId, TeamRow>();
 
-  private skillButtons = new Map<SkillSlot, { root: HTMLButtonElement; learn: HTMLButtonElement; cd: HTMLElement; cdText: HTMLElement; pips: HTMLElement }>();
+  private skillButtons = new Map<SkillSlot, SkillButton>();
+  /** Hero kind the skill buttons were built for. */
+  private skillKind: HeroKind | null = null;
   private openPad: number | null = null;
   private openTower: number | null = null;
   private menuKey = '';
@@ -240,7 +257,7 @@ export class Hud {
       const row = this.teamRows.get(p.id);
       if (!row) continue;
       const hero = snap.heroes.find((h) => h.id === p.heroId);
-      setText(row.lvl, hero ? (hero.alive ? `Lv ${hero.level}` : 'dead') : '');
+      setText(row.lvl, hero ? `${HERO_INFO[hero.kind].name} · ${hero.alive ? `Lv ${hero.level}` : 'dead'}` : '');
       setWidth(row.fill, hero && hero.alive ? hero.hp / hero.maxHp : 0);
       setText(row.gold, String(p.gold));
       for (const b of row.gifts) b.disabled = !p.connected || myGold < Number(b.dataset.amount);
@@ -299,8 +316,21 @@ export class Hud {
         this.toast(e.to === me ? `${name(e.from)} gave you ${e.amount} gold` : `You gave ${name(e.to)} ${e.amount} gold`);
       } else if (e.type === 'heroDied' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
         this.toast('Your hero has fallen');
+      } else if (e.type === 'levelUp') {
+        const hero = snap.heroes.find((h) => h.id === e.heroId && h.owner === me);
+        if (hero) this.levelUp(hero, e.level);
       }
     }
+  }
+
+  /** Level-up feedback: a toast, a glow on the hero panel, and a note when the ultimate unlocks. */
+  private levelUp(hero: HeroSnap, level: number): void {
+    const ult = HERO_INFO[hero.kind].skills.R.name;
+    const unlocks = TUNING.hero.ultimateLevels[0] === level;
+    this.toast(unlocks ? `Level ${level}! ${ult} (R) unlocked` : `Level ${level}! Skill point ready`);
+    this.heroPanel.classList.remove('leveled');
+    void this.heroPanel.offsetWidth;
+    this.heroPanel.classList.add('leveled');
   }
 
   toast(text: string): void {
@@ -337,6 +367,10 @@ export class Hud {
   }
 
   private updateHero(hero: HeroSnap, tickRate: number): void {
+    const info = HERO_INFO[hero.kind];
+    if (this.skillKind !== hero.kind) this.buildSkillButtons(hero.kind);
+    setText(this.heroName, info.name);
+    setText(this.heroRole, info.role);
     setText(this.heroLevel, `Lv ${hero.level}${hero.level >= hero.maxLevel ? ' (max)' : ''}`);
     const span = hero.xpNextLevel - hero.xpLevelStart;
     setWidth(this.xpFill, span > 0 ? (hero.xp - hero.xpLevelStart) / span : 1);
@@ -344,49 +378,67 @@ export class Hud {
     setText(this.hpText, `${hero.hp} / ${hero.maxHp}`);
     setWidth(this.manaFill, hero.mana / Math.max(1, hero.maxMana));
     setText(this.manaText, `${hero.mana} / ${hero.maxMana}`);
+    this.skillPoints.classList.toggle('hidden', hero.skillPoints === 0);
+    setText(this.skillPoints, `+${hero.skillPoints} skill point${hero.skillPoints === 1 ? '' : 's'}`);
 
     this.respawn.classList.toggle('hidden', hero.alive);
     if (!hero.alive) setText(this.respawn, `Respawning in ${Math.ceil(hero.respawnIn / tickRate)}s`);
 
     for (const skill of hero.skills) {
-      let b = this.skillButtons.get(skill.slot);
-      if (!b) b = this.createSkillButton(skill.slot);
-      const canLearn = hero.skillPoints > 0 && skill.rank < skill.maxRank;
-      b.learn.classList.toggle('hidden', !canLearn);
+      const b = this.skillButtons.get(skill.slot);
+      if (!b) continue;
+      const text = info.skills[skill.slot];
+      b.learn.classList.toggle('hidden', !skill.learnable);
       const pips = Array.from({ length: skill.maxRank }, (_, i) => `<span class="pip${i < skill.rank ? ' on' : ''}"></span>`).join('');
       if (b.pips.innerHTML !== pips) b.pips.innerHTML = pips;
+      const locked = skill.rank === 0 && skill.nextRankLevel > hero.level;
+      setText(b.tag, locked ? `Lv ${skill.nextRankLevel}` : skill.passive ? 'passive' : skill.rank > 0 ? String(skill.manaCost) : '');
       const cdFrac = skill.cooldownTotal > 0 ? skill.cooldown / skill.cooldownTotal : 0;
       b.cd.style.height = `${cdFrac * 100}%`;
       setText(b.cdText, skill.cooldown > 0 ? String(Math.ceil(skill.cooldown / tickRate)) : '');
-      b.root.classList.toggle('no-mana', skill.rank > 0 && hero.mana < skill.manaCost);
+      b.root.classList.toggle('no-mana', skill.rank > 0 && !skill.passive && hero.mana < skill.manaCost);
+      b.root.classList.toggle('passive', skill.passive);
+      b.root.classList.toggle('unlearned', skill.rank === 0);
       b.root.disabled = !hero.alive || skill.rank === 0;
-      b.root.title = `${SKILL_NAMES[skill.slot] ?? skill.slot} — ${skill.manaCost} mana`;
+      const cost = skill.passive ? 'Passive' : `${skill.manaCost} mana`;
+      const unlock = skill.nextRankLevel > hero.level ? ` · next rank at level ${skill.nextRankLevel}` : '';
+      const title = `${text.name} (${skill.slot}) — ${text.desc}\n${cost} · rank ${skill.rank}/${skill.maxRank}${unlock}`;
+      if (b.root.title !== title) b.root.title = title;
+      b.learn.title = `Learn ${text.name} (Shift+${skill.slot})`;
     }
   }
 
-  private createSkillButton(slot: SkillSlot) {
+  private buildSkillButtons(kind: HeroKind): void {
+    this.skillKind = kind;
+    this.skills.innerHTML = '';
+    this.skillButtons.clear();
+    this.portrait.style.background = toCss(HERO_COLORS[kind].fill);
+    this.portrait.style.borderColor = toCss(HERO_COLORS[kind].edge);
+    this.portrait.dataset.hero = kind;
+    for (const slot of ['Q', 'W', 'E', 'R'] as const) this.createSkillButton(slot, HERO_INFO[kind].skills[slot].name);
+  }
+
+  private createSkillButton(slot: SkillSlot, name: string): SkillButton {
     const root = document.createElement('button');
     root.className = 'btn skill';
-    root.innerHTML = `<span class="name"><kbd>${slot}</kbd> ${SKILL_NAMES[slot] ?? ''}</span><span class="meta"><span class="pips"></span></span><span class="cd"></span><span class="cd-text"></span>`;
+    root.innerHTML = `<span class="meta"><kbd>${slot}</kbd><span class="tag"></span></span><span class="name">${name}</span><span class="pips"></span><span class="cd"></span><span class="cd-text"></span>`;
     const learn = document.createElement('button');
     learn.className = 'learn hidden';
     learn.textContent = '+';
-    learn.title = 'Learn / rank up';
     const wrap = document.createElement('div');
-    wrap.style.position = 'relative';
-    wrap.style.flex = '1';
-    wrap.style.display = 'flex';
+    wrap.className = 'skill-wrap';
     wrap.append(root, learn);
     this.skills.appendChild(wrap);
     root.addEventListener('click', () => this.actions.pressSkill(slot));
     learn.addEventListener('click', () => this.actions.learn(slot));
     for (const el of [root, learn]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
-    const b = {
+    const b: SkillButton = {
       root,
       learn,
       cd: root.querySelector('.cd') as HTMLElement,
       cdText: root.querySelector('.cd-text') as HTMLElement,
       pips: root.querySelector('.pips') as HTMLElement,
+      tag: root.querySelector('.tag') as HTMLElement,
     };
     this.skillButtons.set(slot, b);
     return b;

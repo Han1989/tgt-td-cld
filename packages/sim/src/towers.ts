@@ -100,6 +100,8 @@ function findTarget(
       const t = state.towers.find((x) => x.id === p.targetId);
       return t && !t.dead ? t : undefined;
     }
+    case 'point':
+      return undefined;
   }
 }
 
@@ -116,8 +118,9 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
     return;
   }
   if (p.splash > 0) {
-    // Splash hits the creeps its tower can target (cannon: ground, flak: air).
-    emit(state, { type: 'splash', x: p.tx, y: p.ty, radius: p.splash });
+    // Splash hits the creeps its projectile can target (cannon: ground, flak: air, Fireball: both).
+    if (p.aoe) emit(state, { type: 'aoe', effect: p.aoe, x: p.tx, y: p.ty, radius: p.splash });
+    else emit(state, { type: 'splash', x: p.tx, y: p.ty, radius: p.splash });
     for (const c of state.creeps) {
       if (c.dead || !(state.tuning.creeps[c.kind].flying ? p.splashAir : p.splashGround)) continue;
       if (dist(p.tx, p.ty, c.x, c.y) <= p.splash + state.tuning.creeps[c.kind].radius) {
@@ -129,6 +132,7 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
   const c = creepsById.get(p.targetId);
   if (!c || c.dead) return;
   if (p.slow > 0) applySlow(state, c, p.slow, p.slowTicks);
+  if (p.crit) emit(state, { type: 'crit', x: c.x, y: c.y, damage: Math.round(p.damage) });
   damageCreep(state, c, p.damage, p.damageType, p.source);
 }
 
@@ -140,10 +144,7 @@ export function updateTraps(state: GameState): void {
       continue;
     }
     if (state.tick < trap.armTick) continue;
-    const owner = state.players.find((p) => p.id === trap.owner);
-    const hero = owner && state.heroes.find((h) => h.id === owner.heroId);
-    if (!hero) continue;
-    const s = state.tuning.hero[hero.kind].snareTrap;
+    const s = state.tuning.hero.ranger.snareTrap;
     const ground = state.creeps.filter((c) => !c.dead && !state.tuning.creeps[c.kind].flying);
     if (!ground.some((c) => dist(trap.x, trap.y, c.x, c.y) <= s.triggerRadius)) continue;
 

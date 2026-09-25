@@ -129,6 +129,8 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
     slowPct: 0,
     slowUntil: 0,
     rootUntil: 0,
+    stunUntil: 0,
+    tauntUntil: 0,
     remaining: path.remainingFrom[0] ?? 0,
     dead: false,
   };

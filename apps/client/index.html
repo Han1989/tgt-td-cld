@@ -50,6 +50,14 @@
           </div>
         </section>
 
+        <section id="lobby-solo" class="hidden">
+          <div class="field">
+            <span>Pick your hero</span>
+            <div id="lobby-heroes-solo" class="hero-picks"></div>
+          </div>
+          <button id="lobby-solo-play" class="btn big">Play</button>
+        </section>
+
         <section id="lobby-busy" class="hidden">
           <p id="lobby-busy-text" class="busy">Connecting…</p>
         </section>
@@ -72,11 +80,15 @@
 
       <div id="build-hint" class="build-hint hidden"></div>
 
-      <section class="hero-panel">
+      <section id="hero-panel" class="hero-panel">
         <div class="hero-head">
-          <div class="portrait"></div>
+          <div id="portrait" class="portrait"></div>
           <div class="hero-meta">
-            <div class="hero-name">Ranger <span id="hero-level" class="level">Lv 1</span></div>
+            <div class="hero-name">
+              <span id="hero-name">Hero</span> <span id="hero-level" class="level">Lv 1</span>
+              <span id="hero-role" class="role"></span>
+              <span id="skill-points" class="skill-points hidden" title="Spend with the + buttons or Shift+Q/W/E/R"></span>
+            </div>
             <div class="bar xp" title="Experience"><div id="xp-fill" class="fill"></div></div>
           </div>
         </div>
@@ -94,7 +106,8 @@
         <ul>
           <li><kbd>Right-click</kbd> move / attack</li>
           <li><kbd>A</kbd> + <kbd>Left-click</kbd> attack-move</li>
-          <li><kbd>Q</kbd> Multishot · <kbd>W</kbd> Snare Trap (then left-click)</li>
+          <li><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> skills (targeted ones: then left-click) · E is passive</li>
+          <li><kbd>Shift</kbd> + <kbd>Q</kbd>/<kbd>W</kbd>/<kbd>E</kbd>/<kbd>R</kbd> or <b>+</b> learn a skill · R from level 6</li>
           <li><kbd>Left-click</kbd> a pad to build, your tower to upgrade / sell / set its target priority</li>
           <li><kbd>B</kbd> then <kbd>1</kbd>–<kbd>5</kbd> build · <kbd>U</kbd> upgrade the selected tower</li>
           <li><kbd>S</kbd> stop · <kbd>Esc</kbd> cancel</li>

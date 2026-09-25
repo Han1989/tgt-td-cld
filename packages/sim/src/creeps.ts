@@ -24,6 +24,8 @@ function updateCreep(state: GameState, c: Creep): void {
   const t = state.tuning;
 
   if (c.attackCd > 0) c.attackCd--;
+  // Stunned creeps do nothing at all (a stunned boss can't use its ability either).
+  if (state.tick < c.stunUntil) return;
   if (s.boss) updateBoss(state, c);
 
   const rooted = state.tick < c.rootUntil;
@@ -39,7 +41,8 @@ function updateCreep(state: GameState, c: Creep): void {
 
   if (c.mode === 'chase') {
     const hero = state.heroes.find((h) => h.id === c.targetId);
-    if (!hero || !hero.alive || dist(c.x, c.y, c.anchorX, c.anchorY) > t.creepAi.leashRange) {
+    const taunted = state.tick < c.tauntUntil;
+    if (!hero || !hero.alive || (!taunted && dist(c.x, c.y, c.anchorX, c.anchorY) > t.creepAi.leashRange)) {
       c.mode = 'return';
       c.targetId = -1;
     } else {

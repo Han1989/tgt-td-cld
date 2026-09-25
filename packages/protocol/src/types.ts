@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -43,13 +43,20 @@ export function isBossKind(kind: CreepKind): kind is BossKind {
   return (BOSS_KINDS as readonly CreepKind[]).includes(kind);
 }
 
-export const HERO_KINDS = ['ranger'] as const;
+export const HERO_KINDS = ['ranger', 'warden', 'arcanist'] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];
 
 export const SKILL_SLOTS = ['Q', 'W', 'E', 'R'] as const;
 export type SkillSlot = (typeof SKILL_SLOTS)[number];
 
 export type LaneId = 0 | 1 | 2;
+
+/** Lingering or delayed ground effects of hero ultimates. */
+export const ZONE_KINDS = ['arrowStorm', 'meteor'] as const;
+export type ZoneKind = (typeof ZONE_KINDS)[number];
+
+/** Area effects of hero skills, for visual feedback. */
+export type AoeEffect = 'cleave' | 'taunt' | 'lastStand' | 'fireball' | 'frostNova' | 'meteor' | 'arrowStorm';
 
 export type DamageType = 'physical' | 'magic';
 
@@ -98,9 +105,18 @@ export interface SkillSnap {
   cooldown: number;
   cooldownTotal: number;
   manaCost: number;
-  /** Cast range in tiles, 0 for self / no-target skills. */
+  /** Cast range in tiles (Multishot: its reach), 0 for self-centred skills. */
   range: number;
+  /** Area radius in tiles, 0 for single-target or passive skills. */
+  radius: number;
+  /** Needs a target point (left-click after the hotkey). */
   targeted: boolean;
+  /** Always on; cannot be cast. */
+  passive: boolean;
+  /** A skill point can be spent on this skill right now. */
+  learnable: boolean;
+  /** Hero level needed for the next rank (0 at max rank). */
+  nextRankLevel: number;
 }
 
 export interface HeroSnap {
@@ -127,6 +143,8 @@ export interface HeroSnap {
   attackRange: number;
   facing: number;
   stunned: boolean;
+  /** Warden's Last Stand is active (reduced damage taken). */
+  shielded: boolean;
 }
 
 export interface CreepSnap {
@@ -141,6 +159,7 @@ export interface CreepSnap {
   /** Current armour and magic resist (bosses can change theirs). */
   armor: number;
   magicResist: number;
+  stunned: boolean;
 }
 
 export interface TowerSnap {
@@ -175,6 +194,17 @@ export interface TrapSnap {
   radius: number;
 }
 
+export interface ZoneSnap {
+  id: EntityId;
+  kind: ZoneKind;
+  x: number;
+  y: number;
+  radius: number;
+  /** Tick the zone was created and the tick it ends (Meteor: lands). */
+  startTick: number;
+  endTick: number;
+}
+
 export type GameEvent =
   | { type: 'waveStart'; wave: number; income: number }
   | { type: 'callEarly'; by: PlayerId; bonus: number }
@@ -194,6 +224,8 @@ export type GameEvent =
   | { type: 'hideShift'; creepId: EntityId; x: number; y: number; hide: 'stone' | 'ether' }
   | { type: 'gift'; from: PlayerId; to: PlayerId; amount: number }
   | { type: 'splash'; x: number; y: number; radius: number }
+  | { type: 'aoe'; effect: AoeEffect; x: number; y: number; radius: number }
+  | { type: 'crit'; x: number; y: number; damage: number }
   | { type: 'rejected'; player: PlayerId; command: CommandType; reason: string }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };
 
@@ -216,6 +248,7 @@ export interface Snapshot {
   towers: TowerSnap[];
   projectiles: ProjectileSnap[];
   traps: TrapSnap[];
+  zones: ZoneSnap[];
   /** Events that happened since the previous snapshot. */
   events: GameEvent[];
 }
@@ -275,7 +308,7 @@ export interface EntityListDelta<T extends { id: string | number }> {
   del?: T['id'][];
 }
 
-export type SnapshotScalars = Omit<Snapshot, 'players' | 'heroes' | 'creeps' | 'towers' | 'projectiles' | 'traps' | 'events'>;
+export type SnapshotScalars = Omit<Snapshot, 'players' | 'heroes' | 'creeps' | 'towers' | 'projectiles' | 'traps' | 'zones' | 'events'>;
 
 export interface SnapshotDelta {
   /** Tick of the snapshot this delta applies to. */
@@ -288,6 +321,7 @@ export interface SnapshotDelta {
   towers?: EntityListDelta<TowerSnap>;
   projectiles?: EntityListDelta<ProjectileSnap>;
   traps?: EntityListDelta<TrapSnap>;
+  zones?: EntityListDelta<ZoneSnap>;
   /** Events are per tick, so they are always sent in full. */
   events: GameEvent[];
 }
