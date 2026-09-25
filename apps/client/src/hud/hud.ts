@@ -1,0 +1,331 @@
+// HTML/CSS HUD: gold, Heart HP, wave, next-wave timer, hero panel, tower
+// menus, toasts and the victory / defeat screen. Reads snapshots only.
+
+import { TOWER_KINDS, type GameEvent, type HeroSnap, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
+import { getMap, TILE_PX, TUNING } from '@tdt/sim';
+import type { Camera } from '../input/camera';
+import { TOWER_NAMES } from '../render/palette';
+import type { UiState } from '../uiState';
+
+const SKILL_NAMES: Partial<Record<SkillSlot, string>> = { Q: 'Multishot', W: 'Snare Trap' };
+
+const TOWER_BLURBS: Record<TowerKind, string> = {
+  arrow: 'Fast single target. Hits air.',
+  cannon: 'Slow splash damage. Ground only.',
+  frost: 'Magic damage, slows 30%. Hits air.',
+};
+
+export interface HudActions {
+  build(padId: number, tower: TowerKind): void;
+  sell(towerId: number): void;
+  callEarly(): void;
+  learn(slot: SkillSlot): void;
+  pressSkill(slot: SkillSlot): void;
+  restart(): void;
+  closeMenus(): void;
+}
+
+function $(id: string): HTMLElement {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`Missing #${id}`);
+  return el;
+}
+
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+function setWidth(el: HTMLElement, frac: number): void {
+  const w = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+  if (el.style.width !== w) el.style.width = w;
+}
+
+export function formatSeconds(ticks: number, tickRate: number): string {
+  const s = Math.ceil(ticks / tickRate);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+export class Hud {
+  private readonly gold = $('gold');
+  private readonly heartFill = $('heart-fill');
+  private readonly heartText = $('heart-text');
+  private readonly wave = $('wave');
+  private readonly timerLabel = $('timer-label');
+  private readonly timer = $('timer');
+  private readonly callEarly = $('call-early') as HTMLButtonElement;
+  private readonly buildHint = $('build-hint');
+  private readonly heroLevel = $('hero-level');
+  private readonly xpFill = $('xp-fill');
+  private readonly hpFill = $('hp-fill');
+  private readonly hpText = $('hp-text');
+  private readonly manaFill = $('mana-fill');
+  private readonly manaText = $('mana-text');
+  private readonly skills = $('skills');
+  private readonly respawn = $('respawn');
+  private readonly padMenu = $('pad-menu');
+  private readonly towerPanel = $('tower-panel');
+  private readonly toasts = $('toasts');
+  private readonly banner = $('banner');
+  private readonly endScreen = $('end-screen');
+  private readonly endTitle = $('end-title');
+  private readonly endText = $('end-text');
+
+  private skillButtons = new Map<SkillSlot, { root: HTMLButtonElement; learn: HTMLButtonElement; cd: HTMLElement; cdText: HTMLElement; pips: HTMLElement }>();
+  private openPad: number | null = null;
+  private openTower: number | null = null;
+  private menuKey = '';
+
+  constructor(
+    private readonly camera: Camera,
+    private readonly ui: UiState,
+    private readonly actions: HudActions,
+  ) {
+    this.callEarly.addEventListener('click', () => actions.callEarly());
+    // Don't leave HUD buttons focused, or Space (centre camera) would click them again.
+    $('hud').addEventListener('click', () => {
+      if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
+    });
+    $('restart').addEventListener('click', () => actions.restart());
+    // Keep clicks on HUD panels from reaching the canvas.
+    for (const el of [this.padMenu, this.towerPanel, this.callEarly]) {
+      el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    }
+  }
+
+  update(snap: Snapshot, me: PlayerId | null): void {
+    const player = snap.players.find((p) => p.id === me);
+    const hero = snap.heroes.find((h) => h.owner === me);
+
+    setText(this.gold, String(player?.gold ?? 0));
+    setWidth(this.heartFill, snap.heartHp / snap.heartMaxHp);
+    setText(this.heartText, `${snap.heartHp} / ${snap.heartMaxHp}`);
+    setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
+
+    if (snap.nextWaveIn < 0) {
+      setText(this.timerLabel, 'Final wave');
+      setText(this.timer, '');
+    } else {
+      setText(this.timerLabel, snap.phase === 'build' ? 'First wave in' : 'Next wave');
+      setText(this.timer, formatSeconds(snap.nextWaveIn, snap.tickRate));
+    }
+    const canCall = snap.nextWaveIn >= 0 && (snap.phase === 'build' || snap.phase === 'waves');
+    this.callEarly.disabled = !canCall;
+    const callHtml = canCall ? `Call early <span class="bonus">+${snap.callEarlyBonus}</span>` : 'Call early';
+    if (this.callEarly.innerHTML !== callHtml) this.callEarly.innerHTML = callHtml;
+
+    this.updateBuildHint(player?.gold ?? 0);
+    if (hero) this.updateHero(hero, snap.tickRate);
+    this.updateMenus(snap, me, player?.gold ?? 0);
+
+    const over = snap.phase === 'victory' || snap.phase === 'defeat';
+    this.endScreen.classList.toggle('hidden', !over);
+    if (over) {
+      const won = snap.phase === 'victory';
+      setText(this.endTitle, won ? 'Victory!' : 'Defeat');
+      this.endTitle.className = won ? 'victory' : 'defeat';
+      setText(
+        this.endText,
+        won
+          ? `The Heart survived all ${snap.totalWaves} waves with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
+          : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`,
+      );
+    }
+  }
+
+  handleEvents(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
+    for (const e of events) {
+      if (e.type === 'rejected' && e.player === me) {
+        this.toast(e.reason);
+      } else if (e.type === 'waveStart') {
+        const boss = TUNING.waves.list[e.wave - 1]?.some((g) => g.kind === 'boss');
+        this.showBanner(boss ? `Wave ${e.wave} — Boss!` : `Wave ${e.wave}`);
+      } else if (e.type === 'heroDied' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
+        this.toast('Your hero has fallen');
+      }
+    }
+  }
+
+  toast(text: string): void {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = text;
+    this.toasts.appendChild(el);
+    while (this.toasts.children.length > 4) this.toasts.firstChild?.remove();
+    setTimeout(() => el.remove(), 2200);
+  }
+
+  private showBanner(text: string): void {
+    this.banner.textContent = text;
+    this.banner.classList.remove('hidden');
+    // Restart the CSS animation.
+    this.banner.style.animation = 'none';
+    void this.banner.offsetWidth;
+    this.banner.style.animation = '';
+  }
+
+  private updateBuildHint(gold: number): void {
+    const mode = this.ui.mode;
+    const show = mode.type === 'buildMenu' || mode.type === 'build';
+    this.buildHint.classList.toggle('hidden', !show);
+    if (!show) return;
+    const html =
+      mode.type === 'build'
+        ? `Placing <b>${TOWER_NAMES[mode.tower]}</b> — left-click a build pad · <kbd>Esc</kbd> cancel`
+        : `Build: ${TOWER_KINDS.map((k, i) => {
+            const cost = TUNING.towers[k].cost;
+            return `<kbd>${i + 1}</kbd> ${TOWER_NAMES[k]} <span style="color:${gold >= cost ? 'var(--gold)' : 'var(--bad)'}">${cost}</span>`;
+          }).join(' · ')} · <kbd>Esc</kbd> cancel`;
+    if (this.buildHint.innerHTML !== html) this.buildHint.innerHTML = html;
+  }
+
+  private updateHero(hero: HeroSnap, tickRate: number): void {
+    setText(this.heroLevel, `Lv ${hero.level}${hero.level >= hero.maxLevel ? ' (max)' : ''}`);
+    const span = hero.xpNextLevel - hero.xpLevelStart;
+    setWidth(this.xpFill, span > 0 ? (hero.xp - hero.xpLevelStart) / span : 1);
+    setWidth(this.hpFill, hero.hp / hero.maxHp);
+    setText(this.hpText, `${hero.hp} / ${hero.maxHp}`);
+    setWidth(this.manaFill, hero.mana / Math.max(1, hero.maxMana));
+    setText(this.manaText, `${hero.mana} / ${hero.maxMana}`);
+
+    this.respawn.classList.toggle('hidden', hero.alive);
+    if (!hero.alive) setText(this.respawn, `Respawning in ${Math.ceil(hero.respawnIn / tickRate)}s`);
+
+    for (const skill of hero.skills) {
+      let b = this.skillButtons.get(skill.slot);
+      if (!b) b = this.createSkillButton(skill.slot);
+      const canLearn = hero.skillPoints > 0 && skill.rank < skill.maxRank;
+      b.learn.classList.toggle('hidden', !canLearn);
+      const pips = Array.from({ length: skill.maxRank }, (_, i) => `<span class="pip${i < skill.rank ? ' on' : ''}"></span>`).join('');
+      if (b.pips.innerHTML !== pips) b.pips.innerHTML = pips;
+      const cdFrac = skill.cooldownTotal > 0 ? skill.cooldown / skill.cooldownTotal : 0;
+      b.cd.style.height = `${cdFrac * 100}%`;
+      setText(b.cdText, skill.cooldown > 0 ? String(Math.ceil(skill.cooldown / tickRate)) : '');
+      b.root.classList.toggle('no-mana', skill.rank > 0 && hero.mana < skill.manaCost);
+      b.root.disabled = !hero.alive || skill.rank === 0;
+      b.root.title = `${SKILL_NAMES[skill.slot] ?? skill.slot} — ${skill.manaCost} mana`;
+    }
+  }
+
+  private createSkillButton(slot: SkillSlot) {
+    const root = document.createElement('button');
+    root.className = 'btn skill';
+    root.innerHTML = `<span class="name"><kbd>${slot}</kbd> ${SKILL_NAMES[slot] ?? ''}</span><span class="meta"><span class="pips"></span></span><span class="cd"></span><span class="cd-text"></span>`;
+    const learn = document.createElement('button');
+    learn.className = 'learn hidden';
+    learn.textContent = '+';
+    learn.title = 'Learn / rank up';
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    wrap.style.flex = '1';
+    wrap.style.display = 'flex';
+    wrap.append(root, learn);
+    this.skills.appendChild(wrap);
+    root.addEventListener('click', () => this.actions.pressSkill(slot));
+    learn.addEventListener('click', () => this.actions.learn(slot));
+    for (const el of [root, learn]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const b = {
+      root,
+      learn,
+      cd: root.querySelector('.cd') as HTMLElement,
+      cdText: root.querySelector('.cd-text') as HTMLElement,
+      pips: root.querySelector('.pips') as HTMLElement,
+    };
+    this.skillButtons.set(slot, b);
+    return b;
+  }
+
+  // -------------------------------------------------------------------------
+  // Pad menu and tower panel
+  // -------------------------------------------------------------------------
+
+  openPadMenu(padId: number): void {
+    this.openTower = null;
+    this.openPad = padId;
+    this.menuKey = '';
+  }
+
+  openTowerPanel(towerId: number): void {
+    this.openPad = null;
+    this.openTower = towerId;
+    this.menuKey = '';
+  }
+
+  closeMenus(): void {
+    this.openPad = null;
+    this.openTower = null;
+    this.padMenu.classList.add('hidden');
+    this.towerPanel.classList.add('hidden');
+  }
+
+  private updateMenus(snap: Snapshot, me: PlayerId | null, gold: number): void {
+    if (this.openPad !== null) {
+      const pad = getMap().pads[this.openPad];
+      if (!pad || snap.towers.some((t) => t.padId === pad.id) || this.ui.selectedPadId !== pad.id) {
+        this.actions.closeMenus();
+        return;
+      }
+      const key = `pad:${pad.id}:${TOWER_KINDS.map((k) => gold >= TUNING.towers[k].cost).join()}`;
+      if (key !== this.menuKey) {
+        this.menuKey = key;
+        this.padMenu.innerHTML = '<h3>Build tower</h3>';
+        TOWER_KINDS.forEach((kind, i) => {
+          const cost = TUNING.towers[kind].cost;
+          const btn = document.createElement('button');
+          btn.className = 'btn tower-option';
+          btn.disabled = gold < cost;
+          btn.innerHTML = `<kbd>${i + 1}</kbd><span>${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span><span class="desc">${TOWER_BLURBS[kind]}</span>`;
+          btn.addEventListener('click', () => this.actions.build(pad.id, kind));
+          this.padMenu.appendChild(btn);
+        });
+      }
+      this.padMenu.classList.remove('hidden');
+      this.place(this.padMenu, pad.x + 1.3, pad.y - 1);
+    } else {
+      this.padMenu.classList.add('hidden');
+    }
+
+    if (this.openTower !== null) {
+      const tower = snap.towers.find((t) => t.id === this.openTower);
+      if (!tower || this.ui.selectedTowerId !== tower.id) {
+        this.actions.closeMenus();
+        return;
+      }
+      const mine = tower.owner === me;
+      const refund = Math.floor(tower.spent * TUNING.economy.sellRefund);
+      const stats = TUNING.towers[tower.kind];
+      const key = `tower:${tower.id}:${tower.hp}:${mine}`;
+      if (key !== this.menuKey) {
+        this.menuKey = key;
+        const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? '?';
+        this.towerPanel.innerHTML = `
+          <h3>${TOWER_NAMES[tower.kind]} tower <span style="color:var(--muted);font-weight:400">tier ${tower.tier}</span></h3>
+          <div class="row"><span>HP</span><span>${tower.hp} / ${tower.maxHp}</span></div>
+          <div class="row"><span>Damage</span><span>${stats.damage} ${stats.damageType}${stats.splash ? ' (splash)' : ''}</span></div>
+          <div class="row"><span>Range</span><span>${stats.range}</span></div>
+          <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
+        if (mine) {
+          const sell = document.createElement('button');
+          sell.className = 'btn';
+          sell.innerHTML = `Sell for <span class="cost">${refund}</span>`;
+          sell.addEventListener('click', () => this.actions.sell(tower.id));
+          this.towerPanel.appendChild(sell);
+        }
+      }
+      this.towerPanel.classList.remove('hidden');
+      this.place(this.towerPanel, tower.x + 1.3, tower.y - 1);
+    } else {
+      this.towerPanel.classList.add('hidden');
+    }
+  }
+
+  /** Positions a popup next to a world point (tile units), kept on screen. */
+  private place(el: HTMLElement, tx: number, ty: number): void {
+    const p = this.camera.worldToScreen(tx * TILE_PX, ty * TILE_PX);
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const x = Math.max(8, Math.min(this.camera.viewW - w - 8, p.x));
+    const y = Math.max(60, Math.min(this.camera.viewH - h - 8, p.y));
+    el.style.left = `${Math.round(x)}px`;
+    el.style.top = `${Math.round(y)}px`;
+  }
+}
