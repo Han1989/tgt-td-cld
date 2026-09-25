@@ -99,7 +99,7 @@ describe('tower targeting', () => {
 
 describe('slows and roots', () => {
   it('frost slows by 30% for its duration without stacking', () => {
-    const t = TUNING.towers.frost;
+    const t = TUNING.towers.frost.tiers[0]!;
     const state = labGame();
     parkHero(state);
     applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'frost' });

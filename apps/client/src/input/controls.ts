@@ -253,6 +253,10 @@ export class Controls {
       case 's':
         this.actions.send({ type: 'stop' });
         break;
+      case 'u':
+        // Upgrade the selected tower (the sim rejects it if it isn't ours).
+        if (this.ui.selectedTowerId !== null) this.actions.send({ type: 'upgrade', towerId: this.ui.selectedTowerId });
+        break;
       case ' ':
         e.preventDefault();
         this.centerOnHero();

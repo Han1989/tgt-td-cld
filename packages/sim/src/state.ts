@@ -8,6 +8,7 @@ import type {
   LaneId,
   PlayerId,
   SkillSlot,
+  TargetPriority,
   TowerKind,
 } from '@tdt/protocol';
 import type { Tuning } from './tuning';
@@ -109,8 +110,9 @@ export interface Tower {
   maxHp: number;
   tier: number;
   cooldown: number;
-  /** Total gold spent, the base for sell refunds. */
+  /** Total gold spent (build + upgrades), the base for sell refunds. */
   spent: number;
+  priority: TargetPriority;
   stunUntil: number;
   dead: boolean;
 }
@@ -132,6 +134,9 @@ export interface Projectile {
   damage: number;
   damageType: DamageType;
   splash: number;
+  /** Which creeps a splash hurts (single-target shots only hit their target). */
+  splashGround: boolean;
+  splashAir: boolean;
   slow: number;
   slowTicks: number;
   /** Player credited for kills, or null for creep projectiles. */

@@ -103,6 +103,8 @@ After changing it: Render → *Environment* → edit → **Save, rebuild and dep
 
 After the restart, players create a new room; room state is not persisted. With a zero-downtime deploy, the new instance takes new rooms while the old one drains.
 
+**Protocol version.** `PROTOCOL_VERSION` (in `packages/protocol/src/types.ts`) is compiled into both the client and the server. The server sends `{ t: 'hello', v }` first on every connection, and answers a `create` / `join` / `rejoin` carrying another `v` with the error `version_mismatch` and close code 4001. Either way the client stops reconnecting and shows "New version available — refresh" with a Refresh button. Bump the version in any change to messages, commands or snapshots. Client (Vercel) and server (Render) deploy separately, so for a short while after a protocol change one side is ahead; players who see the message just reload once both are live.
+
 **Load test.** It ramps up rooms of 4 bot players each. Every bot is the balance bot speaking the real protocol, and room hosts call the first wave early and restart finished matches. It stops when the server's `avgTickMs` passes 10 ms:
 
 ```bash
@@ -154,3 +156,4 @@ curl localhost:8080/health
 | Deploy fails health checks; log says `ALLOWED_ORIGINS must be set` | Set the variable in Render → Environment. |
 | First connection takes ~1 minute | Free plan instance was asleep. |
 | "That room is hosted on another server" | The code's first letter is another shard's `SHARD`. |
+| "New version available — refresh" | Client and server were built with different `PROTOCOL_VERSION`s. Reload the page; if it persists, the Vercel and Render deploys are from different commits. |

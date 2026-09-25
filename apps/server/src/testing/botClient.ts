@@ -7,6 +7,7 @@ import {
   applySnapshotDelta,
   decodeServerMessage,
   encodeClientMessage,
+  PROTOCOL_VERSION,
   type ClientMessage,
   type LobbyState,
   type PlayerId,
@@ -31,6 +32,8 @@ export interface BotClientOptions {
 export class BotClient {
   readonly ws: WebSocket;
   playerId: PlayerId | null = null;
+  /** PROTOCOL_VERSION announced by the server's `hello`. */
+  serverVersion: number | null = null;
   code: string | null = null;
   token: string | null = null;
   lobby: LobbyState | null = null;
@@ -74,7 +77,7 @@ export class BotClient {
 
   async create(): Promise<string> {
     await this.open();
-    this.send({ t: 'create', name: this.opts.name, hero: 'ranger' });
+    this.send({ t: 'create', v: PROTOCOL_VERSION, name: this.opts.name, hero: 'ranger' });
     await this.waitFor(() => this.code !== null || this.errors.length > 0);
     if (!this.code) throw new Error(`create failed: ${JSON.stringify(this.errors)}`);
     return this.code;
@@ -82,7 +85,7 @@ export class BotClient {
 
   async join(code: string): Promise<void> {
     await this.open();
-    this.send({ t: 'join', code, name: this.opts.name, hero: 'ranger' });
+    this.send({ t: 'join', v: PROTOCOL_VERSION, code, name: this.opts.name, hero: 'ranger' });
     await this.waitFor(() => this.playerId !== null || this.errors.length > 0);
     if (!this.playerId) throw new Error(`join failed: ${JSON.stringify(this.errors)}`);
   }
@@ -122,6 +125,9 @@ export class BotClient {
     const msg = decodeServerMessage(raw);
     if (!msg) return;
     switch (msg.t) {
+      case 'hello':
+        this.serverVersion = msg.v;
+        break;
       case 'welcome':
         this.playerId = msg.playerId;
         if (msg.room) {

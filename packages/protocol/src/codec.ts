@@ -4,12 +4,14 @@ import {
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   SKILL_SLOTS,
+  TARGET_PRIORITIES,
   TOWER_KINDS,
   type ClientMessage,
   type Command,
   type HeroKind,
   type ServerMessage,
   type SkillSlot,
+  type TargetPriority,
   type TowerKind,
 } from './types';
 
@@ -46,24 +48,26 @@ export function decodeClientMessage(raw: unknown): ClientMessage | null {
     case 'start':
     case 'leave':
       return hasOnlyKeys(data, ['t']) ? { t: data.t } : null;
+    // Entry messages: `v` is only shape-checked here; the server compares it
+    // with PROTOCOL_VERSION so it can answer `version_mismatch`.
     case 'create': {
-      if (!hasOnlyKeys(data, ['t', 'name', 'hero'])) return null;
+      if (!hasOnlyKeys(data, ['t', 'v', 'name', 'hero']) || !isVersion(data.v)) return null;
       const name = normalizeName(data.name);
       if (name === null || !isHeroKind(data.hero)) return null;
-      return { t: 'create', name, hero: data.hero };
+      return { t: 'create', v: data.v, name, hero: data.hero };
     }
     case 'join': {
-      if (!hasOnlyKeys(data, ['t', 'code', 'name', 'hero'])) return null;
+      if (!hasOnlyKeys(data, ['t', 'v', 'code', 'name', 'hero']) || !isVersion(data.v)) return null;
       const name = normalizeName(data.name);
       const code = normalizeRoomCode(data.code);
       if (name === null || code === null || !isHeroKind(data.hero)) return null;
-      return { t: 'join', code, name, hero: data.hero };
+      return { t: 'join', v: data.v, code, name, hero: data.hero };
     }
     case 'rejoin': {
-      if (!hasOnlyKeys(data, ['t', 'code', 'token'])) return null;
+      if (!hasOnlyKeys(data, ['t', 'v', 'code', 'token']) || !isVersion(data.v)) return null;
       const code = normalizeRoomCode(data.code);
       if (code === null || typeof data.token !== 'string' || !/^[0-9a-f]{32}$/.test(data.token)) return null;
-      return { t: 'rejoin', code, token: data.token };
+      return { t: 'rejoin', v: data.v, code, token: data.token };
     }
     case 'hero':
       if (!hasOnlyKeys(data, ['t', 'hero']) || !isHeroKind(data.hero)) return null;
@@ -92,6 +96,7 @@ export function decodeServerMessage(raw: unknown): ServerMessage | null {
   }
   if (!isRecord(data)) return null;
   const ok =
+    (data.t === 'hello' && typeof data.v === 'number') ||
     (data.t === 'welcome' && typeof data.playerId === 'string') ||
     (data.t === 'snapshot' && isRecord(data.snap)) ||
     (data.t === 'delta' && isRecord(data.delta)) ||
@@ -158,8 +163,13 @@ export function parseCommand(value: unknown): Command | null {
       if (!isId(value.padId) || !isTowerKind(value.tower)) return null;
       return { type: 'build', padId: value.padId, tower: value.tower };
     case 'sell':
+    case 'upgrade':
       if (!hasOnlyKeys(value, ['type', 'towerId']) || !isId(value.towerId)) return null;
-      return { type: 'sell', towerId: value.towerId };
+      return { type: value.type, towerId: value.towerId };
+    case 'setPriority':
+      if (!hasOnlyKeys(value, ['type', 'towerId', 'priority'])) return null;
+      if (!isId(value.towerId) || !isTargetPriority(value.priority)) return null;
+      return { type: 'setPriority', towerId: value.towerId, priority: value.priority };
     default:
       return null;
   }
@@ -179,6 +189,14 @@ function isCoord(value: unknown): value is number {
 
 function isId(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isVersion(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isTargetPriority(value: unknown): value is TargetPriority {
+  return typeof value === 'string' && (TARGET_PRIORITIES as readonly string[]).includes(value);
 }
 
 function isSkillSlot(value: unknown): value is SkillSlot {

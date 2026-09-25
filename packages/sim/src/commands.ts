@@ -7,6 +7,8 @@ import { castBlocker, castMultishot, setPath, skillInfo } from './heroes';
 import { getMap } from './map';
 import { nearestWalkable } from './pathfinding';
 import type { GameState, Tower } from './state';
+import { upgradeTower } from './towers';
+import { towerTier } from './tuning';
 import { callEarly } from './waves';
 
 /** Applies `command` for `playerId`. Returns true if it was accepted. */
@@ -77,7 +79,7 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       const pad = map.pads[command.padId];
       if (!pad) return reject('No build pad there');
       if (state.towers.some((t) => t.padId === pad.id && !t.dead)) return reject('Pad is occupied');
-      const stats = state.tuning.towers[command.tower];
+      const stats = towerTier(state.tuning, command.tower, 1);
       if (player.gold < stats.cost) return reject('Not enough gold');
       player.gold -= stats.cost;
       const tower: Tower = {
@@ -92,6 +94,7 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
         tier: 1,
         cooldown: 0,
         spent: stats.cost,
+        priority: 'first',
         stunUntil: 0,
         dead: false,
       };
@@ -107,6 +110,25 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       player.gold += refund;
       state.towers = state.towers.filter((t) => t !== tower);
       emit(state, { type: 'towerSold', towerId: tower.id, owner: playerId, refund });
+      return true;
+    }
+    case 'upgrade': {
+      const tower = state.towers.find((t) => t.id === command.towerId && !t.dead);
+      if (!tower) return reject('No such tower');
+      if (tower.owner !== playerId) return reject('Not your tower');
+      // `tiers` is 0-based, so index `tier` is the next tier.
+      const next = state.tuning.towers[tower.kind].tiers[tower.tier];
+      if (!next) return reject('Tower is at max tier');
+      if (player.gold < next.cost) return reject('Not enough gold');
+      player.gold -= next.cost;
+      upgradeTower(state, tower);
+      return true;
+    }
+    case 'setPriority': {
+      const tower = state.towers.find((t) => t.id === command.towerId && !t.dead);
+      if (!tower) return reject('No such tower');
+      if (tower.owner !== playerId) return reject('Not your tower');
+      tower.priority = command.priority;
       return true;
     }
     case 'callEarly':

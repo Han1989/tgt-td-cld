@@ -1,11 +1,12 @@
 // NetworkTransport against a real game server (from apps/server), using
 // Node's built-in WebSocket as the browser stand-in.
 
-import type { ServerMessage, Snapshot } from '@tdt/protocol';
+import { PROTOCOL_VERSION, type ServerMessage, type Snapshot } from '@tdt/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
+import { WebSocketServer } from 'ws';
 import { defaultConfig } from '../../server/src/config';
 import { createGameServer, type GameServer } from '../../server/src/server';
-import { NetworkTransport, type NetStatus } from '../src/transport/networkTransport';
+import { NetworkTransport, VERSION_MISMATCH, type NetStatus } from '../src/transport/networkTransport';
 
 let server: GameServer | null = null;
 afterEach(async () => {
@@ -39,7 +40,7 @@ async function until(pred: () => boolean, ms = 5000): Promise<void> {
 describe('NetworkTransport', () => {
   it('joins a room, rebuilds snapshots from deltas and reconnects to the same seat', async () => {
     const url = await start();
-    const t = new NetworkTransport(url, { t: 'create', name: 'Ada', hero: 'ranger' });
+    const t = new NetworkTransport(url, { t: 'create', v: PROTOCOL_VERSION, name: 'Ada', hero: 'ranger' });
     const r = record(t);
     await until(() => t.session !== null);
     expect(t.session!.code).toMatch(/^A[A-Z]{4}$/);
@@ -69,11 +70,53 @@ describe('NetworkTransport', () => {
 
   it('reports a failed join as an error and does not retry', async () => {
     const url = await start();
-    const t = new NetworkTransport(url, { t: 'join', code: 'AQQQQ', name: 'Bo', hero: 'ranger' });
+    const t = new NetworkTransport(url, { t: 'join', v: PROTOCOL_VERSION, code: 'AQQQQ', name: 'Bo', hero: 'ranger' });
     const r = record(t);
     await until(() => r.msgs.some((m) => m.t === 'error'));
     expect(r.msgs.find((m) => m.t === 'error')).toMatchObject({ code: 'room_not_found' });
     expect(t.session).toBeNull();
     t.close();
+  });
+
+  it('stops for good when the server rejects its protocol version', async () => {
+    const url = await start();
+    const t = new NetworkTransport(url, { t: 'create', v: PROTOCOL_VERSION + 1, name: 'Old', hero: 'ranger' });
+    const r = record(t);
+    const details: (string | undefined)[] = [];
+    t.onStatus((_s, d) => details.push(d));
+    await until(() => t.status === 'closed');
+    expect(r.msgs.find((m) => m.t === 'error')).toMatchObject({ code: 'version_mismatch' });
+    expect(details.at(-1)).toBe(VERSION_MISMATCH);
+    expect(t.session).toBeNull();
+    expect(server!.rooms.size).toBe(0);
+  });
+
+  it('stops for good, without reconnecting, when the server announces another version', async () => {
+    // A stand-in server from the future: it only says hello.
+    const wss = new WebSocketServer({ port: 0 });
+    const connections: number[] = [];
+    wss.on('connection', (ws) => {
+      connections.push(Date.now());
+      ws.send(JSON.stringify({ t: 'hello', v: PROTOCOL_VERSION + 1 }));
+    });
+    await new Promise<void>((resolve) => wss.once('listening', () => resolve()));
+    const port = (wss.address() as { port: number }).port;
+    try {
+      const t = new NetworkTransport(`ws://127.0.0.1:${port}`, {
+        t: 'rejoin',
+        v: PROTOCOL_VERSION,
+        code: 'AQQQQ',
+        token: '0123456789abcdef0123456789abcdef',
+      });
+      const details: (string | undefined)[] = [];
+      t.onStatus((_s, d) => details.push(d));
+      await until(() => t.status === 'closed');
+      expect(details).toEqual([VERSION_MISMATCH]);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(connections).toHaveLength(1);
+    } finally {
+      for (const c of wss.clients) c.terminate();
+      await new Promise((r) => wss.close(r));
+    }
   });
 });

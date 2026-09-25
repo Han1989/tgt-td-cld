@@ -2,6 +2,7 @@
 // menus, toasts and the victory / defeat screen. Reads snapshots only.
 
 import {
+  TARGET_PRIORITIES,
   TOWER_KINDS,
   type GameEvent,
   type HeroSnap,
@@ -9,12 +10,15 @@ import {
   type PlayerId,
   type SkillSlot,
   type Snapshot,
+  type TargetPriority,
   type TowerKind,
+  type TowerSnap,
 } from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { Camera } from '../input/camera';
 import { TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
+import { buildCost, maxTier, PRIORITY_HINTS, PRIORITY_NAMES, targetsText, towerStatRows, upgradeCost } from './towerInfo';
 
 const SKILL_NAMES: Partial<Record<SkillSlot, string>> = { Q: 'Multishot', W: 'Snare Trap' };
 
@@ -22,11 +26,15 @@ const TOWER_BLURBS: Record<TowerKind, string> = {
   arrow: 'Fast single target. Hits air.',
   cannon: 'Slow splash damage. Ground only.',
   frost: 'Magic damage, slows 30%. Hits air.',
+  arcane: 'Heavy magic damage, ignores armour. Hits air.',
+  flak: 'High burst damage with splash. Air only.',
 };
 
 export interface HudActions {
   build(padId: number, tower: TowerKind): void;
   sell(towerId: number): void;
+  upgrade(towerId: number): void;
+  setPriority(towerId: number, priority: TargetPriority): void;
   callEarly(): void;
   learn(slot: SkillSlot): void;
   pressSkill(slot: SkillSlot): void;
@@ -265,7 +273,7 @@ export class Hud {
       mode.type === 'build'
         ? `Placing <b>${TOWER_NAMES[mode.tower]}</b> — left-click a build pad · <kbd>Esc</kbd> cancel`
         : `Build: ${TOWER_KINDS.map((k, i) => {
-            const cost = TUNING.towers[k].cost;
+            const cost = buildCost(k);
             return `<kbd>${i + 1}</kbd> ${TOWER_NAMES[k]} <span style="color:${gold >= cost ? 'var(--gold)' : 'var(--bad)'}">${cost}</span>`;
           }).join(' · ')} · <kbd>Esc</kbd> cancel`;
     if (this.buildHint.innerHTML !== html) this.buildHint.innerHTML = html;
@@ -357,12 +365,12 @@ export class Hud {
         this.actions.closeMenus();
         return;
       }
-      const key = `pad:${pad.id}:${TOWER_KINDS.map((k) => gold >= TUNING.towers[k].cost).join()}`;
+      const key = `pad:${pad.id}:${TOWER_KINDS.map((k) => gold >= buildCost(k)).join()}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.padMenu.innerHTML = '<h3>Build tower</h3>';
         TOWER_KINDS.forEach((kind, i) => {
-          const cost = TUNING.towers[kind].cost;
+          const cost = buildCost(kind);
           const btn = document.createElement('button');
           btn.className = 'btn tower-option';
           btn.disabled = gold < cost;
@@ -385,30 +393,82 @@ export class Hud {
       }
       const mine = tower.owner === me;
       const refund = Math.floor(tower.spent * TUNING.economy.sellRefund);
-      const stats = TUNING.towers[tower.kind];
-      const key = `tower:${tower.id}:${tower.hp}:${mine}`;
+      const nextCost = upgradeCost(tower.kind, tower.tier);
+      const key = `tower:${tower.id}:${tower.tier}:${tower.priority}:${mine}:${nextCost !== null && gold >= nextCost}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
-        const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? '?';
-        this.towerPanel.innerHTML = `
-          <h3>${TOWER_NAMES[tower.kind]} tower <span style="color:var(--muted);font-weight:400">tier ${tower.tier}</span></h3>
-          <div class="row"><span>HP</span><span>${tower.hp} / ${tower.maxHp}</span></div>
-          <div class="row"><span>Damage</span><span>${stats.damage} ${stats.damageType}${stats.splash ? ' (splash)' : ''}</span></div>
-          <div class="row"><span>Range</span><span>${stats.range}</span></div>
-          <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
-        if (mine) {
-          const sell = document.createElement('button');
-          sell.className = 'btn';
-          sell.innerHTML = `Sell for <span class="cost">${refund}</span>`;
-          sell.addEventListener('click', () => this.actions.sell(tower.id));
-          this.towerPanel.appendChild(sell);
-        }
+        this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold);
       }
+      // HP changes often; update it in place so the buttons aren't rebuilt under the pointer.
+      const hp = this.towerPanel.querySelector<HTMLElement>('.tower-hp');
+      if (hp) setText(hp, `${tower.hp} / ${tower.maxHp}`);
       this.towerPanel.classList.remove('hidden');
       this.place(this.towerPanel, tower.x + 1.3, tower.y - 1);
     } else {
       this.towerPanel.classList.add('hidden');
     }
+  }
+
+  private renderTowerPanel(
+    snap: Snapshot,
+    tower: TowerSnap,
+    mine: boolean,
+    refund: number,
+    nextCost: number | null,
+    gold: number,
+  ): void {
+    const panel = this.towerPanel;
+    const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? '?';
+    const showNext = mine && nextCost !== null;
+    const statRows = towerStatRows(tower.kind, tower.tier)
+      .map((r) => {
+        const next = showNext && r.next ? ` <span class="next">→ ${r.next}</span>` : '';
+        return `<div class="row"><span>${r.label}</span><span>${r.value}${next}</span></div>`;
+      })
+      .join('');
+    panel.innerHTML = `
+      <h3>${TOWER_NAMES[tower.kind]} tower <span style="color:var(--muted);font-weight:400">tier ${tower.tier} / ${maxTier(tower.kind)}</span></h3>
+      <div class="row"><span>HP</span><span class="tower-hp"></span></div>
+      ${statRows}
+      <div class="row"><span>Targets</span><span>${targetsText(tower.kind)}</span></div>
+      <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
+    if (!mine) {
+      panel.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
+      return;
+    }
+
+    if (nextCost !== null) {
+      const up = document.createElement('button');
+      up.className = 'btn';
+      up.disabled = gold < nextCost;
+      up.title = 'Hotkey: U';
+      up.innerHTML = `Upgrade to tier ${tower.tier + 1} <span class="cost">${nextCost}</span>`;
+      up.addEventListener('click', () => this.actions.upgrade(tower.id));
+      panel.appendChild(up);
+    } else {
+      panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
+    }
+
+    const label = document.createElement('div');
+    label.className = 'section';
+    label.textContent = 'Target priority';
+    const row = document.createElement('div');
+    row.className = 'priorities';
+    for (const priority of TARGET_PRIORITIES) {
+      const b = document.createElement('button');
+      b.className = `btn${priority === tower.priority ? ' active' : ''}`;
+      b.textContent = PRIORITY_NAMES[priority];
+      b.title = PRIORITY_HINTS[priority];
+      b.addEventListener('click', () => this.actions.setPriority(tower.id, priority));
+      row.appendChild(b);
+    }
+    panel.append(label, row);
+
+    const sell = document.createElement('button');
+    sell.className = 'btn';
+    sell.innerHTML = `Sell for <span class="cost">${refund}</span>`;
+    sell.addEventListener('click', () => this.actions.sell(tower.id));
+    panel.appendChild(sell);
   }
 
   /** Positions a popup next to a world point (tile units), kept on screen. */

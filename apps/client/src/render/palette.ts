@@ -26,6 +26,7 @@ export const COLORS = {
   good: 0x5bff9c,
   bad: 0xff5b5b,
   gold: 0xffd24a,
+  tierPip: 0xffd24a,
 } as const;
 
 export const CREEP_COLORS: Record<CreepKind, number> = {
@@ -41,12 +42,16 @@ export const TOWER_COLORS: Record<TowerKind, number> = {
   arrow: 0xd4b483,
   cannon: 0x9aa5b1,
   frost: 0x8fd3ff,
+  arcane: 0xc77dff,
+  flak: 0xff8c42,
 };
 
 export const PROJECTILE_COLORS: Record<string, number> = {
   arrow: 0xf1e3c6,
   cannon: 0x20242a,
   frost: 0xbfeaff,
+  arcane: 0xe0aaff,
+  flak: 0xffb870,
   hero: 0xb6ff9e,
   multishot: 0xe6ff7a,
   archer: 0xffb36b,
@@ -56,6 +61,8 @@ export const TOWER_NAMES: Record<TowerKind, string> = {
   arrow: 'Arrow',
   cannon: 'Cannon',
   frost: 'Frost',
+  arcane: 'Arcane',
+  flak: 'Flak',
 };
 
 export const CREEP_NAMES: Record<CreepKind, string> = {

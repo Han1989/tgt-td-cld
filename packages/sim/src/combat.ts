@@ -159,6 +159,9 @@ export function spawnProjectile(
     damageType: DamageType;
     source: PlayerId | null;
     splash?: number;
+    /** Splash targets; default ground only. */
+    splashGround?: boolean;
+    splashAir?: boolean;
     slow?: number;
     slowDuration?: number;
   },
@@ -176,6 +179,8 @@ export function spawnProjectile(
     damage: opts.damage,
     damageType: opts.damageType,
     splash: opts.splash ?? 0,
+    splashGround: opts.splashGround ?? true,
+    splashAir: opts.splashAir ?? false,
     slow: opts.slow ?? 0,
     slowTicks: secondsToTicks(opts.slowDuration ?? 0),
     source: opts.source,

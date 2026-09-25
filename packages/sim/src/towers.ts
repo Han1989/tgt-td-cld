@@ -1,8 +1,9 @@
 // Towers, projectiles and Snare Traps.
 
+import type { TargetPriority } from '@tdt/protocol';
 import { applySlow, damageCreep, damageHero, damageTower, emit, spawnProjectile } from './combat';
-import type { Creep, GameState, Projectile } from './state';
-import { secondsToTicks } from './tuning';
+import type { Creep, GameState, Projectile, Tower } from './state';
+import { secondsToTicks, towerTier } from './tuning';
 import { dist, moveToward } from './vec';
 
 export function updateTowers(state: GameState): void {
@@ -11,31 +12,58 @@ export function updateTowers(state: GameState): void {
     if (tower.cooldown > 0) tower.cooldown--;
     if (state.tick < tower.stunUntil || tower.cooldown > 0) continue;
     const s = state.tuning.towers[tower.kind];
+    const tier = towerTier(state.tuning, tower.kind, tower.tier);
 
-    // Target priority "First": the creep with the least path left to the Heart.
     let target: Creep | undefined;
+    let targetDist = 0;
     for (const c of state.creeps) {
       if (c.dead) continue;
       const flying = state.tuning.creeps[c.kind].flying;
       if (flying ? !s.hitsAir : !s.hitsGround) continue;
-      const radius = state.tuning.creeps[c.kind].radius;
-      if (dist(tower.x, tower.y, c.x, c.y) > s.range + radius) continue;
-      if (!target || c.remaining < target.remaining) target = c;
+      const d = dist(tower.x, tower.y, c.x, c.y);
+      if (d > tier.range + state.tuning.creeps[c.kind].radius) continue;
+      if (!target || isBetterTarget(tower.priority, c, d, target, targetDist)) {
+        target = c;
+        targetDist = d;
+      }
     }
     if (!target) continue;
 
-    tower.cooldown = secondsToTicks(s.attackCooldown);
+    tower.cooldown = secondsToTicks(tier.attackCooldown);
     spawnProjectile(state, tower, { kind: 'creep', id: target.id, x: target.x, y: target.y }, {
       style: tower.kind,
       speed: s.projectileSpeed,
-      damage: s.damage,
+      damage: tier.damage,
       damageType: s.damageType,
       source: tower.owner,
-      splash: s.splash,
-      slow: s.slow,
-      slowDuration: s.slowDuration,
+      splash: tier.splash,
+      splashGround: s.hitsGround,
+      splashAir: s.hitsAir,
+      slow: tier.slow,
+      slowDuration: tier.slowDuration,
     });
   }
+}
+
+/**
+ * Target priority. First: least path left to the Heart. Strongest: most
+ * current HP. Closest: nearest to the tower. Ties fall back to First, then to
+ * the older creep (list order), so targeting stays deterministic.
+ */
+function isBetterTarget(priority: TargetPriority, c: Creep, d: number, best: Creep, bestDist: number): boolean {
+  if (priority === 'strongest' && c.hp !== best.hp) return c.hp > best.hp;
+  if (priority === 'closest' && d !== bestDist) return d < bestDist;
+  return c.remaining < best.remaining;
+}
+
+/** Upgrades `tower` one tier: new stats, and max HP grows by the difference (current HP with it). */
+export function upgradeTower(state: GameState, tower: Tower): void {
+  const next = towerTier(state.tuning, tower.kind, tower.tier + 1);
+  tower.tier++;
+  tower.spent += next.cost;
+  tower.hp += next.hp - tower.maxHp;
+  tower.maxHp = next.hp;
+  emit(state, { type: 'towerUpgraded', towerId: tower.id, owner: tower.owner, tier: tower.tier });
 }
 
 export function updateProjectiles(state: GameState, creepsById: Map<number, Creep>): void {
@@ -88,10 +116,10 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
     return;
   }
   if (p.splash > 0) {
-    // Splash hits ground creeps only (cannons can't hit air).
+    // Splash hits the creeps its tower can target (cannon: ground, flak: air).
     emit(state, { type: 'splash', x: p.tx, y: p.ty, radius: p.splash });
     for (const c of state.creeps) {
-      if (c.dead || state.tuning.creeps[c.kind].flying) continue;
+      if (c.dead || !(state.tuning.creeps[c.kind].flying ? p.splashAir : p.splashGround)) continue;
       if (dist(p.tx, p.ty, c.x, c.y) <= p.splash + state.tuning.creeps[c.kind].radius) {
         damageCreep(state, c, p.damage, p.damageType, p.source);
       }

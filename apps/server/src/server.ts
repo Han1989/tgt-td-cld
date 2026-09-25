@@ -5,7 +5,14 @@ import { randomInt } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { performance } from 'node:perf_hooks';
-import { decodeClientMessage, encodeServerMessage, type ClientMessage, type ErrorCode, type ServerMessage } from '@tdt/protocol';
+import {
+  decodeClientMessage,
+  encodeServerMessage,
+  PROTOCOL_VERSION,
+  type ClientMessage,
+  type ErrorCode,
+  type ServerMessage,
+} from '@tdt/protocol';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import type { ServerConfig } from './config';
 import { TokenBucket } from './rateLimit';
@@ -15,6 +22,8 @@ import { RollingAverage } from './stats';
 
 /** WebSocket close code 1008: policy violation. */
 const CLOSE_POLICY = 1008;
+/** Application close code: the client speaks another PROTOCOL_VERSION. */
+export const CLOSE_VERSION_MISMATCH = 4001;
 
 export interface HealthReport {
   status: 'ok' | 'draining';
@@ -126,6 +135,8 @@ export function createGameServer(config: ServerConfig): GameServer {
       }
     });
     ws.on('error', () => ws.terminate());
+    // First message on every connection, so an outdated client can tell the player to refresh.
+    send(conn, { t: 'hello', v: PROTOCOL_VERSION });
   }
 
   // One adapter per connection so the room can compare identities.
@@ -183,6 +194,11 @@ export function createGameServer(config: ServerConfig): GameServer {
   function handleEntry(conn: Conn, msg: ClientMessage, now: number): void {
     if (msg.t !== 'create' && msg.t !== 'join' && msg.t !== 'rejoin') {
       return entryError(conn, 'bad_request', 'Create or join a room first');
+    }
+    if (msg.v !== PROTOCOL_VERSION) {
+      entryError(conn, 'version_mismatch', 'New version available — refresh');
+      conn.ws.close(CLOSE_VERSION_MISMATCH, 'Protocol version mismatch');
+      return;
     }
     if (draining) return entryError(conn, 'server_draining', 'The server is restarting; try again in a moment');
 

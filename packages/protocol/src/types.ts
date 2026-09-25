@@ -1,11 +1,23 @@
 // Wire contract between a game host (local worker now, server in Phase 2) and clients.
 // Everything here must stay JSON-serialisable.
 
+/**
+ * Wire-protocol version, shared by client and server. Bump it whenever a
+ * message, command or snapshot changes shape or meaning. The server announces
+ * it on connect (`hello`) and rejects entry messages carrying another one; the
+ * client then asks the player to refresh.
+ */
+export const PROTOCOL_VERSION = 2;
+
 export type PlayerId = string;
 export type EntityId = number;
 
-export const TOWER_KINDS = ['arrow', 'cannon', 'frost'] as const;
+export const TOWER_KINDS = ['arrow', 'cannon', 'frost', 'arcane', 'flak'] as const;
 export type TowerKind = (typeof TOWER_KINDS)[number];
+
+/** Which creep in range a tower shoots. First = closest to the Heart along its path. */
+export const TARGET_PRIORITIES = ['first', 'strongest', 'closest'] as const;
+export type TargetPriority = (typeof TARGET_PRIORITIES)[number];
 
 export const CREEP_KINDS = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'boss'] as const;
 export type CreepKind = (typeof CREEP_KINDS)[number];
@@ -33,6 +45,8 @@ export type Command =
   | { type: 'learn'; slot: SkillSlot }
   | { type: 'build'; padId: number; tower: TowerKind }
   | { type: 'sell'; towerId: EntityId }
+  | { type: 'upgrade'; towerId: EntityId }
+  | { type: 'setPriority'; towerId: EntityId; priority: TargetPriority }
   | { type: 'callEarly' };
 
 export type CommandType = Command['type'];
@@ -115,6 +129,7 @@ export interface TowerSnap {
   tier: number;
   range: number;
   spent: number;
+  priority: TargetPriority;
   stunned: boolean;
 }
 
@@ -144,6 +159,7 @@ export type GameEvent =
   | { type: 'levelUp'; heroId: EntityId; level: number }
   | { type: 'towerBuilt'; towerId: EntityId; owner: PlayerId }
   | { type: 'towerSold'; towerId: EntityId; owner: PlayerId; refund: number }
+  | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number }
   | { type: 'towerDestroyed'; towerId: EntityId }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
   | { type: 'trapTriggered'; x: number; y: number; radius: number }
@@ -212,7 +228,9 @@ export type ErrorCode =
   | 'wrong_server'
   | 'server_full'
   | 'server_draining'
-  | 'rate_limited';
+  | 'rate_limited'
+  /** The client was built for another PROTOCOL_VERSION: it must reload. */
+  | 'version_mismatch';
 
 // ---------------------------------------------------------------------------
 // Delta snapshots
@@ -250,12 +268,13 @@ export interface SnapshotDelta {
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
+  // Entry messages carry the client's PROTOCOL_VERSION as `v`.
   /** Create a room and join it as host (online). */
-  | { t: 'create'; name: string; hero: HeroKind }
+  | { t: 'create'; v: number; name: string; hero: HeroKind }
   /** Join an existing room by code (online). */
-  | { t: 'join'; code: string; name: string; hero: HeroKind }
+  | { t: 'join'; v: number; code: string; name: string; hero: HeroKind }
   /** Take back a seat after a disconnect, within the reconnect window (online). */
-  | { t: 'rejoin'; code: string; token: string }
+  | { t: 'rejoin'; v: number; code: string; token: string }
   /** Lobby: change hero. */
   | { t: 'hero'; hero: HeroKind }
   /** Lobby: toggle ready. */
@@ -269,6 +288,8 @@ export type ClientMessage =
   | { t: 'restart' };
 
 export type ServerMessage =
+  /** Sent first on every connection (online): the server's PROTOCOL_VERSION. */
+  | { t: 'hello'; v: number }
   /** `room` is present online: the room code and a secret token for reconnecting. */
   | { t: 'welcome'; playerId: PlayerId; room?: { code: string; token: string } }
   | { t: 'lobby'; lobby: LobbyState }

@@ -1,11 +1,14 @@
 // WebSocket connection to the game server. Rebuilds full snapshots from
 // keyframes + deltas, and reconnects to the same seat (with the room token)
 // if the connection drops, for up to the server's 60 s reconnect window.
+// If the server speaks another PROTOCOL_VERSION it closes for good with the
+// status detail 'version_mismatch' (the page must be reloaded).
 
 import {
   applySnapshotDelta,
   decodeServerMessage,
   encodeClientMessage,
+  PROTOCOL_VERSION,
   type ClientMessage,
   type ServerMessage,
   type Snapshot,
@@ -13,6 +16,9 @@ import {
 import type { Transport } from './transport';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
+
+/** `closed` status detail when client and server protocol versions differ. */
+export const VERSION_MISMATCH = 'version_mismatch';
 
 export interface RoomSession {
   url: string;
@@ -129,6 +135,9 @@ export class NetworkTransport implements Transport {
     const msg = decodeServerMessage(data);
     if (!msg) return;
     switch (msg.t) {
+      case 'hello':
+        if (msg.v !== PROTOCOL_VERSION) return this.versionMismatch();
+        break;
       case 'welcome':
         if (msg.room) {
           this.session = { url: this.url, code: msg.room.code, token: msg.room.token };
@@ -154,6 +163,10 @@ export class NetworkTransport implements Transport {
         this.serverRestarting = true;
         break;
       case 'error':
+        if (msg.code === 'version_mismatch') {
+          this.emit(msg);
+          return this.versionMismatch();
+        }
         if (msg.code === 'rejoin_failed' || msg.code === 'room_not_found' || msg.code === 'wrong_server') {
           if (this.session) sessionStore.clear();
           this.session = null;
@@ -161,6 +174,15 @@ export class NetworkTransport implements Transport {
         break;
     }
     this.emit(msg);
+  }
+
+  /** Client and server disagree on the protocol: stop for good; only a reload helps. */
+  private versionMismatch(): void {
+    if (this.closedByUs) return;
+    sessionStore.clear();
+    this.session = null;
+    this.dispose();
+    this.setStatus('closed', VERSION_MISMATCH);
   }
 
   private emit(msg: ServerMessage): void {
@@ -185,6 +207,6 @@ export class NetworkTransport implements Transport {
     this.setStatus('reconnecting');
     const delay = Math.min(8000, 500 * 2 ** this.attempt++);
     const session = this.session!;
-    this.retryTimer = setTimeout(() => this.open({ t: 'rejoin', code: session.code, token: session.token }), delay);
+    this.retryTimer = setTimeout(() => this.open({ t: 'rejoin', v: PROTOCOL_VERSION, code: session.code, token: session.token }), delay);
   }
 }

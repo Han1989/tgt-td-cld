@@ -57,7 +57,7 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
       const taken = new Set(snap.towers.map((t) => t.padId));
       for (;;) {
         const kind = BUILD_ORDER[builds % BUILD_ORDER.length]!;
-        const cost = tuning.towers[kind].cost;
+        const cost = tuning.towers[kind].tiers[0]!.cost;
         const pad = pads.find((p) => !taken.has(p.id));
         if (!pad || gold < cost) break;
         cmds.push({ type: 'build', padId: pad.id, tower: kind });
@@ -112,7 +112,7 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
 /** Pads ordered by how much lane (and wisp flight line) they cover. */
 function rankPads(tuning: Tuning): BuildPad[] {
   const map = getMap();
-  const range = Math.min(...Object.values(tuning.towers).map((t) => t.range));
+  const range = Math.min(...Object.values(tuning.towers).map((t) => t.tiers[0]!.range));
   const samples: { x: number; y: number }[] = [];
   for (const lane of map.lanes) {
     for (let i = 0; i < lane.waypoints.length - 1; i++) {
