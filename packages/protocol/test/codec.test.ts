@@ -21,6 +21,13 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'sell', towerId: 7 } },
     { t: 'cmd', cmd: { type: 'callEarly' } },
     { t: 'restart' },
+    { t: 'start' },
+    { t: 'leave' },
+    { t: 'create', name: 'Ada', hero: 'ranger' },
+    { t: 'join', code: 'ABCDE', name: 'Bo', hero: 'ranger' },
+    { t: 'rejoin', code: 'ZZZZZ', token: '0123456789abcdef0123456789abcdef' },
+    { t: 'hero', hero: 'ranger' },
+    { t: 'ready', ready: true },
   ];
 
   it.each(valid)('round-trips %j', (msg) => {
@@ -41,8 +48,25 @@ describe('client message codec', () => {
     ['bad tower', '{"t":"cmd","cmd":{"type":"build","padId":1,"tower":"laser"}}'],
     ['bad slot', '{"t":"cmd","cmd":{"type":"cast","slot":"X"}}'],
     ['half a target point', '{"t":"cmd","cmd":{"type":"cast","slot":"W","x":1}}'],
+    ['empty name', '{"t":"create","name":"   ","hero":"ranger"}'],
+    ['long name', '{"t":"create","name":"abcdefghijklmnopq","hero":"ranger"}'],
+    ['control chars in name', '{"t":"create","name":"a\\u0007b","hero":"ranger"}'],
+    ['unknown hero', '{"t":"create","name":"a","hero":"ninja"}'],
+    ['bad room code', '{"t":"join","code":"AB1DE","name":"a","hero":"ranger"}'],
+    ['code with O', '{"t":"join","code":"ABODE","name":"a","hero":"ranger"}'],
+    ['bad token', '{"t":"rejoin","code":"ABCDE","token":"nope"}'],
+    ['non-boolean ready', '{"t":"ready","ready":"yes"}'],
   ])('rejects %s', (_label, raw) => {
     expect(decodeClientMessage(raw)).toBeNull();
+  });
+
+  it('normalises names and room codes', () => {
+    expect(decodeClientMessage('{"t":"join","code":" abcde ","name":"  Ada   Lovelace ","hero":"ranger"}')).toEqual({
+      t: 'join',
+      code: 'ABCDE',
+      name: 'Ada Lovelace',
+      hero: 'ranger',
+    });
   });
 
   it('rejects oversized messages before parsing', () => {

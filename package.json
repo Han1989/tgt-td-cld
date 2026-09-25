@@ -8,12 +8,14 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @tdt/client",
-    "build": "npm run typecheck && npm run build -w @tdt/client",
+    "build": "npm run typecheck && npm run build -w @tdt/client && npm run build -w @tdt/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "npm run preview -w @tdt/client",
-    "balance": "tsx packages/sim/scripts/balance.ts"
+    "balance": "tsx packages/sim/scripts/balance.ts",
+    "dev:server": "npm run dev -w @tdt/server",
+    "loadtest": "npm run build -w @tdt/server && npm run loadtest -w @tdt/server --"
   },
   "engines": {
     "node": ">=22.12"

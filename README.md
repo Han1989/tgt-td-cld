@@ -4,17 +4,22 @@ A browser co-op tower defense for 1–4 players: build towers, control a hero an
 
 - **Design and build plan:** [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
 - **Working in this repo (commands, layout, rules):** [`CLAUDE.md`](CLAUDE.md)
+- **Deploying (Render game server + Vercel client):** [`docs/DEPLOY.md`](docs/DEPLOY.md)
 
-**Status:** Phase 1, a solo playable slice running locally in the browser.
+**Status:** Phase 2, online co-op for 1–4 players (rooms, lobby, reconnect), plus offline solo.
 
 ```bash
 npm install
-npm run dev      # play at http://localhost:5173
-npm test         # unit tests + headless balance runs
-npm run build    # typecheck + production build (apps/client/dist)
+npm run dev                                        # solo, offline, at http://localhost:5173
+npm run dev:server                                 # game server on ws://localhost:8080
+VITE_SERVER_URL=ws://localhost:8080 npm run dev    # online: lobby, rooms, invite links
+npm test                                           # unit tests, balance runs, 4-bot server test
+npm run build                                      # typecheck + client build + server bundle
 ```
 
 ## How to play
+
+**Online:** enter a nickname, click **Create room** and share the invite link (or the 5-letter code). Friends click **Join**, then **Ready**; the host clicks **Start match**. Each player has their own gold and hero.
 
 Hold the Heart for 10 waves. Creeps come down three lanes from the portals at the top. Wisps (from wave 5) fly straight at the Heart. Wave 10 brings a Boss.
 

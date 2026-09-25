@@ -8,6 +8,55 @@
   </head>
   <body>
     <div id="game"></div>
+
+    <div id="lobby" class="lobby hidden">
+      <div class="lobby-card">
+        <h1 class="logo">Tower Defense <span>Together</span></h1>
+
+        <section id="lobby-home">
+          <label class="field">
+            <span>Nickname</span>
+            <input id="lobby-name" maxlength="16" autocomplete="nickname" placeholder="Your name" />
+          </label>
+          <div class="field">
+            <span>Hero</span>
+            <div id="lobby-heroes-home" class="hero-picks"></div>
+          </div>
+          <button id="lobby-create" class="btn big">Create room</button>
+          <div class="join-row">
+            <input id="lobby-code" maxlength="5" placeholder="CODE" autocapitalize="characters" spellcheck="false" />
+            <button id="lobby-join" class="btn">Join room</button>
+          </div>
+          <button id="lobby-offline" class="link">Play solo offline</button>
+        </section>
+
+        <section id="lobby-room" class="hidden">
+          <div class="room-code-row">
+            <div>
+              <div class="muted small">Room code</div>
+              <div id="lobby-room-code" class="room-code"></div>
+            </div>
+            <button id="lobby-copy" class="btn">Copy invite link</button>
+          </div>
+          <ul id="lobby-players" class="players"></ul>
+          <div class="field">
+            <span>Your hero</span>
+            <div id="lobby-heroes-room" class="hero-picks"></div>
+          </div>
+          <div class="room-actions">
+            <button id="lobby-leave" class="btn">Leave</button>
+            <button id="lobby-ready" class="btn big">Ready</button>
+            <button id="lobby-start" class="btn big hidden">Start match</button>
+          </div>
+        </section>
+
+        <section id="lobby-busy" class="hidden">
+          <p id="lobby-busy-text" class="busy">Connecting…</p>
+        </section>
+
+        <p id="lobby-error" class="lobby-error"></p>
+      </div>
+    </div>
     <div id="hud">
       <header class="topbar">
         <div class="stat gold" title="Your gold"><span class="icon coin"></span><span id="gold">0</span></div>
@@ -52,6 +101,14 @@
         </ul>
       </details>
 
+      <aside id="team" class="team hidden">
+        <div class="team-head">Room <span id="team-code"></span></div>
+        <ul id="team-list"></ul>
+      </aside>
+
+      <div id="notice" class="notice hidden"></div>
+      <div id="reconnecting" class="reconnecting hidden">Connection lost — reconnecting…</div>
+
       <div id="toasts" class="toasts"></div>
       <div id="banner" class="banner hidden"></div>
 
@@ -59,7 +116,10 @@
         <div class="end-card">
           <h1 id="end-title">Victory</h1>
           <p id="end-text"></p>
-          <button id="restart" class="btn big">Play again</button>
+          <div class="end-actions">
+            <button id="restart" class="btn big">Play again</button>
+            <button id="end-leave" class="btn hidden">Leave room</button>
+          </div>
         </div>
       </div>
     </div>

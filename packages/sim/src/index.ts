@@ -1,5 +1,5 @@
 export { createGame, step, snapshot } from './game';
-export { applyCommand } from './commands';
+export { applyCommand, setPlayerConnected } from './commands';
 export { TUNING, TICK_RATE, secondsToTicks } from './tuning';
 export type { Tuning, CreepStats, TowerStats, HeroStats, WaveGroup } from './tuning';
 export { getMap, tileAt, isWalkable, padAtTile, Tile, TILE_PX } from './map';

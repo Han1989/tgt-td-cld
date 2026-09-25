@@ -67,7 +67,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     hero.hp = heroMaxHp(state, hero);
     hero.mana = heroMaxMana(state, hero);
     state.heroes.push(hero);
-    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0 });
+    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true });
   });
   return state;
 }
@@ -125,7 +125,14 @@ export function snapshot(state: GameState): Snapshot {
     totalWaves: totalWaves(state),
     nextWaveIn: state.nextWaveTick < 0 ? -1 : Math.max(0, state.nextWaveTick - state.tick),
     callEarlyBonus: callEarlyBonus(state),
-    players: state.players.map((p) => ({ id: p.id, name: p.name, gold: p.gold, heroId: p.heroId, kills: p.kills })),
+    players: state.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      gold: p.gold,
+      heroId: p.heroId,
+      kills: p.kills,
+      connected: p.connected,
+    })),
     heroes: state.heroes.map((h) => {
       const s = t.hero[h.kind];
       return {

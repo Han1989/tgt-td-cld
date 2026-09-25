@@ -37,9 +37,10 @@ export class SimHost {
     if (!msg) return;
     if (msg.t === 'restart') {
       if (this.state.phase === 'victory' || this.state.phase === 'defeat') this.reset();
-      return;
+    } else if (msg.t === 'cmd') {
+      this.queue.push(msg.cmd);
     }
-    this.queue.push(msg.cmd);
+    // Room and lobby messages only mean something to the online server.
   }
 
   /** Applies queued commands, advances one tick and broadcasts a snapshot. */
