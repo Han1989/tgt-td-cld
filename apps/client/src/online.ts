@@ -3,6 +3,7 @@
 import { PROTOCOL_VERSION, type HeroKind, type LobbyState, type ServerMessage } from '@tdt/protocol';
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
+import { showSoloPick } from './lobby/solo';
 import { LocalTransport } from './transport/localTransport';
 import { NetworkTransport, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
 
@@ -131,9 +132,13 @@ export class OnlineController {
   }
 }
 
-/** Starts a local solo match (simulation in a Web Worker) with `hero`. */
+/**
+ * Starts a local solo match (simulation in a Web Worker) with `hero`. "Change hero" on the end
+ * screen reopens the hero pick; the local host starts a new match with the new hero.
+ */
 export function playSolo(view: GameView, hero: HeroKind): void {
   const transport = new LocalTransport();
   view.attach(transport);
+  view.onChangeHero = () => showSoloPick((picked) => transport.send({ t: 'hero', hero: picked }));
   transport.send({ t: 'hero', hero });
 }

@@ -145,8 +145,10 @@ describe('waves', () => {
 });
 
 describe('economy', () => {
-  it('starts every player with 150 gold', () => {
-    expect(solo().players[0]!.gold).toBe(150);
+  const START = TUNING.economy.startingGold;
+
+  it('starts every player with the starting gold', () => {
+    expect(solo().players[0]!.gold).toBe(START);
   });
 
   it('pays wave income to every player at each wave start', () => {
@@ -156,14 +158,14 @@ describe('economy', () => {
     );
     run(state, secondsToTicks(TUNING.waves.buildPhase));
     const income = TUNING.economy.waveIncomeBase;
-    expect(state.players.map((p) => p.gold)).toEqual([150 + income, 150 + income]);
+    expect(state.players.map((p) => p.gold)).toEqual([START + income, START + income]);
   });
 
   it('builds on an empty pad for gold, rejects occupied pads and insufficient gold', () => {
     const state = solo();
     const cost = TUNING.towers.arrow.tiers[0]!.cost;
     expect(applyCommand(state, 'p1', { type: 'build', padId: 0, tower: 'arrow' })).toBe(true);
-    expect(state.players[0]!.gold).toBe(150 - cost);
+    expect(state.players[0]!.gold).toBe(START - cost);
     expect(applyCommand(state, 'p1', { type: 'build', padId: 0, tower: 'frost' })).toBe(false);
     expect(applyCommand(state, 'p1', { type: 'build', padId: 9999, tower: 'frost' })).toBe(false);
     state.players[0]!.gold = 0;
@@ -212,7 +214,7 @@ describe('economy', () => {
     step(state);
     expect(state.wave).toBe(1);
     const income = TUNING.economy.waveIncomeBase;
-    expect(state.players.map((p) => p.gold)).toEqual([150 + bonus + income, 150 + bonus + income]);
+    expect(state.players.map((p) => p.gold)).toEqual([START + bonus + income, START + bonus + income]);
   });
 
   it('cannot call early once the final wave has started', () => {

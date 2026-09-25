@@ -34,7 +34,7 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
     skills: {
       Q: { name: 'Cleave', desc: 'Strike every ground creep around you.' },
       W: { name: 'Taunt', desc: 'Nearby creeps must attack you and forget their lane.' },
-      E: { name: 'Bulwark Aura', desc: 'Passive: you and nearby heroes gain armour.' },
+      E: { name: 'Bulwark Aura', desc: 'Passive: you, nearby heroes and nearby towers gain armour.' },
       R: { name: 'Last Stand', desc: 'Take much less damage for a while and stun creeps around you.' },
     },
   },

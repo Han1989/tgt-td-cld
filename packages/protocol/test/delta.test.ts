@@ -17,7 +17,10 @@ describe('snapshot deltas', () => {
       if (t === 700) applyCommand(state, 'a', { type: 'callEarly' });
       // Put ground zones (Arrow Storm, Meteor) into the stream too.
       if (t === 1500) {
-        for (const h of state.heroes) h.ranks.R = 1;
+        for (const h of state.heroes) {
+          h.ranks.R = 1;
+          h.mana = 1_000;
+        }
         applyCommand(state, 'a', { type: 'cast', slot: 'R', x: 40, y: 45 });
         applyCommand(state, 'c', { type: 'cast', slot: 'R', x: 42, y: 45 });
       }

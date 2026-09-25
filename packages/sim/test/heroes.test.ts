@@ -4,8 +4,9 @@
 import type { HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
-import { armorMultiplier, damageHero, grantXp, heroArmor, heroManaRegen } from '../src/combat';
+import { armorMultiplier, damageHero, damageTower, grantXp, heroArmor, heroManaRegen } from '../src/combat';
 import { snapshot } from '../src/game';
+import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
 import { secondsToTicks, TUNING, type Tuning } from '../src/tuning';
 import { labGame, placeCreep, run, runCollect, tuningCopy } from './helpers';
@@ -225,6 +226,30 @@ describe('Warden', () => {
     expect(heroArmor(state, ranger)).toBe(base);
     warden.alive = false;
     expect(heroArmor(state, warden2)).toBe(TUNING.hero.warden.armor + TUNING.hero.warden.bulwarkAura.armor[0]!);
+  });
+
+  it('Bulwark Aura also covers towers in range', () => {
+    const { state, heroes } = lab(['warden']);
+    const warden = heroes[0]!;
+    state.players[0]!.gold = 1_000;
+    const pad = getMap().pads[0]!;
+    applyCommand(state, 'p1', { type: 'build', padId: pad.id, tower: 'arrow' });
+    const tower = state.towers[0]!;
+    const hit = () => {
+      tower.hp = tower.maxHp;
+      damageTower(state, tower, 100, 'physical');
+      return tower.maxHp - tower.hp;
+    };
+    const aura = TUNING.hero.warden.bulwarkAura;
+    warden.x = tower.x + aura.radius - 1;
+    warden.y = tower.y;
+    const bare = hit();
+    expect(bare).toBeCloseTo(100 * armorMultiplier(TUNING, TUNING.towers.arrow.armor));
+    warden.ranks.E = 3;
+    expect(hit()).toBeCloseTo(100 * armorMultiplier(TUNING, TUNING.towers.arrow.armor + aura.armor[2]!));
+    expect(hit()).toBeLessThan(bare);
+    warden.x = tower.x + aura.radius + 1;
+    expect(hit()).toBeCloseTo(bare);
   });
 
   it('Last Stand reduces damage taken and stuns nearby ground creeps', () => {

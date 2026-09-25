@@ -7,6 +7,8 @@ import { step } from '../src/game';
 import { TUNING } from '../src/tuning';
 import { labGame, parkHero, placeCreep } from './helpers';
 
+const START = TUNING.economy.startingGold;
+
 describe('gold gifting', () => {
   it('moves gold from the sender to a teammate and announces it', () => {
     const state = labGame(TUNING, 2);
@@ -27,14 +29,14 @@ describe('gold gifting', () => {
   it.each([
     ['yourself', { to: 'p1', amount: 10 }, 'You cannot gift gold to yourself'],
     ['an unknown player', { to: 'p9', amount: 10 }, 'No such teammate'],
-    ['more than you have', { to: 'p2', amount: 151 }, 'Not enough gold'],
+    ['more than you have', { to: 'p2', amount: TUNING.economy.startingGold + 1 }, 'Not enough gold'],
     ['zero gold', { to: 'p2', amount: 0 }, 'Invalid amount'],
     ['a fraction', { to: 'p2', amount: 1.5 }, 'Invalid amount'],
     ['a negative amount', { to: 'p2', amount: -20 }, 'Invalid amount'],
   ])('rejects a gift to %s', (_label, gift, reason) => {
     const state = labGame(TUNING, 2);
     expect(applyCommand(state, 'p1', { type: 'gift', ...gift })).toBe(false);
-    expect(state.players.map((p) => p.gold)).toEqual([150, 150]);
+    expect(state.players.map((p) => p.gold)).toEqual([START, START]);
     step(state);
     expect(state.events).toContainEqual({ type: 'rejected', player: 'p1', command: 'gift', reason });
   });
@@ -51,7 +53,7 @@ describe('gold gifting', () => {
     const state = labGame(TUNING, 2);
     state.phase = 'defeat';
     expect(applyCommand(state, 'p1', { type: 'gift', to: 'p2', amount: 10 })).toBe(false);
-    expect(state.players.map((p) => p.gold)).toEqual([150, 150]);
+    expect(state.players.map((p) => p.gold)).toEqual([START, START]);
   });
 });
 

@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { createBalanceBot, createIdleBot } from '../src/bots';
 import { runHeadlessMatch } from '../src/headless';
 import { TUNING } from '../src/tuning';
+import { BALANCE_SEEDS as SEEDS, HEART_TARGET } from './helpers';
 
-const SEEDS = [1, 2, 3, 42, 1234];
 /** A full 30-wave match takes a few seconds of CPU. */
 const TIMEOUT = 60_000;
 
@@ -15,12 +15,14 @@ describe('headless balance run (Phase 3 heroes, solo)', () => {
   const cases = (['warden', 'arcanist'] as const).flatMap((hero) => SEEDS.map((seed) => [hero, seed] as const));
 
   it.each(cases)(
-    'the sensible-build bot wins all 30 waves as the %s (seed %i)',
+    'the sensible-build bot wins all 30 waves as the %s with 40–80 Heart HP left (seed %i)',
     (hero, seed) => {
       const result = runHeadlessMatch({ bots: [createBalanceBot('p1')], heroes: [hero], seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
       expect(result.heroLevels[0]).toBe(TUNING.hero.maxLevel);
+      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
+      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
     },
     TIMEOUT,
   );

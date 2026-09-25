@@ -1,4 +1,5 @@
 import { decodeServerMessage, encodeClientMessage, type ServerMessage, type Snapshot } from '@tdt/protocol';
+import { TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { formatSeconds } from '../src/hud/hud';
 import { LOCAL_PLAYER_ID, SimHost } from '../src/transport/simHost';
@@ -28,7 +29,7 @@ describe('SimHost (local transport backend)', () => {
     host.tick();
     const snap = snaps().at(-1)!;
     expect(snap.towers).toHaveLength(1);
-    expect(snap.players[0]!.gold).toBe(150 - 60);
+    expect(snap.players[0]!.gold).toBe(TUNING.economy.startingGold - TUNING.towers.arrow.tiers[0]!.cost);
   });
 
   it('starts a new match with the picked hero, and keeps it for "play again"', () => {

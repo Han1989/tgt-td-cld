@@ -2,7 +2,7 @@
 
 **Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md).** Read it first. Build only the phase or feature you were asked for. When you make a design decision the doc doesn't cover, add a row to its Decision Log (§13).
 
-Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is in progress: the towers track (5 towers × 3 tiers, target priority, `PROTOCOL_VERSION` handshake), the waves and economy track (30 waves, 3 bosses, armour / magic resist everywhere, gold gifting) and the heroes track (Ranger, Warden, Arcanist with Q/W/E/R, levels 1–10, hero pick in the lobby and solo) are done. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is in progress: the towers track (5 towers × 3 tiers, target priority, `PROTOCOL_VERSION` handshake), the waves and economy track (30 waves, 3 bosses, armour / magic resist everywhere, gold gifting) the heroes track (Ranger, Warden, Arcanist with Q/W/E/R, levels 1–10, hero pick in the lobby and solo) and the balance pass (a full-game balance bot wins Normal with 1, 2 and 4 players with 40–80 Heart HP left; Bulwark Aura covers towers; "Change hero" on the solo end screen) are done. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Commands
 
@@ -19,7 +19,7 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run loadtest [-- --url wss://… --origin …]` | Ramp rooms of 4 bots until the server's average tick exceeds 10 ms (see docs/DEPLOY.md §6) |
 | `npm run typecheck` | Typecheck only |
 | `npm run preview` | Serve the production build locally |
-| `npm run balance [seeds…]` | Print solo balance-bot and idle-bot results for every hero, plus a 4-bot mixed team; use it after editing `tuning.ts` |
+| `npm run balance [seeds…]` | Print solo balance-bot and idle-bot results for every hero, plus mixed teams (three 2-bot pairs, 3 and 4 bots); use it after editing `tuning.ts` |
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
 
@@ -40,14 +40,14 @@ packages/sim/              @tdt/sim: pure deterministic simulation
   src/commands.ts          applyCommand: validation (gold, ownership, cooldowns, gifts…)
   src/map.ts               Crossroads map (generated deterministically, 80×60 tiles)
   src/pathfinding.ts       Hero A* on the tile grid
-  src/waves.ts             Wave timer, income, call-early, spawning
+  src/waves.ts             Wave timer, income, call-early, spawning, player-count scaling
   src/creeps.ts            Lane walking, aggro/leash, taunts, stuns, tower attacks, leaks
   src/bosses.ts            Boss abilities: Ironhorn Stomp, Matriarch Hatch, Shardback Shifting Hide
   src/towers.ts            Tower targeting (First/Strongest/Closest), upgrades, projectiles, Snare Traps
   src/heroes.ts            Hero orders, auto-attack (melee / ranged, Keen Eye crits), respawn
   src/skills.ts            Q/W/E/R of every hero: ranks and learning (R from level 6), casts, zones (Arrow Storm, Meteor)
   src/combat.ts            Damage rule (physical vs armour, magic vs magic resist), auras, stuns, kills, bounty, XP, levelling
-  src/bots.ts              Balance bot and idle bot (they act through commands only)
+  src/bots.ts              Balance bot (full tower kit from the wave list, upgrades, priorities, forward hero) and idle bot
   src/headless.ts          runHeadlessMatch for balance tests
   test/                    Vitest unit tests + balance.test.ts
   scripts/balance.ts       `npm run balance`
@@ -101,7 +101,7 @@ vercel.json                Vercel static deploy of apps/client
 - Workspaces export TypeScript source directly (`"main": "src/index.ts"`). There is no per-package build step; Vite and Vitest compile from source.
 - ES modules, 2-space indent, single quotes, semicolons, trailing commas, ~120-column lines.
 - Every sim mechanic gets a Vitest unit test. Use the helpers in `packages/sim/test/helpers.ts` (`labGame`, `placeCreep`, `parkHero`, `run`, `tuningCopy`) for isolated mechanic tests.
-- **Balance gate:** `balance.test.ts` requires the balance bot to win all 30 waves solo and the idle bot to lose on 5 seeds (the 30-wave runs make it the slowest test file, ~30 s); `balanceHeroes.test.ts` does the same for the Warden and the Arcanist (it runs in parallel). After changing `tuning.ts`, run `npm run balance` and keep both outcomes true.
+- **Balance gate:** on 5 seeds, the balance bot must win all 30 waves **with 40–80 Heart HP left** (`HEART_TARGET` in `test/helpers.ts`): solo Ranger and idle-bot losses in `balance.test.ts`, solo Warden / Arcanist in `balanceHeroes.test.ts`, 2-player pairs (one per seed) in `balanceDuo.test.ts`, a 4-bot mixed team in `balanceTeam.test.ts` (~40 s, the slowest file). The files run in parallel. Results swing ±15–20 Heart HP between seeds, so check a wider seed list (`npm run balance 1 2 3 … 19`) before trusting a change. After changing `tuning.ts` or `bots.ts`, run `npm run balance` and keep every outcome true.
 - Bots only read snapshots and act through commands, never by touching `GameState`. Online, `BotClient` wraps the same bots over a real WebSocket.
 - Server tests start a real server on port 0 (`test/helpers.ts`: `startServer`, `bot`, `fullRoom`). When a test speeds up ticks (`tickMs: 1`), scale `rateLimit` up to match.
 - Protocol changes: update `types.ts`, the validation in `codec.ts` (and its tests), and keep `diffSnapshot`/`applySnapshotDelta` exact. `delta.test.ts` checks this over a long match. **Bump `PROTOCOL_VERSION`** for any change to messages, commands or snapshots: the server announces it in `hello` and rejects entry messages with another `v`, and the client then shows "New version available — refresh".

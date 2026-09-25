@@ -70,6 +70,8 @@ export interface HudActions {
   learn(slot: SkillSlot): void;
   pressSkill(slot: SkillSlot): void;
   restart(): void;
+  /** Solo only: pick another hero for the next match. */
+  changeHero(): void;
   /** Online only: leave the room from the end screen. */
   leave(): void;
   closeMenus(): void;
@@ -125,6 +127,7 @@ export class Hud {
   private readonly endTitle = $('end-title');
   private readonly endText = $('end-text');
   private readonly restartBtn = $('restart') as HTMLButtonElement;
+  private readonly changeHeroBtn = $('end-change-hero') as HTMLButtonElement;
   private readonly endLeave = $('end-leave');
   private readonly team = $('team');
   private readonly teamCode = $('team-code');
@@ -157,6 +160,7 @@ export class Hud {
       if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
     });
     this.restartBtn.addEventListener('click', () => actions.restart());
+    this.changeHeroBtn.addEventListener('click', () => actions.changeHero());
     this.endLeave.addEventListener('click', () => actions.leave());
     // Keep clicks on HUD panels from reaching the canvas.
     for (const el of [this.padMenu, this.towerPanel, this.callEarly]) {
@@ -199,6 +203,7 @@ export class Hud {
       const isHost = online && this.room!.hostId === me;
       this.restartBtn.classList.toggle('hidden', online && !isHost);
       setText(this.restartBtn, online ? 'Back to lobby' : 'Play again');
+      this.changeHeroBtn.classList.toggle('hidden', online);
       this.endLeave.classList.toggle('hidden', !online);
       const won = snap.phase === 'victory';
       setText(this.endTitle, won ? 'Victory!' : 'Defeat');

@@ -196,6 +196,7 @@ export interface RangerStats extends HeroStats {
 export interface WardenStats extends HeroStats {
   cleave: CleaveStats;
   taunt: TauntStats;
+  /** Armour for heroes and towers within `radius`. */
   bulwarkAura: BulwarkAuraStats;
   lastStand: LastStandStats;
 }
@@ -265,10 +266,17 @@ export interface Tuning {
     armorGrowthPerWave: number;
     list: WaveGroup[][];
   };
-  /** Player-count scaling (from the design doc). */
+  /**
+   * Player-count scaling. Creep HP × (1 + hpPerExtraPlayer × (players − 1) + earlyHpBonus[players − 1] × e),
+   * where e fades from 1 on wave 1 to 0 on wave earlyWaves + 1. Teams get their gold and heroes all at once
+   * but share one set of build pads, so they are pressed hardest early; the early bonus is a table because
+   * a team's early strength is not linear in its size (3+ heroes can cover all three lanes).
+   */
   playerScaling: {
-    /** Creep HP × (1 + hpPerExtraPlayer × (players − 1)). */
     hpPerExtraPlayer: number;
+    /** By player count (index 0 = solo); the last entry also covers bigger teams. */
+    earlyHpBonus: number[];
+    earlyWaves: number;
     /** Creep count × (1 + countPerExtraPlayer × (players − 1)); bosses are not multiplied. */
     countPerExtraPlayer: number;
   };
@@ -330,7 +338,7 @@ function w(perLane: Partial<Record<CreepKind, number>>, boss?: BossKind): WaveGr
 export const TUNING: Tuning = {
   heart: { maxHp: 100, radius: 1.8 },
   economy: {
-    startingGold: 150,
+    startingGold: 120,
     sellRefund: 0.7,
     waveIncomeBase: 20,
     waveIncomePerWave: 5,
@@ -342,7 +350,7 @@ export const TUNING: Tuning = {
     interval: 40,
     spawnInterval: 0.9,
     laneSpread: 0.8,
-    hpGrowthPerWave: 0.12,
+    hpGrowthPerWave: 0.17,
     armorGrowthPerWave: 0.1,
     list: [
       // 1–10: the Phase 1 waves.
@@ -380,8 +388,8 @@ export const TUNING: Tuning = {
       w({ grunt: 14, runner: 2, archer: 8, brute: 8, wisp: 8 }, 'shardback'), // 30: final boss (Shifting Hide)
     ],
   },
-  playerScaling: { hpPerExtraPlayer: 0.5, countPerExtraPlayer: 0.25 },
-  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 12, bossControlFactor: 0.5 },
+  playerScaling: { hpPerExtraPlayer: 0.05, earlyHpBonus: [0, 0.8, 3.4, 4.2], earlyWaves: 10, countPerExtraPlayer: 0.3 },
+  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10 },
   bosses: {
     ironhorn: { stomp: { cooldown: 7, radius: 3, damage: 40, stun: 2 } },

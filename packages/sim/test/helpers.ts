@@ -56,3 +56,9 @@ export function runCollect(state: GameState, ticks: number): GameEvent[] {
 export function tuningCopy(): Tuning {
   return JSON.parse(JSON.stringify(TUNING)) as Tuning;
 }
+
+/** Seeds of the headless balance gates (`balance*.test.ts`). */
+export const BALANCE_SEEDS = [1, 2, 3, 42, 1234];
+
+/** Heart HP a winning balance bot (solo or a team) must end with on Normal: a challenge, not a walkover. */
+export const HEART_TARGET = { min: 40, max: 80 };
