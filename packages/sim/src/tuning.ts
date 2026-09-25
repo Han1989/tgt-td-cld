@@ -2,7 +2,7 @@
 // seconds, distances in tiles, speeds in tiles per second. The sim converts
 // seconds to ticks with `secondsToTicks`.
 
-import type { CreepKind, DamageType, LaneId, SkillSlot, TowerKind } from '@tdt/protocol';
+import type { BossKind, CreepKind, DamageType, LaneId, SkillSlot, TowerKind } from '@tdt/protocol';
 
 /** Fixed simulation rate. */
 export const TICK_RATE = 20;
@@ -26,6 +26,8 @@ export interface CreepStats {
   bounty: number;
   xp: number;
   leakDamage: number;
+  /** Bosses: never multiplied by player count, shorter roots. */
+  boss: boolean;
 }
 
 /** Numbers for one upgrade tier of a tower. */
@@ -45,6 +47,9 @@ export interface TowerTierStats {
 
 export interface TowerStats {
   damageType: DamageType;
+  /** Damage the tower itself takes: same rules as creeps and heroes (all tiers). */
+  armor: number;
+  magicResist: number;
   hitsGround: boolean;
   hitsAir: boolean;
   projectileSpeed: number;
@@ -84,6 +89,7 @@ export interface HeroStats {
   manaRegen: number;
   armor: number;
   armorPerLevel: number;
+  magicResist: number;
   damage: number;
   damagePerLevel: number;
   attackCooldown: number;
@@ -106,6 +112,32 @@ export interface WaveGroup {
   lanes: LaneId[];
 }
 
+export interface StompStats {
+  cooldown: number;
+  radius: number;
+  damage: number;
+  stun: number;
+}
+
+export interface HatchStats {
+  cooldown: number;
+  /** Hatchlings per cast. */
+  count: number;
+  /** A Matriarch stops hatching after this many hatchlings. */
+  max: number;
+  /** Random offset of each hatchling from the Matriarch. */
+  spread: number;
+}
+
+export interface ShiftingHideStats {
+  /** Seconds between switching Stone ↔ Ether hide. */
+  interval: number;
+  /** Stone hide: armour added to the base armour. */
+  stoneArmor: number;
+  /** Ether hide: magic resist added to the base magic resist. */
+  etherMagicResist: number;
+}
+
 export interface Tuning {
   heart: { maxHp: number; radius: number };
   economy: {
@@ -115,6 +147,8 @@ export interface Tuning {
     waveIncomePerWave: number;
     /** Call-early bonus per second left on the wave timer. */
     callEarlyGoldPerSecond: number;
+    /** Kill bounty × (1 + bountyGrowthPerWave × (wave − 1)), rounded. */
+    bountyGrowthPerWave: number;
   };
   waves: {
     buildPhase: number;
@@ -125,6 +159,8 @@ export interface Tuning {
     laneSpread: number;
     /** Creep HP multiplier: 1 + hpGrowthPerWave × (wave − 1). */
     hpGrowthPerWave: number;
+    /** Armour added to every creep: armorGrowthPerWave × (wave − 1). */
+    armorGrowthPerWave: number;
     list: WaveGroup[][];
   };
   /** Player-count scaling (from the design doc). */
@@ -137,6 +173,8 @@ export interface Tuning {
   combat: {
     /** Physical reduction = a·armor / (1 + a·armor). */
     armorFactor: number;
+    /** Magic resist never goes above this (1 would be immunity). */
+    maxMagicResist: number;
     xpShareRadius: number;
   };
   creepAi: {
@@ -145,11 +183,11 @@ export interface Tuning {
     leashRange: number;
     projectileSpeed: number;
   };
-  boss: {
-    stompCooldown: number;
-    stompRadius: number;
-    stompDamage: number;
-    stompStun: number;
+  /** One special ability per boss. */
+  bosses: {
+    ironhorn: { stomp: StompStats };
+    matriarch: { hatch: HatchStats };
+    shardback: { shiftingHide: ShiftingHideStats };
   };
   creeps: Record<CreepKind, CreepStats>;
   towers: Record<TowerKind, TowerStats>;
@@ -169,6 +207,17 @@ export interface Tuning {
 const ALL: LaneId[] = [0, 1, 2];
 const MID: LaneId[] = [1];
 
+/** One wave: `perLane` creeps of each kind in every lane, plus an optional boss in the middle lane. */
+function w(perLane: Partial<Record<CreepKind, number>>, boss?: BossKind): WaveGroup[] {
+  const groups: WaveGroup[] = Object.entries(perLane).map(([kind, n]) => ({
+    kind: kind as CreepKind,
+    perLane: n,
+    lanes: ALL,
+  }));
+  if (boss) groups.push({ kind: boss, perLane: 1, lanes: MID });
+  return groups;
+}
+
 export const TUNING: Tuning = {
   heart: { maxHp: 100, radius: 1.8 },
   economy: {
@@ -177,6 +226,7 @@ export const TUNING: Tuning = {
     waveIncomeBase: 20,
     waveIncomePerWave: 5,
     callEarlyGoldPerSecond: 0.5,
+    bountyGrowthPerWave: 0.03,
   },
   waves: {
     buildPhase: 30,
@@ -184,108 +234,103 @@ export const TUNING: Tuning = {
     spawnInterval: 0.9,
     laneSpread: 0.8,
     hpGrowthPerWave: 0.12,
+    armorGrowthPerWave: 0.1,
     list: [
-      // 1
-      [{ kind: 'grunt', perLane: 4, lanes: ALL }],
-      // 2
-      [
-        { kind: 'grunt', perLane: 4, lanes: ALL },
-        { kind: 'runner', perLane: 2, lanes: ALL },
-      ],
-      // 3
-      [
-        { kind: 'grunt', perLane: 4, lanes: ALL },
-        { kind: 'archer', perLane: 3, lanes: ALL },
-      ],
-      // 4
-      [
-        { kind: 'grunt', perLane: 3, lanes: ALL },
-        { kind: 'runner', perLane: 3, lanes: ALL },
-        { kind: 'brute', perLane: 1, lanes: ALL },
-      ],
-      // 5: first wisps
-      [
-        { kind: 'grunt', perLane: 4, lanes: ALL },
-        { kind: 'archer', perLane: 2, lanes: ALL },
-        { kind: 'wisp', perLane: 2, lanes: ALL },
-      ],
-      // 6
-      [
-        { kind: 'runner', perLane: 5, lanes: ALL },
-        { kind: 'brute', perLane: 2, lanes: ALL },
-        { kind: 'wisp', perLane: 2, lanes: ALL },
-      ],
-      // 7
-      [
-        { kind: 'grunt', perLane: 5, lanes: ALL },
-        { kind: 'archer', perLane: 3, lanes: ALL },
-        { kind: 'brute', perLane: 2, lanes: ALL },
-      ],
-      // 8
-      [
-        { kind: 'grunt', perLane: 4, lanes: ALL },
-        { kind: 'runner', perLane: 4, lanes: ALL },
-        { kind: 'archer', perLane: 2, lanes: ALL },
-        { kind: 'wisp', perLane: 3, lanes: ALL },
-      ],
-      // 9
-      [
-        { kind: 'grunt', perLane: 5, lanes: ALL },
-        { kind: 'brute', perLane: 3, lanes: ALL },
-        { kind: 'archer', perLane: 3, lanes: ALL },
-        { kind: 'wisp', perLane: 3, lanes: ALL },
-      ],
-      // 10: boss
-      [
-        { kind: 'grunt', perLane: 5, lanes: ALL },
-        { kind: 'archer', perLane: 3, lanes: ALL },
-        { kind: 'brute', perLane: 2, lanes: ALL },
-        { kind: 'wisp', perLane: 3, lanes: ALL },
-        { kind: 'boss', perLane: 1, lanes: MID },
-      ],
+      // 1–10: the Phase 1 waves.
+      w({ grunt: 4 }),
+      w({ grunt: 4, runner: 2 }),
+      w({ grunt: 4, archer: 3 }),
+      w({ grunt: 3, runner: 3, brute: 1 }),
+      w({ grunt: 4, archer: 2, wisp: 2 }), // 5: first wisps
+      w({ runner: 5, brute: 2, wisp: 2 }),
+      w({ grunt: 5, archer: 3, brute: 2 }),
+      w({ grunt: 4, runner: 4, archer: 2, wisp: 3 }),
+      w({ grunt: 5, brute: 3, archer: 3, wisp: 3 }),
+      w({ grunt: 5, archer: 3, brute: 2, wisp: 3 }, 'ironhorn'), // 10: boss (Stomp)
+      // 11–20
+      w({ grunt: 6, archer: 3, runner: 3, wisp: 3 }),
+      w({ grunt: 5, runner: 2, archer: 3, brute: 3, wisp: 3 }),
+      w({ runner: 8, brute: 3, archer: 3, wisp: 3 }),
+      w({ grunt: 7, archer: 4, brute: 3, wisp: 4 }),
+      w({ wisp: 8, grunt: 6, archer: 5 }), // 15: air wave
+      w({ grunt: 7, runner: 4, archer: 4, brute: 4, wisp: 1 }),
+      w({ grunt: 8, archer: 5, brute: 4, wisp: 4 }),
+      w({ runner: 10, brute: 4, archer: 4, wisp: 4 }),
+      w({ grunt: 8, archer: 5, brute: 5, wisp: 5 }),
+      w({ grunt: 8, archer: 5, brute: 4, wisp: 5 }, 'matriarch'), // 20: boss (Hatch)
+      // 21–30
+      w({ grunt: 9, runner: 5, archer: 5, brute: 4, wisp: 2 }),
+      w({ grunt: 8, archer: 6, brute: 6, wisp: 6 }),
+      w({ runner: 12, archer: 5, brute: 5, wisp: 5 }),
+      w({ grunt: 10, archer: 6, brute: 6, wisp: 6 }),
+      w({ wisp: 12, grunt: 10, archer: 8 }), // 25: air wave
+      w({ grunt: 11, runner: 6, archer: 6, brute: 6, wisp: 3 }),
+      w({ grunt: 12, archer: 7, brute: 8, wisp: 7 }),
+      w({ runner: 14, archer: 7, brute: 8, wisp: 7 }),
+      w({ grunt: 14, archer: 8, brute: 8, wisp: 8 }),
+      w({ grunt: 14, runner: 2, archer: 8, brute: 8, wisp: 8 }, 'shardback'), // 30: final boss (Shifting Hide)
     ],
   },
   playerScaling: { hpPerExtraPlayer: 0.5, countPerExtraPlayer: 0.25 },
-  combat: { armorFactor: 0.06, xpShareRadius: 12 },
+  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 12 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10 },
-  boss: { stompCooldown: 7, stompRadius: 3, stompDamage: 40, stompStun: 2 },
+  bosses: {
+    ironhorn: { stomp: { cooldown: 7, radius: 3, damage: 40, stun: 2 } },
+    matriarch: { hatch: { cooldown: 6, count: 3, max: 24, spread: 0.8 } },
+    shardback: { shiftingHide: { interval: 8, stoneArmor: 25, etherMagicResist: 0.6 } },
+  },
   creeps: {
     grunt: {
       hp: 55, armor: 1, magicResist: 0, speed: 1.6, radius: 0.35, flying: false,
       damage: 7, damageType: 'physical', attackCooldown: 1, attackRange: 0.6, ranged: false, attacksTowers: false,
-      bounty: 5, xp: 10, leakDamage: 1,
+      bounty: 5, xp: 10, leakDamage: 1, boss: false,
     },
     archer: {
-      hp: 50, armor: 0, magicResist: 0, speed: 1.6, radius: 0.33, flying: false,
+      hp: 50, armor: 0, magicResist: 0.15, speed: 1.6, radius: 0.33, flying: false,
       damage: 6, damageType: 'physical', attackCooldown: 1.4, attackRange: 4.5, ranged: true, attacksTowers: true,
-      bounty: 7, xp: 12, leakDamage: 1,
+      bounty: 7, xp: 12, leakDamage: 1, boss: false,
     },
     runner: {
       hp: 40, armor: 0, magicResist: 0, speed: 3.2, radius: 0.3, flying: false,
       damage: 4, damageType: 'physical', attackCooldown: 0.8, attackRange: 0.6, ranged: false, attacksTowers: false,
-      bounty: 5, xp: 8, leakDamage: 1,
+      bounty: 5, xp: 8, leakDamage: 1, boss: false,
     },
     brute: {
       hp: 220, armor: 6, magicResist: 0, speed: 1, radius: 0.5, flying: false,
       damage: 14, damageType: 'physical', attackCooldown: 1.5, attackRange: 0.7, ranged: false, attacksTowers: false,
-      bounty: 14, xp: 25, leakDamage: 1,
+      bounty: 14, xp: 25, leakDamage: 1, boss: false,
     },
     wisp: {
-      hp: 55, armor: 0, magicResist: 0, speed: 1.8, radius: 0.3, flying: true,
+      hp: 55, armor: 0, magicResist: 0.25, speed: 1.8, radius: 0.3, flying: true,
       damage: 0, damageType: 'magic', attackCooldown: 1, attackRange: 0, ranged: false, attacksTowers: false,
-      bounty: 7, xp: 12, leakDamage: 1,
+      bounty: 7, xp: 12, leakDamage: 1, boss: false,
     },
-    boss: {
+    hatchling: {
+      hp: 30, armor: 0, magicResist: 0, speed: 2.6, radius: 0.25, flying: false,
+      damage: 4, damageType: 'physical', attackCooldown: 0.8, attackRange: 0.5, ranged: false, attacksTowers: false,
+      bounty: 1, xp: 3, leakDamage: 1, boss: false,
+    },
+    ironhorn: {
       hp: 1400, armor: 4, magicResist: 0.1, speed: 0.9, radius: 0.9, flying: false,
       damage: 40, damageType: 'physical', attackCooldown: 1.5, attackRange: 1.6, ranged: false, attacksTowers: true,
-      bounty: 150, xp: 300, leakDamage: 20,
+      bounty: 150, xp: 300, leakDamage: 20, boss: true,
+    },
+    matriarch: {
+      hp: 1600, armor: 3, magicResist: 0.2, speed: 0.8, radius: 0.95, flying: false,
+      damage: 35, damageType: 'physical', attackCooldown: 1.5, attackRange: 1.6, ranged: false, attacksTowers: true,
+      bounty: 200, xp: 400, leakDamage: 20, boss: true,
+    },
+    shardback: {
+      hp: 2000, armor: 5, magicResist: 0.1, speed: 0.75, radius: 1, flying: false,
+      damage: 50, damageType: 'physical', attackCooldown: 1.6, attackRange: 1.7, ranged: false, attacksTowers: true,
+      bounty: 300, xp: 500, leakDamage: 20, boss: true,
     },
   },
   // Tier 1 is what a fresh build gets; tiers 2 and 3 are bought with `upgrade`.
   // Selling refunds economy.sellRefund of everything spent on the tower.
   towers: {
     arrow: {
-      damageType: 'physical', hitsGround: true, hitsAir: true, projectileSpeed: 14,
+      damageType: 'physical', armor: 2, magicResist: 0, hitsGround: true, hitsAir: true, projectileSpeed: 14,
       tiers: [
         { cost: 60, hp: 500, range: 6, damage: 16, attackCooldown: 0.7, splash: 0, slow: 0, slowDuration: 0 },
         { cost: 70, hp: 580, range: 6.5, damage: 26, attackCooldown: 0.65, splash: 0, slow: 0, slowDuration: 0 },
@@ -293,7 +338,7 @@ export const TUNING: Tuning = {
       ],
     },
     cannon: {
-      damageType: 'physical', hitsGround: true, hitsAir: false, projectileSpeed: 8,
+      damageType: 'physical', armor: 4, magicResist: 0, hitsGround: true, hitsAir: false, projectileSpeed: 8,
       tiers: [
         { cost: 90, hp: 550, range: 5.5, damage: 36, attackCooldown: 1.6, splash: 1.6, slow: 0, slowDuration: 0 },
         { cost: 100, hp: 630, range: 6, damage: 58, attackCooldown: 1.5, splash: 1.8, slow: 0, slowDuration: 0 },
@@ -301,7 +346,7 @@ export const TUNING: Tuning = {
       ],
     },
     frost: {
-      damageType: 'magic', hitsGround: true, hitsAir: true, projectileSpeed: 10,
+      damageType: 'magic', armor: 2, magicResist: 0, hitsGround: true, hitsAir: true, projectileSpeed: 10,
       tiers: [
         { cost: 70, hp: 500, range: 5, damage: 10, attackCooldown: 1, splash: 0, slow: 0.3, slowDuration: 2 },
         { cost: 80, hp: 570, range: 5.5, damage: 18, attackCooldown: 0.95, splash: 0, slow: 0.35, slowDuration: 2.5 },
@@ -310,7 +355,7 @@ export const TUNING: Tuning = {
     },
     // Magic damage ignores armour: the answer to Brutes.
     arcane: {
-      damageType: 'magic', hitsGround: true, hitsAir: true, projectileSpeed: 12,
+      damageType: 'magic', armor: 2, magicResist: 0, hitsGround: true, hitsAir: true, projectileSpeed: 12,
       tiers: [
         { cost: 100, hp: 500, range: 6, damage: 30, attackCooldown: 1.2, splash: 0, slow: 0, slowDuration: 0 },
         { cost: 90, hp: 570, range: 6.5, damage: 50, attackCooldown: 1.1, splash: 0, slow: 0, slowDuration: 0 },
@@ -319,7 +364,7 @@ export const TUNING: Tuning = {
     },
     // Air only: heavy bursts that also catch nearby flyers.
     flak: {
-      damageType: 'physical', hitsGround: false, hitsAir: true, projectileSpeed: 16,
+      damageType: 'physical', armor: 2, magicResist: 0, hitsGround: false, hitsAir: true, projectileSpeed: 16,
       tiers: [
         { cost: 80, hp: 500, range: 7, damage: 60, attackCooldown: 1.5, splash: 1.2, slow: 0, slowDuration: 0 },
         { cost: 80, hp: 570, range: 7.5, damage: 95, attackCooldown: 1.4, splash: 1.4, slow: 0, slowDuration: 0 },
@@ -337,7 +382,7 @@ export const TUNING: Tuning = {
     ranger: {
       hp: 320, hpPerLevel: 40, hpRegen: 1.5,
       mana: 120, manaPerLevel: 20, manaRegen: 1.5,
-      armor: 2, armorPerLevel: 0.5,
+      armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
       damage: 20, damagePerLevel: 3,
       attackCooldown: 0.9, attackRange: 6, ranged: true, projectileSpeed: 16,
       speed: 3.4, radius: 0.4, acquireRange: 7,

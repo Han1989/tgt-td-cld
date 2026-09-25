@@ -21,10 +21,11 @@ npm run build                                      # typecheck + client build + 
 
 **Online:** enter a nickname, click **Create room** and share the invite link (or the 5-letter code). Friends click **Join**, then **Ready**; the host clicks **Start match**. Each player has their own gold and hero.
 
-Hold the Heart for 10 waves. Creeps come down three lanes from the portals at the top. Wisps (from wave 5) fly straight at the Heart. Wave 10 brings a Boss.
+Hold the Heart for 30 waves. Creeps come down three lanes from the portals at the top. Wisps (from wave 5) fly straight at the Heart. Waves 10, 20 and 30 each bring a boss with its own trick: the Ironhorn stomps, the Matriarch hatches broods, and the Shardback shifts between a hide that resists physical damage and one that resists magic.
 
 - **Right-click:** move, or attack a creep. **A** + left-click: attack-move.
 - **Q:** Multishot. **W:** Snare Trap, then left-click where to place it. Spend skill points with the **+** buttons.
 - **Left-click a build pad** to build (Arrow, Cannon, Frost), or press **B** then **1–3**. Left-click your own tower to sell it for 70% of its cost.
 - **Camera:** screen edges, arrow keys, middle-mouse drag, mouse wheel to zoom, **Space** to centre on your hero.
 - **Call early** starts the next wave now and pays bonus gold.
+- **Online:** give gold to a teammate with the **Give** buttons in the team panel (top left).

@@ -6,7 +6,7 @@ import { createGame, snapshot, step } from '../src/game';
 import { getMap, isWalkable, Tile, tileAt } from '../src/map';
 import { findPath } from '../src/pathfinding';
 import { secondsToTicks, TUNING } from '../src/tuning';
-import { creepMaxHp } from '../src/waves';
+import { creepMaxHp, spawnCreep } from '../src/waves';
 import { labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
 
 const solo = () => createGame({ players: [{ id: 'p1', name: 'Solo', hero: 'ranger' }] }, 1);
@@ -91,17 +91,48 @@ describe('waves', () => {
     expect(state.creeps.length).toBeGreaterThan(0);
   });
 
-  it('has 10 waves, wisps from wave 5 and a boss at wave 10', () => {
+  it('has 30 waves, wisps from wave 5 and a different boss at waves 10, 20 and 30', () => {
     const list = TUNING.waves.list;
-    expect(list).toHaveLength(10);
+    expect(list).toHaveLength(30);
+    const bosses = new Map<number, string>();
     list.forEach((groups, i) => {
       const kinds = groups.map((g) => g.kind);
       if (i + 1 < 5) expect(kinds).not.toContain('wisp');
-      expect(kinds.includes('boss')).toBe(i + 1 === 10);
+      expect(kinds).not.toContain('hatchling');
+      for (const g of groups) {
+        if (!TUNING.creeps[g.kind].boss) continue;
+        bosses.set(i + 1, g.kind);
+        expect(g.perLane * g.lanes.length).toBe(1);
+      }
     });
+    expect([...bosses]).toEqual([
+      [10, 'ironhorn'],
+      [20, 'matriarch'],
+      [30, 'shardback'],
+    ]);
     expect(list[4]!.some((g) => g.kind === 'wisp')).toBe(true);
-    const size = (groups: typeof list[number]) => groups.reduce((n, g) => n + g.perLane * g.lanes.length, 0);
+  });
+
+  it('grows from 12 creeps in wave 1 to 120 in wave 30', () => {
+    const list = TUNING.waves.list;
+    const size = (groups: (typeof list)[number]) =>
+      groups.filter((g) => !TUNING.creeps[g.kind].boss).reduce((n, g) => n + g.perLane * g.lanes.length, 0);
     expect(size(list[0]!)).toBe(12);
+    expect(size(list[29]!)).toBe(120);
+    // Bigger overall: every wave after 10 is at least as big as wave 10.
+    for (let i = 10; i < 30; i++) expect(size(list[i]!)).toBeGreaterThanOrEqual(size(list[9]!));
+    // The last wave still finishes spawning before the next wave would start.
+    const perLane = Math.max(...[0, 1, 2].map((lane) => list[29]!.filter((g) => g.lanes.includes(lane as 0 | 1 | 2)).reduce((n, g) => n + g.perLane, 0)));
+    expect(perLane * TUNING.waves.spawnInterval).toBeLessThan(TUNING.waves.interval);
+  });
+
+  it('adds armour to creeps as the waves go on', () => {
+    const state = labGame();
+    const early = spawnCreep(state, 'grunt', 1, 1);
+    const late = spawnCreep(state, 'grunt', 1, 21);
+    expect(early.armor).toBe(TUNING.creeps.grunt.armor);
+    expect(late.armor).toBeCloseTo(TUNING.creeps.grunt.armor + 20 * TUNING.waves.armorGrowthPerWave);
+    expect(late.magicResist).toBe(TUNING.creeps.grunt.magicResist);
   });
 
   it('scales creep HP with the wave number', () => {
@@ -186,10 +217,10 @@ describe('economy', () => {
 
   it('cannot call early once the final wave has started', () => {
     const state = solo();
-    state.wave = 9;
+    state.wave = 29;
     state.nextWaveTick = state.tick;
     step(state);
-    expect(state.wave).toBe(10);
+    expect(state.wave).toBe(30);
     expect(applyCommand(state, 'p1', { type: 'callEarly' })).toBe(false);
   });
 });
@@ -208,11 +239,11 @@ describe('win and lose', () => {
     expect(applyCommand(state, 'p1', { type: 'callEarly' })).toBe(false);
   });
 
-  it('bosses leak 20', () => {
+  it.each(['ironhorn', 'matriarch', 'shardback'] as const)('the %s boss leaks 20', (kind) => {
     const state = labGame();
     parkHero(state);
     const heart = getMap().heart;
-    placeCreep(state, 'boss', heart.x, heart.y - 2.5, 1).wp = 7;
+    placeCreep(state, kind, heart.x, heart.y - 2.5, 1).wp = 7;
     run(state, 100);
     expect(state.heartHp).toBe(TUNING.heart.maxHp - 20);
   });
@@ -261,7 +292,7 @@ describe('snapshot', () => {
     step(state);
     const snap = snapshot(state);
     expect(JSON.parse(JSON.stringify(snap))).toEqual(snap);
-    expect(snap).toMatchObject({ heartHp: 100, wave: 0, totalWaves: 10, phase: 'build' });
+    expect(snap).toMatchObject({ heartHp: 100, wave: 0, totalWaves: 30, phase: 'build' });
     expect(snap.nextWaveIn).toBe(secondsToTicks(30) - 1);
     const hero = snap.heroes[0]!;
     expect(hero.skills.map((s) => s.slot)).toEqual(['Q', 'W']);

@@ -2,7 +2,7 @@
 
 **Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md).** Read it first. Build only the phase or feature you were asked for. When you make a design decision the doc doesn't cover, add a row to its Decision Log (§13).
 
-Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is in progress: the towers track is done (5 towers × 3 tiers, target priority, `PROTOCOL_VERSION` handshake); heroes, 30 waves and gold gifting are next. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is in progress: the towers track (5 towers × 3 tiers, target priority, `PROTOCOL_VERSION` handshake) and the waves and economy track (30 waves, 3 bosses, armour / magic resist everywhere, gold gifting) are done; heroes are next. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Commands
 
@@ -19,7 +19,7 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run loadtest [-- --url wss://… --origin …]` | Ramp rooms of 4 bots until the server's average tick exceeds 10 ms (see docs/DEPLOY.md §6) |
 | `npm run typecheck` | Typecheck only |
 | `npm run preview` | Serve the production build locally |
-| `npm run balance [seeds…]` | Print balance-bot and idle-bot results; use it after editing `tuning.ts` |
+| `npm run balance [seeds…]` | Print solo balance-bot, 4-balance-bot and idle-bot results; use it after editing `tuning.ts` |
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
 
@@ -37,14 +37,15 @@ packages/protocol/         @tdt/protocol: wire contract
 packages/sim/              @tdt/sim: pure deterministic simulation
   src/tuning.ts            ALL balance numbers (one file)
   src/game.ts              createGame, step, snapshot
-  src/commands.ts          applyCommand: validation (gold, ownership, cooldowns…)
+  src/commands.ts          applyCommand: validation (gold, ownership, cooldowns, gifts…)
   src/map.ts               Crossroads map (generated deterministically, 80×60 tiles)
   src/pathfinding.ts       Hero A* on the tile grid
   src/waves.ts             Wave timer, income, call-early, spawning
-  src/creeps.ts            Lane walking, aggro/leash, tower attacks, boss stomp, leaks
+  src/creeps.ts            Lane walking, aggro/leash, tower attacks, leaks
+  src/bosses.ts            Boss abilities: Ironhorn Stomp, Matriarch Hatch, Shardback Shifting Hide
   src/towers.ts            Tower targeting (First/Strongest/Closest), upgrades, projectiles, Snare Traps
   src/heroes.ts            Hero orders, auto-attack, skills, respawn
-  src/combat.ts            Damage/armour, kills, bounty, XP, levelling
+  src/combat.ts            Damage rule (physical vs armour, magic vs magic resist), kills, bounty, XP, levelling
   src/bots.ts              Balance bot and idle bot (they act through commands only)
   src/headless.ts          runHeadlessMatch for balance tests
   test/                    Vitest unit tests + balance.test.ts
@@ -85,6 +86,7 @@ vercel.json                Vercel static deploy of apps/client
 - **The server is authoritative.** Each room owns the only real `GameState`. Commands are queued as they arrive and applied at the start of the next tick, in arrival order; then `step`, `snapshot`, and a broadcast (a full snapshot for new or reconnected clients and every `keyframeEveryTicks`, otherwise one encoded delta shared by all clients). Never trust anything from the client beyond a decoded message.
 - **Rooms are self-contained** (lobby, sim, sockets in one process). Room codes start with the server's `SHARD` letter so a future router can route by code (docs/DEPLOY.md §7). Keep Render at one instance per shard.
 - **Server config comes from env** (`config.ts`). Tests build configs with `defaultConfig({...})`, e.g. `tickMs: 1` to run game time fast.
+- **Damage:** every hit goes through `damageMultiplier` (`combat.ts`): physical is reduced by armour, magic by magic resist, for creeps, heroes and towers alike. Creeps carry their current `armor` / `magicResist` (bosses change theirs). Bosses are creep kinds with `boss: true`; test for the flag, never for a kind name.
 - **All balance numbers live in `packages/sim/src/tuning.ts`.** Durations are in seconds, distances in tiles and speeds in tiles/s. Convert with `secondsToTicks`. Don't scatter constants.
 - **Units:** the sim works in tiles (floats). The renderer multiplies by `TILE_PX` (32).
 - **Shapes-only graphics until Phase 4.** Each entity type has a distinct shape and colour plus an HP bar; see `render/palette.ts` and `render/world.ts`.
@@ -97,7 +99,7 @@ vercel.json                Vercel static deploy of apps/client
 - Workspaces export TypeScript source directly (`"main": "src/index.ts"`). There is no per-package build step; Vite and Vitest compile from source.
 - ES modules, 2-space indent, single quotes, semicolons, trailing commas, ~120-column lines.
 - Every sim mechanic gets a Vitest unit test. Use the helpers in `packages/sim/test/helpers.ts` (`labGame`, `placeCreep`, `parkHero`, `run`, `tuningCopy`) for isolated mechanic tests.
-- **Balance gate:** `balance.test.ts` requires the balance bot to win all 10 waves and the idle bot to lose on 5 seeds. After changing `tuning.ts`, run `npm run balance` and keep both outcomes true.
+- **Balance gate:** `balance.test.ts` requires the balance bot to win all 30 waves solo and the idle bot to lose on 5 seeds (the 30-wave runs make it the slowest test file, ~30 s). After changing `tuning.ts`, run `npm run balance` and keep both outcomes true.
 - Bots only read snapshots and act through commands, never by touching `GameState`. Online, `BotClient` wraps the same bots over a real WebSocket.
 - Server tests start a real server on port 0 (`test/helpers.ts`: `startServer`, `bot`, `fullRoom`). When a test speeds up ticks (`tickMs: 1`), scale `rateLimit` up to match.
 - Protocol changes: update `types.ts`, the validation in `codec.ts` (and its tests), and keep `diffSnapshot`/`applySnapshotDelta` exact. `delta.test.ts` checks this over a long match. **Bump `PROTOCOL_VERSION`** for any change to messages, commands or snapshots: the server announces it in `hello` and rejects entry messages with another `v`, and the client then shows "New version available — refresh".

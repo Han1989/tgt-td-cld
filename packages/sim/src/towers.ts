@@ -112,7 +112,7 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
   }
   if (p.targetKind === 'tower') {
     const t = state.towers.find((x) => x.id === p.targetId);
-    if (t) damageTower(state, t, p.damage);
+    if (t) damageTower(state, t, p.damage, p.damageType);
     return;
   }
   if (p.splash > 0) {
@@ -154,7 +154,7 @@ export function updateTraps(state: GameState): void {
     emit(state, { type: 'trapTriggered', x: trap.x, y: trap.y, radius: s.rootRadius });
     for (const c of ground) {
       if (dist(trap.x, trap.y, c.x, c.y) > s.rootRadius) continue;
-      const ticks = c.kind === 'boss' ? Math.round(duration * s.bossRootFactor) : duration;
+      const ticks = state.tuning.creeps[c.kind].boss ? Math.round(duration * s.bossRootFactor) : duration;
       c.rootUntil = Math.max(c.rootUntil, state.tick + ticks);
       damageCreep(state, c, damage, 'physical', trap.owner);
     }

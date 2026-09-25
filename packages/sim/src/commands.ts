@@ -135,6 +135,18 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       if (state.nextWaveTick < 0) return reject('No waves left to call');
       callEarly(state, playerId);
       return true;
+    case 'gift': {
+      if (command.to === playerId) return reject('You cannot gift gold to yourself');
+      const to = state.players.find((p) => p.id === command.to);
+      if (!to) return reject('No such teammate');
+      if (!to.connected) return reject('That teammate is away');
+      if (!Number.isSafeInteger(command.amount) || command.amount < 1) return reject('Invalid amount');
+      if (player.gold < command.amount) return reject('Not enough gold');
+      player.gold -= command.amount;
+      to.gold += command.amount;
+      emit(state, { type: 'gift', from: playerId, to: to.id, amount: command.amount });
+      return true;
+    }
   }
 }
 

@@ -2,12 +2,15 @@
 // menus, toasts and the victory / defeat screen. Reads snapshots only.
 
 import {
+  isBossKind,
   TARGET_PRIORITIES,
   TOWER_KINDS,
+  type BossKind,
   type GameEvent,
   type HeroSnap,
   type LobbyState,
   type PlayerId,
+  type PlayerSnap,
   type SkillSlot,
   type Snapshot,
   type TargetPriority,
@@ -16,11 +19,27 @@ import {
 } from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { Camera } from '../input/camera';
-import { TOWER_NAMES } from '../render/palette';
+import { CREEP_NAMES, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { buildCost, maxTier, PRIORITY_HINTS, PRIORITY_NAMES, targetsText, towerStatRows, upgradeCost } from './towerInfo';
 
+/** Amounts offered by the gift buttons in the team panel. */
+const GIFT_AMOUNTS = [25, 100] as const;
+
+interface TeamRow {
+  lvl: HTMLElement;
+  fill: HTMLElement;
+  gold: HTMLElement;
+  gifts: HTMLButtonElement[];
+}
+
 const SKILL_NAMES: Partial<Record<SkillSlot, string>> = { Q: 'Multishot', W: 'Snare Trap' };
+
+const BOSS_HINTS: Record<BossKind, string> = {
+  ironhorn: 'Ironhorn stomps: it stuns heroes and towers close to it',
+  matriarch: 'The Matriarch hatches broods of hatchlings as it walks',
+  shardback: 'Shardback shifts its hide: Stone resists physical, Ether resists magic',
+};
 
 const TOWER_BLURBS: Record<TowerKind, string> = {
   arrow: 'Fast single target. Hits air.',
@@ -36,6 +55,8 @@ export interface HudActions {
   upgrade(towerId: number): void;
   setPriority(towerId: number, priority: TargetPriority): void;
   callEarly(): void;
+  /** Online only: give some of your gold to a teammate. */
+  gift(to: PlayerId, amount: number): void;
   learn(slot: SkillSlot): void;
   pressSkill(slot: SkillSlot): void;
   restart(): void;
@@ -101,6 +122,7 @@ export class Hud {
   private noticeText = '';
   private noticeDeadline = 0;
   private teamKey = '';
+  private readonly teamRows = new Map<PlayerId, TeamRow>();
 
   private skillButtons = new Map<SkillSlot, { root: HTMLButtonElement; learn: HTMLButtonElement; cd: HTMLElement; cdText: HTMLElement; pips: HTMLElement }>();
   private openPad: number | null = null;
@@ -205,32 +227,61 @@ export class Hud {
     this.team.classList.toggle('hidden', !show);
     if (!show) return;
     setText(this.teamCode, this.room!.code);
-    const rows = snap.players.map((p) => {
-      const hero = snap.heroes.find((h) => h.id === p.heroId);
-      return { p, hero };
-    });
-    const key = JSON.stringify(rows.map(({ p, hero }) => [p.id, p.connected, hero?.level, hero?.hp, hero?.alive]));
-    if (key === this.teamKey) return;
-    this.teamKey = key;
-    this.teamList.innerHTML = '';
-    for (const { p, hero } of rows) {
-      const li = document.createElement('li');
-      li.classList.toggle('away', !p.connected);
-      const who = document.createElement('span');
-      who.className = 'who';
-      who.textContent = `${p.name}${p.id === me ? ' (you)' : ''}${p.connected ? '' : ' — away'}`;
-      const lvl = document.createElement('span');
-      lvl.className = 'lvl';
-      lvl.textContent = hero ? (hero.alive ? `Lv ${hero.level}` : 'dead') : '';
-      const bar = document.createElement('div');
-      bar.className = 'bar';
-      const fill = document.createElement('div');
-      fill.className = 'fill';
-      fill.style.width = hero && hero.alive ? `${(hero.hp / hero.maxHp) * 100}%` : '0%';
-      bar.appendChild(fill);
-      li.append(who, lvl, bar);
-      this.teamList.appendChild(li);
+    // Rebuild the rows only when the roster changes, so gift buttons survive gold ticking up.
+    const key = JSON.stringify([me, snap.players.map((p) => [p.id, p.name, p.connected])]);
+    if (key !== this.teamKey) {
+      this.teamKey = key;
+      this.teamList.innerHTML = '';
+      this.teamRows.clear();
+      for (const p of snap.players) this.teamRows.set(p.id, this.createTeamRow(p, p.id === me));
     }
+    const myGold = snap.players.find((p) => p.id === me)?.gold ?? 0;
+    for (const p of snap.players) {
+      const row = this.teamRows.get(p.id);
+      if (!row) continue;
+      const hero = snap.heroes.find((h) => h.id === p.heroId);
+      setText(row.lvl, hero ? (hero.alive ? `Lv ${hero.level}` : 'dead') : '');
+      setWidth(row.fill, hero && hero.alive ? hero.hp / hero.maxHp : 0);
+      setText(row.gold, String(p.gold));
+      for (const b of row.gifts) b.disabled = !p.connected || myGold < Number(b.dataset.amount);
+    }
+  }
+
+  private createTeamRow(p: PlayerSnap, isMe: boolean): TeamRow {
+    const li = document.createElement('li');
+    li.classList.toggle('away', !p.connected);
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = `${p.name}${isMe ? ' (you)' : ''}${p.connected ? '' : ' — away'}`;
+    const lvl = document.createElement('span');
+    lvl.className = 'lvl';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const fill = document.createElement('div');
+    fill.className = 'fill';
+    bar.appendChild(fill);
+    const money = document.createElement('div');
+    money.className = 'money';
+    const gold = document.createElement('span');
+    gold.className = 'gold-amount';
+    money.appendChild(gold);
+    const gifts: HTMLButtonElement[] = [];
+    if (!isMe) {
+      for (const amount of GIFT_AMOUNTS) {
+        const b = document.createElement('button');
+        b.className = 'btn gift';
+        b.textContent = `Give ${amount}`;
+        b.title = `Give ${p.name} ${amount} of your gold`;
+        b.dataset.amount = String(amount);
+        b.addEventListener('pointerdown', (e) => e.stopPropagation());
+        b.addEventListener('click', () => this.actions.gift(p.id, amount));
+        gifts.push(b);
+        money.appendChild(b);
+      }
+    }
+    li.append(who, lvl, bar, money);
+    this.teamList.appendChild(li);
+    return { lvl, fill, gold, gifts };
   }
 
   handleEvents(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
@@ -238,8 +289,14 @@ export class Hud {
       if (e.type === 'rejected' && e.player === me) {
         this.toast(e.reason);
       } else if (e.type === 'waveStart') {
-        const boss = TUNING.waves.list[e.wave - 1]?.some((g) => g.kind === 'boss');
-        this.showBanner(boss ? `Wave ${e.wave} — Boss!` : `Wave ${e.wave}`);
+        const boss = TUNING.waves.list[e.wave - 1]?.map((g) => g.kind).find(isBossKind);
+        this.showBanner(boss ? `Wave ${e.wave} — Boss: ${CREEP_NAMES[boss]}!` : `Wave ${e.wave}`);
+        if (boss) this.toast(BOSS_HINTS[boss]);
+      } else if (e.type === 'hideShift') {
+        this.toast(e.hide === 'stone' ? 'Shardback: Stone hide — use magic damage' : 'Shardback: Ether hide — use physical damage');
+      } else if (e.type === 'gift' && (e.to === me || e.from === me)) {
+        const name = (id: PlayerId) => snap.players.find((p) => p.id === id)?.name ?? '?';
+        this.toast(e.to === me ? `${name(e.from)} gave you ${e.amount} gold` : `You gave ${name(e.to)} ${e.amount} gold`);
       } else if (e.type === 'heroDied' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
         this.toast('Your hero has fallen');
       }

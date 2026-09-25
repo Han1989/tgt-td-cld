@@ -860,6 +860,24 @@ body {
   background: var(--hp);
 }
 
+.team .money {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.team .gold-amount {
+  flex: 1;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.team .btn.gift {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
 .notice {
   position: absolute;
   top: 64px;

@@ -180,6 +180,8 @@ export function snapshot(state: GameState): Snapshot {
       maxHp: c.maxHp,
       slowed: state.tick < c.slowUntil,
       rooted: state.tick < c.rootUntil,
+      armor: r2(c.armor),
+      magicResist: r2(c.magicResist),
     })),
     towers: state.towers.map((tw) => ({
       id: tw.id,
