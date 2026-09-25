@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tower Defense Together</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="hud">
+      <header class="topbar">
+        <div class="stat gold" title="Your gold"><span class="icon coin"></span><span id="gold">0</span></div>
+        <div class="stat heart" title="Heart HP">
+          <span class="icon heart-icon"></span>
+          <div class="bar"><div id="heart-fill" class="fill"></div><span id="heart-text" class="bar-text"></span></div>
+        </div>
+        <div class="stat" title="Wave"><span class="label">Wave</span><span id="wave">0 / 10</span></div>
+        <div class="stat timer"><span id="timer-label" class="label">Next wave</span><span id="timer">0:30</span></div>
+        <button id="call-early" class="btn" title="Start the next wave now; every player gets bonus gold">Call early</button>
+      </header>
+
+      <div id="build-hint" class="build-hint hidden"></div>
+
+      <section class="hero-panel">
+        <div class="hero-head">
+          <div class="portrait"></div>
+          <div class="hero-meta">
+            <div class="hero-name">Ranger <span id="hero-level" class="level">Lv 1</span></div>
+            <div class="bar xp" title="Experience"><div id="xp-fill" class="fill"></div></div>
+          </div>
+        </div>
+        <div class="bar hp"><div id="hp-fill" class="fill"></div><span id="hp-text" class="bar-text"></span></div>
+        <div class="bar mana"><div id="mana-fill" class="fill"></div><span id="mana-text" class="bar-text"></span></div>
+        <div id="skills" class="skills"></div>
+        <div id="respawn" class="respawn hidden"></div>
+      </section>
+
+      <div id="pad-menu" class="popup hidden"></div>
+      <div id="tower-panel" class="popup hidden"></div>
+
+      <details class="help">
+        <summary>Controls</summary>
+        <ul>
+          <li><kbd>Right-click</kbd> move / attack</li>
+          <li><kbd>A</kbd> + <kbd>Left-click</kbd> attack-move</li>
+          <li><kbd>Q</kbd> Multishot · <kbd>W</kbd> Snare Trap (then left-click)</li>
+          <li><kbd>Left-click</kbd> a pad to build, your tower to sell</li>
+          <li><kbd>B</kbd> then <kbd>1</kbd>–<kbd>3</kbd> build</li>
+          <li><kbd>S</kbd> stop · <kbd>Esc</kbd> cancel</li>
+          <li>Camera: screen edges, arrows, middle-drag, wheel zoom, <kbd>Space</kbd> centres on hero</li>
+        </ul>
+      </details>
+
+      <div id="toasts" class="toasts"></div>
+      <div id="banner" class="banner hidden"></div>
+
+      <div id="end-screen" class="end-screen hidden">
+        <div class="end-card">
+          <h1 id="end-title">Victory</h1>
+          <p id="end-text"></p>
+          <button id="restart" class="btn big">Play again</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
