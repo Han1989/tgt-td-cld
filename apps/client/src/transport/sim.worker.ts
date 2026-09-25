@@ -1,6 +1,6 @@
 // Web Worker that hosts the local simulation at a fixed tick rate.
 
-import { TICK_RATE } from '@tdt/sim';
+import { setActiveMap, TICK_RATE } from '@tdt/sim';
 import { SimHost } from './simHost';
 
 // The client compiles against the DOM lib, so type the worker scope by hand.
@@ -19,7 +19,15 @@ const host = new SimHost(
   () => Math.floor(Math.random() * 2 ** 31),
 );
 
-ctx.onmessage = (e) => host.receive(e.data);
+ctx.onmessage = (e) => {
+  // Portrait spike: a raw (non-protocol) message picks the map before the hero message starts the match.
+  const data = e.data as { spikeMap?: unknown } | null;
+  if (data && typeof data === 'object' && data.spikeMap === 'spire') {
+    setActiveMap('spire');
+    return;
+  }
+  host.receive(e.data);
+};
 
 let last = performance.now();
 let acc = 0;

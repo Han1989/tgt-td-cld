@@ -48,12 +48,18 @@ export interface GameMap {
   heroSpawn: Vec2;
 }
 
-const WIDTH = 80;
-const HEIGHT = 60;
 const LANE_HALF_WIDTH = 1.6;
 const PAD_SPACING = 5;
 const PAD_OFFSET = 3.3;
 const TREE_CLEARANCE = 5.5;
+
+interface MapLayout {
+  name: string;
+  width: number;
+  height: number;
+  heart: Vec2;
+  lanes: Vec2[][];
+}
 
 const HEART: Vec2 = { x: 40, y: 55 };
 
@@ -89,12 +95,70 @@ const LANE_WAYPOINTS: Vec2[][] = [
   ],
 ];
 
-let cached: GameMap | null = null;
+const CROSSROADS: MapLayout = { name: 'Crossroads', width: 80, height: 60, heart: HEART, lanes: LANE_WAYPOINTS };
 
-/** Returns the (shared, read-only) Crossroads map. */
+// Portrait spike: a tall 45 × 80 map for phones held upright. Heart at the
+// bottom, three portals on the top edge.
+const SPIRE_HEART: Vec2 = { x: 22.5, y: 75 };
+const SPIRE: MapLayout = {
+  name: 'Spire',
+  width: 45,
+  height: 80,
+  heart: SPIRE_HEART,
+  lanes: [
+    // Left
+    [
+      { x: 6.5, y: 0.5 },
+      { x: 6.5, y: 26 },
+      { x: 11, y: 34 },
+      { x: 11, y: 54 },
+      { x: 19, y: 68 },
+      SPIRE_HEART,
+    ],
+    // Middle
+    [
+      { x: 22.5, y: 0.5 },
+      { x: 22.5, y: 12 },
+      { x: 18.5, y: 18 },
+      { x: 18.5, y: 32 },
+      { x: 26.5, y: 40 },
+      { x: 26.5, y: 52 },
+      { x: 22.5, y: 58 },
+      SPIRE_HEART,
+    ],
+    // Right
+    [
+      { x: 38.5, y: 0.5 },
+      { x: 38.5, y: 26 },
+      { x: 34, y: 34 },
+      { x: 34, y: 54 },
+      { x: 26, y: 68 },
+      SPIRE_HEART,
+    ],
+  ],
+};
+
+export type MapName = 'crossroads' | 'spire';
+
+const cache = new Map<MapName, GameMap>();
+let active: MapName = 'crossroads';
+
+/**
+ * Portrait spike: picks the map every later `getMap()` returns. The host (worker)
+ * and the client both call it before creating a game. Defaults to Crossroads.
+ */
+export function setActiveMap(name: MapName): void {
+  active = name;
+}
+
+/** Returns the (shared, read-only) active map (Crossroads unless changed). */
 export function getMap(): GameMap {
-  cached ??= buildCrossroads();
-  return cached;
+  let map = cache.get(active);
+  if (!map) {
+    map = buildMap(active === 'spire' ? SPIRE : CROSSROADS);
+    cache.set(active, map);
+  }
+  return map;
 }
 
 export function tileAt(map: GameMap, tx: number, ty: number): TileType {
@@ -111,11 +175,12 @@ export function padAtTile(map: GameMap, tx: number, ty: number): BuildPad | unde
   return map.pads.find((p) => tx >= p.tx && tx < p.tx + 2 && ty >= p.ty && ty < p.ty + 2);
 }
 
-function buildCrossroads(): GameMap {
+function buildMap(layout: MapLayout): GameMap {
+  const { width: WIDTH, height: HEIGHT, heart: HEART } = layout;
   const tiles = new Uint8Array(WIDTH * HEIGHT).fill(Tile.Open);
   const idx = (tx: number, ty: number) => ty * WIDTH + tx;
 
-  const lanes: Lane[] = LANE_WAYPOINTS.map((waypoints, i) => {
+  const lanes: Lane[] = layout.lanes.map((waypoints, i) => {
     const remainingFrom = new Array<number>(waypoints.length).fill(0);
     for (let w = waypoints.length - 2; w >= 0; w--) {
       const a = waypoints[w]!;
@@ -229,7 +294,7 @@ function buildCrossroads(): GameMap {
   }
 
   return {
-    name: 'Crossroads',
+    name: layout.name,
     width: WIDTH,
     height: HEIGHT,
     tiles,

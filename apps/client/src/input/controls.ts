@@ -77,9 +77,12 @@ export class Controls {
     if (p) this.ui.hover = this.toTiles(p.x, p.y);
   }
 
+  /** Portrait spike: screen px to shift the hero above centre (HUD bars are uneven). */
+  heroOffsetY = 0;
+
   centerOnHero(): void {
     const hero = this.myHero();
-    if (hero) this.camera.centerOn(hero.x * TILE_PX, hero.y * TILE_PX);
+    if (hero) this.camera.centerOn(hero.x * TILE_PX, hero.y * TILE_PX + this.heroOffsetY / this.camera.zoom);
   }
 
   private myHero() {

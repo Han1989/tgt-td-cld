@@ -1,4 +1,5 @@
 import { decodeServerMessage, encodeClientMessage, type ClientMessage, type ServerMessage } from '@tdt/protocol';
+import type { MapName } from '@tdt/sim';
 import type { Transport } from './transport';
 
 /** Runs the simulation in a Web Worker and exchanges encoded protocol messages with it. */
@@ -6,8 +7,9 @@ export class LocalTransport implements Transport {
   private readonly worker: Worker;
   private handlers: ((msg: ServerMessage) => void)[] = [];
 
-  constructor() {
+  constructor(map: MapName = 'crossroads') {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
+    if (map === 'spire') this.worker.postMessage({ spikeMap: 'spire' });
     this.worker.onmessage = (e: MessageEvent<unknown>) => {
       const msg = decodeServerMessage(e.data);
       if (!msg) return;

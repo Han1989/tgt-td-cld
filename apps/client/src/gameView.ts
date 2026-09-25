@@ -7,6 +7,7 @@ import { Application } from 'pixi.js';
 import { Hud } from './hud/hud';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
+import { PortraitMode } from './portrait/portrait';
 import { COLORS } from './render/palette';
 import { WorldRenderer } from './render/world';
 import { SnapshotBuffer } from './snapshotBuffer';
@@ -30,7 +31,8 @@ export class GameView {
     readonly buffer: SnapshotBuffer,
   ) {}
 
-  static async create(): Promise<GameView> {
+  /** `portrait`: the portrait spike (?map=spire) adds touch controls and a phone layout when held upright. */
+  static async create(portrait = false): Promise<GameView> {
     const app = new Application();
     await app.init({
       background: COLORS.background,
@@ -86,6 +88,19 @@ export class GameView {
     });
 
     view = new GameView(hud, controls, buffer);
+    const touch = portrait
+      ? new PortraitMode({
+          canvas: app.canvas,
+          camera,
+          ui,
+          renderer,
+          controls,
+          hud,
+          latest: () => buffer.latest,
+          me: () => view.me,
+          send: (cmd) => send({ t: 'cmd', cmd }),
+        })
+      : null;
 
     app.ticker.add((ticker) => {
       const now = performance.now();
@@ -102,6 +117,7 @@ export class GameView {
       hud.handleEvents(events, latest, view.me);
       renderer.render(frame, latest, view.me, ui, now);
       hud.update(latest, view.me);
+      touch?.update();
     });
     return view;
   }

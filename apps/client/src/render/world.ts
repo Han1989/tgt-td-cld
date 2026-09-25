@@ -100,12 +100,12 @@ export class WorldRenderer {
   }
 
   /** Creep under a world point (tile units), if any. */
-  pickCreep(x: number, y: number): CreepSnap | undefined {
+  pickCreep(x: number, y: number, slack = 0.35): CreepSnap | undefined {
     let best: CreepSnap | undefined;
     let bestD = Infinity;
     for (const c of this.drawnCreeps) {
       const d = Math.hypot(c.x - x, c.y - y);
-      if (d <= TUNING.creeps[c.kind].radius + 0.35 && d < bestD) {
+      if (d <= TUNING.creeps[c.kind].radius + slack && d < bestD) {
         best = c;
         bestD = d;
       }
@@ -114,8 +114,8 @@ export class WorldRenderer {
   }
 
   /** Tower under a world point (tile units), if any. */
-  pickTower(x: number, y: number): TowerSnap | undefined {
-    return this.drawnTowers.find((t) => Math.abs(t.x - x) <= 1 && Math.abs(t.y - y) <= 1);
+  pickTower(x: number, y: number, half = 1): TowerSnap | undefined {
+    return this.drawnTowers.find((t) => Math.abs(t.x - x) <= half && Math.abs(t.y - y) <= half);
   }
 
   render(view: InterpolatedView, latest: Snapshot, me: PlayerId | null, ui: UiState, now: number): void {

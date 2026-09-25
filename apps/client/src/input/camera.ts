@@ -9,6 +9,10 @@ export class Camera {
   x: number;
   y: number;
   zoom = 1;
+  /** Portrait spike: lowered so the whole map width can fit a phone held upright. */
+  minZoom = MIN_ZOOM;
+  /** Portrait spike: screen px hidden by the top / bottom HUD bars; no side margin. Null = desktop margins. */
+  insets: { top: number; bottom: number } | null = null;
   viewW = 1;
   viewH = 1;
 
@@ -44,7 +48,7 @@ export class Camera {
   /** Zooms by `factor`, keeping the world point under (sx, sy) fixed. */
   zoomAt(factor: number, sx: number, sy: number): void {
     const before = this.screenToWorld(sx, sy);
-    this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, this.zoom * factor));
+    this.zoom = Math.min(MAX_ZOOM, Math.max(this.minZoom, this.zoom * factor));
     const after = this.screenToWorld(sx, sy);
     this.x += before.x - after.x;
     this.y += before.y - after.y;
@@ -62,6 +66,16 @@ export class Camera {
     const halfW = this.viewW / 2 / this.zoom;
     const halfH = this.viewH / 2 / this.zoom;
     // Generous margin so map edges can be scrolled clear of the HUD panels.
+    if (this.insets) {
+      const top = this.insets.top / this.zoom;
+      const bottom = this.insets.bottom / this.zoom;
+      this.x = halfW * 2 >= this.worldW - 0.5 ? this.worldW / 2 : clamp(this.x, halfW, this.worldW - halfW);
+      this.y =
+        halfH * 2 >= this.worldH + top + bottom
+          ? this.worldH / 2 + (bottom - top) / 2
+          : clamp(this.y, halfH - top, this.worldH - halfH + bottom);
+      return;
+    }
     const margin = 200;
     this.x = halfW * 2 >= this.worldW + margin * 2 ? this.worldW / 2 : clamp(this.x, halfW - margin, this.worldW - halfW + margin);
     this.y = halfH * 2 >= this.worldH + margin * 2 ? this.worldH / 2 : clamp(this.y, halfH - margin, this.worldH - halfH + margin);

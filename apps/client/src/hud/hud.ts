@@ -426,6 +426,7 @@ export class Hud {
   private createSkillButton(slot: SkillSlot, name: string): SkillButton {
     const root = document.createElement('button');
     root.className = 'btn skill';
+    root.dataset.slot = slot;
     root.innerHTML = `<span class="meta"><kbd>${slot}</kbd><span class="tag"></span></span><span class="name">${name}</span><span class="pips"></span><span class="cd"></span><span class="cd-text"></span>`;
     const learn = document.createElement('button');
     learn.className = 'learn hidden';

@@ -14,8 +14,8 @@ export type {
 } from './tuning';
 export { SKILL_MODES } from './skills';
 export type { SkillMode } from './skills';
-export { getMap, tileAt, isWalkable, padAtTile, Tile, TILE_PX } from './map';
-export type { GameMap, BuildPad, Lane, TileType } from './map';
+export { getMap, setActiveMap, tileAt, isWalkable, padAtTile, Tile, TILE_PX } from './map';
+export type { GameMap, BuildPad, Lane, TileType, MapName } from './map';
 export type { GameConfig, GameState, PlayerConfig } from './state';
 export { createBalanceBot, createIdleBot } from './bots';
 export type { Bot } from './bots';
