@@ -12,7 +12,7 @@ import type {
   TowerKind,
   TowerSnap,
 } from '@tdt/protocol';
-import { getMap, padAtTile, Tile, TILE_PX, tileAt, TUNING, type GameMap } from '@tdt/sim';
+import { getMap, padAtTile, Tile, TILE_PX, tileAt, towerTier, TUNING, type GameMap } from '@tdt/sim';
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
@@ -255,10 +255,15 @@ export class WorldRenderer {
       }
       s.root.position.set(t.x * S, t.y * S);
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
-      const statusKey = t.stunned ? 'st' : '';
+      const statusKey = `${t.tier}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
+        // One pip per tier along the bottom edge.
+        const pipY = S * TOWER_SIZE * 0.5 - 5;
+        for (let i = 0; i < t.tier; i++) {
+          s.status.circle((i - (t.tier - 1) / 2) * 9, pipY, 3).fill(COLORS.tierPip).stroke({ width: 1, color: 0x000000 });
+        }
         if (t.stunned) s.status.star(0, 0, 5, S * 0.5, S * 0.25).fill({ color: COLORS.stun, alpha: 0.9 });
       }
     }
@@ -314,7 +319,7 @@ export class WorldRenderer {
       if (!g) {
         g = new Graphics();
         const color = PROJECTILE_COLORS[p.style] ?? 0xffffff;
-        const r = p.style === 'cannon' ? 5 : p.style === 'frost' ? 4 : 3;
+        const r = p.style === 'cannon' || p.style === 'flak' ? 5 : p.style === 'frost' || p.style === 'arcane' ? 4 : 3;
         g.circle(0, 0, r).fill(color).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
         this.projectileLayer.addChild(g);
         this.projectiles.set(p.id, g);
@@ -377,7 +382,7 @@ export class WorldRenderer {
     const mode = ui.mode;
     if (hover && mode.type === 'build') {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
-      const stats = TUNING.towers[mode.tower];
+      const stats = towerTier(TUNING, mode.tower, 1);
       const occupied = pad ? snap.towers.some((t) => t.padId === pad.id) : true;
       const ok = !!pad && !occupied && (player?.gold ?? 0) >= stats.cost;
       const cx = pad ? pad.x : hover.x;
@@ -550,6 +555,17 @@ function towerBody(kind: TowerKind): Graphics {
       g.poly([0, -half * 0.75, half * 0.55, 0, 0, half * 0.75, -half * 0.55, 0]).fill(color);
       g.circle(0, 0, half * 0.18).fill(0xffffff);
       break;
+    case 'arcane':
+      g.star(0, 0, 5, half * 0.72, half * 0.32).fill(color);
+      g.circle(0, 0, half * 0.16).fill(0xffffff);
+      break;
+    case 'flak': {
+      // Three barrels pointing up and out.
+      const w = half * 0.18;
+      for (const dx of [-half * 0.42, 0, half * 0.42]) g.rect(dx - w / 2, -half * 0.7, w, half * 0.8).fill(color);
+      g.rect(-half * 0.6, 0, half * 1.2, half * 0.45).fill(color);
+      break;
+    }
   }
   return g;
 }

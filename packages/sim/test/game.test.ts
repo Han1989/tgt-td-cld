@@ -130,7 +130,7 @@ describe('economy', () => {
 
   it('builds on an empty pad for gold, rejects occupied pads and insufficient gold', () => {
     const state = solo();
-    const cost = TUNING.towers.arrow.cost;
+    const cost = TUNING.towers.arrow.tiers[0]!.cost;
     expect(applyCommand(state, 'p1', { type: 'build', padId: 0, tower: 'arrow' })).toBe(true);
     expect(state.players[0]!.gold).toBe(150 - cost);
     expect(applyCommand(state, 'p1', { type: 'build', padId: 0, tower: 'frost' })).toBe(false);
@@ -151,7 +151,7 @@ describe('economy', () => {
     expect(applyCommand(state, 'b', { type: 'sell', towerId: tower.id })).toBe(false);
     const gold = state.players[0]!.gold;
     expect(applyCommand(state, 'a', { type: 'sell', towerId: tower.id })).toBe(true);
-    expect(state.players[0]!.gold).toBe(gold + Math.floor(TUNING.towers.cannon.cost * 0.7));
+    expect(state.players[0]!.gold).toBe(gold + Math.floor(TUNING.towers.cannon.tiers[0]!.cost * 0.7));
     expect(state.towers).toHaveLength(0);
   });
 

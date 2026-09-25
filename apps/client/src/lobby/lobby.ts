@@ -61,6 +61,7 @@ export class LobbyUi {
   private readonly players = $('lobby-players');
   private readonly ready = $('lobby-ready') as HTMLButtonElement;
   private readonly start = $('lobby-start') as HTMLButtonElement;
+  private readonly refresh = $('lobby-refresh');
 
   private hero: HeroKind = (HERO_KINDS as readonly string[]).includes(stored(HERO_KEY)) ? (stored(HERO_KEY) as HeroKind) : 'ranger';
   private amReady = false;
@@ -88,6 +89,7 @@ export class LobbyUi {
       if (e.key === 'Enter') join();
     });
     $('lobby-offline').addEventListener('click', () => actions.playOffline());
+    this.refresh.addEventListener('click', () => location.reload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
     this.ready.addEventListener('click', () => actions.setReady(!this.amReady));
     this.start.addEventListener('click', () => actions.start());
@@ -125,9 +127,17 @@ export class LobbyUi {
     this.home.classList.remove('hidden');
     this.room.classList.add('hidden');
     this.busy.classList.add('hidden');
+    this.refresh.classList.add('hidden');
     this.showError(error);
     const focus = !this.name.value ? this.name : this.code.value ? $('lobby-join') : $('lobby-create');
     focus.focus();
+  }
+
+  /** The server runs another protocol version: ask for a reload. */
+  showVersionMismatch(): void {
+    this.showHome('New version available — refresh');
+    this.refresh.classList.remove('hidden');
+    this.refresh.focus();
   }
 
   showBusy(text: string): void {

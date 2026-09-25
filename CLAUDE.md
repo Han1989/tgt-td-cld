@@ -2,7 +2,7 @@
 
 **Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md).** Read it first. Build only the phase or feature you were asked for. When you make a design decision the doc doesn't cover, add a row to its Decision Log (§13).
 
-Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is next. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is in progress: the towers track is done (5 towers × 3 tiers, target priority, `PROTOCOL_VERSION` handshake); heroes, 30 waves and gold gifting are next. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Commands
 
@@ -31,7 +31,7 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 docs/GAME_DESIGN.md        Design and build plan (source of truth)
 docs/DEPLOY.md             Render + Vercel setup, env vars, operations, room-code routing design
 packages/protocol/         @tdt/protocol: wire contract
-  src/types.ts             Command, Snapshot, GameEvent, lobby types, Client/ServerMessage
+  src/types.ts             PROTOCOL_VERSION, Command, Snapshot, GameEvent, lobby types, Client/ServerMessage
   src/codec.ts             encode/decode; strict validation of untrusted client messages (names, codes, tokens)
   src/delta.ts             diffSnapshot / applySnapshotDelta (network deltas)
 packages/sim/              @tdt/sim: pure deterministic simulation
@@ -42,7 +42,7 @@ packages/sim/              @tdt/sim: pure deterministic simulation
   src/pathfinding.ts       Hero A* on the tile grid
   src/waves.ts             Wave timer, income, call-early, spawning
   src/creeps.ts            Lane walking, aggro/leash, tower attacks, boss stomp, leaks
-  src/towers.ts            Tower targeting, projectiles, Snare Traps
+  src/towers.ts            Tower targeting (First/Strongest/Closest), upgrades, projectiles, Snare Traps
   src/heroes.ts            Hero orders, auto-attack, skills, respawn
   src/combat.ts            Damage/armour, kills, bounty, XP, levelling
   src/bots.ts              Balance bot and idle bot (they act through commands only)
@@ -59,7 +59,7 @@ apps/client/               @tdt/client: Vite + PixiJS + HTML/CSS HUD
   src/snapshotBuffer.ts    Renders ~100 ms behind with interpolation
   src/render/              Pixi world renderer (shapes only) and palette
   src/input/               Camera and mouse/keyboard controls
-  src/hud/                 DOM HUD, tower menus, end screen
+  src/hud/                 DOM HUD, tower menus, end screen; towerInfo.ts = tower stat text (DOM-free, tested)
   test/                    Client unit tests (node environment, no DOM; NetworkTransport vs a real server)
 apps/server/               @tdt/server: Node + ws game server
   src/index.ts             Entry: env config, listen, SIGTERM → graceful drain
@@ -88,7 +88,7 @@ vercel.json                Vercel static deploy of apps/client
 - **All balance numbers live in `packages/sim/src/tuning.ts`.** Durations are in seconds, distances in tiles and speeds in tiles/s. Convert with `secondsToTicks`. Don't scatter constants.
 - **Units:** the sim works in tiles (floats). The renderer multiplies by `TILE_PX` (32).
 - **Shapes-only graphics until Phase 4.** Each entity type has a distinct shape and colour plus an HP bar; see `render/palette.ts` and `render/world.ts`.
-- **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `TILE_PX`, `padAtTile`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host).
+- **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `towerTier`, `TILE_PX`, `padAtTile`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host).
 - **Protocol validation:** `decodeClientMessage` rejects unknown types, extra keys, non-finite or out-of-range numbers, and oversized messages. Game-rule validation (gold, range, cooldowns, ownership) happens in `applyCommand`, which emits a `rejected` event instead of throwing.
 
 ## Conventions
@@ -100,7 +100,8 @@ vercel.json                Vercel static deploy of apps/client
 - **Balance gate:** `balance.test.ts` requires the balance bot to win all 10 waves and the idle bot to lose on 5 seeds. After changing `tuning.ts`, run `npm run balance` and keep both outcomes true.
 - Bots only read snapshots and act through commands, never by touching `GameState`. Online, `BotClient` wraps the same bots over a real WebSocket.
 - Server tests start a real server on port 0 (`test/helpers.ts`: `startServer`, `bot`, `fullRoom`). When a test speeds up ticks (`tickMs: 1`), scale `rateLimit` up to match.
-- Protocol changes: update `types.ts`, the validation in `codec.ts` (and its tests), and keep `diffSnapshot`/`applySnapshotDelta` exact. `delta.test.ts` checks this over a long match.
+- Protocol changes: update `types.ts`, the validation in `codec.ts` (and its tests), and keep `diffSnapshot`/`applySnapshotDelta` exact. `delta.test.ts` checks this over a long match. **Bump `PROTOCOL_VERSION`** for any change to messages, commands or snapshots: the server announces it in `hello` and rejects entry messages with another `v`, and the client then shows "New version available — refresh".
+- Towers: per-tier numbers live in `TUNING.towers[kind].tiers` (tier 1 = build); read them with `towerTier(tuning, kind, tier)`.
 - Original names and art only: no Warcraft, Dota or other studio assets or names.
 - Record new design decisions in the Decision Log in `docs/GAME_DESIGN.md`.
 - End each session with a summary: what was built, how to test it, and open questions.

@@ -1,7 +1,7 @@
-import { encodeClientMessage } from '@tdt/protocol';
+import { encodeClientMessage, PROTOCOL_VERSION } from '@tdt/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { GameServer, HealthReport } from '../src/server';
+import { CLOSE_VERSION_MISMATCH, type GameServer, type HealthReport } from '../src/server';
 import { bot, fullRoom, ORIGIN, sleep, startServer } from './helpers';
 
 let current: GameServer | null = null;
@@ -113,7 +113,8 @@ describe('lobby', () => {
     guest!.send({ t: 'restart' });
     host!.send({ t: 'restart' });
     await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
-    expect(guest!.errors.some((e) => e.t === 'error' && e.code === 'not_host')).toBe(true);
+    // The two restarts travel on different sockets, so the guest's error may arrive after the lobby.
+    await guest!.waitFor(() => guest!.errors.some((e) => e.t === 'error' && e.code === 'not_host'));
     expect(guest!.lobby!.players.map((p) => p.ready)).toEqual([true, false]);
   });
 });
@@ -138,7 +139,7 @@ describe('reconnect', () => {
 
     const back = bot(url, 'Bo again');
     await back.open();
-    back.send({ t: 'rejoin', code: guest!.code!, token: guest!.token! });
+    back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code: guest!.code!, token: guest!.token! });
     await back.waitFor(() => back.snap !== null);
     expect(back.playerId).toBe('p2');
     await back.waitFor(() => back.snap!.players[1]!.connected);
@@ -154,7 +155,7 @@ describe('reconnect', () => {
     await host!.waitFor(() => host!.lobby?.players.length === 1);
     const back = bot(url, 'Late');
     await back.open();
-    back.send({ t: 'rejoin', code: guest!.code!, token: guest!.token! });
+    back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code: guest!.code!, token: guest!.token! });
     await back.waitFor(() => back.errors.length > 0);
     expect(back.errors[0]).toMatchObject({ code: 'rejoin_failed' });
   });
@@ -183,6 +184,65 @@ describe('hardening', () => {
     await host.create();
     for (let i = 0; i < 20; i++) host.ws.send(encodeClientMessage({ t: 'ready', ready: true }));
     await host.waitFor(() => host.errors.some((e) => e.t === 'error' && e.code === 'rate_limited'));
+  });
+});
+
+describe('protocol version', () => {
+  it('announces its PROTOCOL_VERSION first on every connection', async () => {
+    const { url } = await start();
+    const c = bot(url, 'Hi');
+    await c.open();
+    await c.waitFor(() => c.serverVersion !== null);
+    expect(c.serverVersion).toBe(PROTOCOL_VERSION);
+  });
+
+  it('turns away clients built for another version', async () => {
+    const { server, url } = await start();
+    for (const first of [
+      { t: 'create', v: PROTOCOL_VERSION + 1, name: 'Future', hero: 'ranger' },
+      { t: 'join', v: PROTOCOL_VERSION - 1, code: 'AQQQQ', name: 'Past', hero: 'ranger' },
+    ] as const) {
+      const c = bot(url, first.name);
+      await c.open();
+      c.send(first);
+      await c.waitFor(() => c.closed !== null);
+      expect(c.errors[0]).toMatchObject({ t: 'error', code: 'version_mismatch', message: 'New version available — refresh' });
+      expect(c.closed!.code).toBe(CLOSE_VERSION_MISMATCH);
+    }
+    expect(server.rooms.size).toBe(0);
+  });
+});
+
+describe('tower commands', () => {
+  it('lets owners upgrade towers and set their priority, and ignores everyone else', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = guest!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    guest!.send({ t: 'cmd', cmd: { type: 'build', padId: 20, tower: 'arcane' } });
+    await guest!.waitFor(() => (guest!.snap?.towers.length ?? 0) === 1);
+    const towerId = guest!.snap!.towers[0]!.id;
+    const state = server.rooms.get(guest!.code!)!.state!;
+
+    // Not the owner: validated by the sim and ignored.
+    host!.send({ t: 'cmd', cmd: { type: 'upgrade', towerId } });
+    host!.send({ t: 'cmd', cmd: { type: 'setPriority', towerId, priority: 'closest' } });
+    // Malformed: dropped by the decoder before it reaches the room.
+    guest!.ws.send('{"t":"cmd","cmd":{"type":"upgrade","towerId":"x"}}');
+    guest!.ws.send(`{"t":"cmd","cmd":{"type":"setPriority","towerId":${towerId},"priority":"weakest"}}`);
+    const tick = host!.snap!.tick;
+    await host!.waitFor(() => host!.snap!.tick > tick + 5);
+    expect(state.towers[0]).toMatchObject({ tier: 1, priority: 'first' });
+
+    guest!.send({ t: 'cmd', cmd: { type: 'setPriority', towerId, priority: 'strongest' } });
+    await guest!.waitFor(() => guest!.snap!.towers[0]!.priority === 'strongest');
+    // An Arcane leaves too little of the starting gold to upgrade it; top up (test only).
+    state.players[1]!.gold += 500;
+    guest!.send({ t: 'cmd', cmd: { type: 'upgrade', towerId } });
+    await guest!.waitFor(() => guest!.snap!.towers[0]!.tier === 2);
+    await host!.waitFor(() => host!.snap!.towers[0]!.tier === 2);
+    expect(host!.snap!.towers[0]).toMatchObject({ tier: 2, priority: 'strongest' });
   });
 });
 

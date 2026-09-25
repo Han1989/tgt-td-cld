@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_CLIENT_MESSAGE_LENGTH,
+  PROTOCOL_VERSION,
   decodeClientMessage,
   decodeServerMessage,
   encodeClientMessage,
@@ -19,13 +20,21 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'learn', slot: 'W' } },
     { t: 'cmd', cmd: { type: 'build', padId: 3, tower: 'frost' } },
     { t: 'cmd', cmd: { type: 'sell', towerId: 7 } },
+    { t: 'cmd', cmd: { type: 'build', padId: 4, tower: 'arcane' } },
+    { t: 'cmd', cmd: { type: 'build', padId: 5, tower: 'flak' } },
+    { t: 'cmd', cmd: { type: 'upgrade', towerId: 7 } },
+    { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'first' } },
+    { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'strongest' } },
+    { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'closest' } },
     { t: 'cmd', cmd: { type: 'callEarly' } },
     { t: 'restart' },
     { t: 'start' },
     { t: 'leave' },
-    { t: 'create', name: 'Ada', hero: 'ranger' },
-    { t: 'join', code: 'ABCDE', name: 'Bo', hero: 'ranger' },
-    { t: 'rejoin', code: 'ZZZZZ', token: '0123456789abcdef0123456789abcdef' },
+    { t: 'create', v: PROTOCOL_VERSION, name: 'Ada', hero: 'ranger' },
+    { t: 'join', v: PROTOCOL_VERSION, code: 'ABCDE', name: 'Bo', hero: 'ranger' },
+    { t: 'rejoin', v: PROTOCOL_VERSION, code: 'ZZZZZ', token: '0123456789abcdef0123456789abcdef' },
+    // Another version still decodes: the server answers it with version_mismatch.
+    { t: 'create', v: 1, name: 'Old', hero: 'ranger' },
     { t: 'hero', hero: 'ranger' },
     { t: 'ready', ready: true },
   ];
@@ -48,21 +57,30 @@ describe('client message codec', () => {
     ['bad tower', '{"t":"cmd","cmd":{"type":"build","padId":1,"tower":"laser"}}'],
     ['bad slot', '{"t":"cmd","cmd":{"type":"cast","slot":"X"}}'],
     ['half a target point', '{"t":"cmd","cmd":{"type":"cast","slot":"W","x":1}}'],
-    ['empty name', '{"t":"create","name":"   ","hero":"ranger"}'],
-    ['long name', '{"t":"create","name":"abcdefghijklmnopq","hero":"ranger"}'],
-    ['control chars in name', '{"t":"create","name":"a\\u0007b","hero":"ranger"}'],
-    ['unknown hero', '{"t":"create","name":"a","hero":"ninja"}'],
-    ['bad room code', '{"t":"join","code":"AB1DE","name":"a","hero":"ranger"}'],
-    ['code with O', '{"t":"join","code":"ABODE","name":"a","hero":"ranger"}'],
-    ['bad token', '{"t":"rejoin","code":"ABCDE","token":"nope"}'],
+    ['empty name', '{"t":"create","v":2,"name":"   ","hero":"ranger"}'],
+    ['long name', '{"t":"create","v":2,"name":"abcdefghijklmnopq","hero":"ranger"}'],
+    ['control chars in name', '{"t":"create","v":2,"name":"a\\u0007b","hero":"ranger"}'],
+    ['unknown hero', '{"t":"create","v":2,"name":"a","hero":"ninja"}'],
+    ['bad room code', '{"t":"join","v":2,"code":"AB1DE","name":"a","hero":"ranger"}'],
+    ['code with O', '{"t":"join","v":2,"code":"ABODE","name":"a","hero":"ranger"}'],
+    ['bad token', '{"t":"rejoin","v":2,"code":"ABCDE","token":"nope"}'],
     ['non-boolean ready', '{"t":"ready","ready":"yes"}'],
+    ['upgrade without a tower', '{"t":"cmd","cmd":{"type":"upgrade"}}'],
+    ['upgrade with a string id', '{"t":"cmd","cmd":{"type":"upgrade","towerId":"7"}}'],
+    ['upgrade with extra keys', '{"t":"cmd","cmd":{"type":"upgrade","towerId":7,"tier":3}}'],
+    ['unknown priority', '{"t":"cmd","cmd":{"type":"setPriority","towerId":7,"priority":"weakest"}}'],
+    ['priority without a tower', '{"t":"cmd","cmd":{"type":"setPriority","priority":"first"}}'],
+    ['create without a version', '{"t":"create","name":"a","hero":"ranger"}'],
+    ['join with a string version', '{"t":"join","v":"2","code":"ABCDE","name":"a","hero":"ranger"}'],
+    ['rejoin with a fractional version', '{"t":"rejoin","v":2.5,"code":"ABCDE","token":"0123456789abcdef0123456789abcdef"}'],
   ])('rejects %s', (_label, raw) => {
     expect(decodeClientMessage(raw)).toBeNull();
   });
 
   it('normalises names and room codes', () => {
-    expect(decodeClientMessage('{"t":"join","code":" abcde ","name":"  Ada   Lovelace ","hero":"ranger"}')).toEqual({
+    expect(decodeClientMessage('{"t":"join","v":2,"code":" abcde ","name":"  Ada   Lovelace ","hero":"ranger"}')).toEqual({
       t: 'join',
+      v: 2,
       code: 'ABCDE',
       name: 'Ada Lovelace',
       hero: 'ranger',
@@ -79,6 +97,12 @@ describe('server message codec', () => {
   it('round-trips a welcome message', () => {
     const msg = { t: 'welcome', playerId: 'p1' } as const;
     expect(decodeServerMessage(encodeServerMessage(msg))).toEqual(msg);
+  });
+
+  it('round-trips the hello handshake', () => {
+    const msg = { t: 'hello', v: PROTOCOL_VERSION } as const;
+    expect(decodeServerMessage(encodeServerMessage(msg))).toEqual(msg);
+    expect(decodeServerMessage('{"t":"hello"}')).toBeNull();
   });
 
   it('rejects garbage', () => {

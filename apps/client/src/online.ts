@@ -1,10 +1,10 @@
 // Online mode: lobby screens + NetworkTransport + the game view.
 
-import type { HeroKind, LobbyState, ServerMessage } from '@tdt/protocol';
+import { PROTOCOL_VERSION, type HeroKind, type LobbyState, type ServerMessage } from '@tdt/protocol';
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
 import { LocalTransport } from './transport/localTransport';
-import { NetworkTransport, sessionStore, type NetStatus } from './transport/networkTransport';
+import { NetworkTransport, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
 
 export class OnlineController {
   private transport: NetworkTransport | null = null;
@@ -16,8 +16,8 @@ export class OnlineController {
     private readonly serverUrl: string,
   ) {
     this.ui = new LobbyUi({
-      create: (name, hero) => this.connect({ t: 'create', name, hero }, 'Creating room…'),
-      join: (code, name, hero) => this.connect({ t: 'join', code, name, hero }, `Joining ${code}…`),
+      create: (name, hero) => this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…'),
+      join: (code, name, hero) => this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`),
       playOffline: () => this.playOffline(),
       setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
       setReady: (ready) => this.transport?.send({ t: 'ready', ready }),
@@ -31,7 +31,7 @@ export class OnlineController {
     // After a reload, take our seat back if the room still has it.
     const saved = sessionStore.load();
     if (saved && saved.url === this.serverUrl) {
-      this.connect({ t: 'rejoin', code: saved.code, token: saved.token }, `Rejoining ${saved.code}…`);
+      this.connect({ t: 'rejoin', v: PROTOCOL_VERSION, code: saved.code, token: saved.token }, `Rejoining ${saved.code}…`);
       return;
     }
     this.ui.showHome();
@@ -65,7 +65,9 @@ export class OnlineController {
         }
         break;
       case 'error':
-        if (!this.lobby || msg.code === 'rejoin_failed' || msg.code === 'room_not_found' || msg.code === 'wrong_server') {
+        if (msg.code === 'version_mismatch') {
+          this.versionMismatch();
+        } else if (!this.lobby || msg.code === 'rejoin_failed' || msg.code === 'room_not_found' || msg.code === 'wrong_server') {
           // Could not get into a room: back to the home screen.
           this.drop();
           this.ui.showHome(msg.message);
@@ -88,12 +90,19 @@ export class OnlineController {
     if (transport !== this.transport) return;
     this.view.hud.setReconnecting(status === 'reconnecting');
     if (status !== 'closed' || detail === 'left') return;
+    if (detail === VERSION_MISMATCH) return this.versionMismatch();
     const why =
       detail === 'server_restarting'
         ? 'The server restarted. Create a new room to keep playing.'
         : `Disconnected from the server${detail ? ` (${detail})` : ''}.`;
     this.drop();
     this.ui.showHome(why);
+  }
+
+  /** This page is older (or newer) than the server: only a reload helps. */
+  private versionMismatch(): void {
+    this.drop();
+    this.ui.showVersionMismatch();
   }
 
   /** Leave the room for good. */

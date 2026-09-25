@@ -60,6 +60,9 @@ export class GameView {
         send({ t: 'cmd', cmd: { type: 'sell', towerId } });
         controls.clearSelection();
       },
+      // The panel stays open after an upgrade or a priority change.
+      upgrade: (towerId) => send({ t: 'cmd', cmd: { type: 'upgrade', towerId } }),
+      setPriority: (towerId, priority) => send({ t: 'cmd', cmd: { type: 'setPriority', towerId, priority } }),
       callEarly: () => send({ t: 'cmd', cmd: { type: 'callEarly' } }),
       learn: (slot) => send({ t: 'cmd', cmd: { type: 'learn', slot } }),
       pressSkill: (slot) => controls.pressSkill(slot),

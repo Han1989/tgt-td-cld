@@ -417,6 +417,39 @@ body {
   color: var(--text);
 }
 
+.popup .row .next {
+  color: var(--accent);
+}
+
+.popup .section {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.popup .priorities {
+  display: flex;
+  gap: 4px;
+}
+
+.popup .priorities .btn {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.popup .priorities .btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lobby-refresh {
+  display: block;
+  margin: 8px auto 0;
+}
+
 /* Help ------------------------------------------------------------------- */
 
 .help {

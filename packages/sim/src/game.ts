@@ -9,7 +9,7 @@ import { getMap } from './map';
 import { seedRng } from './rng';
 import type { GameConfig, GameState, Hero } from './state';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
-import { secondsToTicks, TICK_RATE, TUNING } from './tuning';
+import { secondsToTicks, TICK_RATE, towerTier, TUNING } from './tuning';
 import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
@@ -191,8 +191,9 @@ export function snapshot(state: GameState): Snapshot {
       hp: Math.ceil(tw.hp),
       maxHp: tw.maxHp,
       tier: tw.tier,
-      range: t.towers[tw.kind].range,
+      range: towerTier(t, tw.kind, tw.tier).range,
       spent: tw.spent,
+      priority: tw.priority,
       stunned: state.tick < tw.stunUntil,
     })),
     projectiles: state.projectiles.map((p) => ({ id: p.id, style: p.style, x: r2(p.x), y: r2(p.y) })),

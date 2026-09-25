@@ -28,21 +28,28 @@ export interface CreepStats {
   leakDamage: number;
 }
 
-export interface TowerStats {
+/** Numbers for one upgrade tier of a tower. */
+export interface TowerTierStats {
+  /** Tier 1: build cost. Higher tiers: the cost of upgrading to this tier. */
   cost: number;
   hp: number;
   range: number;
   damage: number;
-  damageType: DamageType;
   attackCooldown: number;
-  hitsGround: boolean;
-  hitsAir: boolean;
-  projectileSpeed: number;
   /** Splash radius around the impact point; 0 = single target. */
   splash: number;
   /** Fractional slow applied on hit (0.3 = 30%); 0 = none. */
   slow: number;
   slowDuration: number;
+}
+
+export interface TowerStats {
+  damageType: DamageType;
+  hitsGround: boolean;
+  hitsAir: boolean;
+  projectileSpeed: number;
+  /** Tier 1 first; `tiers.length` is the max tier. */
+  tiers: TowerTierStats[];
 }
 
 export interface MultishotStats {
@@ -274,18 +281,50 @@ export const TUNING: Tuning = {
       bounty: 150, xp: 300, leakDamage: 20,
     },
   },
+  // Tier 1 is what a fresh build gets; tiers 2 and 3 are bought with `upgrade`.
+  // Selling refunds economy.sellRefund of everything spent on the tower.
   towers: {
     arrow: {
-      cost: 60, hp: 500, range: 6, damage: 16, damageType: 'physical', attackCooldown: 0.7,
-      hitsGround: true, hitsAir: true, projectileSpeed: 14, splash: 0, slow: 0, slowDuration: 0,
+      damageType: 'physical', hitsGround: true, hitsAir: true, projectileSpeed: 14,
+      tiers: [
+        { cost: 60, hp: 500, range: 6, damage: 16, attackCooldown: 0.7, splash: 0, slow: 0, slowDuration: 0 },
+        { cost: 70, hp: 580, range: 6.5, damage: 26, attackCooldown: 0.65, splash: 0, slow: 0, slowDuration: 0 },
+        { cost: 110, hp: 660, range: 7, damage: 40, attackCooldown: 0.6, splash: 0, slow: 0, slowDuration: 0 },
+      ],
     },
     cannon: {
-      cost: 90, hp: 550, range: 5.5, damage: 36, damageType: 'physical', attackCooldown: 1.6,
-      hitsGround: true, hitsAir: false, projectileSpeed: 8, splash: 1.6, slow: 0, slowDuration: 0,
+      damageType: 'physical', hitsGround: true, hitsAir: false, projectileSpeed: 8,
+      tiers: [
+        { cost: 90, hp: 550, range: 5.5, damage: 36, attackCooldown: 1.6, splash: 1.6, slow: 0, slowDuration: 0 },
+        { cost: 100, hp: 630, range: 6, damage: 58, attackCooldown: 1.5, splash: 1.8, slow: 0, slowDuration: 0 },
+        { cost: 150, hp: 720, range: 6.5, damage: 90, attackCooldown: 1.4, splash: 2, slow: 0, slowDuration: 0 },
+      ],
     },
     frost: {
-      cost: 70, hp: 500, range: 5, damage: 10, damageType: 'magic', attackCooldown: 1,
-      hitsGround: true, hitsAir: true, projectileSpeed: 10, splash: 0, slow: 0.3, slowDuration: 2,
+      damageType: 'magic', hitsGround: true, hitsAir: true, projectileSpeed: 10,
+      tiers: [
+        { cost: 70, hp: 500, range: 5, damage: 10, attackCooldown: 1, splash: 0, slow: 0.3, slowDuration: 2 },
+        { cost: 80, hp: 570, range: 5.5, damage: 18, attackCooldown: 0.95, splash: 0, slow: 0.35, slowDuration: 2.5 },
+        { cost: 120, hp: 650, range: 6, damage: 28, attackCooldown: 0.9, splash: 0, slow: 0.4, slowDuration: 3 },
+      ],
+    },
+    // Magic damage ignores armour: the answer to Brutes.
+    arcane: {
+      damageType: 'magic', hitsGround: true, hitsAir: true, projectileSpeed: 12,
+      tiers: [
+        { cost: 100, hp: 500, range: 6, damage: 30, attackCooldown: 1.2, splash: 0, slow: 0, slowDuration: 0 },
+        { cost: 90, hp: 570, range: 6.5, damage: 50, attackCooldown: 1.1, splash: 0, slow: 0, slowDuration: 0 },
+        { cost: 140, hp: 650, range: 7, damage: 80, attackCooldown: 1, splash: 0, slow: 0, slowDuration: 0 },
+      ],
+    },
+    // Air only: heavy bursts that also catch nearby flyers.
+    flak: {
+      damageType: 'physical', hitsGround: false, hitsAir: true, projectileSpeed: 16,
+      tiers: [
+        { cost: 80, hp: 500, range: 7, damage: 60, attackCooldown: 1.5, splash: 1.2, slow: 0, slowDuration: 0 },
+        { cost: 80, hp: 570, range: 7.5, damage: 95, attackCooldown: 1.4, splash: 1.4, slow: 0, slowDuration: 0 },
+        { cost: 120, hp: 650, range: 8, damage: 150, attackCooldown: 1.3, splash: 1.6, slow: 0, slowDuration: 0 },
+      ],
     },
   },
   hero: {
@@ -324,6 +363,12 @@ export const TUNING: Tuning = {
     },
   },
 };
+
+/** Stats of `kind` at `tier` (1-based), clamped to the tiers that exist. */
+export function towerTier(tuning: Tuning, kind: TowerKind, tier: number): TowerTierStats {
+  const tiers = tuning.towers[kind].tiers;
+  return tiers[Math.max(1, Math.min(tiers.length, tier)) - 1]!;
+}
 
 export function secondsToTicks(seconds: number): number {
   return Math.round(seconds * TICK_RATE);
