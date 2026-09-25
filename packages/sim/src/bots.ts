@@ -2,7 +2,7 @@
 // load tests). Bots only read snapshots and static data and only act through
 // commands, exactly like a human client.
 
-import type { Command, CreepSnap, HeroKind, PlayerId, SkillSlot, SkillSnap, Snapshot, TowerKind } from '@tdt/protocol';
+import type { Command, CreepSnap, HeroKind, PlayerId, SkillSlot, SkillSnap, Snapshot, TargetPriority, TowerKind } from '@tdt/protocol';
 import { getMap, type BuildPad } from './map';
 import { TUNING, type Tuning } from './tuning';
 import { dist } from './vec';
@@ -18,7 +18,15 @@ export function createIdleBot(playerId: PlayerId): Bot {
   return { playerId, decide: () => [] };
 }
 
-const BUILD_ORDER: TowerKind[] = ['arrow', 'frost', 'cannon', 'arrow', 'cannon', 'frost', 'arrow', 'cannon'];
+const BUILD_ORDER: TowerKind[] = ['arrow', 'frost', 'cannon', 'arcane', 'arrow', 'cannon', 'flak', 'arcane'];
+/** Target priority per tower kind. */
+const PRIORITY: Record<TowerKind, TargetPriority> = {
+  arrow: 'first',
+  frost: 'first',
+  cannon: 'strongest',
+  arcane: 'strongest',
+  flak: 'first',
+};
 
 /** Skills that only affect ground creeps (static knowledge, like a player would have). */
 const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W', 'R'], arcanist: ['R'] };
@@ -27,11 +35,14 @@ const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 4 };
 
 /**
  * A sensible-build bot: builds towers on the pads that cover the most lane,
- * mixing arrow / frost / cannon, keeps its hero near the Heart on
- * attack-move, retreats when hurt, learns skills and uses them on groups.
+ * mixing all five kinds, and once no pad is free upgrades its lowest-tier
+ * towers. Its towers focus bosses in range. Its hero guards near the Heart on
+ * attack-move (or hunts a live boss), retreats when hurt, learns skills and
+ * uses them on groups.
  */
 export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, botIndex = 0): Bot {
   const pads = rankPads(tuning);
+  const padRank = new Map(pads.map((p, i) => [p.id, i]));
   const guardPoints = [
     { x: 40, y: 49 },
     { x: 33, y: 50 },
@@ -39,7 +50,6 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
     { x: 40, y: 44 },
   ];
   const guard = guardPoints[botIndex % guardPoints.length]!;
-  let builds = 0;
   let retreating = false;
   let lastGuardOrderTick = -Infinity;
 
@@ -58,18 +68,41 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
         if (pick) cmds.push({ type: 'learn', slot: pick.slot });
       }
 
-      // Towers: follow the build order on the best free pads.
+      // Towers: follow the build order on the best free pads. Teammates decide on the same snapshot,
+      // so each bot starts at a different free pad to avoid building on the same one.
       let gold = me.gold;
       const taken = new Set(snap.towers.map((t) => t.padId));
+      const mine = snap.towers.filter((t) => t.owner === playerId);
+      let built = mine.length;
       for (;;) {
-        const kind = BUILD_ORDER[builds % BUILD_ORDER.length]!;
+        const kind = BUILD_ORDER[built % BUILD_ORDER.length]!;
         const cost = tuning.towers[kind].tiers[0]!.cost;
-        const pad = pads.find((p) => !taken.has(p.id));
+        const free = pads.filter((p) => !taken.has(p.id));
+        const pad = free[botIndex % Math.max(1, free.length)];
         if (!pad || gold < cost) break;
         cmds.push({ type: 'build', padId: pad.id, tower: kind });
         taken.add(pad.id);
         gold -= cost;
-        builds++;
+        built++;
+      }
+      // Cannon and Arcane towers go for the Strongest creep, and every tower focuses a boss in its range,
+      // so bosses and Brutes that stop to hit towers don't get ignored behind a stream of fresher creeps.
+      const bosses = snap.creeps.filter((c) => tuning.creeps[c.kind].boss);
+      for (const t of mine) {
+        const focus = bosses.some((b) => dist(b.x, b.y, t.x, t.y) <= t.range);
+        const want = focus ? 'strongest' : PRIORITY[t.kind];
+        if (t.priority !== want) cmds.push({ type: 'setPriority', towerId: t.id, priority: want });
+      }
+      // No free pad left: upgrade the lowest-tier towers first, best pads first.
+      if (taken.size >= pads.length) {
+        const order = [...mine].sort((a, b) => a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!);
+        for (const t of order) {
+          const next = tuning.towers[t.kind].tiers[t.tier];
+          if (!next) continue;
+          if (gold < next.cost) break;
+          cmds.push({ type: 'upgrade', towerId: t.id });
+          gold -= next.cost;
+        }
       }
 
       if (!hero.alive) return cmds;
@@ -83,8 +116,10 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
         cmds.push({ type: 'move', x: heart.x, y: heart.y + 1 });
         return cmds;
       }
-      if (dist(hero.x, hero.y, guard.x, guard.y) > 6 || snap.tick - lastGuardOrderTick > 100) {
-        cmds.push({ type: 'attackMove', x: guard.x, y: guard.y });
+      // A live boss is hunted; otherwise the hero guards its post.
+      const goal = bosses[0] ?? guard;
+      if (dist(hero.x, hero.y, goal.x, goal.y) > 6 || snap.tick - lastGuardOrderTick > 100) {
+        cmds.push({ type: 'attackMove', x: goal.x, y: goal.y });
         lastGuardOrderTick = snap.tick;
       }
 

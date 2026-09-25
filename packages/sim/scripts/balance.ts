@@ -1,8 +1,9 @@
 // Prints headless balance results for a few seeds: `npm run balance [seeds…]`.
 // Useful after editing tuning.ts; the balance tests assert the same outcomes.
-// Solo runs the balance bot and the idle bot; the 4-player run uses 4 balance bots.
+// Solo runs the balance bot and the idle bot for every hero; teams of 2–4 balance bots follow.
+// Target on Normal: the balance bot wins with 40–80 Heart HP left (solo and 4 players).
 
-import { HERO_KINDS } from '@tdt/protocol';
+import { HERO_KINDS, type HeroKind } from '@tdt/protocol';
 import { createBalanceBot, createIdleBot, runHeadlessMatch, type HeadlessResult } from '../src';
 
 const describe = (r: HeadlessResult) =>
@@ -18,12 +19,15 @@ for (const hero of HERO_KINDS) {
     console.log(`  seed ${seed}: balance bot ${describe(bot)} | idle bot ${idle.result} (wave ${idle.wave})`);
   }
 }
-console.log('4 bots (ranger, warden, arcanist, ranger):');
-for (const seed of seeds.length > 0 ? seeds : [1, 2, 3, 42, 1234]) {
-  const four = runHeadlessMatch({
-    bots: [1, 2, 3, 4].map((i) => createBalanceBot(`p${i}`, undefined, i - 1)),
-    heroes: ['ranger', 'warden', 'arcanist', 'ranger'],
-    seed,
-  });
-  console.log(`  seed ${seed}: ${describe(four)}`);
+const TEAM: HeroKind[] = ['ranger', 'warden', 'arcanist', 'ranger'];
+for (const n of [2, 3, 4]) {
+  console.log(`${n} bots (${TEAM.slice(0, n).join(', ')}):`);
+  for (const seed of seeds.length > 0 ? seeds : [1, 2, 3, 42, 1234]) {
+    const team = runHeadlessMatch({
+      bots: Array.from({ length: n }, (_, i) => createBalanceBot(`p${i + 1}`, undefined, i)),
+      heroes: TEAM.slice(0, n),
+      seed,
+    });
+    console.log(`  seed ${seed}: ${describe(team)}`);
+  }
 }

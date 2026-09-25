@@ -89,10 +89,20 @@ export function scaledCount(state: GameState, perLane: number): number {
   return Math.round(perLane * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)));
 }
 
+/**
+ * Creep HP added per extra player on `wave`: the base amount plus an early bonus that fades out
+ * linearly over the first `earlyWaves` waves.
+ */
+export function hpPerExtraPlayer(state: GameState, wave: number): number {
+  const ps = state.tuning.playerScaling;
+  const early = Math.max(0, 1 - (wave - 1) / ps.earlyWaves);
+  return ps.hpPerExtraPlayer + ps.earlyHpPerExtraPlayer * early;
+}
+
 export function creepMaxHp(state: GameState, kind: CreepKind, wave: number): number {
   const base = state.tuning.creeps[kind].hp;
   const waveMult = 1 + state.tuning.waves.hpGrowthPerWave * (wave - 1);
-  const playerMult = 1 + state.tuning.playerScaling.hpPerExtraPlayer * extraPlayers(state);
+  const playerMult = 1 + hpPerExtraPlayer(state, wave) * extraPlayers(state);
   return Math.round(base * waveMult * playerMult);
 }
 

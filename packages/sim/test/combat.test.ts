@@ -113,6 +113,7 @@ describe('tower targeting', () => {
   it('cannons ignore flying creeps; arrows hit them', () => {
     const state = labGame();
     parkHero(state);
+    state.players[0]!.gold = 1000;
     applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'cannon' });
     const tower = state.towers[0]!;
     const wisp = placeCreep(state, 'wisp', tower.x + 1, tower.y + 1);
@@ -131,6 +132,7 @@ describe('tower targeting', () => {
   it('cannon splash damages every ground creep near the impact', () => {
     const state = labGame();
     parkHero(state);
+    state.players[0]!.gold = 1000;
     applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'cannon' });
     const tower = state.towers[0]!;
     const a = placeCreep(state, 'grunt', tower.x + 2, tower.y);
