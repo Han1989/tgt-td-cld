@@ -1,4 +1,4 @@
-import { encodeClientMessage, PROTOCOL_VERSION } from '@tdt/protocol';
+import { encodeClientMessage, PROTOCOL_VERSION, type GameEvent } from '@tdt/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { CLOSE_VERSION_MISMATCH, type GameServer, type HealthReport } from '../src/server';
@@ -158,6 +158,35 @@ describe('reconnect', () => {
     back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code: guest!.code!, token: guest!.token! });
     await back.waitFor(() => back.errors.length > 0);
     expect(back.errors[0]).toMatchObject({ code: 'rejoin_failed' });
+  });
+});
+
+describe('gold gifting', () => {
+  it('moves gold between teammates; the server rejects malformed and unaffordable gifts', async () => {
+    const { server, url } = await start();
+    const events = new Map<string, GameEvent[]>();
+    const [host, guest] = await fullRoom(url, 2, {
+      onSnapshot: (c, snap) => events.set(c.playerId!, [...(events.get(c.playerId!) ?? []), ...snap.events]),
+    });
+    host!.acting = false;
+    guest!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    const startGold = guest!.snap!.players[0]!.gold;
+
+    host!.send({ t: 'cmd', cmd: { type: 'gift', to: 'p2', amount: 50 } });
+    await guest!.waitFor(() => guest!.snap!.players[1]!.gold === startGold + 50);
+    expect(guest!.snap!.players[0]!.gold).toBe(startGold - 50);
+    expect(events.get('p2')).toContainEqual({ type: 'gift', from: 'p1', to: 'p2', amount: 50 });
+
+    // Malformed gifts never reach the sim; an unaffordable one is rejected by it.
+    host!.ws.send('{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":-50}}');
+    host!.ws.send('{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":"50"}}');
+    host!.send({ t: 'cmd', cmd: { type: 'gift', to: 'p2', amount: 10_000 } });
+    await host!.waitFor(() => (events.get('p1') ?? []).some((e) => e.type === 'rejected' && e.command === 'gift'));
+    const state = server.rooms.get(host!.code!)!.state!;
+    expect(state.players.map((p) => p.gold)).toEqual([startGold - 50, startGold + 50]);
+    expect(host!.closed).toBeNull();
   });
 });
 

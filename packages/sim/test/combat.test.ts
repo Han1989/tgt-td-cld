@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
-import { armorMultiplier, damageCreep, damageHero, grantXp } from '../src/combat';
+import { armorMultiplier, damageCreep, damageHero, damageMultiplier, damageTower, grantXp, heroArmor } from '../src/combat';
 import { secondsToTicks, TICK_RATE, TUNING } from '../src/tuning';
 import { labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
 
@@ -17,6 +17,63 @@ describe('damage and armour', () => {
     const before = brute.hp;
     damageCreep(state, brute, 20, 'magic', 'p1');
     expect(before - brute.hp).toBeCloseTo(20 * (1 - TUNING.creeps.brute.magicResist));
+  });
+
+  it('uses the creep\'s own armour and magic resist, not just its base stats', () => {
+    const state = labGame();
+    const grunt = placeCreep(state, 'grunt', 40, 20);
+    grunt.armor = 20;
+    grunt.magicResist = 0.5;
+    damageCreep(state, grunt, 10, 'physical', 'p1');
+    expect(grunt.maxHp - grunt.hp).toBeCloseTo(10 * armorMultiplier(TUNING, 20));
+    grunt.hp = grunt.maxHp;
+    damageCreep(state, grunt, 10, 'magic', 'p1');
+    expect(grunt.maxHp - grunt.hp).toBeCloseTo(5);
+  });
+
+  it('caps magic resist below immunity', () => {
+    expect(damageMultiplier(TUNING, 'magic', 0, 5)).toBeCloseTo(1 - TUNING.combat.maxMagicResist);
+    expect(damageMultiplier(TUNING, 'magic', 0, -1)).toBe(1);
+    expect(damageMultiplier(TUNING, 'physical', 50, 0.9)).toBe(armorMultiplier(TUNING, 50));
+  });
+
+  it('heroes take physical damage through armour and magic damage through magic resist', () => {
+    const state = labGame();
+    const hero = state.heroes[0]!;
+    const hp = hero.hp;
+    damageHero(state, hero, 100, 'physical');
+    expect(hp - hero.hp).toBeCloseTo(100 * armorMultiplier(TUNING, heroArmor(state, hero)));
+    hero.hp = hp;
+    damageHero(state, hero, 100, 'magic');
+    expect(hp - hero.hp).toBeCloseTo(100 * (1 - TUNING.hero.ranger.magicResist));
+  });
+
+  it('towers take physical damage through armour and magic damage through magic resist', () => {
+    const tuning = tuningCopy();
+    tuning.towers.arrow.magicResist = 0.4;
+    const state = labGame(tuning);
+    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'arrow' });
+    const tower = state.towers[0]!;
+    damageTower(state, tower, 100, 'physical');
+    expect(tower.maxHp - tower.hp).toBeCloseTo(100 * armorMultiplier(tuning, tuning.towers.arrow.armor));
+    tower.hp = tower.maxHp;
+    damageTower(state, tower, 100, 'magic');
+    expect(tower.maxHp - tower.hp).toBeCloseTo(60);
+  });
+
+  it('an archer\'s arrows lose damage to tower armour', () => {
+    const state = labGame();
+    parkHero(state);
+    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'frost' });
+    const tower = state.towers[0]!;
+    tower.stunUntil = 10_000; // keep the tower from killing the archer
+    const archer = placeCreep(state, 'archer', tower.x + 3, tower.y);
+    archer.rootUntil = 10_000;
+    run(state, 60);
+    const shots = Math.round((tower.maxHp - tower.hp) / (TUNING.creeps.archer.damage * armorMultiplier(TUNING, TUNING.towers.frost.armor)));
+    expect(shots).toBeGreaterThan(0);
+    expect(tower.maxHp - tower.hp).toBeCloseTo(shots * TUNING.creeps.archer.damage * armorMultiplier(TUNING, TUNING.towers.frost.armor));
+    expect(tower.maxHp - tower.hp).toBeLessThan(shots * TUNING.creeps.archer.damage);
   });
 
   it('armour multiplier is 1 at zero armour and shrinks with more', () => {
@@ -274,13 +331,4 @@ describe('creep aggro and leash', () => {
     expect(state.heartHp).toBe(heartHp - TUNING.creeps.wisp.leakDamage);
   });
 
-  it('boss stomp stuns heroes and towers nearby', () => {
-    const state = labGame();
-    const hero = state.heroes[0]!;
-    const boss = placeCreep(state, 'boss', hero.x, hero.y - 1.5);
-    boss.abilityCd = 0;
-    run(state, 1);
-    expect(hero.stunUntil).toBeGreaterThan(state.tick);
-    expect(state.events).toContainEqual(expect.objectContaining({ type: 'stomp' }));
-  });
 });

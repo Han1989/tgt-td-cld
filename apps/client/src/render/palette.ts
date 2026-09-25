@@ -35,8 +35,14 @@ export const CREEP_COLORS: Record<CreepKind, number> = {
   runner: 0xf5d547,
   brute: 0x9c3b3b,
   wisp: 0x7fe7ff,
-  boss: 0xa24bd6,
+  hatchling: 0xe8866a,
+  ironhorn: 0xa24bd6,
+  matriarch: 0xd64b8a,
+  shardback: 0x6d8fb0,
 };
+
+/** Shardback's two hides. */
+export const HIDE_COLORS = { stone: 0xc9b58a, ether: 0x9f7bff } as const;
 
 export const TOWER_COLORS: Record<TowerKind, number> = {
   arrow: 0xd4b483,
@@ -71,7 +77,10 @@ export const CREEP_NAMES: Record<CreepKind, string> = {
   runner: 'Runner',
   brute: 'Brute',
   wisp: 'Wisp',
-  boss: 'Boss',
+  hatchling: 'Hatchling',
+  ironhorn: 'Ironhorn',
+  matriarch: 'Matriarch',
+  shardback: 'Shardback',
 };
 
 export function hpColor(frac: number): number {

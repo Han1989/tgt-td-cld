@@ -17,7 +17,7 @@ import { Application, Container, Graphics, Text } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
-import { COLORS, CREEP_COLORS, hpColor, PROJECTILE_COLORS, TOWER_COLORS } from './palette';
+import { COLORS, CREEP_COLORS, HIDE_COLORS, hpColor, PROJECTILE_COLORS, TOWER_COLORS } from './palette';
 
 const S = TILE_PX;
 const TOWER_SIZE = 1.7;
@@ -142,7 +142,14 @@ export class WorldRenderer {
           this.ring(e.x, e.y, e.radius, 0xffa24a, now, 300);
           break;
         case 'stomp':
-          this.ring(e.x, e.y, e.radius, CREEP_COLORS.boss, now, 500);
+          this.ring(e.x, e.y, e.radius, CREEP_COLORS.ironhorn, now, 500);
+          break;
+        case 'hatch':
+          this.ring(e.x, e.y, 1.6, CREEP_COLORS.matriarch, now, 400);
+          break;
+        case 'hideShift':
+          this.ring(e.x, e.y, 1.8, HIDE_COLORS[e.hide], now, 500);
+          this.floatText(e.hide === 'stone' ? 'Stone hide' : 'Ether hide', e.x, e.y - 1.4, HIDE_COLORS[e.hide], now);
           break;
         case 'trapTriggered':
           this.ring(e.x, e.y, e.radius, COLORS.root, now, 500);
@@ -232,10 +239,12 @@ export class WorldRenderer {
       s.root.position.set(c.x * S, c.y * S);
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
-      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}`;
+      const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
+      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${hide}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
+        if (hide) s.status.circle(0, 0, r + 1).stroke({ width: 4, color: HIDE_COLORS[hide] });
         if (c.slowed) s.status.circle(0, 0, r + 3).stroke({ width: 2, color: COLORS.slow });
         if (c.rooted) s.status.circle(0, 0, r + 6).stroke({ width: 3, color: COLORS.root });
       }
@@ -505,6 +514,11 @@ function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y:
   s.bar.rect(-width / 2, y, (width * Math.max(0, hp)) / maxHp, 3).fill(hpColor(hp / maxHp));
 }
 
+/** Shardback's hide, read from its magic resist (Ether hide raises it above the base value). */
+function shardbackHide(c: CreepSnap): 'stone' | 'ether' {
+  return c.magicResist > TUNING.creeps.shardback.magicResist + 0.01 ? 'ether' : 'stone';
+}
+
 function creepBody(kind: CreepKind): Graphics {
   const g = new Graphics();
   const r = TUNING.creeps[kind].radius * S;
@@ -527,13 +541,34 @@ function creepBody(kind: CreepKind): Graphics {
       g.circle(0, 0, r * 1.7).fill({ color, alpha: 0.2 });
       g.star(0, 0, 4, r * 1.2, r * 0.45).fill(color).stroke(outline);
       break;
-    case 'boss': {
+    case 'hatchling':
+      g.circle(0, 0, r).fill(color).stroke(outline);
+      g.circle(0, 0, r * 0.4).fill({ color: 0x000000, alpha: 0.45 });
+      break;
+    case 'ironhorn': {
+      // Hexagon with two horns.
+      g.poly([-r * 0.55, -r * 0.7, -r * 0.95, -r * 1.35, -r * 0.2, -r * 0.85]).fill(0xe8e0d0);
+      g.poly([r * 0.55, -r * 0.7, r * 0.95, -r * 1.35, r * 0.2, -r * 0.85]).fill(0xe8e0d0);
       const pts: number[] = [];
       for (let i = 0; i < 6; i++) pts.push(Math.cos((i * Math.PI) / 3) * r, Math.sin((i * Math.PI) / 3) * r);
       g.poly(pts).fill(color).stroke({ width: 3, color: 0x2a0e3a });
       g.circle(0, 0, r * 0.35).fill(0xffd24a);
       break;
     }
+    case 'matriarch':
+      // Round body ringed with eggs.
+      for (let i = 0; i < 5; i++) {
+        const a = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+        g.ellipse(Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95, r * 0.28, r * 0.22).fill(0xf6e7c8).stroke(outline);
+      }
+      g.circle(0, 0, r * 0.8).fill(color).stroke({ width: 3, color: 0x3a0e24 });
+      g.circle(0, 0, r * 0.3).fill(0xffd24a);
+      break;
+    case 'shardback':
+      // Spiky crystal body.
+      g.star(0, 0, 7, r, r * 0.62).fill(color).stroke({ width: 3, color: 0x14202c });
+      g.circle(0, 0, r * 0.3).fill(0xffd24a);
+      break;
   }
   return g;
 }

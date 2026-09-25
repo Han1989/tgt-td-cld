@@ -21,6 +21,9 @@ export const MAX_CLIENT_MESSAGE_LENGTH = 512;
 /** Coordinates outside this range are rejected outright (map is far smaller). */
 const MAX_COORD = 10_000;
 
+/** Largest single gold gift the codec accepts; the sim also caps it at the sender's gold. */
+export const MAX_GIFT_AMOUNT = 1_000_000;
+
 export function encodeClientMessage(msg: ClientMessage): string {
   return JSON.stringify(msg);
 }
@@ -170,6 +173,10 @@ export function parseCommand(value: unknown): Command | null {
       if (!hasOnlyKeys(value, ['type', 'towerId', 'priority'])) return null;
       if (!isId(value.towerId) || !isTargetPriority(value.priority)) return null;
       return { type: 'setPriority', towerId: value.towerId, priority: value.priority };
+    case 'gift':
+      if (!hasOnlyKeys(value, ['type', 'to', 'amount']) || !isPlayerId(value.to)) return null;
+      if (!isId(value.amount) || value.amount < 1 || value.amount > MAX_GIFT_AMOUNT) return null;
+      return { type: 'gift', to: value.to, amount: value.amount };
     default:
       return null;
   }
@@ -197,6 +204,11 @@ function isVersion(value: unknown): value is number {
 
 function isTargetPriority(value: unknown): value is TargetPriority {
   return typeof value === 'string' && (TARGET_PRIORITIES as readonly string[]).includes(value);
+}
+
+/** Player ids are short tokens such as `p1`; the sim checks that the player exists. */
+function isPlayerId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,16}$/.test(value);
 }
 
 function isSkillSlot(value: unknown): value is SkillSlot {

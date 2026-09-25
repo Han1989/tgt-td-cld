@@ -1,5 +1,6 @@
 // Sim features used by online play: player-count scaling and disconnects.
 
+import type { CreepKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand, setPlayerConnected } from '../src/commands';
 import { createGame, snapshot } from '../src/game';
@@ -38,12 +39,13 @@ describe('player-count scaling', () => {
     expect(count(4)).toBe(21);
   });
 
-  it('never multiplies the number of bosses', () => {
+  it.each([10, 20, 30])('never multiplies the number of bosses (wave %i)', (wave) => {
     const state = game(4);
-    state.wave = 9;
+    state.wave = wave - 1;
     state.nextWaveTick = state.tick;
     run(state, 1);
-    const bosses = state.spawnQueue.filter((s) => s.kind === 'boss').length + state.creeps.filter((c) => c.kind === 'boss').length;
+    const isBoss = (kind: CreepKind) => TUNING.creeps[kind].boss;
+    const bosses = state.spawnQueue.filter((s) => isBoss(s.kind)).length + state.creeps.filter((c) => isBoss(c.kind)).length;
     expect(bosses).toBe(1);
   });
 });

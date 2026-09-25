@@ -1,6 +1,7 @@
 // Wave timer, wave income, call-early and creep spawning.
 
 import type { CreepKind, LaneId, PlayerId } from '@tdt/protocol';
+import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
 import { getMap } from './map';
 import type { Creep, GameState } from './state';
@@ -54,8 +55,9 @@ function startWave(state: GameState): void {
   const spawnGap = secondsToTicks(t.spawnInterval);
   for (const lane of [0, 1, 2] as LaneId[]) {
     const laneGroups = groups.filter((g) => g.lanes.includes(lane));
-    const regular = laneGroups.filter((g) => g.kind !== 'boss');
-    const bosses = laneGroups.filter((g) => g.kind === 'boss');
+    const isBoss = (kind: CreepKind) => state.tuning.creeps[kind].boss;
+    const regular = laneGroups.filter((g) => !isBoss(g.kind));
+    const bosses = laneGroups.filter((g) => isBoss(g.kind));
     // Interleave kinds so a lane gets a mixed stream, bosses last.
     const order: CreepKind[] = [];
     const left = regular.map((g) => scaledCount(state, g.perLane));
@@ -101,14 +103,18 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
   const offX = (random(state) * 2 - 1) * spread;
   const offY = (random(state) * 2 - 1) * spread;
   const maxHp = creepMaxHp(state, kind, wave);
+  const stats = state.tuning.creeps[kind];
   const creep: Creep = {
     id: newId(state),
     kind,
     lane,
+    wave,
     x: portal.x + offX,
     y: portal.y + Math.max(0, offY),
     hp: maxHp,
     maxHp,
+    armor: stats.armor + state.tuning.waves.armorGrowthPerWave * (wave - 1),
+    magicResist: stats.magicResist,
     wp: 1,
     offX,
     offY,
@@ -117,13 +123,16 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
     anchorY: 0,
     targetId: -1,
     attackCd: 0,
-    abilityCd: secondsToTicks(state.tuning.boss.stompCooldown),
+    abilityCd: 0,
+    abilityUses: 0,
+    hide: null,
     slowPct: 0,
     slowUntil: 0,
     rootUntil: 0,
     remaining: path.remainingFrom[0] ?? 0,
     dead: false,
   };
+  initBoss(state, creep);
   state.creeps.push(creep);
   return creep;
 }

@@ -27,6 +27,7 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'strongest' } },
     { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'closest' } },
     { t: 'cmd', cmd: { type: 'callEarly' } },
+    { t: 'cmd', cmd: { type: 'gift', to: 'p2', amount: 50 } },
     { t: 'restart' },
     { t: 'start' },
     { t: 'leave' },
@@ -73,6 +74,14 @@ describe('client message codec', () => {
     ['create without a version', '{"t":"create","name":"a","hero":"ranger"}'],
     ['join with a string version', '{"t":"join","v":"2","code":"ABCDE","name":"a","hero":"ranger"}'],
     ['rejoin with a fractional version', '{"t":"rejoin","v":2.5,"code":"ABCDE","token":"0123456789abcdef0123456789abcdef"}'],
+    ['gift of zero', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":0}}'],
+    ['negative gift', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":-5}}'],
+    ['fractional gift', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":2.5}}'],
+    ['string gift amount', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":"50"}}'],
+    ['huge gift', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":1e9}}'],
+    ['gift without a recipient', '{"t":"cmd","cmd":{"type":"gift","amount":5}}'],
+    ['gift to a non-id', '{"t":"cmd","cmd":{"type":"gift","to":"<p2>","amount":5}}'],
+    ['gift with extra keys', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":5,"from":"p3"}}'],
   ])('rejects %s', (_label, raw) => {
     expect(decodeClientMessage(raw)).toBeNull();
   });

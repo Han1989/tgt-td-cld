@@ -64,6 +64,7 @@ export class GameView {
       upgrade: (towerId) => send({ t: 'cmd', cmd: { type: 'upgrade', towerId } }),
       setPriority: (towerId, priority) => send({ t: 'cmd', cmd: { type: 'setPriority', towerId, priority } }),
       callEarly: () => send({ t: 'cmd', cmd: { type: 'callEarly' } }),
+      gift: (to, amount) => send({ t: 'cmd', cmd: { type: 'gift', to, amount } }),
       learn: (slot) => send({ t: 'cmd', cmd: { type: 'learn', slot } }),
       pressSkill: (slot) => controls.pressSkill(slot),
       restart: () => send({ t: 'restart' }),

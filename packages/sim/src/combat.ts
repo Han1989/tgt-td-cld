@@ -30,8 +30,27 @@ export function random(state: GameState): number {
 
 /** Fraction of physical damage that gets through `armor`. */
 export function armorMultiplier(tuning: Tuning, armor: number): number {
-  const a = tuning.combat.armorFactor * armor;
+  const a = tuning.combat.armorFactor * Math.max(0, armor);
   return 1 - a / (1 + a);
+}
+
+/** Fraction of magic damage that gets through `magicResist` (capped below immunity). */
+export function magicMultiplier(tuning: Tuning, magicResist: number): number {
+  return 1 - Math.max(0, Math.min(tuning.combat.maxMagicResist, magicResist));
+}
+
+/**
+ * The one damage rule for every target (creeps, heroes, towers): physical
+ * damage is reduced by armour, magic damage by magic resist.
+ */
+export function damageMultiplier(tuning: Tuning, type: DamageType, armor: number, magicResist: number): number {
+  return type === 'physical' ? armorMultiplier(tuning, armor) : magicMultiplier(tuning, magicResist);
+}
+
+/** Bounty for killing `creep`, grown by its wave number. */
+export function creepBounty(state: GameState, creep: Creep): number {
+  const base = state.tuning.creeps[creep.kind].bounty;
+  return Math.round(base * (1 + state.tuning.economy.bountyGrowthPerWave * (creep.wave - 1)));
 }
 
 export function heroStats(state: GameState, hero: Hero): HeroStats {
@@ -66,9 +85,7 @@ export function damageCreep(
   source: PlayerId | null,
 ): void {
   if (creep.dead) return;
-  const stats = state.tuning.creeps[creep.kind];
-  const mult = type === 'physical' ? armorMultiplier(state.tuning, stats.armor) : 1 - stats.magicResist;
-  creep.hp -= amount * mult;
+  creep.hp -= amount * damageMultiplier(state.tuning, type, creep.armor, creep.magicResist);
   if (creep.hp <= 0) killCreep(state, creep, source);
 }
 
@@ -76,9 +93,10 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   creep.dead = true;
   creep.hp = 0;
   const stats = state.tuning.creeps[creep.kind];
+  const bounty = creepBounty(state, creep);
   const killer = source === null ? undefined : state.players.find((p) => p.id === source);
   if (killer) {
-    killer.gold += stats.bounty;
+    killer.gold += bounty;
     killer.kills++;
   }
   emit(state, {
@@ -88,7 +106,7 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
     x: creep.x,
     y: creep.y,
     by: killer ? killer.id : null,
-    bounty: killer ? stats.bounty : 0,
+    bounty: killer ? bounty : 0,
   });
 
   const nearby = state.heroes.filter(
@@ -114,8 +132,7 @@ export function grantXp(state: GameState, hero: Hero, amount: number): void {
 
 export function damageHero(state: GameState, hero: Hero, amount: number, type: DamageType): void {
   if (!hero.alive) return;
-  const mult = type === 'physical' ? armorMultiplier(state.tuning, heroArmor(state, hero)) : 1;
-  hero.hp -= amount * mult;
+  hero.hp -= amount * damageMultiplier(state.tuning, type, heroArmor(state, hero), heroStats(state, hero).magicResist);
   if (hero.hp > 0) return;
   hero.hp = 0;
   hero.alive = false;
@@ -139,9 +156,10 @@ export function respawnHero(state: GameState, hero: Hero): void {
   emit(state, { type: 'heroRespawned', heroId: hero.id });
 }
 
-export function damageTower(state: GameState, tower: Tower, amount: number): void {
+export function damageTower(state: GameState, tower: Tower, amount: number, type: DamageType): void {
   if (tower.dead) return;
-  tower.hp -= amount;
+  const s = state.tuning.towers[tower.kind];
+  tower.hp -= amount * damageMultiplier(state.tuning, type, s.armor, s.magicResist);
   if (tower.hp > 0) return;
   tower.hp = 0;
   tower.dead = true;

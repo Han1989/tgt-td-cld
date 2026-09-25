@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -19,8 +19,29 @@ export type TowerKind = (typeof TOWER_KINDS)[number];
 export const TARGET_PRIORITIES = ['first', 'strongest', 'closest'] as const;
 export type TargetPriority = (typeof TARGET_PRIORITIES)[number];
 
-export const CREEP_KINDS = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'boss'] as const;
+export const CREEP_KINDS = [
+  'grunt',
+  'archer',
+  'runner',
+  'brute',
+  'wisp',
+  /** Summoned by the Matriarch; never part of a wave list. */
+  'hatchling',
+  /** Wave 10 boss: Stomp. */
+  'ironhorn',
+  /** Wave 20 boss: Hatch. */
+  'matriarch',
+  /** Wave 30 boss: Shifting Hide. */
+  'shardback',
+] as const;
 export type CreepKind = (typeof CREEP_KINDS)[number];
+
+export const BOSS_KINDS = ['ironhorn', 'matriarch', 'shardback'] as const satisfies readonly CreepKind[];
+export type BossKind = (typeof BOSS_KINDS)[number];
+
+export function isBossKind(kind: CreepKind): kind is BossKind {
+  return (BOSS_KINDS as readonly CreepKind[]).includes(kind);
+}
 
 export const HERO_KINDS = ['ranger'] as const;
 export type HeroKind = (typeof HERO_KINDS)[number];
@@ -47,7 +68,9 @@ export type Command =
   | { type: 'sell'; towerId: EntityId }
   | { type: 'upgrade'; towerId: EntityId }
   | { type: 'setPriority'; towerId: EntityId; priority: TargetPriority }
-  | { type: 'callEarly' };
+  | { type: 'callEarly' }
+  /** Give some of your gold to a teammate. */
+  | { type: 'gift'; to: PlayerId; amount: number };
 
 export type CommandType = Command['type'];
 
@@ -115,6 +138,9 @@ export interface CreepSnap {
   maxHp: number;
   slowed: boolean;
   rooted: boolean;
+  /** Current armour and magic resist (bosses can change theirs). */
+  armor: number;
+  magicResist: number;
 }
 
 export interface TowerSnap {
@@ -164,6 +190,9 @@ export type GameEvent =
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
   | { type: 'trapTriggered'; x: number; y: number; radius: number }
   | { type: 'stomp'; x: number; y: number; radius: number }
+  | { type: 'hatch'; creepId: EntityId; x: number; y: number; count: number }
+  | { type: 'hideShift'; creepId: EntityId; x: number; y: number; hide: 'stone' | 'ether' }
+  | { type: 'gift'; from: PlayerId; to: PlayerId; amount: number }
   | { type: 'splash'; x: number; y: number; radius: number }
   | { type: 'rejected'; player: PlayerId; command: CommandType; reason: string }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };

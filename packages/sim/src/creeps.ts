@@ -1,6 +1,7 @@
 // Creep behaviour: walk the lane, fight heroes that come close (with a leash),
-// shoot towers (archers, bosses), leak into the Heart.
+// shoot towers (archers, bosses), leak into the Heart. Boss abilities are in bosses.ts.
 
+import { updateBoss } from './bosses';
 import { damageHero, damageTower, emit, spawnProjectile, TOWER_RADIUS } from './combat';
 import { getMap } from './map';
 import type { Creep, GameState, Hero, Tower } from './state';
@@ -8,7 +9,10 @@ import { secondsToTicks, TICK_RATE } from './tuning';
 import { dist, moveToward } from './vec';
 
 export function updateCreeps(state: GameState): void {
-  for (const creep of state.creeps) {
+  // Creeps summoned during this loop (Matriarch hatchlings) start moving next tick.
+  const n = state.creeps.length;
+  for (let i = 0; i < n; i++) {
+    const creep = state.creeps[i]!;
     if (!creep.dead) updateCreep(state, creep);
   }
 }
@@ -20,7 +24,7 @@ function updateCreep(state: GameState, c: Creep): void {
   const t = state.tuning;
 
   if (c.attackCd > 0) c.attackCd--;
-  if (c.kind === 'boss') bossStomp(state, c);
+  if (s.boss) updateBoss(state, c);
 
   const rooted = state.tick < c.rootUntil;
   const slowMult = state.tick < c.slowUntil ? 1 - c.slowPct : 1;
@@ -159,26 +163,6 @@ function attackTower(state: GameState, c: Creep, tower: Tower): void {
       source: null,
     });
   } else {
-    damageTower(state, tower, s.damage);
+    damageTower(state, tower, s.damage, s.damageType);
   }
-}
-
-/** Boss special: stomp damages and stuns nearby heroes, and stuns nearby towers. */
-function bossStomp(state: GameState, c: Creep): void {
-  if (c.abilityCd > 0) {
-    c.abilityCd--;
-    return;
-  }
-  const b = state.tuning.boss;
-  const heroes = state.heroes.filter((h) => h.alive && dist(c.x, c.y, h.x, h.y) <= b.stompRadius);
-  const towers = state.towers.filter((t) => !t.dead && dist(c.x, c.y, t.x, t.y) <= b.stompRadius + TOWER_RADIUS);
-  if (heroes.length === 0 && towers.length === 0) return;
-  const stunUntil = state.tick + secondsToTicks(b.stompStun);
-  for (const h of heroes) {
-    damageHero(state, h, b.stompDamage, 'magic');
-    h.stunUntil = Math.max(h.stunUntil, stunUntil);
-  }
-  for (const t of towers) t.stunUntil = Math.max(t.stunUntil, stunUntil);
-  c.abilityCd = secondsToTicks(b.stompCooldown);
-  emit(state, { type: 'stomp', x: c.x, y: c.y, radius: b.stompRadius });
 }

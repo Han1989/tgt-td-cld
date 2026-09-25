@@ -74,10 +74,15 @@ export interface Creep {
   id: EntityId;
   kind: CreepKind;
   lane: LaneId;
+  /** Wave the creep belongs to (drives HP, armour and bounty growth). */
+  wave: number;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
+  /** Current armour and magic resist: base stats + wave growth + boss effects. */
+  armor: number;
+  magicResist: number;
   /** Index of the next lane waypoint. */
   wp: number;
   /** Personal offset from the lane centre line. */
@@ -90,7 +95,11 @@ export interface Creep {
   /** Hero being chased, or -1. */
   targetId: EntityId;
   attackCd: number;
+  /** Boss ability: ticks until the next use, and how many units it has summoned so far. */
   abilityCd: number;
+  abilityUses: number;
+  /** Shardback's current hide, null for everything else. */
+  hide: 'stone' | 'ether' | null;
   slowPct: number;
   slowUntil: number;
   rootUntil: number;
