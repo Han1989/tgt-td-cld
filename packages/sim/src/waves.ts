@@ -58,7 +58,7 @@ function startWave(state: GameState): void {
     const bosses = laneGroups.filter((g) => g.kind === 'boss');
     // Interleave kinds so a lane gets a mixed stream, bosses last.
     const order: CreepKind[] = [];
-    const left = regular.map((g) => g.perLane);
+    const left = regular.map((g) => scaledCount(state, g.perLane));
     let any = true;
     while (any) {
       any = false;
@@ -77,9 +77,21 @@ function startWave(state: GameState): void {
   }
 }
 
+/** Extra players beyond the first, for player-count scaling. */
+function extraPlayers(state: GameState): number {
+  return Math.max(0, state.players.length - 1);
+}
+
+/** Creeps per lane after player-count scaling (+25% per extra player by default). */
+export function scaledCount(state: GameState, perLane: number): number {
+  return Math.round(perLane * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)));
+}
+
 export function creepMaxHp(state: GameState, kind: CreepKind, wave: number): number {
   const base = state.tuning.creeps[kind].hp;
-  return Math.round(base * (1 + state.tuning.waves.hpGrowthPerWave * (wave - 1)));
+  const waveMult = 1 + state.tuning.waves.hpGrowthPerWave * (wave - 1);
+  const playerMult = 1 + state.tuning.playerScaling.hpPerExtraPlayer * extraPlayers(state);
+  return Math.round(base * waveMult * playerMult);
 }
 
 export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave: number): Creep {

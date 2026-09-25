@@ -19,8 +19,11 @@ export class LocalTransport implements Transport {
     this.worker.postMessage(encodeClientMessage(msg));
   }
 
-  onMessage(handler: (msg: ServerMessage) => void): void {
+  onMessage(handler: (msg: ServerMessage) => void): () => void {
     this.handlers.push(handler);
+    return () => {
+      this.handlers = this.handlers.filter((h) => h !== handler);
+    };
   }
 
   close(): void {

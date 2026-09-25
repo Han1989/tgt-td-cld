@@ -1,8 +1,13 @@
 import {
+  HERO_KINDS,
+  MAX_NAME_LENGTH,
+  ROOM_CODE_ALPHABET,
+  ROOM_CODE_LENGTH,
   SKILL_SLOTS,
   TOWER_KINDS,
   type ClientMessage,
   type Command,
+  type HeroKind,
   type ServerMessage,
   type SkillSlot,
   type TowerKind,
@@ -38,7 +43,34 @@ export function decodeClientMessage(raw: unknown): ClientMessage | null {
   if (!isRecord(data)) return null;
   switch (data.t) {
     case 'restart':
-      return hasOnlyKeys(data, ['t']) ? { t: 'restart' } : null;
+    case 'start':
+    case 'leave':
+      return hasOnlyKeys(data, ['t']) ? { t: data.t } : null;
+    case 'create': {
+      if (!hasOnlyKeys(data, ['t', 'name', 'hero'])) return null;
+      const name = normalizeName(data.name);
+      if (name === null || !isHeroKind(data.hero)) return null;
+      return { t: 'create', name, hero: data.hero };
+    }
+    case 'join': {
+      if (!hasOnlyKeys(data, ['t', 'code', 'name', 'hero'])) return null;
+      const name = normalizeName(data.name);
+      const code = normalizeRoomCode(data.code);
+      if (name === null || code === null || !isHeroKind(data.hero)) return null;
+      return { t: 'join', code, name, hero: data.hero };
+    }
+    case 'rejoin': {
+      if (!hasOnlyKeys(data, ['t', 'code', 'token'])) return null;
+      const code = normalizeRoomCode(data.code);
+      if (code === null || typeof data.token !== 'string' || !/^[0-9a-f]{32}$/.test(data.token)) return null;
+      return { t: 'rejoin', code, token: data.token };
+    }
+    case 'hero':
+      if (!hasOnlyKeys(data, ['t', 'hero']) || !isHeroKind(data.hero)) return null;
+      return { t: 'hero', hero: data.hero };
+    case 'ready':
+      if (!hasOnlyKeys(data, ['t', 'ready']) || typeof data.ready !== 'boolean') return null;
+      return { t: 'ready', ready: data.ready };
     case 'cmd': {
       if (!hasOnlyKeys(data, ['t', 'cmd'])) return null;
       const cmd = parseCommand(data.cmd);
@@ -59,9 +91,36 @@ export function decodeServerMessage(raw: unknown): ServerMessage | null {
     return null;
   }
   if (!isRecord(data)) return null;
-  if (data.t === 'welcome' && typeof data.playerId === 'string') return data as unknown as ServerMessage;
-  if (data.t === 'snapshot' && isRecord(data.snap)) return data as unknown as ServerMessage;
-  return null;
+  const ok =
+    (data.t === 'welcome' && typeof data.playerId === 'string') ||
+    (data.t === 'snapshot' && isRecord(data.snap)) ||
+    (data.t === 'delta' && isRecord(data.delta)) ||
+    (data.t === 'lobby' && isRecord(data.lobby)) ||
+    (data.t === 'error' && typeof data.code === 'string') ||
+    (data.t === 'notice' && typeof data.kind === 'string');
+  return ok ? (data as unknown as ServerMessage) : null;
+}
+
+/**
+ * Trims a player name and checks it: 1–16 characters, no control characters.
+ * Returns null if it is not acceptable.
+ */
+export function normalizeName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const name = value.trim().replace(/\s+/g, ' ');
+  if (name.length === 0 || name.length > MAX_NAME_LENGTH) return null;
+  // Reject control characters (C0, DEL, C1).
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(name)) return null;
+  return name;
+}
+
+/** Upper-cases a room code and checks its length and alphabet. */
+export function normalizeRoomCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const code = value.trim().toUpperCase();
+  if (code.length !== ROOM_CODE_LENGTH) return null;
+  for (const ch of code) if (!ROOM_CODE_ALPHABET.includes(ch)) return null;
+  return code;
 }
 
 /** Validates the shape of a single command. Exported for hosts that receive commands directly. */
@@ -124,6 +183,10 @@ function isId(value: unknown): value is number {
 
 function isSkillSlot(value: unknown): value is SkillSlot {
   return typeof value === 'string' && (SKILL_SLOTS as readonly string[]).includes(value);
+}
+
+function isHeroKind(value: unknown): value is HeroKind {
+  return typeof value === 'string' && (HERO_KINDS as readonly string[]).includes(value);
 }
 
 function isTowerKind(value: unknown): value is TowerKind {

@@ -30,6 +30,8 @@ export interface PlayerState {
   gold: number;
   heroId: EntityId;
   kills: number;
+  /** Set by the host; a disconnected player's hero walks back to the Heart. */
+  connected: boolean;
 }
 
 export type HeroOrder =

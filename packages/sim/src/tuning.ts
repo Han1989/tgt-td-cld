@@ -120,6 +120,13 @@ export interface Tuning {
     hpGrowthPerWave: number;
     list: WaveGroup[][];
   };
+  /** Player-count scaling (from the design doc). */
+  playerScaling: {
+    /** Creep HP × (1 + hpPerExtraPlayer × (players − 1)). */
+    hpPerExtraPlayer: number;
+    /** Creep count × (1 + countPerExtraPlayer × (players − 1)); bosses are not multiplied. */
+    countPerExtraPlayer: number;
+  };
   combat: {
     /** Physical reduction = a·armor / (1 + a·armor). */
     armorFactor: number;
@@ -231,6 +238,7 @@ export const TUNING: Tuning = {
       ],
     ],
   },
+  playerScaling: { hpPerExtraPlayer: 0.5, countPerExtraPlayer: 0.25 },
   combat: { armorFactor: 0.06, xpShareRadius: 12 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10 },
   boss: { stompCooldown: 7, stompRadius: 3, stompDamage: 40, stompStun: 2 },

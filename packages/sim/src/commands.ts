@@ -115,3 +115,18 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       return true;
   }
 }
+
+/**
+ * Host-side hook, not a player command: marks a player connected or not.
+ * A disconnected player's towers keep firing and their hero walks back to
+ * the Heart and waits there.
+ */
+export function setPlayerConnected(state: GameState, playerId: PlayerId, connected: boolean): void {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.connected === connected) return;
+  player.connected = connected;
+  const hero = state.heroes.find((h) => h.id === player.heroId);
+  if (connected || !hero || !hero.alive) return;
+  const spawn = getMap().heroSpawn;
+  if (setPath(hero, spawn.x, spawn.y)) hero.order = { type: 'move', x: spawn.x, y: spawn.y };
+}

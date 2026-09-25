@@ -1,0 +1,41 @@
+# Render Blueprint for the game server (see docs/DEPLOY.md).
+# The client is deployed separately on Vercel.
+services:
+  - type: web
+    name: tgt-td-server
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    # Render's maximum. On SIGTERM the server tells players it is restarting
+    # and lets running matches continue for SHUTDOWN_GRACE_SECONDS (280 s)
+    # before closing, so it needs this headroom.
+    maxShutdownDelaySeconds: 300
+    numInstances: 1
+    autoDeploy: true
+    # Only redeploy when server-side code changes.
+    buildFilter:
+      paths:
+        - apps/server/**
+        - packages/**
+        - Dockerfile
+        - package.json
+        - package-lock.json
+        - tsconfig.base.json
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Comma-separated. Set in the Render dashboard, e.g.
+      # https://tgt-td-cld.vercel.app,https://tgt-td-cld-*-<your-vercel-scope>.vercel.app,http://localhost:5173
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # First letter of room codes created by this instance (see docs/DEPLOY.md).
+      - key: SHARD
+        value: A
+      - key: SHUTDOWN_GRACE_SECONDS
+        value: "280"
+      - key: MAX_ROOMS
+        value: "200"

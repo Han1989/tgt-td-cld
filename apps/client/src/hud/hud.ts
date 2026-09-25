@@ -1,7 +1,16 @@
 // HTML/CSS HUD: gold, Heart HP, wave, next-wave timer, hero panel, tower
 // menus, toasts and the victory / defeat screen. Reads snapshots only.
 
-import { TOWER_KINDS, type GameEvent, type HeroSnap, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
+import {
+  TOWER_KINDS,
+  type GameEvent,
+  type HeroSnap,
+  type LobbyState,
+  type PlayerId,
+  type SkillSlot,
+  type Snapshot,
+  type TowerKind,
+} from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { Camera } from '../input/camera';
 import { TOWER_NAMES } from '../render/palette';
@@ -22,6 +31,8 @@ export interface HudActions {
   learn(slot: SkillSlot): void;
   pressSkill(slot: SkillSlot): void;
   restart(): void;
+  /** Online only: leave the room from the end screen. */
+  leave(): void;
   closeMenus(): void;
 }
 
@@ -69,6 +80,19 @@ export class Hud {
   private readonly endScreen = $('end-screen');
   private readonly endTitle = $('end-title');
   private readonly endText = $('end-text');
+  private readonly restartBtn = $('restart') as HTMLButtonElement;
+  private readonly endLeave = $('end-leave');
+  private readonly team = $('team');
+  private readonly teamCode = $('team-code');
+  private readonly teamList = $('team-list');
+  private readonly noticeEl = $('notice');
+  private readonly reconnecting = $('reconnecting');
+
+  /** Online room (null in local solo mode). */
+  private room: LobbyState | null = null;
+  private noticeText = '';
+  private noticeDeadline = 0;
+  private teamKey = '';
 
   private skillButtons = new Map<SkillSlot, { root: HTMLButtonElement; learn: HTMLButtonElement; cd: HTMLElement; cdText: HTMLElement; pips: HTMLElement }>();
   private openPad: number | null = null;
@@ -85,7 +109,8 @@ export class Hud {
     $('hud').addEventListener('click', () => {
       if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
     });
-    $('restart').addEventListener('click', () => actions.restart());
+    this.restartBtn.addEventListener('click', () => actions.restart());
+    this.endLeave.addEventListener('click', () => actions.leave());
     // Keep clicks on HUD panels from reaching the canvas.
     for (const el of [this.padMenu, this.towerPanel, this.callEarly]) {
       el.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -117,18 +142,86 @@ export class Hud {
     if (hero) this.updateHero(hero, snap.tickRate);
     this.updateMenus(snap, me, player?.gold ?? 0);
 
+    this.updateTeam(snap, me);
+    this.updateNotice();
+
     const over = snap.phase === 'victory' || snap.phase === 'defeat';
     this.endScreen.classList.toggle('hidden', !over);
     if (over) {
+      const online = this.room !== null;
+      const isHost = online && this.room!.hostId === me;
+      this.restartBtn.classList.toggle('hidden', online && !isHost);
+      setText(this.restartBtn, online ? 'Back to lobby' : 'Play again');
+      this.endLeave.classList.toggle('hidden', !online);
       const won = snap.phase === 'victory';
       setText(this.endTitle, won ? 'Victory!' : 'Defeat');
       this.endTitle.className = won ? 'victory' : 'defeat';
-      setText(
-        this.endText,
-        won
-          ? `The Heart survived all ${snap.totalWaves} waves with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
-          : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`,
-      );
+      const summary = won
+        ? `The Heart survived all ${snap.totalWaves} waves with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
+        : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`;
+      setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
+    }
+  }
+
+  /** Online: the current room (for the team panel and host-only buttons); null offline. */
+  setRoom(room: LobbyState | null): void {
+    this.room = room;
+    this.teamKey = '';
+  }
+
+  /** Shows a persistent banner, e.g. "server restarting", with an optional countdown. */
+  notice(text: string, closesInMs = 0): void {
+    this.noticeText = text;
+    this.noticeDeadline = closesInMs > 0 ? performance.now() + closesInMs : 0;
+    this.updateNotice();
+  }
+
+  clearNotice(): void {
+    this.noticeText = '';
+    this.updateNotice();
+  }
+
+  setReconnecting(on: boolean): void {
+    this.reconnecting.classList.toggle('hidden', !on);
+  }
+
+  private updateNotice(): void {
+    this.noticeEl.classList.toggle('hidden', !this.noticeText);
+    if (!this.noticeText) return;
+    const left = this.noticeDeadline ? Math.max(0, this.noticeDeadline - performance.now()) : 0;
+    setText(this.noticeEl, left > 0 ? `${this.noticeText} (closes in ${formatSeconds(left / 50, 20)})` : this.noticeText);
+  }
+
+  private updateTeam(snap: Snapshot, me: PlayerId | null): void {
+    const show = this.room !== null;
+    this.team.classList.toggle('hidden', !show);
+    if (!show) return;
+    setText(this.teamCode, this.room!.code);
+    const rows = snap.players.map((p) => {
+      const hero = snap.heroes.find((h) => h.id === p.heroId);
+      return { p, hero };
+    });
+    const key = JSON.stringify(rows.map(({ p, hero }) => [p.id, p.connected, hero?.level, hero?.hp, hero?.alive]));
+    if (key === this.teamKey) return;
+    this.teamKey = key;
+    this.teamList.innerHTML = '';
+    for (const { p, hero } of rows) {
+      const li = document.createElement('li');
+      li.classList.toggle('away', !p.connected);
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = `${p.name}${p.id === me ? ' (you)' : ''}${p.connected ? '' : ' — away'}`;
+      const lvl = document.createElement('span');
+      lvl.className = 'lvl';
+      lvl.textContent = hero ? (hero.alive ? `Lv ${hero.level}` : 'dead') : '';
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      const fill = document.createElement('div');
+      fill.className = 'fill';
+      fill.style.width = hero && hero.alive ? `${(hero.hp / hero.maxHp) * 100}%` : '0%';
+      bar.appendChild(fill);
+      li.append(who, lvl, bar);
+      this.teamList.appendChild(li);
     }
   }
 

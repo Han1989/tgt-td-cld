@@ -1,0 +1,217 @@
+import { encodeClientMessage } from '@tdt/protocol';
+import { afterEach, describe, expect, it } from 'vitest';
+import WebSocket from 'ws';
+import type { GameServer, HealthReport } from '../src/server';
+import { bot, fullRoom, ORIGIN, sleep, startServer } from './helpers';
+
+let current: GameServer | null = null;
+async function start(overrides: Parameters<typeof startServer>[0] = {}) {
+  const s = await startServer(overrides);
+  current = s.server;
+  return s;
+}
+afterEach(async () => {
+  await current?.close();
+  current = null;
+});
+
+function rawSocket(url: string, origin?: string): Promise<{ ws: WebSocket; status?: number }> {
+  return new Promise((resolve) => {
+    const ws = new WebSocket(url, origin ? { origin } : {});
+    ws.once('open', () => resolve({ ws }));
+    ws.once('unexpected-response', (_req, res) => resolve({ ws, status: res.statusCode }));
+    ws.on('error', () => {});
+  });
+}
+
+describe('HTTP', () => {
+  it('/health reports rooms, players and tick time as JSON', async () => {
+    const { url, http } = await start();
+    const clients = await fullRoom(url, 2);
+    clients[0]!.send({ t: 'start' });
+    await clients[0]!.waitFor(() => (clients[0]!.snap?.tick ?? 0) > 5);
+    const res = await fetch(`${http}/health`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = (await res.json()) as HealthReport;
+    expect(body).toMatchObject({ status: 'ok', rooms: 1, roomsPlaying: 1, players: 2, shard: 'A' });
+    expect(body.avgTickMs).toBeGreaterThan(0);
+    expect(body.avgRoomTickMs).toBeGreaterThan(0);
+    expect((await fetch(`${http}/nope`)).status).toBe(404);
+  });
+});
+
+describe('origin allow-list', () => {
+  it('rejects WebSocket upgrades from other origins or without an Origin header', async () => {
+    const { url } = await start();
+    expect((await rawSocket(url, 'https://evil.example')).status).toBe(403);
+    expect((await rawSocket(url)).status).toBe(403);
+    const ok = await rawSocket(url, ORIGIN);
+    expect(ok.status).toBeUndefined();
+    ok.ws.close();
+  });
+});
+
+describe('lobby', () => {
+  it('creates a 5-letter room on this shard and lets players join, pick heroes and ready up', async () => {
+    const { url } = await start();
+    const host = bot(url, 'Ada');
+    const code = await host.create();
+    expect(code).toMatch(/^A[A-HJ-NP-Z]{4}$/);
+    const guest = bot(url, 'Bo');
+    await guest.join(code.toLowerCase() as string);
+    await host.waitFor(() => host.lobby?.players.length === 2);
+    expect(host.isHost).toBe(true);
+    expect(host.lobby!.players.map((p) => [p.id, p.name, p.ready])).toEqual([
+      ['p1', 'Ada', true],
+      ['p2', 'Bo', false],
+    ]);
+
+    host.send({ t: 'start' });
+    await host.waitFor(() => host.errors.length > 0);
+    expect(host.errors[0]).toMatchObject({ code: 'not_ready' });
+
+    guest.send({ t: 'start' });
+    await guest.waitFor(() => guest.errors.length > 0);
+    expect(guest.errors[0]).toMatchObject({ code: 'not_host' });
+
+    guest.send({ t: 'ready', ready: true });
+    await host.waitFor(() => host.lobby!.players[1]!.ready);
+    host.send({ t: 'start' });
+    await guest.waitFor(() => guest.snap !== null);
+    expect(guest.lobby!.phase).toBe('playing');
+    expect(guest.snap!.players.map((p) => p.name)).toEqual(['Ada', 'Bo']);
+
+    const late = bot(url, 'Late');
+    await expect(late.join(code)).rejects.toThrow(/match_in_progress/);
+  });
+
+  it('rejects a fifth player, unknown codes and codes from another shard', async () => {
+    const { url } = await start();
+    const clients = await fullRoom(url, 4);
+    await expect(bot(url, 'Five').join(clients[0]!.code!)).rejects.toThrow(/room_full/);
+    await expect(bot(url, 'X').join('AZZZZ')).rejects.toThrow(/room_not_found/);
+    await expect(bot(url, 'Y').join('BZZZZ')).rejects.toThrow(/wrong_server/);
+  });
+
+  it('passes the host role on when the host leaves', async () => {
+    const { url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.send({ t: 'leave' });
+    await guest!.waitFor(() => guest!.lobby?.players.length === 1);
+    expect(guest!.isHost).toBe(true);
+  });
+
+  it('returns to the lobby when the host restarts a finished match', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    const room = server.rooms.get(host!.code!)!;
+    room.state!.heartHp = 0;
+    await guest!.waitFor(() => guest!.snap?.phase === 'defeat');
+    guest!.send({ t: 'restart' });
+    host!.send({ t: 'restart' });
+    await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
+    expect(guest!.errors.some((e) => e.t === 'error' && e.code === 'not_host')).toBe(true);
+    expect(guest!.lobby!.players.map((p) => p.ready)).toEqual([true, false]);
+  });
+});
+
+describe('reconnect', () => {
+  it('gives a dropped player their hero and gold back within the window', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    guest!.acting = false;
+    host!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    guest!.send({ t: 'cmd', cmd: { type: 'build', padId: 20, tower: 'arrow' } });
+    await guest!.waitFor(() => (guest!.snap?.towers.length ?? 0) === 1);
+    const gold = guest!.snap!.players[1]!.gold;
+    const heroId = guest!.snap!.players[1]!.heroId;
+
+    guest!.ws.terminate();
+    await host!.waitFor(() => host!.snap?.players[1]?.connected === false);
+    expect(host!.lobby!.players[1]!.connected).toBe(false);
+    expect(host!.snap!.towers).toHaveLength(1);
+
+    const back = bot(url, 'Bo again');
+    await back.open();
+    back.send({ t: 'rejoin', code: guest!.code!, token: guest!.token! });
+    await back.waitFor(() => back.snap !== null);
+    expect(back.playerId).toBe('p2');
+    await back.waitFor(() => back.snap!.players[1]!.connected);
+    expect(back.snap!.players[1]).toMatchObject({ gold, heroId, connected: true });
+    expect(server.rooms.get(guest!.code!)!.members.filter((m) => !m.left)).toHaveLength(2);
+  });
+
+  it('refuses to rejoin after the reconnect window', async () => {
+    const { url } = await start({ reconnectWindowMs: 100 });
+    const [host, guest] = await fullRoom(url, 2);
+    guest!.ws.terminate();
+    await sleep(400);
+    await host!.waitFor(() => host!.lobby?.players.length === 1);
+    const back = bot(url, 'Late');
+    await back.open();
+    back.send({ t: 'rejoin', code: guest!.code!, token: guest!.token! });
+    await back.waitFor(() => back.errors.length > 0);
+    expect(back.errors[0]).toMatchObject({ code: 'rejoin_failed' });
+  });
+});
+
+describe('hardening', () => {
+  it('ignores malformed messages and closes connections that keep sending them', async () => {
+    const { url } = await start({ maxViolations: 5 });
+    const { ws } = await rawSocket(url, ORIGIN);
+    const closed = new Promise<number>((r) => ws.once('close', (code) => r(code)));
+    for (let i = 0; i < 10; i++) ws.send(i % 2 ? 'not json' : '{"t":"hack"}');
+    expect(await closed).toBe(1008);
+  });
+
+  it('drops oversized messages at the socket', async () => {
+    const { url } = await start();
+    const { ws } = await rawSocket(url, ORIGIN);
+    const closed = new Promise<number>((r) => ws.once('close', (code) => r(code)));
+    ws.send('x'.repeat(5000));
+    expect(await closed).toBe(1009);
+  });
+
+  it('rate-limits commands per client', async () => {
+    const { url } = await start({ rateLimit: { perSecond: 5, burst: 5 }, maxViolations: 1000 });
+    const host = bot(url, 'Spammer');
+    await host.create();
+    for (let i = 0; i < 20; i++) host.ws.send(encodeClientMessage({ t: 'ready', ready: true }));
+    await host.waitFor(() => host.errors.some((e) => e.t === 'error' && e.code === 'rate_limited'));
+  });
+});
+
+describe('graceful shutdown', () => {
+  it('tells everyone the server is restarting, closes lobbies now and lets matches run until the grace period ends', async () => {
+    const { server, url } = await start({ shutdownGraceMs: 600 });
+    const [a1, a2] = await fullRoom(url, 2);
+    a1!.send({ t: 'start' });
+    await a2!.waitFor(() => a2!.snap !== null);
+    const lobbyHost = bot(url, 'Lobby');
+    await lobbyHost.create();
+
+    const t0 = Date.now();
+    const drained = server.drain();
+    await lobbyHost.waitFor(() => lobbyHost.closed !== null, 2_000);
+    expect(lobbyHost.notices[0]).toMatchObject({ t: 'notice', kind: 'server_restarting', closesInMs: 0 });
+    expect(lobbyHost.closed!.code).toBe(1012);
+
+    await a2!.waitFor(() => a2!.notices.length > 0);
+    expect(a2!.notices[0]).toMatchObject({ kind: 'server_restarting', closesInMs: 600 });
+    expect(a2!.closed).toBeNull();
+    const refused = await rawSocket(url, ORIGIN);
+    expect(refused.status).toBe(503);
+
+    await drained;
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(550);
+    await a2!.waitFor(() => a2!.closed !== null, 2_000);
+    expect(a2!.closed!.code).toBe(1012);
+    expect(server.health().status).toBe('draining');
+    current = null;
+  });
+});
