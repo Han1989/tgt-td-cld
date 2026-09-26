@@ -2,9 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0f14" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TD Together" />
     <title>Tower Defense Together</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
   </head>
   <body>
     <div id="game"></div>
@@ -75,16 +82,27 @@
       </div>
     </div>
     <div id="hud">
-      <header class="topbar">
-        <div class="stat gold" title="Your gold"><span class="icon coin"></span><span id="gold">0</span></div>
+      <div id="left-col" class="left-col">
+      <header id="topbar" class="topbar">
+        <div id="top-level" class="stat top-level" title="Hero level and experience">
+          <span id="top-level-text" class="lv">Lv 1</span><span id="top-points" class="pts hidden" title="Skill points: tap + on a skill"></span>
+          <div class="bar"><div id="top-xp" class="fill"></div></div>
+        </div>
+        <button id="gold-stat" class="stat gold" title="Your gold"><span class="icon coin"></span><span class="label">Gold</span><span id="gold">0</span></button>
         <div class="stat heart" title="Heart HP">
-          <span class="icon heart-icon"></span>
+          <span class="icon heart-icon"></span><span class="label">Heart</span><span id="heart-num" class="heart-num"></span>
           <div class="bar"><div id="heart-fill" class="fill"></div><span id="heart-text" class="bar-text"></span></div>
         </div>
-        <div class="stat" title="Wave"><span class="label">Wave</span><span id="wave">0 / 10</span></div>
+        <div class="stat wave" title="Wave"><span class="label">Wave</span><span id="wave">0 / 10</span></div>
         <div class="stat timer"><span id="timer-label" class="label">Next wave</span><span id="timer">0:30</span></div>
         <button id="call-early" class="btn" title="Start the next wave now; every player gets bonus gold">Call early</button>
+        <button id="settings-btn" class="btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
       </header>
+      <aside id="team" class="team hidden">
+        <div class="team-head">Room <span id="team-code"></span></div>
+        <ul id="team-list"></ul>
+      </aside>
+      </div>
 
       <div id="build-hint" class="build-hint hidden"></div>
 
@@ -123,16 +141,30 @@
         </ul>
       </details>
 
-      <aside id="team" class="team hidden">
-        <div class="team-head">Room <span id="team-code"></span></div>
-        <ul id="team-list"></ul>
-      </aside>
+
+      <div id="settings" class="popup settings hidden">
+        <section class="touch-only">
+          <h3>Controls layout</h3>
+          <div id="settings-thumbs" class="choices"></div>
+        </section>
+        <section>
+          <h3>Graphics</h3>
+          <div id="settings-quality" class="choices row"></div>
+        </section>
+        <section id="settings-app" class="hidden">
+          <h3>App</h3>
+          <button id="install-btn" class="btn hidden">Install app</button>
+          <button id="ios-install-btn" class="btn hidden">Add to Home Screen</button>
+        </section>
+      </div>
 
       <div id="notice" class="notice hidden"></div>
       <div id="reconnecting" class="reconnecting hidden">Connection lost — reconnecting…</div>
 
       <div id="toasts" class="toasts"></div>
       <div id="banner" class="banner hidden"></div>
+
+      <div id="paused" class="overlay-screen hidden"><div><b>Paused</b><span>Tap to resume</span></div></div>
 
       <div id="end-screen" class="end-screen hidden">
         <div class="end-card">
@@ -146,6 +178,26 @@
         </div>
       </div>
     </div>
+    <div id="rotate" class="rotate">
+      <div class="rotate-card">
+        <div class="rotate-phone"></div>
+        <p>Rotate to portrait</p>
+        <span>Tower Defense Together is played with the phone upright.</span>
+      </div>
+    </div>
+    <div id="update-banner" class="update-banner hidden" role="button" tabindex="0">Update available — tap to reload</div>
+    <div id="ios-install" class="sheet hidden">
+      <div class="sheet-card">
+        <h3>Install on iPhone</h3>
+        <ol>
+          <li>Tap <b>Share</b> <span class="share-icon" aria-hidden="true"></span> in Safari's toolbar.</li>
+          <li>Choose <b>Add to Home Screen</b>.</li>
+          <li>Open <b>TD Together</b> from your Home Screen: full screen, and solo works offline.</li>
+        </ol>
+        <button id="ios-install-close" class="btn big">Got it</button>
+      </div>
+    </div>
+    <div id="safe-probe" class="safe-probe" aria-hidden="true"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

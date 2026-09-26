@@ -1,7 +1,7 @@
 // Tower numbers for the pad menu and the upgrade / sell panel. Pure functions
 // of static tuning data (no DOM), so they are unit-tested.
 
-import type { TargetPriority, TowerKind } from '@tdt/protocol';
+import { TARGET_PRIORITIES, type TargetPriority, type TowerKind } from '@tdt/protocol';
 import { towerTier, TUNING, type TowerTierStats, type Tuning } from '@tdt/sim';
 
 export const PRIORITY_NAMES: Record<TargetPriority, string> = {
@@ -65,4 +65,31 @@ export function buildCost(kind: TowerKind, tuning: Tuning = TUNING): number {
 /** Cost of the next upgrade, or null at max tier. */
 export function upgradeCost(kind: TowerKind, tier: number, tuning: Tuning = TUNING): number | null {
   return tier >= maxTier(kind, tuning) ? null : towerTier(tuning, kind, tier + 1).cost;
+}
+
+const SHORT_LABELS: Record<string, string> = {
+  Damage: 'Dmg',
+  'Attacks/s': 'Spd',
+  Range: 'Rng',
+  Splash: 'Splash',
+  Slow: 'Slow',
+  'Max HP': 'HP',
+};
+
+/**
+ * The tower ring's chip: what the next tier adds, e.g. "Dmg 24→36 · Rng 6→6.5". Empty at max
+ * tier. Damage drops its type word to keep the chip short.
+ */
+export function upgradeChip(kind: TowerKind, tier: number, tuning: Tuning = TUNING, max = 2): string {
+  const strip = (v: string) => v.replace(/ (physical|magic)$/, '');
+  return towerStatRows(kind, tier, tuning)
+    .filter((r) => r.next && r.label !== 'Max HP')
+    .slice(0, max)
+    .map((r) => `${SHORT_LABELS[r.label] ?? r.label} ${strip(r.value)}→${strip(r.next!)}`)
+    .join(' · ');
+}
+
+/** The ring's Priority button cycles First → Strongest → Closest → First. */
+export function nextPriority(p: TargetPriority): TargetPriority {
+  return TARGET_PRIORITIES[(TARGET_PRIORITIES.indexOf(p) + 1) % TARGET_PRIORITIES.length]!;
 }

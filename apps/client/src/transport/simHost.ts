@@ -10,7 +10,7 @@ import {
   type HeroKind,
   type PlayerId,
 } from '@tdt/protocol';
-import { applyCommand, createGame, snapshot, step, type GameState } from '@tdt/sim';
+import { applyCommand, createGame, snapshot, step, type GameState, type Tuning } from '@tdt/sim';
 
 export const LOCAL_PLAYER_ID: PlayerId = 'local';
 
@@ -19,6 +19,8 @@ export class SimHost {
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
   private mode: GameMode = 'full';
+  /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
+  tuning: Tuning | undefined;
 
   constructor(
     private readonly emit: (raw: string) => void,
@@ -30,7 +32,7 @@ export class SimHost {
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
     this.state = createGame(
-      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode },
+      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode, tuning: this.tuning },
       this.nextSeed(),
     );
     this.queue = [];

@@ -1,7 +1,7 @@
 import { TOWER_KINDS } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
-import { buildCost, maxTier, targetsText, towerStatRows, upgradeCost } from '../src/hud/towerInfo';
+import { buildCost, maxTier, nextPriority, targetsText, towerStatRows, upgradeChip, upgradeCost } from '../src/hud/towerInfo';
 
 describe('tower info for the HUD', () => {
   it('reads build and upgrade costs from the tuning', () => {
@@ -35,5 +35,18 @@ describe('tower info for the HUD', () => {
     expect(targetsText('cannon')).toBe('Ground only');
     expect(targetsText('flak')).toBe('Air only');
     expect(targetsText('arcane')).toBe('Ground + air');
+  });
+});
+
+describe('tower ring helpers', () => {
+  it('summarises what the next tier adds', () => {
+    expect(upgradeChip('arrow', 1)).toBe('Dmg 16→36 · Spd 1.43→1.54');
+    expect(upgradeChip('arrow', 3)).toBe('');
+  });
+
+  it('cycles the target priority', () => {
+    expect(nextPriority('first')).toBe('strongest');
+    expect(nextPriority('strongest')).toBe('closest');
+    expect(nextPriority('closest')).toBe('first');
   });
 });

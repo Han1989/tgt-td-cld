@@ -2,6 +2,7 @@
 // client-only text; the numbers live in the sim's tuning.ts.
 
 import type { HeroKind, SkillSlot } from '@tdt/protocol';
+import type { SmartCastRule } from './touch/gestures';
 
 export interface SkillText {
   name: string;
@@ -49,4 +50,14 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
       R: { name: 'Meteor', desc: 'After a short delay, a meteor crushes and stuns ground creeps.' },
     },
   },
+};
+
+/**
+ * Smart cast (tap on a skill, docs/MOBILE.md §5): which active skills can hit flyers, and which
+ * are self-buffs that always cast on the hero. Mirrors the sim's skill rules.
+ */
+export const SMART_CAST: Record<HeroKind, Partial<Record<SkillSlot, SmartCastRule>>> = {
+  ranger: { Q: { air: true }, W: { air: false }, R: { air: true } },
+  warden: { Q: { air: false }, W: { air: false }, R: { air: false, self: true } },
+  arcanist: { Q: { air: true }, W: { air: true }, R: { air: false } },
 };

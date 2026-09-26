@@ -2,7 +2,7 @@
 
 **Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)**, plus [`docs/MOBILE.md`](docs/MOBILE.md) for Phase 4 (mobile) and [`docs/REPLAYABILITY.md`](docs/REPLAYABILITY.md) for Phase 5. Read them first. Build only the phase or feature you were asked for. When you make a design decision the docs don't cover, add a row to the Decision Log in `GAME_DESIGN.md` (§13).
 
-Current status: **Phases 1 (solo, local mode), 2 (online co-op) and 3 (content) are done.** Phase 4a (mobile, `docs/MOBILE.md` §9) is in progress: **track 1 is done**: Spire is the only map (portrait, with a safe zone under the touch controls), pad zones per player with extra pads for 3–4 players, heroes auto-attack while moving, the creep anti-stall rule, a balance bot that plays by zones and only walks, and the full-mode balance gate on Spire (1, 2 and 4 players at 40–80 Heart HP). **Track 3 (Quick mode, §6) is done**: a `full` / `quick` match option (15 waves, bosses on 5/10/15, compressed difficulty) picked by the host in the lobby or in the solo pick, with its own balance gate. Track 2 (portrait client) is next. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Current status: **Phases 1 (solo, local mode), 2 (online co-op) and 3 (content) are done.** Phase 4a (mobile, `docs/MOBILE.md` §9) is in progress: **track 1 is done**: Spire is the only map (portrait, with a safe zone under the touch controls), pad zones per player with extra pads for 3–4 players, heroes auto-attack while moving, the creep anti-stall rule, a balance bot that plays by zones and only walks, and the full-mode balance gate on Spire (1, 2 and 4 players at 40–80 Heart HP). **Track 3 (Quick mode, §6) is done**: a `full` / `quick` match option (15 waves, bosses on 5/10/15, compressed difficulty) picked by the host in the lobby or in the solo pick, with its own balance gate. **Track 2 is done** (portrait client: layouts, touch controls, PWA, browser tests), waiting on the real-device checklist in [`docs/MOBILE_TESTING.md`](docs/MOBILE_TESTING.md). Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Commands
 
@@ -15,16 +15,19 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run dev:server` | Run the game server with reload (ws://localhost:8080; allows localhost:5173/4173) |
 | `VITE_SERVER_URL=ws://localhost:8080 npm run dev` | Client in online mode (lobby) against the local server |
 | `npm test` | Vitest across all workspaces: unit tests, headless balance runs, the 4-bot server integration test |
+| `npm run test:e2e` | Playwright browser tests (`apps/client/e2e`): builds `apps/client/dist-e2e` with `--mode e2e`, then runs portrait iPhone / Pixel emulation, desktop, PWA and the 300-creep stress test in Chromium (~2 min) |
 | `npm run build` | Typecheck every workspace (`tsc`), build the client to `apps/client/dist`, bundle the server to `apps/server/dist/index.cjs` |
 | `npm run loadtest [-- --url wss://… --origin …]` | Ramp rooms of 4 bots until the server's average tick exceeds 10 ms (see docs/DEPLOY.md §6) |
 | `npm run typecheck` | Typecheck only |
 | `npm run preview` | Serve the production build locally |
 | `npm run balance [quick] [solo\|teams\|2p\|3p\|4p] [seeds…]` | Print solo balance-bot and idle-bot results for every hero, plus mixed teams (three 2-bot pairs, 3 and 4 bots), with Heart HP lost per third of the match, in Full mode (or Quick with `quick`); use it after editing `tuning.ts` or `bots.ts` |
 | `npm run map` | Print the map as ASCII (lanes, pads by zone, extra pads, safe zone); use it when editing `maps/*.ts` |
+| `npm run icons -w @tdt/client` | Regenerate the PWA icons (`apps/client/public/icons`) |
+| `/?stress=300` (any build) | Render stress scene: 300 creeps, a tower on every pad, an FPS readout; no simulation |
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
 
-`npm test` and `npm run build` must pass before any push.
+`npm test` and `npm run build` must pass before any push. Run `npm run test:e2e` after client changes (layout, input, HUD, PWA).
 
 ## Repo layout
 
@@ -56,18 +59,30 @@ packages/sim/              @tdt/sim: pure deterministic simulation
   scripts/balance.ts       `npm run balance`
   scripts/map.ts           `npm run map`
 apps/client/               @tdt/client: Vite + PixiJS + HTML/CSS HUD
-  src/main.ts              Chooses local solo (hero pick, no VITE_SERVER_URL) or online (lobby)
-  src/gameView.ts          Pixi app + HUD + controls + snapshot buffer, fed by any Transport
+  src/main.ts              Chooses local solo (hero pick, no VITE_SERVER_URL), online (lobby) or the ?stress scene; sets up the PWA
+  src/gameView.ts          Pixi app + HUD + controls + snapshot buffer, fed by any Transport; applies the layout (camera fit / follow),
+                           routes menus (radial vs desktop panels), quality, pause / wake / Wake Lock, the e2e debug hook
+  src/layout.ts            Pure layout: tall (phone) / wide (tablet, desktop) / rotate, tile size, control geometry, hero follow (tested)
+  src/touch/gestures.ts    Pure touch rules: joystick, tap vs drag, smart cast, drag-aim + cancel, snap + tie picker, hold-to-sell, radial placement (tested)
+  src/touch/touchControls.ts  Touch overlay (joystick, Q/W/E/R), map taps, radial build menu, tower ring, picker
+  src/settings.ts          Settings in localStorage (controls layout, quality)
+  src/stress.ts            ?stress=N scene: a fake Transport with N synthetic creeps
+  src/platform/pwa.ts      Service worker registration, update banner, install prompt / iPhone sheet
   src/online.ts            Online flow: lobby ↔ NetworkTransport ↔ game view
   src/lobby/               Lobby screens (nickname, hero, mode, create/join, ready/start, invite link), hero and mode cards, solo pick
   src/heroInfo.ts          Hero and skill names / descriptions (display text only)
   src/padInfo.ts           Pad ownership as the client sees it (yours / a teammate's / not in this match)
   src/transport/           Transport interface, LocalTransport (Web Worker), SimHost, NetworkTransport
   src/snapshotBuffer.ts    Renders ~100 ms behind with interpolation
-  src/render/              Pixi world renderer (shapes only) and palette
-  src/input/               Camera and mouse/keyboard controls
-  src/hud/                 DOM HUD, tower menus, end screen; towerInfo.ts = tower stat text (DOM-free, tested)
+  src/render/              Pixi world renderer (shapes only; sprite pools, culling, entity scale), palette, quality.ts (DPR cap, Auto → Low)
+  src/input/               Camera (frame fit, min zoom = fit, locked on phones) and mouse/keyboard controls (mouse pointers only)
+  src/hud/                 DOM HUD, desktop tower panels, end screen, settingsPanel.ts; towerInfo.ts = tower stat text (DOM-free, tested)
   test/                    Client unit tests (node environment, no DOM; NetworkTransport vs a real server)
+  e2e/                     Playwright browser tests (mobile / desktop / platform / perf specs; helpers.ts)
+  playwright.config.ts     Projects: iphone, pixel (Chromium mobile emulation), desktop
+  vite.config.ts           Also generates the service worker (sw.js) at build time
+  public/                  manifest.webmanifest, icons/, favicon
+  scripts/icons.ts         Generates the PWA icons
 apps/server/               @tdt/server: Node + ws game server
   src/index.ts             Entry: env config, listen, SIGTERM → graceful drain
   src/server.ts            HTTP /health + WebSocket upgrade (origin check), connections, tick loop, drain
@@ -99,8 +114,10 @@ vercel.json                Vercel static deploy of apps/client
 - **All balance numbers live in `packages/sim/src/tuning.ts`.** Durations are in seconds, distances in tiles and speeds in tiles/s. Convert with `secondsToTicks`. Don't scatter constants. Hero skills live under `tuning.hero.<kind>.<skill>`, with per-rank arrays (4 entries for Q/W/E, 3 for R).
 - **Hero skills:** `skills.ts` owns every Q/W/E/R (`SKILL_MODES` says instant / point / passive). A new skill needs its tuning, a case in `skillInfo`'s tables and `castInstant` / `castAtPoint`, display text in `apps/client/src/heroInfo.ts`, and a test in `packages/sim/test/heroes.test.ts`.
 - **Units:** the sim works in tiles (floats). The renderer multiplies by `TILE_PX` (32). Pads are `map.padSize` tiles square (3 on Spire).
+- **Layout and touch (docs/MOBILE.md §4–5):** `computeLayout` decides everything about the screen (tall / wide / rotate, tile size, control positions, follow range) from the viewport, safe-area insets, touch and orientation; `GameView` applies it. Top bar is 44 px (the map must fit 412 × 839). Keep layout and gesture rules as pure functions in `layout.ts` / `touch/gestures.ts` with unit tests; `touchControls.ts` only wires them to DOM and pointer events. Canvas input splits by pointer type: mouse → `Controls`, touch / pen → `TouchControls`. Radial menus in the tall layout and on touch screens, desktop panels otherwise. The controls must never cover gameplay (lanes, pads, Heart) and radial menus must never cover the controls; the layout and e2e tests check both.
+- **PWA:** the service worker is generated by `vite.config.ts` and only serves same-origin GETs (never the WebSocket). Solo pause is a worker control message (`{ ctl: 'pause' }`), not a protocol message. `import.meta.env.MODE === 'e2e'` code (the `window.__tdt` hook, `?lab` gold) must stay out of normal builds.
 - **Shapes-only graphics until Phase 4.** Each entity type has a distinct shape and colour plus an HP bar; see `render/palette.ts` and `render/world.ts`.
-- **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `tuningForMode`, `towerTier`, `TILE_PX`, `padAtTile`. Pad ownership comes from `snapshot.pads`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host).
+- **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `tuningForMode`, `towerTier`, `TILE_PX`, `padAtTile`. Pad ownership comes from `snapshot.pads`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host, and so is the `?stress` scene's `StressTransport`).
 - **Protocol validation:** `decodeClientMessage` rejects unknown types, extra keys, non-finite or out-of-range numbers, and oversized messages. Game-rule validation (gold, range, cooldowns, ownership) happens in `applyCommand`, which emits a `rejected` event instead of throwing.
 
 ## Conventions
@@ -116,6 +133,7 @@ vercel.json                Vercel static deploy of apps/client
 - Towers: per-tier numbers live in `TUNING.towers[kind].tiers` (tier 1 = build); read them with `towerTier(tuning, kind, tier)`.
 - Original names and art only: no Warcraft, Dota or other studio assets or names.
 - Record new design decisions in the Decision Log in `docs/GAME_DESIGN.md`.
+- Browser tests: Chromium only (the iPhone project emulates the iPhone's viewport, touch and DPR in Chromium). Drive touch through `Finger` (CDP touch events) in `e2e/helpers.ts`; assert on `window.__tdt.sent` (commands) and `latest()` (snapshots). The stress test asserts JavaScript cost per frame from a CPU profile; real FPS is asserted only on a hardware GPU. In the renderer, avoid redrawing small `Graphics` every frame: in Pixi v8 each redraw rebuilds the whole draw list (use sprites, or redraw only on change).
 - End each session with a summary: what was built, how to test it, and open questions.
 
 ## Deployment

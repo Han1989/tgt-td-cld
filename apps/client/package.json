@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:e2e": "vite build --mode e2e --outDir dist-e2e",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+    "test:e2e": "npm run build:e2e && playwright test",
+    "icons": "tsx scripts/icons.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p e2e/tsconfig.json"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",

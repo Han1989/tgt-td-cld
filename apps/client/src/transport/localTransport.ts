@@ -13,10 +13,15 @@ export class LocalTransport implements Transport {
       if (!msg) return;
       for (const h of this.handlers) h(msg);
     };
+    if (import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('lab')) this.worker.postMessage({ ctl: 'lab' });
   }
 
   send(msg: ClientMessage): void {
     this.worker.postMessage(encodeClientMessage(msg));
+  }
+
+  setPaused(paused: boolean): void {
+    this.worker.postMessage({ ctl: 'pause', paused });
   }
 
   onMessage(handler: (msg: ServerMessage) => void): () => void {

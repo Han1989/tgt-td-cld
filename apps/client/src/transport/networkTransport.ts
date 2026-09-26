@@ -28,6 +28,8 @@ export interface RoomSession {
 
 /** The server keeps a dropped seat this long. */
 const RECONNECT_WINDOW_MS = 60_000;
+/** In a match the server sends ~20 messages/s; this long without one means the socket died while the page slept. */
+const STALE_MS = 3000;
 const SESSION_KEY = 'tdt.session';
 
 /** Remembers the current room per browser tab, so a reload can rejoin. */
@@ -70,6 +72,7 @@ export class NetworkTransport implements Transport {
   private droppedAt = 0;
   private attempt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastMessageAt = 0;
 
   constructor(
     private readonly url: string,
@@ -131,7 +134,33 @@ export class NetworkTransport implements Transport {
     ws.onclose = (e) => this.onClose(e);
   }
 
+  /**
+   * The page is visible again (a phone app came back from the background): retry a pending
+   * reconnect now, and drop a socket that went silent mid-match so the rejoin starts at once.
+   */
+  wake(): void {
+    if (this.closedByUs) return;
+    if (this.status === 'reconnecting' && this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+      this.retry();
+    } else if (this.status === 'open' && this.snap && performance.now() - this.lastMessageAt > STALE_MS) {
+      const ws = this.ws;
+      if (ws) {
+        ws.onclose = null;
+        ws.onmessage = null;
+        ws.close();
+      }
+      this.onClose({ code: 4000, reason: 'stale' } as CloseEvent);
+      if (this.retryTimer) {
+        clearTimeout(this.retryTimer);
+        this.retry();
+      }
+    }
+  }
+
   private onRaw(data: unknown): void {
+    this.lastMessageAt = performance.now();
     const msg = decodeServerMessage(data);
     if (!msg) return;
     switch (msg.t) {
@@ -206,7 +235,13 @@ export class NetworkTransport implements Transport {
     }
     this.setStatus('reconnecting');
     const delay = Math.min(8000, 500 * 2 ** this.attempt++);
-    const session = this.session!;
-    this.retryTimer = setTimeout(() => this.open({ t: 'rejoin', v: PROTOCOL_VERSION, code: session.code, token: session.token }), delay);
+    this.retryTimer = setTimeout(() => this.retry(), delay);
+  }
+
+  private retry(): void {
+    this.retryTimer = null;
+    const session = this.session;
+    if (!session || this.closedByUs) return;
+    this.open({ t: 'rejoin', v: PROTOCOL_VERSION, code: session.code, token: session.token });
   }
 }
