@@ -3,6 +3,7 @@
 
 import { TOWER_KINDS, type Command, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
 import { getMap, padAtTile, TILE_PX } from '@tdt/sim';
+import { padStatus } from '../padInfo';
 import { COLORS } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
 import type { UiState } from '../uiState';
@@ -157,7 +158,9 @@ export class Controls {
     }
     if (mode.type === 'build') {
       const pad = padAtTile(getMap(), Math.floor(at.x), Math.floor(at.y));
-      if (pad) this.actions.send({ type: 'build', padId: pad.id, tower: mode.tower });
+      const status = pad && padStatus(this.actions.latest(), this.actions.me(), pad.id);
+      if (status?.kind === 'teammate') this.actions.toast(`That pad belongs to ${status.owner}`);
+      else if (pad && status?.kind === 'mine') this.actions.send({ type: 'build', padId: pad.id, tower: mode.tower });
       else this.actions.toast('Towers go on build pads');
       this.setMode({ type: 'none' });
       return;
@@ -173,7 +176,13 @@ export class Controls {
       return;
     }
     const pad = padAtTile(getMap(), Math.floor(at.x), Math.floor(at.y));
-    if (pad && !snap?.towers.some((t) => t.padId === pad.id)) {
+    const status = pad && padStatus(snap, this.actions.me(), pad.id);
+    if (status?.kind === 'teammate') {
+      this.clearSelection();
+      this.actions.toast(`That pad belongs to ${status.owner}`);
+      return;
+    }
+    if (pad && status?.kind === 'mine' && !snap?.towers.some((t) => t.padId === pad.id)) {
       this.ui.selectedTowerId = null;
       this.ui.selectedPadId = pad.id;
       this.actions.openPadMenu(pad.id);

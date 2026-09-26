@@ -25,13 +25,14 @@ import {
   HERO_COLORS,
   HIDE_COLORS,
   hpColor,
+  PLAYER_COLORS,
   PROJECTILE_COLORS,
   TOWER_COLORS,
   ZONE_COLORS,
 } from './palette';
 
 const S = TILE_PX;
-const TOWER_SIZE = 1.7;
+const TOWER_SIZE = 2.4;
 const MARKER_LIFE_MS = 450;
 
 interface EntitySprite {
@@ -52,6 +53,9 @@ interface Fx {
 export class WorldRenderer {
   readonly world = new Container();
   private readonly mapLayer = new Graphics();
+  /** Build pads of this match, tinted by owner; redrawn when owners change. */
+  private readonly padLayer = new Graphics();
+  private padKey = '';
   private readonly heart = new Graphics();
   private readonly trapLayer = new Container();
   private readonly zoneLayer = new Container();
@@ -84,6 +88,7 @@ export class WorldRenderer {
   ) {
     this.world.addChild(
       this.mapLayer,
+      this.padLayer,
       this.heart,
       this.zoneLayer,
       this.trapLayer,
@@ -115,7 +120,8 @@ export class WorldRenderer {
 
   /** Tower under a world point (tile units), if any. */
   pickTower(x: number, y: number): TowerSnap | undefined {
-    return this.drawnTowers.find((t) => Math.abs(t.x - x) <= 1 && Math.abs(t.y - y) <= 1);
+    const half = this.map.padSize / 2;
+    return this.drawnTowers.find((t) => Math.abs(t.x - x) <= half && Math.abs(t.y - y) <= half);
   }
 
   render(view: InterpolatedView, latest: Snapshot, me: PlayerId | null, ui: UiState, now: number): void {
@@ -132,6 +138,7 @@ export class WorldRenderer {
     this.drawnCreeps = creeps;
     this.drawnTowers = towers;
 
+    this.syncPads(latest, me);
     this.syncCreeps(creeps);
     this.syncTowers(towers);
     this.syncHeroes(heroes, me);
@@ -218,19 +225,38 @@ export class WorldRenderer {
         g.circle((tx + 0.5 + ox) * S, (ty + 0.5 + oy) * S, S * (0.38 + ((h >>> 16) % 10) / 60)).fill(COLORS.tree);
       }
     }
-    for (const pad of m.pads) {
-      g.roundRect(pad.tx * S + 2, pad.ty * S + 2, 2 * S - 4, 2 * S - 4, 5)
-        .fill(COLORS.pad)
-        .stroke({ width: 2, color: COLORS.padEdge, alpha: 0.8 });
-    }
     for (const lane of m.lanes) {
       const p = lane.waypoints[0]!;
       g.circle(p.x * S, (p.y + 1) * S, S * 1.3).fill({ color: COLORS.portal, alpha: 0.25 });
       g.circle(p.x * S, (p.y + 1) * S, S * 1.3).stroke({ width: 3, color: COLORS.portal });
     }
-    // Thousands of static shapes: render them once into a texture. 1.5× keeps
-    // it crisp when zoomed in while staying under 4096 px (80 × 32 × 1.5 = 3840).
-    g.cacheAsTexture({ resolution: 1.5, antialias: true });
+    // Thousands of static shapes: render them once into a texture. 2× keeps it
+    // crisp when zoomed in while staying under 4096 px (50 × 32 × 2 = 3200).
+    g.cacheAsTexture({ resolution: 2, antialias: true });
+  }
+
+  /**
+   * The pads that exist in this match: yours bright in your colour, teammates' dimmer in theirs,
+   * open pads (a leaver's) neutral.
+   */
+  private syncPads(snap: Snapshot, me: PlayerId | null): void {
+    const key = `${me}|${snap.pads.map((p) => `${p.id}:${p.owner ?? ''}`).join()}`;
+    if (key === this.padKey) return;
+    this.padKey = key;
+    const g = this.padLayer.clear();
+    const n = this.map.padSize;
+    const solo = snap.players.length <= 1;
+    for (const p of snap.pads) {
+      const pad = this.map.pads[p.id];
+      if (!pad) continue;
+      const seat = snap.players.findIndex((pl) => pl.id === p.owner);
+      const tint = solo || seat < 0 ? COLORS.padEdge : (PLAYER_COLORS[seat % PLAYER_COLORS.length] ?? COLORS.padEdge);
+      const mine = solo || p.owner === me || p.owner === null;
+      g.roundRect(pad.tx * S + 2, pad.ty * S + 2, n * S - 4, n * S - 4, 6)
+        .fill(COLORS.pad)
+        .fill({ color: tint, alpha: solo || seat < 0 ? 0 : mine ? 0.25 : 0.12 })
+        .stroke({ width: mine ? 3 : 2, color: tint, alpha: mine ? 0.9 : 0.45 });
+    }
   }
 
   private drawHeart(now: number): void {
@@ -457,20 +483,25 @@ export class WorldRenderer {
     if (selected) {
       g.circle(selected.x * S, selected.y * S, selected.range * S).fill({ color: 0xffffff, alpha: 0.06 });
       g.circle(selected.x * S, selected.y * S, selected.range * S).stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
-      g.rect((selected.x - 1) * S, (selected.y - 1) * S, 2 * S, 2 * S).stroke({ width: 2, color: 0xffffff });
+      const half = this.map.padSize / 2;
+      g.rect((selected.x - half) * S, (selected.y - half) * S, 2 * half * S, 2 * half * S).stroke({ width: 2, color: 0xffffff });
     }
+    const n = this.map.padSize;
     if (ui.selectedPadId !== null) {
       const pad = this.map.pads[ui.selectedPadId];
-      if (pad) g.rect(pad.tx * S, pad.ty * S, 2 * S, 2 * S).stroke({ width: 3, color: 0xffffff });
+      if (pad) g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 3, color: 0xffffff });
     }
+    // Pads you may build on right now (they exist in this match and are yours or open).
+    const buildable = (padId: number) =>
+      snap.pads.some((p) => p.id === padId && (p.owner === null || p.owner === me)) &&
+      !snap.towers.some((t) => t.padId === padId);
 
     const hover = ui.hover;
     const mode = ui.mode;
     if (hover && mode.type === 'build') {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
       const stats = towerTier(TUNING, mode.tower, 1);
-      const occupied = pad ? snap.towers.some((t) => t.padId === pad.id) : true;
-      const ok = !!pad && !occupied && (player?.gold ?? 0) >= stats.cost;
+      const ok = !!pad && buildable(pad.id) && (player?.gold ?? 0) >= stats.cost;
       const cx = pad ? pad.x : hover.x;
       const cy = pad ? pad.y : hover.y;
       const color = ok ? COLORS.good : COLORS.bad;
@@ -480,8 +511,8 @@ export class WorldRenderer {
       g.rect(cx * S - half, cy * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
     } else if (hover && mode.type === 'none') {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
-      if (pad && !snap.towers.some((t) => t.padId === pad.id)) {
-        g.rect(pad.tx * S, pad.ty * S, 2 * S, 2 * S).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
+      if (pad && buildable(pad.id)) {
+        g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
       }
     }
 

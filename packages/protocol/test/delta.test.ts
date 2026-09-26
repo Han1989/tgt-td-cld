@@ -1,4 +1,4 @@
-import { applyCommand, createBalanceBot, createGame, snapshot, step } from '@tdt/sim';
+import { applyCommand, createBalanceBot, createGame, setPlayerLeft, snapshot, step } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { applySnapshotDelta, diffSnapshot, type Snapshot } from '../src';
 
@@ -21,10 +21,14 @@ describe('snapshot deltas', () => {
           h.ranks.R = 1;
           h.mana = 1_000;
         }
-        applyCommand(state, 'a', { type: 'cast', slot: 'R', x: 40, y: 45 });
-        applyCommand(state, 'c', { type: 'cast', slot: 'R', x: 42, y: 45 });
+        // At the heroes' feet, so they cast right away.
+        const [a, , c] = state.heroes;
+        applyCommand(state, 'a', { type: 'cast', slot: 'R', x: a!.x, y: a!.y - 1 });
+        applyCommand(state, 'c', { type: 'cast', slot: 'R', x: c!.x, y: c!.y - 1 });
       }
       if (t === 1540) expect(server.zones.length).toBeGreaterThan(0);
+      // A leaver's pads open up (pad owners change).
+      if (t === 1800) setPlayerLeft(state, 'b');
       step(state);
       const next = snapshot(state);
       const wire = JSON.stringify(diffSnapshot(server, next));
@@ -38,6 +42,7 @@ describe('snapshot deltas', () => {
     }
     expect(client).toEqual(server);
     expect(state.creeps.length + state.towers.length).toBeGreaterThan(0);
+    expect(server.pads.some((p) => p.owner === null)).toBe(true);
     // Deltas should be much smaller than full snapshots.
     expect(deltaBytes).toBeLessThan(fullBytes / 2);
   });

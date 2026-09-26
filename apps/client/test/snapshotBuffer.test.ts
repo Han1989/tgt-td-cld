@@ -19,6 +19,7 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
       { id: 1, kind: 'grunt', x, y: 0, hp: 10, maxHp: 10, slowed: false, rooted: false, stunned: false, armor: 1, magicResist: 0 },
     ],
     towers: [],
+    pads: [],
     projectiles: [],
     traps: [],
     zones: [],

@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import { armorMultiplier, damageCreep, damageHero, damageMultiplier, damageTower, grantXp, heroArmor } from '../src/combat';
 import { secondsToTicks, TICK_RATE, TUNING } from '../src/tuning';
-import { labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
+import { LAB_PAD, labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
 
 describe('damage and armour', () => {
   it('reduces physical damage by armour and ignores armour for magic', () => {
     const state = labGame();
-    const brute = placeCreep(state, 'brute', 40, 20);
+    const brute = placeCreep(state, 'brute', 13, 20);
     const start = brute.hp;
     damageCreep(state, brute, 100, 'physical', 'p1');
     const physical = start - brute.hp;
@@ -21,7 +21,7 @@ describe('damage and armour', () => {
 
   it('uses the creep\'s own armour and magic resist, not just its base stats', () => {
     const state = labGame();
-    const grunt = placeCreep(state, 'grunt', 40, 20);
+    const grunt = placeCreep(state, 'grunt', 13, 20);
     grunt.armor = 20;
     grunt.magicResist = 0.5;
     damageCreep(state, grunt, 10, 'physical', 'p1');
@@ -52,7 +52,7 @@ describe('damage and armour', () => {
     const tuning = tuningCopy();
     tuning.towers.arrow.magicResist = 0.4;
     const state = labGame(tuning);
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
     const tower = state.towers[0]!;
     damageTower(state, tower, 100, 'physical');
     expect(tower.maxHp - tower.hp).toBeCloseTo(100 * armorMultiplier(tuning, tuning.towers.arrow.armor));
@@ -64,7 +64,7 @@ describe('damage and armour', () => {
   it('an archer\'s arrows lose damage to tower armour', () => {
     const state = labGame();
     parkHero(state);
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'frost' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'frost' });
     const tower = state.towers[0]!;
     tower.stunUntil = 10_000; // keep the tower from killing the archer
     const archer = placeCreep(state, 'archer', tower.x + 3, tower.y);
@@ -83,7 +83,7 @@ describe('damage and armour', () => {
 
   it('credits the killing blow with bounty and a kill event', () => {
     const state = labGame();
-    const grunt = placeCreep(state, 'grunt', 40, 20);
+    const grunt = placeCreep(state, 'grunt', 13, 20);
     const gold = state.players[0]!.gold;
     damageCreep(state, grunt, 10_000, 'magic', 'p1');
     expect(grunt.dead).toBe(true);
@@ -96,7 +96,7 @@ describe('tower targeting', () => {
   it('shoots the creep closest to the Heart ("First")', () => {
     const state = labGame();
     parkHero(state);
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
     const tower = state.towers[0]!;
     // Two creeps on the middle lane within range; the one further along wins.
     const behind = placeCreep(state, 'grunt', tower.x + 2, tower.y - 3, 1);
@@ -114,14 +114,14 @@ describe('tower targeting', () => {
     const state = labGame();
     parkHero(state);
     state.players[0]!.gold = 1000;
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'cannon' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'cannon' });
     const tower = state.towers[0]!;
     const wisp = placeCreep(state, 'wisp', tower.x + 1, tower.y + 1);
     wisp.rootUntil = 1_000;
     run(state, 5);
     expect(state.projectiles).toHaveLength(0);
 
-    applyCommand(state, 'p1', { type: 'build', padId: 36, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: 14, tower: 'arrow' });
     const arrow = state.towers[1]!;
     wisp.x = arrow.x + 1;
     wisp.y = arrow.y;
@@ -133,7 +133,7 @@ describe('tower targeting', () => {
     const state = labGame();
     parkHero(state);
     state.players[0]!.gold = 1000;
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'cannon' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'cannon' });
     const tower = state.towers[0]!;
     const a = placeCreep(state, 'grunt', tower.x + 2, tower.y);
     const b = placeCreep(state, 'grunt', tower.x + 2.5, tower.y + 0.5);
@@ -146,7 +146,7 @@ describe('tower targeting', () => {
   it('stunned towers hold fire', () => {
     const state = labGame();
     parkHero(state);
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
     const tower = state.towers[0]!;
     tower.stunUntil = 100;
     const c = placeCreep(state, 'grunt', tower.x + 2, tower.y);
@@ -161,7 +161,7 @@ describe('slows and roots', () => {
     const t = TUNING.towers.frost.tiers[0]!;
     const state = labGame();
     parkHero(state);
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'frost' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'frost' });
     const tower = state.towers[0]!;
     const c = placeCreep(state, 'brute', tower.x + 2, tower.y);
     c.rootUntil = 1_000;
@@ -175,7 +175,7 @@ describe('slows and roots', () => {
     const moved = (slowed: boolean) => {
       const state = labGame();
       parkHero(state);
-      const c = placeCreep(state, 'grunt', 40, 5, 1);
+      const c = placeCreep(state, 'grunt', 13, 5, 1);
       c.wp = 1;
       if (slowed) {
         c.slowPct = 0.3;
@@ -191,7 +191,7 @@ describe('slows and roots', () => {
   it('rooted creeps do not move', () => {
     const state = labGame();
     parkHero(state);
-    const c = placeCreep(state, 'grunt', 40, 5, 1);
+    const c = placeCreep(state, 'grunt', 13, 5, 1);
     c.rootUntil = 50;
     run(state, 20);
     expect(c.y).toBe(5);
@@ -234,7 +234,7 @@ describe('hero', () => {
     run(state, 1);
     expect(hero.alive).toBe(true);
     expect(hero.hp).toBeGreaterThan(0);
-    expect(hero.y).toBeGreaterThan(50);
+    expect(hero.y).toBeGreaterThan(30);
   });
 
   it('auto-attacks creeps in range when idle', () => {
@@ -244,6 +244,22 @@ describe('hero', () => {
     c.rootUntil = 1_000;
     run(state, 30);
     expect(c.hp).toBeLessThan(c.maxHp);
+  });
+
+  it('auto-attacks the nearest creep in range while walking, and keeps walking', () => {
+    const state = labGame();
+    const hero = state.heroes[0]!;
+    hero.x = 13;
+    hero.y = 30;
+    const c = placeCreep(state, 'grunt', 17.5, 25);
+    c.rootUntil = 1_000;
+    c.stunUntil = 1_000; // it doesn't fight back
+    expect(applyCommand(state, 'p1', { type: 'move', x: 13, y: 12 })).toBe(true);
+    run(state, 2 * TICK_RATE);
+    expect(c.hp).toBeLessThan(c.maxHp);
+    expect(hero.order.type).toBe('move');
+    run(state, 5 * TICK_RATE);
+    expect(Math.hypot(hero.x - 13, hero.y - 12)).toBeLessThan(0.01);
   });
 
   it('Multishot hits several creeps and costs mana and cooldown', () => {
@@ -261,9 +277,9 @@ describe('hero', () => {
   it('Snare Trap walks into range, arms, then roots and damages ground creeps', () => {
     const state = labGame();
     const hero = state.heroes[0]!;
-    hero.x = 40;
+    hero.x = 13;
     hero.y = 30;
-    const target = { x: 40, y: 15 };
+    const target = { x: 13, y: 15 };
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'W', ...target })).toBe(true);
     run(state, 100);
     expect(state.traps).toHaveLength(1);
@@ -291,17 +307,17 @@ describe('creep aggro and leash', () => {
     tuning.hero.ranger.hpRegen = 0;
     const state = labGame(tuning);
     const hero = state.heroes[0]!;
-    hero.x = 44;
+    hero.x = 17;
     hero.y = 10;
     hero.stunUntil = 1_000_000; // hero stands still and doesn't shoot
-    const c = placeCreep(state, 'grunt', 40, 10, 1);
+    const c = placeCreep(state, 'grunt', 13, 10, 1);
     run(state, 1);
     expect(c.mode).toBe('chase');
     run(state, 60);
     expect(hero.hp).toBeLessThan(tuning.hero.ranger.hp);
 
     // Hero teleports away beyond the leash; the creep gives up and walks back.
-    hero.x = 40;
+    hero.x = 13;
     hero.y = 10 + tuning.creepAi.leashRange + 20;
     hero.stunUntil = 1_000_000;
     run(state, 400);
@@ -312,13 +328,36 @@ describe('creep aggro and leash', () => {
   it('archers stop to shoot towers in range', () => {
     const state = labGame();
     parkHero(state);
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
     const tower = state.towers[0]!;
     tower.stunUntil = 1_000_000; // don't shoot back
     const archer = placeCreep(state, 'archer', tower.x + 3, tower.y - 1);
     run(state, 100);
     expect(tower.hp).toBeLessThan(tower.maxHp);
     expect(archer.x).toBeCloseTo(tower.x + 3);
+  });
+
+  it('anti-stall: after attacking towers for a while, a creep carries on down its lane', () => {
+    const state = labGame();
+    parkHero(state);
+    state.players[0]!.gold = 1_000;
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD + 1, tower: 'arrow' });
+    expect(state.towers).toHaveLength(2);
+    for (const t of state.towers) t.stunUntil = 1_000_000; // don't shoot back
+    const tower = state.towers[0]!;
+    const archer = placeCreep(state, 'archer', tower.x - 3.5, tower.y, 1);
+    const limit = secondsToTicks(TUNING.creepAi.towerAttackLimit);
+    run(state, limit - 1);
+    expect(archer.y).toBeCloseTo(tower.y);
+    run(state, 2);
+    expect(archer.towerTicks).toBe(limit);
+    // It walks on, past the next tower too (its last arrow still lands), and no longer stops for towers.
+    run(state, TICK_RATE);
+    const hp = state.towers.map((t) => t.hp);
+    run(state, 4 * TICK_RATE);
+    expect(archer.y).toBeGreaterThan(tower.y + 4 + 4);
+    expect(state.towers.map((t) => t.hp)).toEqual(hp);
   });
 
   it('wisps fly straight to the Heart and ignore heroes', () => {

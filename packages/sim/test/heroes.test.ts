@@ -85,13 +85,13 @@ describe('levels and skill points', () => {
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'E' })).toBe(false);
     expect(rejection(state)).toBe('Passive skill');
     state.pendingEvents = [];
-    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q', x: 40, y: 40 })).toBe(false);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q', x: 13, y: 20 })).toBe(false);
     expect(rejection(state)).toBe('This skill takes no target');
     state.pendingEvents = [];
     expect(applyCommand(state, 'p2', { type: 'cast', slot: 'Q' })).toBe(false);
     expect(rejection(state)).toBe('Pick a target point');
     state.pendingEvents = [];
-    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 40, y: 40 })).toBe(false);
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 13, y: 20 })).toBe(false);
     expect(rejection(state)).toBe('Skill not learned');
   });
 });
@@ -191,12 +191,12 @@ describe('Warden', () => {
   it('Taunt makes nearby creeps chase the Warden and ignore their leash until it ends', () => {
     const { state, heroes } = lab(['warden', 'ranger']);
     const [warden, ranger] = heroes as [Hero, Hero];
-    warden.x = 40;
+    warden.x = 13;
     warden.y = 14;
-    ranger.x = 41;
+    ranger.x = 14;
     ranger.y = 10.5;
-    const grunt = placeCreep(state, 'grunt', 40, 10, 1);
-    const boss = placeCreep(state, 'ironhorn', 42, 12, 1);
+    const grunt = placeCreep(state, 'grunt', 13, 10, 1);
+    const boss = placeCreep(state, 'ironhorn', 15, 12, 1);
     boss.abilityCd = 1_000_000;
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'W' })).toBe(true);
     const ticks = secondsToTicks(TUNING.hero.warden.taunt.duration[0]!);

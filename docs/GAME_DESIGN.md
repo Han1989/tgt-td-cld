@@ -18,10 +18,10 @@ Original names and art only. No Warcraft, Dota or other studio assets, names or 
 
 ## 3. Map
 
-- One map for now, **Crossroads**: top-down tile grid (1 tile = 32 px), about 80 × 60 tiles.
-- The Heart sits bottom-centre. Three lanes (left, middle, right) run from spawn portals along the top edge down to the Heart.
-- Lanes are fixed waypoint paths; creeps do not maze. Towers go on **build pads**, marked tiles beside the lanes. Heroes can walk anywhere walkable (grid pathfinding).
+- One map, **Spire**, on every device (Crossroads, the Phase 1–3 map, is retired). A tall, narrow top-down tile grid fitted to a phone held upright (1 tile = 32 px at render scale): three lanes run from portals on the top edge down to the **Heart**, and a bottom band under the touch controls is scenery only (the safe zone). Full spec: `docs/MOBILE.md` §2.
+- Lanes are fixed waypoint paths; creeps do not maze. Towers go on **build pads**, marked tiles beside the lanes, split into pad zones (§6). Heroes can walk anywhere walkable (grid pathfinding).
 - Tile types: lane, open ground (walkable, not buildable), build pad, blocker (cliffs/trees, not walkable).
+- Maps are data (lanes, pads with zone tags, portals, Heart, safe zone), so later maps need no engine changes.
 
 ## 4. Creeps and waves
 
@@ -34,17 +34,17 @@ Original names and art only. No Warcraft, Dota or other studio assets, names or 
 | Wisp | Flying | Flies straight to the Heart; only anti-air towers and ranged heroes can hit it |
 | Boss | Waves 10 / 20 / 30 | High HP, one special ability, leak damage 20: **Ironhorn** (10, Stomp), **Matriarch** (20, Hatch), **Shardback** (30, Shifting Hide) |
 
-**Behaviour:** creeps walk their lane. If a hero comes within aggro range, they fight the hero and return to the lane once it leaves (leash range). Archers and Bosses also attack towers in range. A creep that reaches the Heart deals its leak damage (default 1) and despawns.
+**Behaviour:** creeps walk their lane. If a hero comes within aggro range, they fight the hero and return to the lane once it leaves (leash range). Archers and Bosses also attack towers in range. **Anti-stall:** a creep stops attacking towers after 10 s and carries on down its lane (tunable). A creep that reaches the Heart deals its leak damage (default 1) and despawns.
 
 **Waves:** timed. A new wave starts every 40 s whether or not the last one is cleared. Any player can **call the next wave early** for bonus gold to everyone. Wave sizes grow from about 12 creeps to 60+ across all lanes (Phase 3: up to 120). Final wave: 30 (Phase 1: 10).
 
-**Player-count scaling:** creep HP × (1 + 0.05 × (players − 1) + an early bonus by team size: +0.8 for 2 players, +3.4 for 3, +4.2 for 4 on wave 1, fading out by wave 11); creep count +30% per extra player. All numbers are tunable (see Architecture). (Phase 2 used a flat +50% HP and +25% count per extra player; see the Decision Log.)
+**Player-count scaling:** creep HP × (a team-size multiplier: ×1.45 for 2 and 3 players, ×1.5 for 4, plus an early bonus by team size: +0.5 for 2 players, +1.6 for 3, +2.4 for 4 on wave 1, fading out by wave 21); creep count +30% per extra player. All numbers are tunable (see Architecture). (Phase 2 used a flat +50% HP and +25% count per extra player; Phase 3 a much steeper early bonus; see the Decision Log.)
 
 ## 5. Economy
 
-- Each player has their **own gold**. Starting gold: 120 (150 before the Phase 3 balance pass).
+- Each player has their **own gold**. Starting gold: 100 (120 in Phase 3, 150 before that).
 - **Kill bounty** goes to the player whose hero or tower landed the killing blow.
-- **Wave income:** every player gets flat gold at the start of each wave, scaling with wave number.
+- **Wave income:** every player gets flat gold at the start of each wave, scaling with wave number (40 + 16 × (wave − 1) on Spire; wave income carries most of the economy).
 - **Call-early bonus:** paid to all players.
 - **Selling** a tower refunds 70% of the total gold spent on it.
 - **Heart HP:** 100, no regeneration.
@@ -64,9 +64,11 @@ A tower is owned by the player who built it, and its kills credit that player. T
 
 **Damage types:** physical (reduced by armour) and magic (reduced by magic resist).
 
+**Pad zones:** each player has their own zone of pads and can only build there; bigger teams unlock extra pads (a Core zone at 4 players). Once a leaver's rejoin window runs out, their empty pads open to every teammate. Details: `docs/MOBILE.md` §2.
+
 ## 7. Heroes
 
-Each player controls one hero. Heroes gain levels 1–10 from XP, which is shared among heroes near a creep when it dies. Q/W/E rank up to 4; R unlocks at level 6. Heroes use mana. A dead hero respawns at the Heart after 5 s + 2 s × level.
+Each player controls one hero. **Heroes auto-attack the nearest enemy in range while moving or standing still** (on desktop, right-clicking an enemy still sets a focus target). Heroes gain levels 1–10 from XP, which is shared among heroes near a creep when it dies. Q/W/E rank up to 4; R unlocks at level 6. Heroes use mana. A dead hero respawns at the Heart after 5 s + 2 s × level.
 
 | Hero | Role | Q | W | E | R |
 |---|---|---|---|---|---|
@@ -84,7 +86,7 @@ Phase 1 ships the Ranger only, with Q and W, max level 5. Phase 3 (heroes track)
 - **Left-click your own tower:** upgrade / sell panel.
 - **Camera:** edge scroll, arrow keys, middle-mouse drag; mouse wheel zooms; **Space** centres on your hero.
 - **Esc:** cancels targeting or building.
-- Touch controls arrive in Phase 4.
+- **Touch controls:** see `docs/MOBILE.md` §5.
 
 ## 9. Multiplayer
 
@@ -168,14 +170,16 @@ apps/server         Node + TypeScript WebSocket rooms (plain ws; see Decision Lo
 
 **Done when:** the balance bot wins on Normal with 1 player and with 4 players; tests are green.
 
-### Phase 4: Polish
+### Phase 4: Mobile and polish
 
-**Scope:**
-- Touch controls.
-- Minimap with team pings; quick-chat emotes.
-- Sprites and sound.
-- Difficulty modes (Easy / Normal / Hard).
-- Balance pass.
+Phase 4 is planned in `docs/MOBILE.md` §9:
+- **Phase 4a: Mobile**, in three tracks: map, rules and balance (Spire, pad zones, auto-attack while moving, anti-stall); the portrait client (layouts, touch controls, PWA); Quick mode.
+- **Phase 4b: Polish**: sprites and sound, team pings and emotes, difficulty modes, balance carry-overs.
+- **Phase 4c: App stores** (optional): a Capacitor wrapper.
+
+### Phase 5: Replayability
+
+See `docs/REPLAYABILITY.md`: top-tier tower branches, lane surges and match modifiers, more maps.
 
 ### Out of scope
 
@@ -269,3 +273,23 @@ Accounts, persistence and leaderboards, PvP, public matchmaking, monetisation.
 | 2026-09-25 | **Balance results (gate seeds 1, 2, 3, 42, 1234; `npm run balance`):** solo Ranger 66–73, Warden 65–74, Arcanist 54–80; 2 players Ranger + Warden 44–66, Warden + Arcanist 62–76, Arcanist + Ranger 54–69; 4 players 52–79; every idle bot loses (waves 6–8). Over 20 seeds all 260 balance-bot runs win: solo Ranger 34–77, Warden 62–81, Arcanist 13–80; 2 players 37–85 (56 of 60 in range); 4 players 44–87 (15 of 20 in range). Not gated: 3 players 24–93 (about half in range) | Results swing ±15–20 Heart HP between seeds; the gate seeds all land in range, the wider runs mostly do. |
 | 2026-09-25 | **"Change hero" on the solo end screen** (next to "Play again"; hidden online): reopens the solo hero pick, and the local host starts a new match with the new hero (the `hero` message it already accepts after a match ends). Also after "Play solo offline" | Design decision for this pass; no protocol change. |
 | 2026-09-25 | Kept as they are: **tower upgrades stay owner-only** (like selling and priority), and **gifts to disconnected teammates stay rejected** | Design decision for this pass; both already enforced and tested in `applyCommand`. |
+| 2026-09-26 | **Portrait on phones.** Tablets and desktop show the same map centred, with the HUD in the side margins (`docs/MOBILE.md` §1) | Four spike rounds on a real Android phone (PR #7). |
+| 2026-09-26 | **Spire is the only map, on every device**; Crossroads is retired | One map to balance and learn; it fits a phone held upright with no panning. |
+| 2026-09-26 | Touch controls are **drawn over the map, semi-transparent**: a fixed joystick at bottom-centre, Q/W/R in a tight arc around it, E as a badge. No separate control strip | The spike's round 4: the most map for the screen. The safe zone under the controls keeps them from hiding gameplay. |
+| 2026-09-26 | **Tap a skill to smart-cast it; press and drag to aim it** | Fast one-thumb play, with precise aim still possible. |
+| 2026-09-26 | **Heroes auto-attack while moving or standing still, on all devices** | A joystick player can't attack-move; the same rule everywhere keeps desktop and phone players equal. |
+| 2026-09-26 | **Each player has their own zone of pads, and bigger teams unlock extra pads** | Clear ownership on a small map; extra pads let bigger teams grow without a huge early-wave bonus. |
+| 2026-09-26 | Tower actions use a **radial ring around the tower**, never a bottom panel | A bottom panel would sit under the thumb and the controls. |
+| 2026-09-26 | **Quick mode: 15 waves, on every device** | Shorter sessions for phones, available everywhere. |
+| 2026-09-26 | **Spire layout** (`sim/src/maps/spire.ts`): 26 × 50 tiles (fits 412 pt wide at ~15.8 px per tile, the spike's round-4 size; 50 rows fit a 412 × 839 screen under a ~47 px top bar). Lanes 2 tiles wide at x = 6 / 13 / 20; West and East bend in at row 23 and join Mid at row 30, one trunk down to the Heart at (13, 36). Rows 40–49 are the safe zone (forest). Pads are 3 × 3 tiles (tappable: ~47 px), in four columns: West column (8 pads), two inner columns (Mid, 5 + 5), East column (8): 26 base pads. 12 extra pads: 2 per lane zone (two by the Mid portals) and 6 Core pads flanking the trunk and the Heart | Keeps the spike's playtested proportions (2-tile lanes, 3-tile pads) while giving every zone about the same number of pads. Joining the lanes above the Heart makes the "Core zone where the lanes converge" literal: Core towers see every lane. |
+| 2026-09-26 | **Maps are data** (`MapData`: size, lanes, Heart, hero spawn, pads with `zone` and `extra` tags, pad size, safe-zone row); `buildMap` derives the tiles; the bot and the client derive every position from the map. `npm run map` prints it as ASCII | MOBILE §2 / REPLAYABILITY §3: a new map needs no engine changes. |
+| 2026-09-26 | **Pad zones:** solo owns every base pad; 2 players split by the Mid lane (West + west half of Mid / East + east half, from each pad's side of the Heart); 3 players get West / Mid / East by seat order; 4 players add the Core zone for the 4th seat. Extra pads (`tuning.pads`): +1 per lane zone for 3 and 4 players and 4 Core pads for 4 players (+12% and +27% over 26 base pads), unlocked in map order. Pads exist per match in `state.pads` / `snapshot.pads` (`{ id, owner }`); `build` on a teammate's pad is rejected with "That pad belongs to <name>" (the client shows it as a toast), on a pad not in the match with "No build pad there" | MOBILE §2 leaves the seat → zone mapping and the exact amounts open. Four Core pads plus a lane extra each keep the 4th player's zone close to the others' size. Owners in the snapshot (not recomputed by clients) keep leavers exact. |
+| 2026-09-26 | **Leavers:** `setPlayerLeft` (the server calls it when a member leaves, or when their 60 s rejoin window runs out) opens all of the leaver's pads (owner `null`); their towers stay theirs, keep firing and stay owner-only for upgrades and selling. A disconnect alone (`setPlayerConnected`) changes nothing about pads. Answers MOBILE §11 "should a leaver's towers pass to a teammate?": **not now** | Follows MOBILE §2. Handing towers over would need an ownership-transfer rule for gold already spent; revisit if playtests ask for it. |
+| 2026-09-26 | **Auto-attack while moving:** a hero with a `move` order (and one walking to a targeted skill's cast point) shoots the nearest creep in attack range without leaving its path. `attack` (focus target) and attack-move work as before | MOBILE §3. The focus target keeps its meaning; the rest is what a joystick player needs. |
+| 2026-09-26 | **Anti-stall:** each creep counts the ticks it spends stopped to attack towers; after `creepAi.towerAttackLimit` (10 s) in total it never stops for towers again and walks on (it still fights heroes). Bosses too | MOBILE §3 fixes the Archer-vs-Flak soft lock. A lifetime budget (not per tower) also stops a creep from stalling 10 s at every tower along a lane of pads. |
+| 2026-09-26 | **Balance bot on Spire:** builds on the best free pad of its own zone (or an open one); its hero only ever uses `move` (heroes shoot while walking), walking to the creep nearest its post (ranged heroes stop just inside attack range; a melee hero holds its post and only steps out to creeps within 5 tiles, letting the rest come to it). Solo and in pairs the hero guards where the lanes converge all match (solo on Mid, pairs on West and East); with 3+ players each lane zone's hero plays forward (18 tiles up its lane) from wave 12 once it has R, and the Core player stays at the junction. Retreat, boss hunt, final-wave straggler hunt and skill use as before | MOBILE §9 ("plays by zones and moves while attacking"). A melee hero walking to every creep in reach was the Warden's worst habit: holding its post raised its solo mean from 54 to 79 Heart HP over 10 seeds, with the same tuning. Playing forward cost solo and pairs Heart HP on a map this small. |
+| 2026-09-26 | **Economy retune for 26 pads:** tier-2 / tier-3 upgrades cost 2× / 2.5× their Phase 3 price and hit 1.4× / 1.75× as hard (so gold keeps turning into power until late: on 59 Crossroads pads, or on Spire with the old prices, a solo player ended with ~10,000 unspent gold and lost only in waves 21–30); bounties × 0.6 without growth per wave; wave income 20 + 5/wave → 40 + 16/wave (flat income damps the leak → less gold → more leaks spiral); starting gold 120 → 100 | The pad cap came ~wave 19 on Spire's 26 pads. |
+| 2026-09-26 | **Creeps and heroes retuned for Spire:** base creep HP × 1.47 (grunt 55 → 81 …; bosses unchanged), HP growth 0.17 → 0.10 per wave (the early waves bite, the late ones don't run away from a full set of towers); hero XP thresholds × 3 (level 10 came at wave 9 on a map where every kill is within the XP radius; now ~wave 20); Warden damage 24 → 26 (+3.8 per level) and Cleave damage × 1.3 | Heroes near every kill levelled far too fast; the Warden trailed the ranged heroes once they could shoot while walking. |
+| 2026-09-26 | **Team scaling reshaped:** creep HP × (`playerScaling.hp`[n − 1] + `earlyHpBonus`[n − 1] × fade), hp = [1, 1.45, 1.45, 1.5], early bonus = [0, 0.5, 1.6, 2.4] fading over 20 waves (was: 1 + 0.05 per extra player plus [0, 0.8, 3.4, 4.2] over 10 waves). 4 players: ×3.9 on wave 1, ×1.5 from wave 21 (Phase 3: ×5.35 → ×1.15) | Flatter than Phase 3, as MOBILE §9 asks, but not flat: a team's gold still outruns its pads (a 4-player team ends with ~20,000 unspent gold), so its tower power stops growing mid-match while creeps keep growing. A flat multiplier either never bit early or broke in the last waves (4 players at ×2: 0 lost before wave 21, then 99 lost). A lower late multiplier keeps the late game safe for teams, and the early bonus gives them losses in waves 1–20. |
+| 2026-09-26 | `PROTOCOL_VERSION` 5: snapshots gain `pads` (a keyed list, diffed like the other entity lists) | New snapshot field. |
+| 2026-09-26 | **Balance results on Spire, full mode** (gate seeds 1, 2, 3, 42, 1234; `npm run balance`; Heart HP left, then the average Heart lost in waves 1–10 / 11–20 / 21–30): solo Ranger 54–76 (13/8/14), Warden 46–74 (8/9/16), Arcanist 44–75 (12/0/27); gated pairs 55–77 (16/11/5); 4 players 52–80 (19/18/0); every idle bot loses at wave 6. Not gated: 3 players 15–77 (22/15/13). Over 20 seeds all 180 balance-bot runs win: solo Ranger 23–77, Warden 34–78, Arcanist 41–84 (18 of 20 in range each); 2 players 14–87 (45 of 60 in range; Ranger + Warden is the weakest pair, mean 45); 3 players 15–77 (17 of 20); 4 players 3–82 (16 of 20) | Losses are now spread across the match for solo and pairs. They were Phase 3's weak spot: mostly before wave 12. 4-player teams still lose almost nothing after wave 20 because their pads cap their towers (see the team-scaling row). Results swing ±20 Heart HP between seeds, more for 4 players, where one late breakthrough decides a match. |

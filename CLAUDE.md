@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-**Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md).** Read it first. Build only the phase or feature you were asked for. When you make a design decision the doc doesn't cover, add a row to its Decision Log (§13).
+**Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)**, plus [`docs/MOBILE.md`](docs/MOBILE.md) for Phase 4 (mobile) and [`docs/REPLAYABILITY.md`](docs/REPLAYABILITY.md) for Phase 5. Read them first. Build only the phase or feature you were asked for. When you make a design decision the docs don't cover, add a row to the Decision Log in `GAME_DESIGN.md` (§13).
 
-Current status: **Phases 1 (solo, local mode) and 2 (online co-op) are done.** Phase 3 (content) is in progress: the towers track (5 towers × 3 tiers, target priority, `PROTOCOL_VERSION` handshake), the waves and economy track (30 waves, 3 bosses, armour / magic resist everywhere, gold gifting) the heroes track (Ranger, Warden, Arcanist with Q/W/E/R, levels 1–10, hero pick in the lobby and solo) and the balance pass (a full-game balance bot wins Normal with 1, 2 and 4 players with 40–80 Heart HP left; Bulwark Aura covers towers; "Change hero" on the solo end screen) are done. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Current status: **Phases 1 (solo, local mode), 2 (online co-op) and 3 (content) are done.** Phase 4a (mobile, `docs/MOBILE.md` §9) is in progress: **track 1 is done**: Spire is the only map (portrait, with a safe zone under the touch controls), pad zones per player with extra pads for 3–4 players, heroes auto-attack while moving, the creep anti-stall rule, a balance bot that plays by zones and only walks, and the full-mode balance gate on Spire (1, 2 and 4 players at 40–80 Heart HP). Tracks 2 (portrait client) and 3 (Quick mode) are next. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Commands
 
@@ -19,7 +19,8 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run loadtest [-- --url wss://… --origin …]` | Ramp rooms of 4 bots until the server's average tick exceeds 10 ms (see docs/DEPLOY.md §6) |
 | `npm run typecheck` | Typecheck only |
 | `npm run preview` | Serve the production build locally |
-| `npm run balance [seeds…]` | Print solo balance-bot and idle-bot results for every hero, plus mixed teams (three 2-bot pairs, 3 and 4 bots); use it after editing `tuning.ts` |
+| `npm run balance [solo\|teams\|2p\|3p\|4p] [seeds…]` | Print solo balance-bot and idle-bot results for every hero, plus mixed teams (three 2-bot pairs, 3 and 4 bots), with Heart HP lost per third of the match; use it after editing `tuning.ts` or `bots.ts` |
+| `npm run map` | Print the map as ASCII (lanes, pads by zone, extra pads, safe zone); use it when editing `maps/*.ts` |
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
 
@@ -38,25 +39,29 @@ packages/sim/              @tdt/sim: pure deterministic simulation
   src/tuning.ts            ALL balance numbers (one file)
   src/game.ts              createGame, step, snapshot
   src/commands.ts          applyCommand: validation (gold, ownership, cooldowns, gifts…)
-  src/map.ts               Crossroads map (generated deterministically, 80×60 tiles)
+  src/map.ts               Map data format (MapData) and buildMap: tiles, lanes, pads with zones, safe zone
+  src/maps/spire.ts        Spire (26×50, portrait): the only map; pure data
+  src/pads.ts              Pad zones: padLayout (which pads exist for a team and who owns them), padBlocker
   src/pathfinding.ts       Hero A* on the tile grid
   src/waves.ts             Wave timer, income, call-early, spawning, player-count scaling
-  src/creeps.ts            Lane walking, aggro/leash, taunts, stuns, tower attacks, leaks
+  src/creeps.ts            Lane walking, aggro/leash, taunts, stuns, tower attacks (anti-stall limit), leaks
   src/bosses.ts            Boss abilities: Ironhorn Stomp, Matriarch Hatch, Shardback Shifting Hide
   src/towers.ts            Tower targeting (First/Strongest/Closest), upgrades, projectiles, Snare Traps
-  src/heroes.ts            Hero orders, auto-attack (melee / ranged, Keen Eye crits), respawn
+  src/heroes.ts            Hero orders, auto-attack while idle or moving (melee / ranged, Keen Eye crits), respawn
   src/skills.ts            Q/W/E/R of every hero: ranks and learning (R from level 6), casts, zones (Arrow Storm, Meteor)
   src/combat.ts            Damage rule (physical vs armour, magic vs magic resist), auras, stuns, kills, bounty, XP, levelling
-  src/bots.ts              Balance bot (full tower kit from the wave list, upgrades, priorities, forward hero) and idle bot
-  src/headless.ts          runHeadlessMatch for balance tests
-  test/                    Vitest unit tests + balance.test.ts
+  src/bots.ts              Balance bot (own-zone pads, full tower kit from the wave list, upgrades, priorities; a hero that only walks) and idle bot
+  src/headless.ts          runHeadlessMatch for balance tests (Heart lost per third, boss leaks)
+  test/                    Vitest unit tests + balance*.test.ts
   scripts/balance.ts       `npm run balance`
+  scripts/map.ts           `npm run map`
 apps/client/               @tdt/client: Vite + PixiJS + HTML/CSS HUD
   src/main.ts              Chooses local solo (hero pick, no VITE_SERVER_URL) or online (lobby)
   src/gameView.ts          Pixi app + HUD + controls + snapshot buffer, fed by any Transport
   src/online.ts            Online flow: lobby ↔ NetworkTransport ↔ game view
   src/lobby/               Lobby screens (nickname, hero, create/join, ready/start, invite link), hero cards, solo hero pick
   src/heroInfo.ts          Hero and skill names / descriptions (display text only)
+  src/padInfo.ts           Pad ownership as the client sees it (yours / a teammate's / not in this match)
   src/transport/           Transport interface, LocalTransport (Web Worker), SimHost, NetworkTransport
   src/snapshotBuffer.ts    Renders ~100 ms behind with interpolation
   src/render/              Pixi world renderer (shapes only) and palette
@@ -80,7 +85,9 @@ vercel.json                Vercel static deploy of apps/client
 ## Architecture rules
 
 - **The sim is pure and deterministic.** `packages/sim` has no DOM, no Node APIs and no networking. Its tsconfig uses `lib: ES2022` and `types: []`, so using them fails to compile. It uses a fixed 20 Hz timestep (`TICK_RATE`) and the seeded RNG in `rng.ts` (state is kept in `GameState.rng`). **Never** use `Math.random()`, `Date.now()` or `performance.now()` in `packages/sim`; a test enforces this.
-- **The sim API** is `createGame(config, seed)`, `applyCommand(state, playerId, command)`, `step(state)` and `snapshot(state)`. The state is a plain, mutable, JSON-able object. `snapshot()` never mutates it.
+- **The sim API** is `createGame(config, seed)`, `applyCommand(state, playerId, command)`, `step(state)` and `snapshot(state)`. The state is a plain, mutable, JSON-able object. `snapshot()` never mutates it. Hosts also call `setPlayerConnected` (drop / rejoin) and `setPlayerLeft` (gone for good: their empty pads open to everyone).
+- **Maps are data.** A map is a `MapData` object (`src/maps/*.ts`): size, lanes (waypoints, portal first, Heart last), Heart, hero spawn, pads with zone tags (`west` / `mid` / `east` / `core`, `extra` for bigger teams), pad size and the safe-zone row. `buildMap` derives the tile grid; `getMap()` returns Spire. Never hard-code map coordinates in engine code or bots: derive them from the map (lanes, `heroSpawn`, pads).
+- **Pad zones:** `padLayout` decides which pads exist for a team (base pads, plus `tuning.pads` extra pads per lane zone and Core pads by player count) and who owns them (solo: all; 2 players: West + west half of Mid / East + east half; 3: West / Mid / East; 4: + Core). `state.pads` / `snapshot.pads` hold `{ id, owner }` (owner `null` = open to all). `build` is rejected on pads that aren't in the match or belong to a teammate.
 - **Events:** sim code emits into `state.pendingEvents`. At the end of `step()` they move to `state.events`, which the next `snapshot()` carries. Hosts apply commands, then `step`, then `snapshot`.
 - **The client never mutates game state.** It sends `Command`s through a `Transport` and renders `Snapshot`s. Client-only UI state (input mode, selection, markers) lives in `uiState.ts`.
 - **Transport:** `LocalTransport` runs `SimHost` in a Web Worker; `NetworkTransport` talks to the game server. Both exchange *encoded* protocol messages and both deliver complete `{ t: 'snapshot' }` messages to the game view. `NetworkTransport` rebuilds them from keyframes + deltas, so the renderer and HUD never see deltas.
@@ -90,9 +97,9 @@ vercel.json                Vercel static deploy of apps/client
 - **Damage:** every hit goes through `damageMultiplier` (`combat.ts`): physical is reduced by armour, magic by magic resist, for creeps, heroes and towers alike. Creeps carry their current `armor` / `magicResist` (bosses change theirs). Bosses are creep kinds with `boss: true`; test for the flag, never for a kind name.
 - **All balance numbers live in `packages/sim/src/tuning.ts`.** Durations are in seconds, distances in tiles and speeds in tiles/s. Convert with `secondsToTicks`. Don't scatter constants. Hero skills live under `tuning.hero.<kind>.<skill>`, with per-rank arrays (4 entries for Q/W/E, 3 for R).
 - **Hero skills:** `skills.ts` owns every Q/W/E/R (`SKILL_MODES` says instant / point / passive). A new skill needs its tuning, a case in `skillInfo`'s tables and `castInstant` / `castAtPoint`, display text in `apps/client/src/heroInfo.ts`, and a test in `packages/sim/test/heroes.test.ts`.
-- **Units:** the sim works in tiles (floats). The renderer multiplies by `TILE_PX` (32).
+- **Units:** the sim works in tiles (floats). The renderer multiplies by `TILE_PX` (32). Pads are `map.padSize` tiles square (3 on Spire).
 - **Shapes-only graphics until Phase 4.** Each entity type has a distinct shape and colour plus an HP bar; see `render/palette.ts` and `render/world.ts`.
-- **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `towerTier`, `TILE_PX`, `padAtTile`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host).
+- **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `towerTier`, `TILE_PX`, `padAtTile`. Pad ownership comes from `snapshot.pads`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host).
 - **Protocol validation:** `decodeClientMessage` rejects unknown types, extra keys, non-finite or out-of-range numbers, and oversized messages. Game-rule validation (gold, range, cooldowns, ownership) happens in `applyCommand`, which emits a `rejected` event instead of throwing.
 
 ## Conventions
@@ -101,7 +108,7 @@ vercel.json                Vercel static deploy of apps/client
 - Workspaces export TypeScript source directly (`"main": "src/index.ts"`). There is no per-package build step; Vite and Vitest compile from source.
 - ES modules, 2-space indent, single quotes, semicolons, trailing commas, ~120-column lines.
 - Every sim mechanic gets a Vitest unit test. Use the helpers in `packages/sim/test/helpers.ts` (`labGame`, `placeCreep`, `parkHero`, `run`, `tuningCopy`) for isolated mechanic tests.
-- **Balance gate:** on 5 seeds, the balance bot must win all 30 waves **with 40–80 Heart HP left** (`HEART_TARGET` in `test/helpers.ts`): solo Ranger and idle-bot losses in `balance.test.ts`, solo Warden / Arcanist in `balanceHeroes.test.ts`, 2-player pairs (one per seed) in `balanceDuo.test.ts`, a 4-bot mixed team in `balanceTeam.test.ts` (~40 s, the slowest file). The files run in parallel. Results swing ±15–20 Heart HP between seeds, so check a wider seed list (`npm run balance 1 2 3 … 19`) before trusting a change. After changing `tuning.ts` or `bots.ts`, run `npm run balance` and keep every outcome true.
+- **Balance gate (Spire, full mode):** on 5 seeds, the balance bot must win all 30 waves **with 40–80 Heart HP left** (`HEART_TARGET` in `test/helpers.ts`): solo Ranger and idle-bot losses in `balance.test.ts`, solo Warden / Arcanist in `balanceHeroes.test.ts`, 2-player pairs (one per seed) in `balanceDuo.test.ts`, a 4-bot mixed team in `balanceTeam.test.ts` (~40 s, the slowest file). The files run in parallel. 3 players are reported by `npm run balance`, not gated. Results swing a lot between seeds (±20 Heart HP, more for 4 players), so check a wider seed list (`npm run balance 1 2 3 … 19`) before trusting a change. After changing `tuning.ts` or `bots.ts`, run `npm run balance` and keep every outcome true. Also watch the Heart lost per third (waves 1–10 / 11–20 / 21–30): losses should be spread across the match.
 - Bots only read snapshots and act through commands, never by touching `GameState`. Online, `BotClient` wraps the same bots over a real WebSocket.
 - Server tests start a real server on port 0 (`test/helpers.ts`: `startServer`, `bot`, `fullRoom`). When a test speeds up ticks (`tickMs: 1`), scale `rateLimit` up to match.
 - Protocol changes: update `types.ts`, the validation in `codec.ts` (and its tests), and keep `diffSnapshot`/`applySnapshotDelta` exact. `delta.test.ts` checks this over a long match. **Bump `PROTOCOL_VERSION`** for any change to messages, commands or snapshots: the server announces it in `hello` and rejects entry messages with another `v`, and the client then shows "New version available — refresh".

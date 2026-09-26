@@ -4,7 +4,7 @@
 
 import type { EntityListDelta, Snapshot, SnapshotDelta, SnapshotScalars } from './types';
 
-const LISTS = ['players', 'heroes', 'creeps', 'towers', 'projectiles', 'traps', 'zones'] as const;
+const LISTS = ['players', 'heroes', 'creeps', 'towers', 'pads', 'projectiles', 'traps', 'zones'] as const;
 type ListKey = (typeof LISTS)[number];
 
 type Keyed = { id: string | number };

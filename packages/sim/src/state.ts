@@ -13,6 +13,7 @@ import type {
   TowerKind,
   ZoneKind,
 } from '@tdt/protocol';
+import type { PadState } from './pads';
 import type { Tuning } from './tuning';
 
 export interface PlayerConfig {
@@ -35,6 +36,8 @@ export interface PlayerState {
   kills: number;
   /** Set by the host; a disconnected player's hero walks back to the Heart. */
   connected: boolean;
+  /** Set by the host once the player is gone for good (their empty pads open to everyone). */
+  left: boolean;
 }
 
 export type HeroOrder =
@@ -112,6 +115,8 @@ export interface Creep {
   stunUntil: number;
   /** A taunted creep keeps chasing its target and ignores its leash until this tick. */
   tauntUntil: number;
+  /** Ticks spent stopped to attack towers so far (anti-stall: see `creepAi.towerAttackLimit`). */
+  towerTicks: number;
   /** Path distance left to the Heart; lower = further along ("First"). */
   remaining: number;
   dead: boolean;
@@ -217,6 +222,8 @@ export interface GameState {
   heroes: Hero[];
   creeps: Creep[];
   towers: Tower[];
+  /** The build pads that exist in this match and who may build on them (see pads.ts). */
+  pads: PadState[];
   projectiles: Projectile[];
   traps: Trap[];
   zones: Zone[];

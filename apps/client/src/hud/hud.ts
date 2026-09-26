@@ -494,7 +494,7 @@ export class Hud {
         });
       }
       this.padMenu.classList.remove('hidden');
-      this.place(this.padMenu, pad.x + 1.3, pad.y - 1);
+      this.place(this.padMenu, pad.x + getMap().padSize / 2 + 0.3, pad.y - 1);
     } else {
       this.padMenu.classList.add('hidden');
     }
@@ -517,7 +517,7 @@ export class Hud {
       const hp = this.towerPanel.querySelector<HTMLElement>('.tower-hp');
       if (hp) setText(hp, `${tower.hp} / ${tower.maxHp}`);
       this.towerPanel.classList.remove('hidden');
-      this.place(this.towerPanel, tower.x + 1.3, tower.y - 1);
+      this.place(this.towerPanel, tower.x + getMap().padSize / 2 + 0.3, tower.y - 1);
     } else {
       this.towerPanel.classList.add('hidden');
     }

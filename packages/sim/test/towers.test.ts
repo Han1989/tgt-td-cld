@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import { snapshot } from '../src/game';
 import { towerTier, TUNING } from '../src/tuning';
-import { labGame, parkHero, placeCreep, run } from './helpers';
+import { LAB_PAD, labGame, parkHero, placeCreep, run } from './helpers';
 
-/** A lab game with one tower of `kind` on pad 37 (centre 39, 43, beside the middle lane). */
+/** A lab game with one tower of `kind` on LAB_PAD (beside the Mid lane). */
 function withTower(kind: (typeof TOWER_KINDS)[number], gold = 10_000) {
   const state = labGame(TUNING, 2);
   parkHero(state, 0);
   parkHero(state, 1);
   state.players[0]!.gold = gold;
-  expect(applyCommand(state, 'p1', { type: 'build', padId: 37, tower: kind })).toBe(true);
+  expect(applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: kind })).toBe(true);
   return { state, tower: state.towers[0]!, player: state.players[0]! };
 }
 

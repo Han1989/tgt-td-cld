@@ -1,5 +1,5 @@
 // Creep behaviour: walk the lane, fight heroes that come close (with a leash),
-// shoot towers (archers, bosses), leak into the Heart. Boss abilities are in bosses.ts.
+// shoot towers (archers, bosses) for a limited time, leak into the Heart. Boss abilities are in bosses.ts.
 
 import { updateBoss } from './bosses';
 import { damageHero, damageTower, emit, spawnProjectile, TOWER_RADIUS } from './combat';
@@ -62,9 +62,16 @@ function updateCreep(state: GameState, c: Creep): void {
       c.anchorX = c.x;
       c.anchorY = c.y;
     } else {
-      const tower = s.attacksTowers ? nearestTower(state, c, s.attackRange + s.radius + TOWER_RADIUS) : undefined;
-      if (tower) attackTower(state, c, tower);
-      else walkLane(state, c, step);
+      // Anti-stall: a creep that has spent long enough stopped at towers ignores them from then on.
+      const stalled = c.towerTicks >= secondsToTicks(t.creepAi.towerAttackLimit);
+      const tower =
+        s.attacksTowers && !stalled ? nearestTower(state, c, s.attackRange + s.radius + TOWER_RADIUS) : undefined;
+      if (tower) {
+        c.towerTicks++;
+        attackTower(state, c, tower);
+      } else {
+        walkLane(state, c, step);
+      }
     }
   }
 

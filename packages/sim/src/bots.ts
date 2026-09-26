@@ -5,7 +5,7 @@
 import type { Command, CreepKind, CreepSnap, HeroKind, PlayerId, SkillSlot, SkillSnap, Snapshot, TargetPriority, TowerKind, TowerSnap } from '@tdt/protocol';
 import { getMap, type BuildPad } from './map';
 import { TUNING, type Tuning, type WaveGroup } from './tuning';
-import { dist } from './vec';
+import { dist, type Vec2 } from './vec';
 
 export interface Bot {
   playerId: PlayerId;
@@ -39,39 +39,40 @@ const MIN_GENERAL_TOWERS = 3;
 const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W', 'R'], arcanist: ['R'] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 4 };
-/** Lane each teammate's hero plays forward on, by bot index: the middle lane first. */
-const LANE_ORDER = [1, 0, 2, 1];
+/** Path distance up its lane (from the Heart) where a hero guards early on. */
+const GUARD_DISTANCE = 9;
 /** From this wave on, a hero with its ultimate plays forward (earlier, it guards near the Heart). */
 const FORWARD_FROM_WAVE = 12;
 /** How far up its lane (path distance from the Heart) a hero playing forward stands guard. */
-const FORWARD_DISTANCE = 35;
+const FORWARD_DISTANCE = 18;
+/** A hero walks to creeps within this distance of its post (and shoots them on the way). */
+const ENGAGE_RADIUS = 6;
+/** A melee hero holds its post and lets creeps come (they aggro on it); it only steps out to closer ones. */
+const MELEE_ENGAGE_RADIUS = 5;
 /** A hero playing forward with its ultimate ready goes to groups within this distance of its post. */
-const SEEK_RADIUS = 25;
+const SEEK_RADIUS = 16;
 /** In the final wave, heroes hunt the creeps that are left once there are this few. */
 const STRAGGLERS = 5;
+/** A ranged hero stops this much inside its attack range of the creep it walks to. */
+const STANDOFF_MARGIN = 1;
 
 /**
- * A sensible-build bot for any hero and team size. It builds on the pads that cover the most lane,
- * cycling through the towers and reading the coming waves (a Flak before Wisps, an Arcane before Brutes
- * and armour-shifting bosses); once no pad is free it upgrades its lowest-tier towers, Arcane first
- * before a Stone-hide boss. Cannon and Arcane target the Strongest creep, and every tower focuses a boss
- * in range. Its hero guards near the Heart; in later waves, once it has its ultimate, it plays forward on
- * its own lane and walks to groups to use it. It hunts a live boss, retreats when hurt, learns skills and
- * casts them on groups.
+ * A sensible-build bot for any hero and team size. It builds on its own zone's pads (and on open pads),
+ * best pads first, cycling through the towers and reading the coming waves (a Flak before Wisps, an
+ * Arcane before Brutes and armour-shifting bosses); once none of its pads is free it upgrades its
+ * lowest-tier towers, Arcane first before a Stone-hide boss. Cannon and Arcane target the Strongest
+ * creep, and every tower focuses a boss in range. Its hero plays like a joystick player: it only walks
+ * (heroes shoot while they move) — to creeps near its post, and in later waves, once it has its
+ * ultimate, to a post further up its zone's lane and to groups to use it on. It hunts a live boss,
+ * retreats when hurt, learns skills and casts them on groups.
  */
 export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, botIndex = 0): Bot {
   const pads = rankPads(tuning);
   const padRank = new Map(pads.map((p, i) => [p.id, i]));
-  const guardPoints = [
-    { x: 40, y: 49 },
-    { x: 33, y: 50 },
-    { x: 47, y: 50 },
-    { x: 40, y: 44 },
-  ];
-  const guard = guardPoints[botIndex % guardPoints.length]!;
-  const forward = lanePoint(LANE_ORDER[botIndex % LANE_ORDER.length]!, FORWARD_DISTANCE);
+  let posts: { guard: Vec2; forward: Vec2 } | null = null;
   let retreating = false;
-  let lastGuardOrderTick = -Infinity;
+  let lastGoal: Vec2 | null = null;
+  let lastMoveTick = -Infinity;
 
   return {
     playerId,
@@ -80,6 +81,7 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
       const me = snap.players.find((p) => p.id === playerId);
       const hero = me && snap.heroes.find((h) => h.id === me.heroId);
       if (!me || !hero) return cmds;
+      posts ??= heroPosts(snap, playerId, botIndex);
 
       // Skills: the ultimate as soon as it unlocks, otherwise the lowest-ranked skill (Q first).
       if (hero.skillPoints > 0) {
@@ -88,22 +90,21 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
         if (pick) cmds.push({ type: 'learn', slot: pick.slot });
       }
 
-      // Towers: the next kind for the coming waves, on the best free pad. Teammates decide on the same
-      // snapshot, so each bot starts at a different free pad to avoid building on the same one.
+      // Towers: the next kind for the coming waves, on the best free pad of its zone (or an open one).
       let gold = me.gold;
       const taken = new Set(snap.towers.map((t) => t.padId));
+      const usable = new Set(snap.pads.filter((p) => p.owner === playerId || p.owner === null).map((p) => p.id));
       const mine = snap.towers.filter((t) => t.owner === playerId);
       const kinds = mine.map((t) => t.kind);
       const team = new Set(snap.towers.map((t) => t.kind));
       const needs = waveNeeds(tuning, snap.wave);
+      const free = pads.filter((p) => usable.has(p.id) && !taken.has(p.id));
       for (;;) {
         const kind = nextTower(needs, kinds, team);
         const cost = tuning.towers[kind].tiers[0]!.cost;
-        const free = pads.filter((p) => !taken.has(p.id));
-        const pad = free[botIndex % Math.max(1, free.length)];
+        const pad = free.shift();
         if (!pad || gold < cost) break;
         cmds.push({ type: 'build', padId: pad.id, tower: kind });
-        taken.add(pad.id);
         gold -= cost;
         kinds.push(kind);
         team.add(kind);
@@ -116,9 +117,9 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
         const want = focus ? 'strongest' : PRIORITY[t.kind];
         if (t.priority !== want) cmds.push({ type: 'setPriority', towerId: t.id, priority: want });
       }
-      // No free pad left: upgrade the lowest-tier towers first, best pads first; Arcane first while a boss
-      // with a Stone hide is coming (magic damage ignores its armour).
-      if (taken.size >= pads.length) {
+      // None of its pads is free: upgrade the lowest-tier towers first, best pads first; Arcane first while
+      // a boss with a Stone hide is coming (magic damage ignores its armour).
+      if (free.length === 0) {
         const first = (t: TowerSnap) => (needs.stone && t.kind === 'arcane' ? 0 : 1);
         const order = [...mine].sort(
           (a, b) => first(a) - first(b) || a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!,
@@ -134,33 +135,37 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
 
       if (!hero.alive) return cmds;
 
-      // Hero: retreat to the Heart when hurt, otherwise guard on attack-move.
+      // Hero: retreat to the Heart when hurt (shooting on the way), otherwise walk to where it is needed.
       const hpFrac = hero.hp / hero.maxHp;
       if (hpFrac < 0.3) retreating = true;
       if (hpFrac > 0.8) retreating = false;
-      const heart = getMap().heroSpawn;
-      if (retreating) {
-        cmds.push({ type: 'move', x: heart.x, y: heart.y + 1 });
-        return cmds;
-      }
-      // Where the hero goes, most urgent first: a live boss; in the final wave, the last few creeps (one
-      // parked out of the towers' reach, e.g. an Archer shooting an air-only Flak, would keep the match
-      // from ending); in later waves with its ultimate ready, the biggest group it would catch; otherwise
-      // its post: near the Heart, or forward on its lane in later waves once it has its ultimate.
       const skill = (slot: SkillSlot) => hero.skills.find((s) => s.slot === slot);
       const r = skill('R');
       const later = r !== undefined && r.rank > 0 && snap.wave >= FORWARD_FROM_WAVE;
+      const post = later ? posts.forward : posts.guard;
+      // Where the hero goes, most urgent first: the Heart when hurt; a live boss; in the final wave, the last
+      // few creeps (one parked out of the towers' reach, e.g. an Archer shooting an air-only Flak, would keep
+      // the match from ending); in later waves with its ultimate ready, the biggest group near its post; the
+      // creep nearest its post; otherwise the post itself.
       const straggler =
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
       const ultReady = later && r.cooldown === 0 && hero.mana >= r.manaCost;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
-      const nearPost = snap.creeps.filter((c) => dist(c.x, c.y, forward.x, forward.y) <= SEEK_RADIUS);
-      const group = ultReady ? densestGroup(nearPost, r.radius, groundOnlyR, tuning) : undefined;
-      const goal = bosses[0] ?? straggler ?? group ?? (later ? forward : guard);
-      if (dist(hero.x, hero.y, goal.x, goal.y) > 6 || snap.tick - lastGuardOrderTick > 100) {
-        cmds.push({ type: 'attackMove', x: goal.x, y: goal.y });
-        lastGuardOrderTick = snap.tick;
+      const ranged = tuning.hero[hero.kind].ranged;
+      const hittable = snap.creeps.filter((c) => ranged || !tuning.creeps[c.kind].flying);
+      const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
+      const group = ultReady ? densestGroup(nearPost(SEEK_RADIUS), r.radius, groundOnlyR, tuning) : undefined;
+      const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
+      const target = bosses[0] ?? straggler ?? group ?? closest;
+      const heart = getMap().heroSpawn;
+      const goal = retreating ? { x: heart.x, y: heart.y + 1 } : target ? standoff(hero, ranged, target) : post;
+      const moved = lastGoal === null || dist(goal.x, goal.y, lastGoal.x, lastGoal.y) > 1;
+      if (dist(hero.x, hero.y, goal.x, goal.y) > 0.5 && (moved || snap.tick - lastMoveTick > 40)) {
+        cmds.push({ type: 'move', x: goal.x, y: goal.y });
+        lastGoal = goal;
+        lastMoveTick = snap.tick;
       }
+      if (retreating) return cmds;
 
       const near = (range: number, ground: boolean): CreepSnap[] =>
         snap.creeps.filter(
@@ -183,6 +188,37 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
       return cmds;
     },
   };
+}
+
+/**
+ * Where a hero walks to fight `target`: a melee hero onto it; a ranged hero to a point just inside its
+ * attack range, on the side facing the hero.
+ */
+function standoff(hero: { x: number; y: number; attackRange: number }, ranged: boolean, target: Vec2): Vec2 {
+  if (!ranged) return { x: target.x, y: target.y };
+  const d = dist(hero.x, hero.y, target.x, target.y);
+  const keep = Math.max(1, hero.attackRange - STANDOFF_MARGIN);
+  if (d <= keep) return { x: hero.x, y: hero.y };
+  return { x: target.x + ((hero.x - target.x) / d) * keep, y: target.y + ((hero.y - target.y) / d) * keep };
+}
+
+/**
+ * The guard and forward posts of a bot's hero, up the lane of its zone. Solo and in pairs, the hero guards
+ * where the lanes converge all match (solo on Mid; a pair on West and East). With 3+ players each lane zone
+ * has its own hero, which plays forward in later waves; a 4th player (the Core zone) stays where the lanes
+ * converge.
+ */
+function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guard: Vec2; forward: Vec2 } {
+  const n = snap.players.length;
+  const found = snap.players.findIndex((p) => p.id === playerId);
+  const i = found >= 0 ? found : botIndex;
+  if (n <= 2) {
+    const guard = lanePoint(n === 1 ? 1 : i === 0 ? 0 : 2, GUARD_DISTANCE);
+    return { guard, forward: guard };
+  }
+  const lane = i < 3 ? i : 1;
+  const guard = lanePoint(lane, GUARD_DISTANCE);
+  return { guard, forward: i < 3 ? lanePoint(lane, FORWARD_DISTANCE) : guard };
 }
 
 /** A cast of `skill` that catches at least `min` of `creeps`, or null. */
@@ -271,7 +307,7 @@ function nextTower(needs: { air: boolean; armour: boolean }, built: TowerKind[],
 }
 
 /** The point `distance` tiles back up `lane` from the Heart, measured along the path. */
-function lanePoint(lane: number, distance: number): { x: number; y: number } {
+function lanePoint(lane: number, distance: number): Vec2 {
   const wps = getMap().lanes[lane]!.waypoints;
   let left = distance;
   for (let i = wps.length - 1; i > 0; i--) {

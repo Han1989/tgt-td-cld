@@ -1,9 +1,10 @@
-// The Crossroads map: an 80 × 60 tile grid with the Heart bottom-centre and
-// three lanes from portals on the top edge. The layout is static and
-// generated deterministically, so the host and every client derive the same
-// map without sending it over the wire.
+// Maps are data (`maps/*.ts`): size, lanes, the Heart, build pads with zone
+// tags and a safe zone. `buildMap` turns that data into the tile grid the sim,
+// the bots and the client share. The grid is derived deterministically, so the
+// host and every client build the same map without sending it over the wire.
 
 import type { LaneId } from '@tdt/protocol';
+import { SPIRE } from './maps/spire';
 import { distToSegment, type Vec2 } from './vec';
 
 /** Render scale: one tile is 32 px. The sim itself works in tile units. */
@@ -17,6 +18,44 @@ export const Tile = {
 } as const;
 export type TileType = (typeof Tile)[keyof typeof Tile];
 
+/**
+ * Pad zones. West, Mid and East hold the pads alongside each lane; Core pads sit where the lanes
+ * converge above the Heart and only exist in bigger teams (see `padLayout`).
+ */
+export const PAD_ZONES = ['west', 'mid', 'east', 'core'] as const;
+export type PadZone = (typeof PAD_ZONES)[number];
+
+/** One build pad as map data. */
+export interface PadData {
+  /** Top-left tile. */
+  tx: number;
+  ty: number;
+  zone: PadZone;
+  /**
+   * Extra pads only exist in bigger teams (`tuning.pads`). Within a zone, extra pads unlock in the
+   * order they are listed.
+   */
+  extra?: boolean;
+}
+
+/** A map as plain data. Adding a map needs a new `MapData`, not engine changes. */
+export interface MapData {
+  name: string;
+  width: number;
+  height: number;
+  heart: Vec2;
+  heroSpawn: Vec2;
+  /** Lane half width in tiles (tiles whose centre is this close to a lane line are lane). */
+  laneHalfWidth: number;
+  /** Waypoints per lane (West, Mid, East): the portal first, the Heart last. */
+  lanes: Vec2[][];
+  /** Pad edge in tiles (pads are square). */
+  padSize: number;
+  pads: PadData[];
+  /** Rows from this one down are scenery only (forest under the touch controls). */
+  safeFromY: number;
+}
+
 export interface Lane {
   id: LaneId;
   /** Waypoints in tile units; the first is the portal, the last is the Heart. */
@@ -27,13 +66,18 @@ export interface Lane {
 
 export interface BuildPad {
   id: number;
-  /** Top-left tile of the 2 × 2 pad. */
+  /** Top-left tile of the pad (`GameMap.padSize` tiles square). */
   tx: number;
   ty: number;
   /** Centre in tile units (where a tower stands). */
   x: number;
   y: number;
+  /** Nearest lane. */
   lane: LaneId;
+  zone: PadZone;
+  extra: boolean;
+  /** Which player of a 2-player team owns it: West and the west half of Mid = 0, the rest = 1. */
+  half: 0 | 1;
 }
 
 export interface GameMap {
@@ -43,57 +87,19 @@ export interface GameMap {
   /** Row-major TileType per tile. */
   tiles: Uint8Array;
   lanes: Lane[];
+  /** Every pad on the map, extra pads included; `padLayout` says which exist in a match. */
   pads: BuildPad[];
+  padSize: number;
   heart: Vec2;
   heroSpawn: Vec2;
+  safeFromY: number;
 }
-
-const WIDTH = 80;
-const HEIGHT = 60;
-const LANE_HALF_WIDTH = 1.6;
-const PAD_SPACING = 5;
-const PAD_OFFSET = 3.3;
-const TREE_CLEARANCE = 5.5;
-
-const HEART: Vec2 = { x: 40, y: 55 };
-
-const LANE_WAYPOINTS: Vec2[][] = [
-  // Left
-  [
-    { x: 12.5, y: 0.5 },
-    { x: 12.5, y: 20 },
-    { x: 22, y: 29 },
-    { x: 22, y: 42 },
-    { x: 32, y: 51 },
-    HEART,
-  ],
-  // Middle
-  [
-    { x: 40, y: 0.5 },
-    { x: 40, y: 12 },
-    { x: 48, y: 18 },
-    { x: 48, y: 27 },
-    { x: 32, y: 34 },
-    { x: 32, y: 42 },
-    { x: 40, y: 47 },
-    HEART,
-  ],
-  // Right
-  [
-    { x: 67.5, y: 0.5 },
-    { x: 67.5, y: 20 },
-    { x: 58, y: 29 },
-    { x: 58, y: 42 },
-    { x: 48, y: 51 },
-    HEART,
-  ],
-];
 
 let cached: GameMap | null = null;
 
-/** Returns the (shared, read-only) Crossroads map. */
+/** Returns the (shared, read-only) map: Spire, the only map for now. */
 export function getMap(): GameMap {
-  cached ??= buildCrossroads();
+  cached ??= buildMap(SPIRE);
   return cached;
 }
 
@@ -108,107 +114,79 @@ export function isWalkable(map: GameMap, x: number, y: number): boolean {
 
 /** Returns the pad covering tile (tx, ty), if any. */
 export function padAtTile(map: GameMap, tx: number, ty: number): BuildPad | undefined {
-  return map.pads.find((p) => tx >= p.tx && tx < p.tx + 2 && ty >= p.ty && ty < p.ty + 2);
+  const n = map.padSize;
+  return map.pads.find((p) => tx >= p.tx && tx < p.tx + n && ty >= p.ty && ty < p.ty + n);
 }
 
-function buildCrossroads(): GameMap {
-  const tiles = new Uint8Array(WIDTH * HEIGHT).fill(Tile.Open);
-  const idx = (tx: number, ty: number) => ty * WIDTH + tx;
+/** Distance from a point to the nearest lane centre line. */
+export function laneDistance(lanes: readonly { waypoints: Vec2[] }[], x: number, y: number): number {
+  let best = Infinity;
+  for (const lane of lanes) {
+    for (let w = 0; w < lane.waypoints.length - 1; w++) {
+      best = Math.min(best, distToSegment(x, y, lane.waypoints[w]!, lane.waypoints[w + 1]!));
+    }
+  }
+  return best;
+}
 
-  const lanes: Lane[] = LANE_WAYPOINTS.map((waypoints, i) => {
+/** Builds the tile grid from map data. */
+export function buildMap(data: MapData): GameMap {
+  const { width, height, heart } = data;
+  const tiles = new Uint8Array(width * height).fill(Tile.Open);
+  const idx = (tx: number, ty: number) => ty * width + tx;
+
+  const lanes: Lane[] = data.lanes.map((waypoints, i) => {
     const remainingFrom = new Array<number>(waypoints.length).fill(0);
     for (let w = waypoints.length - 2; w >= 0; w--) {
       const a = waypoints[w]!;
       const b = waypoints[w + 1]!;
       remainingFrom[w] = remainingFrom[w + 1]! + Math.hypot(b.x - a.x, b.y - a.y);
     }
-    return { id: i as LaneId, waypoints, remainingFrom };
+    return { id: i as LaneId, waypoints: waypoints.map((p) => ({ ...p })), remainingFrom };
   });
 
-  // Distance from each tile centre to the nearest lane centre line.
-  const laneDist = new Float32Array(WIDTH * HEIGHT);
-  for (let ty = 0; ty < HEIGHT; ty++) {
-    for (let tx = 0; tx < WIDTH; tx++) {
-      let best = Infinity;
-      for (const lane of lanes) {
-        for (let w = 0; w < lane.waypoints.length - 1; w++) {
-          best = Math.min(best, distToSegment(tx + 0.5, ty + 0.5, lane.waypoints[w]!, lane.waypoints[w + 1]!));
-        }
-      }
-      laneDist[idx(tx, ty)] = best;
-      if (best <= LANE_HALF_WIDTH) tiles[idx(tx, ty)] = Tile.Lane;
+  for (let ty = 0; ty < height; ty++) {
+    for (let tx = 0; tx < width; tx++) {
+      if (laneDistance(lanes, tx + 0.5, ty + 0.5) <= data.laneHalfWidth) tiles[idx(tx, ty)] = Tile.Lane;
     }
   }
 
-  // Build pads: 2 × 2 blocks on both sides of each lane at regular spacing.
-  const pads: BuildPad[] = [];
-  const padFits = (ptx: number, pty: number) => {
-    for (let dy = 0; dy < 2; dy++) {
-      for (let dx = 0; dx < 2; dx++) {
-        const tx = ptx + dx;
-        const ty = pty + dy;
-        if (tx < 1 || ty < 4 || tx >= WIDTH - 1 || ty >= HEIGHT - 1) return false;
-        if (tiles[idx(tx, ty)] !== Tile.Open) return false;
-        if (laneDist[idx(tx, ty)]! < LANE_HALF_WIDTH + 0.4) return false;
-        if (Math.hypot(tx + 0.5 - HEART.x, ty + 0.5 - HEART.y) < 4) return false;
-        // Keep a one-tile walkable gap between pads.
-        for (const p of pads) {
-          if (tx >= p.tx - 1 && tx <= p.tx + 2 && ty >= p.ty - 1 && ty <= p.ty + 2) return false;
-        }
+  const n = data.padSize;
+  const pads: BuildPad[] = data.pads.map((p, id) => {
+    const x = p.tx + n / 2;
+    const y = p.ty + n / 2;
+    let lane: LaneId = 0;
+    let best = Infinity;
+    for (const l of lanes) {
+      const d = laneDistance([l], x, y);
+      if (d < best) {
+        best = d;
+        lane = l.id;
       }
     }
-    return true;
-  };
-  for (const lane of lanes) {
-    let carry = PAD_SPACING / 2;
-    for (let w = 0; w < lane.waypoints.length - 1; w++) {
-      const a = lane.waypoints[w]!;
-      const b = lane.waypoints[w + 1]!;
-      const len = Math.hypot(b.x - a.x, b.y - a.y);
-      const nx = -(b.y - a.y) / len;
-      const ny = (b.x - a.x) / len;
-      let s = carry;
-      for (; s < len; s += PAD_SPACING) {
-        const cx = a.x + ((b.x - a.x) * s) / len;
-        const cy = a.y + ((b.y - a.y) * s) / len;
-        for (const side of [1, -1]) {
-          const px = cx + nx * PAD_OFFSET * side;
-          const py = cy + ny * PAD_OFFSET * side;
-          const ptx = Math.round(px - 1);
-          const pty = Math.round(py - 1);
-          if (!padFits(ptx, pty)) continue;
-          pads.push({ id: pads.length, tx: ptx, ty: pty, x: ptx + 1, y: pty + 1, lane: lane.id });
-          for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) tiles[idx(ptx + dx, pty + dy)] = Tile.Pad;
-        }
-      }
-      carry = s - len;
-    }
-  }
+    const half = p.zone === 'west' ? 0 : p.zone === 'east' ? 1 : x < heart.x ? 0 : 1;
+    for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) tiles[idx(p.tx + dx, p.ty + dy)] = Tile.Pad;
+    return { id, tx: p.tx, ty: p.ty, x, y, lane, zone: p.zone, extra: p.extra ?? false, half };
+  });
 
-  // Blockers: a cliff border plus clustered groves away from lanes and pads.
-  for (let ty = 0; ty < HEIGHT; ty++) {
-    for (let tx = 0; tx < WIDTH; tx++) {
+  // Blockers: a cliff border and the forest of the safe zone. Lanes and pads stay as they are.
+  for (let ty = 0; ty < height; ty++) {
+    for (let tx = 0; tx < width; tx++) {
       const i = idx(tx, ty);
-      if (tiles[i] !== Tile.Open) continue;
-      const border = tx === 0 || ty === 0 || tx === WIDTH - 1 || ty === HEIGHT - 1;
-      const nearPad = pads.some((p) => Math.hypot(p.x - (tx + 0.5), p.y - (ty + 0.5)) < 2.5);
-      const nearHeart = Math.hypot(tx + 0.5 - HEART.x, ty + 0.5 - HEART.y) < 8;
-      const grove =
-        laneDist[i]! > TREE_CLEARANCE && !nearPad && !nearHeart && valueNoise(tx / 5, ty / 5) > 0.58;
-      if (border || grove) tiles[i] = Tile.Blocker;
+      const border = tx === 0 || ty === 0 || tx === width - 1 || ty === height - 1;
+      if (ty >= data.safeFromY || (border && tiles[i] === Tile.Open)) tiles[i] = Tile.Blocker;
     }
   }
 
-  // Fill any walkable pocket that cannot reach the Heart, so every walkable
-  // tile is reachable by heroes.
-  const reachable = new Uint8Array(WIDTH * HEIGHT);
-  const start = idx(Math.floor(HEART.x), Math.floor(HEART.y));
+  // Fill any walkable pocket that cannot reach the Heart, so every walkable tile is reachable by heroes.
+  const reachable = new Uint8Array(width * height);
+  const start = idx(Math.floor(heart.x), Math.floor(heart.y));
   const queue = [start];
   reachable[start] = 1;
   while (queue.length > 0) {
     const cur = queue.pop()!;
-    const cx = cur % WIDTH;
-    const cy = (cur - cx) / WIDTH;
+    const cx = cur % width;
+    const cy = (cur - cx) / width;
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],
@@ -217,11 +195,11 @@ function buildCrossroads(): GameMap {
     ] as const) {
       const nx = cx + dx;
       const ny = cy + dy;
-      if (nx < 0 || ny < 0 || nx >= WIDTH || ny >= HEIGHT) continue;
-      const n = idx(nx, ny);
-      if (reachable[n] || tiles[n] === Tile.Blocker) continue;
-      reachable[n] = 1;
-      queue.push(n);
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const next = idx(nx, ny);
+      if (reachable[next] || tiles[next] === Tile.Blocker) continue;
+      reachable[next] = 1;
+      queue.push(next);
     }
   }
   for (let i = 0; i < tiles.length; i++) {
@@ -229,32 +207,15 @@ function buildCrossroads(): GameMap {
   }
 
   return {
-    name: 'Crossroads',
-    width: WIDTH,
-    height: HEIGHT,
+    name: data.name,
+    width,
+    height,
     tiles,
     lanes,
     pads,
-    heart: { ...HEART },
-    heroSpawn: { x: HEART.x, y: HEART.y - 3 },
+    padSize: n,
+    heart: { ...heart },
+    heroSpawn: { ...data.heroSpawn },
+    safeFromY: data.safeFromY,
   };
-}
-
-// Deterministic 2D value noise used only for map decoration.
-function hash(x: number, y: number): number {
-  let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
-function valueNoise(x: number, y: number): number {
-  const x0 = Math.floor(x);
-  const y0 = Math.floor(y);
-  const fx = x - x0;
-  const fy = y - y0;
-  const sx = fx * fx * (3 - 2 * fx);
-  const sy = fy * fy * (3 - 2 * fy);
-  const top = hash(x0, y0) * (1 - sx) + hash(x0 + 1, y0) * sx;
-  const bottom = hash(x0, y0 + 1) * (1 - sx) + hash(x0 + 1, y0 + 1) * sx;
-  return top * (1 - sy) + bottom * sy;
 }
