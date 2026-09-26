@@ -1,5 +1,5 @@
 // Platform and PWA (docs/MOBILE.md §7): manifest, service worker and offline solo,
-// pause when hidden, browser gesture blocking.
+// pause when hidden, browser gesture blocking; effects (Phase 4b) and their settings.
 
 import { expect, test } from '@playwright/test';
 import { startSolo } from './helpers';
@@ -65,4 +65,42 @@ test('the canvas owns every gesture: no scrolling, pinch-zoom, selection or cont
     return e.defaultPrevented;
   });
   expect(prevented).toBe(true);
+});
+
+test('effects run without errors: particles, shake and coins flying to the gold counter', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
+  // The stress scene streams kills (yours), splashes, crits, skills and leaks.
+  await page.goto('/?stress=60');
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx().live)).toBeGreaterThan(20);
+  await expect.poll(() => page.locator('.fly-coin:not(.hidden)').count()).toBeGreaterThan(0);
+  // The scene's first skill is a Meteor, which shakes the screen.
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx().shaken), { timeout: 20_000 }).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test('a wave starts with a banner, and buttons react to presses', async ({ page }) => {
+  await startSolo(page);
+  const call = page.locator('#call-early');
+  await call.dispatchEvent('pointerdown', { pointerId: 7, bubbles: true });
+  await expect(call).toHaveClass(/pressed/);
+  await call.dispatchEvent('pointerup', { pointerId: 7, bubbles: true });
+  await expect(call).not.toHaveClass(/pressed/);
+  await call.tap();
+  await expect(page.locator('#banner .title')).toHaveText('Wave 1');
+  await expect(page.locator('#banner .sub')).toContainText('gold');
+});
+
+test('Graphics → Low turns off particles and shake; Screen shake has its own switch', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
+  await startSolo(page);
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: true });
+  await page.locator('#settings-btn').tap();
+  await page.locator('#settings-shake .btn[data-value="off"]').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: false });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).shake)).toBe(false);
+  await page.locator('#settings-shake .btn[data-value="on"]').tap();
+  await page.locator('#settings-quality .btn[data-value="low"]').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: false, shake: false, live: 0 });
 });

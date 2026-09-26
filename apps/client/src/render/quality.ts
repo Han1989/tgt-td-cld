@@ -1,6 +1,7 @@
 // Render quality (docs/MOBILE.md §7): the device pixel ratio is capped at 2, and
 // "Low" renders at 1× with fewer effects. "Auto" starts at High and drops to Low
 // for the rest of the session if the frame rate stays low. Pure, so it is tested.
+// Effects follow the quality too (fxLevel): Low drops particles and screen shake.
 
 import type { Quality } from '../settings';
 
@@ -52,4 +53,21 @@ export class FpsMonitor {
 export function effectiveQuality(setting: Quality, autoDegraded: boolean): 'high' | 'low' {
   if (setting === 'auto') return autoDegraded ? 'low' : 'high';
   return setting;
+}
+
+/** What the effects layer may do (docs/GAME_DESIGN.md Decision Log, Phase 4b effects). */
+export interface FxLevel {
+  /** Sparks, debris, pops, trails, rain, motes, shimmer, coins. */
+  particles: boolean;
+  /** Screen shake (also needs the "Screen shake" setting). */
+  shake: boolean;
+  /** Floating damage numbers alive at once. */
+  maxNumbers: number;
+}
+
+/** Effects for a quality level and the player's "Screen shake" setting. */
+export function fxLevel(quality: 'high' | 'low', shakeSetting: boolean): FxLevel {
+  return quality === 'low'
+    ? { particles: false, shake: false, maxNumbers: 10 }
+    : { particles: true, shake: shakeSetting, maxNumbers: 36 };
 }

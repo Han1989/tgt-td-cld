@@ -2,13 +2,28 @@
 // Spire's lanes, a tower on every pad and a stream of projectiles, with an FPS
 // readout. No game rules run: this host builds one real match to get heroes and
 // towers, then moves synthetic creeps and projectiles itself, 20 times a second.
+// Every creep loses HP every tick and a steady stream of kills, splashes, crits,
+// hero skills, leaks and zones keeps every effect (Phase 4b) busy at once.
 
-import { TOWER_KINDS, type ClientMessage, type CreepKind, type CreepSnap, type ProjectileSnap, type ServerMessage, type Snapshot } from '@tdt/protocol';
+import {
+  TOWER_KINDS,
+  type AoeEffect,
+  type ClientMessage,
+  type CreepKind,
+  type CreepSnap,
+  type GameEvent,
+  type ProjectileSnap,
+  type ServerMessage,
+  type Snapshot,
+  type ZoneSnap,
+} from '@tdt/protocol';
 import { applyCommand, createGame, getMap, snapshot, TICK_RATE, TUNING, type Tuning } from '@tdt/sim';
 import type { Transport } from './transport/transport';
 
 const KINDS: CreepKind[] = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'grunt', 'hatchling'];
 const PLAYER = 'local';
+/** Skill effects the scene cycles through, one every 1.5 s. */
+const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'lastStand', 'arrowStorm'];
 
 export class StressTransport implements Transport {
   private handlers: ((msg: ServerMessage) => void)[] = [];
@@ -87,7 +102,45 @@ export class StressTransport implements Transport {
         });
       }
     });
-    return { ...this.base, tick: t, creeps, projectiles, events: [], nextWaveIn: 600 };
+    return { ...this.base, tick: t, creeps, projectiles, zones: this.zones(t), events: this.events(t, creeps), nextWaveIn: 600 };
+  }
+
+  /** Synthetic events: 4 kills a second (yours, with bounty), a splash every other tick, crits, skills, leaks. */
+  private events(t: number, creeps: CreepSnap[]): GameEvent[] {
+    const events: GameEvent[] = [];
+    const pick = (k: number) => creeps[(t * 7 + k * 13) % Math.max(1, creeps.length)];
+    if (t % 5 === 0) {
+      const c = pick(0);
+      if (c) events.push({ type: 'kill', creepId: c.id, kind: c.kind, x: c.x, y: c.y, by: PLAYER, bounty: 4 });
+    }
+    if (t % 2 === 0) {
+      const c = pick(1);
+      if (c) events.push({ type: 'splash', x: c.x, y: c.y, radius: 1.2 });
+    }
+    if (t % 10 === 3) {
+      const c = pick(2);
+      if (c) events.push({ type: 'crit', x: c.x, y: c.y, damage: 64 });
+    }
+    if (t % 30 === 7) {
+      const c = pick(3);
+      const effect = AOES[Math.floor(t / 30) % AOES.length]!;
+      if (c) events.push({ type: 'aoe', effect, x: c.x, y: c.y, radius: effect === 'meteor' ? 3 : 2.5 });
+    }
+    if (t % 80 === 40) events.push({ type: 'leak', creepId: 0, damage: 1 });
+    return events;
+  }
+
+  /** An Arrow Storm that never ends, and a Meteor that lands every 2 s. */
+  private zones(t: number): ZoneSnap[] {
+    const map = getMap();
+    const mid = map.lanes[1]!.waypoints;
+    const a = mid[Math.floor(mid.length / 2)]!;
+    const b = map.lanes[0]!.waypoints[1]!;
+    const start = t - (t % 40);
+    return [
+      { id: 900_000, kind: 'arrowStorm', x: a.x, y: a.y, radius: 3, startTick: 0, endTick: 1_000_000 },
+      { id: 900_001 + start, kind: 'meteor', x: b.x, y: b.y + 4, radius: 3, startTick: start, endTick: start + 24 },
+    ];
   }
 
   send(_msg: ClientMessage): void {

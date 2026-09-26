@@ -1,4 +1,4 @@
-// Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality).
+// Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake).
 
 import type { ThumbLayout } from './layout';
 
@@ -7,6 +7,8 @@ export type Quality = 'auto' | 'high' | 'low';
 export interface Settings {
   thumbs: ThumbLayout;
   quality: Quality;
+  /** Screen shake on big impacts (Graphics → Low turns it off regardless). */
+  shake: boolean;
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
@@ -22,7 +24,7 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 };
 
 const KEY = 'tdt.settings';
-export const DEFAULT_SETTINGS: Settings = { thumbs: 'one', quality: 'auto' };
+export const DEFAULT_SETTINGS: Settings = { thumbs: 'one', quality: 'auto', shake: true };
 
 /** Parses stored settings, keeping only known values. */
 export function parseSettings(raw: string | null): Settings {
@@ -32,6 +34,7 @@ export function parseSettings(raw: string | null): Settings {
     const v = JSON.parse(raw) as Partial<Record<keyof Settings, unknown>>;
     if (v.thumbs === 'one' || v.thumbs === 'two' || v.thumbs === 'twoLeft') out.thumbs = v.thumbs;
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;
+    if (typeof v.shake === 'boolean') out.shake = v.shake;
   } catch {
     // Corrupt value: defaults.
   }

@@ -1,9 +1,14 @@
 // Settings popup (the ⚙ in the top bar): touch controls layout (docs/MOBILE.md §5),
-// graphics quality (§7) and installing the app (Android prompt / iPhone sheet).
+// graphics quality (§7), screen shake and installing the app (Android prompt / iPhone sheet).
 
 import type { ThumbLayout } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import { QUALITY_NAMES, THUMB_NAMES, type Quality, type SettingsStore } from '../settings';
+
+const SHAKE_CHOICES: ['on' | 'off', string][] = [
+  ['on', 'On'],
+  ['off', 'Off'],
+];
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -15,6 +20,7 @@ export class SettingsPanel {
   private readonly root = $('settings');
   private readonly thumbs = $('settings-thumbs');
   private readonly quality = $('settings-quality');
+  private readonly shake = $('settings-shake');
   private readonly app = $('settings-app');
   private readonly install = $('install-btn');
   private readonly iosInstall = $('ios-install-btn');
@@ -59,6 +65,7 @@ export class SettingsPanel {
     const s = this.store.get();
     this.choices(this.thumbs, Object.entries(THUMB_NAMES) as [ThumbLayout, string][], s.thumbs, (v) => this.store.set({ thumbs: v }));
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
+    this.choices(this.shake, SHAKE_CHOICES, s.shake ? 'on' : 'off', (v) => this.store.set({ shake: v === 'on' }));
     const android = canInstall();
     const ios = isIos() && !isStandalone();
     this.install.classList.toggle('hidden', !android);
