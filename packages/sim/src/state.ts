@@ -4,6 +4,7 @@ import type {
   DamageType,
   EntityId,
   GameEvent,
+  GameMode,
   GamePhase,
   HeroKind,
   LaneId,
@@ -24,6 +25,8 @@ export interface PlayerConfig {
 
 export interface GameConfig {
   players: PlayerConfig[];
+  /** Match mode (default Full); its changes are applied to the tuning (`tuningForMode`). */
+  mode?: GameMode;
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
 }
@@ -211,6 +214,8 @@ export interface PendingSpawn {
 export interface GameState {
   tick: number;
   rng: number;
+  mode: GameMode;
+  /** The tuning of this match, with the mode's changes applied. */
   tuning: Tuning;
   phase: GamePhase;
   heartHp: number;

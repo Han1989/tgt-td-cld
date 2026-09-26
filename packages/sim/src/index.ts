@@ -1,6 +1,6 @@
 export { createGame, step, snapshot } from './game';
 export { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
-export { TUNING, TICK_RATE, secondsToTicks, towerTier } from './tuning';
+export { TUNING, TICK_RATE, secondsToTicks, towerTier, tuningForMode } from './tuning';
 export type {
   Tuning,
   CreepStats,
@@ -11,6 +11,7 @@ export type {
   WardenStats,
   ArcanistStats,
   WaveGroup,
+  ModeTuning,
 } from './tuning';
 export { SKILL_MODES } from './skills';
 export type { SkillMode } from './skills';

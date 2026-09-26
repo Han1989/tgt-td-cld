@@ -50,6 +50,28 @@ describe('SimHost (local transport backend)', () => {
     expect(snap.heroes[0]!.kind).toBe('warden');
   });
 
+  it('starts a new match in the picked mode, and keeps mode and hero for "play again"', () => {
+    const { host, snaps } = harness();
+    expect(snaps().at(-1)!.mode).toBe('full');
+    host.receive(encodeClientMessage({ t: 'mode', mode: 'quick' }));
+    host.receive(encodeClientMessage({ t: 'hero', hero: 'arcanist' }));
+    let snap = snaps().at(-1)!;
+    expect(snap.mode).toBe('quick');
+    expect(snap.totalWaves).toBe(15);
+    expect(snap.heroes[0]!.kind).toBe('arcanist');
+    // Once waves run, the mode can't be changed; after the match, "play again" keeps both picks.
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'callEarly' } }));
+    host.tick();
+    host.receive(encodeClientMessage({ t: 'mode', mode: 'full' }));
+    expect(snaps().at(-1)!.mode).toBe('quick');
+    (host as unknown as { state: { heartHp: number } }).state.heartHp = 0;
+    host.tick();
+    expect(snaps().at(-1)!.phase).toBe('defeat');
+    host.receive(encodeClientMessage({ t: 'restart' }));
+    snap = snaps().at(-1)!;
+    expect([snap.tick, snap.mode, snap.heroes[0]!.kind]).toEqual([0, 'quick', 'arcanist']);
+  });
+
   it('only restarts a finished match', () => {
     const { host, out } = harness();
     host.tick();

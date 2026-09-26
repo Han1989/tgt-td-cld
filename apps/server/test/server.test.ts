@@ -119,6 +119,47 @@ describe('lobby', () => {
   });
 });
 
+describe('match mode', () => {
+  it('lets only the host pick the mode in the lobby and starts the match in it', async () => {
+    const { url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    expect(host!.lobby!.mode).toBe('full');
+
+    guest!.send({ t: 'mode', mode: 'quick' });
+    await guest!.waitFor(() => guest!.errors.length > 0);
+    expect(guest!.errors[0]).toMatchObject({ code: 'not_host' });
+    expect(host!.lobby!.mode).toBe('full');
+
+    host!.send({ t: 'mode', mode: 'quick' });
+    await guest!.waitFor(() => guest!.lobby?.mode === 'quick');
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    expect(guest!.snap!.mode).toBe('quick');
+    expect(guest!.snap!.totalWaves).toBe(15);
+
+    host!.send({ t: 'mode', mode: 'full' });
+    await host!.waitFor(() => host!.errors.length > 0);
+    expect(host!.errors[0]).toMatchObject({ code: 'bad_request' });
+    expect(host!.lobby!.mode).toBe('quick');
+  });
+
+  it('keeps the mode when the room returns to the lobby', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.send({ t: 'mode', mode: 'quick' });
+    await guest!.waitFor(() => guest!.lobby?.mode === 'quick');
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    server.rooms.get(host!.code!)!.state!.heartHp = 0;
+    await host!.waitFor(() => host!.snap?.phase === 'defeat');
+    host!.send({ t: 'restart' });
+    await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
+    expect(guest!.lobby!.mode).toBe('quick');
+  });
+});
+
 describe('hero commands', () => {
   it('starts each player with the hero they picked and validates skill commands on the server', async () => {
     const { server, url } = await start();

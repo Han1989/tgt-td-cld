@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -50,6 +50,10 @@ export const SKILL_SLOTS = ['Q', 'W', 'E', 'R'] as const;
 export type SkillSlot = (typeof SKILL_SLOTS)[number];
 
 export type LaneId = 0 | 1 | 2;
+
+/** Match length: Full (30 waves) or Quick (15 waves, compressed difficulty). A match option picked before the start. */
+export const GAME_MODES = ['full', 'quick'] as const;
+export type GameMode = (typeof GAME_MODES)[number];
 
 /** Lingering or delayed ground effects of hero ultimates. */
 export const ZONE_KINDS = ['arrowStorm', 'meteor'] as const;
@@ -242,6 +246,8 @@ export type GameEvent =
 export interface Snapshot {
   tick: number;
   tickRate: number;
+  /** Match mode (fixed for the whole match). */
+  mode: GameMode;
   phase: GamePhase;
   heartHp: number;
   heartMaxHp: number;
@@ -287,6 +293,8 @@ export interface LobbyState {
   /** 'lobby' while picking heroes; 'playing' once the host started the match. */
   phase: 'lobby' | 'playing';
   hostId: PlayerId;
+  /** Match mode the host picked; used when the match starts. */
+  mode: GameMode;
   players: LobbyPlayer[];
 }
 
@@ -355,6 +363,11 @@ export type ClientMessage =
   | { t: 'rejoin'; v: number; code: string; token: string }
   /** Lobby: change hero. */
   | { t: 'hero'; hero: HeroKind }
+  /**
+   * Lobby: pick the match mode (online: host only, before the start). Local solo: start a new match
+   * in that mode, like `hero`.
+   */
+  | { t: 'mode'; mode: GameMode }
   /** Lobby: toggle ready. */
   | { t: 'ready'; ready: boolean }
   /** Lobby: host starts the match. */

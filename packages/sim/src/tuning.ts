@@ -2,7 +2,7 @@
 // seconds, distances in tiles, speeds in tiles per second. The sim converts
 // seconds to ticks with `secondsToTicks`.
 
-import type { BossKind, CreepKind, DamageType, LaneId, SkillSlot, TowerKind } from '@tdt/protocol';
+import type { BossKind, CreepKind, DamageType, GameMode, LaneId, SkillSlot, TowerKind } from '@tdt/protocol';
 
 /** Fixed simulation rate. */
 export const TICK_RATE = 20;
@@ -241,6 +241,17 @@ export interface ShiftingHideStats {
   etherMagicResist: number;
 }
 
+/**
+ * What a match mode changes (docs/MOBILE.md §6). Each section is merged over the Full-mode numbers of
+ * the same section; anything left out keeps its Full-mode value. `tuningForMode` applies it.
+ */
+export interface ModeTuning {
+  economy?: Partial<Tuning['economy']>;
+  waves?: Partial<Tuning['waves']>;
+  playerScaling?: Partial<Tuning['playerScaling']>;
+  hero?: Partial<Pick<Tuning['hero'], 'xpForLevel'>>;
+}
+
 export interface Tuning {
   heart: { maxHp: number; radius: number };
   economy: {
@@ -318,6 +329,8 @@ export interface Tuning {
   };
   creeps: Record<CreepKind, CreepStats>;
   towers: Record<TowerKind, TowerStats>;
+  /** Per-mode changes to the numbers above; the top-level numbers are Full mode. */
+  modes: Record<GameMode, ModeTuning>;
   hero: {
     maxLevel: number;
     /** Total XP needed to reach level i+1 (index 0 = level 1). */
@@ -505,6 +518,40 @@ export const TUNING: Tuning = {
       ],
     },
   },
+  modes: {
+    full: {},
+    // Quick mode (docs/MOBILE.md §6): 15 waves, about 11 minutes. Wave k plays like Full wave 2k (bosses on
+    // waves 5, 10 and 15, air waves on 8 and 13): creep HP and armour grow about twice as fast per wave, and
+    // each wave pays about as much as two Full waves. A little more starting gold, and heroes need 60% of the
+    // Full XP per level (a match has half the kills), so they reach level 8–10. The team bonus fades over 10
+    // waves; teams of 3–4 get a higher late multiplier than in Full (their gold still outruns their pads).
+    quick: {
+      economy: { startingGold: 120, waveIncomeBase: 84, waveIncomePerWave: 64 },
+      waves: {
+        hpGrowthPerWave: 0.21,
+        armorGrowthPerWave: 0.2,
+        list: [
+          w({ grunt: 4, runner: 2 }),
+          w({ grunt: 4, archer: 3, runner: 1 }),
+          w({ grunt: 4, archer: 2, brute: 1, wisp: 2 }), // 3: first wisps
+          w({ grunt: 5, archer: 3, brute: 2, wisp: 2 }),
+          w({ grunt: 5, archer: 3, brute: 2, wisp: 3 }, 'ironhorn'), // 5: boss (Stomp)
+          w({ grunt: 5, runner: 2, archer: 3, brute: 3, wisp: 3 }),
+          w({ grunt: 7, archer: 4, brute: 3, wisp: 4 }),
+          w({ wisp: 8, grunt: 6, archer: 5 }), // 8: air wave
+          w({ runner: 10, brute: 4, archer: 4, wisp: 4 }),
+          w({ grunt: 8, archer: 5, brute: 4, wisp: 5 }, 'matriarch'), // 10: boss (Hatch)
+          w({ grunt: 8, archer: 6, brute: 6, wisp: 6 }),
+          w({ grunt: 10, archer: 6, brute: 6, wisp: 6 }),
+          w({ wisp: 12, grunt: 10, archer: 8 }), // 13: air wave
+          w({ runner: 14, archer: 7, brute: 8, wisp: 7 }),
+          w({ grunt: 14, runner: 2, archer: 8, brute: 8, wisp: 8 }, 'shardback'), // 15: final boss (Shifting Hide)
+        ],
+      },
+      playerScaling: { hp: [1, 1.45, 1.6, 1.8], earlyHpBonus: [0, 0.5, 1.6, 2.2], earlyWaves: 10 },
+      hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
+    },
+  },
   hero: {
     maxLevel: 10,
     xpForLevel: [0, 300, 750, 1350, 2100, 3000, 4050, 5250, 6600, 8100],
@@ -625,6 +672,18 @@ export const TUNING: Tuning = {
     },
   },
 };
+
+/** `tuning` with the changes of `mode` applied (Full mode changes nothing). */
+export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
+  const m = tuning.modes[mode];
+  return {
+    ...tuning,
+    economy: { ...tuning.economy, ...m.economy },
+    waves: { ...tuning.waves, ...m.waves },
+    playerScaling: { ...tuning.playerScaling, ...m.playerScaling },
+    hero: { ...tuning.hero, ...m.hero },
+  };
+}
 
 /** Stats of `kind` at `tier` (1-based), clamped to the tiers that exist. */
 export function towerTier(tuning: Tuning, kind: TowerKind, tier: number): TowerTierStats {

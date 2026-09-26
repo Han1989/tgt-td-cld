@@ -18,7 +18,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, TILE_PX, TUNING } from '@tdt/sim';
+import { getMap, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
@@ -311,7 +311,8 @@ export class Hud {
       if (e.type === 'rejected' && e.player === me) {
         this.toast(e.reason);
       } else if (e.type === 'waveStart') {
-        const boss = TUNING.waves.list[e.wave - 1]?.map((g) => g.kind).find(isBossKind);
+        const waves = tuningForMode(TUNING, snap.mode).waves.list;
+        const boss = waves[e.wave - 1]?.map((g) => g.kind).find(isBossKind);
         this.showBanner(boss ? `Wave ${e.wave} — Boss: ${CREEP_NAMES[boss]}!` : `Wave ${e.wave}`);
         if (boss) this.toast(BOSS_HINTS[boss]);
       } else if (e.type === 'hideShift') {

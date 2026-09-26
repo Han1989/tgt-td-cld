@@ -6,6 +6,7 @@ import {
   decodeClientMessage,
   encodeServerMessage,
   type Command,
+  type GameMode,
   type HeroKind,
   type PlayerId,
 } from '@tdt/protocol';
@@ -17,6 +18,7 @@ export class SimHost {
   private state!: GameState;
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
+  private mode: GameMode = 'full';
 
   constructor(
     private readonly emit: (raw: string) => void,
@@ -27,7 +29,10 @@ export class SimHost {
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
-    this.state = createGame({ players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }] }, this.nextSeed());
+    this.state = createGame(
+      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode },
+      this.nextSeed(),
+    );
     this.queue = [];
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
@@ -40,10 +45,11 @@ export class SimHost {
     const over = this.state.phase === 'victory' || this.state.phase === 'defeat';
     if (msg.t === 'restart') {
       if (over) this.reset();
-    } else if (msg.t === 'hero') {
-      // Solo hero pick: starts a new match with that hero, unless waves are already running.
+    } else if (msg.t === 'hero' || msg.t === 'mode') {
+      // Solo hero / mode pick: starts a new match with it, unless waves are already running.
       if (this.state.phase !== 'waves') {
-        this.hero = msg.hero;
+        if (msg.t === 'hero') this.hero = msg.hero;
+        else this.mode = msg.mode;
         this.reset();
       }
     } else if (msg.t === 'cmd') {

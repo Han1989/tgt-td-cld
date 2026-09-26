@@ -1,7 +1,7 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { GamePhase, HeroKind } from '@tdt/protocol';
+import type { GameMode, GamePhase, HeroKind } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
@@ -15,7 +15,10 @@ export interface HeadlessResult {
   towers: number;
   heroLevels: number[];
   gold: number[];
-  /** Heart HP lost in each third of the match (waves 1–10, 11–20, 21–30), by the time the next third starts. */
+  /**
+   * Heart HP lost in each third of the match (Full: waves 1–10, 11–20, 21–30; Quick: 1–5, 6–10, 11–15), by the
+   * time the next third starts.
+   */
   heartLost: number[];
   /** Bosses that reached the Heart. */
   bossLeaks: number;
@@ -27,6 +30,8 @@ export function runHeadlessMatch(opts: {
   /** Hero of each bot (default: Ranger). */
   heroes?: HeroKind[];
   tuning?: Tuning;
+  /** Match mode (default Full). */
+  mode?: GameMode;
   /** Bots think this many times per second. */
   decisionsPerSecond?: number;
   maxSeconds?: number;
@@ -35,6 +40,7 @@ export function runHeadlessMatch(opts: {
     {
       players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' })),
       ...(opts.tuning ? { tuning: opts.tuning } : {}),
+      ...(opts.mode ? { mode: opts.mode } : {}),
     },
     opts.seed,
   );
@@ -46,7 +52,7 @@ export function runHeadlessMatch(opts: {
   const bossIds = new Set<number>();
   let bossLeaks = 0;
   while (state.phase !== 'victory' && state.phase !== 'defeat' && state.tick < maxTicks) {
-    // Heart HP when wave 11 and wave 21 start.
+    // Heart HP when the second and the last third start (Full: waves 11 and 21).
     if (heartAt.length < 3 && state.wave > heartAt.length * thirds) heartAt.push(state.heartHp);
     if (state.tick % every === 0) {
       const snap = snapshot(state);

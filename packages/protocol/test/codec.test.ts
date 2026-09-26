@@ -45,6 +45,8 @@ describe('client message codec', () => {
     { t: 'create', v: PROTOCOL_VERSION, name: 'Cy', hero: 'arcanist' },
     { t: 'join', v: PROTOCOL_VERSION, code: 'ABCDE', name: 'Di', hero: 'warden' },
     { t: 'ready', ready: true },
+    { t: 'mode', mode: 'full' },
+    { t: 'mode', mode: 'quick' },
   ];
 
   it.each(valid)('round-trips %j', (msg) => {
@@ -77,6 +79,8 @@ describe('client message codec', () => {
     ['code with O', '{"t":"join","v":2,"code":"ABODE","name":"a","hero":"ranger"}'],
     ['bad token', '{"t":"rejoin","v":2,"code":"ABCDE","token":"nope"}'],
     ['non-boolean ready', '{"t":"ready","ready":"yes"}'],
+    ['unknown mode', '{"t":"mode","mode":"endless"}'],
+    ['mode with extra keys', '{"t":"mode","mode":"quick","waves":5}'],
     ['upgrade without a tower', '{"t":"cmd","cmd":{"type":"upgrade"}}'],
     ['upgrade with a string id', '{"t":"cmd","cmd":{"type":"upgrade","towerId":"7"}}'],
     ['upgrade with extra keys', '{"t":"cmd","cmd":{"type":"upgrade","towerId":7,"tier":3}}'],
