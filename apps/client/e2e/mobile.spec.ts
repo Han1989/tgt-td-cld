@@ -174,6 +174,58 @@ test.describe('portrait phone layout', () => {
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(false);
   });
 
+  test('tower ring at tier 3: two specialisation buttons, clear of the controls; first tap explains, second buys', async ({ page }) => {
+    await startSolo(page);
+    const controls = await overlayBoxes(page);
+    const vp = page.viewportSize()!;
+    // The pad nearest the controls is the hardest case for the ring.
+    const [padId] = await myPadsBottomFirst(page);
+    const tier = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId);
+    await tapPad(page, padId!);
+    const arrow = page.locator('.radial-btn[data-tower="arrow"]');
+    await arrow.tap();
+    await arrow.tap();
+    await expect.poll(tier).toBe(1);
+    await tapPad(page, padId!);
+    for (const t of [2, 3]) {
+      await page.locator('.radial-btn[data-action="upgrade"]').tap();
+      await expect.poll(tier).toBe(t);
+    }
+
+    // Tier 3: Sniper and Volley replace Upgrade.
+    await expect(page.locator('.radial-btn[data-action="upgrade"]')).toHaveCount(0);
+    const branches = page.locator('.radial-btn[data-action="branch"]');
+    await expect(branches).toHaveCount(2);
+    await expect(page.locator('#radial-chip')).toContainText('pick a specialisation');
+    const rects = await Promise.all((await page.locator('#radial .radial-btn').all()).map((l) => l.boundingBox()));
+    const boxes = rects.map((b) => ({ left: b!.x, top: b!.y, right: b!.x + b!.width, bottom: b!.y + b!.height }));
+    expect(boxes).toHaveLength(4);
+    for (const [i, r] of boxes.entries()) {
+      expect(r.left).toBeGreaterThanOrEqual(0);
+      expect(r.right).toBeLessThanOrEqual(vp.width);
+      for (const c of controls) expect(overlaps(r, c)).toBe(false);
+      for (const o of boxes.slice(i + 1)) expect(overlaps(r, o)).toBe(false);
+    }
+
+    // First tap: armed, the chip says what it does, nothing is sent. Second tap buys it.
+    const sniper = page.locator('.radial-btn[data-branch="sniper"]');
+    await sniper.tap();
+    await expect(sniper).toHaveClass(/armed/);
+    await expect(page.locator('#radial-chip')).toContainText('Sniper');
+    expect((await sent(page, 'upgrade')).filter((c) => c.branch)).toHaveLength(0);
+    await sniper.tap();
+    await expect.poll(() => sent(page, 'upgrade').then((c) => c.filter((x) => x.branch))).toEqual([
+      { type: 'upgrade', towerId: expect.any(Number), branch: 'sniper' },
+    ]);
+    await expect.poll(tier).toBe(4);
+    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.branch, padId)).toBe('sniper');
+
+    // Tier 4 is the last: the ring shows Max tier and the chip names the branch.
+    await expect(page.locator('.radial-btn[data-action="branch"]')).toHaveCount(0);
+    await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeDisabled();
+    await expect(page.locator('#radial-chip')).toContainText('Sniper');
+  });
+
   test('touch only, solo Quick match: smart cast, nothing in range, drag to aim, and cancel', async ({ page }) => {
     await startSolo(page);
     const finger = await Finger.on(page);

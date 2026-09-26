@@ -8,6 +8,7 @@ import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { Hud } from './hud/hud';
 import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
+import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
@@ -99,7 +100,7 @@ export class GameView {
         controls.clearSelection();
       },
       // The panel stays open after an upgrade or a priority change.
-      upgrade: (towerId) => sendCmd({ type: 'upgrade', towerId }),
+      upgrade: (towerId, branch) => sendCmd(branch ? { type: 'upgrade', towerId, branch } : { type: 'upgrade', towerId }),
       setPriority: (towerId, priority) => sendCmd({ type: 'setPriority', towerId, priority }),
       callEarly: () => sendCmd({ type: 'callEarly' }),
       gift: (to, amount) => sendCmd({ type: 'gift', to, amount }),
@@ -121,7 +122,7 @@ export class GameView {
         const snap = buffer.latest;
         const tower = snap?.towers.find((t) => t.id === id);
         if (tower && tower.owner === view.me) return touch.openTower(id);
-        if (tower) hud.toast(`${snap!.players.find((p) => p.id === tower.owner)?.name ?? 'A teammate'}'s ${TOWER_NAMES[tower.kind]} tower`);
+        if (tower) hud.toast(`${snap!.players.find((p) => p.id === tower.owner)?.name ?? 'A teammate'}'s ${towerName(tower.kind, tower.branch, TOWER_NAMES)} tower`);
       },
       closeMenus,
       toast: (text) => hud.toast(text),

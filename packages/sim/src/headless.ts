@@ -13,7 +13,10 @@ export interface HeadlessResult {
   heartHp: number;
   ticks: number;
   towers: number;
+  /** Towers standing at the end with a top-tier branch. */
+  branches: number;
   heroLevels: number[];
+  /** Each player's unspent gold at the end. */
   gold: number[];
   /**
    * Heart HP lost in each third of the match (Full: waves 1–10, 11–20, 21–30; Quick: 1–5, 6–10, 11–15), by the
@@ -71,6 +74,7 @@ export function runHeadlessMatch(opts: {
     heartHp: state.heartHp,
     ticks: state.tick,
     towers: state.towers.length,
+    branches: state.towers.filter((t) => t.branch !== null).length,
     heroLevels: state.heroes.map((h) => h.level),
     gold: state.players.map((p) => p.gold),
     bossLeaks,

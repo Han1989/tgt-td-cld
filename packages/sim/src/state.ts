@@ -11,6 +11,7 @@ import type {
   PlayerId,
   SkillSlot,
   TargetPriority,
+  TowerBranch,
   TowerKind,
   ZoneKind,
 } from '@tdt/protocol';
@@ -120,6 +121,9 @@ export interface Creep {
   tauntUntil: number;
   /** Ticks spent stopped to attack towers so far (anti-stall: see `creepAi.towerAttackLimit`). */
   towerTicks: number;
+  /** Armour stripped by Shrapnel towers, until `shredUntil` (see `effectiveArmor`). */
+  shred: number;
+  shredUntil: number;
   /** Path distance left to the Heart; lower = further along ("First"). */
   remaining: number;
   dead: boolean;
@@ -135,12 +139,37 @@ export interface Tower {
   hp: number;
   maxHp: number;
   tier: number;
+  /** The top-tier specialisation (tier = last regular tier + 1), else null. */
+  branch: TowerBranch | null;
+  /** Shots fired so far (Glacier freezes on every Nth). */
+  shots: number;
   cooldown: number;
   /** Total gold spent (build + upgrades), the base for sell refunds. */
   spent: number;
   priority: TargetPriority;
   stunUntil: number;
   dead: boolean;
+}
+
+/** What a branch tower's shot does on top of its damage (see `TowerEffects`). */
+export interface ProjectileFx {
+  /** Damage × this against ground creeps (Hailstorm). */
+  groundDamage: number;
+  armorShred: number;
+  shredMax: number;
+  shredTicks: number;
+  /** Freezes the creep it hits for this long (Glacier), 0 = no. */
+  freezeTicks: number;
+  /** Jumps left, their reach and the damage kept per jump (Prism). */
+  chains: number;
+  chainRange: number;
+  chainFalloff: number;
+  /** Creeps this chain already hit. */
+  chainHit: EntityId[];
+  /** Ignores armour and magic resist (Void). */
+  ignoreResist: boolean;
+  /** Extra damage: this fraction of the target's max HP (Void). */
+  hpPercent: number;
 }
 
 /** 'point': a projectile that flies to (tx, ty) and explodes there (Fireball). */
@@ -170,6 +199,8 @@ export interface Projectile {
   slowTicks: number;
   /** A critical hit (shown to players on impact). */
   crit: boolean;
+  /** Top-tier tower effects carried by the shot, or null. */
+  fx: ProjectileFx | null;
   /** Player credited for kills, or null for creep projectiles. */
   source: PlayerId | null;
   done: boolean;

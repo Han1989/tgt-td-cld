@@ -1,11 +1,14 @@
 export { createGame, step, snapshot } from './game';
 export { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
-export { TUNING, TICK_RATE, secondsToTicks, towerTier, tuningForMode } from './tuning';
+export { TUNING, TICK_RATE, secondsToTicks, towerTier, towerStats, branchTier, tuningForMode } from './tuning';
 export type {
   Tuning,
   CreepStats,
   TowerStats,
   TowerTierStats,
+  TowerLevelStats,
+  TowerEffects,
+  BranchStats,
   HeroStats,
   RangerStats,
   WardenStats,

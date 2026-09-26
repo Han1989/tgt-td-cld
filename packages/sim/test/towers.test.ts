@@ -98,7 +98,7 @@ describe('tower upgrades', () => {
     expect(tower.spent).toBe(towerTier(TUNING, 'arrow', 1).cost + t2.cost);
     expect(tower.maxHp).toBe(t2.hp);
     expect(tower.hp).toBe(t2.hp - 100);
-    expect(state.pendingEvents).toContainEqual({ type: 'towerUpgraded', towerId: tower.id, owner: 'p1', tier: 2 });
+    expect(state.pendingEvents).toContainEqual({ type: 'towerUpgraded', towerId: tower.id, owner: 'p1', tier: 2, branch: null });
     expect(snapshot(state).towers[0]).toMatchObject({ tier: 2, range: t2.range, maxHp: t2.hp });
   });
 
@@ -115,13 +115,13 @@ describe('tower upgrades', () => {
     expect(state.projectiles[0]).toMatchObject({ damage: t3.damage, splash: t3.splash });
   });
 
-  it('stops at tier 3', () => {
+  it('asks for a specialisation after tier 3 (branches: branches.test.ts)', () => {
     const { state, tower, player } = withTower('frost');
     applyCommand(state, 'p1', { type: 'upgrade', towerId: tower.id });
     applyCommand(state, 'p1', { type: 'upgrade', towerId: tower.id });
     const gold = player.gold;
     expect(applyCommand(state, 'p1', { type: 'upgrade', towerId: tower.id })).toBe(false);
-    expect(lastRejection(state)).toBe('Tower is at max tier');
+    expect(lastRejection(state)).toBe('Pick a specialisation');
     expect(tower.tier).toBe(3);
     expect(player.gold).toBe(gold);
   });

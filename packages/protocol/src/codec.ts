@@ -6,6 +6,7 @@ import {
   ROOM_CODE_LENGTH,
   SKILL_SLOTS,
   TARGET_PRIORITIES,
+  TOWER_BRANCH_KINDS,
   TOWER_KINDS,
   type ClientMessage,
   type Command,
@@ -14,6 +15,7 @@ import {
   type ServerMessage,
   type SkillSlot,
   type TargetPriority,
+  type TowerBranch,
   type TowerKind,
 } from './types';
 
@@ -171,9 +173,13 @@ export function parseCommand(value: unknown): Command | null {
       if (!isId(value.padId) || !isTowerKind(value.tower)) return null;
       return { type: 'build', padId: value.padId, tower: value.tower };
     case 'sell':
-    case 'upgrade':
       if (!hasOnlyKeys(value, ['type', 'towerId']) || !isId(value.towerId)) return null;
-      return { type: value.type, towerId: value.towerId };
+      return { type: 'sell', towerId: value.towerId };
+    case 'upgrade':
+      if (!hasOnlyKeys(value, ['type', 'towerId', 'branch']) || !isId(value.towerId)) return null;
+      if (value.branch === undefined) return { type: 'upgrade', towerId: value.towerId };
+      if (!isTowerBranch(value.branch)) return null;
+      return { type: 'upgrade', towerId: value.towerId, branch: value.branch };
     case 'setPriority':
       if (!hasOnlyKeys(value, ['type', 'towerId', 'priority'])) return null;
       if (!isId(value.towerId) || !isTargetPriority(value.priority)) return null;
@@ -230,4 +236,8 @@ function isGameMode(value: unknown): value is GameMode {
 
 function isTowerKind(value: unknown): value is TowerKind {
   return typeof value === 'string' && (TOWER_KINDS as readonly string[]).includes(value);
+}
+
+function isTowerBranch(value: unknown): value is TowerBranch {
+  return typeof value === 'string' && (TOWER_BRANCH_KINDS as readonly string[]).includes(value);
 }

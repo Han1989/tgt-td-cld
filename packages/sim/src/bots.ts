@@ -2,7 +2,21 @@
 // load tests). Bots only read snapshots and static data and only act through
 // commands, exactly like a human client.
 
-import type { Command, CreepKind, CreepSnap, HeroKind, PlayerId, SkillSlot, SkillSnap, Snapshot, TargetPriority, TowerKind, TowerSnap } from '@tdt/protocol';
+import {
+  TOWER_BRANCHES,
+  type Command,
+  type CreepKind,
+  type CreepSnap,
+  type HeroKind,
+  type PlayerId,
+  type SkillSlot,
+  type SkillSnap,
+  type Snapshot,
+  type TargetPriority,
+  type TowerBranch,
+  type TowerKind,
+  type TowerSnap,
+} from '@tdt/protocol';
 import { getMap, type BuildPad } from './map';
 import { tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
@@ -26,6 +40,29 @@ const PRIORITY: Record<TowerKind, TargetPriority> = {
   arcane: 'strongest',
   flak: 'first',
 };
+/** Waves the bot reads ahead when it picks a branch (a choice for the rest of the match). */
+const BRANCH_LOOKAHEAD = 5;
+/** Shares of the coming creeps (by count) that make armour or flyers a need for branches. */
+const ARMOUR_SHARE = 0.15;
+const AIR_SHARE = 0.2;
+type BranchNeed = 'boss' | 'armour' | 'air';
+/**
+ * Each tower kind's branch that answers a need of the wave list (the specialist) and its all-round one (late
+ * waves are crowds). While the coming waves have that need, the team wants a few of the specialist.
+ */
+const BRANCH_ROLES: Record<TowerKind, { specialist: TowerBranch; general: TowerBranch; need: BranchNeed }> = {
+  arrow: { specialist: 'sniper', general: 'volley', need: 'boss' },
+  cannon: { specialist: 'shrapnel', general: 'mortar', need: 'armour' },
+  frost: { specialist: 'glacier', general: 'blizzard', need: 'boss' },
+  arcane: { specialist: 'void', general: 'prism', need: 'boss' },
+  flak: { specialist: 'skyguard', general: 'hailstorm', need: 'air' },
+};
+/** Specialists of each branch a team wants while the coming waves need them. */
+const SPECIALISTS_PER_NEED = 2;
+
+/** A bot with nothing left to buy gifts its gold once it has at least this much. */
+const MIN_GIFT = 100;
+
 /** The build cycle; its Flak and Arcane slots become Arrow and Cannon while no coming wave needs them. */
 const BUILD_CYCLE: TowerKind[] = ['arrow', 'frost', 'cannon', 'arcane', 'arrow', 'cannon', 'flak', 'arcane'];
 /** Creeps with at least this much armour (or a Stone hide) call for magic damage. */
@@ -124,19 +161,34 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
         if (t.priority !== want) cmds.push({ type: 'setPriority', towerId: t.id, priority: want });
       }
       // None of its pads is free: upgrade the lowest-tier towers first, best pads first; Arcane first while
-      // a boss with a Stone hide is coming (magic damage ignores its armour).
+      // a boss with a Stone hide is coming (magic damage ignores its armour). Past tier 3 each tower takes the
+      // branch the coming waves and the team's branches call for: the late-game gold sink.
       if (free.length === 0) {
-        const first = (t: TowerSnap) => (needs.stone && t.kind === 'arcane' ? 0 : 1);
+        // (Arcane first only for its regular tiers: its branch waits its turn like any other.)
+        const first = (t: TowerSnap) =>
+          needs.stone && t.kind === 'arcane' && t.tier < tuning.towers.arcane.tiers.length ? 0 : 1;
         const order = [...mine].sort(
           (a, b) => first(a) - first(b) || a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!,
         );
+        const teamBranches = snap.towers.flatMap((t) => (t.branch ? [t.branch] : []));
+        const branchNeed = branchNeeds(tuning, snap.wave);
         for (const t of order) {
+          if (t.branch) continue;
           const next = tuning.towers[t.kind].tiers[t.tier];
-          if (!next) continue;
-          if (gold < next.cost) break;
-          cmds.push({ type: 'upgrade', towerId: t.id });
-          gold -= next.cost;
+          const branch = next ? null : pickBranch(t.kind, branchNeed, teamBranches);
+          const cost = next ? next.cost : tuning.branches[branch!].cost;
+          if (gold < cost) break;
+          cmds.push(branch ? { type: 'upgrade', towerId: t.id, branch } : { type: 'upgrade', towerId: t.id });
+          gold -= cost;
+          if (branch) teamBranches.push(branch);
         }
+      }
+
+      // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
+      // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
+      if (free.length === 0 && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
+        const to = neediestTeammate(snap, playerId, tuning);
+        if (to) cmds.push({ type: 'gift', to, amount: Math.floor(gold) });
       }
 
       if (!hero.alive) return cmds;
@@ -194,6 +246,31 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
       return cmds;
     },
   };
+}
+
+/**
+ * The connected teammate with the most gold still to spend on upgrading their towers (tiers left, then the
+ * cheaper branch), or undefined when nobody has anything left to buy.
+ */
+function neediestTeammate(snap: Snapshot, playerId: PlayerId, tuning: Tuning): PlayerId | undefined {
+  let best: PlayerId | undefined;
+  let most = 0;
+  for (const p of snap.players) {
+    if (p.id === playerId || !p.connected) continue;
+    let left = 0;
+    for (const t of snap.towers) {
+      if (t.owner !== p.id || t.branch) continue;
+      const tiers = tuning.towers[t.kind].tiers;
+      for (let i = t.tier; i < tiers.length; i++) left += tiers[i]!.cost;
+      left += Math.min(...TOWER_BRANCHES[t.kind].map((b) => tuning.branches[b].cost));
+    }
+    left -= p.gold;
+    if (left > most) {
+      best = p.id;
+      most = left;
+    }
+  }
+  return best;
 }
 
 /**
@@ -295,6 +372,31 @@ function waveNeeds(tuning: Tuning, wave: number): { air: boolean; armour: boolea
     armour: stone || groups.some((g) => tuning.creeps[g.kind].armor >= ARMOURED),
     stone,
   };
+}
+
+/** What the next few waves call for when picking branches: bosses, armour (Brutes, a Stone hide) and flyers. */
+function branchNeeds(tuning: Tuning, wave: number): Record<BranchNeed, boolean> {
+  const first = Math.max(0, wave - 1);
+  const groups = tuning.waves.list.slice(first, first + BRANCH_LOOKAHEAD).flat();
+  const count = (pick: (g: WaveGroup) => boolean) =>
+    groups.filter(pick).reduce((n, g) => n + g.perLane * g.lanes.length, 0);
+  const total = Math.max(1, count(() => true));
+  const stone = groups.some((g) => hasStoneHide(tuning, g.kind));
+  return {
+    boss: groups.some((g) => tuning.creeps[g.kind].boss),
+    armour: stone || count((g) => tuning.creeps[g.kind].armor >= ARMOURED) / total >= ARMOUR_SHARE,
+    air: count((g) => tuning.creeps[g.kind].flying) / total >= AIR_SHARE,
+  };
+}
+
+/**
+ * The branch for a tower of `kind`: its specialist while the coming waves need it and the team has fewer than
+ * `SPECIALISTS_PER_NEED` of them, else its all-round branch.
+ */
+function pickBranch(kind: TowerKind, needs: Record<BranchNeed, boolean>, teamBranches: TowerBranch[]): TowerBranch {
+  const { specialist, general, need } = BRANCH_ROLES[kind];
+  const specialists = teamBranches.filter((b) => b === specialist).length;
+  return needs[need] && specialists < SPECIALISTS_PER_NEED ? specialist : general;
 }
 
 /**

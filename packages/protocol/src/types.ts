@@ -7,13 +7,44 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 export type PlayerId = string;
 export type EntityId = number;
 
 export const TOWER_KINDS = ['arrow', 'cannon', 'frost', 'arcane', 'flak'] as const;
 export type TowerKind = (typeof TOWER_KINDS)[number];
+
+/**
+ * Top-tier specialisations (docs/REPLAYABILITY.md §1): after tier 3 a tower upgrades into one of two
+ * branches, its last tier. The choice is final (except by selling).
+ */
+export const TOWER_BRANCH_KINDS = [
+  'sniper',
+  'volley',
+  'mortar',
+  'shrapnel',
+  'glacier',
+  'blizzard',
+  'prism',
+  'void',
+  'skyguard',
+  'hailstorm',
+] as const;
+export type TowerBranch = (typeof TOWER_BRANCH_KINDS)[number];
+
+/** The two branches of each tower kind (A, then B). */
+export const TOWER_BRANCHES: Record<TowerKind, readonly [TowerBranch, TowerBranch]> = {
+  arrow: ['sniper', 'volley'],
+  cannon: ['mortar', 'shrapnel'],
+  frost: ['glacier', 'blizzard'],
+  arcane: ['prism', 'void'],
+  flak: ['skyguard', 'hailstorm'],
+};
+
+export function isBranchOf(kind: TowerKind, branch: TowerBranch): boolean {
+  return TOWER_BRANCHES[kind].includes(branch);
+}
 
 /** Which creep in range a tower shoots. First = closest to the Heart along its path. */
 export const TARGET_PRIORITIES = ['first', 'strongest', 'closest'] as const;
@@ -60,7 +91,16 @@ export const ZONE_KINDS = ['arrowStorm', 'meteor'] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
 /** Area effects of hero skills, for visual feedback. */
-export type AoeEffect = 'cleave' | 'taunt' | 'lastStand' | 'fireball' | 'frostNova' | 'meteor' | 'arrowStorm';
+export type AoeEffect =
+  | 'cleave'
+  | 'taunt'
+  | 'lastStand'
+  | 'fireball'
+  | 'frostNova'
+  | 'meteor'
+  | 'arrowStorm'
+  /** A Blizzard tower's pulse around itself. */
+  | 'blizzard';
 
 export type DamageType = 'physical' | 'magic';
 
@@ -77,7 +117,8 @@ export type Command =
   | { type: 'learn'; slot: SkillSlot }
   | { type: 'build'; padId: number; tower: TowerKind }
   | { type: 'sell'; towerId: EntityId }
-  | { type: 'upgrade'; towerId: EntityId }
+  /** Next tier; from the last regular tier, `branch` picks the specialisation (required there, refused before). */
+  | { type: 'upgrade'; towerId: EntityId; branch?: TowerBranch }
   | { type: 'setPriority'; towerId: EntityId; priority: TargetPriority }
   | { type: 'callEarly' }
   /** Give some of your gold to a teammate. */
@@ -175,7 +216,10 @@ export interface TowerSnap {
   y: number;
   hp: number;
   maxHp: number;
+  /** 1–3, then 4 once it has a branch. */
   tier: number;
+  /** The specialisation picked at the top tier, else null. */
+  branch: TowerBranch | null;
   range: number;
   spent: number;
   priority: TargetPriority;
@@ -229,7 +273,7 @@ export type GameEvent =
   | { type: 'levelUp'; heroId: EntityId; level: number }
   | { type: 'towerBuilt'; towerId: EntityId; owner: PlayerId }
   | { type: 'towerSold'; towerId: EntityId; owner: PlayerId; refund: number }
-  | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number }
+  | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number; branch: TowerBranch | null }
   | { type: 'towerDestroyed'; towerId: EntityId }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
   | { type: 'trapTriggered'; x: number; y: number; radius: number }

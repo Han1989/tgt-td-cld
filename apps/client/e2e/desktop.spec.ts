@@ -51,6 +51,33 @@ test('mouse and keyboard: right-click moves, left-click a pad and press 1 to bui
   expect(await page.evaluate(() => window.__tdt.camera.zoom)).toBeGreaterThan(zoom0);
 });
 
+test('desktop tower panel: at tier 3 it offers the two specialisations; clicking one buys it', async ({ page }) => {
+  await startSolo(page);
+  const padId = await page.evaluate(() => window.__tdt.latest()!.pads[2]!.id);
+  const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
+  const at = await toScreen(page, pad.x, pad.y);
+  const tower = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), padId);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.press('2');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#tower-panel')).toBeVisible();
+  await page.keyboard.press('u');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(2);
+  await page.keyboard.press('u');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(3);
+
+  const options = page.locator('#tower-panel .branch-option');
+  await expect(options).toHaveCount(2);
+  await expect(options.nth(0)).toContainText('Mortar');
+  await expect(options.nth(1)).toContainText('Shrapnel');
+  await page.locator('#tower-panel .branch-option[data-branch="shrapnel"]').click();
+  await expect.poll(() => tower().then((t) => [t?.tier, t?.branch])).toEqual([4, 'shrapnel']);
+  await expect(page.locator('#tower-panel h3')).toContainText('Shrapnel tower');
+  await expect(page.locator('#tower-panel .branch-option')).toHaveCount(0);
+  await expect(page.locator('#tower-panel')).toContainText('Max tier');
+});
+
 test('a narrow desktop window gets the tall layout and still plays with the mouse', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 900 });
   await startSolo(page);

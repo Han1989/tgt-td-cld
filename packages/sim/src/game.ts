@@ -2,7 +2,7 @@
 // applyCommand lives in commands.ts.
 
 import type { EntityId, SkillSlot, Snapshot } from '@tdt/protocol';
-import { emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
+import { effectiveArmor, emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
 import { getMap } from './map';
@@ -11,7 +11,7 @@ import { seedRng } from './rng';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import type { GameConfig, GameState, Hero } from './state';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
-import { secondsToTicks, TICK_RATE, towerTier, tuningForMode, TUNING } from './tuning';
+import { secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
 import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
@@ -196,7 +196,7 @@ export function snapshot(state: GameState): Snapshot {
       maxHp: c.maxHp,
       slowed: state.tick < c.slowUntil,
       rooted: state.tick < c.rootUntil,
-      armor: r2(c.armor),
+      armor: r2(effectiveArmor(state, c)),
       magicResist: r2(c.magicResist),
       stunned: state.tick < c.stunUntil,
     })),
@@ -210,7 +210,8 @@ export function snapshot(state: GameState): Snapshot {
       hp: Math.ceil(tw.hp),
       maxHp: tw.maxHp,
       tier: tw.tier,
-      range: towerTier(t, tw.kind, tw.tier).range,
+      branch: tw.branch,
+      range: towerStats(t, tw.kind, tw.tier, tw.branch).range,
       spent: tw.spent,
       priority: tw.priority,
       stunned: state.tick < tw.stunUntil,

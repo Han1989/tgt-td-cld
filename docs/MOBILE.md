@@ -77,7 +77,7 @@
 | Press and drag a skill | Manual aim, with range and area shown. Release to cast; drag back onto the button to cancel. |
 | Nothing in range | The button shakes and no mana is spent. |
 | Build | Tap a pad in **your zone** to open the radial build menu (5 towers with costs, greyed out if unaffordable). The first tap on a tower previews its range; the second tap builds it. |
-| Tower actions | Tap your own tower to open a **radial ring around it:** **Upgrade** (with cost), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A small chip above the ring shows what the next tier adds, e.g. "Dmg 24→36". |
+| Tower actions | Tap your own tower to open a **radial ring around it:** **Upgrade** (with cost), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A small chip above the ring shows what the next tier adds, e.g. "Dmg 24→36". At tier 3, Upgrade becomes **two branch buttons** (`REPLAYABILITY.md` §1): the first tap shows what the branch does in the chip, the second buys it. |
 | Target enemy | Tap an enemy to set the focus target. |
 | Close menus | Tap anywhere else. **The joystick keeps working while a menu or ring is open.** |
 
