@@ -6,6 +6,7 @@ import { emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
 import { getMap } from './map';
+import { padLayout } from './pads';
 import { seedRng } from './rng';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import type { GameConfig, GameState, Hero } from './state';
@@ -29,6 +30,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     heroes: [],
     creeps: [],
     towers: [],
+    pads: padLayout(getMap(), tuning, config.players.map((p) => p.id)),
     projectiles: [],
     traps: [],
     zones: [],
@@ -71,7 +73,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     hero.hp = heroMaxHp(state, hero);
     hero.mana = heroMaxMana(state, hero);
     state.heroes.push(hero);
-    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true });
+    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true, left: false });
   });
   return state;
 }
@@ -210,6 +212,7 @@ export function snapshot(state: GameState): Snapshot {
       priority: tw.priority,
       stunned: state.tick < tw.stunUntil,
     })),
+    pads: state.pads.map((p) => ({ id: p.id, owner: p.owner })),
     projectiles: state.projectiles.map((p) => ({ id: p.id, style: p.style, x: r2(p.x), y: r2(p.y) })),
     traps: state.traps.map((tr) => ({
       id: tr.id,

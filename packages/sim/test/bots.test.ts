@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { createBalanceBot } from '../src/bots';
-import { applyCommand } from '../src/commands';
-import { snapshot } from '../src/game';
+import { applyCommand, setPlayerLeft } from '../src/commands';
+import { createGame, snapshot } from '../src/game';
 import { getMap } from '../src/map';
 import { TUNING } from '../src/tuning';
 import { labGame, placeCreep } from './helpers';
@@ -22,7 +22,7 @@ describe('balance bot', () => {
     for (const pad of getMap().pads) applyCommand(state, 'p1', { type: 'build', padId: pad.id, tower: 'arrow' });
     const first = state.towers[0]!;
     applyCommand(state, 'p1', { type: 'upgrade', towerId: first.id });
-    state.players[0]!.gold = 70; // one tier-2 Arrow upgrade
+    state.players[0]!.gold = TUNING.towers.arrow.tiers[1]!.cost; // one tier-2 Arrow upgrade
     const cmds = createBalanceBot('p1').decide(snapshot(state));
     expect(cmds.some((c) => c.type === 'build')).toBe(false);
     const upgrades = cmds.filter((c) => c.type === 'upgrade');
@@ -42,7 +42,47 @@ describe('balance bot', () => {
     const boss = placeCreep(state, 'ironhorn', tower.x + 2, tower.y);
     const cmds = bot.decide(snapshot(state));
     expect(cmds).toContainEqual({ type: 'setPriority', towerId: tower.id, priority: 'strongest' });
-    expect(cmds).toContainEqual({ type: 'attackMove', x: boss.x, y: boss.y });
+    // The hero walks (it shoots on the way) to just inside its attack range of the boss.
+    const move = cmds.find((c) => c.type === 'move');
+    expect(move?.type).toBe('move');
+    if (move?.type !== 'move') return;
+    const d = Math.hypot(move.x - boss.x, move.y - boss.y);
+    expect(d).toBeLessThan(TUNING.hero.ranger.attackRange);
+    expect(d).toBeGreaterThan(TUNING.hero.ranger.attackRange - 2);
+    expect(cmds.some((c) => c.type === 'attackMove')).toBe(false);
+  });
+
+  it('builds only on its own zone’s pads, and on pads opened by a leaver', () => {
+    const state = createGame({ players: ['p1', 'p2'].map((id) => ({ id, name: id, hero: 'ranger' as const })) }, 1);
+    state.players[0]!.gold = 100_000;
+    const owned = (id: string) => new Set(state.pads.filter((p) => p.owner === id).map((p) => p.id));
+    const built = () =>
+      createBalanceBot('p1', TUNING, 0)
+        .decide(snapshot(state))
+        .flatMap((c) => (c.type === 'build' ? [c.padId] : []));
+    const first = built();
+    expect(first.length).toBe(owned('p1').size);
+    for (const id of first) expect(owned('p1').has(id)).toBe(true);
+
+    setPlayerLeft(state, 'p2');
+    expect(built().length).toBe(state.pads.length);
+  });
+
+  it('keeps a melee hero at its post until creeps come close', () => {
+    const goal = (distance: number) => {
+      const state = labGame(TUNING, 1, ['warden']);
+      state.wave = 3;
+      state.nextWaveTick = 1_000; // not the final wave (which hunts stragglers)
+      const bot = createBalanceBot('p1');
+      const post = bot.decide(snapshot(state)).find((c) => c.type === 'move');
+      if (post?.type !== 'move') throw new Error('no move');
+      const c = placeCreep(state, 'grunt', post.x, post.y - distance, 1);
+      c.rootUntil = 1_000;
+      const move = bot.decide(snapshot(state)).find((x) => x.type === 'move');
+      return move?.type === 'move' ? Math.hypot(move.x - c.x, move.y - c.y) : undefined;
+    };
+    expect(goal(5.5)).toBeUndefined();
+    expect(goal(4)).toBe(0);
   });
 
   /** A lab game on `wave` where p1 already owns `kinds` (on the first pads) and has `gold`. */
@@ -81,19 +121,20 @@ describe('balance bot', () => {
     expect(upgrades).toEqual([{ type: 'upgrade', towerId: arcane.id }]);
   });
 
-  it('plays forward on its lane in later waves once it has its ultimate', () => {
-    const goalY = (wave: number, ultimate: boolean) => {
-      const state = labGame();
+  it('plays forward on its lane in later waves once it has its ultimate (3+ players; solo guards)', () => {
+    const goalY = (players: number, wave: number, ultimate: boolean) => {
+      const state = labGame(TUNING, players);
       state.wave = wave;
       const hero = state.heroes[0]!;
       if (ultimate) hero.ranks.R = 1;
       hero.skillCd.R = 1_000; // not ready: it holds its post
-      const move = createBalanceBot('p1').decide(snapshot(state)).find((c) => c.type === 'attackMove');
-      return move?.type === 'attackMove' ? move.y : undefined;
+      const move = createBalanceBot('p1').decide(snapshot(state)).find((c) => c.type === 'move');
+      return move?.type === 'move' ? move.y : NaN;
     };
-    const heart = getMap().heart;
-    expect(heart.y - goalY(20, false)!).toBeLessThan(10);
-    expect(heart.y - goalY(5, true)!).toBeLessThan(10);
-    expect(heart.y - goalY(20, true)!).toBeGreaterThan(15);
+    const guard = goalY(3, 20, false);
+    expect(getMap().heart.y - guard).toBeLessThan(10);
+    expect(goalY(3, 5, true)).toBeCloseTo(guard);
+    expect(goalY(3, 20, true)).toBeLessThan(guard - 5);
+    expect(goalY(1, 20, true)).toBeCloseTo(goalY(1, 20, false));
   });
 });

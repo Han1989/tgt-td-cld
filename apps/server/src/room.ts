@@ -16,7 +16,7 @@ import {
   type ServerMessage,
   type Snapshot,
 } from '@tdt/protocol';
-import { applyCommand, createGame, setPlayerConnected, snapshot, step, type GameState } from '@tdt/sim';
+import { applyCommand, createGame, setPlayerConnected, setPlayerLeft, snapshot, step, type GameState } from '@tdt/sim';
 import type { ServerConfig } from './config';
 import { RollingAverage } from './stats';
 
@@ -140,14 +140,17 @@ export class Room {
     this.broadcastLobby();
   }
 
-  /** The member is gone for good. Their towers keep firing if a match is running. */
+  /**
+   * The member is gone for good. If a match is running their towers keep firing and stay theirs, and
+   * their pads open to every teammate.
+   */
   leave(member: Member, now: number): void {
     if (member.left) return;
     const socket = member.socket;
     member.socket = null;
     member.left = true;
     member.disconnectedAt ??= now;
-    if (this.state) setPlayerConnected(this.state, member.id, false);
+    if (this.state) setPlayerLeft(this.state, member.id);
     if (this.phase === 'lobby') this.members.splice(this.members.indexOf(member), 1);
     socket?.close(CLOSE_NORMAL, 'Left the room');
     if (this.connectedCount === 0) this.emptySince ??= now;

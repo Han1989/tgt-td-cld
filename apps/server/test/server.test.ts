@@ -193,6 +193,27 @@ describe('reconnect', () => {
     expect(server.rooms.get(guest!.code!)!.members.filter((m) => !m.left)).toHaveLength(2);
   });
 
+  it('opens a leaver’s pads to the team once the reconnect window runs out; their towers stay theirs', async () => {
+    const { url } = await start({ reconnectWindowMs: 300 });
+    const [host, guest] = await fullRoom(url, 2);
+    guest!.acting = false;
+    host!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    const theirs = guest!.snap!.pads.filter((p) => p.owner === 'p2').map((p) => p.id);
+    guest!.send({ t: 'cmd', cmd: { type: 'build', padId: theirs[0]!, tower: 'arrow' } });
+    await guest!.waitFor(() => (guest!.snap?.towers.length ?? 0) === 1);
+
+    guest!.ws.terminate();
+    await host!.waitFor(() => host!.snap?.players[1]?.connected === false);
+    expect(host!.snap!.pads.filter((p) => p.owner === 'p2')).toHaveLength(theirs.length);
+    await host!.waitFor(() => host!.snap!.pads.every((p) => p.owner !== 'p2'));
+    expect(host!.snap!.pads.filter((p) => p.owner === null).map((p) => p.id)).toEqual(theirs);
+    expect(host!.snap!.towers[0]).toMatchObject({ owner: 'p2' });
+    host!.send({ t: 'cmd', cmd: { type: 'build', padId: theirs[1]!, tower: 'arrow' } });
+    await host!.waitFor(() => host!.snap!.towers.some((t) => t.owner === 'p1' && t.padId === theirs[1]));
+  });
+
   it('refuses to rejoin after the reconnect window', async () => {
     const { url } = await start({ reconnectWindowMs: 100 });
     const [host, guest] = await fullRoom(url, 2);

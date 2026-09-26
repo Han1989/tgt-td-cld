@@ -84,21 +84,22 @@ function extraPlayers(state: GameState): number {
   return Math.max(0, state.players.length - 1);
 }
 
-/** Creeps per lane after player-count scaling (+25% per extra player by default). */
+/** Creeps per lane after player-count scaling (+30% per extra player by default). */
 export function scaledCount(state: GameState, perLane: number): number {
   return Math.round(perLane * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)));
 }
 
 /**
- * Creep HP multiplier for the player count on `wave`: 1 + hpPerExtraPlayer × (players − 1), plus the
+ * Creep HP multiplier for the player count on `wave`: the table value for that many players, plus the
  * early bonus for that player count, fading out linearly over the first `earlyWaves` waves.
  */
 export function playerHpMultiplier(state: GameState, wave: number): number {
   const ps = state.tuning.playerScaling;
-  const extra = extraPlayers(state);
+  const i = Math.max(0, state.players.length - 1);
   const fade = Math.max(0, 1 - (wave - 1) / ps.earlyWaves);
-  const bonus = ps.earlyHpBonus[Math.min(extra, ps.earlyHpBonus.length - 1)] ?? 0;
-  return 1 + ps.hpPerExtraPlayer * extra + bonus * fade;
+  const base = ps.hp[Math.min(i, ps.hp.length - 1)] ?? 1;
+  const bonus = ps.earlyHpBonus[Math.min(i, ps.earlyHpBonus.length - 1)] ?? 0;
+  return base + bonus * fade;
 }
 
 export function creepMaxHp(state: GameState, kind: CreepKind, wave: number): number {
@@ -143,6 +144,7 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
     rootUntil: 0,
     stunUntil: 0,
     tauntUntil: 0,
+    towerTicks: 0,
     remaining: path.remainingFrom[0] ?? 0,
     dead: false,
   };

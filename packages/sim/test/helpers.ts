@@ -1,12 +1,20 @@
 import type { CreepKind, GameEvent, HeroKind, LaneId } from '@tdt/protocol';
 import { createGame, step } from '../src/game';
+import { getMap } from '../src/map';
 import type { GameState } from '../src/state';
 import { TUNING, type Tuning } from '../src/tuning';
 import { spawnCreep } from '../src/waves';
 
+/** A base pad beside the Mid lane (centre 16.5, 13.5; the Mid lane runs down x = 13). */
+export const LAB_PAD = 15;
+
+/** A point on the Mid lane, well away from the Heart and the portals. */
+export const MID = { x: 13, y: 12 };
+
 /**
  * A game with the wave timer switched off, for isolated mechanic tests. It
- * stays in the build phase so an empty map never counts as victory.
+ * stays in the build phase so an empty map never counts as victory. Every pad
+ * on the map exists and is open to everyone (pad zones have their own tests).
  */
 export function labGame(tuning: Tuning = TUNING, players = 1, heroes: HeroKind[] = []): GameState {
   const state = createGame(
@@ -17,6 +25,7 @@ export function labGame(tuning: Tuning = TUNING, players = 1, heroes: HeroKind[]
     7,
   );
   state.nextWaveTick = -1;
+  state.pads = getMap().pads.map((p) => ({ id: p.id, owner: null }));
   return state;
 }
 
@@ -32,8 +41,9 @@ export function placeCreep(state: GameState, kind: CreepKind, x: number, y: numb
 /** Moves the hero out of the way so it neither fights nor gets aggro. */
 export function parkHero(state: GameState, index = 0): void {
   const h = state.heroes[index]!;
-  h.x = 3.5;
-  h.y = 57.5;
+  // In the forest of the safe zone, far from the lanes.
+  h.x = 3.5 + index;
+  h.y = 46.5;
   h.order = { type: 'idle' };
   h.path = [];
 }

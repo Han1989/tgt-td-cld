@@ -43,12 +43,12 @@ function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>
 
   const order = hero.order;
   switch (order.type) {
-    case 'idle': {
-      const target = acquire(state, hero, s.attackRange);
-      if (target) tryAttack(state, hero, target);
+    case 'idle':
+      autoAttack(state, hero);
       break;
-    }
     case 'move':
+      // Heroes shoot the nearest enemy in range while they walk (the path is kept).
+      autoAttack(state, hero);
       if (followPath(state, hero)) hero.order = { type: 'idle' };
       break;
     case 'attack': {
@@ -75,6 +75,7 @@ function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>
         castAtPoint(state, hero, order.slot, order.x, order.y);
         hero.order = { type: 'idle' };
       } else {
+        autoAttack(state, hero);
         chase(state, hero, order.x, order.y);
       }
       break;
@@ -119,6 +120,12 @@ function chase(state: GameState, hero: Hero, x: number, y: number): void {
 function inAttackRange(state: GameState, hero: Hero, creep: Creep): boolean {
   const reach = heroStats(state, hero).attackRange + state.tuning.creeps[creep.kind].radius;
   return dist(hero.x, hero.y, creep.x, creep.y) <= reach;
+}
+
+/** Attacks the nearest hittable creep within attack range, if any, without leaving the current order. */
+function autoAttack(state: GameState, hero: Hero): void {
+  const target = acquire(state, hero, heroStats(state, hero).attackRange);
+  if (target) tryAttack(state, hero, target);
 }
 
 /** Nearest hittable creep within `range` of the hero. */

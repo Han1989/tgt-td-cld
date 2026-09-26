@@ -5,7 +5,7 @@ import { applyCommand, setPlayerConnected } from '../src/commands';
 import { creepBounty, damageCreep } from '../src/combat';
 import { step } from '../src/game';
 import { TUNING } from '../src/tuning';
-import { labGame, parkHero, placeCreep } from './helpers';
+import { labGame, parkHero, placeCreep, tuningCopy } from './helpers';
 
 const START = TUNING.economy.startingGold;
 
@@ -59,13 +59,16 @@ describe('gold gifting', () => {
 
 describe('bounty growth', () => {
   it('pays more for creeps from later waves', () => {
-    const state = labGame();
+    // Spire's tuning has no bounty growth (wave income carries the economy); the mechanic still works.
+    const tuning = tuningCopy();
+    tuning.economy.bountyGrowthPerWave = 0.03;
+    const state = labGame(tuning);
     parkHero(state);
-    const early = placeCreep(state, 'grunt', 40, 10);
-    const late = placeCreep(state, 'grunt', 40, 10);
+    const early = placeCreep(state, 'grunt', 13, 10);
+    const late = placeCreep(state, 'grunt', 13, 10);
     late.wave = 21;
     expect(creepBounty(state, early)).toBe(TUNING.creeps.grunt.bounty);
-    const expected = Math.round(TUNING.creeps.grunt.bounty * (1 + 20 * TUNING.economy.bountyGrowthPerWave));
+    const expected = Math.round(TUNING.creeps.grunt.bounty * (1 + 20 * tuning.economy.bountyGrowthPerWave));
     expect(creepBounty(state, late)).toBe(expected);
     expect(expected).toBeGreaterThan(TUNING.creeps.grunt.bounty);
 

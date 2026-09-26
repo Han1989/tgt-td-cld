@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -178,6 +178,16 @@ export interface TowerSnap {
   stunned: boolean;
 }
 
+/**
+ * A build pad that exists in this match (extra pads only exist in bigger teams). Only `owner` may
+ * build on it; `null` = anyone (a leaver's pads open up once their rejoin window runs out).
+ */
+export interface PadSnap {
+  /** Index into the map's pad list. */
+  id: number;
+  owner: PlayerId | null;
+}
+
 export interface ProjectileSnap {
   id: EntityId;
   /** Visual style, e.g. tower kind, 'hero', 'archer'. */
@@ -246,6 +256,7 @@ export interface Snapshot {
   heroes: HeroSnap[];
   creeps: CreepSnap[];
   towers: TowerSnap[];
+  pads: PadSnap[];
   projectiles: ProjectileSnap[];
   traps: TrapSnap[];
   zones: ZoneSnap[];
@@ -308,7 +319,10 @@ export interface EntityListDelta<T extends { id: string | number }> {
   del?: T['id'][];
 }
 
-export type SnapshotScalars = Omit<Snapshot, 'players' | 'heroes' | 'creeps' | 'towers' | 'projectiles' | 'traps' | 'zones' | 'events'>;
+export type SnapshotScalars = Omit<
+  Snapshot,
+  'players' | 'heroes' | 'creeps' | 'towers' | 'pads' | 'projectiles' | 'traps' | 'zones' | 'events'
+>;
 
 export interface SnapshotDelta {
   /** Tick of the snapshot this delta applies to. */
@@ -319,6 +333,7 @@ export interface SnapshotDelta {
   heroes?: EntityListDelta<HeroSnap>;
   creeps?: EntityListDelta<CreepSnap>;
   towers?: EntityListDelta<TowerSnap>;
+  pads?: EntityListDelta<PadSnap>;
   projectiles?: EntityListDelta<ProjectileSnap>;
   traps?: EntityListDelta<TrapSnap>;
   zones?: EntityListDelta<ZoneSnap>;

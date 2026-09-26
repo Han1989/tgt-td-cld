@@ -5,6 +5,7 @@ import type { Command, PlayerId } from '@tdt/protocol';
 import { emit, HERO_SKILLS, newId } from './combat';
 import { setPath } from './heroes';
 import { getMap } from './map';
+import { padBlocker } from './pads';
 import { nearestWalkable } from './pathfinding';
 import { castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
 import type { GameState, Tower } from './state';
@@ -77,9 +78,9 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       return true;
     }
     case 'build': {
-      const pad = map.pads[command.padId];
-      if (!pad) return reject('No build pad there');
-      if (state.towers.some((t) => t.padId === pad.id && !t.dead)) return reject('Pad is occupied');
+      const blocker = padBlocker(state, playerId, command.padId);
+      if (blocker) return reject(blocker);
+      const pad = map.pads[command.padId]!;
       const stats = towerTier(state.tuning, command.tower, 1);
       if (player.gold < stats.cost) return reject('Not enough gold');
       player.gold -= stats.cost;
@@ -149,6 +150,19 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       return true;
     }
   }
+}
+
+/**
+ * Host-side hook, not a player command: the player is gone for good (they left, or their rejoin
+ * window ran out). Their towers keep firing and stay theirs; their pads open to every teammate, so
+ * anyone can build on the empty ones.
+ */
+export function setPlayerLeft(state: GameState, playerId: PlayerId): void {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.left) return;
+  setPlayerConnected(state, playerId, false);
+  player.left = true;
+  for (const pad of state.pads) if (pad.owner === playerId) pad.owner = null;
 }
 
 /**

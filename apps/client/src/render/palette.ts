@@ -29,6 +29,9 @@ export const COLORS = {
   tierPip: 0xffd24a,
 } as const;
 
+/** Pad-zone tints by seat (index in the snapshot's player list). */
+export const PLAYER_COLORS = [0x4f9dff, 0xff9f43, 0xb56cff, 0x3ddc84] as const;
+
 export const CREEP_COLORS: Record<CreepKind, number> = {
   grunt: 0xd9534f,
   archer: 0xf0a04b,

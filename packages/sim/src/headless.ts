@@ -15,6 +15,10 @@ export interface HeadlessResult {
   towers: number;
   heroLevels: number[];
   gold: number[];
+  /** Heart HP lost in each third of the match (waves 1–10, 11–20, 21–30), by the time the next third starts. */
+  heartLost: number[];
+  /** Bosses that reached the Heart. */
+  bossLeaks: number;
 }
 
 export function runHeadlessMatch(opts: {
@@ -37,7 +41,13 @@ export function runHeadlessMatch(opts: {
   const every = Math.max(1, Math.round(TICK_RATE / (opts.decisionsPerSecond ?? 4)));
   const maxTicks = (opts.maxSeconds ?? 60 * 60) * TICK_RATE;
 
+  const thirds = Math.ceil(state.tuning.waves.list.length / 3);
+  const heartAt: number[] = [state.heartHp];
+  const bossIds = new Set<number>();
+  let bossLeaks = 0;
   while (state.phase !== 'victory' && state.phase !== 'defeat' && state.tick < maxTicks) {
+    // Heart HP when wave 11 and wave 21 start.
+    if (heartAt.length < 3 && state.wave > heartAt.length * thirds) heartAt.push(state.heartHp);
     if (state.tick % every === 0) {
       const snap = snapshot(state);
       for (const bot of opts.bots) {
@@ -45,6 +55,8 @@ export function runHeadlessMatch(opts: {
       }
     }
     step(state);
+    for (const c of state.creeps) if (state.tuning.creeps[c.kind].boss) bossIds.add(c.id);
+    for (const e of state.events) if (e.type === 'leak' && bossIds.has(e.creepId)) bossLeaks++;
   }
 
   return {
@@ -55,5 +67,7 @@ export function runHeadlessMatch(opts: {
     towers: state.towers.length,
     heroLevels: state.heroes.map((h) => h.level),
     gold: state.players.map((p) => p.gold),
+    bossLeaks,
+    heartLost: [0, 1, 2].map((i) => (heartAt[i] ?? state.heartHp) - (heartAt[i + 1] ?? state.heartHp)),
   };
 }

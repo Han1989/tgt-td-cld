@@ -5,7 +5,7 @@ import { applyCommand } from '../src/commands';
 import { damageCreep } from '../src/combat';
 import { snapshot } from '../src/game';
 import { secondsToTicks, TUNING } from '../src/tuning';
-import { labGame, parkHero, placeCreep, run } from './helpers';
+import { LAB_PAD, labGame, parkHero, placeCreep, run } from './helpers';
 
 describe('Ironhorn (wave 10): Stomp', () => {
   const s = TUNING.bosses.ironhorn.stomp;
@@ -13,7 +13,7 @@ describe('Ironhorn (wave 10): Stomp', () => {
   it('damages and stuns heroes and stuns towers nearby, then goes on cooldown', () => {
     const state = labGame();
     const hero = state.heroes[0]!;
-    applyCommand(state, 'p1', { type: 'build', padId: 37, tower: 'arrow' });
+    applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
     const tower = state.towers[0]!;
     hero.x = tower.x;
     hero.y = tower.y + 1.5;
@@ -35,7 +35,7 @@ describe('Ironhorn (wave 10): Stomp', () => {
   it('holds its stomp until a hero or tower is in range', () => {
     const state = labGame();
     parkHero(state);
-    const boss = placeCreep(state, 'ironhorn', 40, 10);
+    const boss = placeCreep(state, 'ironhorn', 13, 10);
     boss.rootUntil = 1_000;
     run(state, secondsToTicks(s.cooldown) + 20);
     expect(boss.abilityCd).toBe(0);
@@ -114,7 +114,7 @@ describe('Shardback (wave 30): Shifting Hide', () => {
   it('starts in Stone hide and alternates with Ether hide every interval', () => {
     const state = labGame();
     parkHero(state);
-    const boss = placeCreep(state, 'shardback', 40, 10);
+    const boss = placeCreep(state, 'shardback', 13, 10);
     boss.rootUntil = 100_000;
     expect(boss.hide).toBe('stone');
     expect(boss.armor).toBeCloseTo(base.armor + s.stoneArmor);
@@ -134,7 +134,7 @@ describe('Shardback (wave 30): Shifting Hide', () => {
   it('Stone hide resists physical damage and Ether hide resists magic damage', () => {
     const state = labGame();
     parkHero(state);
-    const boss = placeCreep(state, 'shardback', 40, 10);
+    const boss = placeCreep(state, 'shardback', 13, 10);
     const taken = (type: 'physical' | 'magic') => {
       const hp = boss.hp;
       damageCreep(state, boss, 100, type, 'p1');
@@ -158,7 +158,7 @@ describe('Shardback (wave 30): Shifting Hide', () => {
   it('shows its current armour and magic resist in snapshots', () => {
     const state = labGame();
     parkHero(state);
-    const boss = placeCreep(state, 'shardback', 40, 10);
+    const boss = placeCreep(state, 'shardback', 13, 10);
     const snap = snapshot(state).creeps.find((c) => c.id === boss.id)!;
     expect(snap.armor).toBeCloseTo(boss.armor);
     expect(snap.magicResist).toBeCloseTo(boss.magicResist);
@@ -170,8 +170,8 @@ describe('boss roots', () => {
     for (const kind of ['ironhorn', 'matriarch', 'shardback'] as const) {
       const state = labGame();
       parkHero(state);
-      const boss = placeCreep(state, kind, 40, 10);
-      state.traps.push({ id: 999, owner: 'p1', x: 40, y: 10, rank: 1, armTick: 0, expireTick: 1_000, done: false });
+      const boss = placeCreep(state, kind, 13, 10);
+      state.traps.push({ id: 999, owner: 'p1', x: 13, y: 10, rank: 1, armTick: 0, expireTick: 1_000, done: false });
       run(state, 1);
       const full = secondsToTicks(TUNING.hero.ranger.snareTrap.rootDuration[0]!);
       expect(boss.rootUntil - state.tick, kind).toBe(Math.round(full * TUNING.hero.ranger.snareTrap.bossRootFactor));
@@ -181,7 +181,7 @@ describe('boss roots', () => {
 
 /** A rooted wave-20 Matriarch on the middle lane, away from heroes and towers. */
 function spawnMatriarch(state: ReturnType<typeof labGame>) {
-  const boss = placeCreep(state, 'matriarch', 40, 10);
+  const boss = placeCreep(state, 'matriarch', 13, 10);
   boss.wave = 20;
   boss.rootUntil = 100_000;
   return boss;

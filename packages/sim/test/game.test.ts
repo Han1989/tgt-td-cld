@@ -1,36 +1,78 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import { createGame, snapshot, step } from '../src/game';
-import { getMap, isWalkable, Tile, tileAt } from '../src/map';
+import { getMap, isWalkable, laneDistance, padAtTile, Tile, tileAt } from '../src/map';
 import { findPath } from '../src/pathfinding';
 import { secondsToTicks, TUNING } from '../src/tuning';
 import { creepMaxHp, spawnCreep } from '../src/waves';
-import { labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
+import { LAB_PAD, labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
 
 const solo = () => createGame({ players: [{ id: 'p1', name: 'Solo', hero: 'ranger' }] }, 1);
 
 describe('map', () => {
   const map = getMap();
 
-  it('is an 80 × 60 grid with three lanes ending at the Heart', () => {
-    expect(map.width).toBe(80);
-    expect(map.height).toBe(60);
+  it('is Spire: a 26 × 50 portrait grid with three lanes from the top edge to the Heart', () => {
+    expect(map.name).toBe('Spire');
+    expect(map.width).toBe(26);
+    expect(map.height).toBe(50);
     expect(map.lanes).toHaveLength(3);
     for (const lane of map.lanes) {
       expect(lane.waypoints.at(-1)).toEqual(map.heart);
       expect(lane.waypoints[0]!.y).toBeLessThan(2);
     }
+    // West, Mid, East from left to right.
+    const portals = map.lanes.map((l) => l.waypoints[0]!.x);
+    expect([...portals].sort((a, b) => a - b)).toEqual(portals);
   });
 
-  it('has build pads beside every lane, all on pad tiles', () => {
-    for (const lane of [0, 1, 2]) expect(map.pads.filter((p) => p.lane === lane).length).toBeGreaterThan(8);
-    for (const pad of map.pads) {
-      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
-        expect(tileAt(map, pad.tx + dx, pad.ty + dy)).toBe(Tile.Pad);
-      }
+  it('keeps the safe zone (the bottom band under the touch controls) scenery only', () => {
+    expect(map.safeFromY).toBeGreaterThan(map.heart.y + TUNING.heart.radius);
+    expect(map.height - map.safeFromY).toBeGreaterThanOrEqual(10);
+    for (let ty = map.safeFromY; ty < map.height; ty++) {
+      for (let tx = 0; tx < map.width; tx++) expect(tileAt(map, tx, ty), `${tx},${ty}`).toBe(Tile.Blocker);
     }
+    for (const pad of map.pads) expect(pad.ty + map.padSize).toBeLessThanOrEqual(map.safeFromY);
+    for (const lane of map.lanes) for (const wp of lane.waypoints) expect(wp.y).toBeLessThan(map.safeFromY);
+  });
+
+  it('has square pads on pad tiles, clear of the lanes, the Heart and each other', () => {
+    expect(map.padSize).toBe(3);
+    for (const pad of map.pads) {
+      for (let dy = 0; dy < map.padSize; dy++) {
+        for (let dx = 0; dx < map.padSize; dx++) {
+          const [x, y] = [pad.tx + dx + 0.5, pad.ty + dy + 0.5];
+          expect(tileAt(map, pad.tx + dx, pad.ty + dy), `pad ${pad.id}`).toBe(Tile.Pad);
+          expect(laneDistance(map.lanes, x, y), `pad ${pad.id}`).toBeGreaterThan(1.4);
+          expect(Math.hypot(x - map.heart.x, y - map.heart.y)).toBeGreaterThan(TUNING.heart.radius + 1);
+        }
+      }
+      expect(padAtTile(map, pad.tx + 1, pad.ty + 1)).toBe(pad);
+    }
+    // Pads never overlap.
+    const covered = map.pads.reduce((n) => n + map.padSize * map.padSize, 0);
+    expect(map.tiles.filter((t) => t === Tile.Pad).length).toBe(covered);
+  });
+
+  it('tags pads with zones: West, Mid and East pads alongside their lanes, extra pads for bigger teams', () => {
+    const base = map.pads.filter((p) => !p.extra);
+    for (const zone of ['west', 'mid', 'east'] as const) {
+      expect(base.filter((p) => p.zone === zone).length, zone).toBeGreaterThanOrEqual(8);
+      expect(map.pads.filter((p) => p.extra && p.zone === zone).length).toBeGreaterThanOrEqual(
+        Math.max(...TUNING.pads.extraPerLaneZone),
+      );
+    }
+    expect(base.some((p) => p.zone === 'core')).toBe(false);
+    expect(map.pads.filter((p) => p.zone === 'core').length).toBeGreaterThanOrEqual(Math.max(...TUNING.pads.core));
+    // West pads lie west of the Mid lane, East pads east of it; Mid pads sit on both sides (half each).
+    const midX = map.lanes[1]!.waypoints[0]!.x;
+    for (const p of map.pads.filter((q) => q.zone === 'west')) expect(p.x).toBeLessThan(midX);
+    for (const p of map.pads.filter((q) => q.zone === 'east')) expect(p.x).toBeGreaterThan(midX);
+    const mid = base.filter((p) => p.zone === 'mid');
+    expect(mid.filter((p) => p.half === 0).length).toBe(mid.filter((p) => p.half === 1).length);
   });
 
   it('lets heroes reach every build pad from the Heart', () => {
@@ -43,7 +85,7 @@ describe('pathfinding', () => {
 
   it('finds a walkable path around blockers', () => {
     const from = map.heroSpawn;
-    const to = { x: 12.5, y: 5 };
+    const to = { x: 2.5, y: 3.5 };
     const path = findPath(map, from, to)!;
     expect(path).not.toBeNull();
     expect(path.at(-1)).toEqual(to);
@@ -62,10 +104,10 @@ describe('pathfinding', () => {
 
   it('moves the hero to a clicked point', () => {
     const state = labGame();
-    expect(applyCommand(state, 'p1', { type: 'move', x: 22, y: 36 })).toBe(true);
+    expect(applyCommand(state, 'p1', { type: 'move', x: 21.5, y: 38.5 })).toBe(true);
     run(state, 20 * 20);
     const hero = state.heroes[0]!;
-    expect(Math.hypot(hero.x - 22, hero.y - 36)).toBeLessThan(0.01);
+    expect(Math.hypot(hero.x - 21.5, hero.y - 38.5)).toBeLessThan(0.01);
     expect(hero.order.type).toBe('idle');
   });
 });
@@ -192,7 +234,7 @@ describe('economy', () => {
     const state = labGame(TUNING, 2);
     parkHero(state, 0);
     parkHero(state, 1);
-    applyCommand(state, 'p2', { type: 'build', padId: 37, tower: 'arrow' });
+    applyCommand(state, 'p2', { type: 'build', padId: LAB_PAD, tower: 'arrow' });
     const tower = state.towers[0]!;
     const c = placeCreep(state, 'runner', tower.x + 2, tower.y);
     c.rootUntil = 1_000;
@@ -280,10 +322,12 @@ describe('determinism', () => {
   });
 
   it('never uses Math.random or Date.now in the sim', () => {
-    const dir = new URL('../src/', import.meta.url);
-    for (const file of readdirSync(fileURLToPath(dir))) {
-      const src = readFileSync(new URL(file, dir), 'utf8');
-      expect(src, file).not.toMatch(/Math\.random|Date\.now|performance\.now/);
+    const dir = fileURLToPath(new URL('../src/', import.meta.url));
+    const files = readdirSync(dir, { recursive: true, withFileTypes: true }).filter((f) => f.isFile());
+    expect(files.length).toBeGreaterThan(10);
+    for (const file of files) {
+      const src = readFileSync(join(file.parentPath, file.name), 'utf8');
+      expect(src, file.name).not.toMatch(/Math\.random|Date\.now|performance\.now/);
     }
   });
 });
