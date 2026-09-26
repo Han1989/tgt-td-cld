@@ -121,6 +121,68 @@ describe('balance bot', () => {
     expect(upgrades).toEqual([{ type: 'upgrade', towerId: arcane.id }]);
   });
 
+  /** A lab game where p1 has an Arrow at tier 3 on every pad, on `wave`. */
+  function allTier3(wave: number, players = 1) {
+    const state = labGame(TUNING, players);
+    state.wave = wave;
+    state.players[0]!.gold = 1_000_000;
+    for (const pad of getMap().pads) applyCommand(state, 'p1', { type: 'build', padId: pad.id, tower: 'arrow' });
+    for (const t of state.towers) t.tier = 3;
+    return state;
+  }
+  const branchBuys = (state: ReturnType<typeof labGame>) =>
+    createBalanceBot('p1').decide(snapshot(state)).flatMap((c) => (c.type === 'upgrade' && c.branch ? [c.branch] : []));
+
+  it('past tier 3 buys branches: a few specialists while the coming waves need them, else the all-round one', () => {
+    const boss = TUNING.waves.list.findIndex((w) => w.some((g) => TUNING.creeps[g.kind].boss)) + 1;
+    // A boss within the next waves: Snipers, up to two per team.
+    const coming = allTier3(boss - 1);
+    coming.players[0]!.gold = 3 * TUNING.branches.sniper.cost;
+    expect(branchBuys(coming)).toEqual(['sniper', 'sniper', 'volley']);
+    // No boss in sight: Volleys.
+    const quiet = allTier3(1);
+    quiet.players[0]!.gold = TUNING.branches.volley.cost;
+    expect(branchBuys(quiet)).toEqual(['volley']);
+    // The team's branches count: two Snipers already standing means Volley.
+    const covered = allTier3(boss - 1);
+    for (const t of covered.towers.slice(0, 2)) Object.assign(t, { tier: 4, branch: 'sniper' });
+    covered.players[0]!.gold = TUNING.branches.volley.cost;
+    expect(branchBuys(covered)).toEqual(['volley']);
+  });
+
+  it('never holds cheaper upgrades back for an Arcane branch, even while a Stone-hide boss is coming', () => {
+    const state = allTier3(TUNING.waves.list.length);
+    Object.assign(state.towers[0]!, { kind: 'arcane' });
+    const arrow = state.towers[1]!;
+    arrow.tier = 2;
+    state.players[0]!.gold = TUNING.towers.arrow.tiers[2]!.cost;
+    const upgrades = createBalanceBot('p1').decide(snapshot(state)).filter((c) => c.type === 'upgrade');
+    expect(upgrades).toEqual([{ type: 'upgrade', towerId: arrow.id }]);
+  });
+
+  it('with nothing left to buy, gifts its gold to the teammate with the most left to buy', () => {
+    const state = labGame(TUNING, 3);
+    const pads = getMap().pads;
+    for (const p of state.players) p.gold = 1_000_000;
+    pads.forEach((pad, i) => applyCommand(state, i < 4 ? 'p1' : i < 6 ? 'p2' : 'p3', { type: 'build', padId: pad.id, tower: 'arrow' }));
+    for (const t of state.towers) if (t.owner === 'p1') Object.assign(t, { tier: 4, branch: 'volley' });
+    // p2 has 2 towers left to upgrade, p3 many more.
+    state.players[0]!.gold = 500;
+    state.players[1]!.gold = 0;
+    state.players[2]!.gold = 0;
+    const gifts = () => createBalanceBot('p1').decide(snapshot(state)).filter((c) => c.type === 'gift');
+    expect(gifts()).toEqual([{ type: 'gift', to: 'p3', amount: 500 }]);
+    // Not to a teammate who is away, and not small change.
+    state.players[2]!.connected = false;
+    expect(gifts()).toEqual([{ type: 'gift', to: 'p2', amount: 500 }]);
+    state.players[0]!.gold = 50;
+    expect(gifts()).toEqual([]);
+    // Something left to buy of its own: no gift.
+    state.players[0]!.gold = 500;
+    Object.assign(state.towers[0]!, { tier: 3, branch: null });
+    expect(gifts()).toEqual([]);
+  });
+
   it('plays forward on its lane in later waves once it has its ultimate (3+ players; solo guards)', () => {
     const goalY = (players: number, wave: number, ultimate: boolean) => {
       const state = labGame(TUNING, players);

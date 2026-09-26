@@ -16,8 +16,9 @@ const game = (players: number) =>
   );
 
 describe('player-count scaling', () => {
-  it('multiplies creep HP by team size, plus an early bonus by team size that fades out', () => {
-    const { hp, earlyHpBonus: bonus, earlyWaves } = TUNING.playerScaling;
+  it('multiplies creep HP by team size, plus an early bonus that fades out and a late bonus that fades in', () => {
+    const { hp, earlyHpBonus: bonus, earlyWaves, lateHpBonus: late, lateWaves } = TUNING.playerScaling;
+    const total = TUNING.waves.list.length;
     const base = creepMaxHp(game(1), 'grunt', 1);
     expect(base).toBe(TUNING.creeps.grunt.hp);
     // Wave 1: the full early bonus for the team size.
@@ -27,11 +28,21 @@ describe('player-count scaling', () => {
     const mid = 1 + earlyWaves / 2;
     const midWaveMult = 1 + TUNING.waves.hpGrowthPerWave * (mid - 1);
     expect(creepMaxHp(game(4), 'grunt', mid)).toBe(Math.round(base * midWaveMult * (hp[3]! + bonus[3]! / 2)));
-    // After the early waves: the team-size multiplier only; solo is never scaled.
+    // Once the early bonus is gone: the team-size multiplier, plus whatever the late bonus has grown to by
+    // then (it starts growing after wave total − lateWaves); solo is never scaled.
     const after = earlyWaves + 1;
+    const lateAfter = late[3]! * Math.max(0, (after - (total - lateWaves)) / lateWaves);
     const waveMult = 1 + TUNING.waves.hpGrowthPerWave * (after - 1);
-    expect(creepMaxHp(game(4), 'grunt', after)).toBe(Math.round(base * waveMult * hp[3]!));
+    expect(creepMaxHp(game(4), 'grunt', after)).toBe(Math.round(base * waveMult * (hp[3]! + lateAfter)));
     expect(creepMaxHp(game(1), 'grunt', after)).toBe(Math.round(base * waveMult));
+    // The late bonus grows over the last waves, in full on the final wave.
+    const lastMult = 1 + TUNING.waves.hpGrowthPerWave * (total - 1);
+    expect(creepMaxHp(game(4), 'grunt', total)).toBe(Math.round(base * lastMult * (hp[3]! + late[3]!)));
+    const halfway = total - lateWaves / 2;
+    const halfMult = 1 + TUNING.waves.hpGrowthPerWave * (halfway - 1);
+    expect(creepMaxHp(game(4), 'grunt', halfway)).toBe(Math.round(base * halfMult * (hp[3]! + late[3]! / 2)));
+    expect(creepMaxHp(game(1), 'grunt', total)).toBe(Math.round(base * lastMult));
+    expect(late[0]).toBe(0);
     expect(hp[0]).toBe(1);
     expect(bonus[0]).toBe(0);
     // Bigger teams are pressed harder early.

@@ -91,15 +91,17 @@ export function scaledCount(state: GameState, perLane: number): number {
 
 /**
  * Creep HP multiplier for the player count on `wave`: the table value for that many players, plus the
- * early bonus for that player count, fading out linearly over the first `earlyWaves` waves.
+ * early bonus for that player count, fading out linearly over the first `earlyWaves` waves, plus the late
+ * bonus, growing linearly over the last `lateWaves` waves (full on the final wave).
  */
 export function playerHpMultiplier(state: GameState, wave: number): number {
   const ps = state.tuning.playerScaling;
   const i = Math.max(0, state.players.length - 1);
+  const at = (list: number[], fallback: number) => list[Math.min(i, list.length - 1)] ?? fallback;
   const fade = Math.max(0, 1 - (wave - 1) / ps.earlyWaves);
-  const base = ps.hp[Math.min(i, ps.hp.length - 1)] ?? 1;
-  const bonus = ps.earlyHpBonus[Math.min(i, ps.earlyHpBonus.length - 1)] ?? 0;
-  return base + bonus * fade;
+  const lateStart = state.tuning.waves.list.length - ps.lateWaves;
+  const ramp = ps.lateWaves > 0 ? Math.min(1, Math.max(0, (wave - lateStart) / ps.lateWaves)) : 0;
+  return at(ps.hp, 1) + at(ps.earlyHpBonus, 0) * fade + at(ps.lateHpBonus, 0) * ramp;
 }
 
 export function creepMaxHp(state: GameState, kind: CreepKind, wave: number): number {
@@ -145,6 +147,8 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
     stunUntil: 0,
     tauntUntil: 0,
     towerTicks: 0,
+    shred: 0,
+    shredUntil: 0,
     remaining: path.remainingFrom[0] ?? 0,
     dead: false,
   };

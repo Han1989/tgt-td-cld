@@ -81,13 +81,18 @@ describe('match modes', () => {
     });
   });
 
-  it('Quick mode fades the team HP bonus over its own number of waves', () => {
+  it('Quick mode fades the team HP bonus in and out over its own numbers of waves', () => {
     const ps = QUICK.playerScaling;
     const quick = game('quick', 4);
+    const lateStart = 15 - ps.lateWaves;
     expect(playerHpMultiplier(quick, 1)).toBeCloseTo(ps.hp[3]! + ps.earlyHpBonus[3]!);
-    expect(playerHpMultiplier(quick, ps.earlyWaves + 1)).toBeCloseTo(ps.hp[3]!);
-    expect(playerHpMultiplier(quick, 15)).toBeCloseTo(ps.hp[3]!);
+    expect(playerHpMultiplier(quick, lateStart)).toBeCloseTo(ps.hp[3]! + ps.earlyHpBonus[3]! * Math.max(0, 1 - (lateStart - 1) / ps.earlyWaves));
+    expect(playerHpMultiplier(quick, ps.earlyWaves + 1)).toBeCloseTo(
+      ps.hp[3]! + ps.lateHpBonus[3]! * Math.max(0, (ps.earlyWaves + 1 - lateStart) / ps.lateWaves),
+    );
+    expect(playerHpMultiplier(quick, 15)).toBeCloseTo(ps.hp[3]! + ps.lateHpBonus[3]!);
     expect(playerHpMultiplier(game('quick', 1), 1)).toBe(1);
+    expect(playerHpMultiplier(game('quick', 1), 15)).toBe(1);
   });
 
   it('applies a mode on top of a custom tuning without changing it', () => {

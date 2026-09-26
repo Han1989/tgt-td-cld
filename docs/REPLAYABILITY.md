@@ -6,6 +6,8 @@
 
 ## 1. Top-tier tower branches
 
+> **Done (pulled forward into Phase 4a as the late-game gold sink for 3–4 player teams).** Numbers in `tuning.ts` `branches`; mechanics and results in the Decision Log in `GAME_DESIGN.md`. Glacier freezes on every 3rd hit; Void adds 3% of max HP per hit; Hailstorm shoots flyers first.
+
 At the top tier, each tower **splits into one of two specialisations**. The same pad can then support different builds, and the player picks based on the waves ahead and their team.
 
 | Tower | Branch A | Branch B |

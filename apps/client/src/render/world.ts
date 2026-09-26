@@ -504,6 +504,9 @@ export class WorldRenderer {
       case 'arrowStorm':
         fx.arrowStormPulse(x, y, radius);
         break;
+      case 'blizzard':
+        fx.ring(x, y, radius, AOE_COLORS.blizzard, 400);
+        break;
       default:
         fx.ring(x, y, radius, AOE_COLORS.cleave, 400);
     }
@@ -843,14 +846,18 @@ export class WorldRenderer {
       const scale = Math.min(this.entityScale, MAX_TOWER_SCALE);
       s.root.scale.set(scale);
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
-      const statusKey = `${t.tier}${t.stunned ? 'st' : ''}`;
+      const statusKey = `${t.tier}${t.branch ?? ''}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
-        // One pip per tier along the bottom edge.
+        // One pip per tier along the bottom edge; a branch adds a bigger white one.
         const pipY = S * TOWER_SIZE * 0.5 - 5;
         for (let i = 0; i < t.tier; i++) {
-          s.status.circle((i - (t.tier - 1) / 2) * 9, pipY, 3).fill(COLORS.tierPip).stroke({ width: 1, color: 0x000000 });
+          const branch = t.branch !== null && i === t.tier - 1;
+          s.status
+            .circle((i - (t.tier - 1) / 2) * 9, pipY, branch ? 4 : 3)
+            .fill(branch ? COLORS.branchPip : COLORS.tierPip)
+            .stroke({ width: 1, color: 0x000000 });
         }
         if (t.stunned) s.status.star(0, 0, 5, S * 0.5, S * 0.25).fill({ color: COLORS.stun, alpha: 0.9 });
       }

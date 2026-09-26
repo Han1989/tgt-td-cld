@@ -17,6 +17,7 @@ import {
   type SkillSlot,
   type Snapshot,
   type TargetPriority,
+  type TowerBranch,
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
@@ -28,7 +29,18 @@ import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
 import { Counter } from './counter';
 import { pulse } from './press';
-import { buildCost, maxTier, PRIORITY_HINTS, PRIORITY_NAMES, targetsText, towerStatRows, upgradeCost } from './towerInfo';
+import {
+  branchChoices,
+  branchStatRows,
+  buildCost,
+  maxTier,
+  PRIORITY_HINTS,
+  PRIORITY_NAMES,
+  targetsText,
+  towerName,
+  towerStatRows,
+  upgradeCost,
+} from './towerInfo';
 
 /** The Heart stat warns (red pulse) at or under this share of HP; matches the world's warning glow. */
 const HEART_LOW = 0.3;
@@ -82,7 +94,8 @@ interface SkillButton {
 export interface HudActions {
   build(padId: number, tower: TowerKind): void;
   sell(towerId: number): void;
-  upgrade(towerId: number): void;
+  /** `branch`: the specialisation, for the upgrade after the last regular tier. */
+  upgrade(towerId: number, branch?: TowerBranch): void;
   setPriority(towerId: number, priority: TargetPriority): void;
   callEarly(): void;
   /** Online only: give some of your gold to a teammate. */
@@ -621,7 +634,10 @@ export class Hud {
       const mine = tower.owner === me;
       const refund = Math.floor(tower.spent * TUNING.economy.sellRefund);
       const nextCost = upgradeCost(tower.kind, tower.tier);
-      const key = `tower:${tower.id}:${tower.tier}:${tower.priority}:${mine}:${nextCost !== null && gold >= nextCost}`;
+      const affordable = [nextCost ?? Infinity, ...branchChoices(tower.kind, tower.tier, tower.branch).map((c) => c.cost)]
+        .map((c) => gold >= c)
+        .join();
+      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold);
@@ -647,23 +663,24 @@ export class Hud {
     const panel = this.towerPanel;
     const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? '?';
     const showNext = mine && nextCost !== null;
-    const statRows = towerStatRows(tower.kind, tower.tier)
+    const statRows = towerStatRows(tower.kind, tower.tier, undefined, tower.branch)
       .map((r) => {
         const next = showNext && r.next ? ` <span class="next">→ ${r.next}</span>` : '';
         return `<div class="row"><span>${r.label}</span><span>${r.value}${next}</span></div>`;
       })
       .join('');
     panel.innerHTML = `
-      <h3>${TOWER_NAMES[tower.kind]} tower <span style="color:var(--muted);font-weight:400">tier ${tower.tier} / ${maxTier(tower.kind)}</span></h3>
+      <h3>${towerName(tower.kind, tower.branch, TOWER_NAMES)} tower <span style="color:var(--muted);font-weight:400">${tower.branch ? `${TOWER_NAMES[tower.kind]}, ` : ''}tier ${tower.tier} / ${maxTier(tower.kind)}</span></h3>
       <div class="row"><span>HP</span><span class="tower-hp"></span></div>
       ${statRows}
-      <div class="row"><span>Targets</span><span>${targetsText(tower.kind)}</span></div>
+      <div class="row"><span>Hits</span><span>${targetsText(tower.kind, undefined, tower.branch)}</span></div>
       <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
     if (!mine) {
       panel.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
       return;
     }
 
+    const choices = branchChoices(tower.kind, tower.tier, tower.branch);
     if (nextCost !== null) {
       const up = document.createElement('button');
       up.className = 'btn';
@@ -672,6 +689,27 @@ export class Hud {
       up.innerHTML = `Upgrade to tier ${tower.tier + 1} <span class="cost">${nextCost}</span>`;
       up.addEventListener('click', () => this.actions.upgrade(tower.id));
       panel.appendChild(up);
+    } else if (choices.length > 0) {
+      // Tier 4: one of two specialisations, for good (docs/REPLAYABILITY.md §1).
+      const label = document.createElement('div');
+      label.className = 'section';
+      label.textContent = 'Specialise (final)';
+      const row = document.createElement('div');
+      row.className = 'branches';
+      for (const c of choices) {
+        const b = document.createElement('button');
+        b.className = 'btn branch-option';
+        b.dataset.branch = c.branch;
+        b.disabled = gold < c.cost;
+        b.title = branchStatRows(tower.kind, c.branch)
+          .filter((r) => r.label !== 'Max HP')
+          .map((r) => `${r.label}: ${r.was ? `${r.was} → ` : ''}${r.value}`)
+          .join('\n');
+        b.innerHTML = `<span class="name">${c.name}</span><span class="cost">${c.cost}</span><span class="desc">${c.blurb}</span>`;
+        b.addEventListener('click', () => this.actions.upgrade(tower.id, c.branch));
+        row.appendChild(b);
+      }
+      panel.append(label, row);
     } else {
       panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
     }

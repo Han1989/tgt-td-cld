@@ -27,6 +27,8 @@ export const COLORS = {
   bad: 0xff5b5b,
   gold: 0xffd24a,
   tierPip: 0xffd24a,
+  /** The top-tier branch's pip (after the three gold ones). */
+  branchPip: 0xffffff,
 } as const;
 
 /** Pad-zone tints by seat (index in the snapshot's player list). */
@@ -61,6 +63,7 @@ export const AOE_COLORS: Record<AoeEffect, number> = {
   frostNova: 0x9fe3ff,
   meteor: 0xff5a1f,
   arrowStorm: 0xe6ff7a,
+  blizzard: 0xcff4ff,
 };
 
 export const ZONE_COLORS: Record<ZoneKind, number> = {

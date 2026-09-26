@@ -3,7 +3,7 @@
 import type { AoeEffect, DamageType, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
 import { getMap } from './map';
 import { nextRandom } from './rng';
-import type { Creep, GameState, Hero, Projectile, TargetKind, Tower } from './state';
+import type { Creep, GameState, Hero, Projectile, ProjectileFx, TargetKind, Tower } from './state';
 import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
 import { dist } from './vec';
 
@@ -117,15 +117,30 @@ export function heroDamage(state: GameState, hero: Hero): number {
   return s.damage + s.damagePerLevel * (hero.level - 1);
 }
 
+/** A creep's armour right now: its own, minus what Shrapnel towers stripped off (while it lasts). */
+export function effectiveArmor(state: GameState, creep: Creep): number {
+  return state.tick < creep.shredUntil ? creep.armor - creep.shred : creep.armor;
+}
+
+/** Strips `amount` armour (up to `max` in total) for `ticks` after this hit. */
+export function shredArmor(state: GameState, creep: Creep, amount: number, max: number, ticks: number): void {
+  if (state.tick >= creep.shredUntil) creep.shred = 0;
+  creep.shred = Math.min(max, creep.shred + amount);
+  creep.shredUntil = state.tick + ticks;
+}
+
+/** `pierce`: the hit ignores armour and magic resist (Void towers). */
 export function damageCreep(
   state: GameState,
   creep: Creep,
   amount: number,
   type: DamageType,
   source: PlayerId | null,
+  pierce = false,
 ): void {
   if (creep.dead) return;
-  creep.hp -= amount * damageMultiplier(state.tuning, type, creep.armor, creep.magicResist);
+  const mult = pierce ? 1 : damageMultiplier(state.tuning, type, effectiveArmor(state, creep), creep.magicResist);
+  creep.hp -= amount * mult;
   if (creep.hp <= 0) killCreep(state, creep, source);
 }
 
@@ -228,6 +243,7 @@ export function spawnProjectile(
     slow?: number;
     slowDuration?: number;
     crit?: boolean;
+    fx?: ProjectileFx;
   },
 ): void {
   const p: Projectile = {
@@ -249,6 +265,7 @@ export function spawnProjectile(
     slow: opts.slow ?? 0,
     slowTicks: secondsToTicks(opts.slowDuration ?? 0),
     crit: opts.crit ?? false,
+    fx: opts.fx ?? null,
     source: opts.source,
     done: false,
   };

@@ -2,7 +2,7 @@
 // seconds, distances in tiles, speeds in tiles per second. The sim converts
 // seconds to ticks with `secondsToTicks`.
 
-import type { BossKind, CreepKind, DamageType, GameMode, LaneId, SkillSlot, TowerKind } from '@tdt/protocol';
+import type { BossKind, CreepKind, DamageType, GameMode, LaneId, SkillSlot, TowerBranch, TowerKind } from '@tdt/protocol';
 
 /** Fixed simulation rate. */
 export const TICK_RATE = 20;
@@ -44,6 +44,68 @@ export interface TowerTierStats {
   slow: number;
   slowDuration: number;
 }
+
+/**
+ * What a top-tier branch adds to a plain tier (docs/REPLAYABILITY.md §1). Plain tiers have none of these
+ * (`NO_EFFECTS`); a branch lists the ones it uses.
+ */
+export interface TowerEffects {
+  /** Creeps shot at once, each by its own projectile (Volley). */
+  targets: number;
+  /** Chance and damage multiplier of a critical hit (Sniper). */
+  critChance: number;
+  critMultiplier: number;
+  /** Damage against ground creeps × this (Hailstorm: a Flak that can also hit ground). */
+  groundDamage: number;
+  /** Armour removed per hit, stacking up to `shredMax`, lasting `shredDuration` after the last hit (Shrapnel). */
+  armorShred: number;
+  shredMax: number;
+  shredDuration: number;
+  /** Every `freezeEvery`-th shot freezes (stuns) its target for `freeze` seconds; 0 = never (Glacier). */
+  freezeEvery: number;
+  freeze: number;
+  /** No projectile: every `attackCooldown` it hits every creep in range around itself (Blizzard). */
+  pulse: boolean;
+  /** A hit jumps on to up to `chains` more creeps within `chainRange`, × `chainFalloff` per jump (Prism). */
+  chains: number;
+  chainRange: number;
+  chainFalloff: number;
+  /** Ignores armour and magic resist (Void). */
+  ignoreResist: boolean;
+  /** Extra damage per hit: this fraction of the target's max HP (Void). */
+  hpPercent: number;
+}
+
+/** A top-tier branch: the numbers of a tier (its `cost` is the upgrade from tier 3), plus its effects. */
+export interface BranchStats extends TowerTierStats, Partial<TowerEffects> {
+  /** Overrides the tower kind's targets (Hailstorm hits ground too). */
+  hitsGround?: boolean;
+  hitsAir?: boolean;
+}
+
+/** Everything a tower at a given tier or branch shoots with. */
+export interface TowerLevelStats extends TowerTierStats, TowerEffects {
+  hitsGround: boolean;
+  hitsAir: boolean;
+}
+
+export const NO_EFFECTS: TowerEffects = {
+  targets: 1,
+  critChance: 0,
+  critMultiplier: 1,
+  groundDamage: 1,
+  armorShred: 0,
+  shredMax: 0,
+  shredDuration: 0,
+  freezeEvery: 0,
+  freeze: 0,
+  pulse: false,
+  chains: 0,
+  chainRange: 0,
+  chainFalloff: 1,
+  ignoreResist: false,
+  hpPercent: 0,
+};
 
 export interface TowerStats {
   damageType: DamageType;
@@ -279,15 +341,18 @@ export interface Tuning {
   };
   /**
    * Player-count scaling, by player count (index 0 = solo; the last entry also covers bigger teams).
-   * Creep HP × (hp[n − 1] + earlyHpBonus[n − 1] × e), where e fades from 1 on wave 1 to 0 on wave
-   * earlyWaves + 1. Teams get their gold and heroes all at once but share the pads (a few extra pads
-   * aside), so their tower power hits the pad limit sooner than a solo player's: they are pressed
-   * harder early than late.
+   * Creep HP × (hp[n − 1] + earlyHpBonus[n − 1] × e + lateHpBonus[n − 1] × l), where e fades from 1 on
+   * wave 1 to 0 on wave earlyWaves + 1, and l grows from 0 on the wave before the last `lateWaves` to 1 on
+   * the final wave. Teams get their gold and heroes all at once but share the pads (a few extra pads aside),
+   * so their towers hit the pad limit sooner than a solo player's: they are pressed harder early. Late on,
+   * their gold goes into top-tier branches, so a growing late bonus keeps the last waves a threat.
    */
   playerScaling: {
     hp: number[];
     earlyHpBonus: number[];
     earlyWaves: number;
+    lateHpBonus: number[];
+    lateWaves: number;
     /** Creep count × (1 + countPerExtraPlayer × (players − 1)); bosses are not multiplied. */
     countPerExtraPlayer: number;
   };
@@ -329,6 +394,11 @@ export interface Tuning {
   };
   creeps: Record<CreepKind, CreepStats>;
   towers: Record<TowerKind, TowerStats>;
+  /**
+   * Top-tier branches (docs/REPLAYABILITY.md §1): after the last tier in `towers[kind].tiers`, a tower
+   * upgrades into one of its two branches (`TOWER_BRANCHES` in the protocol). The late-game gold sink.
+   */
+  branches: Record<TowerBranch, BranchStats>;
   /** Per-mode changes to the numbers above; the top-level numbers are Full mode. */
   modes: Record<GameMode, ModeTuning>;
   hero: {
@@ -416,7 +486,14 @@ export const TUNING: Tuning = {
       w({ grunt: 14, runner: 2, archer: 8, brute: 8, wisp: 8 }, 'shardback'), // 30: final boss (Shifting Hide)
     ],
   },
-  playerScaling: { hp: [1, 1.45, 1.45, 1.5], earlyHpBonus: [0, 0.5, 1.6, 2.4], earlyWaves: 20, countPerExtraPlayer: 0.3 },
+  playerScaling: {
+    hp: [1, 1.45, 1.45, 1.5],
+    earlyHpBonus: [0, 0.5, 1.6, 2.4],
+    earlyWaves: 20,
+    lateHpBonus: [0, 0.06, 0.15, 2.0],
+    lateWaves: 10,
+    countPerExtraPlayer: 0.3,
+  },
   combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10, towerAttackLimit: 10 },
   pads: { extraPerLaneZone: [0, 0, 1, 1], core: [0, 0, 0, 4] },
@@ -472,7 +549,7 @@ export const TUNING: Tuning = {
       bounty: 180, xp: 500, leakDamage: 20, boss: true,
     },
   },
-  // Tier 1 is what a fresh build gets; tiers 2 and 3 are bought with `upgrade`.
+  // Tier 1 is what a fresh build gets; tiers 2 and 3 are bought with `upgrade`, then one of two `branches` (below).
   // Selling refunds economy.sellRefund of everything spent on the tower.
   towers: {
     arrow: {
@@ -518,6 +595,58 @@ export const TUNING: Tuning = {
       ],
     },
   },
+  // Top-tier branches: `cost` is the upgrade from tier 3 (about 2.2× the tier-3 price), for roughly 1.5–2× the
+  // tier-3 power where their effect fits the wave: the late-game gold sink once a player's pads are all tier 3.
+  branches: {
+    // Arrow A: long range, slow, big crits (bosses, Brutes).
+    sniper: {
+      cost: 600, hp: 740, range: 10, damage: 260, attackCooldown: 1.2, splash: 0, slow: 0, slowDuration: 0,
+      critChance: 0.25, critMultiplier: 2.5,
+    },
+    // Arrow B: three targets per shot (crowds).
+    volley: {
+      cost: 600, hp: 740, range: 7.5, damage: 60, attackCooldown: 0.6, splash: 0, slow: 0, slowDuration: 0,
+      targets: 3,
+    },
+    // Cannon A: very long range, huge splash, slow.
+    mortar: {
+      cost: 800, hp: 800, range: 10, damage: 330, attackCooldown: 2.2, splash: 3, slow: 0, slowDuration: 0,
+    },
+    // Cannon B: a smaller splash whose hits strip armour (every physical hit on those creeps gains).
+    shrapnel: {
+      cost: 800, hp: 800, range: 6.5, damage: 230, attackCooldown: 1.3, splash: 1.6, slow: 0, slowDuration: 0,
+      armorShred: 3, shredMax: 12, shredDuration: 4,
+    },
+    // Frost A: every 3rd shot freezes its target (bosses: half as long).
+    glacier: {
+      cost: 650, hp: 730, range: 6.5, damage: 150, attackCooldown: 0.8, splash: 0, slow: 0.45, slowDuration: 3,
+      freezeEvery: 3, freeze: 1,
+    },
+    // Frost B: a pulse around the tower that hurts and slows everything in range.
+    blizzard: {
+      cost: 650, hp: 730, range: 5.5, damage: 30, attackCooldown: 1, splash: 0, slow: 0.45, slowDuration: 2,
+      pulse: true,
+    },
+    // Arcane A: each hit jumps on to 3 more creeps.
+    prism: {
+      cost: 750, hp: 730, range: 7, damage: 200, attackCooldown: 1, splash: 0, slow: 0, slowDuration: 0,
+      chains: 3, chainRange: 3, chainFalloff: 0.6,
+    },
+    // Arcane B: ignores resistances and adds 3% of the target's max HP per hit (anti-boss).
+    void: {
+      cost: 750, hp: 730, range: 7, damage: 250, attackCooldown: 1, splash: 0, slow: 0, slowDuration: 0,
+      ignoreResist: true, hpPercent: 0.03,
+    },
+    // Flak A: stronger anti-air that slows the flyers it hits.
+    skyguard: {
+      cost: 650, hp: 730, range: 9, damage: 450, attackCooldown: 1.2, splash: 2, slow: 0.4, slowDuration: 2,
+    },
+    // Flak B: also hits ground creeps, at half damage.
+    hailstorm: {
+      cost: 650, hp: 730, range: 8, damage: 320, attackCooldown: 1.3, splash: 1.8, slow: 0, slowDuration: 0,
+      hitsGround: true, groundDamage: 0.5,
+    },
+  },
   modes: {
     full: {},
     // Quick mode (docs/MOBILE.md §6): 15 waves, about 11 minutes. Wave k plays like Full wave 2k (bosses on
@@ -548,7 +677,13 @@ export const TUNING: Tuning = {
           w({ grunt: 14, runner: 2, archer: 8, brute: 8, wisp: 8 }, 'shardback'), // 15: final boss (Shifting Hide)
         ],
       },
-      playerScaling: { hp: [1, 1.45, 1.6, 1.8], earlyHpBonus: [0, 0.5, 1.6, 2.2], earlyWaves: 10 },
+      playerScaling: {
+        hp: [1, 1.45, 1.6, 1.8],
+        earlyHpBonus: [0, 0.5, 1.6, 2.2],
+        earlyWaves: 10,
+        lateHpBonus: [0, 0, 1.0, 2.2],
+        lateWaves: 5,
+      },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
     },
   },
@@ -689,6 +824,19 @@ export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
 export function towerTier(tuning: Tuning, kind: TowerKind, tier: number): TowerTierStats {
   const tiers = tuning.towers[kind].tiers;
   return tiers[Math.max(1, Math.min(tiers.length, tier)) - 1]!;
+}
+
+/** The tier a branch counts as: one past the last regular tier. */
+export function branchTier(tuning: Tuning, kind: TowerKind): number {
+  return tuning.towers[kind].tiers.length + 1;
+}
+
+/** Everything a tower of `kind` at `tier` (or with `branch`, its top tier) shoots with. */
+export function towerStats(tuning: Tuning, kind: TowerKind, tier: number, branch: TowerBranch | null): TowerLevelStats {
+  const s = tuning.towers[kind];
+  const base = { ...NO_EFFECTS, hitsGround: s.hitsGround, hitsAir: s.hitsAir };
+  if (branch) return { ...base, ...tuning.branches[branch] };
+  return { ...base, ...towerTier(tuning, kind, tier) };
 }
 
 export function secondsToTicks(seconds: number): number {

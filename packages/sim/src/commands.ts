@@ -1,7 +1,7 @@
 // Validates and applies player commands. Invalid commands change nothing and
 // produce a `rejected` event for the issuing player.
 
-import type { Command, PlayerId } from '@tdt/protocol';
+import { isBranchOf, type Command, type PlayerId } from '@tdt/protocol';
 import { emit, HERO_SKILLS, newId } from './combat';
 import { setPath } from './heroes';
 import { getMap } from './map';
@@ -94,6 +94,8 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
         hp: stats.hp,
         maxHp: stats.hp,
         tier: 1,
+        branch: null,
+        shots: 0,
         cooldown: 0,
         spent: stats.cost,
         priority: 'first',
@@ -118,12 +120,22 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       const tower = state.towers.find((t) => t.id === command.towerId && !t.dead);
       if (!tower) return reject('No such tower');
       if (tower.owner !== playerId) return reject('Not your tower');
-      // `tiers` is 0-based, so index `tier` is the next tier.
-      const next = state.tuning.towers[tower.kind].tiers[tower.tier];
-      if (!next) return reject('Tower is at max tier');
-      if (player.gold < next.cost) return reject('Not enough gold');
-      player.gold -= next.cost;
-      upgradeTower(state, tower);
+      // Tiers 2 and 3 are plain; after the last one the tower picks one of its two branches.
+      const tiers = state.tuning.towers[tower.kind].tiers;
+      if (tower.branch || tower.tier > tiers.length) return reject('Tower is at max tier');
+      let cost: number;
+      if (tower.tier < tiers.length) {
+        if (command.branch !== undefined) return reject(`Specialisations come after tier ${tiers.length}`);
+        // `tiers` is 0-based, so index `tier` is the next tier.
+        cost = tiers[tower.tier]!.cost;
+      } else {
+        if (command.branch === undefined) return reject('Pick a specialisation');
+        if (!isBranchOf(tower.kind, command.branch)) return reject('Not a specialisation of this tower');
+        cost = state.tuning.branches[command.branch].cost;
+      }
+      if (player.gold < cost) return reject('Not enough gold');
+      player.gold -= cost;
+      upgradeTower(state, tower, command.branch ?? null);
       return true;
     }
     case 'setPriority': {

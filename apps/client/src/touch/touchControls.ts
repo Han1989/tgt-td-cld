@@ -14,13 +14,24 @@ import {
   type SkillSlot,
   type SkillSnap,
   type Snapshot,
+  type TowerBranch,
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
-import { buildCost, nextPriority, upgradeChip, upgradeCost, PRIORITY_NAMES } from '../hud/towerInfo';
+import {
+  BRANCH_BLURBS,
+  branchChip,
+  branchChoices,
+  buildCost,
+  nextPriority,
+  towerName,
+  upgradeChip,
+  upgradeCost,
+  PRIORITY_NAMES,
+} from '../hud/towerInfo';
 import type { Camera } from '../input/camera';
 import { clamp, type Layout, type Rect } from '../layout';
 import { padStatus } from '../padInfo';
@@ -107,6 +118,8 @@ export class TouchControls {
 
   private menu: Menu = null;
   private menuKey = '';
+  /** Tower ring at tier 3: the branch button tapped once (the second tap buys it). */
+  private branchPick: TowerBranch | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -501,7 +514,7 @@ export class TouchControls {
       this.openTower(tower.id);
     } else {
       const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? 'a teammate';
-      this.actions.toast(`${owner}'s ${TOWER_NAMES[tower.kind]} tower (tier ${tower.tier})`);
+      this.actions.toast(`${owner}'s ${towerName(tower.kind, tower.branch, TOWER_NAMES)} tower (tier ${tower.tier})`);
     }
   }
 
@@ -533,7 +546,7 @@ export class TouchControls {
     if (pick.kind === 'pad') return 'Build pad';
     if (pick.kind === 'tower') {
       const t = snap?.towers.find((x) => x.id === pick.id);
-      return t ? `${TOWER_NAMES[t.kind]} tower` : 'Tower';
+      return t ? `${towerName(t.kind, t.branch, TOWER_NAMES)} tower` : 'Tower';
     }
     const c = this.renderer.drawnCreepList().find((x) => x.id === pick.id);
     return c ? CREEP_NAMES[c.kind] : 'Enemy';
@@ -565,6 +578,7 @@ export class TouchControls {
   closeMenus(): void {
     this.menu = null;
     this.menuKey = '';
+    this.branchPick = null;
     this.ui.preview = null;
     this.sellHold = null;
     this.radial.classList.add('hidden');
@@ -605,13 +619,18 @@ export class TouchControls {
       anchor = tower;
       extent = TOWER_RING_R + TOWER_BTN / 2;
       const next = upgradeCost(tower.kind, tower.tier);
-      const key = `t:${tower.id}:${tower.tier}:${tower.priority}:${next !== null && gold >= next}`;
+      const choices = branchChoices(tower.kind, tower.tier, tower.branch);
+      if (choices.length === 0) this.branchPick = null;
+      const affordable = [next ?? Infinity, ...choices.map((c) => c.cost)].map((c) => gold >= c).join();
+      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${this.branchPick}:${affordable}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerRing(tower, gold);
       }
-      const adds = upgradeChip(tower.kind, tower.tier);
-      chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${adds || 'max tier'}`;
+      if (this.branchPick) chip = branchChip(this.branchPick);
+      else if (choices.length > 0) chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: pick a specialisation`;
+      else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
+      else chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier) || 'max tier'}`;
     }
     const at = placeRadial(this.toScreen(anchor.x, anchor.y), extent, CHIP_H, this.bounds());
     this.radial.style.left = `${Math.round(at.x)}px`;
@@ -667,21 +686,35 @@ export class TouchControls {
       { x: TOWER_RING_R * 0.87, y: TOWER_RING_R * 0.5 },
     ];
     const next = upgradeCost(tower.kind, tower.tier);
-    const upgrade = this.ringButton(
-      up!,
-      TOWER_BTN,
-      next === null ? '<span class="name">Max</span><span class="cost">tier</span>' : `<span class="name">Upgrade</span><span class="cost">${next}</span>`,
-    );
-    upgrade.dataset.action = 'upgrade';
-    upgrade.disabled = next === null;
-    upgrade.classList.toggle('poor', next !== null && gold < next);
-    upgrade.addEventListener('click', () => {
-      if (next !== null && gold < next) {
-        this.shake(upgrade);
-        return this.actions.toast('Not enough gold');
-      }
-      this.actions.send({ type: 'upgrade', towerId: tower.id });
-    });
+    const choices = branchChoices(tower.kind, tower.tier, tower.branch);
+    if (choices.length > 0) {
+      // Tier 3: two specialisation buttons where Upgrade was, either side of the top.
+      choices.forEach((c, i) => {
+        const at = { x: (i === 0 ? -1 : 1) * TOWER_RING_R * 0.57, y: -TOWER_RING_R * 0.82 };
+        const b = this.ringButton(at, TOWER_BTN, `<span class="name">${c.name}</span><span class="cost">${c.cost}</span>`);
+        b.dataset.action = 'branch';
+        b.dataset.branch = c.branch;
+        b.classList.toggle('poor', gold < c.cost);
+        b.classList.toggle('armed', this.branchPick === c.branch);
+        b.addEventListener('click', () => this.pickBranch(tower.id, c.branch, c.cost, b));
+      });
+    } else {
+      const upgrade = this.ringButton(
+        up!,
+        TOWER_BTN,
+        next === null ? '<span class="name">Max</span><span class="cost">tier</span>' : `<span class="name">Upgrade</span><span class="cost">${next}</span>`,
+      );
+      upgrade.dataset.action = 'upgrade';
+      upgrade.disabled = next === null;
+      upgrade.classList.toggle('poor', next !== null && gold < next);
+      upgrade.addEventListener('click', () => {
+        if (next !== null && gold < next) {
+          this.shake(upgrade);
+          return this.actions.toast('Not enough gold');
+        }
+        this.actions.send({ type: 'upgrade', towerId: tower.id });
+      });
+    }
 
     const priority = this.ringButton(prio!, TOWER_BTN, `<span class="cap">Target</span><span class="name">${PRIORITY_NAMES[tower.priority]}</span>`);
     priority.dataset.action = 'priority';
@@ -705,6 +738,24 @@ export class TouchControls {
     };
     sellBtn.addEventListener('pointerup', release);
     sellBtn.addEventListener('pointercancel', release);
+  }
+
+  /** First tap on a branch shows what it does (chip); the second buys it. The choice is final. */
+  private pickBranch(towerId: number, branch: TowerBranch, cost: number, button: HTMLElement): void {
+    if (this.branchPick !== branch) {
+      this.branchPick = branch;
+      this.menuKey = '';
+      return;
+    }
+    const gold = this.actions.latest()?.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+    if (gold < cost) {
+      this.shake(button);
+      this.actions.toast('Not enough gold');
+      return;
+    }
+    this.branchPick = null;
+    this.menuKey = '';
+    this.actions.send({ type: 'upgrade', towerId, branch });
   }
 
   private updateHold(now: number): void {
