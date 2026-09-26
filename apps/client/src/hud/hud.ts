@@ -1,5 +1,7 @@
 // HTML/CSS HUD: gold, Heart HP, wave, next-wave timer, hero panel, tower
 // menus, toasts and the victory / defeat screen. Reads snapshots only.
+// Phase 4b feedback: gold and Heart count smoothly, coins fly to the gold counter,
+// wave and boss banners, and pulses when the Heart is hit or a skill fires.
 
 import {
   isBossKind,
@@ -23,7 +25,25 @@ import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
+import { CoinFlyer } from './coins';
+import { Counter } from './counter';
+import { pulse } from './press';
 import { buildCost, maxTier, PRIORITY_HINTS, PRIORITY_NAMES, targetsText, towerStatRows, upgradeCost } from './towerInfo';
+
+/** The Heart stat warns (red pulse) at or under this share of HP; matches the world's warning glow. */
+const HEART_LOW = 0.3;
+
+const GAIN_PULSE: Keyframe[] = [{ transform: 'scale(1.18)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }];
+const HIT_PULSE: Keyframe[] = [
+  { transform: 'translateX(-4px)', backgroundColor: 'rgba(255, 60, 60, 0.55)' },
+  { transform: 'translateX(4px)' },
+  { transform: 'translateX(-2px)' },
+  { transform: 'none', backgroundColor: 'transparent' },
+];
+const FIRED_PULSE: Keyframe[] = [
+  { boxShadow: '0 0 0 0 rgba(255, 255, 255, 0.9)', transform: 'scale(0.92)' },
+  { boxShadow: '0 0 0 12px rgba(255, 255, 255, 0)', transform: 'none' },
+];
 
 /** Amounts offered by the gift buttons in the team panel. */
 const GIFT_AMOUNTS = [25, 100] as const;
@@ -140,6 +160,15 @@ export class Hud {
   private readonly topXp = $('top-xp');
   private readonly heartNum = $('heart-num');
   private readonly goldStat = $('gold-stat');
+  private readonly heartStat = document.querySelector<HTMLElement>('#topbar .stat.heart')!;
+  private readonly goldCounter = new Counter();
+  private readonly heartCounter = new Counter(160, 500);
+  private readonly coins: CoinFlyer;
+  private lastGold: number | null = null;
+  private lastGainPulse = 0;
+  private lastUpdate = 0;
+  /** Coins and other decorative feedback (off at Low quality). */
+  particles = true;
 
   /** Tall (phone) layout: short labels, and the team panel opens from the gold stat. */
   private compact = false;
@@ -164,6 +193,7 @@ export class Hud {
     private readonly ui: UiState,
     private readonly actions: HudActions,
   ) {
+    this.coins = new CoinFlyer($('hud'), this.goldStat, () => this.gainPulse());
     this.callEarly.addEventListener('click', () => actions.callEarly());
     // Don't leave HUD buttons focused, or Space (centre camera) would click them again.
     $('hud').addEventListener('click', () => {
@@ -187,10 +217,22 @@ export class Hud {
     const player = snap.players.find((p) => p.id === me);
     const hero = snap.heroes.find((h) => h.owner === me);
 
-    setText(this.gold, String(player?.gold ?? 0));
+    const now = performance.now();
+    const dt = this.lastUpdate > 0 ? Math.min(100, now - this.lastUpdate) : 16;
+    this.lastUpdate = now;
+    const gold = player?.gold ?? 0;
+    if (this.lastGold !== null && gold > this.lastGold) this.gainPulse();
+    this.lastGold = gold;
+    this.goldCounter.set(gold);
+    setText(this.gold, String(this.goldCounter.step(dt)));
+    this.heartCounter.set(snap.heartHp);
+    const heartShown = this.heartCounter.step(dt);
     setWidth(this.heartFill, snap.heartHp / snap.heartMaxHp);
-    setText(this.heartText, `${snap.heartHp} / ${snap.heartMaxHp}`);
-    setText(this.heartNum, String(snap.heartHp));
+    setText(this.heartText, `${heartShown} / ${snap.heartMaxHp}`);
+    setText(this.heartNum, String(heartShown));
+    const low = snap.heartHp > 0 && snap.heartHp <= snap.heartMaxHp * HEART_LOW;
+    if (this.heartStat.classList.contains('low') !== low) this.heartStat.classList.toggle('low', low);
+    this.coins.update(now);
     setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
 
     const c = this.compact;
@@ -338,8 +380,15 @@ export class Hud {
       } else if (e.type === 'waveStart') {
         const waves = tuningForMode(TUNING, snap.mode).waves.list;
         const boss = waves[e.wave - 1]?.map((g) => g.kind).find(isBossKind);
-        this.showBanner(boss ? `Wave ${e.wave} — Boss: ${CREEP_NAMES[boss]}!` : `Wave ${e.wave}`);
+        const last = e.wave === snap.totalWaves ? 'Final wave' : `Wave ${e.wave}`;
+        if (boss) this.showBanner(`${CREEP_NAMES[boss]} approaches!`, `${last} · Boss`, true);
+        else this.showBanner(last, e.income > 0 ? `+${e.income} gold` : '', false);
         if (boss) this.toast(BOSS_HINTS[boss]);
+      } else if (e.type === 'leak') {
+        pulse(this.heartStat, HIT_PULSE, 380);
+      } else if (e.type === 'cast' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
+        const b = this.skillButtons.get(e.slot);
+        if (b) pulse(b.root, FIRED_PULSE, 320);
       } else if (e.type === 'hideShift') {
         this.toast(e.hide === 'stone' ? 'Shardback: Stone hide — use magic damage' : 'Shardback: Ether hide — use physical damage');
       } else if (e.type === 'gift' && (e.to === me || e.from === me)) {
@@ -375,8 +424,40 @@ export class Hud {
     setTimeout(() => el.remove(), 2200);
   }
 
-  private showBanner(text: string): void {
-    this.banner.textContent = text;
+  /** A coin flies from a screen point (px) to the gold counter (not at Low quality). */
+  flyCoin(x: number, y: number): void {
+    if (this.particles) this.coins.fly(x, y, performance.now());
+  }
+
+  /** A new match: numbers jump to their values and coins in flight vanish. */
+  resetEffects(): void {
+    this.goldCounter.reset();
+    this.heartCounter.reset();
+    this.lastGold = null;
+    this.coins.clear();
+  }
+
+  /** The gold counter swells when gold comes in (at most every 90 ms, so a stream of coins doesn't stutter). */
+  private gainPulse(): void {
+    const now = performance.now();
+    if (now - this.lastGainPulse < 90) return;
+    this.lastGainPulse = now;
+    pulse(this.gold, GAIN_PULSE, 260);
+  }
+
+  private showBanner(text: string, sub: string, boss: boolean): void {
+    this.banner.innerHTML = '';
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = text;
+    this.banner.appendChild(title);
+    if (sub) {
+      const s = document.createElement('span');
+      s.className = 'sub';
+      s.textContent = sub;
+      this.banner.appendChild(s);
+    }
+    this.banner.classList.toggle('boss', boss);
     this.banner.classList.remove('hidden');
     // Restart the CSS animation.
     this.banner.style.animation = 'none';

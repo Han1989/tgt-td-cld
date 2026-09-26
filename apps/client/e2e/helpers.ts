@@ -26,6 +26,7 @@ interface Hook {
   me(): string | null;
   frameCosts(): number[];
   visibleCreeps(): number;
+  fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number };
   layout(): {
     kind: string;
     tilePx: number;

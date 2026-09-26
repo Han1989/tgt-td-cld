@@ -119,3 +119,15 @@ export function hpColor(frac: number): number {
 export function toCss(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
 }
+
+/** Blends colour `a` towards `b` by `t` (0..1), channel by channel. */
+export function mixColor(a: number, b: number, t: number): number {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  const ch = (shift: number) => {
+    const x = (a >> shift) & 0xff;
+    const y = (b >> shift) & 0xff;
+    return Math.round(x + (y - x) * t) << shift;
+  };
+  return ch(16) | ch(8) | ch(0);
+}

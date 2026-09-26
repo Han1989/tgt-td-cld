@@ -6,12 +6,13 @@ import type { ClientMessage, Command, PlayerId, Snapshot } from '@tdt/protocol';
 import { getMap, TILE_PX } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { Hud } from './hud/hud';
+import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { COLORS, TOWER_NAMES } from './render/palette';
-import { effectiveQuality, FpsMonitor, resolutionFor } from './render/quality';
+import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { WorldRenderer } from './render/world';
 import { SettingsStore } from './settings';
 import { SnapshotBuffer } from './snapshotBuffer';
@@ -43,6 +44,7 @@ export class GameView {
     readonly controls: Controls,
     readonly touch: TouchControls,
     readonly buffer: SnapshotBuffer,
+    private readonly renderer: WorldRenderer,
   ) {}
 
   static async create(): Promise<GameView> {
@@ -135,7 +137,9 @@ export class GameView {
     });
 
     new SettingsPanel(settings);
-    view = new GameView(hud, controls, touch, buffer);
+    installPressFeedback();
+    view = new GameView(hud, controls, touch, buffer, renderer);
+    renderer.onBounty = (x, y) => hud.flyCoin(x, y);
 
     // ---------------------------------------------------------------------
     // Layout
@@ -216,7 +220,9 @@ export class GameView {
         app.renderer.resolution = res;
         app.renderer.resize(window.innerWidth, window.innerHeight);
       }
-      renderer.lowFx = q === 'low';
+      const level = fxLevel(q, settings.get().shake);
+      renderer.setFxLevel(level);
+      hud.particles = level.particles;
     };
     settings.onChange(() => {
       monitor.reset();
@@ -296,7 +302,10 @@ export class GameView {
         camera.place(layout.map.left, layout.map.top - follow);
       }
       const events = buffer.drainEvents(now);
-      renderer.playEvents(events, view.me, now);
+      renderer.playEvents(events, latest, view.me, now);
+      for (const e of events) {
+        if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
+      }
       hud.handleEvents(events, latest, view.me);
       renderer.render(frame, latest, view.me, ui, now);
       hud.update(latest, view.me);
@@ -329,6 +338,7 @@ export class GameView {
         camera,
         fps: () => monitor.fps,
         visibleCreeps: () => renderer.visibleCreeps,
+        fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
       };
     }
     return view;
@@ -369,6 +379,8 @@ export class GameView {
   /** Forget the previous match (e.g. back in the lobby). */
   resetView(): void {
     this.buffer.clear();
+    this.renderer.reset();
+    this.hud.resetEffects();
     this.controls.clearSelection();
     this.controls.setMode({ type: 'none' });
     this.needsCentre = true;

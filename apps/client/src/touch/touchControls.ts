@@ -19,6 +19,7 @@ import {
 } from '@tdt/protocol';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
+import { pulse } from '../hud/press';
 import { buildCost, nextPriority, upgradeChip, upgradeCost, PRIORITY_NAMES } from '../hud/towerInfo';
 import type { Camera } from '../input/camera';
 import { clamp, type Layout, type Rect } from '../layout';
@@ -74,6 +75,11 @@ interface SkillEl {
   pips: HTMLElement;
   key: string;
 }
+
+const FIRED_PULSE: Keyframe[] = [
+  { boxShadow: '0 0 0 0 rgba(255, 255, 255, 0.95)', transform: 'scale(0.9)' },
+  { boxShadow: '0 0 0 14px rgba(255, 255, 255, 0)', transform: 'none' },
+];
 
 type Menu = { type: 'build'; padId: number } | { type: 'tower'; towerId: number } | null;
 
@@ -171,6 +177,12 @@ export class TouchControls {
     this.respawn.style.left = `${Math.round(c.joystick.x)}px`;
     this.respawn.style.top = `${Math.round(c.top - 24)}px`;
     this.menuKey = '';
+  }
+
+  /** A skill of my hero fired: its button flashes (Phase 4b feedback). */
+  pulseSkill(slot: SkillSlot): void {
+    const el = this.skills.get(slot);
+    if (el && this.active) pulse(el.btn, FIRED_PULSE, 320);
   }
 
   /** The touch overlay is showing (phones, touch tablets). */

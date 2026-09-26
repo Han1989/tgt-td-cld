@@ -2,7 +2,7 @@
 
 **Source of truth: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)**, plus [`docs/MOBILE.md`](docs/MOBILE.md) for Phase 4 (mobile) and [`docs/REPLAYABILITY.md`](docs/REPLAYABILITY.md) for Phase 5. Read them first. Build only the phase or feature you were asked for. When you make a design decision the docs don't cover, add a row to the Decision Log in `GAME_DESIGN.md` (§13).
 
-Current status: **Phases 1 (solo, local mode), 2 (online co-op) and 3 (content) are done.** Phase 4a (mobile, `docs/MOBILE.md` §9) is in progress: **track 1 is done**: Spire is the only map (portrait, with a safe zone under the touch controls), pad zones per player with extra pads for 3–4 players, heroes auto-attack while moving, the creep anti-stall rule, a balance bot that plays by zones and only walks, and the full-mode balance gate on Spire (1, 2 and 4 players at 40–80 Heart HP). **Track 3 (Quick mode, §6) is done**: a `full` / `quick` match option (15 waves, bosses on 5/10/15, compressed difficulty) picked by the host in the lobby or in the solo pick, with its own balance gate. **Track 2 is done** (portrait client: layouts, touch controls, PWA, browser tests), waiting on the real-device checklist in [`docs/MOBILE_TESTING.md`](docs/MOBILE_TESTING.md). Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Current status: **Phases 1 (solo, local mode), 2 (online co-op) and 3 (content) are done.** Phase 4a (mobile, `docs/MOBILE.md` §9) is in progress: **track 1 is done**: Spire is the only map (portrait, with a safe zone under the touch controls), pad zones per player with extra pads for 3–4 players, heroes auto-attack while moving, the creep anti-stall rule, a balance bot that plays by zones and only walks, and the full-mode balance gate on Spire (1, 2 and 4 players at 40–80 Heart HP). **Track 3 (Quick mode, §6) is done**: a `full` / `quick` match option (15 waves, bosses on 5/10/15, compressed difficulty) picked by the host in the lobby or in the solo pick, with its own balance gate. **Track 2 is done** (portrait client: layouts, touch controls, PWA, browser tests), waiting on the real-device checklist in [`docs/MOBILE_TESTING.md`](docs/MOBILE_TESTING.md). **Phase 4b (polish) has started with the effects pass** (client-only, code-drawn effects: hits, deaths, tower shots, every hero skill, the Heart, portals, banners, HUD feedback); sprites, sound, pings and difficulty modes are still to do. Deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Commands
 
@@ -23,7 +23,7 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run balance [quick] [solo\|teams\|2p\|3p\|4p] [seeds…]` | Print solo balance-bot and idle-bot results for every hero, plus mixed teams (three 2-bot pairs, 3 and 4 bots), with Heart HP lost per third of the match, in Full mode (or Quick with `quick`); use it after editing `tuning.ts` or `bots.ts` |
 | `npm run map` | Print the map as ASCII (lanes, pads by zone, extra pads, safe zone); use it when editing `maps/*.ts` |
 | `npm run icons -w @tdt/client` | Regenerate the PWA icons (`apps/client/public/icons`) |
-| `/?stress=300` (any build) | Render stress scene: 300 creeps, a tower on every pad, an FPS readout; no simulation |
+| `/?stress=300` (any build) | Render stress scene: 300 creeps, a tower on every pad, every effect busy (hits, kills, skills, zones), an FPS readout; no simulation |
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
 
@@ -74,9 +74,12 @@ apps/client/               @tdt/client: Vite + PixiJS + HTML/CSS HUD
   src/padInfo.ts           Pad ownership as the client sees it (yours / a teammate's / not in this match)
   src/transport/           Transport interface, LocalTransport (Web Worker), SimHost, NetworkTransport
   src/snapshotBuffer.ts    Renders ~100 ms behind with interpolation
-  src/render/              Pixi world renderer (shapes only; sprite pools, culling, entity scale), palette, quality.ts (DPR cap, Auto → Low)
+  src/render/              Pixi world renderer (shapes only; sprite pools, culling, entity scale), palette, quality.ts (DPR cap, Auto → Low, fxLevel)
+  src/render/fx/           Effects: atlas.ts (canvas atlas), effects.ts (pooled particle layers + recipes), hits.ts (hits from HP drops),
+                           shake.ts, motion.ts, numbers.ts (pure ones are tested)
   src/input/               Camera (frame fit, min zoom = fit, locked on phones) and mouse/keyboard controls (mouse pointers only)
-  src/hud/                 DOM HUD, desktop tower panels, end screen, settingsPanel.ts; towerInfo.ts = tower stat text (DOM-free, tested)
+  src/hud/                 DOM HUD, desktop tower panels, end screen, settingsPanel.ts; towerInfo.ts = tower stat text (DOM-free, tested);
+                           counter.ts (smooth numbers, tested), coins.ts (coins flying to the gold counter), press.ts (button feedback)
   test/                    Client unit tests (node environment, no DOM; NetworkTransport vs a real server)
   e2e/                     Playwright browser tests (mobile / desktop / platform / perf specs; helpers.ts)
   playwright.config.ts     Projects: iphone, pixel (Chromium mobile emulation), desktop
@@ -117,6 +120,7 @@ vercel.json                Vercel static deploy of apps/client
 - **Layout and touch (docs/MOBILE.md §4–5):** `computeLayout` decides everything about the screen (tall / wide / rotate, tile size, control positions, follow range) from the viewport, safe-area insets, touch and orientation; `GameView` applies it. Top bar is 44 px (the map must fit 412 × 839). Keep layout and gesture rules as pure functions in `layout.ts` / `touch/gestures.ts` with unit tests; `touchControls.ts` only wires them to DOM and pointer events. Canvas input splits by pointer type: mouse → `Controls`, touch / pen → `TouchControls`. Radial menus in the tall layout and on touch screens, desktop panels otherwise. The controls must never cover gameplay (lanes, pads, Heart) and radial menus must never cover the controls; the layout and e2e tests check both.
 - **PWA:** the service worker is generated by `vite.config.ts` and only serves same-origin GETs (never the WebSocket). Solo pause is a worker control message (`{ ctl: 'pause' }`), not a protocol message. `import.meta.env.MODE === 'e2e'` code (the `window.__tdt` hook, `?lab` gold) must stay out of normal builds.
 - **Shapes-only graphics until Phase 4.** Each entity type has a distinct shape and colour plus an HP bar; see `render/palette.ts` and `render/world.ts`.
+- **Effects are client-only** (never in the sim, never in the protocol): `WorldRenderer` derives them from snapshots (HP drops = hits, new projectiles = shots) and events, and plays them through `Effects` (`render/fx/`). Everything is pooled: particles go in the four `ParticleContainer` layers via `fx.emit` / the recipes; persistent visuals (zones, Heart, portals, auras, trails) are created once and animated by transform / alpha / tint only. Mark an effect `essential` only if it shows gameplay (areas, hits); the rest disappears at Graphics → Low (`fxLevel`). Shake goes through `fx.bump`, which honours Low and the Screen shake setting.
 - **The client may import static data from `@tdt/sim`:** `getMap()`, `TUNING`, `tuningForMode`, `towerTier`, `TILE_PX`, `padAtTile`. Pad ownership comes from `snapshot.pads`. It must not call sim functions that touch game state (`LocalTransport` / `SimHost` are the exception, since they *are* the host, and so is the `?stress` scene's `StressTransport`).
 - **Protocol validation:** `decodeClientMessage` rejects unknown types, extra keys, non-finite or out-of-range numbers, and oversized messages. Game-rule validation (gold, range, cooldowns, ownership) happens in `applyCommand`, which emits a `rejected` event instead of throwing.
 

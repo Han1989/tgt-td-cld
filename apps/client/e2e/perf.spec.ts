@@ -1,5 +1,6 @@
 // Render performance (docs/MOBILE.md §7–8): the 300-creep stress scene under 4×
-// CPU throttling on the phone profile.
+// CPU throttling on the phone profile, at High quality with every effect on (the
+// scene hits every creep every tick and streams kills, splashes and skills).
 //
 // Asserted everywhere, from a DevTools CPU profile: the JavaScript per frame (our
 // frame update and Pixi building the draw calls) plus the fixed-rate work (snapshots,
@@ -21,6 +22,8 @@ interface ProfileNode {
 
 test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({ page }) => {
   test.setTimeout(60_000);
+  // High quality (Auto could drop to Low mid-measurement): particles, trails, numbers and shake all on.
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
   await page.goto('/?stress=300');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);
   const gpu = await page.evaluate(() => {
@@ -52,6 +55,7 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
     profile: { nodes: ProfileNode[]; samples: number[]; timeDeltas: number[] };
   };
   const visible = await page.evaluate(() => window.__tdt.visibleCreeps());
+  const fx = await page.evaluate(() => window.__tdt.fx());
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
   // JavaScript time per sample, split into per-frame work (anything under Pixi's ticker: our frame update and the
@@ -83,11 +87,13 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   const software = /swiftshader|llvmpipe|software/i.test(gpu);
   const report =
     `${fps.toFixed(1)} FPS measured; JavaScript ${perFrameMs.toFixed(1)} ms per frame + ${fixedPerSecMs.toFixed(0)} ms/s fixed ` +
-    `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; GPU: ${gpu}`;
+    `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; ${fx.live} effect particles live; GPU: ${gpu}`;
   test.info().annotations.push({ type: 'stress', description: report });
   console.log(`Stress scene (300 creeps, 4× CPU throttling): ${report}`);
 
   expect(visible).toBe(300);
+  expect(fx.particles).toBe(true);
+  expect(fx.live).toBeGreaterThan(50);
   expect(perFrameMs).toBeLessThanOrEqual(BUDGET_MS);
   expect(at30).toBeLessThanOrEqual(1000);
   if (!software) expect(fps).toBeGreaterThanOrEqual(30);

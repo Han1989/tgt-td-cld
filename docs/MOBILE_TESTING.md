@@ -62,6 +62,8 @@ Start **Play solo offline** (or solo from the hero pick).
 - [ ] 5.3 Smoothness: no stutter in the late waves. If it feels slow, try ⚙ → Graphics → **Low** and say whether that helped. Auto switches to Low on its own if the frame rate stays under 45.
 - [ ] 5.4 **Stress check:** open `…/?stress=300` (the page shows 300 creeps and an FPS readout). Note the FPS. Target: 60 FPS with 150 creeps on screen, at least 30 with 300. `?stress=150` checks the first number.
 
+- [ ] 5.5 **Effects (Phase 4b):** hits flash and show numbers, creeps pop, coins fly to the gold counter, towers kick back when they fire, every skill has its own effect, the Heart flashes and wobbles when hit, boss waves shake the screen. Nothing stutters when a Meteor lands in a crowd. ⚙ → Screen shake **Off** stops the shake; Graphics **Low** drops the particles. Note anything that feels too much or too little.
+
 ## 6. Online: a phone and a desktop together
 
 - [ ] 6.1 On the desktop browser: **Create room**, copy the invite link. On the phone: open the link (or enter the code) and join. Both pick heroes and ready up, and the host starts.
