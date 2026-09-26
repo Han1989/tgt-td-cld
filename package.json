@@ -11,6 +11,7 @@
     "build": "npm run typecheck && npm run build -w @tdt/client && npm run build -w @tdt/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
+    "test:e2e": "npm run test:e2e -w @tdt/client",
     "test:watch": "vitest",
     "preview": "npm run preview -w @tdt/client",
     "balance": "tsx packages/sim/scripts/balance.ts",
@@ -22,6 +23,7 @@
     "node": ">=22.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/node": "^22.20.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

@@ -2,7 +2,7 @@
 // Node's built-in WebSocket as the browser stand-in.
 
 import { PROTOCOL_VERSION, type ServerMessage, type Snapshot } from '@tdt/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketServer } from 'ws';
 import { defaultConfig } from '../../server/src/config';
 import { createGameServer, type GameServer } from '../../server/src/server';
@@ -66,6 +66,31 @@ describe('NetworkTransport', () => {
     t.close();
     expect(t.status).toBe('closed');
     await until(() => room.members[0]?.left === true || !server!.rooms.has(room.code));
+  });
+
+  it('rejoins at once when the page wakes up with a socket that went silent mid-match', async () => {
+    const url = await start();
+    const t = new NetworkTransport(url, { t: 'create', v: PROTOCOL_VERSION, name: 'Ada', hero: 'ranger' });
+    const r = record(t);
+    await until(() => t.session !== null);
+    t.send({ t: 'start' });
+    await until(() => r.snaps().length > 5);
+
+    // Fresh messages: waking changes nothing.
+    t.wake();
+    expect(t.status).toBe('open');
+
+    // Pretend the page slept for 10 s: the socket counts as dead and the transport rejoins now.
+    const real = performance.now();
+    const spy = vi.spyOn(performance, 'now').mockReturnValue(real + 10_000);
+    t.wake();
+    spy.mockRestore();
+    expect(t.status).toBe('reconnecting');
+    await until(() => r.msgs.filter((m) => m.t === 'welcome').length >= 2, 10_000);
+    await until(() => t.status === 'open');
+    const room = server!.rooms.get(t.session!.code)!;
+    expect(room.members).toHaveLength(1);
+    t.close();
   });
 
   it('reports a failed join as an error and does not retry', async () => {

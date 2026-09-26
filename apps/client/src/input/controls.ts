@@ -1,5 +1,6 @@
 // Mouse and keyboard controls (desktop). Turns input into protocol commands
-// and client-only UI state; it never edits game state.
+// and client-only UI state; it never edits game state. Touch and pen input on
+// the canvas belongs to `touch/touchControls.ts`, so this class ignores it.
 
 import { TOWER_KINDS, type Command, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
 import { getMap, padAtTile, TILE_PX } from '@tdt/sim';
@@ -99,6 +100,7 @@ export class Controls {
   }
 
   private onPointerMove(e: PointerEvent): void {
+    if (e.pointerType !== 'mouse') return;
     const rect = this.canvas.getBoundingClientRect();
     const overCanvas = e.target === this.canvas;
     if (this.dragging) this.camera.pan(-e.movementX, -e.movementY);
@@ -113,6 +115,7 @@ export class Controls {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    if (e.pointerType !== 'mouse') return;
     const rect = this.canvas.getBoundingClientRect();
     const at = this.toTiles(e.clientX - rect.left, e.clientY - rect.top);
     if (e.button === 1) {

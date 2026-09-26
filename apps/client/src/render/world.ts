@@ -14,7 +14,7 @@ import type {
   TowerSnap,
 } from '@tdt/protocol';
 import { getMap, padAtTile, Tile, TILE_PX, tileAt, towerTier, TUNING, type GameMap } from '@tdt/sim';
-import { Application, Container, Graphics, Text } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
@@ -34,14 +34,25 @@ import {
 const S = TILE_PX;
 const TOWER_SIZE = 2.4;
 const MARKER_LIFE_MS = 450;
+/** Towers are never drawn larger than this, so they stay inside their pad. */
+const MAX_TOWER_SCALE = 1.2;
+/** Off-screen margin (px) before an entity is culled. */
+const CULL_MARGIN = 48;
 
 interface EntitySprite {
   root: Container;
-  bar: Graphics;
+  /**
+   * The HP bar as plain sprites (heroes add a mana strip). Resizing a sprite is cheap, while
+   * redrawing a small Graphics makes Pixi rebuild the whole scene's draw list.
+   */
+  hpBg: Sprite;
+  hpFill: Sprite;
   status: Graphics;
   barKey: string;
   statusKey: string;
 }
+
+type ProjectileSprite = Graphics & { projStyle: string };
 
 interface Fx {
   obj: Container;
@@ -67,20 +78,33 @@ export class WorldRenderer {
   private readonly fxLayer = new Container();
   private readonly overlay = new Graphics();
 
-  private readonly creeps = new Map<number, EntitySprite>();
+  private readonly creeps = new Map<number, EntitySprite & { kind: CreepKind }>();
+  /** Creep sprites of dead creeps, by kind, reused for new ones. */
+  private readonly creepPool = new Map<CreepKind, (EntitySprite & { kind: CreepKind })[]>();
+  private readonly projectilePool = new Map<string, ProjectileSprite[]>();
   private readonly towers = new Map<number, EntitySprite>();
-  private readonly heroes = new Map<number, EntitySprite & { facing: Graphics; kind: HeroKind; look: string }>();
-  private readonly projectiles = new Map<number, Graphics>();
+  private readonly heroes = new Map<number, EntitySprite & { facing: Graphics; mana: Sprite; kind: HeroKind; look: string }>();
+  private readonly projectiles = new Map<number, ProjectileSprite>();
   private readonly traps = new Map<number, Graphics>();
   private readonly zones = new Map<number, Graphics>();
   private fx: Fx[] = [];
   private heartPulse = 0;
+  private heartDrawn = -1;
+  /** The overlay had something on it last frame. */
+  private overlayDrawn = true;
 
   /** Positions as last drawn, in tile units, for picking. */
   private drawnCreeps: CreepSnap[] = [];
   private drawnTowers: TowerSnap[] = [];
 
   private readonly map: GameMap = getMap();
+  /**
+   * Creeps and heroes are drawn this much larger (towers up to MAX_TOWER_SCALE), so they stay
+   * readable when tiles are small on a phone. Set by the layout.
+   */
+  entityScale = 1;
+  /** Low quality: skip cosmetic effects (splash rings, bounty numbers). */
+  lowFx = false;
 
   constructor(
     app: Application,
@@ -124,6 +148,18 @@ export class WorldRenderer {
     return this.drawnTowers.find((t) => Math.abs(t.x - x) <= half && Math.abs(t.y - y) <= half);
   }
 
+  /** Creeps as last drawn (interpolated positions, tile units), for touch snapping. */
+  drawnCreepList(): readonly CreepSnap[] {
+    return this.drawnCreeps;
+  }
+
+  drawnTowerList(): readonly TowerSnap[] {
+    return this.drawnTowers;
+  }
+
+  /** Number of creep sprites drawn last frame (the rest were culled). */
+  visibleCreeps = 0;
+
   render(view: InterpolatedView, latest: Snapshot, me: PlayerId | null, ui: UiState, now: number): void {
     const cam = this.camera;
     this.world.scale.set(cam.zoom);
@@ -154,14 +190,14 @@ export class WorldRenderer {
     for (const e of events) {
       switch (e.type) {
         case 'kill':
-          if (e.by === me && e.bounty > 0) this.floatText(`+${e.bounty}`, e.x, e.y, COLORS.gold, now);
+          if (e.by === me && e.bounty > 0 && !this.lowFx) this.floatText(`+${e.bounty}`, e.x, e.y, COLORS.gold, now);
           break;
         case 'leak':
           this.heartPulse = now;
           this.floatText(`-${e.damage}`, this.map.heart.x, this.map.heart.y - 1.5, COLORS.bad, now);
           break;
         case 'splash':
-          this.ring(e.x, e.y, e.radius, 0xffa24a, now, 300);
+          if (!this.lowFx) this.ring(e.x, e.y, e.radius, 0xffa24a, now, 300);
           break;
         case 'stomp':
           this.ring(e.x, e.y, e.radius, CREEP_COLORS.ironhorn, now, 500);
@@ -263,6 +299,9 @@ export class WorldRenderer {
     const g = this.heart;
     const { x, y } = this.map.heart;
     const pulse = Math.max(0, 1 - (now - this.heartPulse) / 300);
+    // Redraw only while it pulses (every redraw makes Pixi rebuild the draw list).
+    if (pulse === this.heartDrawn) return;
+    this.heartDrawn = pulse;
     const r = S * (1.6 + pulse * 0.3);
     g.clear();
     g.circle(x * S, y * S, S * 2.2).fill({ color: COLORS.heart, alpha: 0.12 + pulse * 0.3 });
@@ -278,15 +317,23 @@ export class WorldRenderer {
 
   private syncCreeps(creeps: CreepSnap[]): void {
     const seen = new Set<number>();
+    const view = this.viewBounds();
+    let visible = 0;
     for (const c of creeps) {
       seen.add(c.id);
       let s = this.creeps.get(c.id);
       if (!s) {
-        s = makeSprite(creepBody(c.kind));
+        s = this.creepPool.get(c.kind)?.pop() ?? { ...makeSprite(creepBody(c.kind)), kind: c.kind };
+        s.root.visible = true;
         (TUNING.creeps[c.kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
         this.creeps.set(c.id, s);
       }
+      const onScreen = c.x * S >= view.left && c.x * S <= view.right && c.y * S >= view.top && c.y * S <= view.bottom;
+      s.root.visible = onScreen;
+      if (!onScreen) continue;
+      visible++;
       s.root.position.set(c.x * S, c.y * S);
+      s.root.scale.set(this.entityScale);
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
@@ -300,7 +347,27 @@ export class WorldRenderer {
         if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
       }
     }
-    removeMissing(this.creeps, seen);
+    this.visibleCreeps = visible;
+    // Dead creeps' sprites go back to the pool (detached, reset) instead of being destroyed.
+    for (const [id, s] of this.creeps) {
+      if (seen.has(id)) continue;
+      this.creeps.delete(id);
+      s.root.removeFromParent();
+      s.barKey = '';
+      s.statusKey = '';
+      s.status.clear();
+      let pool = this.creepPool.get(s.kind);
+      if (!pool) this.creepPool.set(s.kind, (pool = []));
+      if (pool.length < 200) pool.push(s);
+      else s.root.destroy({ children: true });
+    }
+  }
+
+  /** The visible world area (px), with a margin, for culling. */
+  private viewBounds(): { left: number; top: number; right: number; bottom: number } {
+    const a = this.camera.screenToWorld(-CULL_MARGIN, -CULL_MARGIN);
+    const b = this.camera.screenToWorld(this.camera.viewW + CULL_MARGIN, this.camera.viewH + CULL_MARGIN);
+    return { left: a.x, top: a.y, right: b.x, bottom: b.y };
   }
 
   private syncTowers(towers: TowerSnap[]): void {
@@ -314,6 +381,7 @@ export class WorldRenderer {
         this.towers.set(t.id, s);
       }
       s.root.position.set(t.x * S, t.y * S);
+      s.root.scale.set(Math.min(this.entityScale, MAX_TOWER_SCALE));
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
       const statusKey = `${t.tier}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
@@ -348,7 +416,10 @@ export class WorldRenderer {
         const facing = new Graphics().poly([r + 7, 0, r - 1, -5, r - 1, 5]).fill(0xffffff);
         const sprite = makeSprite(body);
         sprite.root.addChild(facing);
-        s = { ...sprite, facing, kind: h.kind, look };
+        const mana = new Sprite(Texture.WHITE);
+        mana.tint = COLORS.mana;
+        sprite.root.addChild(mana);
+        s = { ...sprite, facing, mana, kind: h.kind, look };
         this.heroLayer.addChild(s.root);
         this.heroes.set(h.id, s);
       }
@@ -356,6 +427,7 @@ export class WorldRenderer {
       seen.add(h.id);
       s.root.visible = true;
       s.root.position.set(h.x * S, h.y * S);
+      s.root.scale.set(this.entityScale);
       s.facing.rotation = h.facing;
       const r = TUNING.hero[h.kind].radius * S;
       const key = `${h.hp}/${h.maxHp}/${h.mana}/${h.maxMana}`;
@@ -363,10 +435,15 @@ export class WorldRenderer {
         s.barKey = key;
         const w = 34;
         const y = -r - 12;
-        s.bar.clear();
-        s.bar.rect(-w / 2 - 1, y - 1, w + 2, 9).fill({ color: 0x000000, alpha: 0.7 });
-        s.bar.rect(-w / 2, y, (w * h.hp) / h.maxHp, 4).fill(hpColor(h.hp / h.maxHp));
-        s.bar.rect(-w / 2, y + 5, (w * h.mana) / Math.max(1, h.maxMana), 2).fill(COLORS.mana);
+        const hp = Math.max(0, Math.min(1, h.hp / h.maxHp));
+        s.hpBg.visible = s.hpFill.visible = true;
+        s.hpBg.position.set(-w / 2 - 1, y - 1);
+        s.hpBg.setSize(w + 2, 9);
+        s.hpFill.position.set(-w / 2, y);
+        s.hpFill.setSize(Math.max(0.01, w * hp), 4);
+        s.hpFill.tint = hpColor(hp);
+        s.mana.position.set(-w / 2, y + 5);
+        s.mana.setSize(Math.max(0.01, (w * h.mana) / Math.max(1, h.maxMana)), 2);
       }
       const statusKey = `${h.stunned ? 'st' : ''}${h.shielded ? 'sh' : ''}`;
       if (statusKey !== s.statusKey) {
@@ -388,22 +465,21 @@ export class WorldRenderer {
       seen.add(p.id);
       let g = this.projectiles.get(p.id);
       if (!g) {
-        g = new Graphics();
-        const color = PROJECTILE_COLORS[p.style] ?? 0xffffff;
-        const r =
-          p.style === 'fireball' ? 6 : p.style === 'cannon' || p.style === 'flak' ? 5 : p.style === 'frost' || p.style === 'arcane' || p.style === 'crit' ? 4 : 3;
-        if (p.style === 'fireball') g.circle(0, 0, r + 4).fill({ color, alpha: 0.3 });
-        g.circle(0, 0, r).fill(color).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
+        g = this.projectilePool.get(p.style)?.pop() ?? projectileBody(p.style);
         this.projectileLayer.addChild(g);
         this.projectiles.set(p.id, g);
       }
       g.position.set(p.x * S, p.y * S);
     }
+    // Spent projectiles go back to their style's pool.
     for (const [id, g] of this.projectiles) {
-      if (!seen.has(id)) {
-        g.destroy();
-        this.projectiles.delete(id);
-      }
+      if (seen.has(id)) continue;
+      this.projectiles.delete(id);
+      g.removeFromParent();
+      let pool = this.projectilePool.get(g.projStyle);
+      if (!pool) this.projectilePool.set(g.projStyle, (pool = []));
+      if (pool.length < 200) pool.push(g);
+      else g.destroy();
     }
   }
 
@@ -475,6 +551,17 @@ export class WorldRenderer {
 
   private drawOverlay(snap: Snapshot, heroes: HeroSnap[], me: PlayerId | null, ui: UiState, now: number): void {
     const g = this.overlay;
+    // Nothing to show and nothing shown: leave it alone (clearing it makes Pixi rebuild the draw list).
+    const busy =
+      ui.selectedTowerId !== null ||
+      ui.selectedPadId !== null ||
+      ui.hover !== null ||
+      ui.preview !== null ||
+      ui.aim !== null ||
+      ui.mode.type !== 'none' ||
+      ui.markers.length > 0;
+    if (!busy && !this.overlayDrawn) return;
+    this.overlayDrawn = busy;
     g.clear();
     const player = snap.players.find((p) => p.id === me);
     const hero = heroes.find((h) => h.owner === me && h.alive);
@@ -513,6 +600,34 @@ export class WorldRenderer {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
       if (pad && buildable(pad.id)) {
         g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
+      }
+    }
+
+    // Radial build menu: the previewed tower's ghost and range on its pad.
+    if (ui.preview) {
+      const pad = this.map.pads[ui.preview.padId];
+      if (pad) {
+        const stats = towerTier(TUNING, ui.preview.tower, 1);
+        const color = (player?.gold ?? 0) >= stats.cost ? COLORS.good : COLORS.bad;
+        g.circle(pad.x * S, pad.y * S, stats.range * S).fill({ color, alpha: 0.08 });
+        g.circle(pad.x * S, pad.y * S, stats.range * S).stroke({ width: 2, color, alpha: 0.7 });
+        const half = (TOWER_SIZE / 2) * S;
+        g.rect(pad.x * S - half, pad.y * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
+      }
+    }
+
+    // Touch drag-to-aim: range around the hero, area at the aim point (red over the button = cancel).
+    if (ui.aim && hero) {
+      const skill = hero.skills.find((s) => s.slot === ui.aim!.slot);
+      if (skill) {
+        const color = ui.aim.cancel ? COLORS.bad : COLORS.root;
+        if (skill.range > 0) g.circle(hero.x * S, hero.y * S, skill.range * S).stroke({ width: 2, color, alpha: 0.5 });
+        const at = skill.targeted ? ui.aim : hero;
+        if (skill.radius > 0) {
+          g.circle(at.x * S, at.y * S, skill.radius * S).fill({ color, alpha: 0.2 });
+          g.circle(at.x * S, at.y * S, skill.radius * S).stroke({ width: 2, color });
+        }
+        if (skill.targeted) g.moveTo(hero.x * S, hero.y * S).lineTo(at.x * S, at.y * S).stroke({ width: 2, color, alpha: 0.5 });
       }
     }
 
@@ -606,9 +721,13 @@ export class WorldRenderer {
 function makeSprite(body: Graphics): EntitySprite {
   const root = new Container();
   const status = new Graphics();
-  const bar = new Graphics();
-  root.addChild(body, status, bar);
-  return { root, bar, status, barKey: '', statusKey: '' };
+  const hpBg = new Sprite(Texture.WHITE);
+  hpBg.tint = 0x000000;
+  hpBg.alpha = 0.7;
+  const hpFill = new Sprite(Texture.WHITE);
+  hpBg.visible = hpFill.visible = false;
+  root.addChild(body, status, hpBg, hpFill);
+  return { root, hpBg, hpFill, status, barKey: '', statusKey: '' };
 }
 
 function removeMissing(sprites: Map<number, EntitySprite>, seen: Set<number>): void {
@@ -624,9 +743,13 @@ function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y:
   const key = `${hp}/${maxHp}`;
   if (key === s.barKey) return;
   s.barKey = key;
-  s.bar.clear();
-  s.bar.rect(-width / 2 - 1, y - 1, width + 2, 5).fill({ color: 0x000000, alpha: 0.7 });
-  s.bar.rect(-width / 2, y, (width * Math.max(0, hp)) / maxHp, 3).fill(hpColor(hp / maxHp));
+  const frac = Math.max(0, Math.min(1, hp / maxHp));
+  s.hpBg.visible = s.hpFill.visible = true;
+  s.hpBg.position.set(-width / 2 - 1, y - 1);
+  s.hpBg.setSize(width + 2, 5);
+  s.hpFill.position.set(-width / 2, y);
+  s.hpFill.setSize(Math.max(0.01, width * frac), 3);
+  s.hpFill.tint = hpColor(frac);
 }
 
 /** Shardback's hide, read from its magic resist (Ether hide raises it above the base value). */
@@ -708,6 +831,17 @@ function heroBody(kind: HeroKind, r: number): Graphics {
       g.circle(0, 0, r * 0.22).fill(0xffffff);
       break;
   }
+  return g;
+}
+
+function projectileBody(style: string): ProjectileSprite {
+  const g = new Graphics() as ProjectileSprite;
+  g.projStyle = style;
+  const color = PROJECTILE_COLORS[style] ?? 0xffffff;
+  const r =
+    style === 'fireball' ? 6 : style === 'cannon' || style === 'flak' ? 5 : style === 'frost' || style === 'arcane' || style === 'crit' ? 4 : 3;
+  if (style === 'fireball') g.circle(0, 0, r + 4).fill({ color, alpha: 0.3 });
+  g.circle(0, 0, r).fill(color).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
   return g;
 }
 

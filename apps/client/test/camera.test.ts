@@ -36,4 +36,37 @@ describe('Camera', () => {
     expect(topLeft.x).toBeGreaterThan(-400);
     expect(bottomRight.y).toBeLessThan(1920 + 400);
   });
+
+  it('fits the map into a frame; the fitted zoom is the minimum and the map stays centred there', () => {
+    const cam = new Camera(26 * 32, 50 * 32);
+    cam.resize(1366, 768);
+    const zoom = 752 / (50 * 32);
+    const left = (1366 - 26 * 32 * zoom) / 2;
+    cam.fit({ left, top: 8, right: 1366 - left, bottom: 760 }, zoom);
+    expect(cam.worldToScreen(0, 0).x).toBeCloseTo(left);
+    expect(cam.worldToScreen(0, 0).y).toBeCloseTo(8);
+    cam.zoomAt(0.5, 683, 384);
+    expect(cam.zoom).toBeCloseTo(zoom);
+    cam.pan(500, 500);
+    expect(cam.worldToScreen(0, 0).y).toBeCloseTo(8);
+    // Zoomed in, the map can pan but always covers the frame.
+    cam.zoomAt(2, 683, 384);
+    cam.pan(-5000, -5000);
+    expect(cam.worldToScreen(0, 0).x).toBeCloseTo(left);
+    expect(cam.worldToScreen(0, 0).y).toBeCloseTo(8);
+  });
+
+  it('ignores player pan and zoom when locked', () => {
+    const cam = new Camera(832, 1600);
+    cam.resize(412, 839);
+    cam.fit({ left: 0, top: 44, right: 412, bottom: 836 }, 412 / 832);
+    cam.locked = true;
+    const before = { x: cam.x, y: cam.y, zoom: cam.zoom };
+    cam.pan(100, 100);
+    cam.zoomAt(2, 0, 0);
+    cam.centerOn(0, 0);
+    expect({ x: cam.x, y: cam.y, zoom: cam.zoom }).toEqual(before);
+    cam.place(0, 20);
+    expect(cam.worldToScreen(0, 0).y).toBeCloseTo(20);
+  });
 });

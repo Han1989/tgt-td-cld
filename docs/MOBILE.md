@@ -177,6 +177,6 @@ The two-thumb layouts use the same overlay approach.
 
 ## 11. Open questions (decide during Phase 4a and log the answer)
 
-- Should smart-cast favour the densest group, or the group closest to the Heart when it's close?
-- Should a leaver's towers pass to a teammate after the rejoin window, instead of staying locked?
+- Should smart-cast favour the densest group, or the group closest to the Heart when it's close? **Answered in track 2: the densest group; ties go to the group nearer the Heart** (Decision Log).
+- Should a leaver's towers pass to a teammate after the rejoin window, instead of staying locked? **Answered in track 1: not now** (Decision Log).
 - Should Quick mode be the default on phones?

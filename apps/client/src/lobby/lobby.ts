@@ -12,6 +12,7 @@ import {
 } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
 import { HERO_COLORS, toCss } from '../render/palette';
+import { updateAndReload } from '../platform/pwa';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { ModePicker } from './modePicker';
 
@@ -106,7 +107,8 @@ export class LobbyUi {
       if (e.key === 'Enter') join();
     });
     $('lobby-offline').addEventListener('click', () => actions.playOffline());
-    this.refresh.addEventListener('click', () => location.reload());
+    // Through the service worker, so a cached old app shell can't survive the refresh.
+    this.refresh.addEventListener('click', () => void updateAndReload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
     this.ready.addEventListener('click', () => actions.setReady(!this.amReady));
     this.start.addEventListener('click', () => actions.start());

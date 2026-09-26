@@ -134,6 +134,16 @@ export class Hud {
   private readonly teamList = $('team-list');
   private readonly noticeEl = $('notice');
   private readonly reconnecting = $('reconnecting');
+  private readonly topLevel = $('top-level');
+  private readonly topLevelText = $('top-level-text');
+  private readonly topPoints = $('top-points');
+  private readonly topXp = $('top-xp');
+  private readonly heartNum = $('heart-num');
+  private readonly goldStat = $('gold-stat');
+
+  /** Tall (phone) layout: short labels, and the team panel opens from the gold stat. */
+  private compact = false;
+  private teamOpen = false;
 
   /** Online room (null in local solo mode). */
   private room: LobbyState | null = null;
@@ -159,6 +169,11 @@ export class Hud {
     $('hud').addEventListener('click', () => {
       if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
     });
+    this.goldStat.addEventListener('click', () => {
+      // Phones: the team panel (gifts) opens from the gold stat.
+      if (!this.compact || !this.room) return;
+      this.teamOpen = !this.teamOpen;
+    });
     this.restartBtn.addEventListener('click', () => actions.restart());
     this.changeHeroBtn.addEventListener('click', () => actions.changeHero());
     this.endLeave.addEventListener('click', () => actions.leave());
@@ -175,18 +190,21 @@ export class Hud {
     setText(this.gold, String(player?.gold ?? 0));
     setWidth(this.heartFill, snap.heartHp / snap.heartMaxHp);
     setText(this.heartText, `${snap.heartHp} / ${snap.heartMaxHp}`);
+    setText(this.heartNum, String(snap.heartHp));
     setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
 
+    const c = this.compact;
     if (snap.nextWaveIn < 0) {
-      setText(this.timerLabel, 'Final wave');
-      setText(this.timer, '');
+      setText(this.timerLabel, c ? 'Final' : 'Final wave');
+      setText(this.timer, c ? '—' : '');
     } else {
-      setText(this.timerLabel, snap.phase === 'build' ? 'First wave in' : 'Next wave');
+      setText(this.timerLabel, snap.phase === 'build' ? (c ? 'Start' : 'First wave in') : c ? 'Next' : 'Next wave');
       setText(this.timer, formatSeconds(snap.nextWaveIn, snap.tickRate));
     }
     const canCall = snap.nextWaveIn >= 0 && (snap.phase === 'build' || snap.phase === 'waves');
     this.callEarly.disabled = !canCall;
-    const callHtml = canCall ? `Call early <span class="bonus">+${snap.callEarlyBonus}</span>` : 'Call early';
+    const label = c ? '<span class="call">Call</span>' : 'Call early';
+    const callHtml = canCall ? `${label} <span class="bonus">+${snap.callEarlyBonus}</span>` : label;
     if (this.callEarly.innerHTML !== callHtml) this.callEarly.innerHTML = callHtml;
 
     this.updateBuildHint(player?.gold ?? 0);
@@ -213,6 +231,12 @@ export class Hud {
         : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
     }
+  }
+
+  /** Tall (phone) layout on or off. */
+  setCompact(on: boolean): void {
+    this.compact = on;
+    if (!on) this.teamOpen = false;
   }
 
   /** Online: the current room (for the team panel and host-only buttons); null offline. */
@@ -245,8 +269,9 @@ export class Hud {
   }
 
   private updateTeam(snap: Snapshot, me: PlayerId | null): void {
-    const show = this.room !== null;
+    const show = this.room !== null && (!this.compact || this.teamOpen);
     this.team.classList.toggle('hidden', !show);
+    this.goldStat.classList.toggle('opens-team', this.compact && this.room !== null);
     if (!show) return;
     setText(this.teamCode, this.room!.code);
     // Rebuild the rows only when the roster changes, so gift buttons survive gold ticking up.
@@ -334,9 +359,11 @@ export class Hud {
     const ult = HERO_INFO[hero.kind].skills.R.name;
     const unlocks = TUNING.hero.ultimateLevels[0] === level;
     this.toast(unlocks ? `Level ${level}! ${ult} (R) unlocked` : `Level ${level}! Skill point ready`);
-    this.heroPanel.classList.remove('leveled');
-    void this.heroPanel.offsetWidth;
-    this.heroPanel.classList.add('leveled');
+    for (const el of [this.heroPanel, this.topLevel]) {
+      el.classList.remove('leveled');
+      void el.offsetWidth;
+      el.classList.add('leveled');
+    }
   }
 
   toast(text: string): void {
@@ -386,6 +413,10 @@ export class Hud {
     setText(this.manaText, `${hero.mana} / ${hero.maxMana}`);
     this.skillPoints.classList.toggle('hidden', hero.skillPoints === 0);
     setText(this.skillPoints, `+${hero.skillPoints} skill point${hero.skillPoints === 1 ? '' : 's'}`);
+    setText(this.topLevelText, `Lv ${hero.level}`);
+    setWidth(this.topXp, hero.level >= hero.maxLevel || span <= 0 ? 1 : (hero.xp - hero.xpLevelStart) / span);
+    this.topPoints.classList.toggle('hidden', hero.skillPoints === 0);
+    setText(this.topPoints, `+${hero.skillPoints}`);
 
     this.respawn.classList.toggle('hidden', hero.alive);
     if (!hero.alive) setText(this.respawn, `Respawning in ${Math.ceil(hero.respawnIn / tickRate)}s`);
