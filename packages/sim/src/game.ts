@@ -1,7 +1,7 @@
 // Public entry points of the simulation: createGame, step, snapshot.
 // applyCommand lives in commands.ts.
 
-import type { EntityId, SkillSlot, Snapshot } from '@tdt/protocol';
+import type { EntityId, GameEvent, SkillSlot, Snapshot } from '@tdt/protocol';
 import { emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
@@ -39,6 +39,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     spawnQueue: [],
     events: [],
     pendingEvents: [],
+    pendingDamage: {},
   };
 
   const spawn = getMap().heroSpawn;
@@ -116,8 +117,23 @@ export function step(state: GameState): void {
       emit(state, { type: 'gameOver', result: 'victory' });
     }
   }
-  state.events = state.pendingEvents;
+  state.events = [...damageEvents(state), ...state.pendingEvents];
   state.pendingEvents = [];
+}
+
+/** This tick's damage, one `damage` event per source (in the order sources first dealt damage), then reset. */
+function damageEvents(state: GameState): GameEvent[] {
+  const events: GameEvent[] = [];
+  for (const [key, perCreep] of Object.entries(state.pendingDamage)) {
+    const hits: number[] = [];
+    for (const [id, amount] of Object.entries(perCreep)) {
+      const whole = Math.round(amount);
+      if (whole > 0) hits.push(Number(id), whole);
+    }
+    if (hits.length > 0) events.push({ type: 'damage', by: key === '' ? null : key, hits });
+  }
+  state.pendingDamage = {};
+  return events;
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;

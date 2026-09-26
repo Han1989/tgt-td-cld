@@ -109,7 +109,10 @@ describe('Ranger', () => {
     const p = state.projectiles.find((x) => x.style === 'crit') ?? null;
     const crit = events.find((e) => e.type === 'crit');
     expect(p !== null || crit !== undefined).toBe(true);
-    expect(crit).toMatchObject({ damage: Math.round(tuning.hero.ranger.damage * tuning.hero.ranger.keenEye.critMultiplier[0]!) });
+    expect(crit).toMatchObject({
+      damage: Math.round(tuning.hero.ranger.damage * tuning.hero.ranger.keenEye.critMultiplier[0]!),
+      by: hero.owner,
+    });
   });
 
   it('does not roll the RNG for crits before Keen Eye is learned', () => {

@@ -2,9 +2,10 @@
 // distinct shape and colour plus an HP bar. It reads snapshots and UI state
 // and never touches game state.
 //
-// Effects (Phase 4b) are client-only: hits are read from creep HP dropping between
-// the snapshots being rendered, shots from projectiles appearing, and everything
-// else from snapshot events. See fx/effects.ts for the pooled particle layers.
+// Effects (Phase 4b) are client-only: hit flashes are read from creep HP dropping
+// between the snapshots being rendered, shots from projectiles appearing, and
+// everything else from snapshot events (damage numbers from `damage`: all of them
+// solo, only yours online). See fx/effects.ts for the pooled particle layers.
 
 import {
   isBossKind,
@@ -62,6 +63,8 @@ const HEART_HIT_MS = 420;
 /** The Heart warns (red glow, faster beat) at or under this share of its HP. */
 const HEART_LOW = 0.3;
 const ICE = 0xbfeaff;
+/** Bulwark Aura rings (the Warden's aura ring under the hero uses the same blue). */
+const AURA_COLOR = 0x8fc1ff;
 /** Hero projectile styles (they come from a hero, not a tower). */
 const HERO_STYLES = new Set(['ranger', 'arcanist', 'crit', 'multishot', 'fireball']);
 
@@ -203,6 +206,8 @@ export class WorldRenderer {
    * readable when tiles are small on a phone. Set by the layout.
    */
   entityScale = 1;
+  /** Bulwark radii drawn by the last overlay, and how many covered the tower in focus (browser tests). */
+  auraRings = { drawn: 0, covering: 0 };
   /** Called when one of my kills pays a bounty: where it happened on screen (px), for the flying coin. */
   onBounty: (screenX: number, screenY: number, bounty: number) => void = () => {};
 
@@ -326,11 +331,14 @@ export class WorldRenderer {
 
   playEvents(events: GameEvent[], latest: Snapshot | undefined, me: PlayerId | null, now: number): void {
     const fx = this.fx;
+    // Damage numbers: everyone's in solo, only your hero's and towers' online.
+    const crits = this.hits.feed(events, me, !latest || latest.players.length <= 1);
+    for (const c of crits) fx.number(c.x, c.y - 0.3, c.damage, 0xfff07a, true);
     for (const e of events) {
       switch (e.type) {
         case 'kill': {
           const shown = this.hits.take(e.creepId);
-          if (shown && shown.damage > 0) fx.number(e.x, e.y, shown.damage, 0xffffff);
+          if (shown > 0) fx.number(e.x, e.y, shown, 0xffffff);
           const t = TUNING.creeps[e.kind];
           fx.death(e.x, e.y, CREEP_COLORS[e.kind], t.radius, t.boss);
           if (e.by === me && e.bounty > 0) {
@@ -381,9 +389,7 @@ export class WorldRenderer {
           this.aoe(e.effect, e.x, e.y, e.radius);
           break;
         case 'crit':
-          this.hits.suppressNear(e.x, e.y);
-          fx.number(e.x, e.y - 0.3, e.damage, 0xfff07a, true);
-          if (fx.particles) {
+          if (fx.particles && crits.some((c) => c.x === e.x && c.y === e.y)) {
             fx.emit({
               frame: 'star',
               x: e.x * S,
@@ -802,10 +808,12 @@ export class WorldRenderer {
 
   /**
    * Hit flash (towards white) and frost shimmer (a pulsing icy tint). Quantised, so a creep that
-   * isn't flashing or slowed costs nothing: tint changes are cheap, but not free, in Pixi.
+   * isn't flashing or slowed costs nothing: tint changes are cheap, but not free, in Pixi (each
+   * one re-packs the creep's vertices into the batch).
    */
   private tintCreep(s: CreepSprite, c: CreepSnap, now: number): void {
-    const f = s.flashUntil > now ? Math.ceil(((s.flashUntil - now) / FLASH_MS) * 4) / 4 : 0;
+    // On or off: a 90 ms flash reads as a flash, and each one costs just two tint changes.
+    const f = s.flashUntil > now ? 1 : 0;
     if (s.flash) {
       const key = f * 100;
       if (key !== s.tintKey) {
@@ -814,7 +822,7 @@ export class WorldRenderer {
       }
       return;
     }
-    const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 8) / 8 : 0;
+    const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 4) / 4 : 0;
     const key = f * 100 + ice * 10 + 1;
     if (key === s.tintKey) return;
     s.tintKey = key;
@@ -958,7 +966,7 @@ export class WorldRenderer {
     const aura = new Sprite(this.atlas.frames.dashRing);
     aura.anchor.set(0.5);
     aura.scale.set((r + 12) / 28);
-    aura.tint = h.kind === 'warden' ? 0x8fc1ff : 0xc9b3ff;
+    aura.tint = h.kind === 'warden' ? AURA_COLOR : 0xc9b3ff;
     aura.alpha = 0;
     sprite.root.addChildAt(aura, 0);
     sprite.root.addChild(facing);
@@ -1190,6 +1198,7 @@ export class WorldRenderer {
     if (!busy && !this.overlayDrawn) return;
     this.overlayDrawn = busy;
     g.clear();
+    this.auraRings = { drawn: 0, covering: 0 };
     const player = snap.players.find((p) => p.id === me);
     const hero = heroes.find((h) => h.owner === me && h.alive);
 
@@ -1243,6 +1252,8 @@ export class WorldRenderer {
       }
     }
 
+    this.drawAuraRanges(g, snap, heroes, ui);
+
     // Touch drag-to-aim: range around the hero, area at the aim point (red over the button = cancel).
     if (ui.aim && hero) {
       const skill = hero.skills.find((s) => s.slot === ui.aim!.slot);
@@ -1279,6 +1290,39 @@ export class WorldRenderer {
       const t = (now - m.born) / MARKER_LIFE_MS;
       g.circle(m.x * S, m.y * S, 6 + t * 10).stroke({ width: 2, color: m.color, alpha: 1 - t });
     }
+  }
+
+  /**
+   * While you place or inspect a tower: the true radius of every Warden's Bulwark Aura (the only
+   * aura that reaches towers), bright when it covers that tower and faint when it doesn't.
+   */
+  private drawAuraRanges(g: Graphics, snap: Snapshot, heroes: HeroSnap[], ui: UiState): void {
+    const at = this.towerFocus(snap, ui);
+    if (!at) return;
+    const radius = TUNING.hero.warden.bulwarkAura.radius;
+    for (const h of heroes) {
+      if (h.kind !== 'warden' || !h.alive || (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) === 0) continue;
+      const covers = Math.hypot(h.x - at.x, h.y - at.y) <= radius;
+      this.auraRings.drawn++;
+      if (covers) this.auraRings.covering++;
+      g.circle(h.x * S, h.y * S, radius * S).fill({ color: AURA_COLOR, alpha: covers ? 0.07 : 0.03 });
+      g.circle(h.x * S, h.y * S, radius * S).stroke({ width: covers ? 3 : 2, color: AURA_COLOR, alpha: covers ? 0.85 : 0.35 });
+      if (covers) g.moveTo(h.x * S, h.y * S).lineTo(at.x * S, at.y * S).stroke({ width: 2, color: AURA_COLOR, alpha: 0.5 });
+    }
+  }
+
+  /** The tower being placed (build ghost, radial preview, chosen pad) or selected, in tiles. */
+  private towerFocus(snap: Snapshot, ui: UiState): { x: number; y: number } | null {
+    const selected = ui.selectedTowerId !== null ? snap.towers.find((t) => t.id === ui.selectedTowerId) : undefined;
+    if (selected) return selected;
+    const padId = ui.preview?.padId ?? ui.selectedPadId;
+    const pad = padId !== null && padId !== undefined ? this.map.pads[padId] : undefined;
+    if (pad) return pad;
+    if (ui.mode.type === 'build' && ui.hover) {
+      const hovered = padAtTile(this.map, Math.floor(ui.hover.x), Math.floor(ui.hover.y));
+      return hovered ?? ui.hover;
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------

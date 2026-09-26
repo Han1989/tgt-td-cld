@@ -237,4 +237,6 @@ export interface GameState {
   events: GameEvent[];
   /** Events collected since the last step; moved to `events` when a step ends. */
   pendingEvents: GameEvent[];
+  /** Damage dealt to creeps since the last step, per source ('' = no one), per creep id; becomes `damage` events. */
+  pendingDamage: Record<string, Record<number, number>>;
 }

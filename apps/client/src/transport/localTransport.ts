@@ -13,7 +13,10 @@ export class LocalTransport implements Transport {
       if (!msg) return;
       for (const h of this.handlers) h(msg);
     };
-    if (import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('lab')) this.worker.postMessage({ ctl: 'lab' });
+    if (import.meta.env.MODE === 'e2e') {
+      const q = new URLSearchParams(location.search);
+      if (q.has('lab')) this.worker.postMessage({ ctl: 'lab', auras: q.has('auras') });
+    }
   }
 
   send(msg: ClientMessage): void {

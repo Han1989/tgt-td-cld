@@ -58,6 +58,8 @@ class Layer {
   private readonly bits: Bit[] = [];
   private readonly parts: Particle[] = [];
   private readonly stretched: boolean[] = [];
+  /** Tint of each particle in BGR, as the particle's packed `color` wants it. */
+  private readonly bgr: number[] = [];
   private readonly spareBits: Bit[] = [];
   private readonly spareParts: Particle[] = [];
 
@@ -85,8 +87,10 @@ class Layer {
     Object.assign(b, BLANK);
     const p = this.spareParts.pop() ?? new Particle({ texture: tex, anchorX: 0.5, anchorY: 0.5 });
     p.texture = tex;
-    p.tint = tint;
-    p.alpha = 0;
+    // Write the packed colour directly: the tint / alpha setters go through Pixi's Color parser.
+    const rgb = tint & 0xffffff;
+    this.bgr.push(((rgb & 0xff) << 16) | (rgb & 0xff00) | ((rgb >> 16) & 0xff));
+    p.color = 0;
     this.bits.push(b);
     this.parts.push(p);
     this.stretched.push(stretched);
@@ -95,7 +99,7 @@ class Layer {
   }
 
   update(dtMs: number): void {
-    const { bits, parts, stretched } = this;
+    const { bits, parts, stretched, bgr } = this;
     let removed = false;
     for (let i = bits.length - 1; i >= 0; i--) {
       if (stepBit(bits[i]!, dtMs)) continue;
@@ -106,9 +110,11 @@ class Layer {
       bits[i] = bits[last]!;
       parts[i] = parts[last]!;
       stretched[i] = stretched[last]!;
+      bgr[i] = bgr[last]!;
       bits.pop();
       parts.pop();
       stretched.pop();
+      bgr.pop();
       removed = true;
     }
     for (let i = 0; i < bits.length; i++) {
@@ -120,7 +126,8 @@ class Layer {
       p.scaleX = stretched[i] ? s * b.stretch : s;
       p.scaleY = s;
       p.rotation = b.rotation;
-      p.alpha = bitAlpha(b);
+      const a = Math.max(0, Math.min(1, bitAlpha(b)));
+      p.color = bgr[i]! + (((a * 255) | 0) << 24);
     }
     if (removed) this.container.update();
   }
@@ -131,6 +138,7 @@ class Layer {
     this.bits.length = 0;
     this.parts.length = 0;
     this.stretched.length = 0;
+    this.bgr.length = 0;
     this.container.update();
   }
 }

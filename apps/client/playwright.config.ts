@@ -1,5 +1,6 @@
 // Browser tests (docs/MOBILE.md §8): mobile emulation in portrait iPhone and Pixel
-// profiles, desktop mouse and keyboard, the PWA, and a render stress test.
+// profiles, desktop mouse and keyboard, the PWA, and a render stress test (its own
+// `perf` project, run alone after the rest).
 // Run with `npm run test:e2e` (builds `dist-e2e` with `--mode e2e`, which adds a
 // debug hook and a `?lab` option with extra solo gold). Chromium only: the iPhone
 // profile emulates the iPhone's screen, touch and safe viewport in Chromium.
@@ -32,13 +33,21 @@ export default defineConfig({
     },
     {
       name: 'pixel',
-      testMatch: /(mobile|platform|perf)\.spec\.ts/,
+      testMatch: /(mobile|platform)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
     {
       name: 'desktop',
       testMatch: /desktop\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } },
+    },
+    {
+      // The stress test measures CPU time, so it runs on its own after the others: sharing the CPU
+      // with another browser (SwiftShader renders on the CPU) roughly halves its frame rate.
+      name: 'perf',
+      testMatch: /perf\.spec\.ts/,
+      dependencies: ['iphone', 'pixel', 'desktop'],
+      use: { ...devices['Pixel 7'] },
     },
   ],
 });

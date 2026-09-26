@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
+import { step } from '../src/game';
 import { armorMultiplier, damageCreep, damageHero, damageMultiplier, damageTower, grantXp, heroArmor } from '../src/combat';
 import { secondsToTicks, TICK_RATE, TUNING } from '../src/tuning';
 import { LAB_PAD, labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
@@ -372,4 +373,29 @@ describe('creep aggro and leash', () => {
     expect(state.heartHp).toBe(heartHp - TUNING.creeps.wisp.leakDamage);
   });
 
+});
+
+describe('damage events', () => {
+  it('report the damage each source dealt this tick, per creep, after armour and capped at the HP left', () => {
+    const state = labGame(TUNING, 2);
+    const brute = placeCreep(state, 'brute', 13, 20);
+    const grunt = placeCreep(state, 'grunt', 13, 24);
+    brute.rootUntil = grunt.rootUntil = 1_000_000;
+    damageCreep(state, brute, 100, 'physical', 'p1');
+    damageCreep(state, brute, 100, 'physical', 'p1');
+    damageCreep(state, grunt, 10, 'magic', 'p2');
+    damageCreep(state, grunt, 1_000_000, 'magic', null);
+    step(state);
+    const damage = state.events.filter((e) => e.type === 'damage');
+    const perHit = 100 * armorMultiplier(TUNING, TUNING.creeps.brute.armor);
+    expect(damage).toEqual([
+      { type: 'damage', by: 'p1', hits: [brute.id, Math.round(2 * perHit)] },
+      { type: 'damage', by: 'p2', hits: [grunt.id, 10] },
+      { type: 'damage', by: null, hits: [grunt.id, Math.round(grunt.maxHp - 10)] },
+    ]);
+    // Listed before the tick's other events (the kill), and cleared for the next tick.
+    expect(state.events.findIndex((e) => e.type === 'kill')).toBeGreaterThan(2);
+    step(state);
+    expect(state.events.some((e) => e.type === 'damage')).toBe(false);
+  });
 });

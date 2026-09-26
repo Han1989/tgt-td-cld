@@ -338,6 +338,7 @@ export class GameView {
         camera,
         fps: () => monitor.fps,
         visibleCreeps: () => renderer.visibleCreeps,
+        auraRings: () => renderer.auraRings,
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
       };
     }

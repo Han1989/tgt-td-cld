@@ -27,6 +27,7 @@ interface Hook {
   frameCosts(): number[];
   visibleCreeps(): number;
   fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number };
+  auraRings(): { drawn: number; covering: number };
   layout(): {
     kind: string;
     tilePx: number;
@@ -46,10 +47,10 @@ declare global {
   }
 }
 
-/** Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger. */
-export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick'): Promise<void> {
+/** Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`). */
+export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick', hero = 'Ranger'): Promise<void> {
   await page.goto(`/${query}`);
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: hero }).click();
   await page.locator(`#lobby-mode-solo .mode-pick[data-mode="${mode}"]`).click();
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);

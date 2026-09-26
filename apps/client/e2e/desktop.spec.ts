@@ -66,3 +66,37 @@ test('a narrow desktop window gets the tall layout and still plays with the mous
   await cannon.click();
   await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'cannon' }]);
 });
+
+test("placing or selecting a tower shows the true radius of a Warden's Bulwark Aura", async ({ page }) => {
+  await startSolo(page, '?lab&auras', 'quick', 'Warden');
+  expect(await page.evaluate(() => window.__tdt.auraRings())).toEqual({ drawn: 0, covering: 0 });
+  const radius = 8;
+  // The pad nearest the Warden's spawn by the Heart is just outside the aura.
+  const pad = await page.evaluate(() => {
+    const hero = window.__tdt.latest()!.heroes[0]!;
+    const pads = window.__tdt.latest()!.pads.map((p) => window.__tdt.map.pads[p.id]!);
+    pads.sort((a, b) => Math.hypot(a.x - hero.x, a.y - hero.y) - Math.hypot(b.x - hero.x, b.y - hero.y));
+    return { ...pads[0]!, dist: Math.hypot(pads[0]!.x - hero.x, pads[0]!.y - hero.y) };
+  });
+  expect(pad.dist).toBeGreaterThan(radius);
+  const at = await toScreen(page, pad.x, pad.y);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#pad-menu')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__tdt.auraRings())).toEqual({ drawn: 1, covering: 0 });
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => window.__tdt.auraRings().drawn)).toBe(0);
+
+  // Walk the Warden over: now the aura reaches the pad, and the tower built there.
+  await page.mouse.click(at.x, at.y, { button: 'right' });
+  await expect
+    .poll(() => page.evaluate(([x, y]) => Math.hypot(window.__tdt.latest()!.heroes[0]!.x - x!, window.__tdt.latest()!.heroes[0]!.y - y!), [pad.x, pad.y]))
+    .toBeLessThan(radius - 1);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#pad-menu')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__tdt.auraRings())).toEqual({ drawn: 1, covering: 1 });
+  await page.keyboard.press('1');
+  await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), pad.id)).toBe(true);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#tower-panel')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__tdt.auraRings())).toEqual({ drawn: 1, covering: 1 });
+});

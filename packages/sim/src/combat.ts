@@ -125,7 +125,12 @@ export function damageCreep(
   source: PlayerId | null,
 ): void {
   if (creep.dead) return;
-  creep.hp -= amount * damageMultiplier(state.tuning, type, creep.armor, creep.magicResist);
+  const dealt = Math.min(creep.hp, amount * damageMultiplier(state.tuning, type, creep.armor, creep.magicResist));
+  if (dealt > 0) {
+    const bySource = (state.pendingDamage[source ?? ''] ??= {});
+    bySource[creep.id] = (bySource[creep.id] ?? 0) + dealt;
+  }
+  creep.hp -= dealt;
   if (creep.hp <= 0) killCreep(state, creep, source);
 }
 

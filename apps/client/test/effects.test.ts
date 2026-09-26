@@ -1,3 +1,4 @@
+import type { GameEvent } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { Counter } from '../src/hud/counter';
 import { HitTracker } from '../src/render/fx/hits';
@@ -46,47 +47,87 @@ describe('particle motion', () => {
 describe('hit tracker', () => {
   const at = (id: number, hp: number) => ({ id, hp, x: id, y: 0 });
 
-  it('reports HP drops as hits and throttles numbers per creep, summing the damage', () => {
-    const t = new HitTracker(300);
-    expect(t.update([at(1, 100)], 0)).toEqual({ hits: [], numbers: [] });
-    const a = t.update([at(1, 90)], 50);
-    expect(a.hits).toEqual([{ id: 1, x: 1, y: 0, damage: 10 }]);
-    expect(a.numbers).toEqual([{ id: 1, x: 1, y: 0, damage: 10 }]);
-    // Within the throttle window: a hit, but no number; the damage is kept for later.
-    const b = t.update([at(1, 85)], 100);
-    expect(b.hits).toHaveLength(1);
-    expect(b.numbers).toEqual([]);
-    const c = t.update([at(1, 80)], 400);
-    expect(c.numbers).toEqual([{ id: 1, x: 1, y: 0, damage: 10 }]);
-  });
-
-  it('ignores healing and new creeps, and forgets creeps that are gone', () => {
+  it('flashes every HP drop, whoever dealt it, and ignores healing and new creeps', () => {
     const t = new HitTracker();
-    t.update([at(1, 50)], 0);
-    expect(t.update([at(1, 60), at(2, 10)], 10).hits).toEqual([]);
-    t.update([at(2, 10)], 20);
-    expect(t.take(1)).toBeUndefined();
+    expect(t.update([at(1, 100)], 0).hits).toEqual([]);
+    expect(t.update([at(1, 90)], 10).hits).toEqual([{ id: 1, x: 1, y: 0, damage: 10 }]);
+    expect(t.update([at(1, 95), at(2, 50)], 20).hits).toEqual([]);
   });
 
-  it('gives the killing blow the HP that was left plus damage not shown yet', () => {
+  it('shows only the damage it is fed, summed into one number per creep per window', () => {
     const t = new HitTracker(300);
     t.update([at(1, 100)], 0);
-    t.update([at(1, 90)], 10); // number of 10 shown
-    t.update([at(1, 70)], 20); // 20 pending
-    expect(t.take(1)).toEqual({ damage: 90, x: 1, y: 0 });
-    expect(t.take(1)).toBeUndefined();
+    t.addDamage(1, 10);
+    // The number shows at the creep's position once the next snapshot is rendered.
+    expect(t.update([at(1, 70)], 50).numbers).toEqual([{ id: 1, x: 1, y: 0, damage: 10 }]);
+    t.addDamage(1, 4);
+    expect(t.update([at(1, 60)], 100).numbers).toEqual([]);
+    t.addDamage(1, 6);
+    // Due again: the held damage shows even without a new drop.
+    expect(t.update([at(1, 60)], 400).numbers).toEqual([{ id: 1, x: 1, y: 0, damage: 10 }]);
+    // An HP drop nobody fed (a teammate's hit, online) flashes but shows no number.
+    expect(t.update([at(1, 50)], 800)).toMatchObject({ hits: [{ id: 1 }], numbers: [] });
   });
 
-  it('swallows the number of a creep a crit number was shown for', () => {
+  it('takes damage for creeps it has not rendered yet', () => {
+    const t = new HitTracker();
+    t.addDamage(7, 12);
+    expect(t.update([at(7, 30)], 0).numbers).toEqual([{ id: 7, x: 7, y: 0, damage: 12 }]);
+  });
+
+  it('gives a dying creep the damage not shown yet, killing blow included, and forgets it', () => {
+    const t = new HitTracker(300);
+    t.update([at(1, 100)], 0);
+    t.addDamage(1, 10);
+    t.update([at(1, 90)], 10); // shows 10
+    t.addDamage(1, 90); // the killing blow
+    expect(t.take(1)).toBe(90);
+    expect(t.take(1)).toBe(0);
+  });
+
+  it('swallows the damage delivered with a crit (its own number is shown), for that snapshot only', () => {
     const t = new HitTracker(0);
     t.update([at(1, 100), at(5, 100)], 0);
     t.suppressNear(1.2, 0);
-    const r = t.update([at(1, 40), at(5, 90)], 10);
-    expect(r.hits).toHaveLength(2);
-    expect(r.numbers.map((n) => n.id)).toEqual([5]);
-    // The crit killed it: no second number for the killing blow.
+    t.addDamage(1, 60);
+    t.addDamage(5, 10);
+    expect(t.update([at(1, 40), at(5, 90)], 10).numbers.map((n) => n.id)).toEqual([5]);
+    t.addDamage(1, 5);
+    expect(t.update([at(1, 35)], 20).numbers).toEqual([{ id: 1, x: 1, y: 0, damage: 5 }]);
+    // A crit that kills: nothing more to show for it.
     t.suppressNear(1, 0);
-    expect(t.take(1)?.damage).toBe(0);
+    t.addDamage(1, 35);
+    expect(t.take(1)).toBe(0);
+  });
+});
+
+describe('damage numbers online and solo', () => {
+  const events: GameEvent[] = [
+    { type: 'damage', by: 'me', hits: [1, 10, 2, 5] },
+    { type: 'damage', by: 'mate', hits: [1, 30] },
+    { type: 'damage', by: null, hits: [2, 7] },
+    { type: 'crit', x: 3, y: 0, damage: 40, by: 'mate' },
+  ];
+  const creeps = [1, 2, 3].map((id) => ({ id, hp: 100, x: id, y: 0 }));
+
+  it('online shows only your damage and your crits', () => {
+    const t = new HitTracker(0);
+    t.update(creeps, 0);
+    expect(t.feed(events, 'me', false)).toEqual([]);
+    expect(t.update(creeps, 10).numbers.map((n) => [n.id, n.damage])).toEqual([
+      [1, 10],
+      [2, 5],
+    ]);
+  });
+
+  it('solo shows everything, and a crit replaces its creep\'s plain number', () => {
+    const t = new HitTracker(0);
+    t.update(creeps, 0);
+    expect(t.feed([...events, { type: 'damage', by: 'mate', hits: [3, 40] }], 'me', true)).toEqual([{ x: 3, y: 0, damage: 40 }]);
+    expect(t.update(creeps, 10).numbers.map((n) => [n.id, n.damage])).toEqual([
+      [1, 40],
+      [2, 12],
+    ]);
   });
 });
 

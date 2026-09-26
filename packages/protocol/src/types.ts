@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -239,7 +239,15 @@ export type GameEvent =
   | { type: 'gift'; from: PlayerId; to: PlayerId; amount: number }
   | { type: 'splash'; x: number; y: number; radius: number }
   | { type: 'aoe'; effect: AoeEffect; x: number; y: number; radius: number }
-  | { type: 'crit'; x: number; y: number; damage: number }
+  /** A Keen Eye critical hit by `by`'s hero. */
+  | { type: 'crit'; x: number; y: number; damage: number; by: PlayerId | null }
+  /**
+   * Damage one player (or no one: `null`) dealt to creeps this tick, as flat pairs
+   * `[creepId, amount, creepId, amount, …]`: whole damage actually dealt (after armour and
+   * magic resist, capped at the HP left), summed per creep. At most one per source per tick,
+   * listed before the tick's other events. Clients use it for floating damage numbers.
+   */
+  | { type: 'damage'; by: PlayerId | null; hits: number[] }
   | { type: 'rejected'; player: PlayerId; command: CommandType; reason: string }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };
 
