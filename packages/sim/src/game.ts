@@ -11,15 +11,17 @@ import { seedRng } from './rng';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import type { GameConfig, GameState, Hero } from './state';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
-import { secondsToTicks, TICK_RATE, towerTier, TUNING } from './tuning';
+import { secondsToTicks, TICK_RATE, towerTier, tuningForMode, TUNING } from './tuning';
 import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
   if (config.players.length === 0) throw new Error('A game needs at least one player');
-  const tuning = config.tuning ?? TUNING;
+  const mode = config.mode ?? 'full';
+  const tuning = tuningForMode(config.tuning ?? TUNING, mode);
   const state: GameState = {
     tick: 0,
     rng: seedRng(seed),
+    mode,
     tuning,
     phase: 'build',
     heartHp: tuning.heart.maxHp,
@@ -126,6 +128,7 @@ export function snapshot(state: GameState): Snapshot {
   return {
     tick: state.tick,
     tickRate: TICK_RATE,
+    mode: state.mode,
     phase: state.phase,
     heartHp: state.heartHp,
     heartMaxHp: t.heart.maxHp,

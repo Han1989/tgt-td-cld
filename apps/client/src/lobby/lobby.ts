@@ -1,18 +1,29 @@
 // Online lobby screens (HTML): home (nickname, hero, create / join), room
-// (code + invite link, players, hero, ready / start) and a busy state.
+// (code + invite link, players, hero, mode, ready / start) and a busy state.
 
-import { MAX_NAME_LENGTH, normalizeName, normalizeRoomCode, type HeroKind, type LobbyState, type PlayerId } from '@tdt/protocol';
+import {
+  MAX_NAME_LENGTH,
+  normalizeName,
+  normalizeRoomCode,
+  type GameMode,
+  type HeroKind,
+  type LobbyState,
+  type PlayerId,
+} from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
+import { ModePicker } from './modePicker';
 
 const NAME_KEY = 'tdt.name';
 
 export interface LobbyActions {
   create(name: string, hero: HeroKind): void;
   join(code: string, name: string, hero: HeroKind): void;
-  playOffline(hero: HeroKind): void;
+  playOffline(): void;
   setHero(hero: HeroKind): void;
+  /** Host only: the match mode. */
+  setMode(mode: GameMode): void;
   setReady(ready: boolean): void;
   start(): void;
   leave(): void;
@@ -54,6 +65,7 @@ export class LobbyUi {
   private readonly home = $('lobby-home');
   private readonly room = $('lobby-room');
   private readonly busy = $('lobby-busy');
+  private readonly solo = $('lobby-solo');
   private readonly busyText = $('lobby-busy-text');
   private readonly error = $('lobby-error');
   private readonly name = $('lobby-name') as HTMLInputElement;
@@ -63,10 +75,12 @@ export class LobbyUi {
   private readonly ready = $('lobby-ready') as HTMLButtonElement;
   private readonly start = $('lobby-start') as HTMLButtonElement;
   private readonly refresh = $('lobby-refresh');
+  private readonly modeLabel = $('lobby-mode-room-label');
 
   private hero: HeroKind = storedHero();
   private readonly homePicker: HeroPicker;
   private readonly roomPicker: HeroPicker;
+  private readonly modePicker: ModePicker;
   private amReady = false;
   private current: LobbyState | null = null;
 
@@ -91,7 +105,7 @@ export class LobbyUi {
     this.code.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') join();
     });
-    $('lobby-offline').addEventListener('click', () => actions.playOffline(this.hero));
+    $('lobby-offline').addEventListener('click', () => actions.playOffline());
     this.refresh.addEventListener('click', () => location.reload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
     this.ready.addEventListener('click', () => actions.setReady(!this.amReady));
@@ -113,6 +127,7 @@ export class LobbyUi {
       storeHero(hero);
       actions.setHero(hero);
     });
+    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => actions.setMode(mode));
   }
 
   /** True if the page was opened from an invite link. */
@@ -130,6 +145,7 @@ export class LobbyUi {
     this.home.classList.remove('hidden');
     this.room.classList.add('hidden');
     this.busy.classList.add('hidden');
+    this.solo.classList.add('hidden');
     this.refresh.classList.add('hidden');
     this.homePicker.select(this.hero);
     this.showError(error);
@@ -148,6 +164,7 @@ export class LobbyUi {
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.room.classList.add('hidden');
+    this.solo.classList.add('hidden');
     this.busy.classList.remove('hidden');
     this.busyText.textContent = text;
     this.showError('');
@@ -158,6 +175,7 @@ export class LobbyUi {
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.busy.classList.add('hidden');
+    this.solo.classList.add('hidden');
     this.room.classList.remove('hidden');
     this.roomCode.textContent = lobby.code;
 
@@ -166,6 +184,9 @@ export class LobbyUi {
     this.amReady = !!self?.ready;
     if (self) this.hero = self.hero;
     this.roomPicker.select(this.hero);
+    this.modePicker.select(lobby.mode);
+    this.modePicker.setEnabled(isHost);
+    this.modeLabel.textContent = isHost ? 'Mode' : 'Mode (the host picks)';
 
     this.players.innerHTML = '';
     for (const p of lobby.players) {

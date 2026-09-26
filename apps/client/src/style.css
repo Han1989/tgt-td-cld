@@ -779,6 +779,11 @@ body {
   outline: 2px solid var(--accent);
 }
 
+/* Guests see the host's mode pick without being able to change it. */
+.mode-pick:disabled.selected {
+  opacity: 1;
+}
+
 .hero-dot {
   width: 14px;
   height: 14px;

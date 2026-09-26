@@ -4,7 +4,7 @@
 
 import type { Command, CreepKind, CreepSnap, HeroKind, PlayerId, SkillSlot, SkillSnap, Snapshot, TargetPriority, TowerKind, TowerSnap } from '@tdt/protocol';
 import { getMap, type BuildPad } from './map';
-import { TUNING, type Tuning, type WaveGroup } from './tuning';
+import { tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
 
 export interface Bot {
@@ -41,8 +41,11 @@ const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q'
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 4 };
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
 const GUARD_DISTANCE = 9;
-/** From this wave on, a hero with its ultimate plays forward (earlier, it guards near the Heart). */
-const FORWARD_FROM_WAVE = 12;
+/**
+ * From this share of the match on (Full: wave 12, Quick: wave 6), a hero with its ultimate plays forward
+ * (earlier, it guards near the Heart).
+ */
+const FORWARD_FROM = 0.4;
 /** How far up its lane (path distance from the Heart) a hero playing forward stands guard. */
 const FORWARD_DISTANCE = 18;
 /** A hero walks to creeps within this distance of its post (and shoots them on the way). */
@@ -66,17 +69,20 @@ const STANDOFF_MARGIN = 1;
  * ultimate, to a post further up its zone's lane and to groups to use it on. It hunts a live boss,
  * retreats when hurt, learns skills and casts them on groups.
  */
-export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, botIndex = 0): Bot {
-  const pads = rankPads(tuning);
+export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING, botIndex = 0): Bot {
+  const pads = rankPads(baseTuning);
   const padRank = new Map(pads.map((p, i) => [p.id, i]));
   let posts: { guard: Vec2; forward: Vec2 } | null = null;
   let retreating = false;
   let lastGoal: Vec2 | null = null;
   let lastMoveTick = -Infinity;
+  // The numbers of the match's mode (its wave list, income…), known once the first snapshot names it.
+  let modeTuning: Tuning | null = null;
 
   return {
     playerId,
     decide(snap) {
+      const tuning = (modeTuning ??= tuningForMode(baseTuning, snap.mode));
       const cmds: Command[] = [];
       const me = snap.players.find((p) => p.id === playerId);
       const hero = me && snap.heroes.find((h) => h.id === me.heroId);
@@ -141,7 +147,7 @@ export function createBalanceBot(playerId: PlayerId, tuning: Tuning = TUNING, bo
       if (hpFrac > 0.8) retreating = false;
       const skill = (slot: SkillSlot) => hero.skills.find((s) => s.slot === slot);
       const r = skill('R');
-      const later = r !== undefined && r.rank > 0 && snap.wave >= FORWARD_FROM_WAVE;
+      const later = r !== undefined && r.rank > 0 && snap.wave >= Math.round(FORWARD_FROM * snap.totalWaves);
       const post = later ? posts.forward : posts.guard;
       // Where the hero goes, most urgent first: the Heart when hurt; a live boss; in the final wave, the last
       // few creeps (one parked out of the towers' reach, e.g. an Archer shooting an air-only Flak, would keep

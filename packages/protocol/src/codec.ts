@@ -1,4 +1,5 @@
 import {
+  GAME_MODES,
   HERO_KINDS,
   MAX_NAME_LENGTH,
   ROOM_CODE_ALPHABET,
@@ -8,6 +9,7 @@ import {
   TOWER_KINDS,
   type ClientMessage,
   type Command,
+  type GameMode,
   type HeroKind,
   type ServerMessage,
   type SkillSlot,
@@ -75,6 +77,9 @@ export function decodeClientMessage(raw: unknown): ClientMessage | null {
     case 'hero':
       if (!hasOnlyKeys(data, ['t', 'hero']) || !isHeroKind(data.hero)) return null;
       return { t: 'hero', hero: data.hero };
+    case 'mode':
+      if (!hasOnlyKeys(data, ['t', 'mode']) || !isGameMode(data.mode)) return null;
+      return { t: 'mode', mode: data.mode };
     case 'ready':
       if (!hasOnlyKeys(data, ['t', 'ready']) || typeof data.ready !== 'boolean') return null;
       return { t: 'ready', ready: data.ready };
@@ -217,6 +222,10 @@ function isSkillSlot(value: unknown): value is SkillSlot {
 
 function isHeroKind(value: unknown): value is HeroKind {
   return typeof value === 'string' && (HERO_KINDS as readonly string[]).includes(value);
+}
+
+function isGameMode(value: unknown): value is GameMode {
+  return typeof value === 'string' && (GAME_MODES as readonly string[]).includes(value);
 }
 
 function isTowerKind(value: unknown): value is TowerKind {

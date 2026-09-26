@@ -6,6 +6,7 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
   return {
     tick,
     tickRate: 20,
+    mode: 'full',
     phase: 'waves',
     heartHp: 100,
     heartMaxHp: 100,

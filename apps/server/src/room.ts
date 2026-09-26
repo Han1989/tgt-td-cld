@@ -10,6 +10,7 @@ import {
   type ClientMessage,
   type Command,
   type ErrorCode,
+  type GameMode,
   type HeroKind,
   type LobbyState,
   type PlayerId,
@@ -49,6 +50,8 @@ export class Room {
   readonly members: Member[] = [];
   hostId: PlayerId = '';
   phase: 'lobby' | 'playing' = 'lobby';
+  /** Match mode picked by the host in the lobby; kept for the next match after "Back to lobby". */
+  mode: GameMode = 'full';
   state: GameState | null = null;
   /** The last snapshot sent to clients. */
   lastSnap: Snapshot | null = null;
@@ -181,6 +184,12 @@ export class Room {
         member.hero = msg.hero;
         this.broadcastLobby();
         return;
+      case 'mode':
+        if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can change the mode');
+        if (this.phase !== 'lobby') return this.error(member, 'bad_request', 'The mode is locked once the match starts');
+        this.mode = msg.mode;
+        this.broadcastLobby();
+        return;
       case 'ready':
         if (this.phase !== 'lobby') return;
         member.ready = msg.ready;
@@ -215,7 +224,7 @@ export class Room {
 
   private startMatch(): void {
     const players = this.activeMembers.map((m) => ({ id: m.id, name: m.name, hero: m.hero }));
-    this.state = createGame({ players }, this.newSeed());
+    this.state = createGame({ players, mode: this.mode }, this.newSeed());
     this.phase = 'playing';
     this.queue = [];
     this.lastSnap = snapshot(this.state);
@@ -287,6 +296,7 @@ export class Room {
       code: this.code,
       phase: this.phase,
       hostId: this.hostId,
+      mode: this.mode,
       players: this.activeMembers.map((m) => ({
         id: m.id,
         name: m.name,
