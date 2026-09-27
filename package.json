@@ -17,7 +17,8 @@
     "balance": "tsx packages/sim/scripts/balance.ts",
     "dev:server": "npm run dev -w @tdt/server",
     "loadtest": "npm run build -w @tdt/server && npm run loadtest -w @tdt/server --",
-    "map": "tsx packages/sim/scripts/map.ts"
+    "map": "tsx packages/sim/scripts/map.ts",
+    "mana": "tsx packages/sim/scripts/mana.ts"
   },
   "engines": {
     "node": ">=22.12"

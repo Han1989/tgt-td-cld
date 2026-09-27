@@ -30,6 +30,7 @@ import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
 import { Counter } from './counter';
 import { pulse } from './press';
+import { skillFace } from './skillFace';
 import {
   branchChoices,
   branchStatRows,
@@ -88,8 +89,10 @@ interface SkillButton {
   cd: HTMLElement;
   cdText: HTMLElement;
   pips: HTMLElement;
-  /** Mana cost, "passive", or the level that unlocks it. */
+  /** Mana cost, "passive", or the level that unlocks it (empty for a learned R). */
   tag: HTMLElement;
+  /** R only: a ring that fills up as the cooldown runs out. */
+  ring: HTMLElement;
 }
 
 export interface HudActions {
@@ -530,16 +533,24 @@ export class Hud {
       b.learn.classList.toggle('hidden', !skill.learnable);
       const pips = Array.from({ length: skill.maxRank }, (_, i) => `<span class="pip${i < skill.rank ? ' on' : ''}"></span>`).join('');
       if (b.pips.innerHTML !== pips) b.pips.innerHTML = pips;
-      const locked = skill.rank === 0 && skill.nextRankLevel > hero.level;
-      setText(b.tag, locked ? `Lv ${skill.nextRankLevel}` : skill.passive ? 'passive' : skill.rank > 0 ? String(skill.manaCost) : '');
-      const cdFrac = skill.cooldownTotal > 0 ? skill.cooldown / skill.cooldownTotal : 0;
-      b.cd.style.height = `${cdFrac * 100}%`;
-      setText(b.cdText, skill.cooldown > 0 ? String(Math.ceil(skill.cooldown / tickRate)) : '');
-      b.root.classList.toggle('no-mana', skill.rank > 0 && !skill.passive && hero.mana < skill.manaCost);
+      const f = skillFace(hero, skill, tickRate);
+      const locked = f.locked && skill.nextRankLevel > hero.level;
+      // The ultimate has no text tag: its ring and glow say when it is ready.
+      const tag = locked ? `Lv ${skill.nextRankLevel}` : skill.passive ? 'passive' : f.ultimate ? '' : f.cost;
+      setText(b.tag, tag);
+      b.tag.classList.toggle('mana', f.cost !== '' && tag === f.cost);
+      // Q / W: a dark fill that drains as the cooldown runs out. R: its ring instead.
+      b.cd.style.height = `${f.ultimate ? 0 : f.cooldown * 100}%`;
+      b.ring.classList.toggle('hidden', !f.ultimate || f.locked);
+      b.ring.style.setProperty('--cd', `${(1 - f.cooldown) * 360}deg`);
+      setText(b.cdText, f.cdText);
+      b.root.classList.toggle('no-mana', f.noMana);
+      b.root.classList.toggle('ready', f.ready);
+      b.root.classList.toggle('cooling', skill.cooldown > 0);
       b.root.classList.toggle('passive', skill.passive);
-      b.root.classList.toggle('unlearned', skill.rank === 0);
-      b.root.disabled = !hero.alive || skill.rank === 0;
-      const cost = skill.passive ? 'Passive' : `${skill.manaCost} mana`;
+      b.root.classList.toggle('unlearned', f.locked);
+      b.root.disabled = !hero.alive || f.locked;
+      const cost = skill.passive ? 'Passive' : f.ultimate ? 'No mana cost' : `${skill.manaCost} mana`;
       const unlock = skill.nextRankLevel > hero.level ? ` · next rank at level ${skill.nextRankLevel}` : '';
       const title = `${text.name} (${skill.slot}) — ${text.desc}\n${cost} · rank ${skill.rank}/${skill.maxRank}${unlock}`;
       if (b.root.title !== title) b.root.title = title;
@@ -559,10 +570,11 @@ export class Hud {
 
   private createSkillButton(slot: SkillSlot, name: string, kind: HeroKind): SkillButton {
     const root = document.createElement('button');
-    root.className = 'btn skill';
+    root.className = `btn skill${slot === 'R' ? ' ult' : ''}`;
     root.innerHTML =
       `<i class="ico skill-ico" style="--ico: ${iconVar(skillIcon(kind, slot))}"></i>` +
-      `<span class="meta"><kbd>${slot}</kbd><span class="tag"></span></span><span class="name">${name}</span><span class="pips"></span><span class="cd"></span><span class="cd-text"></span>`;
+      `<span class="meta"><kbd>${slot}</kbd><span class="tag"></span><span class="ring hidden"></span></span>` +
+      `<span class="name">${name}</span><span class="pips"></span><span class="cd"></span><span class="cd-text"></span>`;
     const learn = document.createElement('button');
     learn.className = 'learn hidden';
     learn.textContent = '+';
@@ -580,6 +592,7 @@ export class Hud {
       cdText: root.querySelector('.cd-text') as HTMLElement,
       pips: root.querySelector('.pips') as HTMLElement,
       tag: root.querySelector('.tag') as HTMLElement,
+      ring: root.querySelector('.ring') as HTMLElement,
     };
     this.skillButtons.set(slot, b);
     return b;

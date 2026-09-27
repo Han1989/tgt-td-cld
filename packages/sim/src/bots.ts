@@ -207,7 +207,7 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
       // creep nearest its post; otherwise the post itself.
       const straggler =
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
-      const ultReady = later && r.cooldown === 0 && hero.mana >= r.manaCost;
+      const ultReady = later && r.cooldown === 0;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
       const ranged = tuning.hero[hero.kind].ranged;
       const hittable = snap.creeps.filter((c) => ranged || !tuning.creeps[c.kind].flying);
@@ -229,19 +229,16 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
         snap.creeps.filter(
           (c) => dist(hero.x, hero.y, c.x, c.y) <= range && (!ground || !tuning.creeps[c.kind].flying),
         );
-      // Ultimate first, then Q, then W. A ready ultimate keeps its mana; W also keeps enough for Q.
+      // Like a player: ultimate, Q and W each go off on a group whenever they are ready and affordable.
       let mana = hero.mana;
-      let ultReserve = r && r.rank > 0 && r.cooldown === 0 ? r.manaCost : 0;
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
-        const reserve = (slot === 'R' ? 0 : ultReserve) + (slot === 'W' ? (skill('Q')?.manaCost ?? 0) : 0);
-        if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost + reserve) continue;
+        if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
         const ground = GROUND_ONLY[hero.kind].includes(slot);
         const cmd = skillCommand(s, near(Math.max(s.range, s.radius), ground), hero, MIN_TARGETS[slot]);
         if (!cmd) continue;
         cmds.push(cmd);
         mana -= s.manaCost;
-        if (slot === 'R') ultReserve = 0;
       }
       return cmds;
     },

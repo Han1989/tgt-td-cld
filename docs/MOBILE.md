@@ -156,7 +156,7 @@ The two-thumb layouts use the same overlay approach.
 - Sprites and sound. **Art direction: Runelight, see `docs/ART.md`** (Art Track 0: style guide, art registry, `?showcase`, Display setting).
 - Team pings (long-press on the map on phones, Alt-click on desktop) and quick-chat emotes.
 - Difficulty modes.
-- Balance carry-overs: a 3-player gate, per-hero tuning, how often ultimates get used.
+- Balance carry-overs: a 3-player gate, per-hero tuning, how often ultimates get used (**done: the hero mana rework**, ultimates cost no mana; Decision Log).
 
 ### Phase 4c: App stores (optional)
 - A Capacitor wrapper for iOS and Android, built from the same web build and kept on the same `PROTOCOL_VERSION`.

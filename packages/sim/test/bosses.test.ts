@@ -101,7 +101,8 @@ describe('Matriarch (wave 20): Hatch', () => {
     boss.abilityCd = 1;
     run(state, 1);
     const h = hatchlings(state)[0]!;
-    expect(h.maxHp).toBe(Math.round(TUNING.creeps.hatchling.hp * (1 + TUNING.waves.hpGrowthPerWave * (boss.wave - 1))));
+    const waveMult = 1 + TUNING.waves.hpGrowthPerWave * (boss.wave - 1);
+    expect(h.maxHp).toBe(Math.round(TUNING.creeps.hatchling.hp * waveMult * TUNING.playerScaling.hp[0]!));
     expect(TUNING.creeps.hatchling.hp).toBeLessThan(TUNING.creeps.grunt.hp);
     expect(TUNING.creeps.hatchling.bounty).toBeLessThan(TUNING.creeps.grunt.bounty);
   });

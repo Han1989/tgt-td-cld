@@ -91,8 +91,8 @@ describe('match modes', () => {
       ps.hp[3]! + ps.lateHpBonus[3]! * Math.max(0, (ps.earlyWaves + 1 - lateStart) / ps.lateWaves),
     );
     expect(playerHpMultiplier(quick, 15)).toBeCloseTo(ps.hp[3]! + ps.lateHpBonus[3]!);
-    expect(playerHpMultiplier(game('quick', 1), 1)).toBe(1);
-    expect(playerHpMultiplier(game('quick', 1), 15)).toBe(1);
+    expect(playerHpMultiplier(game('quick', 1), 1)).toBe(ps.hp[0]);
+    expect(playerHpMultiplier(game('quick', 1), 15)).toBe(ps.hp[0]);
   });
 
   it('applies a mode on top of a custom tuning without changing it', () => {

@@ -8,7 +8,7 @@ import { armorMultiplier, damageHero, damageTower, grantXp, heroArmor, heroManaR
 import { snapshot } from '../src/game';
 import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
-import { secondsToTicks, TUNING, type Tuning } from '../src/tuning';
+import { secondsToTicks, TUNING, type ActiveSkillStats, type Tuning } from '../src/tuning';
 import { labGame, placeCreep, run, runCollect, tuningCopy } from './helpers';
 
 /** A lab game whose heroes don't auto-attack (so skill damage is measurable). */
@@ -96,6 +96,69 @@ describe('levels and skill points', () => {
   });
 });
 
+describe('mana', () => {
+  it.each([
+    ['ranger', { x: 0, y: -6 }],
+    ['warden', undefined],
+    ['arcanist', { x: 0, y: -6 }],
+  ] as const)('%s casts its ultimate with no mana: cooldown only', (kind, offset) => {
+    const { state, heroes } = lab([kind]);
+    const hero = heroes[0]!;
+    hero.level = 6;
+    hero.ranks.R = 1;
+    hero.mana = 0;
+    placeCreep(state, 'grunt', hero.x, hero.y - 1).rootUntil = 1_000_000;
+    expect(snapshot(state).heroes[0]!.skills[3]).toMatchObject({ slot: 'R', manaCost: 0 });
+    const target = offset ? { x: hero.x + offset.x, y: hero.y + offset.y } : {};
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', ...target })).toBe(true);
+    run(state, 1);
+    expect(hero.skillCd.R).toBeGreaterThan(0);
+    expect(hero.mana).toBeLessThan(1);
+  });
+
+  it('Q and W still cost mana', () => {
+    const { state, heroes } = lab(['warden']);
+    const hero = heroes[0]!;
+    placeCreep(state, 'grunt', hero.x + 1, hero.y);
+    hero.mana = TUNING.hero.warden.cleave.manaCost[0]! - 1;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(false);
+    expect(rejection(state)).toBe('Not enough mana');
+  });
+
+  it.each([
+    ['ranger', 4.2],
+    ['warden', 3.45],
+    ['arcanist', 5.35],
+  ] as const)('%s mana regeneration grows with level (level 10: %s/s)', (kind, atTen) => {
+    const { state, heroes } = lab([kind]);
+    const hero = heroes[0]!;
+    expect(heroManaRegen(state, hero)).toBe(TUNING.hero[kind].manaRegen);
+    hero.level = 10;
+    expect(heroManaRegen(state, hero)).toBeCloseTo(atTen);
+    hero.mana = 0;
+    run(state, secondsToTicks(10));
+    expect(hero.mana).toBeCloseTo(10 * atTen);
+  });
+
+  it.each(['ranger', 'warden', 'arcanist'] as const)(
+    '%s: Q and W at max rank cast on cooldown empty a full pool at level 10 in 30–40 s',
+    (kind) => {
+      const t = TUNING.hero;
+      const s = t[kind];
+      const skills: Record<HeroKind, ActiveSkillStats[]> = {
+        ranger: [t.ranger.multishot, t.ranger.snareTrap],
+        warden: [t.warden.cleave, t.warden.taunt],
+        arcanist: [t.arcanist.fireball, t.arcanist.frostNova],
+      };
+      const drain = skills[kind].reduce((sum, k) => sum + k.manaCost[3]! / k.cooldown[3]!, 0);
+      const pool = s.mana + 9 * s.manaPerLevel;
+      const seconds = pool / (drain - s.manaRegen - 9 * s.manaRegenPerLevel);
+      expect(seconds).toBeGreaterThanOrEqual(30);
+      expect(seconds).toBeLessThanOrEqual(40);
+    },
+  );
+});
+
 describe('Ranger', () => {
   it('Keen Eye crits auto-attacks once learned', () => {
     const tuning = tuningCopy();
@@ -137,7 +200,7 @@ describe('Ranger', () => {
     run(state, 1);
     expect(state.zones).toHaveLength(1);
     expect(snapshot(state).zones[0]).toMatchObject({ kind: 'arrowStorm', radius: TUNING.hero.ranger.arrowStorm.radius });
-    expect(hero.mana).toBeLessThan(mana - TUNING.hero.ranger.arrowStorm.manaCost[0]! + 1);
+    expect(hero.mana).toBeGreaterThanOrEqual(mana);
     const events = runCollect(state, secondsToTicks(TUNING.hero.ranger.arrowStorm.duration) + 2);
     const s = TUNING.hero.ranger.arrowStorm;
     expect(events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm')).toHaveLength(s.duration / s.pulseInterval);
