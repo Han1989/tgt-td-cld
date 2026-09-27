@@ -26,8 +26,11 @@ export const GAITS = {
 // Hit and death reactions (docs/ART.md §7), shared by every rig.
 // ---------------------------------------------------------------------------
 
-/** Hit flash: the white silhouette shows this long, at most this often (so steady fire keeps the colours). */
-export const HIT_FLASH = { ms: 90, everyMs: 200, alpha: 0.8 } as const;
+/**
+ * Hit flash: the white silhouette shows this long, at most this often, and at most this strong (a
+ * partial whitening), so a creep under steady fire keeps its colours and silhouette almost always.
+ */
+export const HIT_FLASH = { ms: 60, everyMs: 300, alpha: 0.6 } as const;
 /** How much a hit squashes the body (fraction of its size at full flash); bosses flinch half as much. */
 const FLINCH = 0.09;
 
@@ -167,7 +170,7 @@ export class CreepRig {
   /** Flash strength 0..1 (alpha of the white silhouette); the body flinches with it. */
   setFlash(f: number): void {
     this.flash.alpha = f;
-    this.flinch = f;
+    this.flinch = f / HIT_FLASH.alpha;
     if (f > 0) this.copyToFlash();
   }
 

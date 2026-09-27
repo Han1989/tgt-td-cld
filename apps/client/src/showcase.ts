@@ -20,7 +20,7 @@ import { Application, Container, type Sprite } from 'pixi.js';
 import { ICONS, installIcons } from './render/art/icons';
 import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
-import { CreepRig, DEATH, TowerRig } from './render/art/rigs';
+import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './render/art/rigs';
 import { liftColor, RL, type Display } from './render/art/tokens';
 import { mixColor, PLAYER_COLORS, toCss } from './render/palette';
 
@@ -329,7 +329,7 @@ function creepActor(rig: CreepRig, frame: string): Actor {
       }
       x += (cycle < CREEP_WALK / 2 ? 1 : -1) * dt * 0.001;
       rig.update(x, 3, false, now);
-      const f = cycle % 1400 < 90 ? 0.8 : 0;
+      const f = cycle % 1400 < HIT_FLASH.ms ? HIT_FLASH.alpha : 0;
       rig.setFlash(f);
       rig.setTint(n % 2 === 1 ? mixColor(0xffffff, ICE, 0.8) : 0xffffff);
     },

@@ -149,6 +149,22 @@ describe('Ranger', () => {
   });
 });
 
+describe('hero attacks', () => {
+  it('each auto-attack emits a heroAttack event at its target, once per cooldown (melee and ranged)', () => {
+    for (const kind of ['warden', 'ranger'] as const) {
+      const { state, heroes } = lab([kind]);
+      const hero = heroes[0]!;
+      hero.attackCd = 0;
+      const brute = placeCreep(state, 'brute', hero.x, hero.y - 1);
+      brute.rootUntil = 1_000_000;
+      const ticks = secondsToTicks(TUNING.hero[kind].attackCooldown) * 3;
+      const attacks = runCollect(state, ticks).filter((e) => e.type === 'heroAttack');
+      expect(attacks.length, kind).toBe(3);
+      expect(attacks[0]).toEqual({ type: 'heroAttack', heroId: hero.id, x: brute.x, y: brute.y });
+    }
+  });
+});
+
 describe('Warden', () => {
   it('is melee: hits land at once and flying creeps cannot be attacked', () => {
     const { state, heroes } = lab(['warden']);

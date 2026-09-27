@@ -63,7 +63,7 @@ const MARKER_LIFE_MS = 450;
 const MAX_TOWER_SCALE = 1.2;
 /** Off-screen margin (px) before an entity is culled. */
 const CULL_MARGIN = 48;
-/** A hit creep flashes white for this long, and at most this often (so a creep under steady fire keeps its colour). */
+/** A hit creep flashes (at most 60% towards white) for this long, and at most this often (so a creep under steady fire keeps its colour). */
 const FLASH_MS = HIT_FLASH.ms;
 const FLASH_EVERY_MS = HIT_FLASH.everyMs;
 /**
@@ -503,6 +503,10 @@ export class WorldRenderer {
             });
           }
           break;
+        case 'heroAttack':
+          // The rig's attack animation (a swing, a thrust, the bow's release) is keyed to the real attack.
+          this.heroes.get(e.heroId)?.art?.shot(now);
+          break;
         case 'cast':
           this.cast(e.heroId, e.slot, e.x, e.y);
           this.heroes.get(e.heroId)?.art?.cast(now, e.slot);
@@ -695,25 +699,12 @@ export class WorldRenderer {
         s.flashUntil = now + FLASH_MS;
         s.flashReadyAt = now + FLASH_EVERY_MS;
       }
-      if (s) this.meleeSwing(h.x, h.y, s.kind, now);
       const px = h.x * S;
       const py = h.y * S;
       if (px < view.left || px > view.right || py < view.top || py > view.bottom) continue;
       this.fx.hit(h.x, h.y, s ? CREEP_COLORS[s.kind] : FX.spark);
     }
     for (const n of numbers) this.fx.number(n.x, n.y - 0.2, n.damage, FX.number);
-  }
-
-  /**
-   * Melee hits land at once and leave no projectile, so a melee hero swings (its rig's shot()) when a
-   * creep within its reach loses HP; the rig ignores swings faster than its attack cooldown.
-   */
-  private meleeSwing(x: number, y: number, kind: CreepKind, now: number): void {
-    for (const hero of this.heroes.values()) {
-      if (!hero.art || !hero.root.visible || TUNING.hero[hero.kind].ranged) continue;
-      const reach = (TUNING.hero[hero.kind].attackRange + TUNING.creeps[kind].radius + 0.4) * S;
-      if (Math.hypot(hero.root.x - x * S, hero.root.y - y * S) <= reach) hero.art.shot(now);
-    }
   }
 
   // -------------------------------------------------------------------------
@@ -1046,7 +1037,7 @@ export class WorldRenderer {
       const key = f * 100 + ice * 10 + 1;
       if (key === s.tintKey) return;
       s.tintKey = key;
-      s.art.setFlash(f * 0.8);
+      s.art.setFlash(f * HIT_FLASH.alpha);
       s.art.setTint(mixColor(0xffffff, ICE, Math.min(1, ice * 1.6)));
       return;
     }
@@ -1054,7 +1045,7 @@ export class WorldRenderer {
       const key = f * 100;
       if (key !== s.tintKey) {
         s.tintKey = key;
-        s.flash.alpha = f * 0.75;
+        s.flash.alpha = f * HIT_FLASH.alpha;
       }
       return;
     }
@@ -1062,7 +1053,7 @@ export class WorldRenderer {
     const key = f * 100 + ice * 10 + 1;
     if (key === s.tintKey) return;
     s.tintKey = key;
-    s.body.tint = mixColor(mixColor(CREEP_COLORS[c.kind], ICE, ice), 0xffffff, f * 0.85);
+    s.body.tint = mixColor(mixColor(CREEP_COLORS[c.kind], ICE, ice), 0xffffff, f * HIT_FLASH.alpha);
   }
 
   /** The visible world area (px), with a margin, for culling. */
@@ -1357,7 +1348,6 @@ export class WorldRenderer {
       if (!h) return;
       const dx = p.x - h.x;
       const dy = p.y - h.y;
-      this.heroes.get(h.id)?.art?.shot(this.lastRenderAt);
       if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy);
       else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? FX.spark, 0.4);
       return;

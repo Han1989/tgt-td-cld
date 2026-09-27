@@ -44,9 +44,9 @@ describe('art registry', () => {
     expect(() => registerArt({ id: 'bad', name: 'Bad', category: 'tower', kind: 'frost', turret: true, frames: {} })).toThrow(/missing frame "base1"/);
   });
 
-  it('every hero and creep has art (Art Track 1), except the Matriarch’s hatchlings', () => {
+  it('every hero and creep has art (Art Track 1)', () => {
     for (const k of HERO_KINDS) expect(heroArt(k), k).toBeDefined();
-    for (const k of CREEP_KINDS) if (k !== 'hatchling') expect(creepArt(k), k).toBeDefined();
+    for (const k of CREEP_KINDS) expect(creepArt(k), k).toBeDefined();
   });
 
   it('flyers need their own shadow frame; variants need body-sized frames with a flash', () => {

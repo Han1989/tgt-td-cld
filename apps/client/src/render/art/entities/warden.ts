@@ -4,8 +4,8 @@
 //
 // Rig: feet at y = +13; the sword arm turns around the far shoulder (-1, -4), the sword's grip is at
 // the arm's origin + GRIP_X. Attack (melee): the sword is raised over the cooldown and swung down on
-// the hit. Cast: Cleave is a wide sweep, Taunt thrusts the shield out with the sword raised, Last
-// Stand braces behind the shield with the sword held high.
+// the hit (its `heroAttack` event). Cast: Cleave is a wide sweep, Taunt thrusts the shield out with
+// the sword raised, Last Stand braces behind the shield with the sword held high.
 
 import { TUNING } from '@tdt/sim';
 import { Container } from 'pixi.js';
@@ -123,11 +123,6 @@ class WardenRig extends HeroRigBase {
     sword.x = GRIP_X;
     this.arm.addChild(sword);
     this.flipper.addChild(this.cape, this.footB, this.arm, this.torso, this.footA, this.head, this.shield);
-  }
-
-  /** Melee: the renderer calls shot() when a creep in reach loses HP, so ignore hits faster than the cooldown. */
-  override shot(now: number): void {
-    if (now - this.shotAt >= this.cooldownMs * 0.7) super.shot(now);
   }
 
   protected pose(_h: HeroPose, walking: boolean, now: number): void {

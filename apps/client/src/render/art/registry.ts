@@ -86,7 +86,7 @@ export interface HeroPose {
 export interface HeroRig {
   readonly body: Container;
   update(pose: HeroPose, now: number, dtMs: number): void;
-  /** The hero just attacked (a projectile appeared next to it, or a melee hit landed). */
+  /** The hero just attacked (its `heroAttack` event: a melee hit landed or a projectile left). */
   shot(now: number): void;
   /** The hero cast a skill (a `cast` event). */
   cast(now: number, slot: SkillSlot): void;
