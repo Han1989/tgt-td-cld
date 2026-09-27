@@ -179,9 +179,10 @@ describe('waves', () => {
 
   it('scales creep HP with the wave number', () => {
     const state = labGame();
-    expect(creepMaxHp(state, 'grunt', 1)).toBe(TUNING.creeps.grunt.hp);
+    const solo = TUNING.playerScaling.hp[0]!;
+    expect(creepMaxHp(state, 'grunt', 1)).toBe(Math.round(TUNING.creeps.grunt.hp * solo));
     expect(creepMaxHp(state, 'grunt', 6)).toBe(
-      Math.round(TUNING.creeps.grunt.hp * (1 + 5 * TUNING.waves.hpGrowthPerWave)),
+      Math.round(TUNING.creeps.grunt.hp * (1 + 5 * TUNING.waves.hpGrowthPerWave) * solo),
     );
   });
 });

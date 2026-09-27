@@ -21,6 +21,7 @@ import {
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
+import { skillFace } from '../hud/skillFace';
 import {
   BRANCH_BLURBS,
   branchChip,
@@ -86,6 +87,7 @@ interface SkillEl {
   ico: HTMLElement;
   cd: HTMLElement;
   cdText: HTMLElement;
+  cost: HTMLElement;
   pips: HTMLElement;
   key: string;
 }
@@ -279,7 +281,7 @@ export class TouchControls {
 
   private createSkill(slot: SkillSlot): SkillEl {
     const wrap = document.createElement('div');
-    wrap.className = `tskill${slot === 'E' ? ' badge' : ''}`;
+    wrap.className = `tskill${slot === 'E' ? ' badge' : slot === 'R' ? ' ult' : ''}`;
     wrap.dataset.slot = slot;
     const btn = document.createElement('button');
     btn.className = 'tskill-btn';
@@ -288,7 +290,10 @@ export class TouchControls {
     learn.className = 'learn hidden';
     learn.textContent = '+';
     learn.setAttribute('aria-label', `Learn ${slot}`);
-    wrap.append(btn, learn);
+    // Q / W: the mana cost, a badge on the lower-left edge (the learn "+" sits on the upper right).
+    const cost = document.createElement('span');
+    cost.className = 'cost';
+    wrap.append(btn, learn, cost);
     this.overlay.appendChild(wrap);
 
     learn.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -304,6 +309,7 @@ export class TouchControls {
       ico: btn.querySelector('.ico')!,
       cd: btn.querySelector('.cd')!,
       cdText: btn.querySelector('.cd-text')!,
+      cost,
       pips: btn.querySelector('.pips')!,
       key: '',
     };
@@ -313,21 +319,24 @@ export class TouchControls {
     for (const skill of hero.skills) {
       const el = this.skills.get(skill.slot);
       if (!el) continue;
-      const locked = skill.rank === 0;
-      const noMana = !locked && !skill.passive && hero.mana < skill.manaCost;
-      const cdFrac = skill.cooldownTotal > 0 ? skill.cooldown / skill.cooldownTotal : 0;
-      const cdText = skill.cooldown > 0 ? String(Math.ceil(skill.cooldown / tickRate)) : '';
-      const key = `${hero.kind}|${skill.rank}|${skill.maxRank}|${skill.learnable}|${noMana}|${hero.alive}|${cdText}|${Math.round(cdFrac * 50)}`;
+      const f = skillFace(hero, skill, tickRate);
+      const key =
+        `${hero.kind}|${skill.rank}|${skill.maxRank}|${skill.learnable}|${f.noMana}|${f.cost}|${f.ready}|` +
+        `${hero.alive}|${f.cdText}|${Math.round(f.cooldown * 50)}`;
       if (key === el.key) continue;
       el.key = key;
       el.ico.style.setProperty('--ico', iconVar(skillIcon(hero.kind, skill.slot)));
-      el.wrap.classList.toggle('locked', locked);
-      el.wrap.classList.toggle('no-mana', noMana);
+      el.wrap.classList.toggle('locked', f.locked);
+      el.wrap.classList.toggle('no-mana', f.noMana);
       el.wrap.classList.toggle('dead', !hero.alive);
       el.wrap.classList.toggle('cooling', skill.cooldown > 0);
+      el.wrap.classList.toggle('ready', f.ready);
       el.learn.classList.toggle('hidden', !skill.learnable);
-      el.cd.style.setProperty('--cd', `${cdFrac * 360}deg`);
-      el.cdText.textContent = cdText;
+      // Q / W: a dark sweep over the button. R: a ring that fills up as the cooldown runs out.
+      el.cd.style.setProperty('--cd', `${(f.ultimate ? 1 - f.cooldown : f.cooldown) * 360}deg`);
+      el.cdText.textContent = f.cdText;
+      el.cost.textContent = f.cost;
+      el.cost.classList.toggle('hidden', f.cost === '');
       el.pips.innerHTML = Array.from({ length: skill.maxRank }, (_, i) => `<i class="${i < skill.rank ? 'on' : ''}"></i>`).join('');
       const text = HERO_INFO[hero.kind].skills[skill.slot];
       el.btn.setAttribute('aria-label', `${text.name} (${skill.slot})`);

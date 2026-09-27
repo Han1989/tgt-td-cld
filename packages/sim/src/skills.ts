@@ -17,7 +17,7 @@ import {
   stunCreep,
 } from './combat';
 import type { GameState, Hero, Zone } from './state';
-import { secondsToTicks, type ActiveSkillStats } from './tuning';
+import { secondsToTicks, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
 import { dist } from './vec';
 
 /** How a skill is used: cast at once, cast at a clicked point, or always on. */
@@ -67,7 +67,12 @@ export function learnBlocker(state: GameState, hero: Hero, slot: SkillSlot): str
 // Skill info
 // ---------------------------------------------------------------------------
 
-function activeStats(state: GameState, kind: HeroKind, slot: SkillSlot): ActiveSkillStats | null {
+/** Cost and cooldown numbers of a skill (ultimates have no mana cost), or null for a passive. */
+function activeStats(
+  state: GameState,
+  kind: HeroKind,
+  slot: SkillSlot,
+): (CooldownSkillStats & Partial<ActiveSkillStats>) | null {
   const t = state.tuning.hero;
   switch (kind) {
     case 'ranger':
@@ -123,7 +128,7 @@ export function skillInfo(state: GameState, hero: Hero, slot: SkillSlot): SkillI
   const i = rankIndex(state, hero, slot);
   return {
     mode: SKILL_MODES[hero.kind][slot],
-    manaCost: active?.manaCost[i] ?? 0,
+    manaCost: active?.manaCost?.[i] ?? 0,
     cooldown: active?.cooldown[i] ?? 0,
     ...geometry(state, hero, slot),
   };

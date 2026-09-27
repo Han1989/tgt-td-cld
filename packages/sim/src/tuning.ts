@@ -119,10 +119,14 @@ export interface TowerStats {
   tiers: TowerTierStats[];
 }
 
-/** Every active skill has a mana cost and cooldown per rank. */
-export interface ActiveSkillStats {
-  manaCost: number[];
+/** Every active skill has a cooldown per rank. */
+export interface CooldownSkillStats {
   cooldown: number[];
+}
+
+/** Q and W also cost mana per rank. Ultimates (R) cost none: their cooldown is their only limit. */
+export interface ActiveSkillStats extends CooldownSkillStats {
+  manaCost: number[];
 }
 
 // Ranger ---------------------------------------------------------------------
@@ -153,7 +157,7 @@ export interface KeenEyeStats {
 }
 
 /** Ultimate: arrows rain on an area in pulses (ground and air). */
-export interface ArrowStormStats extends ActiveSkillStats {
+export interface ArrowStormStats extends CooldownSkillStats {
   castRange: number;
   radius: number;
   duration: number;
@@ -182,7 +186,7 @@ export interface BulwarkAuraStats {
 }
 
 /** Ultimate: the Warden takes less damage for a while and stuns nearby ground creeps. */
-export interface LastStandStats extends ActiveSkillStats {
+export interface LastStandStats extends CooldownSkillStats {
   duration: number[];
   damageReduction: number[];
   stunRadius: number;
@@ -215,7 +219,7 @@ export interface ClarityAuraStats {
 }
 
 /** Ultimate: after a delay, a meteor hits ground creeps in an area and stuns them. */
-export interface MeteorStats extends ActiveSkillStats {
+export interface MeteorStats extends CooldownSkillStats {
   castRange: number;
   radius: number;
   delay: number;
@@ -230,7 +234,9 @@ export interface HeroStats {
   hpRegen: number;
   mana: number;
   manaPerLevel: number;
+  /** Mana per second at level 1, plus `manaRegenPerLevel` for every level after it. */
   manaRegen: number;
+  manaRegenPerLevel: number;
   armor: number;
   armorPerLevel: number;
   magicResist: number;
@@ -487,8 +493,8 @@ export const TUNING: Tuning = {
     ],
   },
   playerScaling: {
-    hp: [1, 1.45, 1.45, 1.5],
-    earlyHpBonus: [0, 0.5, 1.6, 2.4],
+    hp: [1.01, 1.45, 1.45, 1.5],
+    earlyHpBonus: [0, 0.5, 1.6, 2.2],
     earlyWaves: 20,
     lateHpBonus: [0, 0.06, 0.15, 2.0],
     lateWaves: 10,
@@ -678,8 +684,8 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1, 1.45, 1.6, 1.8],
-        earlyHpBonus: [0, 0.5, 1.6, 2.2],
+        hp: [1.02, 1.45, 1.6, 1.8],
+        earlyHpBonus: [0, 0.5, 1.6, 2.0],
         earlyWaves: 10,
         lateHpBonus: [0, 0, 1.0, 2.2],
         lateWaves: 5,
@@ -697,7 +703,7 @@ export const TUNING: Tuning = {
     respawnPerLevel: 2,
     ranger: {
       hp: 320, hpPerLevel: 40, hpRegen: 1.5,
-      mana: 120, manaPerLevel: 20, manaRegen: 1.5,
+      mana: 120, manaPerLevel: 20, manaRegen: 1.5, manaRegenPerLevel: 0.3,
       armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
       damage: 20, damagePerLevel: 3, damageType: 'physical',
       attackCooldown: 0.9, attackRange: 6, ranged: true, projectileSpeed: 16,
@@ -726,18 +732,17 @@ export const TUNING: Tuning = {
         critMultiplier: [1.75, 2, 2.25, 2.5],
       },
       arrowStorm: {
-        manaCost: [100, 125, 150],
         cooldown: [60, 55, 50],
         castRange: 10,
         radius: 3,
         duration: 3,
         pulseInterval: 0.5,
-        damagePerPulse: [30, 45, 60],
+        damagePerPulse: [27, 40, 54],
       },
     },
     warden: {
       hp: 480, hpPerLevel: 60, hpRegen: 2.5,
-      mana: 100, manaPerLevel: 15, manaRegen: 1.2,
+      mana: 100, manaPerLevel: 22, manaRegen: 1.2, manaRegenPerLevel: 0.25,
       armor: 5, armorPerLevel: 0.7, magicResist: 0.1,
       damage: 26, damagePerLevel: 3.8, damageType: 'physical',
       attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
@@ -759,17 +764,16 @@ export const TUNING: Tuning = {
         armor: [2, 4, 6, 8],
       },
       lastStand: {
-        manaCost: [100, 125, 150],
         cooldown: [70, 65, 60],
         duration: [6, 7, 8],
         damageReduction: [0.4, 0.5, 0.6],
         stunRadius: 3,
-        stun: [1.5, 2, 2.5],
+        stun: [1.25, 1.75, 2.25],
       },
     },
     arcanist: {
       hp: 280, hpPerLevel: 35, hpRegen: 1.2,
-      mana: 200, manaPerLevel: 30, manaRegen: 2.2,
+      mana: 200, manaPerLevel: 30, manaRegen: 2.2, manaRegenPerLevel: 0.35,
       armor: 1, armorPerLevel: 0.4, magicResist: 0.2,
       damage: 18, damagePerLevel: 2.5, damageType: 'magic',
       attackCooldown: 1, attackRange: 5.5, ranged: true, projectileSpeed: 12,
@@ -796,12 +800,11 @@ export const TUNING: Tuning = {
         manaRegen: [1, 1.75, 2.5, 3.25],
       },
       meteor: {
-        manaCost: [150, 175, 200],
         cooldown: [60, 55, 50],
         castRange: 9,
         radius: 3,
         delay: 1.2,
-        damage: [220, 330, 440],
+        damage: [200, 300, 400],
         stun: [1, 1.5, 2],
       },
     },

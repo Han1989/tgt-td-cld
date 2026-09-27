@@ -231,6 +231,11 @@ test.describe('portrait phone layout', () => {
     const finger = await Finger.on(page);
     const qBtn = page.locator('.tskill[data-slot="Q"] .tskill-btn');
 
+    // Q shows its mana cost; the ultimate costs none, so it shows no cost.
+    const qCost = await page.evaluate(() => window.__tdt.latest()!.heroes[0]!.skills.find((s) => s.slot === 'Q')!.manaCost);
+    await expect(page.locator('.tskill[data-slot="Q"] .cost')).toHaveText(String(qCost));
+    await expect(page.locator('.tskill[data-slot="R"] .cost')).toHaveText('');
+
     // Nothing in range: the button shakes and nothing is cast.
     await qBtn.tap();
     await expect(qBtn).toHaveClass(/shake/);

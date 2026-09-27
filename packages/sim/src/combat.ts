@@ -104,7 +104,8 @@ export function heroArmor(state: GameState, hero: Hero): number {
 }
 
 export function heroManaRegen(state: GameState, hero: Hero): number {
-  return heroStats(state, hero).manaRegen + clarityBonus(state, hero);
+  const s = heroStats(state, hero);
+  return s.manaRegen + s.manaRegenPerLevel * (hero.level - 1) + clarityBonus(state, hero);
 }
 
 /** Whether the hero's attacks and targeted skills can hit this creep (melee heroes can't reach flyers). */

@@ -25,4 +25,4 @@ export type { GameConfig, GameState, PlayerConfig } from './state';
 export { createBalanceBot, createIdleBot } from './bots';
 export type { Bot } from './bots';
 export { runHeadlessMatch } from './headless';
-export type { HeadlessResult } from './headless';
+export type { HeadlessResult, HeroMatchStats } from './headless';

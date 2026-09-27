@@ -21,6 +21,7 @@
   --heart: #ff3a60;
   --hp: #4cd964;
   --mana: #4a8cff;
+  --mana-text: #8fb8ff;
   --xp: #b07cff;
   --accent: #7ffcd8;
   --bad: #ff5b5b;
@@ -559,8 +560,55 @@ button {
   pointer-events: none;
 }
 
+.skill .tag.mana {
+  color: var(--mana-text);
+  font-weight: 700;
+}
+
+/* Not enough mana: a mana-blue edge and the button dimmed. */
 .skill.no-mana {
   box-shadow: inset 0 0 0 2px var(--mana);
+}
+
+.skill.no-mana > :not(.cd-text) {
+  opacity: 0.5;
+}
+
+/* The ultimate costs no mana: a ring that fills up as its cooldown runs out, and a glow when it is ready. */
+.skill .ring {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: conic-gradient(var(--gold) var(--cd, 0deg), rgba(255, 255, 255, 0.16) 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+}
+
+/* No dark fill on a cooling ultimate: fade its name so the seconds stay readable. */
+.skill.ult.cooling .name {
+  opacity: 0.35;
+}
+
+.skill.ready {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.skill.ready::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 14px 2px rgba(255, 210, 74, 0.55);
+  pointer-events: none;
+  animation: ult-ready 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes ult-ready {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .learn {
@@ -1801,6 +1849,57 @@ body.touch .touch-overlay:not(.hidden) {
 .tskill.no-mana .tskill-btn {
   border-color: var(--mana);
   box-shadow: inset 0 0 0 2px var(--mana);
+  opacity: 0.55;
+}
+
+/* Q / W: the mana cost, a small mana-blue badge on the lower-left edge. */
+.tskill .cost {
+  position: absolute;
+  left: -7px;
+  bottom: 0;
+  min-width: 20px;
+  padding: 2px 4px;
+  border-radius: 8px;
+  background: rgba(16, 12, 22, 0.88);
+  box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px rgba(74, 140, 255, 0.7);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  color: var(--mana-text);
+  pointer-events: none;
+}
+
+.tskill.no-mana .cost {
+  color: var(--bad);
+}
+
+/* R costs no mana: its cooldown is a ring that fills up with gold, and it glows when ready. */
+.tskill.ult .tskill-btn .cd {
+  background: conic-gradient(var(--gold) var(--cd, 0deg), rgba(0, 0, 0, 0.55) 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px));
+}
+
+.tskill.ult.locked .tskill-btn .cd {
+  display: none;
+}
+
+.tskill.ready .tskill-btn {
+  border-color: var(--gold);
+}
+
+.tskill.ult::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 12px 4px rgba(255, 210, 74, 0.75);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tskill.ult.ready::before {
+  animation: ult-ready 1.6s ease-in-out infinite alternate;
 }
 
 .tskill-btn.cancel {
@@ -2227,5 +2326,11 @@ body.layout-rotate .rotate {
   .stat.heart.low .heart-icon,
   .stat.heart.low .bar {
     animation: none;
+  }
+
+  .skill.ready::after,
+  .tskill.ult.ready::before {
+    animation: none;
+    opacity: 1;
   }
 }
