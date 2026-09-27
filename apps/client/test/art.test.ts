@@ -1,0 +1,84 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { TOWER_BRANCHES } from '@tdt/protocol';
+import { describe, expect, it } from 'vitest';
+import { atlasFrames, packFrames, PAGE_PX } from '../src/render/art/atlas';
+import '../src/render/art/load';
+import { allArt, checkArt, registerArt, type ArtEntry } from '../src/render/art/registry';
+import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
+
+const DIR = new URL('../src/render/art/entities/', import.meta.url);
+const FILES = readdirSync(DIR).filter((f) => f.endsWith('.ts'));
+
+describe('art registry', () => {
+  it('registers one entry per art file, with the file named after its id', () => {
+    const ids = allArt()
+      .filter((e) => e.category !== 'common')
+      .map((e) => e.id);
+    expect(ids.sort()).toEqual(FILES.map((f) => f.slice(0, -3)).sort());
+  });
+
+  it('every entry is complete', () => {
+    for (const e of allArt()) expect(checkArt(e), e.id).toEqual([]);
+  });
+
+  it('refuses a duplicate id, a second art for a kind, or missing frames', () => {
+    const grunt = allArt().find((e) => e.id === 'grunt')!;
+    expect(() => registerArt(grunt)).toThrow(/twice/);
+    expect(() => registerArt({ ...grunt, id: 'grunt2' } as ArtEntry)).toThrow(/Two creep arts/);
+    expect(() => registerArt({ id: 'bad', name: 'Bad', category: 'tower', kind: 'frost', turret: true, frames: {} })).toThrow(/missing frame "base1"/);
+  });
+
+  it('tower frames are tiers 1–3 or a branch of that tower', () => {
+    for (const e of allArt()) {
+      if (e.category !== 'tower') continue;
+      const allowed = new Set(['base1', 'base2', 'base3', 'top1', 'top2', 'top3']);
+      for (const b of TOWER_BRANCHES[e.kind]) allowed.add(`${b}.base`).add(`${b}.top`);
+      for (const name of Object.keys(e.frames)) expect(allowed.has(name), `${e.id}/${name}`).toBe(true);
+    }
+  });
+
+  it('art bakes the same every time: no randomness or clocks in art files', () => {
+    for (const f of FILES) {
+      const src = readFileSync(new URL(f, DIR), 'utf8');
+      expect(src, f).not.toMatch(/Math\.random|Date\.now/);
+    }
+  });
+});
+
+describe('art atlas', () => {
+  it('packs every frame into pages without overlaps', () => {
+    const frames = atlasFrames(allArt());
+    const names = frames.map((f) => f.name);
+    expect(new Set(names).size).toBe(names.length);
+    const packed = packFrames(frames);
+    const placed = frames.map((f) => ({ ...f, ...packed.get(f.name)! }));
+    for (const a of placed) {
+      expect(a.x + a.w).toBeLessThanOrEqual(PAGE_PX);
+      expect(a.y + a.h).toBeLessThanOrEqual(PAGE_PX);
+      for (const b of placed) {
+        if (a === b || a.page !== b.page) continue;
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+        expect(overlap, `${a.name} / ${b.name}`).toBe(false);
+      }
+    }
+  });
+
+  it('opens a new page when one is full', () => {
+    const big = Array.from({ length: 5 }, (_, i) => ({ name: `f${i}`, w: 500, h: 500 }));
+    const packed = packFrames(big);
+    // Two 500 px frames per shelf, two shelves per 1024 px page.
+    expect([...packed.values()].map((p) => p.page)).toEqual([0, 0, 0, 0, 1]);
+    expect(() => packFrames([{ name: 'huge', w: 2000, h: 10 }])).toThrow(/larger than an atlas page/);
+  });
+});
+
+describe('display', () => {
+  it('Normal leaves the ground alone; Bright lifts dark colours more than light ones', () => {
+    expect(liftColor(RL.moss, 'normal')).toBe(RL.moss);
+    const lum = (c: number) => ((c >> 16) & 0xff) + ((c >> 8) & 0xff) + (c & 0xff);
+    const darkGain = lum(liftColor(RL.forest, 'bright')) - lum(RL.forest);
+    const lightGain = lum(liftColor(RL.laneLight, 'bright')) - lum(RL.laneLight);
+    expect(darkGain).toBeGreaterThan(lightGain);
+    expect(LIGHTING.bright.shadowAlpha).toBeLessThan(LIGHTING.normal.shadowAlpha);
+  });
+});

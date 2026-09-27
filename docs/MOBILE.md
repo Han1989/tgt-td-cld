@@ -153,7 +153,7 @@ The two-thumb layouts use the same overlay approach.
 - Han completes the real-device checklist.
 
 ### Phase 4b: Polish
-- Sprites and sound.
+- Sprites and sound. **Art direction: Runelight, see `docs/ART.md`** (Art Track 0: style guide, art registry, `?showcase`, Display setting).
 - Team pings (long-press on the map on phones, Alt-click on desktop) and quick-chat emotes.
 - Difficulty modes.
 - Balance carry-overs: a 3-player gate, per-hero tuning, how often ultimates get used.

@@ -1,0 +1,105 @@
+// Runelight palette tokens (docs/ART.md §2). Every colour an art file uses comes from here, so the
+// whole look can be tuned in one place. Effect colours stay in ../palette.ts (they are shared with
+// the shapes and the HUD).
+//
+// Runelight: twilight moss and packed-earth lanes under moonlight; ink outlines, a cool rim light on
+// the upper left, bodies darkening downwards, and small glowing accents (runes, embers, eyes).
+
+export const RL = {
+  // Line and light
+  /** Outline ink for every part. */
+  ink: 0x100c16,
+  /** Moonlight: the rim on the upper-left edge of every part. */
+  moon: 0xcfe6ff,
+  /** Shadow colour (contact shadows, ground vignette). */
+  night: 0x000008,
+
+  // Ground
+  moss: 0x2a473b,
+  mossDark: 0x1d3329,
+  mossLight: 0x3b5f4d,
+  fern: 0x12241c,
+  lane: 0x5a4c3a,
+  laneLight: 0xbcab85,
+  pebble: 0x7f6d53,
+  forest: 0x172416,
+  tree: 0x21381f,
+
+  // Build pads: cool carved stone, lighter than the moss so they read as "build here"
+  padStone: 0x6b7189,
+  padStoneDark: 0x3c4052,
+  padGroove: 0x2a2d3b,
+
+  // Materials
+  wood: 0x8f5d38,
+  woodDark: 0x5c3a22,
+  stone: 0x8f8ba2,
+  stoneDark: 0x58556d,
+  iron: 0x444b5b,
+  ironDark: 0x262b36,
+  gold: 0xe8b94a,
+  bone: 0xe6dac0,
+  string: 0xdfe8f0,
+  /** Deep hole / void (cannon mouths, visor slits). */
+  hole: 0x0d0a10,
+
+  // Heroes
+  leaf: 0x2fb06c,
+  leafDark: 0x165c3a,
+  cloth: 0x2a8a8a,
+  hoodShadow: 0x13201a,
+  gloveDark: 0x3a2a22,
+
+  // Creeps
+  grunt: 0xe0503f,
+  gruntBelly: 0xe8a070,
+  brute: 0x8c3440,
+
+  // Glow accents (painter.accent: they glow)
+  rune: 0x7ffcd8,
+  ember: 0xffa24a,
+  /** Creature eyes. */
+  eye: 0xffd24a,
+  /** Hero eyes under the hood. */
+  heroEye: 0xb6ff9e,
+  /** Armoured eyes (visors). */
+  visorEye: 0xff5a3a,
+  heart: 0xff3a60,
+  heartFacet: 0x5a0a20,
+  portal: 0x8a4fe0,
+  portalLight: 0x7ffcd8,
+  void: 0x0a0616,
+} as const;
+
+export type Tokens = typeof RL;
+
+/** Settings → Display. Bright lifts the ground and the shadows for outdoor play. */
+export type Display = 'normal' | 'bright';
+
+/** How the painter and the ground painter light things for a display mode. */
+export interface Lighting {
+  /** How far a part's body gradient darkens towards its bottom (0..1). */
+  bodyDarken: number;
+  /** Contact-shadow opacity at its centre. */
+  shadowAlpha: number;
+  /** Ground lift: a "screen" wash of this colour and opacity over the painted ground (0 = none). */
+  groundLift: { color: number; alpha: number };
+  /** Vignette opacity at the map's edges. */
+  vignette: number;
+}
+
+export const LIGHTING: Record<Display, Lighting> = {
+  normal: { bodyDarken: 0.42, shadowAlpha: 0.6, groundLift: { color: 0x9fb8c8, alpha: 0 }, vignette: 0.35 },
+  bright: { bodyDarken: 0.28, shadowAlpha: 0.38, groundLift: { color: 0x9fb8c8, alpha: 0.32 }, vignette: 0.12 },
+};
+
+/** A colour as the ground shows it in a display mode (Bright's "screen" lift), e.g. for DOM swatches. */
+export function liftColor(hex: number, display: Display): number {
+  const { color, alpha } = LIGHTING[display].groundLift;
+  const ch = (s: number) => {
+    const a = ((hex >> s) & 0xff) / 255;
+    const b = (((color >> s) & 0xff) / 255) * alpha;
+    return Math.round((1 - (1 - a) * (1 - b)) * 255) << s;
+  };
+  return ch(16) | ch(8) | ch(0);
+}

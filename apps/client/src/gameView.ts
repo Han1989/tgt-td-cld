@@ -223,6 +223,7 @@ export class GameView {
       }
       const level = fxLevel(q, settings.get().shake);
       renderer.setFxLevel(level);
+      renderer.setDisplay(settings.get().display);
       hud.particles = level.particles;
     };
     settings.onChange(() => {
@@ -340,6 +341,7 @@ export class GameView {
         fps: () => monitor.fps,
         visibleCreeps: () => renderer.visibleCreeps,
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
+        art: () => renderer.artStats(),
       };
     }
     return view;

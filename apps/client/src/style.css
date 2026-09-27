@@ -1451,6 +1451,8 @@ body.layout-tall .banner {
 body.layout-tall .settings {
   right: 6px;
   top: calc(var(--topbar-bottom) + 6px);
+  max-height: calc(100% - var(--topbar-bottom) - 12px);
+  overflow-y: auto;
 }
 
 body.layout-tall .end-card {

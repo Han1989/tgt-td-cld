@@ -1,0 +1,326 @@
+// `?showcase`: a dev page listing every entity registered in render/art/entities/ (docs/ART.md §9),
+// with no match running. Each entity gets a card per variant (tower tiers and branches, pad zone
+// tints…), animated by its real rig, at a big size and at the size a phone shows it in a match.
+// Normal / Bright switches the Display. Kinds that have no art yet (they keep their shapes) are
+// listed at the end. Cards are DOM (so the page scrolls natively); one fixed Pixi canvas on top
+// draws the entities where their cards are.
+
+import { CREEP_KINDS, HERO_KINDS, TOWER_BRANCHES, TOWER_KINDS, type TowerBranch } from '@tdt/protocol';
+import { TUNING } from '@tdt/sim';
+import { Application, Container, type Sprite } from 'pixi.js';
+import { ArtKit } from './render/art/kit';
+import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
+import { CreepRig, TowerRig } from './render/art/rigs';
+import { liftColor, RL, type Display } from './render/art/tokens';
+import { mixColor, PLAYER_COLORS, toCss } from './render/palette';
+
+/** How big a phone draws things in a match (Spire on a 412 px-wide phone: 15.85 px tiles, entities × 1.58, towers × 1.2). */
+const PHONE = { world: 15.85 / 32, entity: (15.85 / 32) * 1.58, tower: (15.85 / 32) * 1.2 };
+const ICE = 0xbfeaff;
+
+interface Card {
+  el: HTMLElement;
+  stage: HTMLElement;
+  big: Container;
+  small: Container;
+  /** The phone-size copy's bottom-right extent (px), to keep it inside the card. */
+  smallEdge: { x: number; y: number };
+  shown: boolean;
+  animate(now: number, dtMs: number): void;
+}
+
+/** One animated copy of an entity (the card shows two: big and phone size). */
+interface Actor {
+  view: Container;
+  animate(now: number, dtMs: number): void;
+}
+
+export async function runShowcase(): Promise<void> {
+  let display: Display = 'normal';
+  const kit = new ArtKit(display);
+  const root = document.createElement('div');
+  root.id = 'showcase';
+  root.innerHTML = `<style>${CSS}</style>`;
+  document.body.appendChild(root);
+
+  const header = document.createElement('header');
+  const entries = allArt().filter((e) => e.category !== 'common');
+  header.innerHTML =
+    `<h1>Runelight art showcase</h1>` +
+    `<p>${entries.length} registered entities (render/art/entities/). Style guide: docs/ART.md. ` +
+    `Each card shows the entity large and, bottom right, at a phone's in-match size.</p>`;
+  const displayRow = document.createElement('div');
+  displayRow.className = 'sc-display';
+  header.appendChild(displayRow);
+  root.appendChild(header);
+
+  const app = new Application();
+  await app.init({ backgroundAlpha: 0, resizeTo: window, antialias: true, autoDensity: true, resolution: Math.min(2, window.devicePixelRatio || 1) });
+  app.canvas.classList.add('sc-canvas');
+  root.appendChild(app.canvas);
+
+  const cards: Card[] = [];
+  const stages: { stage: HTMLElement; ground: 'moss' | 'lane' }[] = [];
+  const section = (title: string) => {
+    const s = document.createElement('section');
+    s.innerHTML = `<h2>${title}</h2><div class="sc-grid"></div>`;
+    root.insertBefore(s, app.canvas);
+    return s.querySelector('.sc-grid') as HTMLElement;
+  };
+  const addCard = (grid: HTMLElement, e: ArtEntry, variant: string, ground: 'moss' | 'lane', make: () => Actor, bigScale: number, smallScale: number) => {
+    const el = document.createElement('div');
+    el.className = 'sc-card';
+    el.dataset.art = e.id;
+    el.dataset.variant = variant;
+    el.innerHTML = `<div class="sc-stage"></div><div class="sc-label"><b>${e.name}</b><span>${variant}</span></div>`;
+    grid.appendChild(el);
+    const stage = el.querySelector('.sc-stage') as HTMLElement;
+    stages.push({ stage, ground });
+    const a = make();
+    const b = make();
+    a.view.scale.set(bigScale);
+    b.view.scale.set(smallScale);
+    a.view.visible = b.view.visible = false;
+    app.stage.addChild(a.view, b.view);
+    const bounds = b.view.getLocalBounds();
+    cards.push({
+      el,
+      stage,
+      big: a.view,
+      small: b.view,
+      smallEdge: { x: bounds.maxX * smallScale, y: bounds.maxY * smallScale },
+      shown: false,
+      animate: (now, dt) => {
+        a.animate(now, dt);
+        b.animate(now, dt);
+      },
+    });
+  };
+
+  const names: Record<string, string> = { hero: 'Heroes', creep: 'Creeps', tower: 'Towers', heart: 'The Heart', portal: 'Portals', pad: 'Build pads' };
+  const grids = new Map<string, HTMLElement>();
+  const gridFor = (category: string) => {
+    let g = grids.get(category);
+    if (!g) grids.set(category, (g = section(names[category] ?? category)));
+    return g;
+  };
+
+  for (const e of entries) {
+    const grid = gridFor(e.category);
+    switch (e.category) {
+      case 'hero':
+        addCard(grid, e, `hero · ${e.kind}`, 'lane', () => heroActor(e.rig(kit, true)), 2, PHONE.entity);
+        break;
+      case 'creep':
+        addCard(grid, e, `creep · ${e.kind}`, 'lane', () => creepActor(new CreepRig(kit, e)), 2, PHONE.entity);
+        break;
+      case 'tower': {
+        const variants: [number, TowerBranch | null, string][] = [
+          [1, null, 'tier 1'],
+          [2, null, 'tier 2'],
+          [3, null, 'tier 3'],
+          ...TOWER_BRANCHES[e.kind].map((b): [number, TowerBranch, string] => [
+            4,
+            b,
+            kit.has(e.id, `${b}.base`) ? `branch · ${b}` : `branch · ${b} (tier 3 art)`,
+          ]),
+        ];
+        for (const [tier, branch, label] of variants) {
+          addCard(grid, e, label, 'moss', () => towerActor(new TowerRig(kit, e), tier, branch), 1.2, PHONE.tower);
+        }
+        break;
+      }
+      case 'heart':
+        addCard(grid, e, 'the Heart', 'moss', () => heartActor(kit, e.id, e.baseY, e.gemScale, e.gemY, e.floatPx), 1, PHONE.world);
+        break;
+      case 'portal':
+        addCard(grid, e, 'portal', 'moss', () => portalActor(kit, e.id), 1, PHONE.world);
+        break;
+      case 'pad': {
+        const variants: [string, number, number, number][] = [
+          ['solo / open', RL.moon, 0.35, 0],
+          ...PLAYER_COLORS.map((c, i): [string, number, number, number] => [`yours · seat ${i + 1}`, c, 0.95, 0.2]),
+          ['a teammate’s', PLAYER_COLORS[1], 0.5, 0.08],
+        ];
+        for (const [label, tint, rim, wash] of variants) addCard(grid, e, label, 'moss', () => padActor(kit, e.id, tint, rim, wash), 1, PHONE.world);
+        break;
+      }
+    }
+  }
+
+  // Kinds with no art yet keep their shapes in the game.
+  const missing = [
+    ...HERO_KINDS.filter((k) => !heroArt(k)).map((k) => `hero · ${k}`),
+    ...CREEP_KINDS.filter((k) => !creepArt(k)).map((k) => `creep · ${k}`),
+    ...TOWER_KINDS.filter((k) => !towerArt(k)).map((k) => `tower · ${k}`),
+  ];
+  const todo = document.createElement('section');
+  todo.className = 'sc-todo';
+  todo.innerHTML = `<h2>Still shapes (${missing.length})</h2><p>${missing.map((m) => `<span>${m}</span>`).join(' ')}</p>`;
+  root.insertBefore(todo, app.canvas);
+
+  const paintStages = () => {
+    for (const { stage, ground } of stages) stage.style.background = toCss(liftColor(ground === 'lane' ? RL.lane : RL.moss, display));
+  };
+  const renderDisplayRow = () => {
+    displayRow.innerHTML = 'Display: ';
+    for (const d of ['normal', 'bright'] as const) {
+      const b = document.createElement('button');
+      b.textContent = d === 'normal' ? 'Normal' : 'Bright';
+      b.dataset.value = d;
+      b.className = d === display ? 'active' : '';
+      b.addEventListener('click', () => {
+        display = d;
+        kit.setDisplay(d);
+        paintStages();
+        renderDisplayRow();
+      });
+      displayRow.appendChild(b);
+    }
+  };
+  paintStages();
+  renderDisplayRow();
+
+  let last = performance.now();
+  app.ticker.add(() => {
+    const now = performance.now();
+    const dt = Math.min(100, now - last);
+    last = now;
+    const vh = window.innerHeight;
+    for (const c of cards) {
+      const r = c.stage.getBoundingClientRect();
+      const on = r.bottom > 0 && r.top < vh;
+      // Only toggled when a card scrolls in or out (visibility changes rebuild Pixi's draw list).
+      if (on !== c.shown) c.shown = c.big.visible = c.small.visible = on;
+      if (!on) continue;
+      c.big.position.set(r.left + r.width * 0.44, r.top + r.height * 0.5);
+      c.small.position.set(r.right - 6 - c.smallEdge.x, r.bottom - 6 - c.smallEdge.y);
+      c.animate(now, dt);
+    }
+  });
+
+  (window as unknown as { __showcase: unknown }).__showcase = {
+    ids: entries.map((e) => e.id),
+    cards: () => cards.length,
+    display: () => kit.display,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Actors: each rig driven by fake input
+// ---------------------------------------------------------------------------
+
+/** Walks for 2 s (turning round each time), then stands and shoots for 2 s. */
+function heroActor(rig: HeroRig): Actor {
+  const pose = { x: 0, y: 0, facing: 0, stunned: false };
+  let shotAt = -Infinity;
+  const speed = TUNING.hero.ranger.speed;
+  const cooldown = TUNING.hero.ranger.attackCooldown * 1000;
+  return {
+    view: rig.body,
+    animate(now, dt) {
+      const cycle = now % 4000;
+      const lap = Math.floor(now / 4000) % 2;
+      if (cycle < 2000) {
+        pose.facing = lap === 0 ? 0 : Math.PI;
+        pose.x += (lap === 0 ? 1 : -1) * speed * (dt / 1000);
+      } else {
+        pose.facing = (lap === 0 ? 0 : Math.PI) + Math.sin(now / 700) * 0.7;
+        if (now - shotAt > cooldown) {
+          shotAt = now;
+          rig.shot(now);
+        }
+      }
+      rig.update(pose, now, dt);
+    },
+  };
+}
+
+/** Walks, turns round every 3 s, flashes as if hit, and is frosted every other lap. */
+function creepActor(rig: CreepRig): Actor {
+  const view = new Container();
+  view.addChild(rig.body, rig.flash);
+  let x = 0;
+  return {
+    view,
+    animate(now, dt) {
+      const lap = Math.floor(now / 3000);
+      x += (lap % 2 === 0 ? 1 : -1) * dt * 0.001;
+      rig.update(x, 3, false, now);
+      const f = now % 1400 < 90 ? 0.8 : 0;
+      rig.setFlash(f);
+      rig.setTint(lap % 4 === 3 ? mixColor(0xffffff, ICE, 0.8) : 0xffffff);
+    },
+  };
+}
+
+/** The turret sweeps round and fires every 1.2 s (recoil). */
+function towerActor(rig: TowerRig, tier: number, branch: TowerBranch | null): Actor {
+  rig.setTier(tier, branch);
+  return {
+    view: rig.body,
+    animate(now, dt) {
+      rig.aim(Math.sin(now / 1500) * Math.PI, dt);
+      const r = Math.max(0, 1 - (now % 1200) / 140);
+      rig.kick(r * r * 4.8);
+    },
+  };
+}
+
+function heartActor(kit: ArtKit, id: string, baseY: number, gemScale: number, gemY: number, floatPx: number): Actor {
+  const view = new Container();
+  const base = kit.sprite(id, 'base');
+  base.position.set(0, baseY);
+  const gem = kit.sprite(id, 'gem');
+  const flash = kit.sprite(id, 'gem.flash');
+  view.addChild(base, gem, flash);
+  return {
+    view,
+    animate(now) {
+      const t = (now % 1400) / 1400;
+      const beat = Math.max(0, Math.sin(t * Math.PI * 4)) * (t < 0.25 ? 1 : t < 0.5 ? 0.6 : 0);
+      const hit = Math.max(0, 1 - (now % 3000) / 420);
+      for (const s of [gem, flash] as Sprite[]) {
+        s.scale.set(gemScale * (1 + beat * 0.045 + hit * 0.12));
+        s.y = gemY + Math.sin(now / 650) * floatPx;
+      }
+      flash.alpha = hit * 0.85;
+    },
+  };
+}
+
+function portalActor(kit: ArtKit, id: string): Actor {
+  const view = new Container();
+  const swirl = kit.sprite(id, 'swirl');
+  view.addChild(kit.sprite(id, 'rim'), swirl);
+  return { view, animate: (now) => (swirl.rotation = -now / 500) };
+}
+
+function padActor(kit: ArtKit, id: string, tint: number, rimAlpha: number, washAlpha: number): Actor {
+  const view = new Container();
+  const rim = kit.sprite(id, 'rim');
+  const wash = kit.sprite(id, 'wash');
+  rim.tint = wash.tint = tint;
+  rim.alpha = rimAlpha;
+  wash.alpha = washAlpha;
+  view.addChild(kit.sprite(id, 'slab'), wash, rim);
+  return { view, animate: () => {} };
+}
+
+const CSS = `
+#showcase { position: fixed; inset: 0; z-index: 1000; overflow-y: auto; background: #0b0f14; color: #e8eef5;
+  font: 14px system-ui, sans-serif; padding: 12px 12px 40px; touch-action: pan-y; user-select: none; }
+#showcase h1 { font-size: 20px; margin: 4px 0; }
+#showcase h2 { font-size: 16px; margin: 18px 0 8px; }
+#showcase p { margin: 4px 0; color: #9fb0c2; }
+#showcase .sc-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 1001; }
+#showcase .sc-display { margin: 8px 0; display: flex; gap: 6px; align-items: center; }
+#showcase .sc-display button { font: inherit; padding: 6px 14px; border-radius: 16px; border: 1px solid #5a6b80; background: #16202b; color: #e8eef5; }
+#showcase .sc-display button.active { background: #ffd24a; color: #111; border-color: #ffd24a; }
+#showcase .sc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+#showcase .sc-card { background: #16202b; border-radius: 10px; overflow: hidden; border: 1px solid #243242; }
+#showcase .sc-stage { position: relative; height: 150px; }
+#showcase .sc-label { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+#showcase .sc-label span { color: #9fb0c2; font-size: 12px; }
+#showcase .sc-todo span { display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 10px; background: #243242; color: #c9d6e3; }
+`;

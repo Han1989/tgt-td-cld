@@ -64,10 +64,12 @@ Start **Play solo offline** (or solo from the hero pick).
 
 - [ ] 5.5 **Effects (Phase 4b):** hits flash and show numbers, creeps pop, coins fly to the gold counter, towers kick back when they fire, every skill has its own effect, the Heart flashes and wobbles when hit, boss waves shake the screen. Nothing stutters when a Meteor lands in a crowd. ⚙ → Screen shake **Off** stops the shake; Graphics **Low** drops the particles. Note anything that feels too much or too little.
 
+- [ ] 5.6 **Art (Runelight, docs/ART.md):** the Ranger, Grunts, Brutes, Arrow and Cannon towers, the Heart, the portals and the build pads are drawn in the Runelight style; the rest still use shapes. Empty pads read clearly as "build here" on the dark ground. Turrets turn towards creeps, the Ranger draws the bow between shots. Play a few waves **outdoors in daylight** with ⚙ → Display → **Normal**, then **Bright**: say whether the lanes, pads and creeps are easy to see in each. Open `…/?showcase` to see every drawn entity at once (large, and at the size the phone shows it in a match).
+
 ## 6. Online: a phone and a desktop together
 
 - [ ] 6.1 On the desktop browser: **Create room**, copy the invite link. On the phone: open the link (or enter the code) and join. Both pick heroes and ready up, and the host starts.
-- [ ] 6.2 Pads are tinted per player. Tapping a teammate's pad on the phone says whose it is. Each player builds on their own zone only.
+- [ ] 6.2 Pads are rimmed in each player's zone colour (brighter on yours). Tapping a teammate's pad on the phone says whose it is. Each player builds on their own zone only.
 - [ ] 6.3 On the phone, tap **Gold ▾** in the top bar. The team panel opens with **Give 25 / Give 100**. Gifting works both ways.
 - [ ] 6.4 The desktop still plays with mouse and keyboard as before: right-click to move / attack, A + click, Q/W/E/R (then a click to aim), B + 1–5, U, S, Space, wheel zoom, and a left-click on your tower for the upgrade / sell panel. On desktop the map sits centred, with the HUD in the side margins.
 - [ ] 6.5 **Reconnect:** on the phone, switch away for ~20 s mid-match and come back. It shows "Connection lost — reconnecting…" briefly (or nothing) and rejoins the same seat with your hero and gold. The match did not pause for the desktop player.

@@ -1,0 +1,44 @@
+// Art (docs/ART.md): Runelight is the default look, Settings → Display switches Normal / Bright,
+// and ?showcase lists every art file in src/render/art/entities/ without anyone editing a list.
+
+import { readdirSync } from 'node:fs';
+import { expect, test } from '@playwright/test';
+import { startSolo } from './helpers';
+
+/** Art files: one entity each, named after its registry id. */
+const ART_FILES = readdirSync(new URL('../src/render/art/entities/', import.meta.url))
+  .filter((f) => f.endsWith('.ts'))
+  .map((f) => f.slice(0, -3));
+
+test('?showcase shows a card for every registered art file, and Bright re-bakes it', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?showcase');
+  await expect.poll(() => page.evaluate(() => window.__showcase?.cards() ?? 0)).toBeGreaterThan(0);
+  const ids = await page.evaluate(() => window.__showcase.ids);
+  expect([...ids].sort()).toEqual([...ART_FILES].sort());
+  for (const id of ART_FILES) await expect(page.locator(`.sc-card[data-art="${id}"]`).first()).toBeAttached();
+  // Towers: tiers 1–3 and both branches each.
+  await expect(page.locator('.sc-card[data-art="arrowTower"]')).toHaveCount(5);
+  await expect(page.locator('.sc-card[data-art="cannonTower"]')).toHaveCount(5);
+  // Kinds without art are listed as still shapes.
+  await expect(page.locator('.sc-todo')).toContainText('tower · frost');
+
+  await page.locator('.sc-display button[data-value="bright"]').click();
+  await expect.poll(() => page.evaluate(() => window.__showcase.display())).toBe('bright');
+  expect(errors).toEqual([]);
+});
+
+test('Runelight is the default look: pads, rigs, and Settings → Display → Bright is remembered', async ({ page }) => {
+  await startSolo(page);
+  const pads = await page.evaluate(() => window.__tdt.latest()!.pads.length);
+  await expect.poll(() => page.evaluate(() => window.__tdt.art())).toMatchObject({ display: 'normal', pads, heroRigs: 1 });
+
+  await page.locator('#settings-btn').tap();
+  await page.locator('#settings-display .btn[data-value="bright"]').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().display)).toBe('bright');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).display)).toBe('bright');
+
+  await startSolo(page);
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().display)).toBe('bright');
+});

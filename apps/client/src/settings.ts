@@ -1,6 +1,8 @@
-// Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake).
+// Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake;
+// Display: docs/ART.md §2).
 
 import type { ThumbLayout } from './layout';
+import type { Display } from './render/art/tokens';
 
 export type Quality = 'auto' | 'high' | 'low';
 
@@ -9,12 +11,19 @@ export interface Settings {
   quality: Quality;
   /** Screen shake on big impacts (Graphics → Low turns it off regardless). */
   shake: boolean;
+  /** Normal, or Bright (lifts the ground and shadows for outdoor play). */
+  display: Display;
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
   one: 'One thumb',
   two: 'Two thumbs',
   twoLeft: 'Two thumbs, left-handed',
+};
+
+export const DISPLAY_NAMES: Record<Display, string> = {
+  normal: 'Normal',
+  bright: 'Bright',
 };
 
 export const QUALITY_NAMES: Record<Quality, string> = {
@@ -24,7 +33,7 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 };
 
 const KEY = 'tdt.settings';
-export const DEFAULT_SETTINGS: Settings = { thumbs: 'one', quality: 'auto', shake: true };
+export const DEFAULT_SETTINGS: Settings = { thumbs: 'one', quality: 'auto', shake: true, display: 'normal' };
 
 /** Parses stored settings, keeping only known values. */
 export function parseSettings(raw: string | null): Settings {
@@ -35,6 +44,7 @@ export function parseSettings(raw: string | null): Settings {
     if (v.thumbs === 'one' || v.thumbs === 'two' || v.thumbs === 'twoLeft') out.thumbs = v.thumbs;
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;
     if (typeof v.shake === 'boolean') out.shake = v.shake;
+    if (v.display === 'normal' || v.display === 'bright') out.display = v.display;
   } catch {
     // Corrupt value: defaults.
   }
