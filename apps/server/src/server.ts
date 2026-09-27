@@ -8,6 +8,7 @@ import { performance } from 'node:perf_hooks';
 import {
   decodeClientMessage,
   encodeServerMessage,
+  MAX_PLAYERS,
   PROTOCOL_VERSION,
   type ClientMessage,
   type ErrorCode,
@@ -225,7 +226,7 @@ export function createGameServer(config: ServerConfig): GameServer {
     if (typeof result === 'string') {
       const messages: Partial<Record<ErrorCode, string>> = {
         match_in_progress: 'That match has already started',
-        room_full: 'That room is full',
+        room_full: `That room is full (${MAX_PLAYERS} players, one per lane)`,
         rejoin_failed: 'Your seat in that room is no longer available',
       };
       return entryError(conn, result, messages[result] ?? 'Could not join');

@@ -16,6 +16,8 @@
 | Towers in co-op | **Each player has their own zone of pads, and bigger teams unlock extra pads.** |
 | Tower actions | A **radial ring around the tower**, never a bottom panel. |
 | Quick mode | 15 waves, on every device. |
+| Team size | **1–3 players, one per lane** (Phase 4b: the 4-player Core zone is gone; Decision Log). |
+| Hero speed | Ranger 4.6, Warden 4.3, Arcanist 4.5 tiles/s (+35% in Phase 4b), the same on every device. |
 
 ## 2. Map: Spire
 
@@ -32,8 +34,7 @@
 |---|---|
 | 1 | The player owns every pad |
 | 2 | P1: West + west half of Mid; P2: East + east half of Mid |
-| 3 | West / Mid / East, plus **extra pads** added to each lane zone (about +15%) |
-| 4 | West / Mid / East, plus a **Core zone** of extra pads where the lanes converge above the Heart (about +25%) |
+| 3 (the most a match holds) | West / Mid / East, plus **extra pads** added to each lane zone (about +12%) |
 
 - Extra-pad amounts live in `tuning.ts`. Solo play never shows extra pads.
 - Each player's pads are **tinted in their colour**. You can only build on your own zone. Tapping a teammate's pad shows whose it is.
@@ -100,7 +101,7 @@ The two-thumb layouts use the same overlay approach.
 - More starting gold and faster XP, so heroes reach about level 8–10.
 - The host picks the mode in the lobby; solo has its own mode pick.
 - The mode is a new match option, so bump `PROTOCOL_VERSION`. All numbers live in `tuning.ts`.
-- **Balance gate:** bots win with 1 and with 4 players, ending with Heart HP 40–80; the do-nothing bot loses.
+- **Balance gate:** bots win with 1, 2 and 3 players, ending with Heart HP 40–80; the do-nothing bot loses. (Track 3 gated 1 and 4 players; matches hold 3 players since Phase 4b.)
 
 ## 7. Platform, performance and PWA
 
@@ -139,7 +140,7 @@ The two-thumb layouts use the same overlay approach.
 - The rule changes (§3).
 - The balance bot plays by zones and moves while attacking.
 - Bump `PROTOCOL_VERSION`.
-- **Balance gate:** full mode on Spire; bots win with 1, 2 and 4 players, ending with Heart HP 40–80; the do-nothing bot loses. Report 3 players and **Heart lost in waves 1–10, 11–20 and 21–30.** Aim for losses spread across the match instead of mostly before wave 12. The extra pads should allow flatter team scaling than the Phase 3 early-wave bonus.
+- **Balance gate:** full mode on Spire; bots win with 1, 2 and 4 players, ending with Heart HP 40–80; the do-nothing bot loses (since Phase 4b: 1, 2 and 3 players, the most a match holds, in Full and Quick). Report 3 players and **Heart lost in waves 1–10, 11–20 and 21–30.** Aim for losses spread across the match instead of mostly before wave 12. The extra pads should allow flatter team scaling than the Phase 3 early-wave bonus.
 
 **Track 2 (after track 1 is merged): portrait client.**
 - Layouts (§4), touch controls (§5), platform and PWA (§7), tests (§8), and `docs/MOBILE_TESTING.md`.
@@ -156,7 +157,7 @@ The two-thumb layouts use the same overlay approach.
 - Sprites and sound. **Art direction: Runelight, see `docs/ART.md`** (Art Track 0: style guide, art registry, `?showcase`, Display setting).
 - Team pings (long-press on the map on phones, Alt-click on desktop) and quick-chat emotes.
 - Difficulty modes.
-- Balance carry-overs: a 3-player gate, per-hero tuning, how often ultimates get used (**done: the hero mana rework**, ultimates cost no mana; Decision Log).
+- Balance carry-overs: a 3-player gate (**done: matches hold 3 players, and 1, 2 and 3 are gated in Full and Quick**), per-hero tuning, how often ultimates get used (**done: the hero mana rework**, ultimates cost no mana, and the balance bot casts R on 3+ creeps; Decision Log).
 
 ### Phase 4c: App stores (optional)
 - A Capacitor wrapper for iOS and Android, built from the same web build and kept on the same `PROTOCOL_VERSION`.

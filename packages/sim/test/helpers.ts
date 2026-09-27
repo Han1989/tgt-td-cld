@@ -70,5 +70,18 @@ export function tuningCopy(): Tuning {
 /** Seeds of the headless balance gates (`balance*.test.ts`). */
 export const BALANCE_SEEDS = [1, 2, 3, 42, 1234];
 
+/** The 2-player pairs of the balance gates; each gate seed plays the next pair in this list. */
+export const PAIRS: [HeroKind, HeroKind][] = [
+  ['ranger', 'warden'],
+  ['warden', 'arcanist'],
+  ['arcanist', 'ranger'],
+];
+
+/** The 3-player team of the balance gates: one hero of each kind (West, Mid, East). */
+export const TEAM_OF_3: HeroKind[] = ['ranger', 'warden', 'arcanist'];
+
+/** Heroes should reach about level 8–10 in Quick mode. */
+export const QUICK_MIN_LEVEL = 8;
+
 /** Heart HP a winning balance bot (solo or a team) must end with on Normal: a challenge, not a walkover. */
 export const HEART_TARGET = { min: 40, max: 80 };

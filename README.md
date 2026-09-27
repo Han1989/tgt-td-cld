@@ -1,19 +1,19 @@
 # Tower Defense Together
 
-A browser co-op tower defense for 1–4 players: build towers, control a hero and hold the Heart against waves of creeps.
+A browser co-op tower defense for 1–3 players (one per lane): build towers, control a hero and hold the Heart against waves of creeps.
 
 - **Design and build plan:** [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
 - **Working in this repo (commands, layout, rules):** [`CLAUDE.md`](CLAUDE.md)
 - **Deploying (Render game server + Vercel client):** [`docs/DEPLOY.md`](docs/DEPLOY.md)
 
-**Status:** Phase 2, online co-op for 1–4 players (rooms, lobby, reconnect), plus offline solo.
+**Status:** Phase 2, online co-op for 1–3 players (rooms, lobby, reconnect), plus offline solo.
 
 ```bash
 npm install
 npm run dev                                        # solo, offline, at http://localhost:5173
 npm run dev:server                                 # game server on ws://localhost:8080
 VITE_SERVER_URL=ws://localhost:8080 npm run dev    # online: lobby, rooms, invite links
-npm test                                           # unit tests, balance runs, 4-bot server test
+npm test                                           # unit tests, balance runs, 3-bot server test
 npm run build                                      # typecheck + client build + server bundle
 ```
 

@@ -43,12 +43,6 @@ export const SPIRE: MapData = {
     { tx: 15, ty: 0, zone: 'mid', extra: true },
     { tx: 5, ty: 31, zone: 'west', extra: true },
     { tx: 18, ty: 31, zone: 'east', extra: true },
-    { tx: 9, ty: 31, zone: 'core', extra: true },
-    { tx: 14, ty: 31, zone: 'core', extra: true },
-    { tx: 5, ty: 35, zone: 'core', extra: true },
-    { tx: 18, ty: 35, zone: 'core', extra: true },
-    { tx: 1, ty: 36, zone: 'core', extra: true },
-    { tx: 22, ty: 36, zone: 'core', extra: true },
   ],
   safeFromY: 40,
 };

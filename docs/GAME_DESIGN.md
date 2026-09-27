@@ -4,7 +4,7 @@
 
 ## 1. Vision
 
-A browser-based **co-op tower defense for 1–4 players**, in the spirit of the Warcraft III custom-map era (co-op TD and Dota 1). Large creep waves march down lanes toward your base. Each player defends with a **hero they control directly** and **towers they build**. A match lasts 25–35 minutes. Joining is easy: open a link, enter a room code, play.
+A browser-based **co-op tower defense for 1–3 players** (one per lane), in the spirit of the Warcraft III custom-map era (co-op TD and Dota 1). Large creep waves march down lanes toward your base. Each player defends with a **hero they control directly** and **towers they build**. A match lasts 25–35 minutes. Joining is easy: open a link, enter a room code, play.
 
 Original names and art only. No Warcraft, Dota or other studio assets, names or characters.
 
@@ -40,7 +40,7 @@ Original names and art only. No Warcraft, Dota or other studio assets, names or 
 
 **Quick mode** (a match option picked in the lobby or the solo pick): 15 waves in about 11 minutes, bosses on waves 5 / 10 / 15, with difficulty compressed so wave 15 plays like wave 30. Numbers in `tuning.ts` `modes.quick`; see `docs/MOBILE.md` §6 and the Decision Log.
 
-**Player-count scaling:** creep HP × (a team-size multiplier: ×1.01 solo, ×1.45 for 2 and 3 players, ×1.5 for 4, plus an early bonus by team size: +0.5 for 2 players, +1.6 for 3, +2.2 for 4 on wave 1, fading out by wave 21, plus a late bonus that grows over waves 21–30 to +0.06 for 2 players, +0.15 for 3 and +2.0 for 4 on wave 30); creep count +30% per extra player. All numbers are tunable (see Architecture). (Phase 2 used a flat +50% HP and +25% count per extra player; Phase 3 a much steeper early bonus; the late bonus came with tower branches; see the Decision Log.)
+**Player-count scaling** (a match holds 1–3 players): creep HP × (a team-size multiplier: ×1.01 solo, ×1.42 for 2 players, ×1.45 for 3, plus an early bonus by team size: +0.5 for 2 players, +1.6 for 3 on wave 1, fading out by wave 21, plus a late bonus that grows over waves 21–30 to +0.16 for 2 players and +0.15 for 3 on wave 30); creep count +30% per extra player. Quick mode has its own numbers (`modes.quick`). All numbers are tunable (see Architecture). (Phase 2 used a flat +50% HP and +25% count per extra player; Phase 3 a much steeper early bonus; the late bonus came with tower branches; see the Decision Log.)
 
 ## 5. Economy
 
@@ -66,11 +66,11 @@ A tower is owned by the player who built it, and its kills credit that player. T
 
 **Damage types:** physical (reduced by armour) and magic (reduced by magic resist).
 
-**Pad zones:** each player has their own zone of pads and can only build there; bigger teams unlock extra pads (a Core zone at 4 players). Once a leaver's rejoin window runs out, their empty pads open to every teammate. Details: `docs/MOBILE.md` §2.
+**Pad zones:** each player has their own zone of pads (West / Mid / East, one per lane) and can only build there; a 3-player team unlocks extra pads. Once a leaver's rejoin window runs out, their empty pads open to every teammate. Details: `docs/MOBILE.md` §2.
 
 ## 7. Heroes
 
-Each player controls one hero. **Heroes auto-attack the nearest enemy in range while moving or standing still** (on desktop, right-clicking an enemy still sets a focus target). Heroes gain levels 1–10 from XP, which is shared among heroes near a creep when it dies. Q/W/E rank up to 4; R unlocks at level 6. **Q and W cost mana; ultimates (R) cost none, only their cooldown limits them.** Mana regeneration grows with level (Ranger 1.5 → 4.2/s from level 1 to 10, Warden 1.2 → 3.45, Arcanist 2.2 → 5.35), so Q and W cast on cooldown at max rank empty a full pool in about 30–40 s. A dead hero respawns at the Heart after 5 s + 2 s × level.
+Each player controls one hero. **Heroes auto-attack the nearest enemy in range while moving or standing still** (on desktop, right-clicking an enemy still sets a focus target). Heroes gain levels 1–10 from XP, which is shared among heroes near a creep when it dies. Q/W/E rank up to 4; R unlocks at level 6. **Q and W cost mana; ultimates (R) cost none, only their cooldown limits them.** Mana regeneration grows with level (Ranger 1.5 → 4.2/s from level 1 to 10, Warden 1.2 → 3.45, Arcanist 2.2 → 5.35), so Q and W cast on cooldown at max rank empty a full pool in about 30–40 s. A dead hero respawns at the Heart after 5 s + 2 s × level. Heroes walk at Ranger 4.6, Warden 4.3 and Arcanist 4.5 tiles/s, the same on every device.
 
 | Hero | Role | Q | W | E | R |
 |---|---|---|---|---|---|
@@ -92,13 +92,13 @@ Phase 1 ships the Ranger only, with Q and W, max level 5. Phase 3 (heroes track)
 
 ## 9. Multiplayer
 
-- 1–4 players, co-op only. No accounts: nickname + room code.
+- 1–3 players (one per lane), co-op only. No accounts: nickname + room code. A room refuses a 4th player.
 - **Create room** gives a 5-letter code and a share link (`?room=CODE`). **Lobby:** nickname, hero pick (duplicates allowed), ready; the host starts the match.
 - **Server-authoritative.** The server runs the only real simulation. Clients send commands (move, attack, cast, build, upgrade, sell, call-early, ready). The server validates gold, range, cooldowns and ownership, and ignores invalid commands.
 - The server runs a **fixed 20 Hz tick** and sends snapshots or deltas. Clients render about 100 ms behind using interpolation. No client-side prediction in v1, since RTS-style click commands tolerate latency. The UI gives instant local feedback (build ghost, click markers).
 - **Reconnect:** a dropped player can rejoin within 60 s and gets their hero and gold back. A leaver's towers keep firing, and their hero returns to the Heart.
 - **Hardening:** per-client command rate limit, message size cap, unknown message types rejected, nothing trusted from the client.
-- **Performance targets:** 4 players with 300 creeps alive; client holds 60 FPS on a mid-range laptop; server tick under 10 ms; under 50 KB/s per client.
+- **Performance targets:** 3 players with 300 creeps alive; client holds 60 FPS on a mid-range laptop; server tick under 10 ms; under 50 KB/s per client.
 
 ## 10. Architecture
 
@@ -130,7 +130,7 @@ apps/server         Node + TypeScript WebSocket rooms (plain ws; see Decision Lo
 
 - Vitest unit tests for every sim mechanic: targeting, damage and armour, slows, pathing, aggro and leash, economy, wave spawning, win/lose.
 - **Headless balance run:** scripted bot players play a full match in tests. A sensible-build bot must win on default settings; a do-nothing bot must lose.
-- Phase 2 onward adds a **server integration test**: 4 bot clients join one room and play 5 waves, and every client's final snapshot must match the server's.
+- Phase 2 onward adds a **server integration test**: bot clients fill one room (4 until Phase 4b, 3 since) and play 5 waves, and every client's final snapshot must match the server's.
 - `npm test` and `npm run build` must pass before any push.
 
 ## 11. Phases
@@ -170,7 +170,7 @@ apps/server         Node + TypeScript WebSocket rooms (plain ws; see Decision Lo
 - Armour and magic resist tuning.
 - Gold gifting; hero item shop at the Heart (optional).
 
-**Done when:** the balance bot wins on Normal with 1 player and with 4 players; tests are green.
+**Done when:** the balance bot wins on Normal with 1 player and with 4 players; tests are green. (Since Phase 4b a match holds at most 3 players; the gates cover 1, 2 and 3.)
 
 ### Phase 4: Mobile and polish
 
@@ -352,3 +352,10 @@ Accounts, persistence and leaderboards, PvP, public matchmaking, monetisation.
 | 2026-09-27 | **Balance bot plays like a human with its mana:** the rule that kept mana for a ready ultimate (and kept enough for Q before casting W) is gone; it casts R, Q and W on groups whenever each is ready and affordable. With free ultimates there is nothing left to save for | Balance numbers should come from how people play. |
 | 2026-09-27 | **Retune after the mana rework.** Free ultimates made heroes stronger in waves 11–30 (22-seed means, Full: solo +5 Heart HP, pairs +10, 4 players about the same but with the same early-game cliff). Ultimates trimmed ~10% per cast since they now go off 2–3× as often: Arrow Storm 30/45/60 → 27/40/54 per pulse, Meteor 220/330/440 → 200/300/400, Last Stand stun 1.5/2/2.5 → 1.25/1.75/2.25 s. Creep HP by team size: **solo ×1.01 in Full, ×1.02 in Quick** (was ×1: solo is a cliff, +4% cost ~15 Heart HP), 4-player early bonus 2.4 → 2.2 (Full) and 2.2 → 2.0 (Quick), since 4-bot teams collapsed early more often. Over 22 seeds the share of Full matches ending with 40–80 Heart HP went from 19/20/20 to 20/22/19 (Arcanist / Ranger / Warden solo) and stays 18/22 for 4 players; the Warden + Arcanist pair is the strongest mix (mean 70, often above 80) and Ranger + Warden the weakest (54), as before (61 / 43). Ultimate cooldowns were tried longer (+10 s): casts barely dropped (9.0 → 8.8), since the bot only casts R on 4+ creeps | Keep both balance gates green without taking back the extra ultimates. |
 | 2026-09-27 | **Skill buttons show mana:** Q and W show their mana cost (desktop: the tag in blue; touch: a small badge on the button's lower-left edge, turning red when unaffordable) and dim with a mana-blue edge when the hero can't afford them. R shows no cost: a gold ring that fills up as its cooldown runs out (touch: around the button; desktop: next to the key, with the name faded while it cools), and a pulsing gold glow when it can be cast (a steady glow with reduced motion). The rules are the DOM-free `hud/skillFace.ts` (tested) | The cost has to be visible to plan casts; a free ultimate needs a clear "ready" signal instead. |
+| 2026-09-27 | **Matches hold at most 3 players, one per lane.** `MAX_PLAYERS` = 3 in the protocol: a room answers a 4th `join` with `room_full` ("That room is full (3 players, one per lane)"), and `createGame` throws on more than 3 players. Solo and duo stay. The room screen shows "Players n / 3". The 4-player **Core zone is gone** (its 6 map pads, the `core` pad zone, `tuning.pads.core`, the Core bot post, the 4th seat colour), and every per-team-size table (`playerScaling.hp` / `earlyHpBonus` / `lateHpBonus`, `pads.extraPerLaneZone`, Full and Quick) has 3 entries. Pad zones: solo all, 2 players split by the Mid lane, 3 players West / Mid / East with one extra pad each (29 pads). The integration test, the load test and `npm run balance` / `npm run mana` use 3-bot rooms | Every player owns a lane. The 4th player's Core zone was small (4 pads), finished it by wave ~22 and could only gift gold after, and 4-player balance needed a late bonus (+2.0) that sat on a cliff (+2.2 lost matches). |
+| 2026-09-27 | **Heroes walk 35% faster:** Ranger 3.4 → 4.6, Warden 3.2 → 4.3, Arcanist 3.3 → 4.5 tiles/s (`tuning.hero.<kind>.speed`). Speed only exists in the sim, so it is the same on every device; the joystick still aims 2.5 tiles ahead (0.54 s of walking at 4.6) | Mobile play felt slow. |
+| 2026-09-27 | **Balance bot: ultimates on 3+ creeps (was 4+), and a hurt hero comes back at 60% HP (was 80%).** It still retreats to the Heart under 30%. R casts per match (mean per hero; before: 12 seeds, after: 20), before → after, both on the new hero speed: Full solo 8.6–9.1 → 9.7–11.2; pairs 6.0–8.0 → 7.3–10.8; 3 bots (Ranger / Warden / Arcanist) 7.9 / 3.4 / 7.3 → 9.4 / 4.3 / 7.5. Quick: solo 4.2–4.5, pairs 2.9–3.8, 3 bots 2.8–3.3 (15 waves, R from level 6) | The 4+ threshold was part of it: 4 → 3 added about one cast per match solo and in pairs, 3 → 2 almost nothing more. The rest was retreating: in a 3-bot team the Warden, holding the Mid lane forward, spent ~850 s of a 1,290 s match at the Heart, regenerating from 30% to 80% HP at 2.5 HP/s (~200 s each time). Coming back at 60% halves that wait. The Warden in a 3-player team still casts least: it learns R late (wave ~15–18, XP shared three ways) and still spends a lot of time retreating. |
+| 2026-09-27 | **Balance gates: 1, 2 and 3 players in Full and Quick** (Heart 40–80 on the 5 gate seeds, do-nothing bots lose, and heroes reach level 8+ in Quick). 3 players is a required gate: `balanceTeam.test.ts` (Full, Ranger + Warden + Arcanist); Quick adds `balanceQuickTeams.test.ts` (pairs, one per seed, and 3 bots). Idle pairs and idle 3-bot teams must lose too. `npm run balance` prints each hero's R casts | Matches hold 3 players now, and Quick is played in teams too. |
+| 2026-09-27 | **Retune for faster heroes and the new bot.** Heroes that reach creeps a third sooner and cast R more often made solo and pairs easier (Full solo mean 67–75, several gate seeds above 80). **Full:** Arrow Storm 27/40/54 → 25/37/50 per pulse (the strongest solo hero now casts R ~11 times a match); pairs ×1.45 → ×1.42 with a late bonus of 0.06 → 0.16 (a lower base and a bigger late bonus: the one combination tried that put every gated pair in range without losing Ranger + Warden matches); solo ×1.01 and 3 players unchanged. **Quick:** solo ×1.02 → ×1.019; pairs ×1.45 → ×1.48 and late bonus 0 → 0.15; 3 players unchanged | Solo and pairs are cliffs: Full solo ×1.03, pairs ×1.47–1.5 or a pair early bonus of 0.6 lost matches or collapsed Ranger + Warden; with the old base (×1.45) no late bonus got Arcanist + Ranger's gate seed 3 under 80 (it lost 11 Heart, all before wave 11). Quick solo moves ±15 Heart HP per 0.005 on single seeds; ×1.019 put every gate seed and 58 of 60 wide runs in range. Composition matters more than the multipliers: Ranger + Warden (all physical) is the weakest pair (Full mean 57), Warden + Arcanist the strongest (75, 1 Heart lost after wave 20). |
+| 2026-09-27 | **Balance results** (gate seeds 1, 2, 3, 42, 1234; Heart HP left; average Heart lost per third on the gate seeds; unspent gold at the end, the team's total). **Full:** solo Ranger 71–78 (11/0/14), 210–440 gold; Warden 59–79 (10/5/14), 200–370; Arcanist 53–76 (11/2/20), 240–410; gated pairs 74 / 80 / 51 / 68 / 64 (18/8/7), 290–540 gold; **3 players 52–74 (20/13/4), 640–960 gold**; every idle bot and idle team loses (waves 5–8). **Quick:** solo Ranger 45–77 (4/11/21), Warden 58–80 (2/12/16), Arcanist 48–69 (4/13/24), 190–540 gold; gated pairs 65 / 71 / 56 / 59 / 74 (9/9/17), 320–830 gold; **3 players 43–70 (17/22/3), 520–1,220 gold**; idle loses at waves 4–6. **Over 20 seeds** every balance-bot run wins (280 matches). In range, Full: solo 18 / 20 / 18 of 20 (Ranger / Warden / Arcanist), pairs 39 of 60, 3 players 19 of 20. Quick: solo 19 / 20 / 19, pairs 50 of 60, 3 players 19 of 20 | 3-player teams still lose little in the last third (Full 6, Quick 4): their gold goes into branches and their pads cap them, as before. Solo loses most in the last third, pairs early. |
+| 2026-09-27 | `PROTOCOL_VERSION` 9: rooms hold 3 players (`MAX_PLAYERS`), pad zones have no `core` | An old 4-player client would offer a 4th seat that the server refuses, and old snapshots can name Core pads. |

@@ -1,6 +1,6 @@
 # Real-device checklist (Phase 4a)
 
-> For Han. `docs/MOBILE.md` §8–9: Phase 4a is done when this checklist passes on **one iPhone** (iPhone 12 or newer, iOS 17+, Safari) and **one Android phone** (2021 or newer, current Chrome), plus one online match with a phone and a desktop player together. The automated browser tests (`npm run test:e2e`) cover the same flows in emulation; this list covers what emulation can't show: real fingers, real screens, notches, home indicators, backgrounding and real GPUs.
+> For Han. `docs/MOBILE.md` §8–9: Phase 4a is done when this checklist passes on **one iPhone** (iPhone 12 or newer, iOS 17+, Safari) and **one Android phone** (2021 or newer, current Chrome), plus one online match with a phone and a desktop player together, and one full 3-player room (the most a match holds, one player per lane). The automated browser tests (`npm run test:e2e`) cover the same flows in emulation; this list covers what emulation can't show: real fingers, real screens, notches, home indicators, backgrounding and real GPUs.
 
 ## Before you start
 
@@ -33,6 +33,7 @@ Start **Play solo offline** (or solo from the hero pick).
 ## 3. Touch controls
 
 - [ ] 3.1 **Joystick:** hold and drag it. The hero walks that way, turns smoothly when you change direction, and stops when you let go. It shoots creeps in range while walking and while standing.
+- [ ] 3.1b **Hero speed:** heroes walk 35% faster than in earlier builds (Ranger 4.6, Warden 4.3, Arcanist 4.5 tiles/s). Crossing the map from the Heart to a top portal takes about 8 s. Say whether it now feels right, too fast or still slow, and whether it feels the same on the phone as on the desktop (it should: speed comes from the game server / simulation, not the device).
 - [ ] 3.2 **Build:** tap one of your pads. A ring of 5 towers with costs opens around it, never over the controls. Towers you can't afford are greyed. The first tap on a tower shows its range on the pad; a second tap builds it.
 - [ ] 3.3 **Tap accuracy:** tap slightly beside a pad (within a fingertip). It still opens that pad. When two targets are equally close, a small list appears to choose from.
 - [ ] 3.4 **Tower ring:** tap your tower. A ring opens with **Upgrade** (cost), **Target** (First → Strongest → Closest) and **Sell** (refund), plus a chip above it such as "Arrow T1: Dmg 16→36 · Spd 1.43→1.54".
@@ -74,6 +75,16 @@ Start **Play solo offline** (or solo from the hero pick).
 - [ ] 6.4 The desktop still plays with mouse and keyboard as before: right-click to move / attack, A + click, Q/W/E/R (then a click to aim), B + 1–5, U, S, Space, wheel zoom, and a left-click on your tower for the upgrade / sell panel. On desktop the map sits centred, with the HUD in the side margins.
 - [ ] 6.5 **Reconnect:** on the phone, switch away for ~20 s mid-match and come back. It shows "Connection lost — reconnecting…" briefly (or nothing) and rejoins the same seat with your hero and gold. The match did not pause for the desktop player.
 - [ ] 6.6 **Updates:** after a new deploy, the installed app shows **Update available — tap to reload**, and tapping it loads the new version.
+
+## 7. Online: a full room of 3
+
+A match holds at most **3 players, one per lane**. Use the phone, the desktop and a second phone (or another desktop browser window).
+
+- [ ] 7.1 The room screen shows **Players 1 / 3 (one per lane)**, counting up as people join, and **Players 3 / 3 (full)** with three.
+- [ ] 7.2 A 4th device opening the invite link (or typing the code) is refused with **"That room is full (3 players, one per lane)"** and stays on the home screen.
+- [ ] 7.3 Start the match. Each player's pads are rimmed in their own colour (blue, orange, violet): the first player gets the West lane's pads, the second Mid, the third East. There is no fourth zone around the Heart. Each player can only build on their own lane's pads.
+- [ ] 7.4 With 3 players each lane zone has one extra pad (29 pads in all, against 26 solo and with 2 players).
+- [ ] 7.5 Play a few waves (Quick is fine). Report the result and the Heart HP left if you finish.
 
 ## Results
 
