@@ -35,6 +35,7 @@ import {
 import type { Camera } from '../input/camera';
 import { clamp, type Layout, type Rect } from '../layout';
 import { padStatus } from '../padInfo';
+import { iconVar, skillIcon, towerIcon, type IconId } from '../render/art/icons';
 import { COLORS, CREEP_NAMES, TOWER_NAMES } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
 import type { UiState } from '../uiState';
@@ -81,15 +82,20 @@ interface SkillEl {
   wrap: HTMLElement;
   btn: HTMLButtonElement;
   learn: HTMLButtonElement;
+  /** The skill's code-drawn icon (render/art/icons.ts). */
+  ico: HTMLElement;
   cd: HTMLElement;
   cdText: HTMLElement;
   pips: HTMLElement;
   key: string;
 }
 
+/** An icon element for a radial button. */
+const ico = (id: IconId) => `<i class="ico" style="--ico: ${iconVar(id)}"></i>`;
+
 const FIRED_PULSE: Keyframe[] = [
-  { boxShadow: '0 0 0 0 rgba(255, 255, 255, 0.95)', transform: 'scale(0.9)' },
-  { boxShadow: '0 0 0 14px rgba(255, 255, 255, 0)', transform: 'none' },
+  { boxShadow: '0 0 0 0 rgba(127, 252, 216, 0.9)', transform: 'scale(0.9)' },
+  { boxShadow: '0 0 0 14px rgba(127, 252, 216, 0)', transform: 'none' },
 ];
 
 type Menu = { type: 'build'; padId: number } | { type: 'tower'; towerId: number } | null;
@@ -277,7 +283,7 @@ export class TouchControls {
     wrap.dataset.slot = slot;
     const btn = document.createElement('button');
     btn.className = 'tskill-btn';
-    btn.innerHTML = `<span class="cd"></span><span class="letter">${slot}</span><span class="cd-text"></span><span class="pips"></span>`;
+    btn.innerHTML = `<i class="ico"></i><span class="cd"></span><span class="letter">${slot}</span><span class="cd-text"></span><span class="pips"></span>`;
     const learn = document.createElement('button');
     learn.className = 'learn hidden';
     learn.textContent = '+';
@@ -295,6 +301,7 @@ export class TouchControls {
       wrap,
       btn,
       learn,
+      ico: btn.querySelector('.ico')!,
       cd: btn.querySelector('.cd')!,
       cdText: btn.querySelector('.cd-text')!,
       pips: btn.querySelector('.pips')!,
@@ -313,6 +320,7 @@ export class TouchControls {
       const key = `${hero.kind}|${skill.rank}|${skill.maxRank}|${skill.learnable}|${noMana}|${hero.alive}|${cdText}|${Math.round(cdFrac * 50)}`;
       if (key === el.key) continue;
       el.key = key;
+      el.ico.style.setProperty('--ico', iconVar(skillIcon(hero.kind, skill.slot)));
       el.wrap.classList.toggle('locked', locked);
       el.wrap.classList.toggle('no-mana', noMana);
       el.wrap.classList.toggle('dead', !hero.alive);
@@ -651,7 +659,7 @@ export class TouchControls {
     TOWER_KINDS.forEach((kind, i) => {
       const cost = buildCost(kind);
       const armed = this.ui.preview?.padId === padId && this.ui.preview.tower === kind;
-      const b = this.ringButton(spots[i]!, BUILD_BTN, `<span class="name">${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span>`);
+      const b = this.ringButton(spots[i]!, BUILD_BTN, `${ico(towerIcon(kind))}<span class="cap">${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span>`);
       b.dataset.tower = kind;
       b.classList.toggle('poor', gold < cost);
       b.classList.toggle('armed', armed);
@@ -691,7 +699,8 @@ export class TouchControls {
       // Tier 3: two specialisation buttons where Upgrade was, either side of the top.
       choices.forEach((c, i) => {
         const at = { x: (i === 0 ? -1 : 1) * TOWER_RING_R * 0.57, y: -TOWER_RING_R * 0.82 };
-        const b = this.ringButton(at, TOWER_BTN, `<span class="name">${c.name}</span><span class="cost">${c.cost}</span>`);
+        const b = this.ringButton(at, TOWER_BTN, `${ico(towerIcon(tower.kind))}<span class="name">${c.name}</span><span class="cost">${c.cost}</span>`);
+        b.classList.add('branch');
         b.dataset.action = 'branch';
         b.dataset.branch = c.branch;
         b.classList.toggle('poor', gold < c.cost);
@@ -702,7 +711,9 @@ export class TouchControls {
       const upgrade = this.ringButton(
         up!,
         TOWER_BTN,
-        next === null ? '<span class="name">Max</span><span class="cost">tier</span>' : `<span class="name">Upgrade</span><span class="cost">${next}</span>`,
+        next === null
+          ? `${ico('upgrade')}<span class="cap">Max tier</span>`
+          : `${ico('upgrade')}<span class="cap">Upgrade</span><span class="cost">${next}</span>`,
       );
       upgrade.dataset.action = 'upgrade';
       upgrade.disabled = next === null;
@@ -716,12 +727,12 @@ export class TouchControls {
       });
     }
 
-    const priority = this.ringButton(prio!, TOWER_BTN, `<span class="cap">Target</span><span class="name">${PRIORITY_NAMES[tower.priority]}</span>`);
+    const priority = this.ringButton(prio!, TOWER_BTN, `${ico('target')}<span class="cap">Target</span><span class="name">${PRIORITY_NAMES[tower.priority]}</span>`);
     priority.dataset.action = 'priority';
     priority.addEventListener('click', () => this.actions.send({ type: 'setPriority', towerId: tower.id, priority: nextPriority(tower.priority) }));
 
     const refund = Math.floor(tower.spent * TUNING.economy.sellRefund);
-    const sellBtn = this.ringButton(sell!, TOWER_BTN, `<span class="hold"></span><span class="name">Sell</span><span class="cost">${refund}</span>`);
+    const sellBtn = this.ringButton(sell!, TOWER_BTN, `<span class="hold"></span>${ico('sell')}<span class="cap">Sell</span><span class="cost">${refund}</span>`);
     sellBtn.dataset.action = 'sell';
     sellBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();

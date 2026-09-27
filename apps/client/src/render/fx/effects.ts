@@ -14,6 +14,7 @@ import { DISC_PX, GLYPH_PX, RING_PX, type FxAtlas, type FxFrame } from './atlas'
 import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
 import { Shake } from './shake';
+import { AOE_COLORS, COLORS, FX, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
 
 const S = TILE_PX;
 const TAU = Math.PI * 2;
@@ -345,7 +346,7 @@ export class Effects {
       stretch: 1.4,
       align: true,
       drag: 4,
-      tint: [0xffffff, 0xfff1b8, color],
+      tint: [FX.hot, FX.spark, color],
       layer: 'add',
     });
   }
@@ -354,7 +355,7 @@ export class Effects {
   death(x: number, y: number, color: number, radius: number, boss: boolean): void {
     const k = this.bitScale;
     const r = radius * S * k;
-    this.ring(x, y, radius * (boss ? 3 : 1.6) * k, boss ? 0xffffff : color, boss ? 500 : 260, 0.3, 'shock');
+    this.ring(x, y, radius * (boss ? 3 : 1.6) * k, boss ? FX.hot : color, boss ? 500 : 260, 0.3, 'shock');
     if (!this.particles) return;
     this.emit({
       frame: 'glow',
@@ -362,7 +363,7 @@ export class Effects {
       y: y * S,
       life: [140, 140],
       scale: [(r * 1.4) / DISC_PX, (r * 2.2) / DISC_PX],
-      tint: 0xffffff,
+      tint: FX.hot,
       alpha: [0.8, 0],
       layer: 'add',
     });
@@ -379,7 +380,7 @@ export class Effects {
       spin: 9,
       drag: 3,
       gravity: 120 * k,
-      tint: [color, color, 0xffffff],
+      tint: [color, color, FX.hot],
       hold: 0.3,
     });
     this.emit({
@@ -392,7 +393,7 @@ export class Effects {
       life: [400, 700],
       scale: [(r / 24) * 0.8, (r / 24) * 1.6],
       alpha: [0.35, 0],
-      tint: 0x2a2f36,
+      tint: FX.smoke,
       gravity: -30,
     });
     if (boss) {
@@ -407,7 +408,7 @@ export class Effects {
         scale: [0.9 * k, 0.1 * k],
         drag: 2.5,
         spin: 4,
-        tint: [0xffd24a, 0xffffff, color],
+        tint: [FX.gold, FX.hot, color],
         layer: 'add',
       });
     }
@@ -441,16 +442,16 @@ export class Effects {
       stretch: 1.3,
       align: true,
       drag: 5,
-      tint: [0xffffff, color],
+      tint: [FX.hot, color],
       layer: 'add',
     });
   }
 
   /** Cannon / Flak splash: a shock ring, a dust ring and debris. */
   splash(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, 0xffa24a, 320, 0.35, 'shock');
+    this.ring(x, y, radius, FX.ember, 320, 0.35, 'shock');
     if (!this.particles) return;
-    this.flash(x, y, radius * 0.55, 0xffc070, 160, 0.7);
+    this.flash(x, y, radius * 0.55, FX.emberLight, 160, 0.7);
     this.emit({
       frame: 'smoke',
       x: x * S,
@@ -462,7 +463,7 @@ export class Effects {
       life: [350, 600],
       scale: [0.7, 1.4],
       alpha: [0.4, 0],
-      tint: [0x6b5a44, 0x4a4036],
+      tint: [FX.dust, FX.smoke],
     });
     this.emit({
       frame: 'square',
@@ -475,7 +476,7 @@ export class Effects {
       life: [250, 450],
       scale: [0.6, 0.2],
       spin: 10,
-      tint: [0x3a3128, 0x7a6546],
+      tint: [FX.debrisDark, FX.debris],
     });
   }
 
@@ -492,7 +493,7 @@ export class Effects {
       life: [350, 600],
       scale: [0.45 * k, 0.1 * k],
       spin: 3,
-      tint: [0xdff6ff, 0x9fe3ff],
+      tint: [FX.frostLight, FX.frost],
       layer: 'add',
     });
   }
@@ -527,7 +528,7 @@ export class Effects {
       stretch: 2.4,
       align: true,
       drag: 4,
-      tint: 0xe6ff7a,
+      tint: PROJECTILE_COLORS.multishot!,
       layer: 'add',
       essential: true,
     });
@@ -544,7 +545,7 @@ export class Effects {
         life: [260, 260],
         scale: [scale * (0.8 + i * 0.15), scale * (1 + i * 0.1)],
         rotation: facing - 1.2 + i * 0.5,
-        tint: i === 0 ? 0xffffff : 0xdfe8f5,
+        tint: i === 0 ? FX.moonLight : AOE_COLORS.cleave,
         alpha: [0.9 - i * 0.3, 0],
         layer: 'add',
         essential: true,
@@ -558,7 +559,7 @@ export class Effects {
       life: [200, 200],
       scale: [scale * 0.95, scale * 1.05],
       rotation: facing + 0.4,
-      tint: 0xffffff,
+      tint: FX.moonLight,
       alpha: [0.6, 0],
       layer: 'add',
       essential: true,
@@ -577,7 +578,7 @@ export class Effects {
         stretch: 1.5,
         align: true,
         drag: 4,
-        tint: [0xffffff, 0xdfe8f5],
+        tint: [FX.moonLight, AOE_COLORS.cleave],
         layer: 'add',
       });
     }
@@ -585,13 +586,13 @@ export class Effects {
 
   /** Taunt: a red double shockwave and a "!" over every creep that has to answer it. */
   taunt(x: number, y: number, radius: number, creeps: readonly { x: number; y: number }[]): void {
-    this.ring(x, y, radius, 0xff5b5b, 420, 0.2, 'shock');
-    this.ring(x, y, radius * 0.7, 0xff8a8a, 320, 0.1);
+    this.ring(x, y, radius, AOE_COLORS.taunt, 420, 0.2, 'shock');
+    this.ring(x, y, radius * 0.7, FX.badLight, 320, 0.1);
     const k = 14 / GLYPH_PX / Math.max(0.2, this.zoom);
     const tex = this.atlas.glyphs.get('!');
     if (!tex) return;
     for (const c of creeps.slice(0, 24)) {
-      const b = this.text.add(tex, 0xff5b5b, false);
+      const b = this.text.add(tex, AOE_COLORS.taunt, false);
       if (!b) break;
       b.x = c.x * S;
       b.y = c.y * S - 16;
@@ -605,9 +606,9 @@ export class Effects {
 
   /** Last Stand: a golden shockwave, a burst of sparks and a column of light. */
   lastStand(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, 0xffd24a, 500, 0.15, 'shock');
-    this.ring(x, y, radius * 0.8, 0xffffff, 350, 0.1);
-    this.flash(x, y, 1.2, 0xffe38a, 400, 0.8);
+    this.ring(x, y, radius, AOE_COLORS.lastStand, 500, 0.15, 'shock');
+    this.ring(x, y, radius * 0.8, FX.hot, 350, 0.1);
+    this.flash(x, y, 1.2, FX.goldLight, 400, 0.8);
     this.bump(0.35);
     if (!this.particles) return;
     this.emit({
@@ -621,7 +622,7 @@ export class Effects {
       stretch: 1.6,
       align: true,
       drag: 3.5,
-      tint: [0xffd24a, 0xffffff, 0xffb13d],
+      tint: [FX.gold, FX.hot, FX.goldDeep],
       layer: 'add',
     });
     this.emit({
@@ -634,7 +635,7 @@ export class Effects {
       gravity: -140,
       life: [500, 900],
       scale: [0.6, 0.1],
-      tint: [0xffd24a, 0xfff1b8],
+      tint: [FX.gold, FX.goldLight],
       layer: 'add',
     });
   }
@@ -652,15 +653,15 @@ export class Effects {
       life: [200, 350],
       scale: [0.5, 0.1],
       drag: 3,
-      tint: [color, 0xffffff],
+      tint: [color, FX.hot],
       layer: 'add',
     });
   }
 
   /** Fireball lands: a fiery blast, embers, smoke and a scorch mark. */
   fireball(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, 0xff8a3d, 380, 0.3, 'shock');
-    this.flash(x, y, radius * 0.9, 0xffa040, 260, 0.85);
+    this.ring(x, y, radius, AOE_COLORS.fireball, 380, 0.3, 'shock');
+    this.flash(x, y, radius * 0.9, FX.ember, 260, 0.85);
     this.bump(0.15);
     if (!this.particles) return;
     this.scorch(x, y, radius * 0.7, 1500);
@@ -676,7 +677,7 @@ export class Effects {
       life: [300, 650],
       scale: [0.9, 0.15],
       jitter: 0.3,
-      tint: [0xffd24a, 0xff8a3d, 0xff5a1f],
+      tint: [FX.gold, FX.fire, FX.fireDeep],
       layer: 'add',
     });
     this.emit({
@@ -690,15 +691,15 @@ export class Effects {
       life: [600, 1000],
       scale: [0.8, 1.8],
       alpha: [0.4, 0],
-      tint: [0x2a2320, 0x3d3430],
+      tint: [FX.soot, FX.smoke],
     });
   }
 
   /** Frost Nova: an icy burst, shards flying out and snow drifting down. */
   frostNova(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, 0x9fe3ff, 420, 0.15, 'shock');
-    this.ring(x, y, radius, 0xffffff, 260, 0.6);
-    this.flash(x, y, radius, 0x9fe3ff, 500, 0.45);
+    this.ring(x, y, radius, AOE_COLORS.frostNova, 420, 0.15, 'shock');
+    this.ring(x, y, radius, FX.frostLight, 260, 0.6);
+    this.flash(x, y, radius, AOE_COLORS.frostNova, 500, 0.45);
     if (!this.particles) return;
     this.emit({
       frame: 'shard',
@@ -710,7 +711,7 @@ export class Effects {
       life: [300, 420],
       scale: [1.1, 0.5],
       align: true,
-      tint: [0xdff6ff, 0x9fe3ff, 0xffffff],
+      tint: [FX.frostLight, FX.frost, FX.hot],
       layer: 'add',
     });
     this.emit({
@@ -724,7 +725,7 @@ export class Effects {
       life: [600, 1000],
       scale: [0.6, 0.2],
       spin: 2,
-      tint: [0xdff6ff, 0xffffff],
+      tint: [FX.frostLight, FX.moonLight],
       layer: 'add',
     });
   }
@@ -751,7 +752,7 @@ export class Effects {
         align: true,
         alpha: [1, 0.6],
         hold: 0.7,
-        tint: 0xe6ff7a,
+        tint: ZONE_COLORS.arrowStorm,
         layer: 'add',
       });
     }
@@ -770,16 +771,16 @@ export class Effects {
       life: [300, 500],
       scale: [0.35, 0.8],
       alpha: [0.35, 0],
-      tint: 0x8a7556,
+      tint: FX.dust,
     });
   }
 
   /** Meteor impact: a white-hot flash, two shockwaves, debris, fire, smoke, a scorch and a big shake. */
   meteor(x: number, y: number, radius: number): void {
-    this.flash(x, y, radius * 1.2, 0xffffff, 200, 0.9);
-    this.flash(x, y, radius, 0xff5a1f, 600, 0.6);
-    this.ring(x, y, radius * 1.3, 0xffb070, 500, 0.1, 'shock');
-    this.ring(x, y, radius * 2, 0xff5a1f, 700, 0.3, 'shock');
+    this.flash(x, y, radius * 1.2, FX.hot, 200, 0.9);
+    this.flash(x, y, radius, AOE_COLORS.meteor, 600, 0.6);
+    this.ring(x, y, radius * 1.3, FX.emberLight, 500, 0.1, 'shock');
+    this.ring(x, y, radius * 2, AOE_COLORS.meteor, 700, 0.3, 'shock');
     this.bump(0.8);
     if (!this.particles) return;
     this.scorch(x, y, radius * 0.9, 3000);
@@ -796,7 +797,7 @@ export class Effects {
       scale: [1.2, 0.3],
       jitter: 0.4,
       spin: 10,
-      tint: [0x2a2320, 0x5a4a3a, 0xff8a3d],
+      tint: [FX.soot, FX.debris, FX.fire],
       hold: 0.4,
     });
     this.emit({
@@ -811,7 +812,7 @@ export class Effects {
       life: [400, 900],
       scale: [1.1, 0.15],
       jitter: 0.3,
-      tint: [0xffd24a, 0xff8a3d, 0xff5a1f],
+      tint: [FX.gold, FX.fire, FX.fireDeep],
       layer: 'add',
     });
     this.emit({
@@ -825,7 +826,7 @@ export class Effects {
       life: [900, 1500],
       scale: [1.2, 2.6],
       alpha: [0.45, 0],
-      tint: [0x2a2320, 0x3d3430, 0x1c1816],
+      tint: [FX.soot, FX.smoke, FX.debrisDark],
     });
   }
 
@@ -837,7 +838,7 @@ export class Effects {
       y: y * S,
       life: [life, life],
       scale: [(radius * S) / DISC_PX, (radius * S) / DISC_PX],
-      tint: 0x120a06,
+      tint: FX.scorch,
       alpha: [0.55, 0],
       hold: 0.5,
       layer: 'ground',
@@ -845,7 +846,7 @@ export class Effects {
   }
 
   /** Dust thrown up in a ring (boss stomp, tower built). */
-  dustRing(x: number, y: number, radius: number, color = 0x8a7556, count = 12): void {
+  dustRing(x: number, y: number, radius: number, color: number = FX.dust, count = 12): void {
     if (!this.particles) return;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * TAU + Math.random() * 0.3;
@@ -897,15 +898,15 @@ export class Effects {
       life: [500, 900],
       scale: [0.6, 0.1],
       spin: 3,
-      tint: [color, 0xffffff],
+      tint: [color, FX.hot],
       layer: 'add',
     });
   }
 
   /** Root vines snapping shut (Snare Trap). */
   snare(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, 0xc8a165, 420, 1.3);
-    this.ring(x, y, radius * 0.6, 0x9ccf5a, 380, 1.4);
+    this.ring(x, y, radius, COLORS.root, 420, 1.3);
+    this.ring(x, y, radius * 0.6, FX.vine, 380, 1.4);
     if (!this.particles) return;
     this.emit({
       frame: 'leaf',
@@ -918,7 +919,7 @@ export class Effects {
       scale: [0.9, 0.3],
       spin: 6,
       drag: 2,
-      tint: [0x6fae3a, 0x9ccf5a, 0xc8a165],
+      tint: [FX.vineDark, FX.vine, COLORS.root],
     });
   }
 }

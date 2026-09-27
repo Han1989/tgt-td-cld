@@ -3,6 +3,7 @@ import { GameView } from './gameView';
 import { showSoloPick } from './lobby/solo';
 import { OnlineController, playSolo } from './online';
 import { setupPwa } from './platform/pwa';
+import { installIcons } from './render/art/icons';
 
 /**
  * The first screen is up and interactive (the game view, with `window.__tdt` in e2e builds, exists by then):
@@ -15,6 +16,8 @@ function ready(screen: 'showcase' | 'stress' | 'solo' | 'online'): void {
 
 async function main(): Promise<void> {
   setupPwa();
+  // Code-drawn UI icons (render/art/icons.ts), baked once and published as CSS images.
+  installIcons();
   const params = new URLSearchParams(location.search);
   // ?showcase: a dev page with every registered entity's art (docs/ART.md), no match.
   if (params.has('showcase')) {

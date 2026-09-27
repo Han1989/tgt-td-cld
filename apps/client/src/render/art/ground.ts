@@ -3,13 +3,18 @@
 //
 // Lanes are smooth strokes along the lane waypoints (the tile grid is only for pathing): an ink
 // edge, packed earth, a moon-worn centre and sparse low-contrast flagstones, so creeps stay the
-// brightest thing on the lane. The moss has speckle, dark ferns and a few glowing motes; the
-// forest (blocker tiles) is dark ground with round canopies. A cool moonlight wash and an edge
-// vignette finish it; Bright lifts everything with a "screen" wash.
+// brightest thing on the lane. The moss has speckle, dark ferns and a few glowing motes. Props
+// (entities/ with category `prop`) are drawn in with the painter at the spots `scatter.ts` picks:
+// rocks, mushrooms and runestones on open ground, trees over the blocker tiles (the cliff border and
+// the safe zone, which gets a deeper shade so the touch controls read well over it). A cool
+// moonlight wash and an edge vignette finish it; Bright lifts everything with a "screen" wash.
 
 import { Tile, TILE_PX, tileAt, type GameMap } from '@tdt/sim';
 import { CanvasSource, Texture } from 'pixi.js';
-import { css, hash, mix, radialFill, shade, type Ctx } from './paint';
+import './load';
+import { createPainter, css, hash, mix, radialFill, shade, type Ctx, type Painter } from './paint';
+import { propArts, type PropArt } from './registry';
+import { propSpots, type PropSpot } from './scatter';
 import { LIGHTING, RL, type Display } from './tokens';
 
 const S = TILE_PX;
@@ -94,6 +99,12 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
     c.stroke(path);
   });
 
+  const painter = createPainter(light);
+  const props = propArts();
+  const spots = propSpots(map, props);
+  const byId = new Map(props.map((p) => [p.id, p]));
+  drawProps(c, painter, byId, spots.filter((s) => byId.get(s.id)?.where === 'clearing'));
+
   // Moonlight: a cool wash near the top, darker towards the edges.
   const g = c.createRadialGradient(W / 2, H * 0.35, H * 0.1, W / 2, H * 0.35, H * 0.7);
   g.addColorStop(0, 'rgba(160,200,255,0.06)');
@@ -102,6 +113,8 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
   c.fillRect(0, 0, W, H);
 
   forest(c, map);
+  drawProps(c, painter, byId, spots.filter((s) => byId.get(s.id)?.where === 'forest'));
+  safeZoneShade(c, map);
 
   if (light.groundLift.alpha > 0) {
     // Bright: "screen" lifts the darks most, so shadows open up without washing out the lanes.
@@ -113,24 +126,35 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
   c.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-/** Forest on blocker tiles: dark ground and round canopies, jittered deterministically. */
+/** Forest floor on blocker tiles (the trees go on top). */
 function forest(c: Ctx, map: GameMap): void {
   c.fillStyle = css(RL.forest);
   for (let ty = 0; ty < map.height; ty++) {
     for (let tx = 0; tx < map.width; tx++) if (tileAt(map, tx, ty) === Tile.Blocker) c.fillRect(tx * S, ty * S, S, S);
   }
-  c.fillStyle = css(RL.tree);
-  for (let ty = 0; ty < map.height; ty++) {
-    for (let tx = 0; tx < map.width; tx++) {
-      if (tileAt(map, tx, ty) !== Tile.Blocker) continue;
-      const h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0;
-      const ox = ((h % 100) / 100 - 0.5) * 0.3;
-      const oy = (((h >>> 8) % 100) / 100 - 0.5) * 0.3;
-      c.beginPath();
-      c.arc((tx + 0.5 + ox) * S, (ty + 0.5 + oy) * S, S * (0.38 + ((h >>> 16) % 10) / 60), 0, Math.PI * 2);
-      c.fill();
-    }
+}
+
+/** Draws props with the painter, each at its spot (tile units) and scale. */
+function drawProps(c: Ctx, p: Painter, byId: ReadonlyMap<string, PropArt>, spots: readonly PropSpot[]): void {
+  for (const s of spots) {
+    const def = byId.get(s.id)?.frames[s.frame];
+    if (!def) continue;
+    c.save();
+    c.translate(s.x * S, s.y * S);
+    c.scale(s.scale, s.scale);
+    def.draw(c, p, RL);
+    c.restore();
   }
+}
+
+/** The safe zone sinks into deep forest shade, so the touch controls over it stay readable. */
+function safeZoneShade(c: Ctx, map: GameMap): void {
+  const top = (map.safeFromY - 0.6) * S;
+  const g = c.createLinearGradient(0, top, 0, top + 4 * S);
+  g.addColorStop(0, css(RL.night, 0));
+  g.addColorStop(1, css(RL.night, 0.62));
+  c.fillStyle = g;
+  c.fillRect(0, top, map.width * S, map.height * S - top);
 }
 
 /** Calls `f` every `step` tiles along every lane with two hashes, the index and the lane normal. */

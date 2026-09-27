@@ -24,6 +24,7 @@ import {
 import { getMap, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
+import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
@@ -157,6 +158,7 @@ export class Hud {
   private readonly toasts = $('toasts');
   private readonly banner = $('banner');
   private readonly endScreen = $('end-screen');
+  private readonly endEmblem = $('end-emblem');
   private readonly endTitle = $('end-title');
   private readonly endText = $('end-text');
   private readonly restartBtn = $('restart') as HTMLButtonElement;
@@ -281,6 +283,7 @@ export class Hud {
       const won = snap.phase === 'victory';
       setText(this.endTitle, won ? 'Victory!' : 'Defeat');
       this.endTitle.className = won ? 'victory' : 'defeat';
+      this.endEmblem.className = `end-emblem ${won ? 'victory' : 'defeat'}`;
       const summary = won
         ? `The Heart survived all ${snap.totalWaves} waves with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
         : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`;
@@ -543,16 +546,18 @@ export class Hud {
     this.skillKind = kind;
     this.skills.innerHTML = '';
     this.skillButtons.clear();
-    this.portrait.style.background = toCss(HERO_COLORS[kind].fill);
-    this.portrait.style.borderColor = toCss(HERO_COLORS[kind].edge);
+    this.portrait.style.setProperty('--ico', iconVar(heroIcon(kind)));
+    this.portrait.style.borderColor = toCss(HERO_COLORS[kind].fill);
     this.portrait.dataset.hero = kind;
-    for (const slot of ['Q', 'W', 'E', 'R'] as const) this.createSkillButton(slot, HERO_INFO[kind].skills[slot].name);
+    for (const slot of ['Q', 'W', 'E', 'R'] as const) this.createSkillButton(slot, HERO_INFO[kind].skills[slot].name, kind);
   }
 
-  private createSkillButton(slot: SkillSlot, name: string): SkillButton {
+  private createSkillButton(slot: SkillSlot, name: string, kind: HeroKind): SkillButton {
     const root = document.createElement('button');
     root.className = 'btn skill';
-    root.innerHTML = `<span class="meta"><kbd>${slot}</kbd><span class="tag"></span></span><span class="name">${name}</span><span class="pips"></span><span class="cd"></span><span class="cd-text"></span>`;
+    root.innerHTML =
+      `<i class="ico skill-ico" style="--ico: ${iconVar(skillIcon(kind, slot))}"></i>` +
+      `<span class="meta"><kbd>${slot}</kbd><span class="tag"></span></span><span class="name">${name}</span><span class="pips"></span><span class="cd"></span><span class="cd-text"></span>`;
     const learn = document.createElement('button');
     learn.className = 'learn hidden';
     learn.textContent = '+';
@@ -614,7 +619,7 @@ export class Hud {
           const btn = document.createElement('button');
           btn.className = 'btn tower-option';
           btn.disabled = gold < cost;
-          btn.innerHTML = `<kbd>${i + 1}</kbd><span>${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span><span class="desc">${TOWER_BLURBS[kind]}</span>`;
+          btn.innerHTML = `<kbd>${i + 1}</kbd><span class="tower-name"><i class="ico" style="--ico: ${iconVar(towerIcon(kind))}"></i>${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span><span class="desc">${TOWER_BLURBS[kind]}</span>`;
           btn.addEventListener('click', () => this.actions.build(pad.id, kind));
           this.padMenu.appendChild(btn);
         });

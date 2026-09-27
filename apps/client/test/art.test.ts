@@ -1,9 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { TOWER_BRANCHES, TOWER_KINDS } from '@tdt/protocol';
+import { HERO_KINDS, SKILL_SLOTS, TOWER_BRANCHES, TOWER_KINDS } from '@tdt/protocol';
+import { getMap, Tile, tileAt } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
+import { heartStage } from '../src/render/art/damage';
 import { atlasFrames, packFrames, PAGE_PX } from '../src/render/art/atlas';
 import '../src/render/art/load';
-import { allArt, checkArt, registerArt, towerArt, type ArtEntry } from '../src/render/art/registry';
+import { heroIcon, ICONS, skillIcon, towerIcon } from '../src/render/art/icons';
+import { allArt, checkArt, propArts, registerArt, towerArt, type ArtEntry } from '../src/render/art/registry';
+import { propSpots } from '../src/render/art/scatter';
 import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
 
 const DIR = new URL('../src/render/art/entities/', import.meta.url);
@@ -92,5 +96,61 @@ describe('display', () => {
     const lightGain = lum(liftColor(RL.laneLight, 'bright')) - lum(RL.laneLight);
     expect(darkGain).toBeGreaterThan(lightGain);
     expect(LIGHTING.bright.shadowAlpha).toBeLessThan(LIGHTING.normal.shadowAlpha);
+  });
+});
+
+describe('props', () => {
+  const map = getMap();
+  const spots = propSpots(map, propArts());
+  const tile = (x: number, y: number) => tileAt(map, Math.floor(x), Math.floor(y));
+
+  it('are registered as forest and clearing props, and placed the same every time', () => {
+    const props = propArts();
+    expect(props.some((p) => p.where === 'forest')).toBe(true);
+    expect(props.some((p) => p.where === 'clearing')).toBe(true);
+    expect(propSpots(map, props)).toEqual(spots);
+    for (const s of spots) expect(propArts().find((p) => p.id === s.id)?.frames[s.frame], `${s.id}/${s.frame}`).toBeDefined();
+  });
+
+  it('trees cover the safe zone and stand on blocker tiles; clearing props stay on open ground off the lanes', () => {
+    const byId = new Map(propArts().map((p) => [p.id, p]));
+    const forest = spots.filter((s) => byId.get(s.id)!.where === 'forest');
+    const clearing = spots.filter((s) => byId.get(s.id)!.where === 'clearing');
+    expect(forest.filter((s) => s.y >= map.safeFromY).length).toBeGreaterThan(map.width * 4);
+    for (const s of forest) {
+      const x = Math.min(map.width - 1, Math.max(0, s.x));
+      const y = Math.min(map.height - 1, Math.max(0, s.y));
+      expect(tile(x, y), `tree at ${s.x}, ${s.y}`).toBe(Tile.Blocker);
+    }
+    expect(clearing.length).toBeGreaterThan(5);
+    expect(clearing.length).toBeLessThan(40);
+    for (const s of clearing) {
+      expect(tile(s.x, s.y), `${s.id} at ${s.x}, ${s.y}`).toBe(Tile.Open);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) expect(tile(s.x + dx, s.y + dy)).not.toBe(Tile.Lane);
+    }
+  });
+});
+
+describe('ui icons', () => {
+  it('every tower, every hero and every hero skill has a code-drawn icon', () => {
+    for (const t of TOWER_KINDS) expect(ICONS.has(towerIcon(t)), t).toBe(true);
+    for (const h of HERO_KINDS) {
+      expect(ICONS.has(heroIcon(h)), h).toBe(true);
+      for (const s of SKILL_SLOTS) expect(ICONS.has(skillIcon(h, s)), `${h} ${s}`).toBe(true);
+    }
+    for (const id of ['coin', 'heart', 'heartCracked', 'wave', 'timer', 'gear', 'upgrade', 'sell', 'target']) expect(ICONS.has(id), id).toBe(true);
+  });
+
+  it('icons are drawn in code, deterministically, with palette tokens only', () => {
+    const src = readFileSync(new URL('../src/render/art/icons.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/Math\.random|Date\.now|0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6}\b|\.(png|svg|jpe?g)['"]/);
+  });
+});
+
+describe('heart damage states', () => {
+  it('cracks under 60% HP and splits open under 30%', () => {
+    expect([1, 0.6, 0.59, 0.3, 0.29, 0].map(heartStage)).toEqual([0, 0, 1, 1, 2, 2]);
+    const heart = allArt().find((e) => e.category === 'heart')!;
+    expect(Object.keys(heart.frames)).toEqual(expect.arrayContaining(['cracks1', 'cracks2']));
   });
 });

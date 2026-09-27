@@ -1,8 +1,11 @@
 // The Heart. A faceted ruby heart (front 3/4 view) floating over a round stone pedestal (from
 // above) ringed with glowing heart-red runes, a molten pool under the gem, an ember at its core.
+// Damage states are overlays on the gem: `cracks1` (under 60% HP: a few cracks leaking ember
+// light) and `cracks2` (under 30%: it splits open, shown on top of cracks1).
 
-import { box, ellipse, ngon, pathLine, poly, shade } from '../paint';
+import { box, css, ellipse, ngon, pathLine, poly, shade, type Ctx, type Painter } from '../paint';
 import { registerArt, type Draw } from '../registry';
+import type { Tokens } from '../tokens';
 
 const base: Draw = (c, p, k) => {
   p.part(c, ellipse(0, 5, 50, 22), k.stoneDark, box(-50, -17, 50, 27));
@@ -49,6 +52,48 @@ const gem: Draw = (c, p, k) => {
   p.accent(c, ellipse(0, -1, 5, 6), k.ember);
 };
 
+/** Jagged cracks (polylines) inside the gem: ink, with a thin glowing ember core. */
+function cracks(c: Ctx, p: Painter, k: Tokens, lines: readonly (readonly number[])[], core: number): void {
+  c.save();
+  c.clip(heartPath());
+  const path = new Path2D();
+  for (const pts of lines) path.addPath(pathLine(pts));
+  p.line(c, path, k.ink, 2.2);
+  c.shadowColor = css(k.ember, 0.95);
+  c.shadowBlur = 5;
+  p.line(c, path, shade(k.ember, 0.35), core);
+  c.restore();
+}
+
+const cracks1: Draw = (c, p, k) =>
+  cracks(
+    c,
+    p,
+    k,
+    [
+      [-19, -14, -13, -9, -14, -4, -8, 1],
+      [-14, -4, -18, 0],
+      [21, -4, 15, -1, 13, 5, 8, 7],
+      [4, -15, 6, -10, 3, -7],
+    ],
+    0.8,
+  );
+
+const cracks2: Draw = (c, p, k) =>
+  cracks(
+    c,
+    p,
+    k,
+    [
+      [0, -12, -2, -6, 2, -1, -1, 5, 2, 11, 0, 19],
+      [2, -1, 9, -3, 12, -9],
+      [-1, 5, -8, 7, -12, 3],
+      [-23, -8, -16, -6],
+      [2, 11, 8, 12],
+    ],
+    1.3,
+  );
+
 registerArt({
   id: 'heart',
   name: 'Heart',
@@ -68,5 +113,7 @@ registerArt({
         c.fill(heartPath());
       },
     },
+    cracks1: { w: 54, h: 48, draw: cracks1 },
+    cracks2: { w: 54, h: 48, draw: cracks2 },
   },
 });

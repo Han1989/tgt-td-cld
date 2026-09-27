@@ -8,7 +8,7 @@ Art Track 0 chose style C, **"Runelight"**, from the art-direction spike (styles
 
 Twilight in a mossy forest clearing. Dark teal-green moss, packed-earth lanes worn pale in the middle, a few glowing motes. Every part has an **ink outline**, a body that **darkens downwards**, and a **cool moonlit rim** on its upper-left edge. Colour is used sparingly: materials are muted (wood, stone, iron, cloth), and the brightest things on screen are small **glowing accents**: runes, embers, eyes, gems. Creeps are warm (reds, oranges) against the cool ground so they are always the brightest thing on a lane; the player's side is cool and teal-lit; the enemy's portals are violet.
 
-**Status (Art Track 2):** restyled: the ground and forest, build pads, portals, the Heart, the Ranger, Grunt and Brute, and **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches**. Still shapes: the other creeps and bosses, the Warden and Arcanist, projectiles and traps. `?showcase` lists both.
+**Status (Art Track 3):** restyled: the ground, the forest (trees over the border and the safe zone) and a few props, build pads, portals (with a wave-start flare), the Heart (with damage states), the Ranger, Grunt and Brute, **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches** (Art Track 2), every effect colour (§8) and the whole UI (§12: HUD, radial menus, skill buttons, lobby, settings, end screen, code-drawn icons). Still shapes: the other creeps and bosses, the Warden and Arcanist, projectiles and traps. `?showcase` lists both, and the UI icons.
 
 ## 2. Palette tokens
 
@@ -24,7 +24,13 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `moss` / `mossDark` / `mossLight` | `#2a473b` / `#1d3329` / `#3b5f4d` | Open ground, blotches, speckle |
 | `fern` | `#12241c` | Fern tufts |
 | `lane` / `laneLight` / `pebble` | `#5a4c3a` / `#bcab85` / `#7f6d53` | Lanes, their worn centre, flagstones |
-| `forest` / `tree` | `#172416` / `#21381f` | Blocker tiles and their canopies |
+| `forest` / `tree` | `#172416` / `#21381f` | Forest floor under the trees; leaf ticks |
+| **Props** | | |
+| `canopy` / `canopyLight` | `#2e5a3c` / `#4a7a4e` | Oak and bush canopies, their lit clumps |
+| `pine` | `#1f4a3e` | Pine canopies |
+| `mushroom` | `#d8c6ae` | Mushroom caps (their spots glow `rune`) |
+| **UI icons** (they also use the tower tokens below: `ice`, `arcane`…) | | |
+| `amethyst` / `mana` | `#9a62e6` / `#4a8cff` | The arcane gem and the Arcanist's hat (bodies), the mana drop |
 | **Pads** | | |
 | `padStone` / `padStoneDark` / `padGroove` | `#6b7189` / `#3c4052` / `#2a2d3b` | Build pads: cool stone, lighter than moss and lanes |
 | **Materials** | | |
@@ -85,7 +91,8 @@ Painted once by `art/ground.ts` into one canvas (2 px per world px) and shown as
 
 - Moss: soft blotches, 2,400 specks, 200 dark fern tufts, 70 glowing motes (teal and amber).
 - Lanes: smooth strokes along the waypoints: ink edge (lane + 6 px), packed earth, a moon-worn centre at 10%, sparse low-contrast flagstones. **Lanes stay low-contrast so creeps are the brightest thing on them.**
-- A cool moonlight wash near the top, a vignette at the edges; forest (blocker tiles) is dark ground with round canopies.
+- A cool moonlight wash near the top, a vignette at the edges; forest (blocker tiles) is dark forest floor under trees.
+- **Props** (category `prop`, one file each in `entities/`: `tree`, `rock`, `mushrooms`, `runestone`) are **painted into the ground canvas** with the painter at spots picked by `art/scatter.ts` (pure, tested): no sprites, no cost per frame. `where: 'forest'` props (trees: oak, bush, pine, from above, shadow down-right) cover the blocker tiles: small ones centred on the cliff border so they lean off the map and never reach a lane or pad, and a dense hex-packed canopy over the **safe zone** (rows from `safeFromY`), which then sinks into a deep shade (night, 0 → 62% over four tiles) so the touch controls over it stay readable. `where: 'clearing'` props (rocks, glowing mushrooms, rare runestones) go on ~10% of open tiles that aren't next to a lane, 3 tiles clear of the Heart and hero spawn; `weight` picks between props. Props are **never mirrored or rotated** (that would move the moonlit rim), keep low contrast and cool or neutral colours (a warm prop reads as a creep: the first stump was dropped for that), and stay small.
 - **Build pads** (`entities/pad.ts`) are sprites on top of the ground, not painted into it: a slab of cool carved stone, lighter than both moss and lanes, with a moonlit edge, an inset groove, calm flagstone seams, a faint build ring and four dim rune studs. A white `rim` and `wash` are **tinted at runtime**: solo and open pads get a faint moonlit rim (35%); in multiplayer each pad gets its owner's zone colour (`PLAYER_COLORS`: blue, orange, violet, green by seat), bright on your own pads (rim 95%, wash 20%) and dim on teammates' (50%, 8%).
 
 Scatter decorations with `hash()` (deterministic), never `Math.random()`: the art must bake the same every time (a test checks art files).
@@ -133,12 +140,19 @@ Styled entities are **rigs**: a few atlas sprites animated by **position, rotati
 - **Towers:** the turret turns towards the target at **7 rad/s** (towards its last shot for 0.9 s, else the nearest creep it can hit); on a shot the gun **recoils** back along the barrel (140 ms, up to ~5 px); a new or upgraded tower pops in (260 ms overshoot). Every tower turns (`turret: true`). An all-round blast with no projectile (the Blizzard pulse) doesn't recoil: on its `aoe` event the whole tower **swells** and settles (220 ms, up to +12%, the same in every direction).
 - **Heroes:** walk bob and stepping feet from their speed; a weapon aimed along `facing`; an attack animation keyed to `shot()` and the hero's attack cooldown (the Ranger draws the string back over the cooldown and releases on the shot).
 - **Hit flash:** a white **silhouette** of the body (`flash` on the frame) whose **alpha** goes up for 90 ms, at most every 200 ms. Frost tints the whole rig icy (`#bfeaff`). Art keeps its own colours; nothing is re-coloured by a tint except frost.
-- **The Heart** beats (lub-dub, faster below 30% HP), floats ±2.5 px, flashes and wobbles when hit. **Portals** turn their swirl and flare at each wave start.
+- **The Heart** beats (lub-dub, faster below 30% HP), floats ±2.5 px, flashes and wobbles when hit. **Damage states** (`art/damage.ts`): under 60% HP the `cracks1` overlay shows ink cracks leaking ember light; under 30% `cracks2` splits it open, an additive heart-red blaze pulses with the beat, embers rise and the warning ring pulses. Crossing a threshold throws ruby shards, a flash and a small shake (not on a rejoin). Overlays are alpha 0 / 1, set only when the stage changes.
+- **Portals** turn their swirl; at each wave start the additive `flare` frame (rune rays and a ring) swells and fades over 1.1 s (35% bigger on boss waves, which also get a red shock ring), with a rune ring and sparkles.
 - Idle motion is subtle (≤ 0.5 px breathing); big motion is for things that matter (moving, shooting, being hit).
 
 ## 8. Effect colours
 
-Effects (`render/fx/`) are client-only particles and sprites; their colours live in `render/palette.ts`, shared with the shapes and the HUD. Keep these meanings:
+Effects (`render/fx/`) are client-only particles and sprites; their colours live in `render/palette.ts` (`COLORS`, `FX`, `AOE_COLORS`…), shared with the shapes and the HUD, and reuse the `RL` tokens where a meaning is shared (the Heart, portals, embers, runes, Grunt and Brute). **Never write a hex colour in an effect recipe (`fx/effects.ts`) or an effect call**: name it in `FX`. Rules for the dark ground:
+
+- **Light** is warm (`FX.spark`, embers) or cool (`FX.moon`, moonlight); plain white only for white-hot cores (`FX.hot`).
+- **Dust and smoke** are lighter than the moss (`FX.dust` `#9a8566`, `FX.smoke` `#6e6a80`, `FX.soot`), or they vanish on it; only burn marks are dark (`FX.scorch` = ink).
+- **Damage numbers** are warm white (`FX.number`), crits pale gold (`FX.crit`), bounties gold; the glyphs carry a thick ink outline and a slight downward shade, so they hold over bright effects.
+
+Keep these meanings:
 
 | Meaning | Colour | Where |
 |---|---|---|
@@ -151,7 +165,9 @@ Effects (`render/fx/`) are client-only particles and sprites; their colours live
 | Shield / Last Stand | `#ffd24a` | `COLORS.shield`, `AOE_COLORS.lastStand` |
 | Fire (Fireball, Meteor) | `#ff8a3d`, `#ff5a1f` | `AOE_COLORS`, `ZONE_COLORS` |
 | Ranger skills (Multishot, Arrow Storm) | `#e6ff7a` | `PROJECTILE_COLORS.multishot`, `ZONE_COLORS.arrowStorm` |
-| Portals, enemy magic | `#9b5de5` / `#8a4fe0` | `COLORS.portal`, `RL.portal` |
+| Portals, enemy magic | `#8a4fe0` | `COLORS.portal` = `RL.portal` |
+| Player-side magic, wave starts | `#7ffcd8` | `FX.rune` = `RL.rune` |
+| The Heart; its blaze under 30% | `#ff3a60`; `#ff5a4a` | `COLORS.heart` = `RL.heart`, `FX.heartBlaze` |
 | Zones by seat | `#4f9dff`, `#ff9f43`, `#b56cff`, `#3ddc84` | `PLAYER_COLORS` |
 
 Light (glows, sparks, trails, muzzle flashes) uses **additive** blending; dust, debris and shadows use normal blending. A new effect reuses these meanings before inventing a colour.
@@ -181,6 +197,8 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 7. Run `npx vitest run --project client` (the art tests check ids, frames, sizes and packing), `npm test`, `npm run build`, and `npm run test:e2e` (the showcase test finds your file by name; the stress test keeps ≥ 30 FPS).
 8. Update §1's status line and, if you decided something new, this guide and the Decision Log.
 
+A **prop** (category `prop`) is a file too: frames are its variants, `where` says forest or clearing, `weight` how often it is picked; the ground painter places it (§4). Check it in the real map as well as `?showcase` (it must not look like a creep or something to tap).
+
 A **new category** (e.g. projectiles or traps) is the one case that touches shared files: add its type and required frames to `registry.ts`, its use to `render/world.ts`, its cards to `showcase.ts`, and a section here.
 
 ## 11. Files
@@ -197,7 +215,23 @@ apps/client/src/render/art/
   kit.ts           ArtKit: the atlas, sprite(id, frame), setDisplay
   rigs.ts          CreepRig, TowerRig, GAITS
   ground.ts        The ground painter
+  scatter.ts       Where props go (pure, tested)
+  damage.ts        The Heart's damage stages (pure, tested)
+  icons.ts         UI icons (§12): drawn with the painter, baked to CSS images
   entities/        One file per entity (ranger, grunt, brute, arrowTower, cannonTower, frostTower, arcaneTower, flakTower,
-                   heart, portal, pad)
-apps/client/src/showcase.ts   ?showcase dev page
+                   heart, portal, pad, tree, rock, mushrooms, runestone)
+apps/client/src/showcase.ts   ?showcase dev page (entities, variants, UI icons)
+apps/client/src/style.css     The Runelight UI (§12)
 ```
+
+## 12. UI
+
+The DOM UI follows the same look (`style.css`, variables at the top of `:root`):
+
+- **Panels** (top bar, popups, team, settings, lobby card, end card, chips): mossy dusk darkening to ink (`--panel`), an ink outline, a moonlit hairline on the upper-left inside edge and a soft night shadow (`--panel-shadow`). The phone top bar adds a thin gold trim underneath.
+- **Buttons** are carved stone (`--stone`, `--stone-rim`); the main action (`.btn.big`: Play, Ready, Got it) glows rune-teal; selected choices get a rune outline and a teal-tinted stone; "value" is gold (costs, gold, skill ranks, learn buttons).
+- **Titles** (logo, banner, end title, headings, stat labels) use the carved serif stack `--title-font` (Palatino / Book Antiqua / Georgia: system fonts, no downloads); body text stays system sans.
+- **Radial menus and skill buttons** are stone medallions: radial buttons rimmed in rune-teal (gold when armed), skill buttons in moonlight, with a code-drawn icon, the key letter as a small badge, pips and a conic cooldown.
+- **Icons** are drawn in code (`render/art/icons.ts`) with the painter and tokens, in a 40 × 40 box, bold enough for 20–32 CSS px: a tower icon per kind, a skill icon per hero and slot, a hero emblem per hero, and HUD glyphs (coin, Heart, cracked Heart, wave, timer, gear, upgrade, sell, target, level). `installIcons()` bakes them once at start-up to PNG data URLs published as `--icon-<id>`; an element shows one with `class="ico" style="--ico: var(--icon-<id>)"` (or `background-image`). No icon packs, fonts of symbols or image files. A new tower, hero or skill needs its icon (a test checks).
+- **End screen:** the Heart emblem, whole and beating on a victory, split on a defeat, over a gold-trimmed card.
+- The e2e layout tests check the UI stays clear of the map; keep panel sizes as they were when restyling (a heading one pixel taller moved the desktop tower panel under a test's wheel point).

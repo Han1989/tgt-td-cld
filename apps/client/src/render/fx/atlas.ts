@@ -4,7 +4,11 @@
 // Code-drawn shapes only; no image files.
 
 import { CanvasSource, Rectangle, Texture } from 'pixi.js';
+import { css } from '../art/paint';
+import { RL } from '../art/tokens';
 import { GLYPHS } from './numbers';
+
+const INK = css(RL.ink, 0.92);
 
 export type FxFrame =
   | 'dot'
@@ -237,7 +241,7 @@ export function createFxAtlas(): FxAtlas {
     c.stroke();
   });
 
-  // Digits: white with a dark outline, so a tint colours the fill and the outline stays dark.
+  // Digits: white with an ink outline, so a tint colours the fill and the outline stays dark.
   const glyphRects = new Map<string, Rectangle>();
   const widths = new Map<string, number>();
   ctx.font = `800 ${GLYPH_PX - 6}px system-ui, -apple-system, "Segoe UI", sans-serif`;
@@ -249,10 +253,15 @@ export function createFxAtlas(): FxAtlas {
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       c.lineJoin = 'round';
-      c.lineWidth = 5;
-      c.strokeStyle = 'rgba(0,0,0,0.85)';
+      // Runelight ink outline (docs/ART.md §8): thick enough to hold over bright effects; the fill
+      // darkens slightly downwards like the art's bodies, so a tint keeps a little shape.
+      c.lineWidth = 6;
+      c.strokeStyle = INK;
       c.strokeText(ch, cw / 2, ch2 / 2 + 1);
-      c.fillStyle = '#fff';
+      const g = c.createLinearGradient(0, 4, 0, ch2 - 4);
+      g.addColorStop(0, '#fff');
+      g.addColorStop(1, '#d9d9d9');
+      c.fillStyle = g;
       c.fillText(ch, cw / 2, ch2 / 2 + 1);
     });
     glyphRects.set(ch, rects.get(`glyph:${ch}`)!);

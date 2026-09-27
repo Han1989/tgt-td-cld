@@ -1,7 +1,9 @@
 // Portal (where creeps come in). From above: a ring of carved stones with rune studs around a void
 // well; a violet-and-teal glowing swirl turns inside it (the renderer turns the `swirl` sprite).
+// `flare` is a burst of rune light (rays and a bright ring) the renderer shows, additive, when a
+// wave starts.
 
-import { box, circle, css, ngon, pathLine } from '../paint';
+import { box, circle, css, ngon, pathLine, radialFill } from '../paint';
 import { registerArt, type Draw } from '../registry';
 import { RL } from '../tokens';
 
@@ -47,6 +49,25 @@ const swirl: Draw = (c, p, k) => {
   p.accent(c, circle(0, 0, 4), k.portalLight);
 };
 
+const flare: Draw = (c, p, k) => {
+  radialFill(c, 0, 0, 62, 62, [
+    [0, css(k.portalLight, 0.9)],
+    [0.35, css(k.portal, 0.55)],
+    [1, css(k.portal, 0)],
+  ]);
+  c.save();
+  c.shadowColor = css(k.portalLight);
+  c.shadowBlur = 8;
+  for (let i = 0; i < 12; i++) {
+    const a = (i * Math.PI * 2) / 12 + (i % 2) * 0.12;
+    const r0 = 26;
+    const r1 = i % 2 === 0 ? 58 : 46;
+    p.line(c, pathLine([Math.cos(a) * r0, Math.sin(a) * r0, Math.cos(a) * r1, Math.sin(a) * r1]), k.portalLight, i % 2 === 0 ? 2.6 : 1.6, 0.9);
+  }
+  p.line(c, circle(0, 0, 40), k.portalLight, 2.2, 0.85);
+  c.restore();
+};
+
 registerArt({
   id: 'portal',
   name: 'Portal',
@@ -55,5 +76,6 @@ registerArt({
   frames: {
     rim: { w: 90, h: 90, draw: rim },
     swirl: { w: 70, h: 70, draw: swirl },
+    flare: { w: 128, h: 128, draw: flare },
   },
 });

@@ -8,6 +8,7 @@
 import { CREEP_KINDS, HERO_KINDS, TOWER_BRANCHES, TOWER_KINDS, type TowerBranch, type TowerKind } from '@tdt/protocol';
 import { towerStats, TUNING } from '@tdt/sim';
 import { Application, Container, type Sprite } from 'pixi.js';
+import { ICONS, installIcons } from './render/art/icons';
 import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
 import { CreepRig, TowerRig } from './render/art/rigs';
@@ -97,7 +98,15 @@ export async function runShowcase(): Promise<void> {
     });
   };
 
-  const names: Record<string, string> = { hero: 'Heroes', creep: 'Creeps', tower: 'Towers', heart: 'The Heart', portal: 'Portals', pad: 'Build pads' };
+  const names: Record<string, string> = {
+    hero: 'Heroes',
+    creep: 'Creeps',
+    tower: 'Towers',
+    heart: 'The Heart',
+    portal: 'Portals',
+    pad: 'Build pads',
+    prop: 'Props (painted into the ground)',
+  };
   const grids = new Map<string, HTMLElement>();
   const gridFor = (category: string) => {
     let g = grids.get(category);
@@ -131,10 +140,22 @@ export async function runShowcase(): Promise<void> {
         break;
       }
       case 'heart':
-        addCard(grid, e, 'the Heart', 'moss', () => heartActor(kit, e.id, e.baseY, e.gemScale, e.gemY, e.floatPx), 1, PHONE.world);
+        for (const [label, stage] of [
+          ['the Heart', 0],
+          ['under 60% HP: cracked', 1],
+          ['under 30% HP: split open', 2],
+        ] as const) {
+          addCard(grid, e, label, 'moss', () => heartActor(kit, e.id, e.baseY, e.gemScale, e.gemY, e.floatPx, stage), 1, PHONE.world);
+        }
         break;
       case 'portal':
-        addCard(grid, e, 'portal', 'moss', () => portalActor(kit, e.id), 1, PHONE.world);
+        addCard(grid, e, 'portal', 'moss', () => portalActor(kit, e.id, false), 1, PHONE.world);
+        addCard(grid, e, 'wave start: flare', 'moss', () => portalActor(kit, e.id, true), 1, PHONE.world);
+        break;
+      case 'prop':
+        for (const frame of Object.keys(e.frames)) {
+          addCard(grid, e, `${e.where} · ${frame}`, 'moss', () => propActor(kit, e.id, frame), 2, PHONE.world);
+        }
         break;
       case 'pad': {
         const variants: [string, number, number, number][] = [
@@ -158,6 +179,18 @@ export async function runShowcase(): Promise<void> {
   todo.className = 'sc-todo';
   todo.innerHTML = `<h2>Still shapes (${missing.length})</h2><p>${missing.map((m) => `<span>${m}</span>`).join(' ')}</p>`;
   root.insertBefore(todo, app.canvas);
+
+  // UI icons (render/art/icons.ts), baked to CSS images: big, and at the size the HUD shows them.
+  installIcons();
+  const icons = document.createElement('section');
+  icons.className = 'sc-icons';
+  icons.innerHTML =
+    `<h2>UI icons (${ICONS.size})</h2><div class="sc-icon-grid">` +
+    [...ICONS.keys()]
+      .map((id) => `<div class="sc-icon" data-icon="${id}"><i style="--ico: var(--icon-${id})"></i><i class="small" style="--ico: var(--icon-${id})"></i><span>${id}</span></div>`)
+      .join('') +
+    `</div>`;
+  root.insertBefore(icons, app.canvas);
 
   const paintStages = () => {
     for (const { stage, ground } of stages) stage.style.background = toCss(liftColor(ground === 'lane' ? RL.lane : RL.moss, display));
@@ -276,20 +309,26 @@ function towerActor(rig: TowerRig, kind: TowerKind, tier: number, branch: TowerB
   };
 }
 
-function heartActor(kit: ArtKit, id: string, baseY: number, gemScale: number, gemY: number, floatPx: number): Actor {
+/** The Heart in a damage stage (0 whole, 1 cracked, 2 split open). */
+function heartActor(kit: ArtKit, id: string, baseY: number, gemScale: number, gemY: number, floatPx: number, stage: number): Actor {
   const view = new Container();
   const base = kit.sprite(id, 'base');
   base.position.set(0, baseY);
   const gem = kit.sprite(id, 'gem');
+  const cracks1 = kit.sprite(id, 'cracks1');
+  const cracks2 = kit.sprite(id, 'cracks2');
+  cracks1.alpha = stage >= 1 ? 1 : 0;
+  cracks2.alpha = stage >= 2 ? 1 : 0;
   const flash = kit.sprite(id, 'gem.flash');
-  view.addChild(base, gem, flash);
+  view.addChild(base, gem, cracks1, cracks2, flash);
+  const period = stage === 2 ? 650 : 1400;
   return {
     view,
     animate(now) {
-      const t = (now % 1400) / 1400;
+      const t = (now % period) / period;
       const beat = Math.max(0, Math.sin(t * Math.PI * 4)) * (t < 0.25 ? 1 : t < 0.5 ? 0.6 : 0);
       const hit = Math.max(0, 1 - (now % 3000) / 420);
-      for (const s of [gem, flash] as Sprite[]) {
+      for (const s of [gem, cracks1, cracks2, flash] as Sprite[]) {
         s.scale.set(gemScale * (1 + beat * 0.045 + hit * 0.12));
         s.y = gemY + Math.sin(now / 650) * floatPx;
       }
@@ -298,11 +337,32 @@ function heartActor(kit: ArtKit, id: string, baseY: number, gemScale: number, ge
   };
 }
 
-function portalActor(kit: ArtKit, id: string): Actor {
+/** A portal; with `flare`, it flares every 2 s as if a wave started. */
+function portalActor(kit: ArtKit, id: string, flare: boolean): Actor {
   const view = new Container();
   const swirl = kit.sprite(id, 'swirl');
-  view.addChild(kit.sprite(id, 'rim'), swirl);
-  return { view, animate: (now) => (swirl.rotation = -now / 500) };
+  const burst = kit.sprite(id, 'flare');
+  burst.blendMode = 'add';
+  burst.alpha = 0;
+  view.addChild(kit.sprite(id, 'rim'), swirl, burst);
+  return {
+    view,
+    animate: (now) => {
+      swirl.rotation = -now / 500;
+      if (!flare) return;
+      const t = Math.min(1, (now % 2000) / 1100);
+      burst.alpha = t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
+      burst.scale.set(0.55 + t * 0.7);
+      burst.rotation = t * 0.6;
+    },
+  };
+}
+
+/** A prop frame (drawn into the ground in a match; a sprite here). */
+function propActor(kit: ArtKit, id: string, frame: string): Actor {
+  const view = new Container();
+  view.addChild(kit.sprite(id, frame));
+  return { view, animate: () => {} };
 }
 
 function padActor(kit: ArtKit, id: string, tint: number, rimAlpha: number, washAlpha: number): Actor {
@@ -331,5 +391,11 @@ const CSS = `
 #showcase .sc-stage { position: relative; height: 150px; }
 #showcase .sc-label { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
 #showcase .sc-label span { color: #9fb0c2; font-size: 12px; }
+#showcase .sc-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+#showcase .sc-icon { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px;
+  background: linear-gradient(180deg, #1d2e28, #120f19); border: 1px solid #243242; }
+#showcase .sc-icon i { width: 48px; height: 48px; background: var(--ico) center / contain no-repeat; flex: none; }
+#showcase .sc-icon i.small { width: 24px; height: 24px; }
+#showcase .sc-icon span { font-size: 11px; color: #9fb0c2; word-break: break-all; }
 #showcase .sc-todo span { display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 10px; background: #243242; color: #c9d6e3; }
 `;
