@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { TOWER_BRANCHES } from '@tdt/protocol';
+import { TOWER_BRANCHES, TOWER_KINDS } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { atlasFrames, packFrames, PAGE_PX } from '../src/render/art/atlas';
 import '../src/render/art/load';
-import { allArt, checkArt, registerArt, type ArtEntry } from '../src/render/art/registry';
+import { allArt, checkArt, registerArt, towerArt, type ArtEntry } from '../src/render/art/registry';
 import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
 
 const DIR = new URL('../src/render/art/entities/', import.meta.url);
@@ -34,6 +34,18 @@ describe('art registry', () => {
       const allowed = new Set(['base1', 'base2', 'base3', 'top1', 'top2', 'top3']);
       for (const b of TOWER_BRANCHES[e.kind]) allowed.add(`${b}.base`).add(`${b}.top`);
       for (const name of Object.keys(e.frames)) expect(allowed.has(name), `${e.id}/${name}`).toBe(true);
+    }
+  });
+
+  it('every tower kind has art for both of its branches, and a turret that turns (for aim and recoil)', () => {
+    for (const kind of TOWER_KINDS) {
+      const e = towerArt(kind);
+      expect(e, kind).toBeDefined();
+      expect(e!.turret, kind).toBe(true);
+      for (const b of TOWER_BRANCHES[kind]) {
+        expect(e!.frames[`${b}.base`], `${kind}/${b}.base`).toBeDefined();
+        expect(e!.frames[`${b}.top`], `${kind}/${b}.top`).toBeDefined();
+      }
     }
   });
 

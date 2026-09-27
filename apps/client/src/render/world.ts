@@ -559,9 +559,18 @@ export class WorldRenderer {
       case 'arrowStorm':
         fx.arrowStormPulse(x, y, radius);
         break;
-      case 'blizzard':
+      case 'blizzard': {
         fx.ring(x, y, radius, AOE_COLORS.blizzard, 400);
+        // A pulse has no projectile: the tower's rotor kicks back where it faces.
+        const t = this.drawnTowers.find((d) => Math.abs(d.x - x) < 0.01 && Math.abs(d.y - y) < 0.01);
+        const s = t && this.towers.get(t.id);
+        if (s) {
+          s.recoilAt = this.lastRenderAt;
+          s.recoilX = s.recoilY = 0;
+          s.animating = true;
+        }
         break;
+      }
       default:
         fx.ring(x, y, radius, AOE_COLORS.cleave, 400);
     }
