@@ -25,6 +25,12 @@ export const RL = {
   forest: 0x172416,
   tree: 0x21381f,
 
+  // Props (trees, rocks, mushrooms, runestones)
+  canopy: 0x2e5a3c,
+  canopyLight: 0x4a7a4e,
+  pine: 0x1f4a3e,
+  mushroom: 0xd8c6ae,
+
   // Build pads: cool carved stone, lighter than the moss so they read as "build here"
   padStone: 0x6b7189,
   padStoneDark: 0x3c4052,
@@ -69,6 +75,10 @@ export const RL = {
   grunt: 0xe0503f,
   gruntBelly: 0xe8a070,
   brute: 0x8c3440,
+
+  // UI icons (they also use the tower tokens: ice, amethyst, arcane…)
+  /** The mana drop (Clarity Aura). */
+  mana: 0x4a8cff,
 
   // Glow accents (painter.accent: they glow)
   rune: 0x7ffcd8,

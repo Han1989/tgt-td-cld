@@ -3,7 +3,7 @@
 
 import { HERO_KINDS, type HeroKind } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
-import { HERO_COLORS, toCss } from '../render/palette';
+import { heroIcon, iconVar } from '../render/art/icons';
 
 const HERO_KEY = 'tdt.hero';
 
@@ -39,7 +39,7 @@ export class HeroPicker {
       btn.dataset.hero = kind;
       btn.title = (['Q', 'W', 'E', 'R'] as const).map((s) => `${s}: ${info.skills[s].name}`).join(' · ');
       btn.innerHTML =
-        `<span class="hero-pick-head"><span class="hero-dot" style="background:${toCss(HERO_COLORS[kind].fill)}"></span>` +
+        `<span class="hero-pick-head"><i class="ico hero-ico" style="--ico: ${iconVar(heroIcon(kind))}"></i>` +
         `<span class="hero-pick-name">${info.name}</span></span>` +
         `<span class="hero-pick-role">${info.role}</span><span class="hero-pick-desc">${info.blurb}</span>`;
       btn.addEventListener('click', () => {

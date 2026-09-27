@@ -86,7 +86,10 @@ export interface HeroArt extends ArtBase {
   rig(kit: ArtKit, mine: boolean): HeroRig;
 }
 
-/** The Heart: `base` (the pedestal, from above) and `gem` (flash baked), floating over it. */
+/**
+ * The Heart: `base` (the pedestal, from above) and `gem` (flash baked), floating over it, plus its
+ * damage states: `cracks1` (under 60% HP) and `cracks2` (under 30%), overlays drawn on the gem.
+ */
 export interface HeartArt extends ArtBase {
   category: 'heart';
   /** Pedestal offset below the Heart's tile centre, px. */
@@ -97,7 +100,7 @@ export interface HeartArt extends ArtBase {
   floatPx: number;
 }
 
-/** A portal: `rim` (static) and `swirl` (turned by the renderer), from above. */
+/** A portal: `rim` (static), `swirl` (turned by the renderer) and `flare` (shown when a wave starts), from above. */
 export interface PortalArt extends ArtBase {
   category: 'portal';
   /** Tint of the additive glow in the middle. */
@@ -109,12 +112,25 @@ export interface PadArt extends ArtBase {
   category: 'pad';
 }
 
+/**
+ * A decorative prop (trees, rocks, mushrooms…), from above. Props are not sprites: the ground painter
+ * draws them into the ground canvas once (docs/ART.md §4), so they cost nothing per frame. Every
+ * frame is a variant; the painter picks one per spot with `hash()`.
+ */
+export interface PropArt extends ArtBase {
+  category: 'prop';
+  /** `forest`: covers blocker tiles (the border and the safe zone). `clearing`: a few on open ground, away from lanes and pads. */
+  where: 'forest' | 'clearing';
+  /** Relative weight when a spot of its kind picks a prop (forest spots, or the few clearing spots). */
+  weight: number;
+}
+
 /** Frames shared by several rigs (contact shadow…); not listed in ?showcase. */
 export interface CommonArt extends ArtBase {
   category: 'common';
 }
 
-export type ArtEntry = CreepArt | TowerArt | HeroArt | HeartArt | PortalArt | PadArt | CommonArt;
+export type ArtEntry = CreepArt | TowerArt | HeroArt | HeartArt | PortalArt | PadArt | PropArt | CommonArt;
 export type ArtCategory = ArtEntry['category'];
 
 /** Frames every entry of a category must have. */
@@ -122,14 +138,15 @@ export const REQUIRED_FRAMES: Record<ArtCategory, readonly string[]> = {
   creep: ['body'],
   tower: ['base1', 'base2', 'base3', 'top1', 'top2', 'top3'],
   hero: [],
-  heart: ['base', 'gem'],
-  portal: ['rim', 'swirl'],
+  heart: ['base', 'gem', 'cracks1', 'cracks2'],
+  portal: ['rim', 'swirl', 'flare'],
   pad: ['slab', 'rim', 'wash'],
+  prop: [],
   common: [],
 };
 
 /** Order of categories in ?showcase. */
-export const CATEGORY_ORDER: readonly ArtCategory[] = ['hero', 'creep', 'tower', 'heart', 'portal', 'pad', 'common'];
+export const CATEGORY_ORDER: readonly ArtCategory[] = ['hero', 'creep', 'tower', 'heart', 'portal', 'pad', 'prop', 'common'];
 
 const entries = new Map<string, ArtEntry>();
 
@@ -140,6 +157,7 @@ export function checkArt(e: ArtEntry): string[] {
   for (const f of REQUIRED_FRAMES[e.category]) if (!e.frames[f]) out.push(`${e.id}: missing frame "${f}"`);
   if (e.category === 'creep' && !e.frames.body?.flash) out.push(`${e.id}: body needs a flash silhouette`);
   if (e.category === 'heart' && !e.frames.gem?.flash) out.push(`${e.id}: gem needs a flash silhouette`);
+  if (e.category === 'prop' && Object.keys(e.frames).length === 0) out.push(`${e.id}: a prop needs at least one frame`);
   for (const [name, f] of Object.entries(e.frames)) {
     if (!(f.w > 0 && f.h > 0 && f.w <= 200 && f.h <= 200)) out.push(`${e.id}/${name}: frame size must be 1–200 px`);
   }
@@ -182,3 +200,6 @@ function single<T extends ArtEntry>(category: T['category']): T {
 export const heartArt = (): HeartArt => single<HeartArt>('heart');
 export const portalArt = (): PortalArt => single<PortalArt>('portal');
 export const padArt = (): PadArt => single<PadArt>('pad');
+
+/** Every prop, by id (the ground painter scatters them). */
+export const propArts = (): PropArt[] => allArt().filter((e): e is PropArt => e.category === 'prop');

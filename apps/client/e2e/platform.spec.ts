@@ -25,6 +25,7 @@ test('the service worker caches the app shell, so solo starts offline', async ({
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await context.setOffline(true);
   await page.reload();
+  await waitForReady(page, 'solo');
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   await context.setOffline(false);

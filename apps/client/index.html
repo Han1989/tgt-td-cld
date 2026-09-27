@@ -93,10 +93,10 @@
           <span class="icon heart-icon"></span><span class="label">Heart</span><span id="heart-num" class="heart-num"></span>
           <div class="bar"><div id="heart-fill" class="fill"></div><span id="heart-text" class="bar-text"></span></div>
         </div>
-        <div class="stat wave" title="Wave"><span class="label">Wave</span><span id="wave">0 / 10</span></div>
-        <div class="stat timer"><span id="timer-label" class="label">Next wave</span><span id="timer">0:30</span></div>
+        <div class="stat wave" title="Wave"><span class="icon wave-icon"></span><span class="label">Wave</span><span id="wave">0 / 10</span></div>
+        <div class="stat timer"><span class="icon timer-icon"></span><span id="timer-label" class="label">Next wave</span><span id="timer">0:30</span></div>
         <button id="call-early" class="btn" title="Start the next wave now; every player gets bonus gold">Call early</button>
-        <button id="settings-btn" class="btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
+        <button id="settings-btn" class="btn icon-btn" title="Settings" aria-label="Settings"><i class="ico gear-ico"></i></button>
       </header>
       <aside id="team" class="team hidden">
         <div class="team-head">Room <span id="team-code"></span></div>
@@ -176,6 +176,7 @@
 
       <div id="end-screen" class="end-screen hidden">
         <div class="end-card">
+          <div id="end-emblem" class="end-emblem" aria-hidden="true"></div>
           <h1 id="end-title">Victory</h1>
           <p id="end-text"></p>
           <div class="end-actions">

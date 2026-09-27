@@ -34,6 +34,7 @@ import { HitTracker } from './fx/hits';
 import {
   AOE_COLORS,
   COLORS,
+  FX,
   CREEP_COLORS,
   HERO_COLORS,
   HIDE_COLORS,
@@ -41,9 +42,12 @@ import {
   mixColor,
   PLAYER_COLORS,
   PROJECTILE_COLORS,
+  shotColor,
+  SHOT_COLORS,
   TOWER_COLORS,
   ZONE_COLORS,
 } from './palette';
+import { heartStage, HEART_LOW } from './art/damage';
 import { ArtKit } from './art/kit';
 import { createGround, type Ground } from './art/ground';
 import { PAD_PX } from './art/entities/pad';
@@ -72,8 +76,8 @@ const PULSE_MS = 220;
 const PULSE_SCALE = 0.12;
 /** The Heart flashes and wobbles this long when a creep leaks. */
 const HEART_HIT_MS = 420;
-/** The Heart warns (red glow, faster beat) at or under this share of its HP. */
-const HEART_LOW = 0.3;
+/** A wave start's portal flare lasts this long (ms). */
+const FLARE_MS = 1100;
 const ICE = 0xbfeaff;
 /** Hero projectile styles (they come from a hero, not a tower). */
 const HERO_STYLES = new Set(['ranger', 'arcanist', 'crit', 'multishot', 'fireball']);
@@ -156,9 +160,14 @@ interface HeartSprite {
   root: Container;
   glow: Graphics;
   warn: Sprite;
+  /** Strong additive glow under 30% HP. */
+  blaze: Sprite;
   /** The gem (beats and floats) and its white silhouette (alpha only). */
   body: Container;
   flash: Container;
+  /** Damage states over the gem: cracks under 60% HP, split open under 30% (alpha only). */
+  cracks1: Sprite;
+  cracks2: Sprite;
   art: HeartArt;
 }
 
@@ -172,6 +181,8 @@ interface PortalSprite {
   root: Container;
   swirl: Container;
   core: Sprite;
+  /** Burst of rune light at a wave start (additive, alpha only). */
+  flare: Sprite;
   x: number;
   y: number;
 }
@@ -210,6 +221,8 @@ export class WorldRenderer {
   private readonly hits = new HitTracker();
   private lastHitTick = -1;
   private lastRenderAt = 0;
+  /** The last frame's length (ms). */
+  private lastDt = 16;
 
   private readonly creeps = new Map<number, CreepSprite>();
   /** Creep sprites of dead creeps, by kind, reused for new ones. */
@@ -225,7 +238,10 @@ export class WorldRenderer {
   private texts: TextFx[] = [];
   private heartHitAt = -Infinity;
   private portalFlareAt = -Infinity;
+  private portalFlareBoss = false;
   private heartFrac = 1;
+  /** Damage state shown (0 whole, 1 cracked, 2 split; -1 not known yet, so no crack effect on a rejoin). */
+  private heartShown = -1;
   /** The overlay had something on it last frame. */
   private overlayDrawn = true;
 
@@ -367,6 +383,7 @@ export class WorldRenderer {
     this.syncProjectiles(projectiles, heroes, dt);
     this.syncTraps(latest);
     this.syncZones(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
+    this.lastDt = dt;
     this.updateHeart(now);
     this.updatePortals(now, dt);
     this.updateTexts(now);
@@ -380,6 +397,7 @@ export class WorldRenderer {
     this.hits.reset();
     this.lastHitTick = -1;
     this.heartHitAt = -Infinity;
+    this.heartShown = -1;
     for (const t of this.texts) t.obj.destroy();
     this.texts = [];
   }
@@ -390,7 +408,7 @@ export class WorldRenderer {
       switch (e.type) {
         case 'kill': {
           const shown = this.hits.take(e.creepId);
-          if (shown && shown.damage > 0) fx.number(e.x, e.y, shown.damage, 0xffffff);
+          if (shown && shown.damage > 0) fx.number(e.x, e.y, shown.damage, FX.number);
           const t = TUNING.creeps[e.kind];
           fx.death(e.x, e.y, CREEP_COLORS[e.kind], t.radius, t.boss);
           if (e.by === me && e.bounty > 0) {
@@ -412,16 +430,16 @@ export class WorldRenderer {
           break;
         case 'stomp':
           fx.ring(e.x, e.y, e.radius, CREEP_COLORS.ironhorn, 500, 0.2, 'shock');
-          fx.dustRing(e.x, e.y, e.radius, 0x8a7556, 14);
+          fx.dustRing(e.x, e.y, e.radius, FX.dust, 14);
           fx.bump(0.3);
           break;
         case 'hatch':
           fx.ring(e.x, e.y, 1.6, CREEP_COLORS.matriarch, 400);
-          fx.shards(e.x, e.y, [0xf6e7c8, 0xe8d8b0, CREEP_COLORS.matriarch], 12, 150);
+          fx.shards(e.x, e.y, [FX.shell, FX.shellDark, CREEP_COLORS.matriarch], 12, 150);
           break;
         case 'hideShift':
           fx.ring(e.x, e.y, 1.8, HIDE_COLORS[e.hide], 500, 0.3, 'shock');
-          fx.shards(e.x, e.y, [HIDE_COLORS[e.hide], 0xffffff], 14, 200);
+          fx.shards(e.x, e.y, [HIDE_COLORS[e.hide], FX.hot], 14, 200);
           this.floatText(e.hide === 'stone' ? 'Stone hide' : 'Ether hide', e.x, e.y - 1.4, HIDE_COLORS[e.hide], now);
           break;
         case 'trapTriggered':
@@ -442,7 +460,7 @@ export class WorldRenderer {
           break;
         case 'crit':
           this.hits.suppressNear(e.x, e.y);
-          fx.number(e.x, e.y - 0.3, e.damage, 0xfff07a, true);
+          fx.number(e.x, e.y - 0.3, e.damage, FX.crit, true);
           if (fx.particles) {
             fx.emit({
               frame: 'star',
@@ -454,7 +472,7 @@ export class WorldRenderer {
               life: [200, 320],
               scale: [0.7, 0.1],
               spin: 6,
-              tint: [0xfff07a, 0xffffff],
+              tint: [FX.crit, FX.hot],
               layer: 'add',
             });
           }
@@ -465,8 +483,8 @@ export class WorldRenderer {
         case 'towerBuilt': {
           const t = this.towerPos(e.towerId, latest);
           if (!t) break;
-          fx.dustRing(t.x, t.y, 1.3, 0x8a7556, 10);
-          fx.ring(t.x, t.y, 1.5, 0xffffff, 300, 0.4);
+          fx.dustRing(t.x, t.y, 1.3, FX.dust, 10);
+          fx.ring(t.x, t.y, 1.5, FX.moon, 300, 0.4);
           break;
         }
         case 'towerUpgraded': {
@@ -482,14 +500,14 @@ export class WorldRenderer {
           const t = this.towerPos(e.towerId, latest);
           if (!t) break;
           fx.ring(t.x, t.y, 1.4, COLORS.gold, 350, 0.3);
-          fx.shards(t.x, t.y, [COLORS.gold, 0xfff1b8], 10, 170, 'square');
+          fx.shards(t.x, t.y, [COLORS.gold, FX.goldLight], 10, 170, 'square');
           break;
         }
         case 'towerDestroyed': {
           const t = this.towerPos(e.towerId, latest);
           if (!t) break;
           fx.death(t.x, t.y, COLORS.towerBase, 1, false);
-          fx.shards(t.x, t.y, [0x2c343f, 0x6f86a3, 0x9aa5b1], 16, 200, 'square');
+          fx.shards(t.x, t.y, FX.rubble, 16, 200, 'square');
           fx.bump(0.2);
           break;
         }
@@ -502,15 +520,20 @@ export class WorldRenderer {
         }
         case 'heroRespawned': {
           const { x, y } = this.map.heroSpawn;
-          fx.ring(x, y, 1.3, 0xffffff, 450, 0.2, 'shock');
-          fx.sparkle(x, y, 0xdff6ff, 10, 0.5);
+          fx.ring(x, y, 1.3, FX.moon, 450, 0.2, 'shock');
+          fx.sparkle(x, y, FX.moonLight, 10, 0.5);
           break;
         }
         case 'waveStart': {
           this.portalFlareAt = now;
           const list = latest ? tuningForMode(TUNING, latest.mode).waves.list : TUNING.waves.list;
-          const boss = list[e.wave - 1]?.some((g) => isBossKind(g.kind));
-          for (const p of this.portals) fx.ring(p.x, p.y, boss ? 3 : 2, boss ? 0xff5b5b : COLORS.portal, 600, 0.3, 'shock');
+          const boss = list[e.wave - 1]?.some((g) => isBossKind(g.kind)) ?? false;
+          this.portalFlareBoss = boss;
+          for (const p of this.portals) {
+            fx.ring(p.x, p.y, boss ? 3 : 2, boss ? COLORS.bad : COLORS.portal, 600, 0.3, 'shock');
+            fx.ring(p.x, p.y, boss ? 2.2 : 1.5, FX.rune, 450, 0.5);
+            fx.sparkle(p.x, p.y, boss ? COLORS.bad : FX.rune, boss ? 18 : 12, 1.1);
+          }
           if (boss) fx.bump(0.55);
           break;
         }
@@ -565,7 +588,7 @@ export class WorldRenderer {
         fx.arrowStormPulse(x, y, radius);
         break;
       case 'blizzard': {
-        fx.ring(x, y, radius, AOE_COLORS.blizzard, 400);
+        fx.blizzardPulse(x, y, radius);
         // An all-round blast with no projectile: the whole tower swells for a moment instead of recoiling.
         const t = this.drawnTowers.find((d) => Math.abs(d.x - x) < 0.01 && Math.abs(d.y - y) < 0.01);
         const s = t && this.towers.get(t.id);
@@ -592,7 +615,7 @@ export class WorldRenderer {
         break;
       case 'ranger.W':
         fx.ring(x, y, 0.9, COLORS.root, 300, 1.4);
-        fx.dustRing(x, y, 0.6, 0x8a7556, 6);
+        fx.dustRing(x, y, 0.6, FX.dust, 6);
         break;
       case 'ranger.R':
         fx.ring(x, y, TUNING.hero.ranger.arrowStorm.radius, ZONE_COLORS.arrowStorm, 400, 1.3);
@@ -647,9 +670,9 @@ export class WorldRenderer {
       const px = h.x * S;
       const py = h.y * S;
       if (px < view.left || px > view.right || py < view.top || py > view.bottom) continue;
-      this.fx.hit(h.x, h.y, s ? CREEP_COLORS[s.kind] : 0xffffff);
+      this.fx.hit(h.x, h.y, s ? CREEP_COLORS[s.kind] : FX.spark);
     }
-    for (const n of numbers) this.fx.number(n.x, n.y - 0.2, n.damage, 0xffffff);
+    for (const n of numbers) this.fx.number(n.x, n.y - 0.2, n.damage, FX.number);
   }
 
   // -------------------------------------------------------------------------
@@ -675,18 +698,29 @@ export class WorldRenderer {
       core.tint = art.coreTint;
       core.blendMode = 'add';
       core.scale.set((S * 0.8) / DISC_PX);
-      root.addChild(rim, core, swirl);
+      const flare = this.art.sprite(art.id, 'flare');
+      flare.blendMode = 'add';
+      flare.alpha = 0;
+      root.addChild(rim, core, swirl, flare);
       this.portalLayer.addChild(root);
-      this.portals.push({ root, swirl, core, x: p.x, y: p.y + 1 });
+      this.portals.push({ root, swirl, core, flare, x: p.x, y: p.y + 1 });
     }
   }
 
   private updatePortals(now: number, dtMs: number): void {
     const flare = Math.max(0, 1 - (now - this.portalFlareAt) / 900);
+    // The flare: a burst of rune light that swells and fades (bigger for a boss wave).
+    const t = Math.min(1, (now - this.portalFlareAt) / FLARE_MS);
+    const burst = t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
     for (const [i, p] of this.portals.entries()) {
       p.swirl.rotation = -now / (500 - flare * 250) - i;
       p.root.scale.set(1 + 0.05 * Math.sin(now / 400 + i) + flare * 0.25);
       p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
+      p.flare.alpha = burst;
+      if (burst > 0) {
+        p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? 1.35 : 1));
+        p.flare.rotation = t * 0.6 + i;
+      }
       if (!this.fx.particles) continue;
       // Motes drawn into the portal.
       for (let n = chance(4 + flare * 20, dtMs); n > 0; n--) {
@@ -702,7 +736,7 @@ export class WorldRenderer {
           life: [550, 650],
           scale: [0.1, 0.45],
           alpha: [0.9, 0],
-          tint: [0xe9d5ff, COLORS.portal],
+          tint: [FX.portalMote, COLORS.portal],
           layer: 'add',
         });
       }
@@ -717,25 +751,33 @@ export class WorldRenderer {
     const glow = new Graphics().circle(0, 0, S * 2.2).fill({ color: COLORS.heart, alpha: 0.35 });
     const warn = new Sprite(this.atlas.frames.shock);
     warn.anchor.set(0.5);
-    warn.tint = 0xff2a2a;
+    warn.tint = FX.heartWarn;
     warn.blendMode = 'add';
     warn.scale.set((S * 2.6) / RING_PX);
     warn.alpha = 0;
+    const blaze = new Sprite(this.atlas.frames.glow);
+    blaze.anchor.set(0.5);
+    blaze.tint = FX.heartBlaze;
+    blaze.blendMode = 'add';
+    blaze.alpha = 0;
+    blaze.position.set(0, art.gemY);
     const base = this.art.sprite(art.id, 'base');
     base.position.set(0, art.baseY);
     const gem = this.art.sprite(art.id, 'gem');
+    const cracks1 = this.art.sprite(art.id, 'cracks1');
+    const cracks2 = this.art.sprite(art.id, 'cracks2');
     const flash = this.art.sprite(art.id, 'gem.flash');
-    flash.alpha = 0;
-    for (const s of [gem, flash]) s.position.set(0, art.gemY);
-    root.addChild(glow, warn, base, gem, flash);
+    for (const s of [flash, cracks1, cracks2]) s.alpha = 0;
+    for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
+    root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
     this.heartLayer.addChild(root);
-    return { root, glow, warn, body: gem, flash, art };
+    return { root, glow, warn, blaze, body: gem, flash, cracks1, cracks2, art };
   }
 
   /** Gentle heartbeat; red flash and a wobble when hit; a red warning glow and faster beat at low HP. */
   private updateHeart(now: number): void {
     const h = this.heart;
-    const low = this.heartFrac <= HEART_LOW && this.heartFrac > 0;
+    const low = this.heartFrac < HEART_LOW && this.heartFrac > 0;
     const period = low ? 650 : 1400;
     // Lub-dub: two bumps per beat.
     const t = (now % period) / period;
@@ -748,12 +790,37 @@ export class WorldRenderer {
     h.body.scale.set(art.gemScale * (1 + beat * (low ? 0.07 : 0.045) + hit * 0.12));
     // The gem floats over its pedestal.
     h.body.y = art.gemY + Math.sin(now / 650) * art.floatPx;
-    h.flash.scale.copyFrom(h.body.scale);
-    h.flash.y = h.body.y;
+    for (const s of [h.flash, h.cracks1, h.cracks2]) {
+      s.scale.copyFrom(h.body.scale);
+      s.y = h.body.y;
+    }
     h.flash.alpha = hit * 0.85;
-    h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5;
+    h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5 + (low ? 0.25 : 0);
     h.warn.alpha = low ? 0.35 + 0.35 * Math.sin(now / 160) : 0;
     h.warn.scale.set(((S * 2.6) / RING_PX) * (1 + (low ? beat * 0.12 : 0)));
+
+    // Damage states: cracks under 60% HP; under 30% it splits open and blazes.
+    const stage = heartStage(this.heartFrac);
+    if (stage !== this.heartShown) {
+      if (this.heartShown >= 0 && stage > this.heartShown) {
+        // It just cracked (further): shards of ruby and a flash.
+        this.fx.shards(x, y + art.gemY / S, [COLORS.heart, FX.heartShard, FX.ember], stage === 2 ? 18 : 12, 170);
+        this.fx.flash(x, y + art.gemY / S, 1.6, FX.heartBlaze, 360, 0.7);
+        this.fx.bump(stage === 2 ? 0.3 : 0.18);
+      }
+      this.heartShown = stage;
+      h.cracks1.alpha = stage >= 1 ? 1 : 0;
+      h.cracks2.alpha = stage >= 2 ? 1 : 0;
+    }
+    h.blaze.y = h.body.y;
+    h.blaze.alpha = low ? 0.55 + beat * 0.35 + 0.1 * Math.sin(now / 110) : 0;
+    if (low) {
+      h.blaze.scale.set(((S * 2.4) / DISC_PX) * (1 + beat * 0.15));
+      // Embers rising from the split gem.
+      if (this.fx.particles) {
+        for (let n = chance(9, this.lastDt); n > 0; n--) this.fx.mote(x + (Math.random() - 0.5) * 0.9, y + art.gemY / S, FX.ember, 0.2, -38, 0.8);
+      }
+    }
   }
 
   /**
@@ -1088,7 +1155,7 @@ export class WorldRenderer {
     const aura = new Sprite(this.atlas.frames.dashRing);
     aura.anchor.set(0.5);
     aura.scale.set((r + 12) / 28);
-    aura.tint = h.kind === 'warden' ? 0x8fc1ff : 0xc9b3ff;
+    aura.tint = h.kind === 'warden' ? FX.wardenAura : FX.arcanistAura;
     aura.alpha = 0;
     sprite.root.addChildAt(aura, 0);
     sprite.root.addChild(facing);
@@ -1112,7 +1179,7 @@ export class WorldRenderer {
         g.lastY = p.y;
         this.projectileLayer.addChild(g.root);
         this.projectiles.set(p.id, g);
-        this.launched(p, heroes);
+        this.launched(p, g, heroes);
       }
       g.root.position.set(p.x * S, p.y * S);
       if (trails) {
@@ -1125,7 +1192,7 @@ export class WorldRenderer {
           g.trail.scale.x = Math.min(1.1, 0.25 + (d / Math.max(1, dtMs)) * 0.9);
           g.trail.alpha = 0.85;
         }
-        if (p.style === 'fireball' && chance(45, dtMs) > 0) this.fx.mote(p.x, p.y, 0xff8a3d, 0.15, -10, 0.45);
+        if (p.style === 'fireball' && chance(45, dtMs) > 0) this.fx.mote(p.x, p.y, FX.fire, 0.15, -10, 0.45);
       }
       g.lastX = p.x;
       g.lastY = p.y;
@@ -1146,7 +1213,7 @@ export class WorldRenderer {
     const root = new Container();
     const trail = new Sprite(this.atlas.frames.trail);
     trail.anchor.set(1, 0.5);
-    trail.tint = PROJECTILE_COLORS[style] === 0x20242a ? 0x9aa5b1 : (PROJECTILE_COLORS[style] ?? 0xffffff);
+    trail.tint = SHOT_COLORS[style as TowerKind] ?? PROJECTILE_COLORS[style] ?? FX.moonLight;
     trail.blendMode = 'add';
     trail.scale.y = style === 'fireball' ? 1.6 : style === 'cannon' || style === 'flak' ? 1.1 : 0.7;
     root.addChild(trail, projectileBody(style));
@@ -1154,7 +1221,7 @@ export class WorldRenderer {
   }
 
   /** A projectile just appeared: find who fired it for the muzzle flash, recoil and Multishot fan. */
-  private launched(p: { style: string; x: number; y: number }, heroes: HeroSnap[]): void {
+  private launched(p: { style: string; x: number; y: number }, g: ProjectileSprite, heroes: HeroSnap[]): void {
     if (HERO_STYLES.has(p.style)) {
       const h = heroes.find((x) => x.alive && Math.hypot(x.x - p.x, x.y - p.y) < 1.5);
       if (!h) return;
@@ -1162,10 +1229,12 @@ export class WorldRenderer {
       const dy = p.y - h.y;
       this.heroes.get(h.id)?.art?.shot(this.lastRenderAt);
       if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy);
-      else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? 0xffffff, 0.4);
+      else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? FX.spark, 0.4);
       return;
     }
     if (!(p.style in TOWER_COLORS)) return;
+    // Pooled sprites may come from another branch: start from the tower kind's glow.
+    g.trail.tint = SHOT_COLORS[p.style as TowerKind];
     let best: TowerSnap | undefined;
     let bestD = 1.6;
     for (const t of this.drawnTowers) {
@@ -1189,7 +1258,10 @@ export class WorldRenderer {
       s.aimAt = Math.atan2(dy, dx);
       s.aimUntil = this.lastRenderAt + 900;
     }
-    this.fx.muzzle(best.x, best.y, dx, dy, TOWER_COLORS[best.kind], 0.9);
+    // Branch shots glow in their branch's colour (Void pink, Prism crystal…), others in their tower's.
+    const glow = shotColor(best.kind, best.branch);
+    g.trail.tint = glow;
+    this.fx.muzzle(best.x, best.y, dx, dy, glow, 0.9);
   }
 
   /** Traps are redrawn only when they arm, not every frame. */
@@ -1279,7 +1351,7 @@ export class WorldRenderer {
     ring.scale.set(z.kind === 'meteor' ? r / RING_PX : r / 28);
     const inner = new Sprite(this.atlas.frames.ring);
     inner.anchor.set(0.5);
-    inner.tint = 0xffffff;
+    inner.tint = FX.hot;
     inner.scale.set(r / RING_PX);
     inner.alpha = z.kind === 'meteor' ? 0.8 : 0;
     root.addChild(fill, ring, inner);
@@ -1288,7 +1360,7 @@ export class WorldRenderer {
     if (z.kind === 'meteor') {
       tail = new Sprite(this.atlas.frames.trail);
       tail.anchor.set(1, 0.5);
-      tail.tint = 0xff8a3d;
+      tail.tint = FX.fire;
       tail.blendMode = 'add';
       // Pointing back up the fall line (from the upper right).
       tail.rotation = Math.atan2(1, -0.55) + Math.PI;
@@ -1296,7 +1368,7 @@ export class WorldRenderer {
       tail.alpha = 0;
       head = new Sprite(this.atlas.frames.glow);
       head.anchor.set(0.5);
-      head.tint = 0xffd29a;
+      head.tint = FX.emberLight;
       head.blendMode = 'add';
       head.alpha = 0;
       root.addChild(tail, head);
@@ -1328,15 +1400,15 @@ export class WorldRenderer {
 
     const selected = snap.towers.find((t) => t.id === ui.selectedTowerId);
     if (selected) {
-      g.circle(selected.x * S, selected.y * S, selected.range * S).fill({ color: 0xffffff, alpha: 0.06 });
-      g.circle(selected.x * S, selected.y * S, selected.range * S).stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
+      g.circle(selected.x * S, selected.y * S, selected.range * S).fill({ color: RL.moon, alpha: 0.07 });
+      g.circle(selected.x * S, selected.y * S, selected.range * S).stroke({ width: 2, color: RL.moon, alpha: 0.55 });
       const half = this.map.padSize / 2;
-      g.rect((selected.x - half) * S, (selected.y - half) * S, 2 * half * S, 2 * half * S).stroke({ width: 2, color: 0xffffff });
+      g.rect((selected.x - half) * S, (selected.y - half) * S, 2 * half * S, 2 * half * S).stroke({ width: 2, color: RL.moon });
     }
     const n = this.map.padSize;
     if (ui.selectedPadId !== null) {
       const pad = this.map.pads[ui.selectedPadId];
-      if (pad) g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 3, color: 0xffffff });
+      if (pad) g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 3, color: RL.moon });
     }
     // Pads you may build on right now (they exist in this match and are yours or open).
     const buildable = (padId: number) =>
@@ -1359,7 +1431,7 @@ export class WorldRenderer {
     } else if (hover && mode.type === 'none') {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
       if (pad && buildable(pad.id)) {
-        g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
+        g.rect(pad.tx * S, pad.ty * S, n * S, n * S).stroke({ width: 2, color: RL.moon, alpha: 0.6 });
       }
     }
 
@@ -1421,7 +1493,7 @@ export class WorldRenderer {
   private floatText(text: string, x: number, y: number, color: number, now: number): void {
     const label = new Text({
       text,
-      style: { fontFamily: 'system-ui, sans-serif', fontSize: 14, fontWeight: '700', fill: color, stroke: { color: 0x000000, width: 3 } },
+      style: { fontFamily: 'system-ui, sans-serif', fontSize: 14, fontWeight: '700', fill: color, stroke: { color: RL.ink, width: 3 } },
     });
     label.anchor.set(0.5);
     label.position.set(x * S, y * S);
@@ -1452,7 +1524,7 @@ function makeSprite(body: Container): EntitySprite {
   const root = new Container();
   const status = new Graphics();
   const hpBg = new Sprite(Texture.WHITE);
-  hpBg.tint = 0x000000;
+  hpBg.tint = RL.ink;
   hpBg.alpha = 0.7;
   const hpFill = new Sprite(Texture.WHITE);
   hpBg.visible = hpFill.visible = false;
@@ -1584,11 +1656,11 @@ function heroBody(kind: HeroKind, r: number): Graphics {
 
 function projectileBody(style: string): Graphics {
   const g = new Graphics();
-  const color = PROJECTILE_COLORS[style] ?? 0xffffff;
+  const color = PROJECTILE_COLORS[style] ?? FX.moonLight;
   const r =
     style === 'fireball' ? 6 : style === 'cannon' || style === 'flak' ? 5 : style === 'frost' || style === 'arcane' || style === 'crit' ? 4 : 3;
   if (style === 'fireball') g.circle(0, 0, r + 4).fill({ color, alpha: 0.3 });
-  g.circle(0, 0, r).fill(color).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
+  g.circle(0, 0, r).fill(color).stroke({ width: 1, color: RL.ink, alpha: 0.6 });
   return g;
 }
 
