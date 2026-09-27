@@ -42,8 +42,9 @@ import {
   mixColor,
   PLAYER_COLORS,
   PROJECTILE_COLORS,
+  shotColor,
+  SHOT_COLORS,
   TOWER_COLORS,
-  TRAIL_COLORS,
   ZONE_COLORS,
 } from './palette';
 import { heartStage, HEART_LOW } from './art/damage';
@@ -434,7 +435,7 @@ export class WorldRenderer {
           break;
         case 'hatch':
           fx.ring(e.x, e.y, 1.6, CREEP_COLORS.matriarch, 400);
-          fx.shards(e.x, e.y, [0xf6e7c8, 0xe8d8b0, CREEP_COLORS.matriarch], 12, 150);
+          fx.shards(e.x, e.y, [FX.shell, FX.shellDark, CREEP_COLORS.matriarch], 12, 150);
           break;
         case 'hideShift':
           fx.ring(e.x, e.y, 1.8, HIDE_COLORS[e.hide], 500, 0.3, 'shock');
@@ -587,7 +588,7 @@ export class WorldRenderer {
         fx.arrowStormPulse(x, y, radius);
         break;
       case 'blizzard': {
-        fx.ring(x, y, radius, AOE_COLORS.blizzard, 400);
+        fx.blizzardPulse(x, y, radius);
         // An all-round blast with no projectile: the whole tower swells for a moment instead of recoiling.
         const t = this.drawnTowers.find((d) => Math.abs(d.x - x) < 0.01 && Math.abs(d.y - y) < 0.01);
         const s = t && this.towers.get(t.id);
@@ -1154,7 +1155,7 @@ export class WorldRenderer {
     const aura = new Sprite(this.atlas.frames.dashRing);
     aura.anchor.set(0.5);
     aura.scale.set((r + 12) / 28);
-    aura.tint = h.kind === 'warden' ? 0x8fc1ff : 0xc9b3ff;
+    aura.tint = h.kind === 'warden' ? FX.wardenAura : FX.arcanistAura;
     aura.alpha = 0;
     sprite.root.addChildAt(aura, 0);
     sprite.root.addChild(facing);
@@ -1178,7 +1179,7 @@ export class WorldRenderer {
         g.lastY = p.y;
         this.projectileLayer.addChild(g.root);
         this.projectiles.set(p.id, g);
-        this.launched(p, heroes);
+        this.launched(p, g, heroes);
       }
       g.root.position.set(p.x * S, p.y * S);
       if (trails) {
@@ -1212,7 +1213,7 @@ export class WorldRenderer {
     const root = new Container();
     const trail = new Sprite(this.atlas.frames.trail);
     trail.anchor.set(1, 0.5);
-    trail.tint = TRAIL_COLORS[style] ?? PROJECTILE_COLORS[style] ?? FX.moonLight;
+    trail.tint = SHOT_COLORS[style as TowerKind] ?? PROJECTILE_COLORS[style] ?? FX.moonLight;
     trail.blendMode = 'add';
     trail.scale.y = style === 'fireball' ? 1.6 : style === 'cannon' || style === 'flak' ? 1.1 : 0.7;
     root.addChild(trail, projectileBody(style));
@@ -1220,7 +1221,7 @@ export class WorldRenderer {
   }
 
   /** A projectile just appeared: find who fired it for the muzzle flash, recoil and Multishot fan. */
-  private launched(p: { style: string; x: number; y: number }, heroes: HeroSnap[]): void {
+  private launched(p: { style: string; x: number; y: number }, g: ProjectileSprite, heroes: HeroSnap[]): void {
     if (HERO_STYLES.has(p.style)) {
       const h = heroes.find((x) => x.alive && Math.hypot(x.x - p.x, x.y - p.y) < 1.5);
       if (!h) return;
@@ -1232,6 +1233,8 @@ export class WorldRenderer {
       return;
     }
     if (!(p.style in TOWER_COLORS)) return;
+    // Pooled sprites may come from another branch: start from the tower kind's glow.
+    g.trail.tint = SHOT_COLORS[p.style as TowerKind];
     let best: TowerSnap | undefined;
     let bestD = 1.6;
     for (const t of this.drawnTowers) {
@@ -1255,7 +1258,10 @@ export class WorldRenderer {
       s.aimAt = Math.atan2(dy, dx);
       s.aimUntil = this.lastRenderAt + 900;
     }
-    this.fx.muzzle(best.x, best.y, dx, dy, TOWER_COLORS[best.kind], 0.9);
+    // Branch shots glow in their branch's colour (Void pink, Prism crystal…), others in their tower's.
+    const glow = shotColor(best.kind, best.branch);
+    g.trail.tint = glow;
+    this.fx.muzzle(best.x, best.y, dx, dy, glow, 0.9);
   }
 
   /** Traps are redrawn only when they arm, not every frame. */
@@ -1650,11 +1656,11 @@ function heroBody(kind: HeroKind, r: number): Graphics {
 
 function projectileBody(style: string): Graphics {
   const g = new Graphics();
-  const color = PROJECTILE_COLORS[style] ?? 0xffffff;
+  const color = PROJECTILE_COLORS[style] ?? FX.moonLight;
   const r =
     style === 'fireball' ? 6 : style === 'cannon' || style === 'flak' ? 5 : style === 'frost' || style === 'arcane' || style === 'crit' ? 4 : 3;
   if (style === 'fireball') g.circle(0, 0, r + 4).fill({ color, alpha: 0.3 });
-  g.circle(0, 0, r).fill(color).stroke({ width: 1, color: 0x000000, alpha: 0.5 });
+  g.circle(0, 0, r).fill(color).stroke({ width: 1, color: RL.ink, alpha: 0.6 });
   return g;
 }
 

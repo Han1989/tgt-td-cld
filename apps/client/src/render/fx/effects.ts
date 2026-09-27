@@ -730,6 +730,27 @@ export class Effects {
     });
   }
 
+  /** Blizzard tower pulse: an icy shockwave all round, frost at its rim and snow whirled outwards. */
+  blizzardPulse(x: number, y: number, radius: number): void {
+    this.ring(x, y, radius, AOE_COLORS.blizzard, 420, 0.25, 'shock');
+    this.ring(x, y, radius * 0.55, FX.frostLight, 300, 0.4);
+    if (!this.particles) return;
+    this.emit({
+      frame: 'flake',
+      x: x * S,
+      y: y * S,
+      count: 12,
+      spread: radius * S * 0.3,
+      speed: [(radius * S) / 0.6, (radius * S) / 0.45],
+      drag: 3.5,
+      life: [380, 560],
+      scale: [0.7, 0.2],
+      spin: 5,
+      tint: [FX.frostLight, AOE_COLORS.blizzard, FX.moonLight],
+      layer: 'add',
+    });
+  }
+
   /** Arrow Storm, every frame while it lasts: arrows falling inside the circle. */
   arrowRain(x: number, y: number, radius: number, dtMs: number): void {
     if (!this.particles) return;

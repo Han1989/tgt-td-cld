@@ -9,6 +9,7 @@ import { heroIcon, ICONS, skillIcon, towerIcon } from '../src/render/art/icons';
 import { allArt, checkArt, propArts, registerArt, towerArt, type ArtEntry } from '../src/render/art/registry';
 import { propSpots } from '../src/render/art/scatter';
 import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
+import { shotColor } from '../src/render/palette';
 
 const DIR = new URL('../src/render/art/entities/', import.meta.url);
 const FILES = readdirSync(DIR).filter((f) => f.endsWith('.ts'));
@@ -152,5 +153,20 @@ describe('heart damage states', () => {
     expect([1, 0.6, 0.59, 0.3, 0.29, 0].map(heartStage)).toEqual([0, 0, 1, 1, 2, 2]);
     const heart = allArt().find((e) => e.category === 'heart')!;
     expect(Object.keys(heart.frames)).toEqual(expect.arrayContaining(['cracks1', 'cracks2']));
+  });
+});
+
+describe('effect colours', () => {
+  it('tower shots glow in their tower art glow token; branches with their own glow override it', () => {
+    expect(TOWER_KINDS.map((k) => shotColor(k, null))).toEqual([RL.rune, RL.ember, RL.frost, RL.arcane, RL.flare]);
+    expect(shotColor('arcane', 'void')).toBe(RL.voidGlow);
+    expect(shotColor('frost', 'glacier')).toBe(RL.ice);
+    expect(shotColor('arrow', 'volley')).toBe(RL.rune);
+    for (const k of TOWER_KINDS) for (const b of TOWER_BRANCHES[k]) expect(typeof shotColor(k, b), `${k}/${b}`).toBe('number');
+  });
+
+  it('effect recipes name their colours (palette.ts) instead of writing hex literals', () => {
+    const src = readFileSync(new URL('../src/render/fx/effects.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/0x[0-9a-fA-F]{6}/);
   });
 });

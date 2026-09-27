@@ -29,8 +29,8 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `canopy` / `canopyLight` | `#2e5a3c` / `#4a7a4e` | Oak and bush canopies, their lit clumps |
 | `pine` | `#1f4a3e` | Pine canopies |
 | `mushroom` | `#d8c6ae` | Mushroom caps (their spots glow `rune`) |
-| **UI icons** (they also use the tower tokens below: `ice`, `arcane`…) | | |
-| `amethyst` / `mana` | `#9a62e6` / `#4a8cff` | The arcane gem and the Arcanist's hat (bodies), the mana drop |
+| **UI icons** (they also use the tower tokens below: `ice`, `amethyst`, `arcane`…) | | |
+| `mana` | `#4a8cff` | The mana drop (Clarity Aura icon) |
 | **Pads** | | |
 | `padStone` / `padStoneDark` / `padGroove` | `#6b7189` / `#3c4052` / `#2a2d3b` | Build pads: cool stone, lighter than moss and lanes |
 | **Materials** | | |
@@ -167,6 +167,8 @@ Keep these meanings:
 | Ranger skills (Multishot, Arrow Storm) | `#e6ff7a` | `PROJECTILE_COLORS.multishot`, `ZONE_COLORS.arrowStorm` |
 | Portals, enemy magic | `#8a4fe0` | `COLORS.portal` = `RL.portal` |
 | Player-side magic, wave starts | `#7ffcd8` | `FX.rune` = `RL.rune` |
+| Tower shots (muzzle flash, trail) | the tower's glow token: Arrow `rune`, Cannon `ember`, Frost `frost`, Arcane `arcane`, Flak `flare`; branches with their own glow override it (Void `voidGlow`, Prism `crystal`, Glacier `ice`, Hailstorm `snow`, Sniper / Skyguard `moon`, Mortar fire, Shrapnel ember light) | `SHOT_COLORS`, `BRANCH_SHOT_COLORS`, `shotColor(kind, branch)` |
+| Blizzard pulse | `#cff4ff` shockwave, frost-light inner ring, flakes whirled out | `fx.blizzardPulse` (the tower swells too, §7) |
 | The Heart; its blaze under 30% | `#ff3a60`; `#ff5a4a` | `COLORS.heart` = `RL.heart`, `FX.heartBlaze` |
 | Zones by seat | `#4f9dff`, `#ff9f43`, `#b56cff`, `#3ddc84` | `PLAYER_COLORS` |
 

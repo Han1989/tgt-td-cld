@@ -3,7 +3,7 @@
 // effect colours here follow ART.md §8 and reuse those tokens where a meaning is shared (the
 // Heart, portals, embers, runes), so effects match the art and read on the dark ground.
 
-import type { AoeEffect, CreepKind, HeroKind, TowerKind, ZoneKind } from '@tdt/protocol';
+import type { AoeEffect, CreepKind, HeroKind, TowerBranch, TowerKind, ZoneKind } from '@tdt/protocol';
 import { RL } from './art/tokens';
 
 export const COLORS = {
@@ -73,6 +73,12 @@ export const FX = {
   crit: 0xfff07a,
   /** Motes drawn into a portal. */
   portalMote: 0xe9d5ff,
+  /** Hero auras (Bulwark, Clarity): the dashed ring under the hero. */
+  wardenAura: 0x8fc1ff,
+  arcanistAura: 0xc9b3ff,
+  /** Matriarch's egg shells when she hatches. */
+  shell: 0xf6e7c8,
+  shellDark: 0xe8d8b0,
   /** The Heart: warning ring, the blaze under 30% HP, ruby shards when it cracks. */
   heartWarn: 0xff2a4a,
   heartBlaze: 0xff5a4a,
@@ -127,12 +133,13 @@ export const TOWER_COLORS: Record<TowerKind, number> = {
   flak: 0xff8c42,
 };
 
+/** Projectile bodies. Tower shots are their material or glow (docs/ART.md §8); hero shots their hero's colour. */
 export const PROJECTILE_COLORS: Record<string, number> = {
-  arrow: 0xf1e3c6,
-  cannon: 0x20242a,
-  frost: 0xbfeaff,
-  arcane: 0xe0aaff,
-  flak: 0xffb870,
+  arrow: RL.bone,
+  cannon: RL.ironDark,
+  frost: RL.frost,
+  arcane: RL.arcane,
+  flak: FX.emberLight,
   ranger: 0xb6ff9e,
   arcanist: 0xffb3ea,
   crit: 0xffffff,
@@ -141,10 +148,34 @@ export const PROJECTILE_COLORS: Record<string, number> = {
   archer: 0xffb36b,
 };
 
-/** Projectile trails that differ from the projectile (a dark cannonball leaves a stone-grey trail). */
-export const TRAIL_COLORS: Partial<Record<string, number>> = {
-  cannon: RL.stone,
+/**
+ * A tower's shots (muzzle flash and trail) glow in its art's glow token, so they match the tower:
+ * Arrow rune, Cannon ember, Frost frost, Arcane arcane, Flak flare (docs/ART.md §2, §8).
+ */
+export const SHOT_COLORS: Record<TowerKind, number> = {
+  arrow: RL.rune,
+  cannon: RL.ember,
+  frost: RL.frost,
+  arcane: RL.arcane,
+  flak: RL.flare,
 };
+
+/** Branches whose shots glow differently from their tower's (the others keep SHOT_COLORS). Blizzard fires none. */
+export const BRANCH_SHOT_COLORS: Partial<Record<TowerBranch, number>> = {
+  sniper: RL.moon,
+  mortar: FX.fire,
+  shrapnel: FX.emberLight,
+  glacier: RL.ice,
+  prism: RL.crystal,
+  void: RL.voidGlow,
+  skyguard: RL.moon,
+  hailstorm: RL.snow,
+};
+
+/** The glow of a tower's shots, by kind and branch. */
+export function shotColor(kind: TowerKind, branch: TowerBranch | null): number {
+  return (branch && BRANCH_SHOT_COLORS[branch]) ?? SHOT_COLORS[kind];
+}
 
 export const TOWER_NAMES: Record<TowerKind, string> = {
   arrow: 'Arrow',

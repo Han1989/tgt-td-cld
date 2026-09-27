@@ -76,9 +76,8 @@ export const RL = {
   gruntBelly: 0xe8a070,
   brute: 0x8c3440,
 
-  // UI icons
-  /** The arcane gem and the Arcanist's hat in icons (a body colour; `arcane` is its glow). */
-  amethyst: 0x9a62e6,
+  // UI icons (they also use the tower tokens: ice, amethyst, arcane…)
+  /** The mana drop (Clarity Aura). */
   mana: 0x4a8cff,
 
   // Glow accents (painter.accent: they glow)
