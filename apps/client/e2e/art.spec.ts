@@ -3,7 +3,7 @@
 
 import { readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { startSolo } from './helpers';
+import { startSolo, waitForReady } from './helpers';
 
 /** Art files: one entity each, named after its registry id. */
 const ART_FILES = readdirSync(new URL('../src/render/art/entities/', import.meta.url))
@@ -14,6 +14,7 @@ test('?showcase shows a card for every registered art file, and Bright re-bakes 
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?showcase');
+  await waitForReady(page, 'showcase');
   await expect.poll(() => page.evaluate(() => window.__showcase?.cards() ?? 0)).toBeGreaterThan(0);
   const ids = await page.evaluate(() => window.__showcase.ids);
   expect([...ids].sort()).toEqual([...ART_FILES].sort());

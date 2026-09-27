@@ -5,8 +5,8 @@
 // listed at the end. Cards are DOM (so the page scrolls natively); one fixed Pixi canvas on top
 // draws the entities where their cards are.
 
-import { CREEP_KINDS, HERO_KINDS, TOWER_BRANCHES, TOWER_KINDS, type TowerBranch } from '@tdt/protocol';
-import { TUNING } from '@tdt/sim';
+import { CREEP_KINDS, HERO_KINDS, TOWER_BRANCHES, TOWER_KINDS, type TowerBranch, type TowerKind } from '@tdt/protocol';
+import { towerStats, TUNING } from '@tdt/sim';
 import { Application, Container, type Sprite } from 'pixi.js';
 import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
@@ -126,7 +126,7 @@ export async function runShowcase(): Promise<void> {
           ]),
         ];
         for (const [tier, branch, label] of variants) {
-          addCard(grid, e, label, 'moss', () => towerActor(new TowerRig(kit, e), tier, branch), 1.2, PHONE.tower);
+          addCard(grid, e, label, 'moss', () => towerActor(new TowerRig(kit, e), e.kind, tier, branch), 1.2, PHONE.tower);
         }
         break;
       }
@@ -254,15 +254,24 @@ function creepActor(rig: CreepRig): Actor {
   };
 }
 
-/** The turret sweeps round and fires every 1.2 s (recoil). */
-function towerActor(rig: TowerRig, tier: number, branch: TowerBranch | null): Actor {
+/** The turret sweeps round and fires every 1.2 s: a recoil, or for a pulse (Blizzard) a swell all round. */
+function towerActor(rig: TowerRig, kind: TowerKind, tier: number, branch: TowerBranch | null): Actor {
   rig.setTier(tier, branch);
+  const pulses = towerStats(TUNING, kind, tier, branch).pulse;
+  // The card scales the view after creating it; the pulse multiplies whatever that scale is.
+  let scale0 = 0;
   return {
     view: rig.body,
     animate(now, dt) {
       rig.aim(Math.sin(now / 1500) * Math.PI, dt);
-      const r = Math.max(0, 1 - (now % 1200) / 140);
-      rig.kick(r * r * 4.8);
+      if (pulses) {
+        scale0 ||= rig.body.scale.x;
+        const q = Math.min(1, (now % 1200) / 220);
+        rig.body.scale.set(scale0 * (1 + Math.sin(q * Math.PI) * 0.12));
+      } else {
+        const r = Math.max(0, 1 - (now % 1200) / 140);
+        rig.kick(r * r * 4.8);
+      }
     },
   };
 }

@@ -12,7 +12,10 @@ export class ArtKit {
 
   constructor(display: Display = 'normal') {
     this.shown = display;
+    const start = performance.now();
     this.atlas = createArtAtlas(allArt(), display);
+    // Cold-start timing: drawing every frame is most of the art's start-up cost.
+    performance.measure('tdt:art-bake', { start, detail: { pages: this.atlas.pages } });
   }
 
   get display(): Display {

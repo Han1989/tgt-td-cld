@@ -2,7 +2,7 @@
 // pause when hidden, browser gesture blocking; effects (Phase 4b) and their settings.
 
 import { expect, test } from '@playwright/test';
-import { startSolo } from './helpers';
+import { startSolo, waitForReady } from './helpers';
 
 test('the manifest describes an installable, full-screen, portrait app', async ({ page, request }) => {
   await page.goto('/');
@@ -67,12 +67,25 @@ test('the canvas owns every gesture: no scrolling, pinch-zoom, selection or cont
   expect(prevented).toBe(true);
 });
 
+test('the ready signal comes once the first screen and the debug hook exist, with a cold-start mark', async ({ page }) => {
+  await page.goto('/');
+  await waitForReady(page, 'solo');
+  await expect(page.locator('#lobby-solo-play')).toBeVisible();
+  const at = await page.evaluate(() => ({
+    hook: typeof window.__tdt?.latest === 'function',
+    ready: performance.getEntriesByName('tdt:ready').length,
+    bake: performance.getEntriesByName('tdt:art-bake').length,
+  }));
+  expect(at).toEqual({ hook: true, ready: 1, bake: 1 });
+});
+
 test('effects run without errors: particles, shake and coins flying to the gold counter', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
   // The stress scene streams kills (yours), splashes, crits, skills and leaks.
   await page.goto('/?stress=60');
+  await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt.fx().live)).toBeGreaterThan(20);
   await expect.poll(() => page.locator('.fly-coin:not(.hidden)').count()).toBeGreaterThan(0);
   // The scene's first skill is a Meteor, which shakes the screen.

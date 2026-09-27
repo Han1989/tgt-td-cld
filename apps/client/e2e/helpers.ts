@@ -55,9 +55,19 @@ declare global {
   }
 }
 
+/**
+ * Waits for the app's ready signal (main.ts: `<html data-ready="…">`), set once the first screen is up and
+ * `window.__tdt` exists. `goto` resolves on `load`, before the async start-up (Pixi, the art bake) is done,
+ * and `expect.poll` gives up at once if its callback throws, so touch `window.__tdt` only after this.
+ */
+export async function waitForReady(page: Page, screen?: 'showcase' | 'stress' | 'solo' | 'online'): Promise<void> {
+  await expect(page.locator('html')).toHaveAttribute('data-ready', screen ?? /.+/);
+}
+
 /** Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger. */
 export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick'): Promise<void> {
   await page.goto(`/${query}`);
+  await waitForReady(page, 'solo');
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
   await page.locator(`#lobby-mode-solo .mode-pick[data-mode="${mode}"]`).click();
   await page.locator('#lobby-solo-play').click();

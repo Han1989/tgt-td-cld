@@ -11,6 +11,7 @@
 // `?stress=300` (docs/MOBILE_TESTING.md).
 
 import { expect, test } from '@playwright/test';
+import { waitForReady } from './helpers';
 
 const BUDGET_MS = 1000 / 30;
 
@@ -25,6 +26,7 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   // High quality (Auto could drop to Low mid-measurement): particles, trails, numbers and shake all on.
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
   await page.goto('/?stress=300');
+  await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);
   const gpu = await page.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2');
