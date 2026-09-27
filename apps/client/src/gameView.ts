@@ -341,6 +341,7 @@ export class GameView {
         fps: () => monitor.fps,
         visibleCreeps: () => renderer.visibleCreeps,
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
+        coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
       };
     }
