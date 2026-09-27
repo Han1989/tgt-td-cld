@@ -93,7 +93,7 @@ export const CREEP_COLORS: Record<CreepKind, number> = {
   archer: 0xf0a04b,
   runner: 0xf5d547,
   brute: RL.brute,
-  wisp: 0x7fe7ff,
+  wisp: RL.wisp,
   hatchling: 0xe8866a,
   ironhorn: 0xa24bd6,
   matriarch: 0xd64b8a,

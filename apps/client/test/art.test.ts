@@ -1,12 +1,23 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { HERO_KINDS, SKILL_SLOTS, TOWER_BRANCHES, TOWER_KINDS } from '@tdt/protocol';
-import { getMap, Tile, tileAt } from '@tdt/sim';
+import { CREEP_KINDS, HERO_KINDS, SKILL_SLOTS, TOWER_BRANCHES, TOWER_KINDS, type CreepSnap } from '@tdt/protocol';
+import { getMap, Tile, tileAt, TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { heartStage } from '../src/render/art/damage';
 import { atlasFrames, packFrames, PAGE_PX } from '../src/render/art/atlas';
 import '../src/render/art/load';
 import { heroIcon, ICONS, skillIcon, towerIcon } from '../src/render/art/icons';
-import { allArt, checkArt, propArts, registerArt, towerArt, type ArtEntry } from '../src/render/art/registry';
+import {
+  allArt,
+  checkArt,
+  creepArt,
+  heroArt,
+  propArts,
+  registerArt,
+  towerArt,
+  type ArtEntry,
+  type CreepArt,
+} from '../src/render/art/registry';
+import { DEATH, deathPose, hold, HIT_FLASH } from '../src/render/art/rigs';
 import { propSpots } from '../src/render/art/scatter';
 import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
 import { shotColor } from '../src/render/palette';
@@ -31,6 +42,30 @@ describe('art registry', () => {
     expect(() => registerArt(grunt)).toThrow(/twice/);
     expect(() => registerArt({ ...grunt, id: 'grunt2' } as ArtEntry)).toThrow(/Two creep arts/);
     expect(() => registerArt({ id: 'bad', name: 'Bad', category: 'tower', kind: 'frost', turret: true, frames: {} })).toThrow(/missing frame "base1"/);
+  });
+
+  it('every hero and creep has art (Art Track 1), except the Matriarch’s hatchlings', () => {
+    for (const k of HERO_KINDS) expect(heroArt(k), k).toBeDefined();
+    for (const k of CREEP_KINDS) if (k !== 'hatchling') expect(creepArt(k), k).toBeDefined();
+  });
+
+  it('flyers need their own shadow frame; variants need body-sized frames with a flash', () => {
+    const wisp = creepArt('wisp')!;
+    expect(TUNING.creeps.wisp.flying).toBe(true);
+    const { shadow: _, ...noShadow } = wisp.frames;
+    expect(checkArt({ ...wisp, frames: noShadow })).toContainEqual(expect.stringMatching(/flyer needs a "shadow"/));
+    const grunt = creepArt('grunt')!;
+    const pick = () => 'body';
+    expect(checkArt({ ...grunt, variants: { frames: ['angry'], pick } })).toContainEqual(expect.stringMatching(/missing variant frame "angry"/));
+    const small: CreepArt = { ...grunt, frames: { ...grunt.frames, angry: { w: 10, h: 10, draw: () => {}, flash: true } }, variants: { frames: ['angry'], pick } };
+    expect(checkArt(small)).toContainEqual(expect.stringMatching(/size of body/));
+  });
+
+  it('Shardback shows its Ether hide when its magic resist is up', () => {
+    const art = creepArt('shardback')!;
+    const snap = (magicResist: number) => ({ magicResist }) as CreepSnap;
+    expect(art.variants!.pick(snap(TUNING.creeps.shardback.magicResist))).toBe('body');
+    expect(art.variants!.pick(snap(TUNING.creeps.shardback.magicResist + 0.3))).toBe('ether');
   });
 
   it('tower frames are tiers 1–3 or a branch of that tower', () => {
@@ -168,5 +203,33 @@ describe('effect colours', () => {
   it('effect recipes name their colours (palette.ts) instead of writing hex literals', () => {
     const src = readFileSync(new URL('../src/render/fx/effects.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/0x[0-9a-fA-F]{6}/);
+  });
+});
+
+describe('hit and death reactions', () => {
+  it('a death starts with a white flash and ends faded, flattened and tipped backwards', () => {
+    for (const d of [DEATH.creep, DEATH.boss, DEATH.hero]) {
+      const start = deathPose(0, d);
+      expect(start.flash).toBeCloseTo(HIT_FLASH.alpha);
+      expect(start.alpha).toBe(1);
+      const end = deathPose(1, d);
+      expect(end.alpha).toBeCloseTo(0);
+      expect(end.flash).toBe(0);
+      expect(end.sy).toBeCloseTo(1 - d.squash);
+      // Facing +x, backwards is anticlockwise (negative rotation).
+      expect(end.rot).toBeCloseTo(-d.tip);
+    }
+    // Bosses die slowly and sink; heroes fall over further than creeps.
+    expect(DEATH.boss.ms).toBeGreaterThan(DEATH.creep.ms);
+    expect(deathPose(1, DEATH.boss).dy).toBeGreaterThan(0);
+    expect(DEATH.hero.tip).toBeGreaterThan(DEATH.creep.tip);
+  });
+
+  it('a pose envelope eases in, holds and eases out', () => {
+    expect(hold(0)).toBe(0);
+    expect(hold(0.5)).toBe(1);
+    expect(hold(0.99)).toBeLessThan(0.1);
+    expect(hold(1)).toBe(0);
+    expect(hold(-0.1)).toBe(0);
   });
 });

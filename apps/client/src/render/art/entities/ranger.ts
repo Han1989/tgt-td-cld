@@ -3,12 +3,16 @@
 // out along the facing, drawn between shots.
 //
 // Rig: feet at y = +9, shoulder at (1, -1); the bow's grip is at the arm's origin + BOW_X.
+// Attack: the string is drawn back over the cooldown and released on the shot. Cast: the bow swings
+// up to the sky (Arrow Storm, Multishot) or down at the ground (Snare Trap), drawn fully, and looses.
 
+import type { SkillSlot } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Container, Sprite, Texture } from 'pixi.js';
 import type { ArtKit } from '../kit';
 import { box, circle, ellipse, pathLine, poly, rrect } from '../paint';
-import { registerArt, type Draw, type HeroPose, type HeroRig } from '../registry';
+import { registerArt, type Draw, type HeroPose } from '../registry';
+import { CAST_MS, clamp01, hold, HeroRigBase, smooth } from '../rigs';
 import { RL } from '../tokens';
 
 const ID = 'ranger';
@@ -78,48 +82,38 @@ const arrow: Draw = (c, p, k) => {
 // Rig: walk bob with stepping feet, bow arm aimed along the facing, string drawn between shots.
 // ---------------------------------------------------------------------------
 
+const FEET = 9;
 const BOW_X = 8;
 const SHOULDER = { x: 1, y: -1 };
 /** The string is drawn back this far (px) at full draw. */
 const DRAW_PX = 10;
 /** The arrow is gone this long after a shot (ms). */
 const RELEASE_MS = 110;
+/** Cast: where the bow points (radians, facing +x), and when in the cast it looses. */
+const CAST_AIM: Partial<Record<SkillSlot, number>> = { Q: -0.45, W: 0.75, R: -1.2 };
+const CAST_LOOSE = 0.55;
 
-class RangerRig implements HeroRig {
-  readonly body = new Container();
-  private readonly flipper = new Container();
-  private readonly torso: Sprite;
-  private readonly head: Sprite;
-  private readonly cloak: Sprite;
-  private readonly footA: Sprite;
-  private readonly footB: Sprite;
+class RangerRig extends HeroRigBase {
+  private readonly torso: Container;
+  private readonly head: Container;
+  private readonly cloak: Container;
+  private readonly footA: Container;
+  private readonly footB: Container;
   private readonly arm = new Container();
   private readonly stringA: Sprite;
   private readonly stringB: Sprite;
-  private readonly arrow: Sprite;
-  private lastX = NaN;
-  private lastY = NaN;
-  private phase = 0;
-  private speed = 0;
-  private shotAt = -Infinity;
+  private readonly arrow: Container;
   private readonly cooldownMs = TUNING.hero.ranger.attackCooldown * 1000;
 
   constructor(kit: ArtKit, mine: boolean) {
-    if (mine) {
-      // Your hero: a ring on the ground (drawn once).
-      const ring = new Graphics().ellipse(0, 10, 15, 6).stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
-      this.body.addChild(ring);
-    }
-    const shadow = kit.sprite('common', 'shadow');
-    shadow.position.set(0, 10);
-    shadow.scale.set(0.6);
-    this.cloak = kit.sprite(ID, 'cloak');
-    this.footA = kit.sprite(ID, 'foot');
-    this.footB = kit.sprite(ID, 'foot');
-    this.torso = kit.sprite(ID, 'body');
-    this.head = kit.sprite(ID, 'head');
-    const bowSprite = kit.sprite(ID, 'bow');
-    bowSprite.position.set(BOW_X, 0);
+    super(kit, ID, mine, FEET, 15);
+    this.cloak = this.part('cloak');
+    this.footA = this.part('foot');
+    this.footB = this.part('foot');
+    this.torso = this.part('body');
+    this.head = this.part('head');
+    const bow = this.part('bow');
+    bow.position.set(BOW_X, 0);
     this.stringA = new Sprite(Texture.WHITE);
     this.stringB = new Sprite(Texture.WHITE);
     for (const s of [this.stringA, this.stringB]) {
@@ -127,53 +121,48 @@ class RangerRig implements HeroRig {
       s.height = 0.9;
       s.tint = RL.string;
     }
-    this.arrow = kit.sprite(ID, 'arrow');
+    this.arrow = this.part('arrow');
     this.arm.position.set(SHOULDER.x, SHOULDER.y);
-    this.arm.addChild(bowSprite, this.stringA, this.stringB, this.arrow);
+    this.arm.addChild(bow, this.stringA, this.stringB, this.arrow);
     this.flipper.addChild(this.cloak, this.footB, this.torso, this.footA, this.head, this.arm);
-    this.body.addChild(shadow, this.flipper);
-    this.pose(0, 0);
   }
 
-  shot(now: number): void {
-    this.shotAt = now;
-  }
-
-  update(h: HeroPose, now: number, dtMs: number): void {
-    if (!Number.isNaN(this.lastX) && dtMs > 0) {
-      const v = (Math.hypot(h.x - this.lastX, h.y - this.lastY) * 1000) / dtMs;
-      this.speed += (v - this.speed) * Math.min(1, dtMs / 90);
-    }
-    this.lastX = h.x;
-    this.lastY = h.y;
-    const walking = this.speed > 0.4 && !h.stunned;
-    if (walking) this.phase += (dtMs / 1000) * (7 + this.speed * 2.2);
-
-    const flip = Math.cos(h.facing) < -0.05 ? -1 : 1;
-    this.flipper.scale.x = flip;
-    this.arm.rotation = flip > 0 ? h.facing : Math.PI - h.facing;
-
+  protected pose(h: HeroPose, walking: boolean, now: number): void {
     // Bow: released right after a shot, then drawn back over the cooldown while fighting.
     const since = now - this.shotAt;
     let draw: number;
     if (since < RELEASE_MS) draw = 0;
     else if (since < this.cooldownMs * 2.5) draw = Math.min(1, (since - RELEASE_MS) / Math.max(1, this.cooldownMs * 0.85 - RELEASE_MS));
     else draw = 0.18;
-    draw = draw * draw * (3 - 2 * draw);
-    const twang = since < 260 ? Math.sin(since / 12) * (1 - since / 260) * 1.5 : 0;
-    this.pose(walking ? this.phase : 0, draw, twang, since < RELEASE_MS, now);
-  }
+    draw = smooth(draw);
+    let twang = since < 260 ? Math.sin(since / 12) * (1 - since / 260) * 1.5 : 0;
+    let released = since < RELEASE_MS;
+    let aim = this.aim(h);
+    let tilt = 0;
 
-  private pose(phase: number, draw: number, twang = 0, released = false, now = 0): void {
-    const s = Math.sin(phase);
-    const bob = phase ? Math.abs(s) * 1.8 : Math.sin(now / 500) * 0.35;
+    // Cast: swing the bow to the skill's aim at full draw, loose, and come back.
+    const c = this.casting(now);
+    if (c >= 0) {
+      const w = hold(c, 0.25, 0.8);
+      const target = CAST_AIM[this.castSlot] ?? -0.45;
+      aim += (target - aim) * w;
+      tilt = target * 0.3 * w;
+      const loose = (c - CAST_LOOSE) * CAST_MS;
+      draw = c < CAST_LOOSE ? smooth(clamp01(c / 0.4)) : 0;
+      released = loose >= 0 && loose < RELEASE_MS * 1.5;
+      twang = loose >= 0 && loose < 260 ? Math.sin(loose / 12) * (1 - loose / 260) * 1.8 : 0;
+    }
+
+    const bob = this.bob(walking, now, 1.8);
+    const s = walking ? Math.abs(Math.sin(this.phase)) : 0;
     this.torso.position.set(0, 1 - bob);
     this.cloak.position.set(-2, 1 - bob * 0.8);
-    this.cloak.rotation = phase ? -0.08 - Math.abs(s) * 0.06 : 0;
+    this.cloak.rotation = walking ? -0.08 - s * 0.06 : 0;
     this.head.position.set(0.5, -8 - bob);
-    this.footA.position.set(-3.2 + (phase ? Math.cos(phase) * 2.4 : 0), 9 - (phase ? Math.max(0, s) * 2.4 : 0));
-    this.footB.position.set(3.2 - (phase ? Math.cos(phase) * 2.4 : 0), 9 - (phase ? Math.max(0, -s) * 2.4 : 0));
+    this.head.rotation = tilt;
+    this.stepFeet(this.footA, this.footB, 3.2, 2.4, 2.4, walking);
     this.arm.y = SHOULDER.y - bob;
+    this.arm.rotation = aim;
 
     const tipX = BOW_X + BOW_TIP.x;
     const nockX = tipX - draw * DRAW_PX + twang;
@@ -198,11 +187,11 @@ registerArt({
   category: 'hero',
   kind: 'ranger',
   frames: {
-    cloak: { w: 26, h: 30, draw: cloak },
-    body: { w: 22, h: 20, draw: torso },
-    head: { w: 26, h: 20, draw: head },
-    foot: { w: 10, h: 7, draw: foot },
-    bow: { w: 24, h: 36, draw: bow },
+    cloak: { w: 26, h: 30, draw: cloak, flash: true },
+    body: { w: 22, h: 20, draw: torso, flash: true },
+    head: { w: 26, h: 20, draw: head, flash: true },
+    foot: { w: 10, h: 7, draw: foot, flash: true },
+    bow: { w: 24, h: 36, draw: bow, flash: true },
     arrow: { w: 28, h: 8, draw: arrow },
   },
   rig: (kit, mine) => new RangerRig(kit, mine),

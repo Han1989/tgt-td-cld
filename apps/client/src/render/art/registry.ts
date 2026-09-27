@@ -3,7 +3,8 @@
 // adding art never means editing a shared list. The renderer asks the registry whether a creep,
 // tower or hero kind has art (else it keeps its shape), and ?showcase lists every entry.
 
-import type { CreepKind, HeroKind, TowerKind } from '@tdt/protocol';
+import type { CreepKind, CreepSnap, HeroKind, SkillSlot, TowerKind } from '@tdt/protocol';
+import { TUNING } from '@tdt/sim';
 import type { Container } from 'pixi.js';
 import type { ArtKit } from './kit';
 import type { Ctx, Painter } from './paint';
@@ -42,15 +43,25 @@ export interface Gait {
   hop: number;
   /** Squash at the bottom of a step (0..1 of the height). */
   squash: number;
+  /** A smooth bob (flyers) instead of a hop that lands each step. */
+  smooth?: boolean;
 }
 
-/** A creep: one sprite (`body`, contact shadow and weapon baked in) plus its flash silhouette. */
+/**
+ * A creep: one sprite (`body`, contact shadow and weapon baked in) plus its flash silhouette. A
+ * flyer's shadow is its own `shadow` frame instead, drawn on the ground under the bobbing body.
+ */
 export interface CreepArt extends ArtBase {
   category: 'creep';
   kind: CreepKind;
-  /** Where the feet are in the `body` frame, px below its centre: the rig pivots there. */
+  /** Where the feet are in the `body` frame, px below its centre: the rig pivots there (a flyer: its shadow). */
   feet: number;
   gait: Gait;
+  /**
+   * Other looks of the body (each a frame the size of `body`, with a flash), e.g. Shardback's Ether
+   * hide: `pick` says which frame a creep shows ('body' or one of `frames`).
+   */
+  variants?: { frames: readonly string[]; pick(c: CreepSnap): string };
 }
 
 /**
@@ -75,8 +86,14 @@ export interface HeroPose {
 export interface HeroRig {
   readonly body: Container;
   update(pose: HeroPose, now: number, dtMs: number): void;
-  /** The hero just attacked (a projectile appeared next to it). */
+  /** The hero just attacked (a projectile appeared next to it, or a melee hit landed). */
   shot(now: number): void;
+  /** The hero cast a skill (a `cast` event). */
+  cast(now: number, slot: SkillSlot): void;
+  /** The hero lost HP: hit flash (docs/ART.md §7). */
+  hit(now: number): void;
+  /** Death reaction at progress t (0..1 of DEATH.hero.ms); the next update() stands it back up. */
+  die(t: number): void;
 }
 
 /** A hero: frames plus a rig built from them (heroes are too different for one shared rig). */
@@ -155,7 +172,15 @@ export function checkArt(e: ArtEntry): string[] {
   const out: string[] = [];
   if (!/^[a-z][a-zA-Z0-9-]*$/.test(e.id)) out.push(`${e.id}: id must be lowerCamel / kebab`);
   for (const f of REQUIRED_FRAMES[e.category]) if (!e.frames[f]) out.push(`${e.id}: missing frame "${f}"`);
-  if (e.category === 'creep' && !e.frames.body?.flash) out.push(`${e.id}: body needs a flash silhouette`);
+  if (e.category === 'creep') {
+    for (const f of ['body', ...(e.variants?.frames ?? [])]) {
+      const def = e.frames[f];
+      if (!def) out.push(`${e.id}: missing variant frame "${f}"`);
+      else if (!def.flash) out.push(`${e.id}: ${f} needs a flash silhouette`);
+      else if (def.w !== e.frames.body?.w || def.h !== e.frames.body?.h) out.push(`${e.id}: ${f} must be the size of body`);
+    }
+    if (TUNING.creeps[e.kind].flying && !e.frames.shadow) out.push(`${e.id}: a flyer needs a "shadow" frame`);
+  }
   if (e.category === 'heart' && !e.frames.gem?.flash) out.push(`${e.id}: gem needs a flash silhouette`);
   if (e.category === 'prop' && Object.keys(e.frames).length === 0) out.push(`${e.id}: a prop needs at least one frame`);
   for (const [name, f] of Object.entries(e.frames)) {

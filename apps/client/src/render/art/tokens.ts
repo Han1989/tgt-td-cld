@@ -70,11 +70,32 @@ export const RL = {
   cloth: 0x2a8a8a,
   hoodShadow: 0x13201a,
   gloveDark: 0x3a2a22,
+  /** Warden: blue tabard, cape and shield over bright steel plate (`plate`; `steel` is the Flak towers' gun metal). */
+  wardenBlue: 0x3a6fc0,
+  wardenBlueDark: 0x1d3a6e,
+  plate: 0xa7b3c7,
+  plateDark: 0x5f6a80,
+  /** Arcanist: plum robe and hat, bare face. */
+  robe: 0xb9508c,
+  robeDark: 0x5a1f45,
+  skin: 0xe2b996,
 
   // Creeps
   grunt: 0xe0503f,
   gruntBelly: 0xe8a070,
   brute: 0x8c3440,
+  archer: 0xe8893a,
+  runner: 0xf2c247,
+  /** Wisp: a violet spirit (enemy magic), glowing. */
+  wisp: 0xb98cff,
+  /** Bosses: Ironhorn's plum hide, the Matriarch's magenta shell and eggs, Shardback's slate skin and hides. */
+  ironhorn: 0x6f3a8e,
+  matriarch: 0xc2477f,
+  egg: 0xf3e3c3,
+  shardback: 0x4d6a86,
+  hideStone: 0xc9b58a,
+  hideStoneDark: 0x8a7a58,
+  hideEther: 0x9f7bff,
 
   // UI icons (they also use the tower tokens: ice, amethyst, arcane…)
   /** The mana drop (Clarity Aura). */
@@ -87,6 +108,8 @@ export const RL = {
   eye: 0xffd24a,
   /** Hero eyes under the hood. */
   heroEye: 0xb6ff9e,
+  /** The Arcanist's staff gem. */
+  staffGem: 0xff9be0,
   /** Armoured eyes (visors). */
   visorEye: 0xff5a3a,
   /** Frost magic: frost tower runes and cores. */

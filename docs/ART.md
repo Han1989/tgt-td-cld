@@ -8,7 +8,7 @@ Art Track 0 chose style C, **"Runelight"**, from the art-direction spike (styles
 
 Twilight in a mossy forest clearing. Dark teal-green moss, packed-earth lanes worn pale in the middle, a few glowing motes. Every part has an **ink outline**, a body that **darkens downwards**, and a **cool moonlit rim** on its upper-left edge. Colour is used sparingly: materials are muted (wood, stone, iron, cloth), and the brightest things on screen are small **glowing accents**: runes, embers, eyes, gems. Creeps are warm (reds, oranges) against the cool ground so they are always the brightest thing on a lane; the player's side is cool and teal-lit; the enemy's portals are violet.
 
-**Status (Art Track 3):** restyled: the ground, the forest (trees over the border and the safe zone) and a few props, build pads, portals (with a wave-start flare), the Heart (with damage states), the Ranger, Grunt and Brute, **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches** (Art Track 2), every effect colour (§8) and the whole UI (§12: HUD, radial menus, skill buttons, lobby, settings, end screen, code-drawn icons). Still shapes: the other creeps and bosses, the Warden and Arcanist, projectiles and traps. `?showcase` lists both, and the UI icons.
+**Status (Art Tracks 1–3):** restyled: the ground, the forest (trees over the border and the safe zone) and a few props, build pads, portals (with a wave-start flare), the Heart (with damage states), **all three heroes** (Ranger, Warden, Arcanist, with walk, attack, cast, hit and death; Art Track 1), **every creep but the Matriarch's hatchlings** (Grunt, Archer, Runner, Brute, Wisp) and **the three bosses** (Ironhorn, Matriarch, Shardback with both hides), **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches** (Art Track 2), every effect colour (§8) and the whole UI (§12: HUD, radial menus, skill buttons, lobby, settings, end screen, code-drawn icons). Still shapes: the hatchling, projectiles and traps. `?showcase` lists both, and the UI icons.
 
 ## 2. Palette tokens
 
@@ -49,9 +49,21 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `leaf` / `leafDark` | `#2fb06c` / `#165c3a` | Ranger's cloak and hood; tier-3 pennants |
 | `cloth` | `#2a8a8a` | Accents on cloth (fletching) |
 | `hoodShadow` / `gloveDark` | `#13201a` / `#3a2a22` | Face lost in the hood; gloves |
+| `wardenBlue` / `wardenBlueDark` | `#3a6fc0` / `#1d3a6e` | Warden's tabard, shield, crest; cape |
+| `plate` / `plateDark` | `#a7b3c7` / `#5f6a80` | Warden's plate (bright steel, the player's side; `iron` is the enemy's, `steel` the Flak towers' gun metal); sabatons, gauntlet |
+| `robe` / `robeDark` | `#b9508c` / `#5a1f45` | Arcanist's robe and hat; sash, brim, boots |
+| `skin` | `#e2b996` | Bare faces and hands (Arcanist) |
 | **Creeps** | | |
-| `grunt` / `gruntBelly` | `#e0503f` / `#e8a070` | Grunt |
+| `grunt` / `gruntBelly` | `#e0503f` / `#e8a070` | Grunt (a darker `grunt` is the Runner's scarf) |
 | `brute` | `#8c3440` | Brute's skin |
+| `archer` | `#e8893a` | Archer's skin |
+| `runner` | `#f2c247` | Runner's skin |
+| `wisp` | `#b98cff` | Wisp: a violet spirit (enemy magic); its core glows |
+| `ironhorn` | `#6f3a8e` | Ironhorn's hide |
+| `matriarch` / `egg` | `#c2477f` / `#f3e3c3` | Matriarch's shell; her clutch of eggs |
+| `shardback` | `#4d6a86` | Shardback's slate skin |
+| `hideStone` / `hideStoneDark` | `#c9b58a` / `#8a7a58` | Shardback's Stone hide: slabs and cracks (`HIDE_COLORS.stone`) |
+| `hideEther` | `#9f7bff` | Shardback's Ether hide: crystal plates, glowing seams and shards (`HIDE_COLORS.ether`) |
 | **Glow accents** (drawn with `p.accent`) | | |
 | `rune` | `#7ffcd8` | Player-side magic: tower runes, pad studs, sighting crystals |
 | `ember` | `#ffa24a` | Fire: cannon runes, fuses, mortar, the Heart's core |
@@ -60,7 +72,8 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `voidGlow` | `#ff5fd2` | The Void branch's rim and needle |
 | `flare` | `#ff6a3d` | Flak runes and breeches (redder than `ember`) |
 | `eye` | `#ffd24a` | Creature eyes |
-| `heroEye` | `#b6ff9e` | Hero eyes under a hood |
+| `heroEye` | `#b6ff9e` | Hero eyes under a hood or behind a visor |
+| `staffGem` | `#ff9be0` | The Arcanist's staff gem and its flare |
 | `visorEye` | `#ff5a3a` | Eyes behind armour |
 | `heart` / `heartFacet` | `#ff3a60` / `#5a0a20` | The Heart's gem and its runes |
 | `portal` / `portalLight` / `void` | `#8a4fe0` / `#7ffcd8` / `#0a0616` | Portals (enemy side = violet) |
@@ -136,10 +149,14 @@ Tower colours: Arrow `rune`, Cannon `ember`, Frost `frost`, Arcane `arcane`, Fla
 
 Styled entities are **rigs**: a few atlas sprites animated by **position, rotation, scale, tint and alpha only** (`art/rigs.ts`; heroes build their own rig in their art file).
 
-- **Creeps:** one sprite each (shadow and weapon baked in). Walk = rock around the feet + hop each step, flipped to the walking direction (`GAITS.waddle`: 105 ms steps, 0.15 rad rock, 2.2 px hop; `GAITS.stomp` for heavy creeps: 190 ms, 0.07 rad, 1.2 px, 5% squash). Rooted or stunned creeps stand still. Pick a gait or add one to `GAITS`.
+- **Creeps:** one sprite each (shadow and weapon baked in). Walk = rock around the feet + hop each step, flipped to the walking direction. Gaits (`GAITS`): `waddle` (Grunt, Archer: 105 ms steps, 0.15 rad rock, 2.2 px hop), `scurry` (Runner: 62 ms, 0.08 rad, 2.6 px), `stomp` (Brute, Ironhorn, Shardback: 190 ms, 0.07 rad, 1.2 px, 5% squash), `crawl` (Matriarch: 120 ms, 0.03 rad, 0.7 px, 6% squash), `hover` (Wisp: a smooth 260 ms bob of 2.4 px and a gentle sway). Rooted or stunned creeps stand still. Pick a gait or add one to `GAITS`.
+- **Flyers** (the Wisp) are the one exception to "one sprite": their shadow is a second, static sprite (`shadow` frame) on the ground, `feet` px below the body's centre, so the body can bob over it; the rig pivots at the shadow. Flyers are few (a handful per lane), so the extra sprite is free.
+- **Variants:** a creep whose look changes with its state lists other `body`-sized frames in `variants` and a `pick(creep)` that says which to show (Shardback: `body` = Stone hide, `ether` = Ether hide, read from its magic resist). The rig swaps the texture only when the pick changes; `?showcase` shows a card per variant.
 - **Towers:** the turret turns towards the target at **7 rad/s** (towards its last shot for 0.9 s, else the nearest creep it can hit); on a shot the gun **recoils** back along the barrel (140 ms, up to ~5 px); a new or upgraded tower pops in (260 ms overshoot). Every tower turns (`turret: true`). An all-round blast with no projectile (the Blizzard pulse) doesn't recoil: on its `aoe` event the whole tower **swells** and settles (220 ms, up to +12%, the same in every direction).
-- **Heroes:** walk bob and stepping feet from their speed; a weapon aimed along `facing`; an attack animation keyed to `shot()` and the hero's attack cooldown (the Ranger draws the string back over the cooldown and releases on the shot).
-- **Hit flash:** a white **silhouette** of the body (`flash` on the frame) whose **alpha** goes up for 90 ms, at most every 200 ms. Frost tints the whole rig icy (`#bfeaff`). Art keeps its own colours; nothing is re-coloured by a tint except frost.
+- **Heroes** build their rig on `HeroRigBase` (`rigs.ts`), which gives them the `mine` ring and shadow, walk speed and phase, the facing flip, hit flash, cast clock and death fall; the hero file poses its parts. Walk bob and stepping feet from their speed; a weapon aimed along `facing` (ranged) or swung in the facing direction (melee); an **attack** keyed to `shot()` and the attack cooldown, with anticipation over the cooldown: the Ranger draws the string back and releases on the shot, the Arcanist's gem charges and the staff thrusts at the target with a flare, the Warden raises the sword and swings it down on the hit. Melee hits leave no projectile, so the renderer calls a melee hero's `shot()` when a creep within its reach loses HP; the rig ignores swings faster than 0.7 × its cooldown.
+- **Casts** (`cast(now, slot)`, from the `cast` event): a 480 ms pose that eases in, holds and eases out (`hold()`), different per skill where it's cheap. Ranger: the bow swings up (Multishot, Arrow Storm) or down at the ground (Snare Trap) at full draw and looses. Warden: Cleave is a wide sweep from high behind to low in front, Taunt thrusts the shield out with the sword raised, Last Stand braces low with the sword high. Arcanist: Fireball is a big thrust, Frost Nova lifts the staff and slams it down, Meteor raises staff and hand to the sky (700 ms). The spell effects themselves stay in `render/fx`.
+- **Hit reaction:** a white **silhouette** of the body (`flash` on the frame; every hero part has one) whose **alpha** goes up to 0.8 for 90 ms, at most every 200 ms (`HIT_FLASH`), and a **flinch**: the body squashes by up to 9% (bosses 4.5%) with the flash. Creeps flash when their HP drops, heroes when theirs does. Frost tints the whole rig icy (`#bfeaff`). Art keeps its own colours; nothing is re-coloured by a tint except frost.
+- **Death reaction** (`DEATH`, `deathPose()` in `rigs.ts`): the body flashes white (fading over the first 25%), pops 12% bigger, then falls around its feet and fades out over the second half. **Creeps** (340 ms) tip back 0.35 rad and flatten into the ground (squash 72%, widen 20%; a flyer's squash pulls it down onto its shadow). **Bosses** (800 ms) tip only 0.12 rad, shudder (±1.6 px) and sink 6 px as they flatten. **Heroes** (560 ms) fall over backwards (1.45 rad; their shadow is separate, so it stays flat) and are hidden until they respawn. The particles (`fx.death`) play on top. A creep's sprite waits frozen for up to 160 ms after it leaves the snapshots, for its `kill` event (due one snapshot later), so the fall starts where it stood; a leak or no event releases it at once. At most 48 death reactions play at once.
 - **The Heart** beats (lub-dub, faster below 30% HP), floats ±2.5 px, flashes and wobbles when hit. **Damage states** (`art/damage.ts`): under 60% HP the `cracks1` overlay shows ink cracks leaking ember light; under 30% `cracks2` splits it open, an additive heart-red blaze pulses with the beat, embers rise and the warning ring pulses. Crossing a threshold throws ruby shards, a flash and a small shake (not on a rejoin). Overlays are alpha 0 / 1, set only when the stage changes.
 - **Portals** turn their swirl; at each wave start the additive `flare` frame (rune rays and a ring) swells and fades over 1.1 s (35% bigger on boss waves, which also get a red shock ring), with a rune ring and sparkles.
 - Idle motion is subtle (≤ 0.5 px breathing); big motion is for things that matter (moving, shooting, being hit).
@@ -165,7 +182,7 @@ Keep these meanings:
 | Shield / Last Stand | `#ffd24a` | `COLORS.shield`, `AOE_COLORS.lastStand` |
 | Fire (Fireball, Meteor) | `#ff8a3d`, `#ff5a1f` | `AOE_COLORS`, `ZONE_COLORS` |
 | Ranger skills (Multishot, Arrow Storm) | `#e6ff7a` | `PROJECTILE_COLORS.multishot`, `ZONE_COLORS.arrowStorm` |
-| Portals, enemy magic | `#8a4fe0` | `COLORS.portal` = `RL.portal` |
+| Portals, enemy magic | `#8a4fe0`, Wisp `#b98cff` | `COLORS.portal` = `RL.portal`, `CREEP_COLORS.wisp` = `RL.wisp` (its hit sparks and death burst match its art) |
 | Player-side magic, wave starts | `#7ffcd8` | `FX.rune` = `RL.rune` |
 | Tower shots (muzzle flash, trail) | the tower's glow token: Arrow `rune`, Cannon `ember`, Frost `frost`, Arcane `arcane`, Flak `flare`; branches with their own glow override it (Void `voidGlow`, Prism `crystal`, Glacier `ice`, Hailstorm `snow`, Sniper / Skyguard `moon`, Mortar fire, Shrapnel ember light) | `SHOT_COLORS`, `BRANCH_SHOT_COLORS`, `shotColor(kind, branch)` |
 | Blizzard pulse | `#cff4ff` shockwave, frost-light inner ring, flakes whirled out | `fx.blizzardPulse` (the tower swells too, §7) |
@@ -179,7 +196,7 @@ Light (glows, sparks, trails, muzzle flashes) uses **additive** blending; dust, 
 The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7; `perf.spec.ts` checks the JavaScript per frame).
 
 - **Bake, don't draw.** Everything is drawn once into the art atlas (`art/atlas.ts`: 1024 px pages at 2 px per world px, shelf-packed, tallest first) or the ground canvas. Never create or redraw a `Graphics` per frame.
-- **One sprite per creep** (shadow and weapon baked in); rigs for heroes and towers use a handful of sprites.
+- **One sprite per creep** (shadow and weapon baked in; flyers add their shadow); rigs for heroes and towers use a handful of sprites. Dying creeps are pooled sprites too, capped at 48.
 - **No per-frame visibility toggles.** In Pixi v8, changing `visible` (or adding / removing children) rebuilds the draw list. Hide parts with `alpha = 0`, flash with alpha, and only toggle `visible` when something really appears or disappears (culling, a pooled sprite coming back).
 - **Tints are quantised** and set only when they change (a creep that isn't hit or slowed costs nothing).
 - **Frames stay small:** at most 200 × 200 world px (the registry refuses bigger); size a frame to its drawing plus the glow (~8 px). Every page is 4 MB of GPU memory, so prefer reusing a frame (tint, flip, scale) over a near-copy. With every tower drawn (50 tower frames) the atlas is **2 pages**. The bake is timed as `tdt:art-bake` (a `performance` measure) and the first screen as `tdt:ready`: going from 1 page to 2 took the bake from ~10 to ~19 ms (median; ~52 → ~94 ms at 4× CPU throttling) and open → lobby from ~204 to ~214 ms (~663 → ~717 ms at 4×), Pixel 7 emulation, cold.
@@ -190,9 +207,9 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 1. **Read** this guide and look at `?showcase` (dev server: `npm run dev`, then `/?showcase`).
 2. **Create one file** `apps/client/src/render/art/entities/<id>.ts`, named after its registry id (e.g. `archer.ts`, `frostTower.ts`). It draws its frames and calls `registerArt({...})` at the end. **Don't edit shared files**: `load.ts` imports every file in `entities/`, the renderer picks the art up by kind, and `?showcase` lists it.
 3. Pick the category and its required frames (`REQUIRED_FRAMES` in `registry.ts`):
-   - **creep**: `body` with contact shadow and weapon baked in, `flash` set (the silhouette without the shadow), `feet`, a `gait` from `GAITS`.
+   - **creep**: `body` with contact shadow and weapon baked in, `flash` set (the silhouette without the shadow), `feet`, a `gait` from `GAITS`. A flyer draws its shadow as its own `shadow` frame instead (the registry refuses a flyer without one). Other looks go in `variants` (frames the size of `body`, each with a flash).
    - **tower**: `base1..3` and `top1..3` (top points +x), optional `<branch>.base` / `<branch>.top` for its two branches (`TOWER_BRANCHES`), `turret`.
-   - **hero**: any frames plus a `rig(kit, mine)` returning a `HeroRig` (see `ranger.ts`); the `mine` ring on the ground, a shadow from `common/shadow`.
+   - **hero**: any frames (each with `flash: true` for the hit flash) plus a `rig(kit, mine)` returning a `HeroRig`: extend `HeroRigBase`, make parts with `this.part(frame)` and pose them in `pose()` (walk, attack from `shotAt`, cast from `casting()`); see `ranger.ts`, `warden.ts`, `arcanist.ts`.
 4. Use **tokens only** (`k.<token>`; add new ones to `RL` and to §2), the **painter** calls (§3), light from the upper left, glow only on emitters.
 5. Follow the **camera** (§5) and **size** (§6) rules; check the phone-size copy in `?showcase` in both Normal and Bright.
 6. Animate with transforms, tint and alpha only (§7, §9).
@@ -215,13 +232,14 @@ apps/client/src/render/art/
   common.ts        Shared frames (contact shadow)
   atlas.ts         Bakes every frame into 1024 px pages (+ flash silhouettes); re-bakes on Display change
   kit.ts           ArtKit: the atlas, sprite(id, frame), setDisplay
-  rigs.ts          CreepRig, TowerRig, GAITS
+  rigs.ts          CreepRig, TowerRig, HeroRigBase, GAITS, HIT_FLASH, DEATH / deathPose (hit and death reactions)
   ground.ts        The ground painter
   scatter.ts       Where props go (pure, tested)
   damage.ts        The Heart's damage stages (pure, tested)
   icons.ts         UI icons (§12): drawn with the painter, baked to CSS images
-  entities/        One file per entity (ranger, grunt, brute, arrowTower, cannonTower, frostTower, arcaneTower, flakTower,
-                   heart, portal, pad, tree, rock, mushrooms, runestone)
+  entities/        One file per entity (ranger, warden, arcanist, grunt, archer, runner, brute, wisp, ironhorn, matriarch,
+                   shardback, arrowTower, cannonTower, frostTower, arcaneTower, flakTower, heart, portal, pad, tree, rock,
+                   mushrooms, runestone)
 apps/client/src/showcase.ts   ?showcase dev page (entities, variants, UI icons)
 apps/client/src/style.css     The Runelight UI (§12)
 ```
