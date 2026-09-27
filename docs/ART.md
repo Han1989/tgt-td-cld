@@ -8,7 +8,7 @@ Art Track 0 chose style C, **"Runelight"**, from the art-direction spike (styles
 
 Twilight in a mossy forest clearing. Dark teal-green moss, packed-earth lanes worn pale in the middle, a few glowing motes. Every part has an **ink outline**, a body that **darkens downwards**, and a **cool moonlit rim** on its upper-left edge. Colour is used sparingly: materials are muted (wood, stone, iron, cloth), and the brightest things on screen are small **glowing accents**: runes, embers, eyes, gems. Creeps are warm (reds, oranges) against the cool ground so they are always the brightest thing on a lane; the player's side is cool and teal-lit; the enemy's portals are violet.
 
-**Status (Art Track 0):** restyled: the ground and forest, build pads, portals, the Heart, the Ranger, Grunt and Brute, Arrow and Cannon towers (tiers 1–3, plus the Sniper and Mortar branches; Volley and Shrapnel use tier 3 art). Still shapes: the other creeps and bosses, the Frost / Arcane / Flak towers, the Warden and Arcanist, projectiles and traps. `?showcase` lists both.
+**Status (Art Track 2):** restyled: the ground and forest, build pads, portals, the Heart, the Ranger, Grunt and Brute, and **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches**. Still shapes: the other creeps and bosses, the Warden and Arcanist, projectiles and traps. `?showcase` lists both.
 
 ## 2. Palette tokens
 
@@ -35,6 +35,10 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `bone` | `#e6dac0` | Horns, tusks, fletching |
 | `string` | `#dfe8f0` | Bow and crossbow strings |
 | `hole` | `#0d0a10` | Barrel mouths, visor slits |
+| `ice` / `iceDark` / `snow` | `#a9d8f0` / `#4f7fa6` / `#e8f4fb` | Frost towers: crystal, shaded facets and ice floors, snow caps |
+| `arcaneStone` / `amethyst` | `#4b3f63` / `#6a4a8c` | Arcane towers: violet-grey stone, the tier-1 orb (unlit) |
+| `crystal` / `obsidian` | `#d8e4f4` / `#1e1a2a` | Prism's pale crystal; Void's black stone |
+| `steel` / `steelDark` / `sandbag` | `#6c7a8a` / `#3a4452` / `#a08e66` | Flak towers: gun metal (lighter and bluer than `iron`), plates, sandbags |
 | **Heroes** | | |
 | `leaf` / `leafDark` | `#2fb06c` / `#165c3a` | Ranger's cloak and hood; tier-3 pennants |
 | `cloth` | `#2a8a8a` | Accents on cloth (fletching) |
@@ -45,6 +49,10 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | **Glow accents** (drawn with `p.accent`) | | |
 | `rune` | `#7ffcd8` | Player-side magic: tower runes, pad studs, sighting crystals |
 | `ember` | `#ffa24a` | Fire: cannon runes, fuses, mortar, the Heart's core |
+| `frost` | `#9fe8ff` | Frost tower runes and cores |
+| `arcane` | `#d68cff` | Arcane tower runes and orbs |
+| `voidGlow` | `#ff5fd2` | The Void branch's rim and needle |
+| `flare` | `#ff6a3d` | Flak runes and breeches (redder than `ember`) |
 | `eye` | `#ffd24a` | Creature eyes |
 | `heroEye` | `#b6ff9e` | Hero eyes under a hood |
 | `visorEye` | `#ff5a3a` | Eyes behind armour |
@@ -106,12 +114,23 @@ Rules:
 - **Contrast hierarchy:** creeps (warm, bright) > heroes > towers > pads > lanes > moss. Creeps must stay distinct from the lane (`#5a4c3a`) and the moss; tower tiers must be told apart by shape (ring size, merlons, second crossbow, gold trim), not only by colour.
 - Leave the HP bar zone clear: bars sit ~7 px above a creep's radius and 12 px above a hero's.
 
+**Tower tiers and branches** (Art Track 2) all speak one language, so a player reads a tower's tier from its glow at a glance:
+
+| | Materials | Glow (`tierRunes` in `parts.ts`, in the tower's colour) | Shape |
+|---|---|---|---|
+| Tier 1 | Humble: wood, fieldstone, sandbags | **None** (a tier-1 orb or crystal is unlit) | Small, plain |
+| Tier 2 | Dressed stone or steel ring | **2** studs (2.8 px) + a small core on the weapon | Bigger ring, a longer or extra weapon part |
+| Tier 3 | + **gold** trim | **4** studs (3.2 px) + a glowing core / tip | Outward features (merlons, icicles, standing stones, crates, cannonballs) |
+| Branch | Its own material mood | 3–8 accents, may use its own colour | **Its own base outline** and weapon silhouette |
+
+Tower colours: Arrow `rune`, Cannon `ember`, Frost `frost`, Arcane `arcane`, Flak `flare`. Kinds read by material at a distance: wood (Arrow), grey stone and iron (Cannon), blue ice (Frost), violet stone (Arcane), square steel (Flak). Branch outlines, no two alike: Sniper hexagon, Volley square fort with bartizans, Mortar octagon, Shrapnel saw ring, Glacier jagged ice shelf, Blizzard snow disc with spiral vanes, Prism triangle, Void thorned black sun, Skyguard diamond, Hailstorm cross. Tops are smaller frames than bases (e.g. 84 × 56): they only need the weapon plus its glow.
+
 ## 7. Animation conventions
 
 Styled entities are **rigs**: a few atlas sprites animated by **position, rotation, scale, tint and alpha only** (`art/rigs.ts`; heroes build their own rig in their art file).
 
 - **Creeps:** one sprite each (shadow and weapon baked in). Walk = rock around the feet + hop each step, flipped to the walking direction (`GAITS.waddle`: 105 ms steps, 0.15 rad rock, 2.2 px hop; `GAITS.stomp` for heavy creeps: 190 ms, 0.07 rad, 1.2 px, 5% squash). Rooted or stunned creeps stand still. Pick a gait or add one to `GAITS`.
-- **Towers:** the turret turns towards the target at **7 rad/s** (towards its last shot for 0.9 s, else the nearest creep it can hit); on a shot the gun **recoils** back along the barrel (140 ms, up to ~5 px); a new or upgraded tower pops in (260 ms overshoot). Tops that never turn set `turret: false`.
+- **Towers:** the turret turns towards the target at **7 rad/s** (towards its last shot for 0.9 s, else the nearest creep it can hit); on a shot the gun **recoils** back along the barrel (140 ms, up to ~5 px); a new or upgraded tower pops in (260 ms overshoot). Every tower turns (`turret: true`). An all-round blast with no projectile (the Blizzard pulse) doesn't recoil: on its `aoe` event the whole tower **swells** and settles (220 ms, up to +12%, the same in every direction).
 - **Heroes:** walk bob and stepping feet from their speed; a weapon aimed along `facing`; an attack animation keyed to `shot()` and the hero's attack cooldown (the Ranger draws the string back over the cooldown and releases on the shot).
 - **Hit flash:** a white **silhouette** of the body (`flash` on the frame) whose **alpha** goes up for 90 ms, at most every 200 ms. Frost tints the whole rig icy (`#bfeaff`). Art keeps its own colours; nothing is re-coloured by a tint except frost.
 - **The Heart** beats (lub-dub, faster below 30% HP), floats ±2.5 px, flashes and wobbles when hit. **Portals** turn their swirl and flare at each wave start.
@@ -145,7 +164,7 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 - **One sprite per creep** (shadow and weapon baked in); rigs for heroes and towers use a handful of sprites.
 - **No per-frame visibility toggles.** In Pixi v8, changing `visible` (or adding / removing children) rebuilds the draw list. Hide parts with `alpha = 0`, flash with alpha, and only toggle `visible` when something really appears or disappears (culling, a pooled sprite coming back).
 - **Tints are quantised** and set only when they change (a creep that isn't hit or slowed costs nothing).
-- **Frames stay small:** at most 200 × 200 world px (the registry refuses bigger); size a frame to its drawing plus the glow (~8 px). Every page is 4 MB of GPU memory, so prefer reusing a frame (tint, flip, scale) over a near-copy.
+- **Frames stay small:** at most 200 × 200 world px (the registry refuses bigger); size a frame to its drawing plus the glow (~8 px). Every page is 4 MB of GPU memory, so prefer reusing a frame (tint, flip, scale) over a near-copy. With every tower drawn (50 tower frames) the atlas is **2 pages**. The bake is timed as `tdt:art-bake` (a `performance` measure) and the first screen as `tdt:ready`: going from 1 page to 2 took the bake from ~10 to ~19 ms (median; ~52 → ~94 ms at 4× CPU throttling) and open → lobby from ~204 to ~214 ms (~663 → ~717 ms at 4×), Pixel 7 emulation, cold.
 - Pool sprites that come and go (creeps, projectiles); rigs are pooled with their creep sprite.
 
 ## 10. Adding a new entity (checklist)
@@ -170,7 +189,7 @@ A **new category** (e.g. projectiles or traps) is the one case that touches shar
 apps/client/src/render/art/
   tokens.ts        RL palette tokens, Display, LIGHTING, liftColor
   paint.ts         The painter (part / detail / accent / line / shadow), LINE weights, path helpers, hash
-  parts.ts         Shared drawing helpers (planks, stone blocks, rune rings)
+  parts.ts         Shared drawing helpers (planks, stone blocks, rune rings, tower tier runes)
   registry.ts      registerArt, entry types by category, REQUIRED_FRAMES, lookups (creepArt, towerArt…)
   load.ts          Imports common.ts and every file in entities/ (import.meta.glob)
   common.ts        Shared frames (contact shadow)
@@ -178,6 +197,7 @@ apps/client/src/render/art/
   kit.ts           ArtKit: the atlas, sprite(id, frame), setDisplay
   rigs.ts          CreepRig, TowerRig, GAITS
   ground.ts        The ground painter
-  entities/        One file per entity (ranger, grunt, brute, arrowTower, cannonTower, heart, portal, pad)
+  entities/        One file per entity (ranger, grunt, brute, arrowTower, cannonTower, frostTower, arcaneTower, flakTower,
+                   heart, portal, pad)
 apps/client/src/showcase.ts   ?showcase dev page
 ```

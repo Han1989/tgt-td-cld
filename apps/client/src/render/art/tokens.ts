@@ -42,6 +42,21 @@ export const RL = {
   string: 0xdfe8f0,
   /** Deep hole / void (cannon mouths, visor slits). */
   hole: 0x0d0a10,
+  /** Ice crystal (Frost towers), its shadowed facets, and snow caps. */
+  ice: 0xa9d8f0,
+  iceDark: 0x4f7fa6,
+  snow: 0xe8f4fb,
+  /** Dressed violet-grey stone and dull amethyst (Arcane towers). */
+  arcaneStone: 0x4b3f63,
+  amethyst: 0x6a4a8c,
+  /** Pale crystal (Prism). */
+  crystal: 0xd8e4f4,
+  /** Obsidian (Void). */
+  obsidian: 0x1e1a2a,
+  /** Light blue-grey gun metal and sandbags (Flak towers). */
+  steel: 0x6c7a8a,
+  steelDark: 0x3a4452,
+  sandbag: 0xa08e66,
 
   // Heroes
   leaf: 0x2fb06c,
@@ -64,6 +79,14 @@ export const RL = {
   heroEye: 0xb6ff9e,
   /** Armoured eyes (visors). */
   visorEye: 0xff5a3a,
+  /** Frost magic: frost tower runes and cores. */
+  frost: 0x9fe8ff,
+  /** Arcane magic: arcane tower runes and orbs. */
+  arcane: 0xd68cff,
+  /** The Void branch's hot magenta rim. */
+  voidGlow: 0xff5fd2,
+  /** Flak muzzles and runes (hotter and redder than ember). */
+  flare: 0xff6a3d,
   heart: 0xff3a60,
   heartFacet: 0x5a0a20,
   portal: 0x8a4fe0,

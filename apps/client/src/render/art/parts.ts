@@ -27,3 +27,11 @@ export function runeRing(c: Ctx, p: Painter, color: number, r: number, n: number
     p.accent(c, ngon(Math.cos(a) * r, Math.sin(a) * r, size, 4, a, 0.3), color);
   }
 }
+
+/**
+ * A tower tier's rune studs (docs/ART.md §6): none at tier 1, two at tier 2, four at tier 3, big enough
+ * that their glow tells the tiers apart on a phone.
+ */
+export function tierRunes(c: Ctx, p: Painter, color: number, r: number, tier: number): void {
+  if (tier >= 2) runeRing(c, p, color, r, tier === 2 ? 2 : 4, tier === 2 ? 2.8 : 3.2);
+}

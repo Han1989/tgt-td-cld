@@ -3,7 +3,7 @@
 
 import { readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { startSolo } from './helpers';
+import { startSolo, waitForReady } from './helpers';
 
 /** Art files: one entity each, named after its registry id. */
 const ART_FILES = readdirSync(new URL('../src/render/art/entities/', import.meta.url))
@@ -14,15 +14,19 @@ test('?showcase shows a card for every registered art file, and Bright re-bakes 
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?showcase');
+  await waitForReady(page, 'showcase');
   await expect.poll(() => page.evaluate(() => window.__showcase?.cards() ?? 0)).toBeGreaterThan(0);
   const ids = await page.evaluate(() => window.__showcase.ids);
   expect([...ids].sort()).toEqual([...ART_FILES].sort());
   for (const id of ART_FILES) await expect(page.locator(`.sc-card[data-art="${id}"]`).first()).toBeAttached();
-  // Towers: tiers 1–3 and both branches each.
-  await expect(page.locator('.sc-card[data-art="arrowTower"]')).toHaveCount(5);
-  await expect(page.locator('.sc-card[data-art="cannonTower"]')).toHaveCount(5);
-  // Kinds without art are listed as still shapes.
-  await expect(page.locator('.sc-todo')).toContainText('tower · frost');
+  // Towers: tiers 1–3 and both branches each, every branch with its own art.
+  for (const id of ['arrowTower', 'cannonTower', 'frostTower', 'arcaneTower', 'flakTower']) {
+    await expect(page.locator(`.sc-card[data-art="${id}"]`)).toHaveCount(5);
+  }
+  await expect(page.locator('.sc-card[data-art$="Tower"] .sc-label', { hasText: 'tier 3 art' })).toHaveCount(0);
+  // Kinds without art are listed as still shapes; every tower has art now.
+  await expect(page.locator('.sc-todo')).toContainText('creep · archer');
+  await expect(page.locator('.sc-todo')).not.toContainText('tower ·');
 
   await page.locator('.sc-display button[data-value="bright"]').click();
   await expect.poll(() => page.evaluate(() => window.__showcase.display())).toBe('bright');

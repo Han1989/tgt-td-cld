@@ -67,6 +67,9 @@ const RECOIL_MS = 140;
 const RECOIL_PX = 4;
 /** A new tower pops in over this long. */
 const POP_MS = 260;
+/** A pulse with no projectile (Blizzard) swells the whole tower this long, by up to this much. */
+const PULSE_MS = 220;
+const PULSE_SCALE = 0.12;
 /** The Heart flashes and wobbles this long when a creep leaks. */
 const HEART_HIT_MS = 420;
 /** The Heart warns (red glow, faster beat) at or under this share of its HP. */
@@ -108,6 +111,8 @@ interface TowerSprite extends EntitySprite {
   recoilAt: number;
   recoilX: number;
   recoilY: number;
+  /** Last all-round pulse (Blizzard): the whole tower swells instead of recoiling. */
+  pulseAt: number;
   born: number;
   /** The body is offset or scaled right now (needs resetting when the animation ends). */
   animating: boolean;
@@ -559,9 +564,17 @@ export class WorldRenderer {
       case 'arrowStorm':
         fx.arrowStormPulse(x, y, radius);
         break;
-      case 'blizzard':
+      case 'blizzard': {
         fx.ring(x, y, radius, AOE_COLORS.blizzard, 400);
+        // An all-round blast with no projectile: the whole tower swells for a moment instead of recoiling.
+        const t = this.drawnTowers.find((d) => Math.abs(d.x - x) < 0.01 && Math.abs(d.y - y) < 0.01);
+        const s = t && this.towers.get(t.id);
+        if (s) {
+          s.pulseAt = this.lastRenderAt;
+          s.animating = true;
+        }
         break;
+      }
       default:
         fx.ring(x, y, radius, AOE_COLORS.cleave, 400);
     }
@@ -919,6 +932,7 @@ export class WorldRenderer {
           recoilAt: -Infinity,
           recoilX: 0,
           recoilY: 0,
+          pulseAt: -Infinity,
           born: 0,
           animating: false,
           art: rig,
@@ -970,19 +984,22 @@ export class WorldRenderer {
     s.animating = true;
   }
 
-  /** Recoil (the body kicks back from the shot) and the pop of a new or upgraded tower. */
+  /** Recoil (the body kicks back from the shot), the all-round pulse, and the pop of a new or upgraded tower. */
   private animateTower(s: TowerSprite, now: number): void {
     if (!s.animating) return;
     const r = Math.max(0, 1 - (now - s.recoilAt) / RECOIL_MS);
     const p = Math.min(1, (now - s.born) / POP_MS);
+    const q = Math.min(1, (now - s.pulseAt) / PULSE_MS);
     // Overshoot then settle.
     const pop = p >= 1 ? 1 : 1 + Math.sin(p * Math.PI) * 0.18 - (1 - p) * 0.25;
+    // Swell and settle back to exactly 1, the same in every direction.
+    const pulse = q >= 1 ? 1 : 1 + Math.sin(q * Math.PI) * PULSE_SCALE;
     const kick = r * r * RECOIL_PX;
     // A turret's gun slides back along its barrel; a shape kicks back as a whole.
     if (s.art?.turns) s.art.kick(kick * 1.2);
     else s.body.position.set(-s.recoilX * kick, -s.recoilY * kick);
-    s.body.scale.set(pop);
-    if (r <= 0 && p >= 1) {
+    s.body.scale.set(pop * pulse);
+    if (r <= 0 && p >= 1 && q >= 1) {
       s.animating = false;
       s.body.position.set(0, 0);
       s.body.scale.set(1);
