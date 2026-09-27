@@ -27,6 +27,7 @@ interface Hook {
   frameCosts(): number[];
   visibleCreeps(): number;
   fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number };
+  art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };
   layout(): {
     kind: string;
     tilePx: number;
@@ -40,9 +41,17 @@ interface Hook {
   camera: { zoom: number; worldToScreen(x: number, y: number): { x: number; y: number } };
 }
 
+/** The ?showcase page's hook (showcase.ts). */
+interface ShowcaseHook {
+  ids: string[];
+  cards(): number;
+  display(): 'normal' | 'bright';
+}
+
 declare global {
   interface Window {
     __tdt: Hook;
+    __showcase: ShowcaseHook;
   }
 }
 

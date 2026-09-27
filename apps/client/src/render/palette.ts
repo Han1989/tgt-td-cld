@@ -1,17 +1,11 @@
+// Shared colours: effects, HUD, and the shapes of entities without art yet. The ground, pads and
+// restyled entities take their colours from the Runelight tokens (art/tokens.ts, docs/ART.md).
+
 import type { AoeEffect, CreepKind, HeroKind, TowerKind, ZoneKind } from '@tdt/protocol';
 
 export const COLORS = {
   background: 0x0b0f14,
-  open: 0x2f4a2c,
-  openAlt: 0x2c4629,
-  lane: 0x7a6546,
-  laneAlt: 0x745f41,
-  pad: 0x3e4d60,
-  padEdge: 0x6f86a3,
-  blocker: 0x172416,
-  tree: 0x21381f,
   heart: 0xff4d6d,
-  heartCore: 0xffc2cf,
   portal: 0x9b5de5,
   heroRing: 0xffffff,
   shield: 0xffd24a,

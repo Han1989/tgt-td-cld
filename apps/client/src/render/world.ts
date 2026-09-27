@@ -1,6 +1,10 @@
-// PixiJS renderer for the game world. Shapes only: every entity type has a
-// distinct shape and colour plus an HP bar. It reads snapshots and UI state
-// and never touches game state.
+// PixiJS renderer for the game world. It reads snapshots and UI state and never
+// touches game state.
+//
+// Art (docs/ART.md): the Runelight look. The ground is painted once into one canvas;
+// entities with registered art (render/art/entities/) are rigs of baked atlas sprites,
+// animated by transform, tint and alpha only. Entities without art yet keep their
+// shapes: a distinct shape and colour per type. Everything gets an HP bar.
 //
 // Effects (Phase 4b) are client-only: hits are read from creep HP dropping between
 // the snapshots being rendered, shots from projectiles appearing, and everything
@@ -19,7 +23,7 @@ import {
   type TowerSnap,
   type ZoneSnap,
 } from '@tdt/protocol';
-import { getMap, padAtTile, Tile, TILE_PX, tileAt, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
+import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
@@ -40,6 +44,12 @@ import {
   TOWER_COLORS,
   ZONE_COLORS,
 } from './palette';
+import { ArtKit } from './art/kit';
+import { createGround, type Ground } from './art/ground';
+import { PAD_PX } from './art/entities/pad';
+import { creepArt, heartArt, heroArt, padArt, portalArt, towerArt, type HeartArt, type HeroRig } from './art/registry';
+import { CreepRig, TowerRig } from './art/rigs';
+import { RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
 const S = TILE_PX;
@@ -67,7 +77,7 @@ const HERO_STYLES = new Set(['ranger', 'arcanist', 'crit', 'multishot', 'firebal
 
 interface EntitySprite {
   root: Container;
-  body: Graphics;
+  body: Container;
   /**
    * The HP bar as plain sprites (heroes add a mana strip). Resizing a sprite is cheap, while
    * redrawing a small Graphics makes Pixi rebuild the whole scene's draw list.
@@ -81,8 +91,12 @@ interface EntitySprite {
 
 interface CreepSprite extends EntitySprite {
   kind: CreepKind;
-  /** Bosses keep their colours and flash with a white overlay; other creeps are drawn white and tinted. */
-  flash: Graphics | null;
+  /**
+   * Shapes: bosses keep their colours and flash with a white overlay; other creeps are drawn white
+   * and tinted. Art: a rig whose white silhouette flashes (alpha only).
+   */
+  flash: Container | null;
+  art: CreepRig | null;
   flashUntil: number;
   flashReadyAt: number;
   /** Quantised tint / flash state last applied, so unchanged creeps cost nothing. */
@@ -97,6 +111,13 @@ interface TowerSprite extends EntitySprite {
   born: number;
   /** The body is offset or scaled right now (needs resetting when the animation ends). */
   animating: boolean;
+  art: TowerRig | null;
+  /** Direction of the last shot (radians) and until when the turret keeps facing it. */
+  aimAt: number;
+  aimUntil: number;
+  /** What it can shoot at (its tier / branch), for aiming. */
+  hitsAir: boolean;
+  hitsGround: boolean;
 }
 
 interface HeroSprite extends EntitySprite {
@@ -106,6 +127,7 @@ interface HeroSprite extends EntitySprite {
   kind: HeroKind;
   look: string;
   auraOn: boolean;
+  art: HeroRig | null;
 }
 
 interface ProjectileSprite {
@@ -129,13 +151,21 @@ interface HeartSprite {
   root: Container;
   glow: Graphics;
   warn: Sprite;
-  body: Graphics;
-  flash: Graphics;
+  /** The gem (beats and floats) and its white silhouette (alpha only). */
+  body: Container;
+  flash: Container;
+  art: HeartArt;
+}
+
+interface PadSprite {
+  root: Container;
+  rim: Sprite;
+  wash: Sprite;
 }
 
 interface PortalSprite {
   root: Container;
-  swirl: Graphics;
+  swirl: Container;
   core: Sprite;
   x: number;
   y: number;
@@ -151,9 +181,10 @@ interface TextFx {
 
 export class WorldRenderer {
   readonly world = new Container();
-  private readonly mapLayer = new Graphics();
-  /** Build pads of this match, tinted by owner; redrawn when owners change. */
-  private readonly padLayer = new Graphics();
+  private readonly mapLayer = new Container();
+  /** Build pads of this match: a stone slab each, rimmed in the owner's zone colour; updated when owners change. */
+  private readonly padLayer = new Container();
+  private readonly pads = new Map<number, PadSprite>();
   private padKey = '';
   private readonly portalLayer = new Container();
   private readonly heartLayer = new Container();
@@ -198,6 +229,9 @@ export class WorldRenderer {
   private drawnTowers: TowerSnap[] = [];
 
   private readonly map: GameMap = getMap();
+  /** Baked atlas of every registered entity's art (docs/ART.md). */
+  private readonly art: ArtKit;
+  private readonly ground: Ground;
   /**
    * Creeps and heroes are drawn this much larger (towers up to MAX_TOWER_SCALE), so they stay
    * readable when tiles are small on a phone. Set by the layout.
@@ -212,6 +246,8 @@ export class WorldRenderer {
   ) {
     this.atlas = createFxAtlas();
     this.fx = new Effects(this.atlas);
+    this.art = new ArtKit('normal');
+    this.ground = createGround(this.map, 'normal');
     this.world.addChild(
       this.mapLayer,
       this.padLayer,
@@ -234,6 +270,25 @@ export class WorldRenderer {
     this.drawMap();
     this.heart = this.makeHeart();
     this.makePortals();
+  }
+
+  /** Settings → Display: re-bakes the art and repaints the ground (Bright lifts ground and shadows). */
+  setDisplay(display: Display): void {
+    if (display === this.art.display) return;
+    this.art.setDisplay(display);
+    this.ground.repaint(display);
+  }
+
+  /** What the art layer shows right now (browser tests). */
+  artStats(): { display: Display; pads: number; creepRigs: number; towerRigs: number; heroRigs: number } {
+    const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
+    return {
+      display: this.art.display,
+      pads: this.pads.size,
+      creepRigs: count(this.creeps.values()),
+      towerRigs: count(this.towers.values()),
+      heroRigs: count(this.heroes.values()),
+    };
   }
 
   /** Effects allowed by the current quality and settings. */
@@ -302,7 +357,7 @@ export class WorldRenderer {
     this.detectHits(from, now);
     this.syncPads(latest, me);
     this.syncCreeps(creeps, now, dt);
-    this.syncTowers(towers, now);
+    this.syncTowers(towers, now, dt);
     this.syncHeroes(heroes, me, now, dt);
     this.syncProjectiles(projectiles, heroes, dt);
     this.syncTraps(latest);
@@ -588,63 +643,26 @@ export class WorldRenderer {
   // Static map, portals and the Heart
   // -------------------------------------------------------------------------
 
+  /** The painted ground (moss, lanes, forest): one sprite. */
   private drawMap(): void {
-    const g = this.mapLayer;
-    const m = this.map;
-    for (let ty = 0; ty < m.height; ty++) {
-      for (let tx = 0; tx < m.width; tx++) {
-        const t = tileAt(m, tx, ty);
-        const alt = (tx + ty) % 2 === 0;
-        const color =
-          t === Tile.Lane ? (alt ? COLORS.lane : COLORS.laneAlt) : t === Tile.Blocker ? COLORS.blocker : alt ? COLORS.open : COLORS.openAlt;
-        g.rect(tx * S, ty * S, S, S).fill(color);
-      }
-    }
-    // Trees on blocker tiles, jittered deterministically.
-    for (let ty = 0; ty < m.height; ty++) {
-      for (let tx = 0; tx < m.width; tx++) {
-        if (tileAt(m, tx, ty) !== Tile.Blocker) continue;
-        const h = ((tx * 73856093) ^ (ty * 19349663)) >>> 0;
-        const ox = ((h % 100) / 100 - 0.5) * 0.3;
-        const oy = (((h >>> 8) % 100) / 100 - 0.5) * 0.3;
-        g.circle((tx + 0.5 + ox) * S, (ty + 0.5 + oy) * S, S * (0.38 + ((h >>> 16) % 10) / 60)).fill(COLORS.tree);
-      }
-    }
-    // Portal wells (the swirl above them is animated).
-    for (const lane of m.lanes) {
-      const p = lane.waypoints[0]!;
-      g.circle(p.x * S, (p.y + 1) * S, S * 1.3).fill({ color: COLORS.portal, alpha: 0.25 });
-      g.circle(p.x * S, (p.y + 1) * S, S * 0.8).fill({ color: 0x1a0b2e, alpha: 0.8 });
-    }
-    // Thousands of static shapes: render them once into a texture. 2× keeps it
-    // crisp when zoomed in while staying under 4096 px (50 × 32 × 2 = 3200).
-    g.cacheAsTexture({ resolution: 2, antialias: true });
+    this.mapLayer.addChild(new Sprite(this.ground.texture));
   }
 
-  /** Swirling portals: spiral arms drawn once, then only rotated and scaled. */
+  /** Portals: a stone rim with a glowing swirl that turns, and an additive glow in the middle. */
   private makePortals(): void {
+    const art = portalArt();
     for (const lane of this.map.lanes) {
       const p = lane.waypoints[0]!;
       const root = new Container();
       root.position.set(p.x * S, (p.y + 1) * S);
-      const swirl = new Graphics();
-      const r = S * 1.3;
-      for (let arm = 0; arm < 3; arm++) {
-        const a0 = (arm * Math.PI * 2) / 3;
-        for (let i = 0; i < 10; i++) {
-          const t = i / 9;
-          const a = a0 + t * 2.4;
-          const d = r * (0.25 + 0.75 * t);
-          swirl.circle(Math.cos(a) * d, Math.sin(a) * d, 1.5 + 3.5 * (1 - t)).fill({ color: i < 3 ? 0xe9d5ff : COLORS.portal, alpha: 0.9 - t * 0.6 });
-        }
-      }
-      swirl.circle(0, 0, r).stroke({ width: 3, color: COLORS.portal, alpha: 0.9 });
+      const rim = this.art.sprite(art.id, 'rim');
+      const swirl = this.art.sprite(art.id, 'swirl');
       const core = new Sprite(this.atlas.frames.glow);
       core.anchor.set(0.5);
-      core.tint = 0xc59bff;
+      core.tint = art.coreTint;
       core.blendMode = 'add';
-      core.scale.set((S * 0.9) / DISC_PX);
-      root.addChild(core, swirl);
+      core.scale.set((S * 0.8) / DISC_PX);
+      root.addChild(rim, core, swirl);
       this.portalLayer.addChild(root);
       this.portals.push({ root, swirl, core, x: p.x, y: p.y + 1 });
     }
@@ -680,6 +698,7 @@ export class WorldRenderer {
 
   private makeHeart(): HeartSprite {
     const { x, y } = this.map.heart;
+    const art = heartArt();
     const root = new Container();
     root.position.set(x * S, y * S);
     const glow = new Graphics().circle(0, 0, S * 2.2).fill({ color: COLORS.heart, alpha: 0.35 });
@@ -689,16 +708,15 @@ export class WorldRenderer {
     warn.blendMode = 'add';
     warn.scale.set((S * 2.6) / RING_PX);
     warn.alpha = 0;
-    const r = S * 1.6;
-    const diamond = [0, -r, r, 0, 0, r, -r, 0];
-    const body = new Graphics();
-    body.poly(diamond).fill(COLORS.heart).stroke({ width: 3, color: 0x000000, alpha: 0.4 });
-    body.circle(0, 0, r * 0.35).fill(COLORS.heartCore);
-    const flash = new Graphics().poly(diamond).fill(0xffd0d8);
+    const base = this.art.sprite(art.id, 'base');
+    base.position.set(0, art.baseY);
+    const gem = this.art.sprite(art.id, 'gem');
+    const flash = this.art.sprite(art.id, 'gem.flash');
     flash.alpha = 0;
-    root.addChild(glow, warn, body, flash);
+    for (const s of [gem, flash]) s.position.set(0, art.gemY);
+    root.addChild(glow, warn, base, gem, flash);
     this.heartLayer.addChild(root);
-    return { root, glow, warn, body, flash };
+    return { root, glow, warn, body: gem, flash, art };
   }
 
   /** Gentle heartbeat; red flash and a wobble when hit; a red warning glow and faster beat at low HP. */
@@ -713,8 +731,12 @@ export class WorldRenderer {
     const { x, y } = this.map.heart;
     const wobble = hit * hit * 5;
     h.root.position.set(x * S + Math.sin(now / 17) * wobble, y * S + Math.cos(now / 23) * wobble);
-    h.body.scale.set(1 + beat * (low ? 0.07 : 0.045) + hit * 0.12);
+    const art = h.art;
+    h.body.scale.set(art.gemScale * (1 + beat * (low ? 0.07 : 0.045) + hit * 0.12));
+    // The gem floats over its pedestal.
+    h.body.y = art.gemY + Math.sin(now / 650) * art.floatPx;
     h.flash.scale.copyFrom(h.body.scale);
+    h.flash.y = h.body.y;
     h.flash.alpha = hit * 0.85;
     h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5;
     h.warn.alpha = low ? 0.35 + 0.35 * Math.sin(now / 160) : 0;
@@ -722,26 +744,44 @@ export class WorldRenderer {
   }
 
   /**
-   * The pads that exist in this match: yours bright in your colour, teammates' dimmer in theirs,
-   * open pads (a leaver's) neutral.
+   * The pads that exist in this match, as stone slabs. Solo (and open pads, a leaver's): a faint
+   * moonlit rim. Multiplayer: the owner's zone colour, bright on yours, dimmer on teammates'.
    */
   private syncPads(snap: Snapshot, me: PlayerId | null): void {
     const key = `${me}|${snap.pads.map((p) => `${p.id}:${p.owner ?? ''}`).join()}`;
     if (key === this.padKey) return;
     this.padKey = key;
-    const g = this.padLayer.clear();
-    const n = this.map.padSize;
+    const art = padArt();
+    const scale = (this.map.padSize * S) / PAD_PX;
     const solo = snap.players.length <= 1;
+    const seen = new Set<number>();
     for (const p of snap.pads) {
       const pad = this.map.pads[p.id];
       if (!pad) continue;
+      seen.add(p.id);
+      let s = this.pads.get(p.id);
+      if (!s) {
+        const root = new Container();
+        root.position.set(pad.x * S, pad.y * S);
+        root.scale.set(scale);
+        const rim = this.art.sprite(art.id, 'rim');
+        const wash = this.art.sprite(art.id, 'wash');
+        root.addChild(this.art.sprite(art.id, 'slab'), wash, rim);
+        this.padLayer.addChild(root);
+        this.pads.set(p.id, (s = { root, rim, wash }));
+      }
       const seat = snap.players.findIndex((pl) => pl.id === p.owner);
-      const tint = solo || seat < 0 ? COLORS.padEdge : (PLAYER_COLORS[seat % PLAYER_COLORS.length] ?? COLORS.padEdge);
-      const mine = solo || p.owner === me || p.owner === null;
-      g.roundRect(pad.tx * S + 2, pad.ty * S + 2, n * S - 4, n * S - 4, 6)
-        .fill(COLORS.pad)
-        .fill({ color: tint, alpha: solo || seat < 0 ? 0 : mine ? 0.25 : 0.12 })
-        .stroke({ width: mine ? 3 : 2, color: tint, alpha: mine ? 0.9 : 0.45 });
+      const zone = solo || seat < 0 ? null : (PLAYER_COLORS[seat % PLAYER_COLORS.length] ?? null);
+      const mine = p.owner === me;
+      s.rim.tint = zone ?? RL.moon;
+      s.rim.alpha = zone === null ? 0.35 : mine ? 0.95 : 0.5;
+      s.wash.tint = zone ?? RL.moon;
+      s.wash.alpha = zone === null ? 0 : mine ? 0.2 : 0.08;
+    }
+    for (const [id, s] of this.pads) {
+      if (seen.has(id)) continue;
+      s.root.destroy({ children: true });
+      this.pads.delete(id);
     }
   }
 
@@ -758,7 +798,8 @@ export class WorldRenderer {
       seen.add(c.id);
       let s = this.creeps.get(c.id);
       if (!s) {
-        s = this.creepPool.get(c.kind)?.pop() ?? makeCreepSprite(c.kind);
+        s = this.creepPool.get(c.kind)?.pop() ?? makeCreepSprite(c.kind, this.art);
+        s.art?.reset();
         s.root.visible = true;
         (TUNING.creeps[c.kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
         this.creeps.set(c.id, s);
@@ -782,6 +823,7 @@ export class WorldRenderer {
         if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
       }
       this.tintCreep(s, c, now);
+      s.art?.update(c.x, c.id, c.rooted || c.stunned, now);
       // Frost shimmer: icy glints drift off slowed creeps.
       if (c.slowed && glints && chance(2.5, dtMs) > 0) this.fx.frostGlint(c.x, c.y, TUNING.creeps[c.kind].radius);
     }
@@ -809,6 +851,16 @@ export class WorldRenderer {
    */
   private tintCreep(s: CreepSprite, c: CreepSnap, now: number): void {
     const f = s.flashUntil > now ? Math.ceil(((s.flashUntil - now) / FLASH_MS) * 4) / 4 : 0;
+    if (s.art) {
+      // Art keeps its colours: the white silhouette flashes (alpha only), frost tints the whole rig.
+      const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 8) / 8 : 0;
+      const key = f * 100 + ice * 10 + 1;
+      if (key === s.tintKey) return;
+      s.tintKey = key;
+      s.art.setFlash(f * 0.8);
+      s.art.setTint(mixColor(0xffffff, ICE, Math.min(1, ice * 1.6)));
+      return;
+    }
     if (s.flash) {
       const key = f * 100;
       if (key !== s.tintKey) {
@@ -831,13 +883,50 @@ export class WorldRenderer {
     return { left: a.x, top: a.y, right: b.x, bottom: b.y };
   }
 
-  private syncTowers(towers: TowerSnap[], now: number): void {
+  /** Turrets face their last shot for a moment, else the nearest creep they can hit. */
+  private aimTower(s: TowerSprite, t: TowerSnap, now: number, dtMs: number): void {
+    if (!s.art?.turns || t.stunned) return;
+    let target = s.aimAt;
+    if (now > s.aimUntil) {
+      let best = Infinity;
+      let found = false;
+      const r2 = t.range * t.range;
+      for (const c of this.drawnCreeps) {
+        if (TUNING.creeps[c.kind].flying ? !s.hitsAir : !s.hitsGround) continue;
+        const d = (c.x - t.x) ** 2 + (c.y - t.y) ** 2;
+        if (d <= r2 && d < best) {
+          best = d;
+          target = Math.atan2(c.y - t.y, c.x - t.x);
+          found = true;
+        }
+      }
+      if (!found) return;
+    }
+    s.art.aim(target, dtMs);
+  }
+
+  private syncTowers(towers: TowerSnap[], now: number, dtMs: number): void {
     const seen = new Set<number>();
     for (const t of towers) {
       seen.add(t.id);
       let s = this.towers.get(t.id);
       if (!s) {
-        s = { ...makeSprite(towerBody(t.kind)), kind: t.kind, recoilAt: -Infinity, recoilX: 0, recoilY: 0, born: 0, animating: false };
+        const art = towerArt(t.kind);
+        const rig = art ? new TowerRig(this.art, art) : null;
+        s = {
+          ...makeSprite(rig ? rig.body : towerBody(t.kind)),
+          kind: t.kind,
+          recoilAt: -Infinity,
+          recoilX: 0,
+          recoilY: 0,
+          born: 0,
+          animating: false,
+          art: rig,
+          aimAt: 0,
+          aimUntil: -Infinity,
+          hitsAir: true,
+          hitsGround: true,
+        };
         this.startPop(s, now);
         this.towerLayer.addChild(s.root);
         this.towers.set(t.id, s);
@@ -850,6 +939,10 @@ export class WorldRenderer {
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
+        s.art?.setTier(t.tier, t.branch);
+        const stats = towerStats(TUNING, t.kind, t.tier, t.branch);
+        s.hitsAir = stats.hitsAir;
+        s.hitsGround = stats.hitsGround;
         // One pip per tier along the bottom edge; a branch adds a bigger white one.
         const pipY = S * TOWER_SIZE * 0.5 - 5;
         for (let i = 0; i < t.tier; i++) {
@@ -861,6 +954,7 @@ export class WorldRenderer {
         }
         if (t.stunned) s.status.star(0, 0, 5, S * 0.5, S * 0.25).fill({ color: COLORS.stun, alpha: 0.9 });
       }
+      this.aimTower(s, t, now, dtMs);
       this.animateTower(s, now);
     }
     for (const [id, s] of this.towers) {
@@ -884,12 +978,15 @@ export class WorldRenderer {
     // Overshoot then settle.
     const pop = p >= 1 ? 1 : 1 + Math.sin(p * Math.PI) * 0.18 - (1 - p) * 0.25;
     const kick = r * r * RECOIL_PX;
-    s.body.position.set(-s.recoilX * kick, -s.recoilY * kick);
+    // A turret's gun slides back along its barrel; a shape kicks back as a whole.
+    if (s.art?.turns) s.art.kick(kick * 1.2);
+    else s.body.position.set(-s.recoilX * kick, -s.recoilY * kick);
     s.body.scale.set(pop);
     if (r <= 0 && p >= 1) {
       s.animating = false;
       s.body.position.set(0, 0);
       s.body.scale.set(1);
+      s.art?.kick(0);
     }
   }
 
@@ -915,6 +1012,7 @@ export class WorldRenderer {
       s.root.position.set(h.x * S, h.y * S);
       s.root.scale.set(this.entityScale);
       s.facing.rotation = h.facing;
+      s.art?.update(h, now, dtMs);
       const r = TUNING.hero[h.kind].radius * S;
       const key = `${h.hp}/${h.maxHp}/${h.mana}/${h.maxMana}`;
       if (key !== s.barKey) {
@@ -958,9 +1056,17 @@ export class WorldRenderer {
 
   private makeHero(h: HeroSnap, me: PlayerId | null, look: string): HeroSprite {
     const r = TUNING.hero[h.kind].radius * S;
-    const body = heroBody(h.kind, r);
-    if (h.owner === me) body.circle(0, 0, r + 5).stroke({ width: 2, color: COLORS.heroRing });
-    const facing = new Graphics().poly([r + 7, 0, r - 1, -5, r - 1, 5]).fill(0xffffff);
+    const rig = heroArt(h.kind)?.rig(this.art, h.owner === me) ?? null;
+    let body: Container;
+    if (rig) body = rig.body;
+    else {
+      const g = heroBody(h.kind, r);
+      if (h.owner === me) g.circle(0, 0, r + 5).stroke({ width: 2, color: COLORS.heroRing });
+      body = g;
+    }
+    // Shapes show where they face with a small arrow; a rig shows it with its own pose.
+    const facing = new Graphics();
+    if (!rig) facing.poly([r + 7, 0, r - 1, -5, r - 1, 5]).fill(0xffffff);
     const sprite = makeSprite(body);
     const aura = new Sprite(this.atlas.frames.dashRing);
     aura.anchor.set(0.5);
@@ -972,7 +1078,7 @@ export class WorldRenderer {
     const mana = new Sprite(Texture.WHITE);
     mana.tint = COLORS.mana;
     sprite.root.addChild(mana);
-    return { ...sprite, facing, mana, aura, kind: h.kind, look, auraOn: false };
+    return { ...sprite, facing, mana, aura, kind: h.kind, look, auraOn: false, art: rig };
   }
 
   private syncProjectiles(projectiles: { id: number; style: string; x: number; y: number }[], heroes: HeroSnap[], dtMs: number): void {
@@ -1037,6 +1143,7 @@ export class WorldRenderer {
       if (!h) return;
       const dx = p.x - h.x;
       const dy = p.y - h.y;
+      this.heroes.get(h.id)?.art?.shot(this.lastRenderAt);
       if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy);
       else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? 0xffffff, 0.4);
       return;
@@ -1062,6 +1169,8 @@ export class WorldRenderer {
       s.recoilX = dx / len;
       s.recoilY = dy / len;
       s.animating = true;
+      s.aimAt = Math.atan2(dy, dx);
+      s.aimUntil = this.lastRenderAt + 900;
     }
     this.fx.muzzle(best.x, best.y, dx, dy, TOWER_COLORS[best.kind], 0.9);
   }
@@ -1322,7 +1431,7 @@ export class WorldRenderer {
 // Shape builders
 // ---------------------------------------------------------------------------
 
-function makeSprite(body: Graphics): EntitySprite {
+function makeSprite(body: Container): EntitySprite {
   const root = new Container();
   const status = new Graphics();
   const hpBg = new Sprite(Texture.WHITE);
@@ -1334,7 +1443,14 @@ function makeSprite(body: Graphics): EntitySprite {
   return { root, body, hpBg, hpFill, status, barKey: '', statusKey: '' };
 }
 
-function makeCreepSprite(kind: CreepKind): CreepSprite {
+function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
+  const art = creepArt(kind);
+  if (art) {
+    const rig = new CreepRig(kit, art);
+    const s = makeSprite(rig.body);
+    s.root.addChildAt(rig.flash, 1);
+    return { ...s, kind, flash: rig.flash, art: rig, flashUntil: 0, flashReadyAt: 0, tintKey: -1 };
+  }
   const boss = TUNING.creeps[kind].boss;
   const body = creepBody(kind);
   const s = makeSprite(body);
@@ -1347,7 +1463,7 @@ function makeCreepSprite(kind: CreepKind): CreepSprite {
   } else {
     body.tint = CREEP_COLORS[kind];
   }
-  return { ...s, kind, flash, flashUntil: 0, flashReadyAt: 0, tintKey: -1 };
+  return { ...s, kind, flash, art: null, flashUntil: 0, flashReadyAt: 0, tintKey: -1 };
 }
 
 function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y: number): void {
@@ -1369,7 +1485,7 @@ function shardbackHide(c: CreepSnap): 'stone' | 'ether' {
 }
 
 /**
- * Creep shapes. Ordinary creeps are drawn in white and tinted with their colour (so a hit can
+ * Creep shapes (creeps without art yet). Ordinary creeps are drawn in white and tinted with their colour (so a hit can
  * flash them white by changing the tint); bosses are drawn in their own colours.
  */
 function creepBody(kind: CreepKind): Graphics {

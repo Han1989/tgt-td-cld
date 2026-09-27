@@ -6,8 +6,10 @@ describe('settings', () => {
   it('keeps known values and falls back to the defaults', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{bad json')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ thumbs: 'twoLeft', quality: 'low', shake: true });
+    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ thumbs: 'twoLeft', quality: 'low', shake: true, display: 'normal' });
     expect(parseSettings(JSON.stringify({ thumbs: 'three', quality: 7 }))).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings(JSON.stringify({ display: 'bright' })).display).toBe('bright');
+    expect(parseSettings(JSON.stringify({ display: 'neon' })).display).toBe('normal');
   });
 });
 

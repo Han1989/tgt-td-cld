@@ -6,8 +6,14 @@ import { setupPwa } from './platform/pwa';
 
 async function main(): Promise<void> {
   setupPwa();
-  const view = await GameView.create();
   const params = new URLSearchParams(location.search);
+  // ?showcase: a dev page with every registered entity's art (docs/ART.md), no match.
+  if (params.has('showcase')) {
+    const { runShowcase } = await import('./showcase');
+    await runShowcase();
+    return;
+  }
+  const view = await GameView.create();
   // ?stress=300: a render stress scene (no simulation) with an FPS readout, for performance checks.
   const stress = Number(params.get('stress'));
   if (stress > 0) {
