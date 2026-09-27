@@ -86,10 +86,11 @@ describe('lobby', () => {
     await expect(late.join(code)).rejects.toThrow(/match_in_progress/);
   });
 
-  it('rejects a fifth player, unknown codes and codes from another shard', async () => {
+  it('rejects a fourth player (a room holds 3, one per lane), unknown codes and codes from another shard', async () => {
     const { url } = await start();
-    const clients = await fullRoom(url, 4);
-    await expect(bot(url, 'Five').join(clients[0]!.code!)).rejects.toThrow(/room_full/);
+    const clients = await fullRoom(url, 3);
+    expect(clients.map((c) => c.playerId)).toEqual(['p1', 'p2', 'p3']);
+    await expect(bot(url, 'Four').join(clients[0]!.code!)).rejects.toThrow(/room_full/);
     await expect(bot(url, 'X').join('AZZZZ')).rejects.toThrow(/room_not_found/);
     await expect(bot(url, 'Y').join('BZZZZ')).rejects.toThrow(/wrong_server/);
   });

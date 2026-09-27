@@ -75,7 +75,7 @@ const MIN_GENERAL_TOWERS = 3;
 /** Skills that only affect ground creeps (static knowledge, like a player would have). */
 const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W', 'R'], arcanist: ['R'] };
 /** Creeps a skill should catch before the bot spends mana on it. */
-const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 4 };
+const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
 const GUARD_DISTANCE = 9;
 /**
@@ -196,7 +196,7 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
       // Hero: retreat to the Heart when hurt (shooting on the way), otherwise walk to where it is needed.
       const hpFrac = hero.hp / hero.maxHp;
       if (hpFrac < 0.3) retreating = true;
-      if (hpFrac > 0.8) retreating = false;
+      if (hpFrac > 0.6) retreating = false;
       const skill = (slot: SkillSlot) => hero.skills.find((s) => s.slot === slot);
       const r = skill('R');
       const later = r !== undefined && r.rank > 0 && snap.wave >= Math.round(FORWARD_FROM * snap.totalWaves);
@@ -284,9 +284,8 @@ function standoff(hero: { x: number; y: number; attackRange: number }, ranged: b
 
 /**
  * The guard and forward posts of a bot's hero, up the lane of its zone. Solo and in pairs, the hero guards
- * where the lanes converge all match (solo on Mid; a pair on West and East). With 3+ players each lane zone
- * has its own hero, which plays forward in later waves; a 4th player (the Core zone) stays where the lanes
- * converge.
+ * where the lanes converge all match (solo on Mid; a pair on West and East). With 3 players each lane zone
+ * has its own hero, which plays forward in later waves.
  */
 function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guard: Vec2; forward: Vec2 } {
   const n = snap.players.length;
@@ -296,9 +295,7 @@ function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guar
     const guard = lanePoint(n === 1 ? 1 : i === 0 ? 0 : 2, GUARD_DISTANCE);
     return { guard, forward: guard };
   }
-  const lane = i < 3 ? i : 1;
-  const guard = lanePoint(lane, GUARD_DISTANCE);
-  return { guard, forward: i < 3 ? lanePoint(lane, FORWARD_DISTANCE) : guard };
+  return { guard: lanePoint(i, GUARD_DISTANCE), forward: lanePoint(i, FORWARD_DISTANCE) };
 }
 
 /** A cast of `skill` that catches at least `min` of `creeps`, or null. */

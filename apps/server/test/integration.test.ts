@@ -1,12 +1,12 @@
-// Phase 2 "Done when": 4 bot clients join one room and play 5 waves, and
-// every client's final snapshot must match the server's.
+// Phase 2 "Done when" (with 3 players, the most a room holds): 3 bot clients join one room and play 5 waves,
+// and every client's final snapshot must match the server's.
 
 import { snapshot } from '@tdt/sim';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { GameServer } from '../src/server';
 import { fullRoom, sleep, startServer } from './helpers';
 
-describe('4-bot integration', () => {
+describe('3-bot integration', () => {
   let server: GameServer | null = null;
   afterAll(async () => {
     await server?.close();
@@ -17,7 +17,7 @@ describe('4-bot integration', () => {
     // per-second command rate limit is scaled up to match.
     const started = await startServer({ tickMs: 1, keyframeEveryTicks: 400, rateLimit: { perSecond: 2000, burst: 400 } });
     server = started.server;
-    const clients = await fullRoom(started.url, 4);
+    const clients = await fullRoom(started.url, 3);
     const host = clients[0]!;
     host.send({ t: 'start' });
 
@@ -29,9 +29,9 @@ describe('4-bot integration', () => {
     const state = room.state!;
     room.paused = true;
     expect(state.wave).toBeGreaterThanOrEqual(5);
-    expect(state.players).toHaveLength(4);
+    expect(state.players).toHaveLength(3);
     // All three heroes took part (fullRoom cycles through them).
-    expect(state.heroes.map((h) => h.kind)).toEqual(['ranger', 'warden', 'arcanist', 'ranger']);
+    expect(state.heroes.map((h) => h.kind)).toEqual(['ranger', 'warden', 'arcanist']);
 
     // Let the last messages arrive, then compare.
     await Promise.all(clients.map((c) => c.waitFor(() => c.snap?.tick === room.lastSnap!.tick, 5_000)));
@@ -45,9 +45,9 @@ describe('4-bot integration', () => {
     }
     // Every bot actually played: each one built towers.
     const owners = new Set(state.towers.map((t) => t.owner));
-    expect(owners.size).toBe(4);
-    // Player-count scaling is active with 4 players.
-    expect(state.players.length).toBe(4);
+    expect(owners.size).toBe(3);
+    // Each player built on their own lane zone (West, Mid, East).
+    for (const t of state.towers) expect(state.pads.find((p) => p.id === t.padId)!.owner).toBe(t.owner);
     for (const c of clients) c.close();
   }, 150_000);
 });

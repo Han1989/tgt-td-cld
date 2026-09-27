@@ -24,24 +24,24 @@ describe('player-count scaling', () => {
     expect(creepMaxHp(game(1), 'grunt', 1)).toBe(Math.round(base * hp[0]!));
     // Wave 1: the full early bonus for the team size.
     expect(creepMaxHp(game(2), 'grunt', 1)).toBe(Math.round(base * (hp[1]! + bonus[1]!)));
-    expect(creepMaxHp(game(4), 'grunt', 1)).toBe(Math.round(base * (hp[3]! + bonus[3]!)));
+    expect(creepMaxHp(game(3), 'grunt', 1)).toBe(Math.round(base * (hp[2]! + bonus[2]!)));
     // Halfway through the early waves: half of it.
     const mid = 1 + earlyWaves / 2;
     const midWaveMult = 1 + TUNING.waves.hpGrowthPerWave * (mid - 1);
-    expect(creepMaxHp(game(4), 'grunt', mid)).toBe(Math.round(base * midWaveMult * (hp[3]! + bonus[3]! / 2)));
+    expect(creepMaxHp(game(3), 'grunt', mid)).toBe(Math.round(base * midWaveMult * (hp[2]! + bonus[2]! / 2)));
     // Once the early bonus is gone: the team-size multiplier, plus whatever the late bonus has grown to by
     // then (it starts growing after wave total − lateWaves); solo keeps its table value.
     const after = earlyWaves + 1;
-    const lateAfter = late[3]! * Math.max(0, (after - (total - lateWaves)) / lateWaves);
+    const lateAfter = late[2]! * Math.max(0, (after - (total - lateWaves)) / lateWaves);
     const waveMult = 1 + TUNING.waves.hpGrowthPerWave * (after - 1);
-    expect(creepMaxHp(game(4), 'grunt', after)).toBe(Math.round(base * waveMult * (hp[3]! + lateAfter)));
+    expect(creepMaxHp(game(3), 'grunt', after)).toBe(Math.round(base * waveMult * (hp[2]! + lateAfter)));
     expect(creepMaxHp(game(1), 'grunt', after)).toBe(Math.round(base * waveMult * hp[0]!));
     // The late bonus grows over the last waves, in full on the final wave.
     const lastMult = 1 + TUNING.waves.hpGrowthPerWave * (total - 1);
-    expect(creepMaxHp(game(4), 'grunt', total)).toBe(Math.round(base * lastMult * (hp[3]! + late[3]!)));
+    expect(creepMaxHp(game(3), 'grunt', total)).toBe(Math.round(base * lastMult * (hp[2]! + late[2]!)));
     const halfway = total - lateWaves / 2;
     const halfMult = 1 + TUNING.waves.hpGrowthPerWave * (halfway - 1);
-    expect(creepMaxHp(game(4), 'grunt', halfway)).toBe(Math.round(base * halfMult * (hp[3]! + late[3]! / 2)));
+    expect(creepMaxHp(game(3), 'grunt', halfway)).toBe(Math.round(base * halfMult * (hp[2]! + late[2]! / 2)));
     expect(creepMaxHp(game(1), 'grunt', total)).toBe(Math.round(base * lastMult * hp[0]!));
     expect(late[0]).toBe(0);
     // Solo gets at most a small nudge (Decision Log, hero mana rework).
@@ -50,28 +50,29 @@ describe('player-count scaling', () => {
     expect(bonus[0]).toBe(0);
     // Bigger teams are pressed harder early.
     expect(bonus[1]!).toBeLessThan(bonus[2]!);
-    expect(bonus[2]!).toBeLessThan(bonus[3]!);
+    // One entry per team size, up to the 3-player maximum.
+    for (const list of [hp, bonus, late]) expect(list).toHaveLength(3);
   });
 
   it('adds 30% creeps per extra player', () => {
     expect(TUNING.playerScaling.countPerExtraPlayer).toBe(0.3);
     expect(scaledCount(game(1), 4)).toBe(4);
     expect(scaledCount(game(2), 4)).toBe(5);
-    expect(scaledCount(game(4), 4)).toBe(8);
+    expect(scaledCount(game(3), 4)).toBe(6);
   });
 
-  it('spawns more creeps in wave 1 with four players', () => {
+  it('spawns more creeps in wave 1 with three players', () => {
     const count = (players: number) => {
       const state = game(players);
       run(state, secondsToTicks(TUNING.waves.buildPhase + 1));
       return state.creeps.length + state.spawnQueue.length;
     };
     expect(count(1)).toBe(12);
-    expect(count(4)).toBe(24);
+    expect(count(3)).toBe(18);
   });
 
   it.each([10, 20, 30])('never multiplies the number of bosses (wave %i)', (wave) => {
-    const state = game(4);
+    const state = game(3);
     state.wave = wave - 1;
     state.nextWaveTick = state.tick;
     run(state, 1);

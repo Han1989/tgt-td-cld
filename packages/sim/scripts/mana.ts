@@ -1,8 +1,8 @@
 // Prints how heroes use mana and ultimates in balance-bot matches: `npm run mana [quick] [seeds…]`.
-// Per hero, solo and in teams (the three pairs and the 4-bot team of `npm run balance`), averaged over the seeds:
+// Per hero, solo and in teams (the three pairs and the 3-bot team of `npm run balance`), averaged over the seeds:
 // ultimates cast per match, the share of living time with less mana than Q costs, and the share of time after R
 // is learned with R off cooldown but unaffordable; then when R is learned (match minute) and the share of time after
-// that with R off cooldown (the bot only casts it on 4+ creeps, so a ready R can wait for a group).
+// that with R off cooldown (the bot only casts it on a group, `MIN_TARGETS.R` in bots.ts, so a ready R can wait).
 
 import { HERO_KINDS, type GameMode, type HeroKind } from '@tdt/protocol';
 import { createBalanceBot, runHeadlessMatch, TICK_RATE, type HeroMatchStats } from '../src';
@@ -15,7 +15,7 @@ const TEAMS: HeroKind[][] = [
   ['ranger', 'warden'],
   ['warden', 'arcanist'],
   ['arcanist', 'ranger'],
-  ['ranger', 'warden', 'arcanist', 'ranger'],
+  ['ranger', 'warden', 'arcanist'],
 ];
 
 const rows = new Map<string, HeroMatchStats[]>();
@@ -32,7 +32,7 @@ for (const seed of SEEDS) {
       seed,
       mode,
     });
-    for (const s of r.heroes) add(`${s.kind} ${team.length === 2 ? 'pairs' : '4 bots'}`, s);
+    for (const s of r.heroes) add(`${s.kind} ${team.length === 2 ? 'pairs' : '3 bots'}`, s);
   }
 }
 
@@ -41,7 +41,7 @@ const pct = (x: number) => `${(100 * x).toFixed(0)}%`.padStart(5);
 console.log(`${mode === 'quick' ? 'Quick' : 'Full'} mode, seeds ${SEEDS.join(' ')}`);
 console.log('hero / team        R casts   mana < Q   R ready, no mana   R learned   R off cooldown');
 for (const hero of HERO_KINDS) {
-  for (const where of ['solo', 'pairs', '4 bots']) {
+  for (const where of ['solo', 'pairs', '3 bots']) {
     const s = rows.get(`${hero} ${where}`) ?? [];
     const casts = mean(s.map((x) => x.ultCasts)).toFixed(1).padStart(7);
     console.log(

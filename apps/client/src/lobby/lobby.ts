@@ -3,6 +3,7 @@
 
 import {
   MAX_NAME_LENGTH,
+  MAX_PLAYERS,
   normalizeName,
   normalizeRoomCode,
   type GameMode,
@@ -73,6 +74,7 @@ export class LobbyUi {
   private readonly code = $('lobby-code') as HTMLInputElement;
   private readonly roomCode = $('lobby-room-code');
   private readonly players = $('lobby-players');
+  private readonly playersCount = $('lobby-players-count');
   private readonly ready = $('lobby-ready') as HTMLButtonElement;
   private readonly start = $('lobby-start') as HTMLButtonElement;
   private readonly refresh = $('lobby-refresh');
@@ -190,6 +192,8 @@ export class LobbyUi {
     this.modePicker.setEnabled(isHost);
     this.modeLabel.textContent = isHost ? 'Mode' : 'Mode (the host picks)';
 
+    const seats = lobby.players.length;
+    this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS}${seats < MAX_PLAYERS ? ' (one per lane)' : ' (full)'}`;
     this.players.innerHTML = '';
     for (const p of lobby.players) {
       const li = document.createElement('li');

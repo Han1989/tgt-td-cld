@@ -2,17 +2,10 @@
 // hero pair. A separate file so Vitest runs it in parallel with the other
 // 30-wave runs.
 
-import type { HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
-import { createBalanceBot } from '../src/bots';
+import { createBalanceBot, createIdleBot } from '../src/bots';
 import { runHeadlessMatch } from '../src/headless';
-import { BALANCE_SEEDS, HEART_TARGET } from './helpers';
-
-const PAIRS: [HeroKind, HeroKind][] = [
-  ['ranger', 'warden'],
-  ['warden', 'arcanist'],
-  ['arcanist', 'ranger'],
-];
+import { BALANCE_SEEDS, HEART_TARGET, PAIRS } from './helpers';
 const TIMEOUT = 120_000;
 
 describe('headless balance run (2 players)', () => {
@@ -33,4 +26,9 @@ describe('headless balance run (2 players)', () => {
     },
     TIMEOUT,
   );
+
+  it('two do-nothing bots lose', () => {
+    const result = runHeadlessMatch({ bots: [createIdleBot('p1'), createIdleBot('p2')], heroes: PAIRS[0], seed: 1 });
+    expect(result.result).toBe('defeat');
+  });
 });
