@@ -5,13 +5,22 @@
 // listed at the end. Cards are DOM (so the page scrolls natively); one fixed Pixi canvas on top
 // draws the entities where their cards are.
 
-import { CREEP_KINDS, HERO_KINDS, TOWER_BRANCHES, TOWER_KINDS, type TowerBranch, type TowerKind } from '@tdt/protocol';
+import {
+  CREEP_KINDS,
+  HERO_KINDS,
+  TOWER_BRANCHES,
+  TOWER_KINDS,
+  type HeroKind,
+  type SkillSlot,
+  type TowerBranch,
+  type TowerKind,
+} from '@tdt/protocol';
 import { towerStats, TUNING } from '@tdt/sim';
 import { Application, Container, type Sprite } from 'pixi.js';
 import { ICONS, installIcons } from './render/art/icons';
 import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
-import { CreepRig, TowerRig } from './render/art/rigs';
+import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './render/art/rigs';
 import { liftColor, RL, type Display } from './render/art/tokens';
 import { mixColor, PLAYER_COLORS, toCss } from './render/palette';
 
@@ -118,11 +127,17 @@ export async function runShowcase(): Promise<void> {
     const grid = gridFor(e.category);
     switch (e.category) {
       case 'hero':
-        addCard(grid, e, `hero · ${e.kind}`, 'lane', () => heroActor(e.rig(kit, true)), 2, PHONE.entity);
+        addCard(grid, e, `hero · ${e.kind}`, 'lane', () => heroActor(e.rig(kit, true), e.kind), 2, PHONE.entity);
         break;
-      case 'creep':
-        addCard(grid, e, `creep · ${e.kind}`, 'lane', () => creepActor(new CreepRig(kit, e)), 2, PHONE.entity);
+      case 'creep': {
+        // Bosses are drawn smaller so they fit their card.
+        const big = TUNING.creeps[e.kind].boss ? 1.3 : 2;
+        for (const frame of ['body', ...(e.variants?.frames ?? [])]) {
+          const label = frame === 'body' ? `creep · ${e.kind}` : `creep · ${e.kind} · ${frame}`;
+          addCard(grid, e, label, 'lane', () => creepActor(new CreepRig(kit, e), frame), big, PHONE.entity);
+        }
         break;
+      }
       case 'tower': {
         const variants: [number, TowerBranch | null, string][] = [
           [1, null, 'tier 1'],
@@ -243,46 +258,80 @@ export async function runShowcase(): Promise<void> {
 // Actors: each rig driven by fake input
 // ---------------------------------------------------------------------------
 
-/** Walks for 2 s (turning round each time), then stands and shoots for 2 s. */
-function heroActor(rig: HeroRig): Actor {
+/** Hero cycle (ms): walks 2 s (turning round each time), fights 2 s (shoots, gets hit), casts two skills, dies. */
+const HERO_CYCLE = 7200;
+const CASTS: SkillSlot[] = ['Q', 'W', 'R'];
+
+function heroActor(rig: HeroRig, kind: HeroKind): Actor {
   const pose = { x: 0, y: 0, facing: 0, stunned: false };
   let shotAt = -Infinity;
-  const speed = TUNING.hero.ranger.speed;
-  const cooldown = TUNING.hero.ranger.attackCooldown * 1000;
+  let hitAt = -Infinity;
+  let cast = -1;
+  const speed = TUNING.hero[kind].speed;
+  const cooldown = TUNING.hero[kind].attackCooldown * 1000;
   return {
     view: rig.body,
     animate(now, dt) {
-      const cycle = now % 4000;
-      const lap = Math.floor(now / 4000) % 2;
+      const cycle = now % HERO_CYCLE;
+      const n = Math.floor(now / HERO_CYCLE);
+      const lap = n % 2;
+      const facing = lap === 0 ? 0 : Math.PI;
       if (cycle < 2000) {
-        pose.facing = lap === 0 ? 0 : Math.PI;
+        pose.facing = facing;
         pose.x += (lap === 0 ? 1 : -1) * speed * (dt / 1000);
-      } else {
-        pose.facing = (lap === 0 ? 0 : Math.PI) + Math.sin(now / 700) * 0.7;
+      } else if (cycle < 4000) {
+        pose.facing = facing + Math.sin(now / 700) * 0.7;
         if (now - shotAt > cooldown) {
           shotAt = now;
           rig.shot(now);
         }
+        if (now - hitAt > 650) {
+          hitAt = now;
+          rig.hit(now);
+        }
+      } else if (cycle < 5800) {
+        pose.facing = facing + 0.3;
+        const k = cycle < 4900 ? 0 : 1;
+        if (cast !== n * 2 + k) {
+          cast = n * 2 + k;
+          rig.cast(now, CASTS[(n + k) % CASTS.length]!);
+        }
       }
-      rig.update(pose, now, dt);
+      if (cycle >= 5800) rig.die(Math.min(1, (cycle - 5800) / DEATH.hero.ms));
+      else rig.update(pose, now, dt);
     },
   };
 }
 
-/** Walks, turns round every 3 s, flashes as if hit, and is frosted every other lap. */
-function creepActor(rig: CreepRig): Actor {
+/** Creep cycle (ms): walks (turning round, flashing as if hit, frosted every other lap), then dies. */
+const CREEP_WALK = 4500;
+const CREEP_CYCLE = 5600;
+
+function creepActor(rig: CreepRig, frame: string): Actor {
   const view = new Container();
+  if (rig.shadow) view.addChild(rig.shadow);
   view.addChild(rig.body, rig.flash);
   let x = 0;
+  let round = -1;
   return {
     view,
     animate(now, dt) {
-      const lap = Math.floor(now / 3000);
-      x += (lap % 2 === 0 ? 1 : -1) * dt * 0.001;
+      const n = Math.floor(now / CREEP_CYCLE);
+      const cycle = now % CREEP_CYCLE;
+      if (n !== round) {
+        round = n;
+        rig.reset();
+        rig.setFrame(frame);
+      }
+      if (cycle >= CREEP_WALK) {
+        rig.die(Math.min(1, (cycle - CREEP_WALK) / rig.deathMs));
+        return;
+      }
+      x += (cycle < CREEP_WALK / 2 ? 1 : -1) * dt * 0.001;
       rig.update(x, 3, false, now);
-      const f = now % 1400 < 90 ? 0.8 : 0;
+      const f = cycle % 1400 < HIT_FLASH.ms ? HIT_FLASH.alpha : 0;
       rig.setFlash(f);
-      rig.setTint(lap % 4 === 3 ? mixColor(0xffffff, ICE, 0.8) : 0xffffff);
+      rig.setTint(n % 2 === 1 ? mixColor(0xffffff, ICE, 0.8) : 0xffffff);
     },
   };
 }

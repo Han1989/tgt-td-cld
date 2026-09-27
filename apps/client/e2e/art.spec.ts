@@ -24,9 +24,12 @@ test('?showcase shows a card for every registered art file, and Bright re-bakes 
     await expect(page.locator(`.sc-card[data-art="${id}"]`)).toHaveCount(5);
   }
   await expect(page.locator('.sc-card[data-art$="Tower"] .sc-label', { hasText: 'tier 3 art' })).toHaveCount(0);
-  // Kinds without art are listed as still shapes; every tower has art now.
-  await expect(page.locator('.sc-todo')).toContainText('creep · archer');
+  // Shardback: Stone and Ether hides.
+  await expect(page.locator('.sc-card[data-art="shardback"]')).toHaveCount(2);
+  // Kinds without art are listed as still shapes: every tower, every hero and every creep has art now.
   await expect(page.locator('.sc-todo')).not.toContainText('tower ·');
+  await expect(page.locator('.sc-todo')).not.toContainText('hero ·');
+  await expect(page.locator('.sc-todo')).not.toContainText('creep ·');
 
   await page.locator('.sc-display button[data-value="bright"]').click();
   await expect.poll(() => page.evaluate(() => window.__showcase.display())).toBe('bright');

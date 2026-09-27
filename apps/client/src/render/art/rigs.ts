@@ -2,33 +2,102 @@
 // (position, rotation, scale, tint, alpha). Nothing is redrawn per frame and nothing toggles
 // `visible` per frame (in Pixi v8 that rebuilds the draw list); flashes and hidden parts use alpha.
 
-import type { TowerBranch } from '@tdt/protocol';
-import { Container, type ColorSource, type Sprite } from 'pixi.js';
+import type { CreepSnap, SkillSlot, TowerBranch } from '@tdt/protocol';
+import { TUNING } from '@tdt/sim';
+import { Container, Graphics, type ColorSource, type Sprite } from 'pixi.js';
 import type { ArtKit } from './kit';
-import type { CreepArt, Gait, TowerArt } from './registry';
+import type { CreepArt, Gait, HeroPose, HeroRig, TowerArt } from './registry';
 
 /** Walk cycles for creeps (CreepArt.gait). */
 export const GAITS = {
   /** Small, light creeps: quick steps, big rock and hop. */
   waddle: { stepMs: 105, rock: 0.15, hop: 2.2, squash: 0 },
+  /** Fast, light creeps: very quick steps, a small rock, a long hop. */
+  scurry: { stepMs: 62, rock: 0.08, hop: 2.6, squash: 0 },
   /** Heavy creeps: slow steps, little rock, a squash on each step. */
   stomp: { stepMs: 190, rock: 0.07, hop: 1.2, squash: 0.05 },
+  /** Many-legged creeps: quick short steps, almost no rock, a squash on each step. */
+  crawl: { stepMs: 120, rock: 0.03, hop: 0.7, squash: 0.06 },
+  /** Flyers: a slow, smooth bob over their shadow and a gentle sway. */
+  hover: { stepMs: 260, rock: 0.06, hop: 2.4, squash: 0, smooth: true },
 } as const satisfies Record<string, Gait>;
 
 // ---------------------------------------------------------------------------
+// Hit and death reactions (docs/ART.md §7), shared by every rig.
+// ---------------------------------------------------------------------------
+
+/**
+ * Hit flash: the white silhouette shows this long, at most this often, and at most this strong (a
+ * partial whitening), so a creep under steady fire keeps its colours and silhouette almost always.
+ */
+export const HIT_FLASH = { ms: 60, everyMs: 300, alpha: 0.6 } as const;
+/** How much a hit squashes the body (fraction of its size at full flash); bosses flinch half as much. */
+const FLINCH = 0.09;
+
+/** Death reactions: how long they last (ms) and how the body falls. */
+export const DEATH = {
+  /** Creeps collapse: a pop, a small tip backwards, flattened into the ground, faded. */
+  creep: { ms: 340, tip: 0.35, squash: 0.72, widen: 0.2, sink: 0, shudder: 0 },
+  /** Bosses sink slowly, shuddering, and fade. */
+  boss: { ms: 800, tip: 0.12, squash: 0.5, widen: 0.12, sink: 6, shudder: 1.6 },
+  /** Heroes fall over backwards (their shadow is a separate sprite, so it stays put). */
+  hero: { ms: 560, tip: 1.45, squash: 0.12, widen: 0, sink: 0, shudder: 0 },
+} as const;
+export type DeathStyle = (typeof DEATH)[keyof typeof DEATH];
+
+export interface DeathPose {
+  rot: number;
+  sx: number;
+  sy: number;
+  dx: number;
+  dy: number;
+  alpha: number;
+  flash: number;
+}
+
+export const smooth = (t: number) => t * t * (3 - 2 * t);
+export const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
+
+/**
+ * The death reaction at progress t (0..1) for a body facing +x (mirror `rot` and `dx` when it faces
+ * left): a white flash and a small pop, then it tips backwards around its feet, squashes into the
+ * ground and fades. Pure (tested).
+ */
+export function deathPose(t: number, d: DeathStyle): DeathPose {
+  const pop = t < 0.15 ? Math.sin((t / 0.15) * Math.PI) * 0.12 : 0;
+  const fall = smooth(clamp01((t - 0.08) / 0.62));
+  return {
+    rot: -d.tip * fall,
+    sx: 1 + pop + d.widen * fall,
+    sy: 1 + pop - d.squash * fall,
+    dx: d.shudder * Math.sin(t * 90) * (1 - t),
+    dy: d.sink * fall,
+    alpha: 1 - smooth(clamp01((t - 0.45) / 0.55)),
+    flash: HIT_FLASH.alpha * (1 - clamp01(t / 0.25)),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Creeps: one sprite (shadow and weapon baked in) that rocks around its feet, hops each step and
-// flips to its walking direction, plus a white silhouette on top for hit flashes.
+// flips to its walking direction, plus a white silhouette on top for hit flashes. Flyers keep their
+// shadow as a second sprite on the ground, so the body can bob over it.
 // ---------------------------------------------------------------------------
 
 export class CreepRig {
   readonly body: Sprite;
   /** Hit flash: copies the body's transform while it shows; alpha only. */
   readonly flash: Sprite;
+  /** A flyer's shadow on the ground (walkers have theirs baked into `body`). */
+  readonly shadow: Sprite | null;
   private lastX = NaN;
   private flip = 1;
+  private frame = 'body';
+  private flinch = 0;
+  private dead = false;
+  private readonly death: DeathStyle;
 
   constructor(
-    kit: ArtKit,
+    private readonly kit: ArtKit,
     private readonly art: CreepArt,
   ) {
     const h = art.frames.body!.h;
@@ -39,11 +108,42 @@ export class CreepRig {
     this.flash.alpha = 0;
     this.body.position.set(0, art.feet);
     this.flash.position.set(0, art.feet);
+    this.shadow = art.frames.shadow ? kit.sprite(art.id, 'shadow') : null;
+    this.shadow?.position.set(0, art.feet);
+    this.death = TUNING.creeps[art.kind].boss ? DEATH.boss : DEATH.creep;
   }
 
-  /** A pooled rig starts a new creep. */
-  reset(): void {
+  /** How long this creep's death reaction lasts, ms. */
+  get deathMs(): number {
+    return this.death.ms;
+  }
+
+  get facing(): number {
+    return this.flip;
+  }
+
+  /** A pooled rig starts a new creep (facing: carry over a dead creep's facing). */
+  reset(facing = 1): void {
     this.lastX = NaN;
+    this.flip = facing;
+    this.flinch = 0;
+    this.body.alpha = 1;
+    if (this.shadow) this.shadow.alpha = 1;
+    this.dead = false;
+    this.setFrame('body');
+  }
+
+  /** Shows one of the art's variants (e.g. Shardback's Ether hide); set only when it changes. */
+  setFrame(frame: string): void {
+    if (frame === this.frame) return;
+    this.frame = frame;
+    this.body.texture = this.kit.frame(this.art.id, frame);
+    this.flash.texture = this.kit.frame(this.art.id, `${frame}.flash`);
+  }
+
+  /** Shows the look the art picks for this creep (e.g. Shardback's hide), if it has variants. */
+  setVariant(c: CreepSnap): void {
+    if (this.art.variants) this.setFrame(this.art.variants.pick(c));
   }
 
   update(x: number, seed: number, still: boolean, now: number): void {
@@ -51,39 +151,215 @@ export class CreepRig {
     if (Math.abs(dx) > 0.002) this.flip = dx < 0 ? -1 : 1;
     this.lastX = x;
     const b = this.body;
-    const g = this.art.gait;
+    const g: Gait = this.art.gait;
+    const k = this.flinch * (this.death === DEATH.boss ? FLINCH / 2 : FLINCH);
     if (still) {
       b.rotation = 0;
-      b.position.y = this.art.feet;
-      b.scale.set(this.flip, 1);
+      b.position.set(0, this.art.feet);
+      b.scale.set(this.flip * (1 + k), 1 - k);
     } else {
       const s = Math.sin(now / g.stepMs + seed * 1.7);
-      const hop = Math.abs(s);
-      b.rotation = s * g.rock;
-      b.position.y = this.art.feet - hop * g.hop;
-      b.scale.set(this.flip, 1 - (1 - hop) * g.squash);
+      const hop = g.smooth ? (s + 1) / 2 : Math.abs(s);
+      b.rotation = (g.smooth ? Math.cos(now / g.stepMs + seed * 1.7) : s) * g.rock;
+      b.position.set(0, this.art.feet - hop * g.hop);
+      b.scale.set(this.flip * (1 + k), (1 - (1 - hop) * g.squash) * (1 - k));
     }
-    if (this.flash.alpha > 0) {
-      this.flash.rotation = b.rotation;
-      this.flash.position.y = b.position.y;
-      this.flash.scale.copyFrom(b.scale);
-    }
+    if (this.flash.alpha > 0) this.copyToFlash();
   }
 
-  /** Flash strength 0..1 (alpha of the white silhouette). */
+  /** Flash strength 0..1 (alpha of the white silhouette); the body flinches with it. */
   setFlash(f: number): void {
     this.flash.alpha = f;
-    if (f > 0) {
-      this.flash.rotation = this.body.rotation;
-      this.flash.position.y = this.body.position.y;
-      this.flash.scale.copyFrom(this.body.scale);
-    }
+    this.flinch = f / HIT_FLASH.alpha;
+    if (f > 0) this.copyToFlash();
   }
 
   /** Whole-rig tint (frost). */
   setTint(tint: ColorSource): void {
     this.body.tint = tint;
   }
+
+  /** Death reaction at progress t (0..1 of deathMs): flash, pop, collapse into the ground, fade. */
+  die(t: number): void {
+    const d = deathPose(t, this.death);
+    const b = this.body;
+    if (!this.dead) {
+      this.dead = true;
+      b.tint = 0xffffff;
+    }
+    b.rotation = d.rot * this.flip;
+    b.scale.set(this.flip * d.sx, d.sy);
+    // The squash is around the feet, so a flyer (pivot on its shadow) drops onto its shadow.
+    b.position.set(d.dx * this.flip, this.art.feet + d.dy);
+    if (this.shadow) this.shadow.alpha = d.alpha;
+    b.alpha = d.alpha;
+    this.flash.alpha = d.flash * d.alpha;
+    this.copyToFlash();
+  }
+
+  private copyToFlash(): void {
+    const b = this.body;
+    this.flash.rotation = b.rotation;
+    this.flash.position.copyFrom(b.position);
+    this.flash.scale.copyFrom(b.scale);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Heroes: each hero's file builds its own rig on HeroRigBase, which does what they share: the
+// `mine` ring and contact shadow, walking speed and step phase, the facing flip, the hit flash
+// (every part carries its white silhouette), the attack and cast clocks and the death fall.
+// ---------------------------------------------------------------------------
+
+/** How long a cast pose lasts, ms (hero files shape it; the effect itself is in render/fx). */
+export const CAST_MS = 480;
+
+export abstract class HeroRigBase implements HeroRig {
+  readonly body = new Container();
+  /** Everything that flips with the facing, flinches and falls over; pivots at the feet. */
+  protected readonly flipper = new Container();
+  private readonly ground = new Container();
+  private readonly flashes: Sprite[] = [];
+  private flashShown = 0;
+  private lastX = NaN;
+  private lastY = NaN;
+  /** Smoothed speed (tiles/s) and walk-cycle phase (radians). */
+  protected speed = 0;
+  protected phase = 0;
+  /** +1 facing right, -1 facing left. */
+  protected flip = 1;
+  protected shotAt = -Infinity;
+  protected castAt = -Infinity;
+  protected castSlot: SkillSlot = 'Q';
+  private hitAt = -Infinity;
+  private dead = false;
+
+  constructor(
+    protected readonly kit: ArtKit,
+    protected readonly id: string,
+    mine: boolean,
+    /** Feet, px below the hero's position. */
+    protected readonly feet: number,
+    /** Ground ring / shadow radius, px. */
+    ring: number,
+  ) {
+    if (mine) {
+      // Your hero: a ring on the ground (drawn once).
+      this.ground.addChild(new Graphics().ellipse(0, feet + 1, ring, ring * 0.4).stroke({ width: 2, color: 0xffffff, alpha: 0.9 }));
+    }
+    const shadow = kit.sprite('common', 'shadow');
+    shadow.position.set(0, feet + 1);
+    shadow.scale.set(ring / 25);
+    this.ground.addChild(shadow);
+    this.flipper.pivot.set(0, feet);
+    this.flipper.position.set(0, feet);
+    this.body.addChild(this.ground, this.flipper);
+  }
+
+  /** A part: its sprite plus its white silhouette (when the frame bakes one), moved as one. */
+  protected part(frame: string, ax = 0.5, ay = 0.5): Container {
+    const c = new Container();
+    c.addChild(this.kit.sprite(this.id, frame, ax, ay));
+    if (this.kit.has(this.id, `${frame}.flash`)) {
+      const f = this.kit.sprite(this.id, `${frame}.flash`, ax, ay);
+      f.alpha = 0;
+      c.addChild(f);
+      this.flashes.push(f);
+    }
+    return c;
+  }
+
+  shot(now: number): void {
+    this.shotAt = now;
+  }
+
+  cast(now: number, slot: SkillSlot): void {
+    this.castAt = now;
+    this.castSlot = slot;
+  }
+
+  hit(now: number): void {
+    if (now - this.hitAt >= HIT_FLASH.everyMs) this.hitAt = now;
+  }
+
+  update(h: HeroPose, now: number, dtMs: number): void {
+    if (this.dead) this.standUp();
+    if (!Number.isNaN(this.lastX) && dtMs > 0) {
+      const v = (Math.hypot(h.x - this.lastX, h.y - this.lastY) * 1000) / dtMs;
+      this.speed += (v - this.speed) * Math.min(1, dtMs / 90);
+    }
+    this.lastX = h.x;
+    this.lastY = h.y;
+    const walking = this.speed > 0.4 && !h.stunned;
+    if (walking) this.phase += (dtMs / 1000) * (7 + this.speed * 2.2);
+    this.flip = Math.cos(h.facing) < -0.05 ? -1 : 1;
+    const since = now - this.hitAt;
+    const f = since < HIT_FLASH.ms ? Math.ceil((1 - since / HIT_FLASH.ms) * 4) / 4 : 0;
+    const k = f * FLINCH;
+    this.flipper.scale.set(this.flip * (1 + k), 1 - k);
+    this.setFlash(f * HIT_FLASH.alpha);
+    this.pose(h, walking, now, dtMs);
+  }
+
+  die(t: number): void {
+    this.dead = true;
+    const d = deathPose(t, DEATH.hero);
+    this.flipper.rotation = d.rot * this.flip;
+    this.flipper.scale.set(this.flip * d.sx, d.sy);
+    this.flipper.alpha = d.alpha;
+    this.ground.alpha = d.alpha;
+    this.setFlash(d.flash);
+  }
+
+  /** Poses the parts for this frame (the flipper is already flipped: draw facing +x). */
+  protected abstract pose(h: HeroPose, walking: boolean, now: number, dtMs: number): void;
+
+  /** Aim (radians) in the flipped frame, from the facing. */
+  protected aim(h: HeroPose): number {
+    return this.flip > 0 ? h.facing : Math.PI - h.facing;
+  }
+
+  /** Cast progress 0..1, or -1 when not casting. */
+  protected casting(now: number, ms = CAST_MS): number {
+    const t = (now - this.castAt) / ms;
+    return t >= 0 && t < 1 ? t : -1;
+  }
+
+  /** Walk bob (px): a bounce each step when walking, a slow breath (≤ 0.5 px) when standing. */
+  protected bob(walking: boolean, now: number, px: number): number {
+    return walking ? Math.abs(Math.sin(this.phase)) * px : Math.sin(now / 500) * 0.35;
+  }
+
+  /** Places the two feet for the walk cycle (together when standing). */
+  protected stepFeet(a: Container, b: Container, spread: number, stride: number, lift: number, walking: boolean): void {
+    const s = walking ? Math.sin(this.phase) : 0;
+    const c = walking ? Math.cos(this.phase) : 0;
+    a.position.set(-spread + c * stride, this.feet - Math.max(0, s) * lift);
+    b.position.set(spread - c * stride, this.feet - Math.max(0, -s) * lift);
+  }
+
+  private setFlash(a: number): void {
+    if (a === this.flashShown) return;
+    this.flashShown = a;
+    for (const f of this.flashes) f.alpha = a;
+  }
+
+  private standUp(): void {
+    this.dead = false;
+    this.flipper.rotation = 0;
+    this.flipper.alpha = 1;
+    this.ground.alpha = 1;
+    this.castAt = -Infinity;
+    this.shotAt = -Infinity;
+  }
+}
+
+/** Envelope of a pose that eases in, holds and eases out over t = 0..1. */
+export function hold(t: number, inEnd = 0.2, outStart = 0.75): number {
+  if (t < 0 || t >= 1) return 0;
+  if (t < inEnd) return smooth(t / inEnd);
+  if (t > outStart) return smooth((1 - t) / (1 - outStart));
+  return 1;
 }
 
 // ---------------------------------------------------------------------------

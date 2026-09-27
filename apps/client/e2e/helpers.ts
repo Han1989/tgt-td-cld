@@ -27,6 +27,8 @@ interface Hook {
   frameCosts(): number[];
   visibleCreeps(): number;
   fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number };
+  /** Coins launched to the gold counter so far. */
+  coins(): number;
   art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };
   layout(): {
     kind: string;

@@ -22,6 +22,8 @@ export class CoinFlyer {
   private live: Flight[] = [];
   private target: { x: number; y: number } | null = null;
   private targetAt = -Infinity;
+  /** Coins launched so far (browser tests count these: a coin is on screen for under a second). */
+  launched = 0;
 
   constructor(
     parent: HTMLElement,
@@ -46,6 +48,7 @@ export class CoinFlyer {
       return;
     }
     el.classList.remove('hidden');
+    this.launched++;
     const dist = Math.hypot(to.x - x, to.y - y);
     this.live.push({ el, x0: x, y0: y, x1: to.x, y1: to.y, born: now, dur: 420 + Math.min(360, dist * 0.6), bow: (Math.random() - 0.5) * 120 });
     this.place(this.live[this.live.length - 1]!, 0);

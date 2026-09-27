@@ -12,6 +12,7 @@ import {
   heroStats,
   random,
   respawnHero,
+  emit,
   spawnProjectile,
 } from './combat';
 import { getMap } from './map';
@@ -161,6 +162,7 @@ function tryAttack(state: GameState, hero: Hero, target: Creep): void {
   if (hero.attackCd > 0) return;
   const s = heroStats(state, hero);
   hero.attackCd = secondsToTicks(s.attackCooldown);
+  emit(state, { type: 'heroAttack', heroId: hero.id, x: target.x, y: target.y });
   const mult = keenEyeMultiplier(state, hero, () => random(state));
   const damage = heroDamage(state, hero) * mult;
   if (!s.ranged) {

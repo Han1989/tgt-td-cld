@@ -445,6 +445,11 @@ export class Hud {
     if (this.particles) this.coins.fly(x, y, performance.now());
   }
 
+  /** Coins that have flown to the gold counter so far (browser tests). */
+  get coinsLaunched(): number {
+    return this.coins.launched;
+  }
+
   /** A new match: numbers jump to their values and coins in flight vanish. */
   resetEffects(): void {
     this.goldCounter.reset();

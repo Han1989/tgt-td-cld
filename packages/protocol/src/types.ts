@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -284,6 +284,8 @@ export type GameEvent =
   | { type: 'splash'; x: number; y: number; radius: number }
   | { type: 'aoe'; effect: AoeEffect; x: number; y: number; radius: number }
   | { type: 'crit'; x: number; y: number; damage: number }
+  /** A hero's auto-attack went off (a melee hit lands now; a ranged one launches its projectile), at the target's position. */
+  | { type: 'heroAttack'; heroId: EntityId; x: number; y: number }
   | { type: 'rejected'; player: PlayerId; command: CommandType; reason: string }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };
 

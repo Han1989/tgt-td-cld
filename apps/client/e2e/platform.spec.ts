@@ -88,7 +88,9 @@ test('effects run without errors: particles, shake and coins flying to the gold 
   await page.goto('/?stress=60');
   await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt.fx().live)).toBeGreaterThan(20);
-  await expect.poll(() => page.locator('.fly-coin:not(.hidden)').count()).toBeGreaterThan(0);
+  // Count coins launched rather than looking for one in flight: a coin is on screen for under a second,
+  // which a poll can miss at a few frames per second.
+  await expect.poll(() => page.evaluate(() => window.__tdt.coins())).toBeGreaterThan(0);
   // The scene's first skill is a Meteor, which shakes the screen.
   await expect.poll(() => page.evaluate(() => window.__tdt.fx().shaken), { timeout: 20_000 }).toBeGreaterThan(0);
   expect(errors).toEqual([]);

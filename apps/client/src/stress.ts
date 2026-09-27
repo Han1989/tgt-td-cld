@@ -127,6 +127,10 @@ export class StressTransport implements Transport {
       if (c) events.push({ type: 'aoe', effect, x: c.x, y: c.y, radius: effect === 'meteor' ? 3 : 2.5 });
     }
     if (t % 80 === 40) events.push({ type: 'leak', creepId: 0, damage: 1 });
+    // The hero attacks once a second (its rig's attack animation).
+    const hero = this.base.heroes[0];
+    const c = pick(4);
+    if (hero && c && t % 20 === 0) events.push({ type: 'heroAttack', heroId: hero.id, x: c.x, y: c.y });
     return events;
   }
 

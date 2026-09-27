@@ -52,7 +52,7 @@ import { ArtKit } from './art/kit';
 import { createGround, type Ground } from './art/ground';
 import { PAD_PX } from './art/entities/pad';
 import { creepArt, heartArt, heroArt, padArt, portalArt, towerArt, type HeartArt, type HeroRig } from './art/registry';
-import { CreepRig, TowerRig } from './art/rigs';
+import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
 import { RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
@@ -63,9 +63,16 @@ const MARKER_LIFE_MS = 450;
 const MAX_TOWER_SCALE = 1.2;
 /** Off-screen margin (px) before an entity is culled. */
 const CULL_MARGIN = 48;
-/** A hit creep flashes white for this long, and at most this often (so a creep under steady fire keeps its colour). */
-const FLASH_MS = 90;
-const FLASH_EVERY_MS = 200;
+/** A hit creep flashes (at most 60% towards white) for this long, and at most this often (so a creep under steady fire keeps its colour). */
+const FLASH_MS = HIT_FLASH.ms;
+const FLASH_EVERY_MS = HIT_FLASH.everyMs;
+/**
+ * A creep's sprite waits this long (frozen) after it leaves the snapshots for its `kill` event (which
+ * is due one snapshot later), so its death reaction starts where it stood. Else it is just released.
+ */
+const LIMBO_MS = 160;
+/** At most this many death reactions play at once (the rest just vanish). */
+const MAX_DYING = 48;
 /** Tower recoil after a shot, and how far it kicks back (px). */
 const RECOIL_MS = 140;
 const RECOIL_PX = 4;
@@ -108,6 +115,8 @@ interface CreepSprite extends EntitySprite {
   flashReadyAt: number;
   /** Quantised tint / flash state last applied, so unchanged creeps cost nothing. */
   tintKey: number;
+  /** When it left the snapshots (limbo) or started dying (ms). */
+  goneAt: number;
 }
 
 interface TowerSprite extends EntitySprite {
@@ -137,6 +146,9 @@ interface HeroSprite extends EntitySprite {
   look: string;
   auraOn: boolean;
   art: HeroRig | null;
+  /** HP last frame (a drop is a hit: flash), and when it died (the death reaction). */
+  lastHp: number;
+  diedAt: number;
 }
 
 interface ProjectileSprite {
@@ -227,6 +239,10 @@ export class WorldRenderer {
   private readonly creeps = new Map<number, CreepSprite>();
   /** Creep sprites of dead creeps, by kind, reused for new ones. */
   private readonly creepPool = new Map<CreepKind, CreepSprite[]>();
+  /** Creeps that just left the snapshots, frozen, waiting for their kill (or leak) event. */
+  private readonly limbo = new Map<number, CreepSprite>();
+  /** Creeps playing their death reaction (docs/ART.md §7). */
+  private dying: CreepSprite[] = [];
   private readonly projectilePool = new Map<string, ProjectileSprite[]>();
   private readonly towers = new Map<number, TowerSprite>();
   private readonly heroes = new Map<number, HeroSprite>();
@@ -393,6 +409,10 @@ export class WorldRenderer {
 
   /** A new match: forget effects and hit tracking. */
   reset(): void {
+    for (const s of this.limbo.values()) this.releaseCreep(s);
+    this.limbo.clear();
+    for (const s of this.dying) this.releaseCreep(s);
+    this.dying = [];
     this.fx.clear();
     this.hits.reset();
     this.lastHitTick = -1;
@@ -411,6 +431,7 @@ export class WorldRenderer {
           if (shown && shown.damage > 0) fx.number(e.x, e.y, shown.damage, FX.number);
           const t = TUNING.creeps[e.kind];
           fx.death(e.x, e.y, CREEP_COLORS[e.kind], t.radius, t.boss);
+          this.startDeath(e.creepId, e.kind, e.x, e.y, now);
           if (e.by === me && e.bounty > 0) {
             if (fx.particles) fx.label(e.x, e.y - 0.6, `+${e.bounty}`, COLORS.gold, 12);
             const p = this.camera.worldToScreen(e.x * S, e.y * S);
@@ -419,6 +440,11 @@ export class WorldRenderer {
           break;
         }
         case 'leak': {
+          const gone = this.limbo.get(e.creepId);
+          if (gone) {
+            this.limbo.delete(e.creepId);
+            this.releaseCreep(gone);
+          }
           this.heartHitAt = now;
           fx.label(this.map.heart.x, this.map.heart.y - 1.5, `-${e.damage}`, COLORS.bad, 18, true);
           fx.flash(this.map.heart.x, this.map.heart.y, 2.2, COLORS.bad, 380, 0.6);
@@ -477,8 +503,13 @@ export class WorldRenderer {
             });
           }
           break;
+        case 'heroAttack':
+          // The rig's attack animation (a swing, a thrust, the bow's release) is keyed to the real attack.
+          this.heroes.get(e.heroId)?.art?.shot(now);
+          break;
         case 'cast':
           this.cast(e.heroId, e.slot, e.x, e.y);
+          this.heroes.get(e.heroId)?.art?.cast(now, e.slot);
           break;
         case 'towerBuilt': {
           const t = this.towerPos(e.towerId, latest);
@@ -516,6 +547,7 @@ export class WorldRenderer {
           if (!hero) break;
           const color = HERO_COLORS[hero.kind].fill;
           fx.death(hero.root.x / S, hero.root.y / S, color, TUNING.hero[hero.kind].radius, false);
+          if (now - hero.diedAt > DEATH.hero.ms) hero.diedAt = now;
           break;
         }
         case 'heroRespawned': {
@@ -878,8 +910,7 @@ export class WorldRenderer {
       seen.add(c.id);
       let s = this.creeps.get(c.id);
       if (!s) {
-        s = this.creepPool.get(c.kind)?.pop() ?? makeCreepSprite(c.kind, this.art);
-        s.art?.reset();
+        s = this.takeCreep(c.kind);
         s.root.visible = true;
         (TUNING.creeps[c.kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
         this.creeps.set(c.id, s);
@@ -903,26 +934,95 @@ export class WorldRenderer {
         if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
       }
       this.tintCreep(s, c, now);
-      s.art?.update(c.x, c.id, c.rooted || c.stunned, now);
+      if (s.art) {
+        s.art.setVariant(c);
+        s.art.update(c.x, c.id, c.rooted || c.stunned, now);
+      }
       // Frost shimmer: icy glints drift off slowed creeps.
       if (c.slowed && glints && chance(2.5, dtMs) > 0) this.fx.frostGlint(c.x, c.y, TUNING.creeps[c.kind].radius);
     }
     this.visibleCreeps = visible;
-    // Dead creeps' sprites go back to the pool (detached, reset) instead of being destroyed.
+    // Creeps that are gone wait (frozen, on screen) for their kill event, which starts their death
+    // reaction; the rest go straight back to the pool.
     for (const [id, s] of this.creeps) {
       if (seen.has(id)) continue;
       this.creeps.delete(id);
-      s.root.removeFromParent();
-      s.barKey = '';
-      s.statusKey = '';
-      s.status.clear();
-      s.flashUntil = 0;
-      s.flashReadyAt = 0;
-      let pool = this.creepPool.get(s.kind);
-      if (!pool) this.creepPool.set(s.kind, (pool = []));
-      if (pool.length < 200) pool.push(s);
-      else s.root.destroy({ children: true });
+      if (s.art && s.root.visible) {
+        s.goneAt = now;
+        this.limbo.set(id, s);
+      } else this.releaseCreep(s);
     }
+    for (const [id, s] of this.limbo) {
+      if (now - s.goneAt < LIMBO_MS) continue;
+      this.limbo.delete(id);
+      this.releaseCreep(s);
+    }
+    this.updateDying(now);
+  }
+
+  /** A creep sprite from the pool (or a new one), reset for a new creep. */
+  private takeCreep(kind: CreepKind): CreepSprite {
+    const s = this.creepPool.get(kind)?.pop() ?? makeCreepSprite(kind, this.art);
+    s.art?.reset();
+    s.root.visible = true;
+    s.hpBg.alpha = s.hpFill.alpha = 1;
+    s.tintKey = -1;
+    return s;
+  }
+
+  /** Back to the pool (detached, reset) instead of being destroyed. */
+  private releaseCreep(s: CreepSprite): void {
+    s.root.removeFromParent();
+    s.barKey = '';
+    s.statusKey = '';
+    s.status.clear();
+    s.flashUntil = 0;
+    s.flashReadyAt = 0;
+    let pool = this.creepPool.get(s.kind);
+    if (!pool) this.creepPool.set(s.kind, (pool = []));
+    if (pool.length < 200) pool.push(s);
+    else s.root.destroy({ children: true });
+  }
+
+  /**
+   * A kill: the creep's sprite (waiting in limbo where it stood) plays its death reaction. A creep
+   * that is still drawn (the ?stress scene kills creeps that keep walking) dies as a copy.
+   */
+  private startDeath(id: number, kind: CreepKind, x: number, y: number, now: number): void {
+    let s = this.limbo.get(id);
+    if (s) this.limbo.delete(id);
+    else {
+      const live = this.creeps.get(id);
+      if (!live?.art || !live.root.visible || this.dying.length >= MAX_DYING) return;
+      s = this.takeCreep(kind);
+      s.art!.reset(live.art.facing);
+      s.root.position.set(x * S, y * S);
+      s.root.scale.set(this.entityScale);
+      (TUNING.creeps[kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
+    }
+    if (this.dying.length >= MAX_DYING) {
+      this.releaseCreep(s);
+      return;
+    }
+    // The bar and status marks go at once; the body falls.
+    s.hpBg.alpha = s.hpFill.alpha = 0;
+    s.status.clear();
+    s.statusKey = '';
+    s.goneAt = now;
+    this.dying.push(s);
+  }
+
+  private updateDying(now: number): void {
+    if (this.dying.length === 0) return;
+    this.dying = this.dying.filter((s) => {
+      const t = (now - s.goneAt) / s.art!.deathMs;
+      if (t >= 1) {
+        this.releaseCreep(s);
+        return false;
+      }
+      s.art!.die(t);
+      return true;
+    });
   }
 
   /**
@@ -937,7 +1037,7 @@ export class WorldRenderer {
       const key = f * 100 + ice * 10 + 1;
       if (key === s.tintKey) return;
       s.tintKey = key;
-      s.art.setFlash(f * 0.8);
+      s.art.setFlash(f * HIT_FLASH.alpha);
       s.art.setTint(mixColor(0xffffff, ICE, Math.min(1, ice * 1.6)));
       return;
     }
@@ -945,7 +1045,7 @@ export class WorldRenderer {
       const key = f * 100;
       if (key !== s.tintKey) {
         s.tintKey = key;
-        s.flash.alpha = f * 0.75;
+        s.flash.alpha = f * HIT_FLASH.alpha;
       }
       return;
     }
@@ -953,7 +1053,7 @@ export class WorldRenderer {
     const key = f * 100 + ice * 10 + 1;
     if (key === s.tintKey) return;
     s.tintKey = key;
-    s.body.tint = mixColor(mixColor(CREEP_COLORS[c.kind], ICE, ice), 0xffffff, f * 0.85);
+    s.body.tint = mixColor(mixColor(CREEP_COLORS[c.kind], ICE, ice), 0xffffff, f * HIT_FLASH.alpha);
   }
 
   /** The visible world area (px), with a margin, for culling. */
@@ -1090,9 +1190,30 @@ export class WorldRenderer {
         this.heroLayer.addChild(s.root);
         this.heroes.set(h.id, s);
       }
-      if (!h.alive) continue;
+      if (!h.alive) {
+        // Death reaction: the rig falls over and fades, then the hero is hidden until it respawns. It
+        // starts when the snapshots show it dead (its heroDied event is due a snapshot later).
+        if (s.lastHp > 0 && now - s.diedAt > DEATH.hero.ms) s.diedAt = now;
+        const t = (now - s.diedAt) / DEATH.hero.ms;
+        if (s.art && t < 1) {
+          seen.add(h.id);
+          s.art.die(t);
+          if (s.hpBg.visible) {
+            s.hpBg.visible = s.hpFill.visible = s.mana.visible = false;
+            s.barKey = '';
+            s.status.clear();
+            s.statusKey = '';
+            s.aura.alpha = 0;
+            s.auraOn = false;
+          }
+        }
+        s.lastHp = 0;
+        continue;
+      }
       seen.add(h.id);
       s.root.visible = true;
+      if (h.hp < s.lastHp - 0.5) s.art?.hit(now);
+      s.lastHp = h.hp;
       s.root.position.set(h.x * S, h.y * S);
       s.root.scale.set(this.entityScale);
       s.facing.rotation = h.facing;
@@ -1104,7 +1225,7 @@ export class WorldRenderer {
         const w = 34;
         const y = -r - 12;
         const hp = Math.max(0, Math.min(1, h.hp / h.maxHp));
-        s.hpBg.visible = s.hpFill.visible = true;
+        s.hpBg.visible = s.hpFill.visible = s.mana.visible = true;
         s.hpBg.position.set(-w / 2 - 1, y - 1);
         s.hpBg.setSize(w + 2, 9);
         s.hpFill.position.set(-w / 2, y);
@@ -1162,7 +1283,7 @@ export class WorldRenderer {
     const mana = new Sprite(Texture.WHITE);
     mana.tint = COLORS.mana;
     sprite.root.addChild(mana);
-    return { ...sprite, facing, mana, aura, kind: h.kind, look, auraOn: false, art: rig };
+    return { ...sprite, facing, mana, aura, kind: h.kind, look, auraOn: false, art: rig, lastHp: h.hp, diedAt: -Infinity };
   }
 
   private syncProjectiles(projectiles: { id: number; style: string; x: number; y: number }[], heroes: HeroSnap[], dtMs: number): void {
@@ -1227,7 +1348,6 @@ export class WorldRenderer {
       if (!h) return;
       const dx = p.x - h.x;
       const dy = p.y - h.y;
-      this.heroes.get(h.id)?.art?.shot(this.lastRenderAt);
       if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy);
       else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? FX.spark, 0.4);
       return;
@@ -1538,7 +1658,8 @@ function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
     const rig = new CreepRig(kit, art);
     const s = makeSprite(rig.body);
     s.root.addChildAt(rig.flash, 1);
-    return { ...s, kind, flash: rig.flash, art: rig, flashUntil: 0, flashReadyAt: 0, tintKey: -1 };
+    if (rig.shadow) s.root.addChildAt(rig.shadow, 0);
+    return { ...s, kind, flash: rig.flash, art: rig, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
   }
   const boss = TUNING.creeps[kind].boss;
   const body = creepBody(kind);
@@ -1552,7 +1673,7 @@ function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
   } else {
     body.tint = CREEP_COLORS[kind];
   }
-  return { ...s, kind, flash, art: null, flashUntil: 0, flashReadyAt: 0, tintKey: -1 };
+  return { ...s, kind, flash, art: null, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
 }
 
 function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y: number): void {
