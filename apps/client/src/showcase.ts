@@ -22,6 +22,8 @@ import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './render/art/rigs';
 import { liftColor, RL, type Display } from './render/art/tokens';
+import { createFxAtlas, type FxAtlas } from './render/fx/atlas';
+import { Effects } from './render/fx/effects';
 import { mixColor, PLAYER_COLORS, toCss } from './render/palette';
 
 /** How big a phone draws things in a match (Spire on a 412 px-wide phone: 15.85 px tiles, entities × 1.58, towers × 1.2). */
@@ -128,6 +130,11 @@ export async function runShowcase(): Promise<void> {
     switch (e.category) {
       case 'hero':
         addCard(grid, e, `hero · ${e.kind}`, 'lane', () => heroActor(e.rig(kit, true), e.kind), 2, PHONE.entity);
+        // Melee heroes: a card that fights a Grunt, to check the swing, the smear, the impact and the knockback.
+        if (!TUNING.hero[e.kind].ranged) {
+          const dummy = creepArt('grunt');
+          if (dummy) addCard(grid, e, `hero · ${e.kind} · melee vs Grunt`, 'lane', () => meleeActor(e.rig(kit, true), e.kind, new CreepRig(kit, dummy)), 1.6, PHONE.entity);
+        }
         break;
       case 'creep': {
         // Bosses are drawn smaller so they fit their card.
@@ -263,7 +270,7 @@ const HERO_CYCLE = 7200;
 const CASTS: SkillSlot[] = ['Q', 'W', 'R'];
 
 function heroActor(rig: HeroRig, kind: HeroKind): Actor {
-  const pose = { x: 0, y: 0, facing: 0, stunned: false };
+  const pose = { x: 0, y: 0, facing: 0, stunned: false, engaged: false };
   let shotAt = -Infinity;
   let hitAt = -Infinity;
   let cast = -1;
@@ -276,6 +283,8 @@ function heroActor(rig: HeroRig, kind: HeroKind): Actor {
       const n = Math.floor(now / HERO_CYCLE);
       const lap = n % 2;
       const facing = lap === 0 ? 0 : Math.PI;
+      // Fighting: an enemy is in reach (a melee hero winds up before each swing).
+      pose.engaged = cycle >= 1700 && cycle < 4000;
       if (cycle < 2000) {
         pose.facing = facing;
         pose.x += (lap === 0 ? 1 : -1) * speed * (dt / 1000);
@@ -301,6 +310,54 @@ function heroActor(rig: HeroRig, kind: HeroKind): Actor {
       else rig.update(pose, now, dt);
     },
   };
+}
+
+/**
+ * A melee hero fighting a Grunt a tile away, with the match's effects: it winds up before each swing
+ * (every attack cooldown), and on the blow the Grunt flashes, is knocked back and throws the impact.
+ */
+function meleeActor(rig: HeroRig, kind: HeroKind, grunt: CreepRig): Actor {
+  const view = new Container();
+  const fx = new Effects(fxAtlas());
+  const gx = 34;
+  grunt.reset(-1);
+  const target = new Container();
+  target.x = gx;
+  target.addChild(grunt.body, grunt.flash);
+  fx.attach(view, view);
+  view.addChildAt(rig.body, 0);
+  view.addChildAt(target, 1);
+  // The rig is centred on the hero; shift the pair so the card shows both.
+  view.pivot.x = gx / 2;
+  const pose = { x: 0, y: 0, facing: 0, stunned: false, engaged: true };
+  const cooldown = TUNING.hero[kind].attackCooldown * 1000;
+  let shotAt = -Infinity;
+  let landAt = Infinity;
+  let landedAt = -Infinity;
+  return {
+    view,
+    animate(now, dt) {
+      if (now - shotAt >= cooldown) {
+        shotAt = now;
+        landAt = now + rig.shot(now, 0);
+      }
+      if (now >= landAt) {
+        landedAt = now;
+        landAt = Infinity;
+        fx.meleeImpact(gx / 32, -0.2, 0);
+        grunt.knock(now, 1, 0);
+      }
+      grunt.setFlash(now - landedAt < HIT_FLASH.ms ? HIT_FLASH.alpha : 0);
+      grunt.update(0, 3, true, now);
+      rig.update(pose, now, dt);
+      fx.update(now, dt);
+    },
+  };
+}
+
+let sharedFxAtlas: FxAtlas | null = null;
+function fxAtlas(): FxAtlas {
+  return (sharedFxAtlas ??= createFxAtlas());
 }
 
 /** Creep cycle (ms): walks (turning round, flashing as if hit, frosted every other lap), then dies. */

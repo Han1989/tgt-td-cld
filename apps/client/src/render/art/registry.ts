@@ -81,13 +81,20 @@ export interface HeroPose {
   y: number;
   facing: number;
   stunned: boolean;
+  /** An enemy it can hit is (almost) in reach: a melee hero winds up before its swing lands. */
+  engaged?: boolean;
 }
 
 export interface HeroRig {
   readonly body: Container;
   update(pose: HeroPose, now: number, dtMs: number): void;
-  /** The hero just attacked (its `heroAttack` event: a melee hit landed or a projectile left). */
-  shot(now: number): void;
+  /**
+   * The hero just attacked (its `heroAttack` event: a melee hit landed or a projectile left), towards
+   * `aim` (radians) when known. Returns how long (ms) until the blow visibly lands (0 for a release):
+   * a melee swing that wasn't wound up yet finishes its wind-up first, and the renderer plays the
+   * impact then.
+   */
+  shot(now: number, aim?: number): number;
   /** The hero cast a skill (a `cast` event). */
   cast(now: number, slot: SkillSlot): void;
   /** The hero lost HP: hit flash (docs/ART.md §7). */

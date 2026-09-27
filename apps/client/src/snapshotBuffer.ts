@@ -1,9 +1,20 @@
-// Buffers snapshots and renders the world ~100 ms in the past, interpolating
-// entity positions between the two snapshots that bracket the render time.
+// Buffers snapshots and renders the world a little in the past (100 ms online, 40 ms solo),
+// interpolating entity positions between the two snapshots that bracket the render time.
 
 import type { GameEvent, Snapshot } from '@tdt/protocol';
 
+/** Online: room for network jitter. */
 export const INTERP_DELAY_MS = 100;
+/** Solo: the local sim has no network jitter, only the worker's timer (a few ms). */
+export const SOLO_INTERP_DELAY_MS = 40;
+/**
+ * When the render time passes the newest snapshot, positions carry on along its last step for at
+ * most this long (then hold). Solo's 40 ms delay is shorter than a 50 ms tick, so this covers the
+ * last ~10 ms of every tick; online it covers small delays.
+ */
+export const MAX_EXTRAPOLATE_MS = 25;
+/** A step longer than this between two snapshots (tiles) is a jump (respawn, a new match): never extrapolated. */
+const MAX_EXTRAPOLATE_STEP = 2.5;
 const MAX_BUFFERED = 30;
 
 interface Entry {
@@ -23,7 +34,7 @@ export interface InterpolatedView {
   from: Snapshot;
   /** Snapshot after the render time (same as `from` when none has arrived yet). */
   to: Snapshot;
-  /** 0..1 between `from` and `to`. */
+  /** 0..1 between `from` and `to`; up to a little over 1 when extrapolating past `to` (MAX_EXTRAPOLATE_MS). */
   alpha: number;
 }
 
@@ -33,7 +44,8 @@ export class SnapshotBuffer {
   private offset: number | null = null;
   private pendingEvents: { time: number; event: GameEvent }[] = [];
 
-  constructor(private readonly delayMs = INTERP_DELAY_MS) {}
+  /** How far behind the newest snapshot to render (ms): INTERP_DELAY_MS online, SOLO_INTERP_DELAY_MS solo. */
+  constructor(public delayMs = INTERP_DELAY_MS) {}
 
   get latest(): Snapshot | undefined {
     return this.entries.at(-1)?.snap;
@@ -76,7 +88,13 @@ export class SnapshotBuffer {
       const a = this.entries[i]!;
       if (a.time <= t) {
         const b = this.entries[i + 1];
-        if (!b) return { from: a.snap, to: a.snap, alpha: 0 };
+        if (!b) {
+          // Past the newest snapshot: carry on along its last step for a moment, then hold.
+          const p = this.entries[i - 1];
+          if (!p || a.time <= p.time) return { from: a.snap, to: a.snap, alpha: 0 };
+          const span = a.time - p.time;
+          return { from: p.snap, to: a.snap, alpha: 1 + Math.min(t - a.time, MAX_EXTRAPOLATE_MS) / span };
+        }
         return { from: a.snap, to: b.snap, alpha: (t - a.time) / (b.time - a.time) };
       }
     }
@@ -93,9 +111,9 @@ export class SnapshotBuffer {
 }
 
 /**
- * Interpolates positions of entities present in `from` and `to`. Entities only
- * in `from` are dropped (they are gone by `to`); entities only in `to` appear
- * at their first known position.
+ * Interpolates positions of entities present in `from` and `to` (alpha > 1 extrapolates past `to`,
+ * except across a jump). Entities only in `from` are dropped (they are gone by `to`); entities only
+ * in `to` appear at their first known position.
  */
 export function lerpEntities<T extends Positioned>(from: readonly T[], to: readonly T[], alpha: number): T[] {
   if (alpha <= 0) return from.slice();
@@ -103,6 +121,7 @@ export function lerpEntities<T extends Positioned>(from: readonly T[], to: reado
   return to.map((e) => {
     const p = prev.get(e.id);
     if (!p) return e;
+    if (alpha > 1 && Math.abs(e.x - p.x) + Math.abs(e.y - p.y) > MAX_EXTRAPOLATE_STEP) return e;
     return { ...e, x: p.x + (e.x - p.x) * alpha, y: p.y + (e.y - p.y) * alpha };
   });
 }

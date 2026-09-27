@@ -141,6 +141,12 @@ export function damageCreep(
 ): void {
   if (creep.dead) return;
   const mult = pierce ? 1 : damageMultiplier(state.tuning, type, effectiveArmor(state, creep), creep.magicResist);
+  const dealt = Math.min(creep.hp, amount * mult);
+  if (dealt > 0) {
+    // Reported per source at the end of the tick (`damage` events: the clients' damage numbers).
+    const bySource = (state.pendingDamage[source ?? ''] ??= {});
+    bySource[creep.id] = (bySource[creep.id] ?? 0) + dealt;
+  }
   creep.hp -= amount * mult;
   if (creep.hp <= 0) killCreep(state, creep, source);
 }

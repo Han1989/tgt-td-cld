@@ -77,6 +77,8 @@ export interface TouchActions {
   learn(slot: SkillSlot): void;
   /** Clears the selection and closes every menu (desktop popups too). */
   clearSelection(): void;
+  /** Where your hero is drawn (predicted while it walks), if anywhere. */
+  heroAt(): { x: number; y: number } | null;
 }
 
 interface SkillEl {
@@ -245,6 +247,9 @@ export class TouchControls {
     const v = stickVector({ x: r.left + radius, y: r.top + radius }, { x: e.clientX, y: e.clientY }, radius);
     this.stick.vec = v;
     this.knob.style.transform = `translate(${v.dx}px, ${v.dy}px)`;
+    // Steer at once rather than on the next frame: the move leaves now and the hero is drawn walking
+    // from the next frame (own-hero prediction).
+    this.driveStick(this.myHero(this.actions.latest()), performance.now());
   }
 
   private onStickUp(e: PointerEvent): void {
@@ -262,11 +267,24 @@ export class TouchControls {
     this.lastMoveDir = null;
   }
 
+  /** The joystick is held (the hero is being steered). */
+  get steering(): boolean {
+    return this.stick !== null;
+  }
+
+  /** A point cast stops the hero's walk in the sim: while steering, resend the move on the next frame. */
+  private castAt(slot: SkillSlot, at: { x: number; y: number }): void {
+    this.actions.send({ type: 'cast', slot, x: at.x, y: at.y });
+    if (this.stick) this.lastMoveDir = null;
+  }
+
   private driveStick(hero: HeroSnap | undefined, now: number): void {
     const s = this.stick;
     if (!s || !hero?.alive) return;
     const r = this.joy.getBoundingClientRect().width / 2 || 50;
-    const target = stickMoveTarget(hero, s.vec, r);
+    // Aim from where the hero is drawn (ahead of the snapshots while it walks), so the prediction and
+    // the server head for the same point.
+    const target = stickMoveTarget(this.actions.heroAt() ?? hero, s.vec, r);
     if (!target) return;
     const dir = Math.atan2(s.vec.dy, s.vec.dx);
     if (!shouldResendMove(this.lastMoveDir, dir, this.lastMoveAt, now)) return;
@@ -414,7 +432,7 @@ export class TouchControls {
     const ok = this.castable(p.slot, p.button);
     if (!ok) return;
     if (ok.skill.targeted) {
-      this.actions.send({ type: 'cast', slot: p.slot, x: aim.x, y: aim.y });
+      this.castAt(p.slot, aim);
       this.marker(aim.x, aim.y, COLORS.root);
     } else {
       this.actions.send({ type: 'cast', slot: p.slot });
@@ -435,7 +453,7 @@ export class TouchControls {
     } else if (result.type === 'instant') {
       this.actions.send({ type: 'cast', slot });
     } else {
-      this.actions.send({ type: 'cast', slot, x: result.x, y: result.y });
+      this.castAt(slot, result);
       this.marker(result.x, result.y, COLORS.root);
     }
   }

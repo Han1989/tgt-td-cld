@@ -105,9 +105,12 @@ export class StressTransport implements Transport {
     return { ...this.base, tick: t, creeps, projectiles, zones: this.zones(t), events: this.events(t, creeps), nextWaveIn: 600 };
   }
 
-  /** Synthetic events: 4 kills a second (yours, with bounty), a splash every other tick, crits, skills, leaks. */
+  /**
+   * Synthetic events: your damage to every creep (each loses 1 HP a tick), 4 kills a second (yours,
+   * with bounty), a splash every other tick, crits, skills, leaks.
+   */
   private events(t: number, creeps: CreepSnap[]): GameEvent[] {
-    const events: GameEvent[] = [];
+    const events: GameEvent[] = [{ type: 'damage', by: PLAYER, hits: creeps.flatMap((c) => [c.id, 1]) }];
     const pick = (k: number) => creeps[(t * 7 + k * 13) % Math.max(1, creeps.length)];
     if (t % 5 === 0) {
       const c = pick(0);
@@ -119,7 +122,7 @@ export class StressTransport implements Transport {
     }
     if (t % 10 === 3) {
       const c = pick(2);
-      if (c) events.push({ type: 'crit', x: c.x, y: c.y, damage: 64 });
+      if (c) events.push({ type: 'crit', x: c.x, y: c.y, damage: 64, by: PLAYER });
     }
     if (t % 30 === 7) {
       const c = pick(3);

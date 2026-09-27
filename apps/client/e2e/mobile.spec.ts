@@ -117,6 +117,41 @@ test.describe('portrait phone layout', () => {
     expect(await sent(page, 'attack')).toHaveLength(0);
   });
 
+  test('the joystick moves your hero on screen at once, and it ends where the sim has it', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const joy = centre(await box(page, '#joystick'));
+    await page.evaluate(() => {
+      const w = window as unknown as { downAt: number };
+      document.getElementById('joystick')!.addEventListener('pointerdown', () => (w.downAt = performance.now()), { capture: true });
+      window.__tdt.heroTrace(true);
+    });
+    // Push right for a moment and let go.
+    await finger.down(joy.x + 40, joy.y);
+    await page.waitForTimeout(500);
+    await finger.up();
+    const latency = await page.evaluate(() => {
+      const down = (window as unknown as { downAt: number }).downAt;
+      const trace = window.__tdt.heroTrace();
+      const rest = trace.filter((p) => p.t <= down).at(-1)!;
+      const moved = trace.find((p) => p.t > down && Math.hypot(p.x - rest.x, p.y - rest.y) > 0.02);
+      return moved ? moved.t - down : Infinity;
+    });
+    // Drawn moving from the first frame after the input (was ~130 ms: a sim tick + 100 ms of interpolation).
+    // The bound leaves room for a slow software-rendered frame or two.
+    expect(latency).toBeLessThan(100);
+    // Once stopped, the drawn hero settles where the sim has it.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const drawn = window.__tdt.heroTrace().at(-1)!;
+          const hero = window.__tdt.latest()!.heroes[0]!;
+          return Math.hypot(drawn.x - hero.x, drawn.y - hero.y);
+        }),
+      )
+      .toBeLessThan(0.05);
+  });
+
   test('touch only, solo Quick match: move, build, tower ring (upgrade, priority, hold to sell)', async ({ page }) => {
     await startSolo(page);
     const finger = await Finger.on(page);
