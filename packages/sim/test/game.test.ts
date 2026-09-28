@@ -65,8 +65,6 @@ describe('map', () => {
         Math.max(...TUNING.pads.extraPerLaneZone),
       );
     }
-    expect(base.some((p) => p.zone === 'core')).toBe(false);
-    expect(map.pads.filter((p) => p.zone === 'core').length).toBeGreaterThanOrEqual(Math.max(...TUNING.pads.core));
     // West pads lie west of the Mid lane, East pads east of it; Mid pads sit on both sides (half each).
     const midX = map.lanes[1]!.waypoints[0]!.x;
     for (const p of map.pads.filter((q) => q.zone === 'west')) expect(p.x).toBeLessThan(midX);

@@ -85,8 +85,8 @@ export const FX = {
   heartShard: 0xffb0c0,
 } as const;
 
-/** Pad-zone tints by seat (index in the snapshot's player list). */
-export const PLAYER_COLORS = [0x4f9dff, 0xff9f43, 0xb56cff, 0x3ddc84] as const;
+/** Pad-zone tints by seat (index in the snapshot's player list; a match holds at most 3 players). */
+export const PLAYER_COLORS = [0x4f9dff, 0xff9f43, 0xb56cff] as const;
 
 export const CREEP_COLORS: Record<CreepKind, number> = {
   grunt: RL.grunt,

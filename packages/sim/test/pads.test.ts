@@ -1,5 +1,6 @@
 // Pad zones (docs/MOBILE.md §2): who may build where, extra pads for bigger teams, and leavers.
 
+import { MAX_PLAYERS } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand, setPlayerConnected, setPlayerLeft } from '../src/commands';
 import { createGame, snapshot } from '../src/game';
@@ -51,24 +52,21 @@ describe('pad zones', () => {
     expect(total / base.length).toBeLessThan(1.2);
   });
 
-  it('4 players: a Core zone of extra pads where the lanes converge (about +25%)', () => {
-    const byOwner = owners(4);
-    const core = byOwner.get('p4')!.map((id) => map.pads[id]!);
-    expect(core).toHaveLength(TUNING.pads.core[3]!);
-    expect(core.every((p) => p.zone === 'core' && p.extra)).toBe(true);
-    for (const p of core) expect(p.y).toBeGreaterThan(map.lanes[0]!.waypoints[1]!.y);
-    const total = [...byOwner.values()].flat().length;
-    expect(total / base.length).toBeGreaterThan(1.2);
-    expect(total / base.length).toBeLessThan(1.35);
+  it('there is no fourth zone: every pad is West, Mid or East', () => {
+    expect(new Set(map.pads.map((p) => p.zone))).toEqual(new Set(['west', 'mid', 'east']));
   });
 
   it('extra-pad amounts come from the tuning', () => {
     const tuning = tuningCopy();
-    tuning.pads.extraPerLaneZone = [0, 0, 2, 2];
-    tuning.pads.core = [0, 0, 0, 6];
+    tuning.pads.extraPerLaneZone = [0, 0, 2];
     expect(padLayout(map, tuning, ids(3)).length).toBe(base.length + 6);
-    expect(padLayout(map, tuning, ids(4)).length).toBe(base.length + 12);
+    expect(padLayout(map, tuning, ids(2)).length).toBe(base.length);
     expect(padLayout(map, tuning, ids(1)).length).toBe(base.length);
+  });
+
+  it('a match holds at most 3 players (one per lane)', () => {
+    expect(MAX_PLAYERS).toBe(3);
+    expect(() => game(4)).toThrow(/at most 3 players/);
   });
 
   it('only the owner may build on a pad; pads that do not exist in this match are rejected', () => {
@@ -86,10 +84,10 @@ describe('pad zones', () => {
   });
 
   it('snapshots list the pads of the match and their owners', () => {
-    const state = game(4);
+    const state = game(3);
     const snap = snapshot(state);
-    expect(snap.pads).toEqual(padLayout(map, TUNING, ids(4)));
-    expect(snap.pads.some((p) => p.owner === 'p4')).toBe(true);
+    expect(snap.pads).toEqual(padLayout(map, TUNING, ids(3)));
+    expect(snap.pads.some((p) => p.owner === 'p3')).toBe(true);
   });
 });
 

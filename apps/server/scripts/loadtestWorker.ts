@@ -1,6 +1,7 @@
 // Load-test worker: hosts the bot clients for some rooms and reports stats.
 
 import { parentPort, workerData } from 'node:worker_threads';
+import { MAX_PLAYERS } from '@tdt/protocol';
 import { BotClient } from '../src/testing/botClient';
 
 interface Init {
@@ -46,7 +47,7 @@ async function addRoom(): Promise<void> {
   const clients = [host];
   try {
     const code = await host.create();
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < MAX_PLAYERS; i++) {
       const c = new BotClient({ url, origin, name: `W${workerIndex}R${n}B${i}`, index: i });
       await c.join(code);
       clients.push(c);

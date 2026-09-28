@@ -83,14 +83,14 @@ describe('match modes', () => {
 
   it('Quick mode fades the team HP bonus in and out over its own numbers of waves', () => {
     const ps = QUICK.playerScaling;
-    const quick = game('quick', 4);
+    const quick = game('quick', 3);
     const lateStart = 15 - ps.lateWaves;
-    expect(playerHpMultiplier(quick, 1)).toBeCloseTo(ps.hp[3]! + ps.earlyHpBonus[3]!);
-    expect(playerHpMultiplier(quick, lateStart)).toBeCloseTo(ps.hp[3]! + ps.earlyHpBonus[3]! * Math.max(0, 1 - (lateStart - 1) / ps.earlyWaves));
+    expect(playerHpMultiplier(quick, 1)).toBeCloseTo(ps.hp[2]! + ps.earlyHpBonus[2]!);
+    expect(playerHpMultiplier(quick, lateStart)).toBeCloseTo(ps.hp[2]! + ps.earlyHpBonus[2]! * Math.max(0, 1 - (lateStart - 1) / ps.earlyWaves));
     expect(playerHpMultiplier(quick, ps.earlyWaves + 1)).toBeCloseTo(
-      ps.hp[3]! + ps.lateHpBonus[3]! * Math.max(0, (ps.earlyWaves + 1 - lateStart) / ps.lateWaves),
+      ps.hp[2]! + ps.lateHpBonus[2]! * Math.max(0, (ps.earlyWaves + 1 - lateStart) / ps.lateWaves),
     );
-    expect(playerHpMultiplier(quick, 15)).toBeCloseTo(ps.hp[3]! + ps.lateHpBonus[3]!);
+    expect(playerHpMultiplier(quick, 15)).toBeCloseTo(ps.hp[2]! + ps.lateHpBonus[2]!);
     expect(playerHpMultiplier(game('quick', 1), 1)).toBe(ps.hp[0]);
     expect(playerHpMultiplier(game('quick', 1), 15)).toBe(ps.hp[0]);
   });

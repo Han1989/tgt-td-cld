@@ -1,22 +1,22 @@
-// Headless balance run for a full team: 4 balance bots with mixed heroes on
-// Normal (player-count scaling on). A separate file so Vitest runs it in
-// parallel with the solo 30-wave runs.
+// Headless balance run for a full team: 3 balance bots (the most a match holds, one per lane) with one hero of
+// each kind on Normal (player-count scaling on). A separate file so Vitest runs it in parallel with the solo
+// 30-wave runs.
 
 import { describe, expect, it } from 'vitest';
-import { createBalanceBot } from '../src/bots';
+import { createBalanceBot, createIdleBot } from '../src/bots';
 import { runHeadlessMatch } from '../src/headless';
-import { BALANCE_SEEDS as SEEDS, HEART_TARGET } from './helpers';
+import { BALANCE_SEEDS as SEEDS, HEART_TARGET, TEAM_OF_3 } from './helpers';
 
-/** A 4-player 30-wave match takes several seconds of CPU. */
+/** A 3-player 30-wave match takes a few seconds of CPU. */
 const TIMEOUT = 120_000;
 
-describe('headless balance run (4 players)', () => {
+describe('headless balance run (3 players)', () => {
   it.each(SEEDS)(
-    'four sensible-build bots win all 30 waves with 40–80 Heart HP left (seed %i)',
+    'three sensible-build bots win all 30 waves with 40–80 Heart HP left (seed %i)',
     (seed) => {
       const result = runHeadlessMatch({
-        bots: [0, 1, 2, 3].map((i) => createBalanceBot(`p${i + 1}`, undefined, i)),
-        heroes: ['ranger', 'warden', 'arcanist', 'ranger'],
+        bots: TEAM_OF_3.map((_, i) => createBalanceBot(`p${i + 1}`, undefined, i)),
+        heroes: TEAM_OF_3,
         seed,
       });
       expect(result.result).toBe('victory');
@@ -26,4 +26,9 @@ describe('headless balance run (4 players)', () => {
     },
     TIMEOUT,
   );
+
+  it('three do-nothing bots lose', () => {
+    const result = runHeadlessMatch({ bots: TEAM_OF_3.map((_, i) => createIdleBot(`p${i + 1}`)), heroes: TEAM_OF_3, seed: 1 });
+    expect(result.result).toBe('defeat');
+  });
 });

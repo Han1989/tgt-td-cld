@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -328,7 +328,8 @@ export interface Snapshot {
 // Rooms and lobby (online play)
 // ---------------------------------------------------------------------------
 
-export const MAX_PLAYERS = 4;
+/** Players per match: one per lane (docs/MOBILE.md §2). */
+export const MAX_PLAYERS = 3;
 export const MAX_NAME_LENGTH = 16;
 /** Letters used in room codes: no I or O, which are easily confused with 1 and 0. */
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';

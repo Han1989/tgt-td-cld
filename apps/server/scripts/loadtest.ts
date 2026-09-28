@@ -1,4 +1,4 @@
-// Load test: ramps up rooms of 4 bot players each and reports how many rooms
+// Load test: ramps up full rooms (3 bot players each) and reports how many rooms
 // one server instance handles before its average tick time exceeds 10 ms.
 //
 //   npm run loadtest                      # starts a local server (apps/server/dist) and tests it
@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { MAX_PLAYERS } from '@tdt/protocol';
 import type { HealthReport } from '../src/server';
 
 const args = parseArgs(process.argv.slice(2));
@@ -110,7 +111,7 @@ async function main(): Promise<void> {
   console.log(`\n${result}`);
   console.log(
     lastGood
-      ? `Rooms per instance before average tick time exceeds ${threshold} ms: ${lastGood.rooms} (avg tick ${lastGood.tick.toFixed(2)} ms, ${lastGood.rooms * 4} players)`
+      ? `Rooms per instance before average tick time exceeds ${threshold} ms: ${lastGood.rooms} (avg tick ${lastGood.tick.toFixed(2)} ms, ${lastGood.rooms * MAX_PLAYERS} players)`
       : `Even ${startRooms} rooms exceeded the threshold.`,
   );
 

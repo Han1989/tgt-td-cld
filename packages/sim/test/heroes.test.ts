@@ -23,6 +23,27 @@ function rejection(state: GameState): string | undefined {
   return e?.type === 'rejected' ? e.reason : undefined;
 }
 
+describe('movement', () => {
+  // Heroes walk 35% faster than before Phase 4b (Decision Log): Ranger 3.4 → 4.6, Warden 3.2 → 4.3, Arcanist
+  // 3.3 → 4.5 tiles/s. The sim is the only source of speed, so it is the same on every device.
+  it.each([
+    ['ranger', 4.6],
+    ['warden', 4.3],
+    ['arcanist', 4.5],
+  ] as const)('the %s walks %d tiles per second', (kind, speed) => {
+    expect(TUNING.hero[kind].speed).toBe(speed);
+    const { state, heroes } = lab([kind]);
+    const hero = heroes[0]!;
+    hero.x = 2.5;
+    hero.y = 38.5;
+    // Open ground below the Heart, straight across: 2 s of walking.
+    applyCommand(state, 'p1', { type: 'move', x: 2.5 + speed * 3, y: 38.5 });
+    const start = hero.x;
+    run(state, secondsToTicks(2));
+    expect(hero.x - start).toBeCloseTo(speed * 2, 1);
+  });
+});
+
 describe('levels and skill points', () => {
   it('levels from 1 to 10 with one skill point per level and caps XP', () => {
     const state = labGame();

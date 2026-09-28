@@ -346,7 +346,7 @@ export interface Tuning {
     list: WaveGroup[][];
   };
   /**
-   * Player-count scaling, by player count (index 0 = solo; the last entry also covers bigger teams).
+   * Player-count scaling, by player count (index 0 = solo, 1 = 2 players, 2 = 3 players, the maximum).
    * Creep HP × (hp[n − 1] + earlyHpBonus[n − 1] × e + lateHpBonus[n − 1] × l), where e fades from 1 on
    * wave 1 to 0 on wave earlyWaves + 1, and l grows from 0 on the wave before the last `lateWaves` to 1 on
    * the final wave. Teams get their gold and heroes all at once but share the pads (a few extra pads aside),
@@ -383,14 +383,12 @@ export interface Tuning {
     towerAttackLimit: number;
   };
   /**
-   * Extra build pads for bigger teams (docs/MOBILE.md §2), by player count (index 0 = solo; the last
-   * entry also covers bigger teams). The map lists the extra pads; these say how many exist.
+   * Extra build pads for bigger teams (docs/MOBILE.md §2), by player count (index 0 = solo). The map lists
+   * the extra pads; this says how many exist.
    */
   pads: {
     /** Extra pads added to each lane zone (West, Mid, East). */
     extraPerLaneZone: number[];
-    /** Pads of the Core zone (a 4th player's zone where the lanes converge). */
-    core: number[];
   };
   /** One special ability per boss. */
   bosses: {
@@ -493,16 +491,16 @@ export const TUNING: Tuning = {
     ],
   },
   playerScaling: {
-    hp: [1.01, 1.45, 1.45, 1.5],
-    earlyHpBonus: [0, 0.5, 1.6, 2.2],
+    hp: [1.01, 1.42, 1.45],
+    earlyHpBonus: [0, 0.5, 1.6],
     earlyWaves: 20,
-    lateHpBonus: [0, 0.06, 0.15, 2.0],
+    lateHpBonus: [0, 0.16, 0.15],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
   combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10, towerAttackLimit: 10 },
-  pads: { extraPerLaneZone: [0, 0, 1, 1], core: [0, 0, 0, 4] },
+  pads: { extraPerLaneZone: [0, 0, 1] },
   bosses: {
     ironhorn: { stomp: { cooldown: 7, radius: 3, damage: 40, stun: 2 } },
     matriarch: { hatch: { cooldown: 6, count: 3, max: 24, spread: 0.8 } },
@@ -684,10 +682,10 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.02, 1.45, 1.6, 1.8],
-        earlyHpBonus: [0, 0.5, 1.6, 2.0],
+        hp: [1.019, 1.48, 1.6],
+        earlyHpBonus: [0, 0.5, 1.6],
         earlyWaves: 10,
-        lateHpBonus: [0, 0, 1.0, 2.2],
+        lateHpBonus: [0, 0.15, 1.0],
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
@@ -707,7 +705,7 @@ export const TUNING: Tuning = {
       armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
       damage: 20, damagePerLevel: 3, damageType: 'physical',
       attackCooldown: 0.9, attackRange: 6, ranged: true, projectileSpeed: 16,
-      speed: 3.4, radius: 0.4, acquireRange: 7,
+      speed: 4.6, radius: 0.4, acquireRange: 7,
       multishot: {
         manaCost: [30, 35, 40, 45],
         cooldown: [8, 7, 6, 5],
@@ -737,7 +735,7 @@ export const TUNING: Tuning = {
         radius: 3,
         duration: 3,
         pulseInterval: 0.5,
-        damagePerPulse: [27, 40, 54],
+        damagePerPulse: [25, 37, 50],
       },
     },
     warden: {
@@ -746,7 +744,7 @@ export const TUNING: Tuning = {
       armor: 5, armorPerLevel: 0.7, magicResist: 0.1,
       damage: 26, damagePerLevel: 3.8, damageType: 'physical',
       attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
-      speed: 3.2, radius: 0.5, acquireRange: 6,
+      speed: 4.3, radius: 0.5, acquireRange: 6,
       cleave: {
         manaCost: [25, 30, 35, 40],
         cooldown: [6, 5.5, 5, 4.5],
@@ -777,7 +775,7 @@ export const TUNING: Tuning = {
       armor: 1, armorPerLevel: 0.4, magicResist: 0.2,
       damage: 18, damagePerLevel: 2.5, damageType: 'magic',
       attackCooldown: 1, attackRange: 5.5, ranged: true, projectileSpeed: 12,
-      speed: 3.3, radius: 0.4, acquireRange: 6.5,
+      speed: 4.5, radius: 0.4, acquireRange: 6.5,
       fireball: {
         manaCost: [35, 45, 55, 65],
         cooldown: [7, 6.5, 6, 5.5],

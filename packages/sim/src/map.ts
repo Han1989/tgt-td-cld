@@ -18,11 +18,8 @@ export const Tile = {
 } as const;
 export type TileType = (typeof Tile)[keyof typeof Tile];
 
-/**
- * Pad zones. West, Mid and East hold the pads alongside each lane; Core pads sit where the lanes
- * converge above the Heart and only exist in bigger teams (see `padLayout`).
- */
-export const PAD_ZONES = ['west', 'mid', 'east', 'core'] as const;
+/** Pad zones: West, Mid and East hold the pads alongside each lane (see `padLayout`). */
+export const PAD_ZONES = ['west', 'mid', 'east'] as const;
 export type PadZone = (typeof PAD_ZONES)[number];
 
 /** One build pad as map data. */

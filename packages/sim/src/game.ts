@@ -1,7 +1,7 @@
 // Public entry points of the simulation: createGame, step, snapshot.
 // applyCommand lives in commands.ts.
 
-import type { EntityId, GameEvent, SkillSlot, Snapshot } from '@tdt/protocol';
+import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
 import { effectiveArmor, emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
@@ -16,6 +16,7 @@ import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
   if (config.players.length === 0) throw new Error('A game needs at least one player');
+  if (config.players.length > MAX_PLAYERS) throw new Error(`A game holds at most ${MAX_PLAYERS} players`);
   const mode = config.mode ?? 'full';
   const tuning = tuningForMode(config.tuning ?? TUNING, mode);
   const state: GameState = {

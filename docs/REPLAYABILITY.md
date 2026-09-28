@@ -43,14 +43,14 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 
 - Maps are data only: lanes, pads with zone tags, portals, Heart and safe zone, all in the format from `MOBILE.md` §2. **A new map needs no engine changes.**
 - The host picks the map in the lobby, and solo has a map pick.
-- Every map must fit the portrait rules: whole map visible on a 412 × 839 phone, a safe zone under the controls, and pad zones for 1–4 players.
+- Every map must fit the portrait rules: whole map visible on a 412 × 839 phone, a safe zone under the controls, and pad zones for 1–3 players (one per lane).
 - **First new map:** lanes that **split and merge**, so where a creep leaks depends on the path it takes.
 - **Each map must pass the balance gates on its own** before it ships.
 
 ## 4. Done when
 
 - The balance bot uses branches and handles surges.
-- The balance gates for 1, 2 and 4 players pass on Spire with no modifiers, and with a fixed sample of modifier combinations.
+- The balance gates for 1, 2 and 3 players pass on Spire with no modifiers, and with a fixed sample of modifier combinations.
 - Solo still passes with surges enabled.
 - A second map ships and passes its own gates.
 - `npm test` and `npm run build` pass.
