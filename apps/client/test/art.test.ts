@@ -17,7 +17,8 @@ import {
   type ArtEntry,
   type CreepArt,
 } from '../src/render/art/registry';
-import { DEATH, deathPose, hold, HIT_FLASH } from '../src/render/art/rigs';
+import { WARDEN_SWING, wardenStrike } from '../src/render/art/entities/warden';
+import { DEATH, deathPose, hold, HIT_FLASH, KNOCK, knockPose } from '../src/render/art/rigs';
 import { propSpots } from '../src/render/art/scatter';
 import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
 import { shotColor } from '../src/render/palette';
@@ -231,5 +232,43 @@ describe('hit and death reactions', () => {
     expect(hold(0.99)).toBeLessThan(0.1);
     expect(hold(1)).toBe(0);
     expect(hold(-0.1)).toBe(0);
+  });
+
+  it('a melee knockback pushes out and back and rings out its tilt', () => {
+    expect(knockPose(0)).toEqual({ push: 0, tilt: 0 });
+    expect(knockPose(1)).toEqual({ push: 0, tilt: 0 });
+    expect(knockPose(0.18).push).toBeCloseTo(1);
+    expect(knockPose(0.9).push).toBeLessThan(0.1);
+    const tilts = [0.1, 0.3, 0.5, 0.7, 0.9].map((t) => Math.abs(knockPose(t).tilt));
+    expect(Math.max(...tilts)).toBeLessThanOrEqual(KNOCK.tilt);
+    expect(tilts[4]!).toBeLessThan(tilts[0]!);
+  });
+});
+
+describe('Warden swing (readable at phone size)', () => {
+  it('winds up for about 180 ms, swings in 150, and holds the pose long enough to see', () => {
+    expect(WARDEN_SWING.windMs).toBeGreaterThanOrEqual(170);
+    expect(WARDEN_SWING.windMs).toBeLessThanOrEqual(200);
+    // The whole blow (swing + hold + back to rest) lasts half a second: the old swing was 110 ms.
+    expect(WARDEN_SWING.strikeMs + WARDEN_SWING.holdMs + WARDEN_SWING.recoverMs).toBeGreaterThanOrEqual(450);
+  });
+
+  it('passes the front at contact, lunges and flares the smear there, and is done afterwards', () => {
+    const contact = WARDEN_SWING.strikeMs * WARDEN_SWING.contact;
+    expect(wardenStrike(-1)).toBeNull();
+    const start = wardenStrike(0)!;
+    const hit = wardenStrike(contact)!;
+    const end = wardenStrike(WARDEN_SWING.strikeMs)!;
+    // From high behind (up is negative) to low in front, horizontal at the impact.
+    expect(start.angle).toBeLessThan(-2);
+    expect(Math.abs(hit.angle)).toBeLessThan(0.15);
+    expect(end.angle).toBeGreaterThan(0.8);
+    // A bigger arm through the swing, a lunge into it, and the smear brightest around the impact.
+    expect(hit.scale).toBeGreaterThan(1.2);
+    expect(end.lunge).toBeCloseTo(1);
+    expect(hit.smear).toBeGreaterThan(0.8);
+    expect(start.smear).toBe(0);
+    expect(wardenStrike(contact + 250)!.smear).toBe(0);
+    expect(wardenStrike(WARDEN_SWING.strikeMs + WARDEN_SWING.holdMs + WARDEN_SWING.recoverMs)).toBeNull();
   });
 });

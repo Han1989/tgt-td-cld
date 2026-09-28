@@ -55,6 +55,19 @@ export interface DeathPose {
   flash: number;
 }
 
+/**
+ * Knockback wobble of a creep hit by a melee blow (Warden): pushed away from the blow and back, with
+ * a tilt that rings out. `px` / `tilt` are the peaks for a creep (bosses take half).
+ */
+export const KNOCK = { ms: 260, px: 4, tilt: 0.2 } as const;
+
+/** Knockback at progress t (0..1): push (0..1 of KNOCK.px, away from the blow) and tilt (radians, away). Pure (tested). */
+export function knockPose(t: number): { push: number; tilt: number } {
+  if (t < 0 || t >= 1) return { push: 0, tilt: 0 };
+  const push = t < 0.18 ? smooth(t / 0.18) : 1 - smooth((t - 0.18) / 0.82);
+  return { push, tilt: KNOCK.tilt * Math.sin(t * Math.PI * 2.5) * (1 - t) };
+}
+
 export const smooth = (t: number) => t * t * (3 - 2 * t);
 export const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
 
@@ -95,6 +108,10 @@ export class CreepRig {
   private flinch = 0;
   private dead = false;
   private readonly death: DeathStyle;
+  /** Last melee knockback: when, and the direction away from the blow (unit vector). */
+  private knockAt = -Infinity;
+  private knockX = 0;
+  private knockY = 0;
 
   constructor(
     private readonly kit: ArtKit,
@@ -127,6 +144,7 @@ export class CreepRig {
     this.lastX = NaN;
     this.flip = facing;
     this.flinch = 0;
+    this.knockAt = -Infinity;
     this.body.alpha = 1;
     if (this.shadow) this.shadow.alpha = 1;
     this.dead = false;
@@ -144,6 +162,14 @@ export class CreepRig {
   /** Shows the look the art picks for this creep (e.g. Shardback's hide), if it has variants. */
   setVariant(c: CreepSnap): void {
     if (this.art.variants) this.setFrame(this.art.variants.pick(c));
+  }
+
+  /** A melee blow hit it at `now`, from direction (dx, dy) (towards the creep). */
+  knock(now: number, dx: number, dy: number): void {
+    const d = Math.hypot(dx, dy) || 1;
+    this.knockAt = now;
+    this.knockX = dx / d;
+    this.knockY = dy / d;
   }
 
   update(x: number, seed: number, still: boolean, now: number): void {
@@ -164,7 +190,16 @@ export class CreepRig {
       b.position.set(0, this.art.feet - hop * g.hop);
       b.scale.set(this.flip * (1 + k), (1 - (1 - hop) * g.squash) * (1 - k));
     }
-    if (this.flash.alpha > 0) this.copyToFlash();
+    const kt = (now - this.knockAt) / KNOCK.ms;
+    if (kt >= 0 && kt < 1) {
+      // Pushed away from the blow and back, tilting away (only while it plays: no cost otherwise).
+      const kp = knockPose(kt);
+      const m = this.death === DEATH.boss ? 0.5 : 1;
+      b.position.x += this.knockX * kp.push * KNOCK.px * m;
+      b.position.y += this.knockY * kp.push * KNOCK.px * m * 0.6;
+      b.rotation += (this.knockX >= 0 ? 1 : -1) * kp.tilt * m;
+    }
+    if (this.flash.alpha > 0 || kt < 1) this.copyToFlash();
   }
 
   /** Flash strength 0..1 (alpha of the white silhouette); the body flinches with it. */
@@ -229,6 +264,10 @@ export abstract class HeroRigBase implements HeroRig {
   /** +1 facing right, -1 facing left. */
   protected flip = 1;
   protected shotAt = -Infinity;
+  /** Direction of the last attack's target (radians), NaN when unknown. */
+  protected shotAim = NaN;
+  /** The facing this frame (the snapshot's, unless the rig turns to its target: `faceOverride`). */
+  protected facing = 0;
   protected castAt = -Infinity;
   protected castSlot: SkillSlot = 'Q';
   private hitAt = -Infinity;
@@ -269,8 +308,10 @@ export abstract class HeroRigBase implements HeroRig {
     return c;
   }
 
-  shot(now: number): void {
+  shot(now: number, aim?: number): number {
     this.shotAt = now;
+    this.shotAim = aim ?? NaN;
+    return 0;
   }
 
   cast(now: number, slot: SkillSlot): void {
@@ -292,7 +333,8 @@ export abstract class HeroRigBase implements HeroRig {
     this.lastY = h.y;
     const walking = this.speed > 0.4 && !h.stunned;
     if (walking) this.phase += (dtMs / 1000) * (7 + this.speed * 2.2);
-    this.flip = Math.cos(h.facing) < -0.05 ? -1 : 1;
+    this.facing = this.faceOverride(now) ?? h.facing;
+    this.flip = Math.cos(this.facing) < -0.05 ? -1 : 1;
     const since = now - this.hitAt;
     const f = since < HIT_FLASH.ms ? Math.ceil((1 - since / HIT_FLASH.ms) * 4) / 4 : 0;
     const k = f * FLINCH;
@@ -314,9 +356,16 @@ export abstract class HeroRigBase implements HeroRig {
   /** Poses the parts for this frame (the flipper is already flipped: draw facing +x). */
   protected abstract pose(h: HeroPose, walking: boolean, now: number, dtMs: number): void;
 
-  /** Aim (radians) in the flipped frame, from the facing. */
-  protected aim(h: HeroPose): number {
-    return this.flip > 0 ? h.facing : Math.PI - h.facing;
+  /** A facing to use instead of the snapshot's this frame (e.g. towards the target of a swing), or null. */
+  protected faceOverride(_now: number): number | null {
+    return null;
+  }
+
+  /** Aim (radians) in the flipped frame, from this frame's facing. */
+  protected aim(_h: HeroPose): number {
+    const a = this.flip > 0 ? this.facing : Math.PI - this.facing;
+    // Within (-π, π], so a rig can scale it (turn part of the way to a target).
+    return Math.atan2(Math.sin(a), Math.cos(a));
   }
 
   /** Cast progress 0..1, or -1 when not casting. */

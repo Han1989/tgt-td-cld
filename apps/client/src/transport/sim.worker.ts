@@ -19,17 +19,16 @@ const host = new SimHost(
   () => Math.floor(Math.random() * 2 ** 31),
 );
 
-let last = performance.now();
-let acc = 0;
+/** When the next tick is due (performance.now() ms). */
+let next = performance.now() + TICK_MS;
 /** Solo pauses while the page is hidden (a worker control message, not part of the protocol). */
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
-    last = performance.now();
-    acc = 0;
+    next = performance.now() + TICK_MS;
     return;
   }
   // Browser tests (e2e builds only): plenty of gold, so building and upgrading can be tested at once.
@@ -38,22 +37,27 @@ ctx.onmessage = (e) => {
     tuning.economy.startingGold = 5000;
     // Modes may override starting gold (Quick does); the lab gives every mode the same.
     for (const m of Object.values(tuning.modes)) if (m.economy?.startingGold !== undefined) m.economy.startingGold = 5000;
+    // `?lab&auras`: heroes start with their passive (E) learned, so auras can be tested at once.
+    if (data.auras === true) tuning.hero.startingSkills = ['Q', 'W', 'E'];
     host.tuning = tuning;
     return;
   }
   host.receive(e.data);
 };
 
-setInterval(() => {
-  if (paused) return;
+// Each tick runs when it is due (a timer aimed at it, not a polling interval), so snapshots reach
+// the page evenly spaced: the view renders only 40 ms behind them (SOLO_INTERP_DELAY_MS).
+function loop(): void {
   const now = performance.now();
-  acc += now - last;
-  last = now;
+  if (paused) next = now + TICK_MS;
   let n = 0;
-  while (acc >= TICK_MS && n < MAX_CATCH_UP) {
+  while (now >= next && n < MAX_CATCH_UP) {
     host.tick();
-    acc -= TICK_MS;
+    next += TICK_MS;
     n++;
   }
-  if (n === MAX_CATCH_UP) acc = 0;
-}, TICK_MS / 2);
+  // After a long stall, start afresh instead of racing through the backlog.
+  if (now - next > TICK_MS) next = now + TICK_MS;
+  setTimeout(loop, Math.max(0, next - performance.now()));
+}
+loop();

@@ -218,7 +218,7 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
   const c = creepsById.get(p.targetId);
   if (!c || c.dead) return;
   if (p.slow > 0) applySlow(state, c, p.slow, p.slowTicks);
-  if (p.crit) emit(state, { type: 'crit', x: c.x, y: c.y, damage: Math.round(p.damage) });
+  if (p.crit) emit(state, { type: 'crit', x: c.x, y: c.y, damage: Math.round(p.damage), by: p.source });
   hitCreep(state, p, c);
   if (p.fx && p.fx.chains > 0) chain(state, p, p.fx, c);
 }

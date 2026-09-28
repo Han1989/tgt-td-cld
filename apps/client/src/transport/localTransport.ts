@@ -1,10 +1,13 @@
 import { decodeServerMessage, encodeClientMessage, type ClientMessage, type ServerMessage } from '@tdt/protocol';
+import { SOLO_INTERP_DELAY_MS } from '../snapshotBuffer';
 import type { Transport } from './transport';
 
 /** Runs the simulation in a Web Worker and exchanges encoded protocol messages with it. */
 export class LocalTransport implements Transport {
   private readonly worker: Worker;
   private handlers: ((msg: ServerMessage) => void)[] = [];
+  /** No network: the view renders just behind the newest tick. */
+  readonly interpDelayMs = SOLO_INTERP_DELAY_MS;
 
   constructor() {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
@@ -13,7 +16,10 @@ export class LocalTransport implements Transport {
       if (!msg) return;
       for (const h of this.handlers) h(msg);
     };
-    if (import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('lab')) this.worker.postMessage({ ctl: 'lab' });
+    if (import.meta.env.MODE === 'e2e') {
+      const q = new URLSearchParams(location.search);
+      if (q.has('lab')) this.worker.postMessage({ ctl: 'lab', auras: q.has('auras') });
+    }
   }
 
   send(msg: ClientMessage): void {

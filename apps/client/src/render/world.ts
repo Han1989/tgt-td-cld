@@ -71,6 +71,8 @@ const FLASH_EVERY_MS = HIT_FLASH.everyMs;
  * is due one snapshot later), so its death reaction starts where it stood. Else it is just released.
  */
 const LIMBO_MS = 160;
+/** A melee hero starts winding up when an enemy is this much further than its reach (tiles): ~180 ms of closing in. */
+const REACH_MARGIN = 0.6;
 /** At most this many death reactions play at once (the rest just vanish). */
 const MAX_DYING = 48;
 /** Tower recoil after a shot, and how far it kicks back (px). */
@@ -243,6 +245,8 @@ export class WorldRenderer {
   private readonly limbo = new Map<number, CreepSprite>();
   /** Creeps playing their death reaction (docs/ART.md §7). */
   private dying: CreepSprite[] = [];
+  /** Melee blows waiting for the swing to land (the rig finishes its wind-up first): when, and the target's position. */
+  private impacts: { at: number; heroId: number; x: number; y: number }[] = [];
   private readonly projectilePool = new Map<string, ProjectileSprite[]>();
   private readonly towers = new Map<number, TowerSprite>();
   private readonly heroes = new Map<number, HeroSprite>();
@@ -316,6 +320,12 @@ export class WorldRenderer {
     this.ground.repaint(display);
   }
 
+  /** Where your hero is drawn (tiles), for the browser tests' latency trace. */
+  heroDrawn(): { x: number; y: number } | null {
+    for (const s of this.heroes.values()) if (s.look.endsWith(':true') && s.root.visible) return { x: s.root.x / S, y: s.root.y / S };
+    return null;
+  }
+
   /** What the art layer shows right now (browser tests). */
   artStats(): { display: Display; pads: number; creepRigs: number; towerRigs: number; heroRigs: number } {
     const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
@@ -368,6 +378,12 @@ export class WorldRenderer {
     return this.drawnTowers;
   }
 
+  /** Bulwark radii drawn by the last overlay, and how many covered the tower in focus (browser tests). */
+  auraRings = { drawn: 0, covering: 0 };
+
+  /** Where to draw your hero given its interpolated snapshot (the GameView's predictor), if set. */
+  ownHero: ((h: HeroSnap) => { x: number; y: number; facing: number | null }) | null = null;
+
   /** Number of creep sprites drawn last frame (the rest were culled). */
   visibleCreeps = 0;
 
@@ -383,7 +399,10 @@ export class WorldRenderer {
 
     const { from, to, alpha } = view;
     const creeps = lerpEntities(from.creeps, to.creeps, alpha);
-    const heroes = lerpEntities(from.heroes, to.heroes, alpha);
+    let heroes = lerpEntities(from.heroes, to.heroes, alpha);
+    // Your hero: drawn where the prediction has it while you steer it (predict.ts).
+    const own = this.ownHero;
+    if (own) heroes = heroes.map((h) => (h.owner === me && h.alive ? withDrawn(h, own(h)) : h));
     const projectiles = lerpEntities(from.projectiles, to.projectiles, alpha);
     // Towers and traps don't move; show them as soon as they exist.
     const towers = latest.towers;
@@ -396,6 +415,7 @@ export class WorldRenderer {
     this.syncCreeps(creeps, now, dt);
     this.syncTowers(towers, now, dt);
     this.syncHeroes(heroes, me, now, dt);
+    if (this.impacts.length > 0) this.landImpacts(now);
     this.syncProjectiles(projectiles, heroes, dt);
     this.syncTraps(latest);
     this.syncZones(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
@@ -411,6 +431,7 @@ export class WorldRenderer {
   reset(): void {
     for (const s of this.limbo.values()) this.releaseCreep(s);
     this.limbo.clear();
+    this.impacts = [];
     for (const s of this.dying) this.releaseCreep(s);
     this.dying = [];
     this.fx.clear();
@@ -424,11 +445,14 @@ export class WorldRenderer {
 
   playEvents(events: GameEvent[], latest: Snapshot | undefined, me: PlayerId | null, now: number): void {
     const fx = this.fx;
+    // Damage numbers: everyone's in solo, only your hero's and towers' online.
+    const crits = this.hits.feed(events, me, !latest || latest.players.length <= 1);
+    for (const c of crits) fx.number(c.x, c.y - 0.3, c.damage, FX.crit, true);
     for (const e of events) {
       switch (e.type) {
         case 'kill': {
           const shown = this.hits.take(e.creepId);
-          if (shown && shown.damage > 0) fx.number(e.x, e.y, shown.damage, FX.number);
+          if (shown > 0) fx.number(e.x, e.y, shown, FX.number);
           const t = TUNING.creeps[e.kind];
           fx.death(e.x, e.y, CREEP_COLORS[e.kind], t.radius, t.boss);
           this.startDeath(e.creepId, e.kind, e.x, e.y, now);
@@ -485,9 +509,8 @@ export class WorldRenderer {
           this.aoe(e.effect, e.x, e.y, e.radius);
           break;
         case 'crit':
-          this.hits.suppressNear(e.x, e.y);
-          fx.number(e.x, e.y - 0.3, e.damage, FX.crit, true);
-          if (fx.particles) {
+          // Its number came from `feed` (yours only, online); the burst goes with it.
+          if (fx.particles && crits.some((c) => c.x === e.x && c.y === e.y)) {
             fx.emit({
               frame: 'star',
               x: e.x * S,
@@ -503,10 +526,16 @@ export class WorldRenderer {
             });
           }
           break;
-        case 'heroAttack':
+        case 'heroAttack': {
           // The rig's attack animation (a swing, a thrust, the bow's release) is keyed to the real attack.
-          this.heroes.get(e.heroId)?.art?.shot(now);
+          const hero = this.heroes.get(e.heroId);
+          if (!hero) break;
+          const aim = Math.atan2(e.y * S - hero.root.y, e.x * S - hero.root.x);
+          const delay = hero.art?.shot(now, aim) ?? 0;
+          // Melee: the impact plays when the blade lands (ranged hits show when the projectile arrives).
+          if (!TUNING.hero[hero.kind].ranged) this.impacts.push({ at: now + delay, heroId: e.heroId, x: e.x, y: e.y });
           break;
+        }
         case 'cast':
           this.cast(e.heroId, e.slot, e.x, e.y);
           this.heroes.get(e.heroId)?.art?.cast(now, e.slot);
@@ -632,6 +661,78 @@ export class WorldRenderer {
       }
       default:
         fx.ring(x, y, radius, AOE_COLORS.cleave, 400);
+    }
+  }
+
+  /**
+   * While you place or inspect a tower: the true radius of every Warden's Bulwark Aura (the only aura
+   * that reaches towers), bright with a line to the tower when it covers it, faint when it doesn't.
+   */
+  private drawAuraRanges(g: Graphics, snap: Snapshot, heroes: HeroSnap[], ui: UiState): void {
+    const at = this.towerFocus(snap, ui);
+    if (!at) return;
+    const radius = TUNING.hero.warden.bulwarkAura.radius;
+    for (const h of heroes) {
+      if (h.kind !== 'warden' || !h.alive || (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) === 0) continue;
+      const covers = Math.hypot(h.x - at.x, h.y - at.y) <= radius;
+      this.auraRings.drawn++;
+      if (covers) this.auraRings.covering++;
+      g.circle(h.x * S, h.y * S, radius * S).fill({ color: FX.wardenAura, alpha: covers ? 0.07 : 0.03 });
+      g.circle(h.x * S, h.y * S, radius * S).stroke({ width: covers ? 3 : 2, color: FX.wardenAura, alpha: covers ? 0.85 : 0.35 });
+      if (covers) g.moveTo(h.x * S, h.y * S).lineTo(at.x * S, at.y * S).stroke({ width: 2, color: FX.wardenAura, alpha: 0.5 });
+    }
+  }
+
+  /** The tower being placed (build ghost, radial preview, chosen pad) or selected, in tiles. */
+  private towerFocus(snap: Snapshot, ui: UiState): { x: number; y: number } | null {
+    const selected = ui.selectedTowerId !== null ? snap.towers.find((t) => t.id === ui.selectedTowerId) : undefined;
+    if (selected) return selected;
+    const padId = ui.preview?.padId ?? ui.selectedPadId;
+    const pad = padId !== null ? this.map.pads[padId] : undefined;
+    if (pad) return pad;
+    if (ui.mode.type === 'build' && ui.hover) return padAtTile(this.map, Math.floor(ui.hover.x), Math.floor(ui.hover.y)) ?? ui.hover;
+    return null;
+  }
+
+  /** Whether a melee hero has an enemy it can hit within reach, or about to be (the wind-up starts ~180 ms early). */
+  private inReach(h: HeroSnap): boolean {
+    const reach = TUNING.hero[h.kind].attackRange + REACH_MARGIN;
+    for (const c of this.drawnCreeps) {
+      const t = TUNING.creeps[c.kind];
+      if (t.flying) continue;
+      const dx = c.x - h.x;
+      const dy = c.y - h.y;
+      const r = reach + t.radius;
+      if (dx * dx + dy * dy <= r * r) return true;
+    }
+    return false;
+  }
+
+  /** Melee blows whose swing has landed: a spark on the creep that was hit, which is knocked back a little. */
+  private landImpacts(now: number): void {
+    const due = this.impacts.filter((i) => i.at <= now);
+    if (due.length === 0) return;
+    this.impacts = this.impacts.filter((i) => i.at > now);
+    for (const i of due) {
+      // The creep has moved on a little since the hit: find it near where it was.
+      let x = i.x;
+      let y = i.y;
+      let id = -1;
+      let best = 1.2;
+      for (const c of this.drawnCreeps) {
+        const d = Math.hypot(c.x - i.x, c.y - i.y);
+        if (d < best) {
+          best = d;
+          id = c.id;
+          x = c.x;
+          y = c.y;
+        }
+      }
+      const hero = this.heroes.get(i.heroId);
+      const dx = hero ? x - hero.root.x / S : 1;
+      const dy = hero ? y - hero.root.y / S : 0;
+      this.fx.meleeImpact(x, y, Math.atan2(dy, dx));
+      if (id >= 0) this.creeps.get(id)?.art?.knock(now, dx, dy);
     }
   }
 
@@ -1033,7 +1134,7 @@ export class WorldRenderer {
     const f = s.flashUntil > now ? Math.ceil(((s.flashUntil - now) / FLASH_MS) * 4) / 4 : 0;
     if (s.art) {
       // Art keeps its colours: the white silhouette flashes (alpha only), frost tints the whole rig.
-      const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 8) / 8 : 0;
+      const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 4) / 4 : 0;
       const key = f * 100 + ice * 10 + 1;
       if (key === s.tintKey) return;
       s.tintKey = key;
@@ -1049,7 +1150,7 @@ export class WorldRenderer {
       }
       return;
     }
-    const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 8) / 8 : 0;
+    const ice = c.slowed ? Math.round((0.35 + 0.25 * Math.sin(now / 150 + c.id)) * 4) / 4 : 0;
     const key = f * 100 + ice * 10 + 1;
     if (key === s.tintKey) return;
     s.tintKey = key;
@@ -1217,7 +1318,11 @@ export class WorldRenderer {
       s.root.position.set(h.x * S, h.y * S);
       s.root.scale.set(this.entityScale);
       s.facing.rotation = h.facing;
-      s.art?.update(h, now, dtMs);
+      if (s.art) {
+        // A melee hero winds up while an enemy it can hit is (almost) in reach.
+        if (!TUNING.hero[h.kind].ranged) s.art.update({ x: h.x, y: h.y, facing: h.facing, stunned: h.stunned, engaged: this.inReach(h) }, now, dtMs);
+        else s.art.update(h, now, dtMs);
+      }
       const r = TUNING.hero[h.kind].radius * S;
       const key = `${h.hp}/${h.maxHp}/${h.mana}/${h.maxMana}`;
       if (key !== s.barKey) {
@@ -1515,6 +1620,7 @@ export class WorldRenderer {
     if (!busy && !this.overlayDrawn) return;
     this.overlayDrawn = busy;
     g.clear();
+    this.auraRings = { drawn: 0, covering: 0 };
     const player = snap.players.find((p) => p.id === me);
     const hero = heroes.find((h) => h.owner === me && h.alive);
 
@@ -1567,6 +1673,8 @@ export class WorldRenderer {
         g.rect(pad.x * S - half, pad.y * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
       }
     }
+
+    this.drawAuraRanges(g, snap, heroes, ui);
 
     // Touch drag-to-aim: range around the hero, area at the aim point (red over the button = cancel).
     if (ui.aim && hero) {
@@ -1681,12 +1789,16 @@ function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y:
   if (key === s.barKey) return;
   s.barKey = key;
   const frac = Math.max(0, Math.min(1, hp / maxHp));
-  s.hpBg.visible = s.hpFill.visible = true;
-  s.hpBg.position.set(-width / 2 - 1, y - 1);
-  s.hpBg.setSize(width + 2, 5);
-  s.hpFill.position.set(-width / 2, y);
+  // The frame and the colour (3 steps) rarely change: set them only then (a tint goes through Pixi's colour parser).
+  if (!s.hpBg.visible || s.hpBg.x !== -width / 2 - 1 || s.hpBg.y !== y - 1) {
+    s.hpBg.visible = s.hpFill.visible = true;
+    s.hpBg.position.set(-width / 2 - 1, y - 1);
+    s.hpBg.setSize(width + 2, 5);
+    s.hpFill.position.set(-width / 2, y);
+  }
   s.hpFill.setSize(Math.max(0.01, width * frac), 3);
-  s.hpFill.tint = hpColor(frac);
+  const color = hpColor(frac);
+  if (s.hpFill.tint !== color) s.hpFill.tint = color;
 }
 
 /** Shardback's hide, read from its magic resist (Ether hide raises it above the base value). */
@@ -1753,6 +1865,10 @@ function creepBody(kind: CreepKind): Graphics {
 }
 
 /** Ranger: circle; Warden: shield (rounded square); Arcanist: four-point star. */
+function withDrawn(h: HeroSnap, d: { x: number; y: number; facing: number | null }): HeroSnap {
+  return { ...h, x: d.x, y: d.y, facing: d.facing ?? h.facing };
+}
+
 function heroBody(kind: HeroKind, r: number): Graphics {
   const g = new Graphics();
   const { fill, edge } = HERO_COLORS[kind];

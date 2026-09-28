@@ -3,7 +3,7 @@
 // attached (local worker, game server or the stress scene).
 
 import type { ClientMessage, Command, PlayerId, Snapshot } from '@tdt/protocol';
-import { getMap, TILE_PX } from '@tdt/sim';
+import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { Hud } from './hud/hud';
 import { installPressFeedback } from './hud/press';
@@ -14,9 +14,10 @@ import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { COLORS, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
+import { HeroPredictor } from './predict';
 import { WorldRenderer } from './render/world';
 import { SettingsStore } from './settings';
-import { SnapshotBuffer } from './snapshotBuffer';
+import { INTERP_DELAY_MS, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
 import { createUiState } from './uiState';
@@ -46,6 +47,8 @@ export class GameView {
     readonly touch: TouchControls,
     readonly buffer: SnapshotBuffer,
     private readonly renderer: WorldRenderer,
+    /** Your hero, drawn moving at once while you steer it (docs/MOBILE.md §5, Decision Log). */
+    readonly predictor: HeroPredictor,
   ) {}
 
   static async create(): Promise<GameView> {
@@ -72,6 +75,12 @@ export class GameView {
     const ui = createUiState();
     const renderer = new WorldRenderer(app, camera);
     const buffer = new SnapshotBuffer();
+    // Own-hero prediction walks the path the sim will take: the same pathfinding from the same map.
+    const predictor = new HeroPredictor((from, to) => {
+      const goal = nearestWalkable(map, to.x, to.y);
+      return goal ? findPath(map, from, goal) : null;
+    });
+    renderer.ownHero = (h) => predictor.resolve(h);
     // Assigned below; the callbacks only run after construction.
     let view: GameView;
     let layout: Layout;
@@ -79,6 +88,16 @@ export class GameView {
     const sent: Command[] = [];
     const send = (msg: ClientMessage) => {
       if (E2E && msg.t === 'cmd') sent.push(msg.cmd);
+      if (msg.t === 'cmd' && view.transport) {
+        const cmd = msg.cmd;
+        if (cmd.type === 'move') predictor.move(cmd, performance.now());
+        else if (cmd.type === 'stop') predictor.stop(performance.now());
+        // Orders that walk the hero somewhere else hand the lead back to the server. A point cast stops
+        // the walk too, unless the joystick is held (it resends the move on the next frame).
+        else if (cmd.type === 'attack' || cmd.type === 'attackMove' || (cmd.type === 'cast' && cmd.x !== undefined && !touch.steering)) {
+          predictor.cancel();
+        }
+      }
       view.transport?.send(msg);
     };
     const sendCmd = (cmd: Command) => send({ t: 'cmd', cmd });
@@ -135,11 +154,12 @@ export class GameView {
       toast: (text) => hud.toast(text),
       learn: (slot) => controls.learnSkill(slot),
       clearSelection: () => controls.clearSelection(),
+      heroAt: () => predictor.drawn,
     });
 
     new SettingsPanel(settings);
     installPressFeedback();
-    view = new GameView(hud, controls, touch, buffer, renderer);
+    view = new GameView(hud, controls, touch, buffer, renderer, predictor);
     renderer.onBounty = (x, y) => hud.flyCoin(x, y);
 
     // ---------------------------------------------------------------------
@@ -291,6 +311,10 @@ export class GameView {
       const latest = buffer.latest;
       const frame = buffer.view(now);
       touch.update(now);
+      // After the controls, so a move sent this frame already shows this frame.
+      const mine = latest?.heroes.find((h) => h.owner === view.me);
+      if (mine) predictor.speed = TUNING.hero[mine.kind].speed;
+      predictor.frame(now, Math.min(100, ticker.deltaMS));
       if (!latest || !frame) return;
       if (view.needsCentre && view.me) {
         view.needsCentre = false;
@@ -299,7 +323,7 @@ export class GameView {
       if (layout.kind === 'tall') {
         // Shorter phones: follow the hero vertically so it stays clear of the top bar and the controls.
         const hero = latest.heroes.find((h) => h.owner === view.me);
-        const target = followOffset(layout, hero ? hero.y : null);
+        const target = followOffset(layout, hero ? (predictor.drawn?.y ?? hero.y) : null);
         follow += (target - follow) * Math.min(1, ticker.deltaMS / FOLLOW_MS);
         camera.place(layout.map.left, layout.map.top - follow);
       }
@@ -329,8 +353,25 @@ export class GameView {
       );
     }
 
+    // Browser tests: where your hero is drawn each frame (joystick input-to-screen latency).
+    let heroTrace: { t: number; x: number; y: number }[] | null = null;
+    if (E2E) {
+      app.ticker.add(
+        () => {
+          const p = heroTrace && renderer.heroDrawn();
+          if (p) heroTrace!.push({ t: performance.now(), x: p.x, y: p.y });
+        },
+        undefined,
+        UPDATE_PRIORITY.UTILITY - 1,
+      );
+    }
+
     if (E2E) {
       (window as unknown as { __tdt: unknown }).__tdt = {
+        heroTrace: (start = false) => {
+          if (start) heroTrace = [];
+          return heroTrace ?? [];
+        },
         frameCosts: () => frameCosts.slice(),
         sent,
         latest: (): Snapshot | undefined => buffer.latest,
@@ -340,6 +381,7 @@ export class GameView {
         camera,
         fps: () => monitor.fps,
         visibleCreeps: () => renderer.visibleCreeps,
+        auraRings: () => renderer.auraRings,
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
@@ -352,6 +394,7 @@ export class GameView {
   attach(transport: Transport): void {
     this.detach();
     this.transport = transport;
+    this.buffer.delayMs = transport.interpDelayMs ?? INTERP_DELAY_MS;
     this.unsubscribe = transport.onMessage((msg) => {
       if (msg.t === 'welcome') {
         this.me = msg.playerId;
@@ -359,7 +402,9 @@ export class GameView {
         // A new match (tick counter restarted) or the first snapshot: reset the view.
         const latest = this.buffer.latest;
         if (!latest || msg.snap.tick < latest.tick) this.resetView();
-        this.buffer.push(msg.snap, performance.now());
+        const now = performance.now();
+        this.buffer.push(msg.snap, now);
+        this.predictor.snapshot(msg.snap.heroes.find((h) => h.owner === this.me) ?? null, now);
       }
     });
   }
@@ -383,6 +428,7 @@ export class GameView {
   /** Forget the previous match (e.g. back in the lobby). */
   resetView(): void {
     this.buffer.clear();
+    this.predictor.reset();
     this.renderer.reset();
     this.hud.resetEffects();
     this.controls.clearSelection();

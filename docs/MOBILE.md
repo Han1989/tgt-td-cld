@@ -73,7 +73,7 @@
 
 | Action | Touch |
 |---|---|
-| Move | Fixed joystick. The hero auto-attacks while moving. |
+| Move | Fixed joystick. The hero auto-attacks while moving. Your hero is drawn moving at once (client-side prediction, reconciled with the server; Decision Log). |
 | Tap a skill | **Smart cast.** Instant skills fire; targeted skills hit the densest enemy group in range; self-buffs cast on the hero. |
 | Press and drag a skill | Manual aim, with range and area shown. Release to cast; drag back onto the button to cancel. |
 | Nothing in range | The button shakes and no mana is spent. |

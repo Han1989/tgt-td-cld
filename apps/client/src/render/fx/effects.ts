@@ -59,6 +59,8 @@ class Layer {
   private readonly bits: Bit[] = [];
   private readonly parts: Particle[] = [];
   private readonly stretched: boolean[] = [];
+  /** Tint of each particle in BGR, as the particle's packed `color` wants it. */
+  private readonly bgr: number[] = [];
   private readonly spareBits: Bit[] = [];
   private readonly spareParts: Particle[] = [];
 
@@ -86,8 +88,9 @@ class Layer {
     Object.assign(b, BLANK);
     const p = this.spareParts.pop() ?? new Particle({ texture: tex, anchorX: 0.5, anchorY: 0.5 });
     p.texture = tex;
-    p.tint = tint;
-    p.alpha = 0;
+    // Write the packed colour directly: the tint / alpha setters go through Pixi's Color parser.
+    this.bgr.push(((tint & 0xff) << 16) | (((tint >> 8) & 0xff) << 8) | ((tint >> 16) & 0xff));
+    p.color = 0;
     this.bits.push(b);
     this.parts.push(p);
     this.stretched.push(stretched);
@@ -96,7 +99,7 @@ class Layer {
   }
 
   update(dtMs: number): void {
-    const { bits, parts, stretched } = this;
+    const { bits, parts, stretched, bgr } = this;
     let removed = false;
     for (let i = bits.length - 1; i >= 0; i--) {
       if (stepBit(bits[i]!, dtMs)) continue;
@@ -107,9 +110,11 @@ class Layer {
       bits[i] = bits[last]!;
       parts[i] = parts[last]!;
       stretched[i] = stretched[last]!;
+      bgr[i] = bgr[last]!;
       bits.pop();
       parts.pop();
       stretched.pop();
+      bgr.pop();
       removed = true;
     }
     for (let i = 0; i < bits.length; i++) {
@@ -121,7 +126,8 @@ class Layer {
       p.scaleX = stretched[i] ? s * b.stretch : s;
       p.scaleY = s;
       p.rotation = b.rotation;
-      p.alpha = bitAlpha(b);
+      const a = Math.max(0, Math.min(1, bitAlpha(b)));
+      p.color = bgr[i]! + (((a * 255) | 0) << 24);
     }
     if (removed) this.container.update();
   }
@@ -132,6 +138,7 @@ class Layer {
     this.bits.length = 0;
     this.parts.length = 0;
     this.stretched.length = 0;
+    this.bgr.length = 0;
     this.container.update();
   }
 }
@@ -348,6 +355,44 @@ export class Effects {
       drag: 4,
       tint: [FX.hot, FX.spark, color],
       layer: 'add',
+    });
+  }
+
+  /**
+   * A melee blow landed (tile units; `angle` = the blow's direction): a white-hot flash, a star and
+   * sparks thrown along the blow. Essential: it is the hit itself, and melee hits are few.
+   */
+  meleeImpact(x: number, y: number, angle: number): void {
+    const k = this.bitScale;
+    this.flash(x, y, 0.42 * k, FX.moonLight, 150, 0.85);
+    this.emit({
+      frame: 'star',
+      x: x * S,
+      y: y * S,
+      life: [170, 170],
+      scale: [1.1 * k, 0.3 * k],
+      rotation: angle,
+      tint: FX.hot,
+      alpha: [1, 0],
+      layer: 'add',
+      essential: true,
+    });
+    this.emit({
+      frame: 'spark',
+      x: x * S,
+      y: y * S,
+      count: 7,
+      spread: 3 * k,
+      speed: [110 * k, 230 * k],
+      angle: [angle - 0.9, angle + 0.9],
+      life: [140, 250],
+      scale: [0.7 * k, 0.2 * k],
+      stretch: 1.6,
+      align: true,
+      drag: 5,
+      tint: [FX.hot, FX.spark, FX.moonLight],
+      layer: 'add',
+      essential: true,
     });
   }
 

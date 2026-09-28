@@ -26,6 +26,9 @@ interface Hook {
   me(): string | null;
   frameCosts(): number[];
   visibleCreeps(): number;
+  auraRings(): { drawn: number; covering: number };
+  /** Where your hero was drawn each frame since `heroTrace(true)` (tiles; `t` = performance.now()). */
+  heroTrace(start?: boolean): { t: number; x: number; y: number }[];
   fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number };
   /** Coins launched to the gold counter so far. */
   coins(): number;
@@ -66,11 +69,11 @@ export async function waitForReady(page: Page, screen?: 'showcase' | 'stress' | 
   await expect(page.locator('html')).toHaveAttribute('data-ready', screen ?? /.+/);
 }
 
-/** Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger. */
-export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick'): Promise<void> {
+/** Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`). */
+export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick', hero = 'Ranger'): Promise<void> {
   await page.goto(`/${query}`);
   await waitForReady(page, 'solo');
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: hero }).click();
   await page.locator(`#lobby-mode-solo .mode-pick[data-mode="${mode}"]`).click();
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);

@@ -21,6 +21,7 @@ export type { SkillMode } from './skills';
 export { getMap, buildMap, tileAt, isWalkable, padAtTile, Tile, TILE_PX, PAD_ZONES } from './map';
 export type { GameMap, MapData, PadData, PadZone, BuildPad, Lane, TileType } from './map';
 export { padLayout } from './pads';
+export { findPath, nearestWalkable } from './pathfinding';
 export type { GameConfig, GameState, PlayerConfig } from './state';
 export { createBalanceBot, createIdleBot } from './bots';
 export type { Bot } from './bots';
