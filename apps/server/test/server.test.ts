@@ -123,7 +123,7 @@ describe('lobby', () => {
 describe('match reports', () => {
   it('sends every player the report and replay when the match ends, logs one line, and resends it on rejoin', async () => {
     const lines: string[] = [];
-    const { server, url } = await start({}, (msg) => lines.push(msg));
+    const { server, url } = await start({ build: 'abc1234' }, (msg) => lines.push(msg));
     const [host, guest] = await fullRoom(url, 2);
     host!.send({ t: 'mode', mode: 'quick' });
     await guest!.waitFor(() => guest!.lobby?.mode === 'quick');
@@ -135,12 +135,13 @@ describe('match reports', () => {
     room.state!.heartHp = 0;
     await host!.waitFor(() => host!.report !== null);
     const { report, replay } = host!.report!;
-    expect(report).toMatchObject({ mode: 'quick', result: 'defeat', protocol: PROTOCOL_VERSION, heartHp: 0 });
+    expect(report).toMatchObject({ mode: 'quick', result: 'defeat', protocol: PROTOCOL_VERSION, build: 'abc1234', heartHp: 0 });
+    expect(replay.build).toBe('abc1234');
     expect(report.heroes.map((h) => h.player)).toEqual(['p1', 'p2']);
     expect(replay.players.map((p) => p.hero)).toEqual(['ranger', 'warden']);
     expect(replay.log.some((e) => e[1] === 1 && e[2] === 'drop')).toBe(true);
     expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick seed ${report.seed} `))).toHaveLength(1);
-    expect(lines[0]).toContain('defeat');
+    expect(lines[0]).toContain(' build abc1234 defeat ');
 
     // A player who comes back after the end gets it too.
     const back = bot(url, 'Back');

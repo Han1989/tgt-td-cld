@@ -39,16 +39,20 @@ interface HeroTrack {
 
 export interface Match {
   seed: number;
+  /** The host's build (git commit or 'dev'), stamped into the report and the replay. */
+  build: string;
   state: GameState;
   log: ReplayEntry[];
   heartAfterWave: number[];
   heroes: HeroTrack[];
 }
 
-export function createMatch(config: GameConfig, seed: number): Match {
+/** `build` is the host's build (its git commit, or 'dev'): the sim only carries it into the report and replay. */
+export function createMatch(config: GameConfig, seed: number, build = 'dev'): Match {
   const state = createGame(config, seed);
   return {
     seed,
+    build,
     state,
     log: [],
     heartAfterWave: [],
@@ -160,6 +164,7 @@ export function matchReport(match: Match): MatchReport {
   return {
     format: 1,
     protocol: PROTOCOL_VERSION,
+    build: match.build,
     mode: state.mode,
     seed: match.seed,
     result: state.phase === 'victory' ? 'victory' : 'defeat',
@@ -179,6 +184,7 @@ export function matchReplay(match: Match): Replay {
   return {
     format: 1,
     protocol: PROTOCOL_VERSION,
+    build: match.build,
     seed: match.seed,
     mode: state.mode,
     players: state.players.map((p) => ({ id: p.id, name: p.name, hero: state.heroes.find((h) => h.id === p.heroId)!.kind })),
@@ -195,6 +201,7 @@ export function replayMatch(replay: Replay, tuning?: Tuning): Match {
   const match = createMatch(
     { players: replay.players, mode: replay.mode, ...(tuning ? { tuning } : {}) },
     replay.seed,
+    replay.build,
   );
   const state = match.state;
   for (const [tick, index, what, ...args] of replay.log) {
@@ -220,6 +227,8 @@ export function replayProblem(data: unknown): string | null {
   const r = data as Partial<Replay>;
   if (r.format !== 1) return `unknown replay format ${String(r.format)}`;
   if (typeof r.seed !== 'number' || !Number.isSafeInteger(r.seed)) return 'bad seed';
+  // Replays saved before builds were stamped have none.
+  if (r.build !== undefined && typeof r.build !== 'string') return 'bad build';
   if (!GAME_MODES.includes(r.mode as never)) return 'bad mode';
   if (!Array.isArray(r.players) || r.players.length === 0) return 'no players';
   for (const p of r.players) {
@@ -245,7 +254,8 @@ export function reportSummary(report: MatchReport, room?: string): string {
       `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps}`,
   );
   return (
-    `match${room ? ` ${room}` : ''} ${report.mode} seed ${report.seed} v${report.protocol} ${report.result} ` +
+    `match${room ? ` ${room}` : ''} ${report.mode} seed ${report.seed} v${report.protocol} build ${report.build} ` +
+    `${report.result} ` +
     `wave ${report.wave}/${report.totalWaves} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} | ` +
     `heart by wave ${report.heartAfterWave.join(' ')} | ${heroes.join(' | ')}`
   );

@@ -355,6 +355,8 @@ export interface MatchReport {
   /** Report format version. */
   format: 1;
   protocol: number;
+  /** The host's build: its git commit (server: Render's, solo: the client's from Vercel), or 'dev'. */
+  build: string;
   mode: GameMode;
   seed: number;
   result: 'victory' | 'defeat';
@@ -381,6 +383,8 @@ export interface Replay {
   /** Replay format version. */
   format: 1;
   protocol: number;
+  /** The build that recorded it (see `MatchReport.build`): re-run it on that commit to get the same result. */
+  build: string;
   seed: number;
   mode: GameMode;
   players: { id: PlayerId; name: string; hero: HeroKind }[];

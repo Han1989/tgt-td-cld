@@ -143,6 +143,8 @@ test('end screen: "Save match report" downloads the report and the replay as one
   const file = JSON.parse(readFileSync((await download.path())!, 'utf8'));
   expect(file.report).toMatchObject({ mode: 'quick', result: 'defeat', heroes: [{ hero: 'arcanist' }] });
   expect(file.replay.players).toEqual([{ id: 'local', name: 'You', hero: 'arcanist' }]);
+  // A local build (no VERCEL_GIT_COMMIT_SHA) stamps 'dev'.
+  expect([file.report.build, file.replay.build]).toEqual(['dev', 'dev']);
   expect(file.replay.log.some((e: unknown[]) => e[2] === 'move')).toBe(true);
 
   // Play again: a new match, no report until it ends.

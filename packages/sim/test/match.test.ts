@@ -21,9 +21,9 @@ import {
 import { TICK_RATE } from '../src/tuning';
 
 /** A match of balance bots driven through a Match, as a host would (4 decisions a second). */
-function botMatch(heroes: HeroKind[], seed: number, mode: GameMode, extra?: (m: Match) => void): Match {
+function botMatch(heroes: HeroKind[], seed: number, mode: GameMode, extra?: (m: Match) => void, build?: string): Match {
   const players = heroes.map((hero, i) => ({ id: `p${i + 1}`, name: `Bot ${i + 1}`, hero }));
-  const match = createMatch({ players, mode }, seed);
+  const match = createMatch({ players, mode }, seed, build);
   const bots = players.map((p, i) => createBalanceBot(p.id, undefined, i));
   while (!matchOver(match) && match.state.tick < 60 * 60 * TICK_RATE) {
     if (match.state.tick % 5 === 0) {
@@ -44,7 +44,7 @@ describe('match reports and replays', () => {
       if (t === 2000) matchPresence(m, 'p3', 'drop');
       if (t === 2400) matchPresence(m, 'p3', 'join');
       if (t === 9000) matchPresence(m, 'p2', 'leave');
-    });
+    }, '0123abcd');
     expect(matchOver(match)).toBe(true);
     const replay: Replay = JSON.parse(JSON.stringify(matchReplay(match)));
     expect(replay.log.filter((e) => ['join', 'drop', 'leave'].includes(e[2]))).toEqual([
@@ -52,6 +52,9 @@ describe('match reports and replays', () => {
       [2400, 2, 'join'],
       [9000, 1, 'leave'],
     ]);
+    // Stamped with the host's build, which the re-run carries over.
+    expect(replay.build).toBe('0123abcd');
+    expect(matchReport(match).build).toBe('0123abcd');
     const again = replayMatch(replay);
     expect(again.state.tick).toBe(replay.end.tick);
     expect(again.state.phase).toBe(replay.end.result);
@@ -76,7 +79,8 @@ describe('match reports and replays', () => {
       expect(h.rOverlaps).toBeLessThanOrEqual(h.casts.R);
       expect(h.noManaSeconds.Q).toBeGreaterThanOrEqual(0);
     }
-    expect(reportSummary(report, 'ABCDE')).toMatch(/^match ABCDE quick seed 3 v\d+ (victory|defeat) wave 15\/15 /);
+    expect(report.build).toBe('dev');
+    expect(reportSummary(report, 'ABCDE')).toMatch(/^match ABCDE quick seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /);
     expect(reportSummary(report)).not.toContain('\n');
   });
 
@@ -130,6 +134,9 @@ describe('match reports and replays', () => {
     const ok = matchReplay(createMatch({ players: [{ id: 'p1', name: 'A', hero: 'ranger' }] }, 1));
     expect(replayProblem(ok)).toBeNull();
     expect(replayProblem({ ...ok, log: [[1, 0]] })).toMatch(/log entry/);
+    expect(replayProblem({ ...ok, build: 7 })).toMatch(/build/);
+    const { build: _, ...unstamped } = ok;
+    expect(replayProblem(unstamped)).toBeNull();
     expect(() => replayMatch({ ...ok, log: [[1, 0, 'move', 'far', 3]] })).toThrow(/Malformed/);
     expect(() => replayMatch({ ...ok, log: [[1, 5, 'stop']] })).toThrow(/player 5/);
   });

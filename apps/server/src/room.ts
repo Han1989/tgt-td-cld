@@ -245,7 +245,7 @@ export class Room {
 
   private startMatch(): void {
     const players = this.activeMembers.map((m) => ({ id: m.id, name: m.name, hero: m.hero }));
-    this.match = createMatch({ players, mode: this.mode }, this.newSeed());
+    this.match = createMatch({ players, mode: this.mode }, this.newSeed(), this.config.build);
     this.reportMessage = null;
     this.phase = 'playing';
     this.queue = [];

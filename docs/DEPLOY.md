@@ -47,6 +47,7 @@ The client finds the server through the build-time variable `VITE_SERVER_URL`. I
 2. Add **`VITE_SERVER_URL`** = `wss://<service-name>.onrender.com`. Use the same host as your `/health` URL, but with `wss://` and no path. Tick **Production** and **Preview**. Optionally add it to **Development** with `ws://localhost:8080`.
 3. **Redeploy.** Vite bakes the variable into the build, so existing deployments don't pick it up. Go to *Deployments → ⋯ → Redeploy* on the latest production deployment, or push a commit.
 4. Open the production site. You should see the lobby (nickname, **Create room**, **Join room**, **Play solo offline**) instead of going straight into a solo match.
+5. **Build stamp:** solo match reports carry the client's commit from Vercel's system variable `VERCEL_GIT_COMMIT_SHA` (read by `vite.config.ts` at build time). It needs **Settings → Environment Variables → "Automatically expose System Environment Variables"** on (the default); otherwise solo reports say `build dev`.
 
 ## 3. `ALLOWED_ORIGINS`
 
@@ -79,8 +80,11 @@ After changing it: Render → *Environment* → edit → **Save, rebuild and dep
 | `SHUTDOWN_GRACE_SECONDS` | `280` | How long running matches may continue after SIGTERM. Keep it below Render's 300 s shutdown delay. |
 | `MAX_ROOMS` | `200` | New rooms are refused (`server_full`) beyond this. |
 | `WS_COMPRESSION` | on | `off` disables permessage-deflate. |
+| `RENDER_GIT_COMMIT` | `dev` | Set by Render itself (the deployed commit); stamped into every online match report and replay and the `match …` log line. Don't set it by hand. |
 
 ## 6. Operations
+
+**Match log.** Every finished match logs one line: `match <room code> <mode> seed <seed> v<protocol> build <commit> <result> wave …`, then the Heart after each wave and a summary per hero. `build` is the server's commit (`RENDER_GIT_COMMIT`): check that commit out to re-run a saved report with `npm run replay`.
 
 **Health.** `GET /health` returns JSON:
 

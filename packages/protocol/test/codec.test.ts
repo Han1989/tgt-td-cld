@@ -4,6 +4,7 @@ import {
   PROTOCOL_VERSION,
   decodeClientMessage,
   decodeReplayCommand,
+  normalizeBuild,
   decodeServerMessage,
   encodeClientMessage,
   encodeReplayCommand,
@@ -172,5 +173,13 @@ describe('replay command encoding', () => {
     expect(decodeReplayCommand(['build', 1, 'laser'])).toBeNull();
     expect(decodeReplayCommand(['toString'])).toBeNull();
     expect(decodeReplayCommand([])).toBeNull();
+  });
+});
+
+describe('build labels', () => {
+  it('keeps a git commit or a short tag and falls back to dev', () => {
+    expect(normalizeBuild(' 9576be8f0c1d2e3a4b5c6d7e8f9a0b1c2d3e4f5a ')).toBe('9576be8f0c1d2e3a4b5c6d7e8f9a0b1c2d3e4f5a');
+    expect(normalizeBuild('v1.2-rc_3')).toBe('v1.2-rc_3');
+    for (const bad of [undefined, '', '   ', 'a b', '<script>', 'x'.repeat(65), 42]) expect(normalizeBuild(bad)).toBe('dev');
   });
 });

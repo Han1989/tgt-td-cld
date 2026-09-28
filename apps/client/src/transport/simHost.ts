@@ -5,6 +5,7 @@
 import {
   decodeClientMessage,
   encodeServerMessage,
+  normalizeBuild,
   type Command,
   type GameMode,
   type HeroKind,
@@ -35,9 +36,11 @@ export class SimHost {
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
 
+  /** `build`: the client's build (git commit or 'dev'), stamped into solo match reports and replays. */
   constructor(
     private readonly emit: (raw: string) => void,
     private readonly nextSeed: () => number,
+    private readonly build = 'dev',
   ) {
     this.reset();
   }
@@ -47,6 +50,7 @@ export class SimHost {
     this.match = createMatch(
       { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode, tuning: this.tuning },
       this.nextSeed(),
+      normalizeBuild(this.build),
     );
     this.reported = false;
     this.queue = [];

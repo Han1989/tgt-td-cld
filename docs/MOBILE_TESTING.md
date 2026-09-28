@@ -89,7 +89,7 @@ A match holds at most **3 players, one per lane**. Use the phone, the desktop an
 - [ ] 7.3 Start the match. Each player's pads are rimmed in their own colour (blue, orange, violet): the first player gets the West lane's pads, the second Mid, the third East. There is no fourth zone around the Heart. Each player can only build on their own lane's pads.
 - [ ] 7.4 With 3 players each lane zone has one extra pad (29 pads in all, against 26 solo and with 2 players).
 - [ ] 7.5 Play a few waves (Quick is fine). Report the result and the Heart HP left if you finish.
-- [ ] 7.6 Finish a match (win or lose): every player's end screen shows **Save match report**, each phone can save or share the file, and the three files are the same match (same seed at the top). Someone who reconnects after the end gets the button too. The server's log (Render → Logs) shows one `match <code> …` line for it.
+- [ ] 7.6 Finish a match (win or lose): every player's end screen shows **Save match report**, each phone can save or share the file, and the three files are the same match (same seed at the top). Someone who reconnects after the end gets the button too. The server's log (Render → Logs) shows one `match <code> …` line for it, whose `build` is the commit Render deployed (the same as `"build"` at the top of the saved files).
 
 ## Results
 

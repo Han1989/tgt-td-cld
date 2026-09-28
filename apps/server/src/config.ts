@@ -1,3 +1,4 @@
+import { normalizeBuild } from '@tdt/protocol';
 import { isShardLetter } from './roomCode';
 import { parseAllowedOrigins, type OriginCheck } from './origins';
 
@@ -25,6 +26,8 @@ export interface ServerConfig {
   maxPayloadBytes: number;
   heartbeatMs: number;
   compression: boolean;
+  /** This server's build, stamped into match reports and replays: RENDER_GIT_COMMIT on Render, else 'dev'. */
+  build: string;
 }
 
 const DEV_ORIGINS = 'http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173';
@@ -45,6 +48,7 @@ export function defaultConfig(overrides: Partial<ServerConfig> = {}): ServerConf
     maxPayloadBytes: 1024,
     heartbeatMs: 15_000,
     compression: true,
+    build: 'dev',
     ...overrides,
     allowedOriginsList,
     isOriginAllowed: overrides.isOriginAllowed ?? parseAllowedOrigins(allowedOriginsList),
@@ -74,5 +78,6 @@ export function configFromEnv(env: NodeJS.ProcessEnv): ServerConfig {
     maxRooms: int('MAX_ROOMS', 200),
     shutdownGraceMs: int('SHUTDOWN_GRACE_SECONDS', 280) * 1000,
     compression: env.WS_COMPRESSION !== 'off',
+    build: normalizeBuild(env.RENDER_GIT_COMMIT),
   });
 }

@@ -85,7 +85,8 @@ describe('SimHost (local transport backend)', () => {
     const reports = out.filter((m) => m.t === 'report');
     expect(reports).toHaveLength(1);
     const { report, replay } = reports[0] as Extract<ServerMessage, { t: 'report' }>;
-    expect(report).toMatchObject({ result: 'defeat', seed: 1, mode: 'full', heartHp: 0 });
+    expect(report).toMatchObject({ result: 'defeat', seed: 1, mode: 'full', heartHp: 0, build: 'dev' });
+    expect(replay.build).toBe('dev');
     expect(report.heroes[0]).toMatchObject({ player: LOCAL_PLAYER_ID, hero: 'ranger' });
     expect(replay.log).toEqual([
       [0, 0, 'build', 0, 'arrow'],
@@ -93,6 +94,15 @@ describe('SimHost (local transport backend)', () => {
       [0, 0, 'callEarly'],
     ]);
     expect(replay.end).toMatchObject({ tick: 41, result: 'defeat' });
+  });
+
+  it('stamps solo reports with the client build it was given', () => {
+    const out: ServerMessage[] = [];
+    const host = new SimHost((raw) => out.push(decodeServerMessage(raw)!), () => 1, 'c0ffee1');
+    (host as unknown as { state: { heartHp: number } }).state.heartHp = 0;
+    host.tick();
+    const msg = out.find((m) => m.t === 'report') as Extract<ServerMessage, { t: 'report' }>;
+    expect([msg.report.build, msg.replay.build]).toEqual(['c0ffee1', 'c0ffee1']);
   });
 
   it('only restarts a finished match', () => {

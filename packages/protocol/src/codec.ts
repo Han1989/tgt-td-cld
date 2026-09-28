@@ -300,3 +300,13 @@ export function decodeReplayCommand(parts: readonly unknown[]): Command | null {
   });
   return parseCommand(obj);
 }
+
+/**
+ * A build label for match reports: a git commit (as Render and Vercel give it) or another short tag, trimmed and
+ * limited to 64 letters, digits, `.`, `_` or `-`; anything else, or nothing, is 'dev'.
+ */
+export function normalizeBuild(value: unknown): string {
+  if (typeof value !== 'string') return 'dev';
+  const build = value.trim();
+  return /^[0-9A-Za-z._-]{1,64}$/.test(build) ? build : 'dev';
+}

@@ -5,6 +5,9 @@ interface ImportMetaEnv {
   readonly VITE_SERVER_URL?: string;
 }
 
+/** The client's build (Vercel's git commit, or 'dev'), set by vite.config.ts. */
+declare const __BUILD__: string;
+
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }

@@ -68,6 +68,14 @@ describe('configFromEnv', () => {
     expect(configFromEnv({}).isOriginAllowed('http://localhost:5173')).toBe(true);
   });
 
+  it('stamps match reports with the commit Render deployed, or dev', () => {
+    expect(configFromEnv({ RENDER_GIT_COMMIT: '9576be8f0c1d2e3a4b5c6d7e8f9a0b1c2d3e4f5a' }).build).toBe(
+      '9576be8f0c1d2e3a4b5c6d7e8f9a0b1c2d3e4f5a',
+    );
+    expect(configFromEnv({}).build).toBe('dev');
+    expect(configFromEnv({ RENDER_GIT_COMMIT: 'not a commit!' }).build).toBe('dev');
+  });
+
   it('rejects bad values', () => {
     expect(() => configFromEnv({ SHARD: 'I' })).toThrow(/SHARD/);
     expect(() => configFromEnv({ PORT: 'abc' })).toThrow(/PORT/);

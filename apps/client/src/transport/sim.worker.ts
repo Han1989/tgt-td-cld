@@ -17,6 +17,7 @@ const host = new SimHost(
   (raw) => ctx.postMessage(raw),
   // Seeding is outside the sim, so a non-deterministic seed is fine here.
   () => Math.floor(Math.random() * 2 ** 31),
+  __BUILD__,
 );
 
 /** When the next tick is due (performance.now() ms). */
