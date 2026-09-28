@@ -70,6 +70,9 @@ export function createGame(config: GameConfig, seed: number): GameState {
       shieldUntil: 0,
       shieldPct: 0,
       facing: -Math.PI / 2,
+      hitBy: -1,
+      hitTick: 0,
+      guard: null,
     };
     for (const slot of tuning.hero.startingSkills) {
       if (HERO_SKILLS[hero.kind].includes(slot)) hero.ranks[slot] = 1;

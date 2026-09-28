@@ -1,7 +1,7 @@
 // Phase 3 heroes: levels 1–10, skill points (R from level 6), and every
 // hero's Q/W/E/R.
 
-import type { HeroKind } from '@tdt/protocol';
+import { CREEP_KINDS, HERO_KINDS, type CreepKind, type GameEvent, type HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import { armorMultiplier, damageHero, damageTower, grantXp, heroArmor, heroManaRegen } from '../src/combat';
@@ -9,7 +9,7 @@ import { snapshot } from '../src/game';
 import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
 import { secondsToTicks, TUNING, type ActiveSkillStats, type Tuning } from '../src/tuning';
-import { labGame, placeCreep, run, runCollect, tuningCopy } from './helpers';
+import { labGame, MID, placeCreep, run, runCollect, tuningCopy } from './helpers';
 
 /** A lab game whose heroes don't auto-attack (so skill damage is measurable). */
 function lab(heroes: HeroKind[], tuning: Tuning = TUNING): { state: GameState; heroes: Hero[] } {
@@ -249,6 +249,150 @@ describe('hero attacks', () => {
       expect(attacks.length, kind).toBe(3);
       expect(attacks[0]).toEqual({ type: 'heroAttack', heroId: hero.id, x: brute.x, y: brute.y });
     }
+  });
+});
+
+/**
+ * An idle hero on the Mid lane and a rooted creep that has picked it as its target, `d` tiles up the lane (boss
+ * abilities off), for reach tests.
+ */
+function duel(kind: HeroKind, creepKind: CreepKind, d: number, tuning: Tuning = TUNING) {
+  const state = labGame(tuning, 1, [kind]);
+  const hero = state.heroes[0]!;
+  hero.x = MID.x;
+  hero.y = MID.y;
+  hero.facing = -Math.PI / 2;
+  const creep = placeCreep(state, creepKind, MID.x, MID.y - d);
+  creep.rootUntil = 1_000_000;
+  creep.abilityCd = 1_000_000;
+  creep.mode = 'chase';
+  creep.targetId = hero.id;
+  creep.anchorX = creep.x;
+  creep.anchorY = creep.y;
+  return { state, hero, creep };
+}
+
+/** Farthest a creep can hit a hero from (centre to centre): the rule in creeps.ts. */
+function creepReach(creepKind: CreepKind, heroKind: HeroKind): number {
+  const c = TUNING.creeps[creepKind];
+  return c.attackRange + c.radius + TUNING.hero[heroKind].radius;
+}
+
+const hitsOf = (events: GameEvent[], heroId: number, x: number, y: number) =>
+  events.filter((e) => e.type === 'heroAttack' && e.heroId === heroId && e.x === x && e.y === y);
+
+describe('hero reach and melee auto-engage', () => {
+  it('hero reach is symmetric with creep reach: attack range + both radii', () => {
+    // A Grunt hits the Warden from 0.6 + 0.35 + 0.5 = 1.45 tiles; the Warden reaches 1 + 0.35 + 0.5 = 1.85.
+    const { state, hero, creep } = duel('warden', 'grunt', 1.8);
+    const events = runCollect(state, 1);
+    expect(hitsOf(events, hero.id, creep.x, creep.y)).toHaveLength(1);
+    expect(hero.x).toBe(MID.x);
+    expect(hero.y).toBe(MID.y);
+  });
+
+  // Every creep that can hurt a hero is either within the hero's reach, or (melee) makes it step in and fight.
+  const attackers = CREEP_KINDS.filter((k) => TUNING.creeps[k].damage > 0);
+  it.each(HERO_KINDS.flatMap((h) => attackers.map((c) => [h, c] as const)))(
+    'the %s fights back against a creep (%s) hitting it from as far as it can',
+    (heroKind, creepKind) => {
+      const d = creepReach(creepKind, heroKind) - 0.01;
+      const { state, hero, creep } = duel(heroKind, creepKind, d);
+      const events = runCollect(state, secondsToTicks(3));
+      expect(hero.hitBy, 'the creep hit the hero').toBe(creep.id);
+      expect(hitsOf(events, hero.id, creep.x, creep.y).length, 'the hero hit back').toBeGreaterThan(0);
+      const heroReach = TUNING.hero[heroKind].attackRange + TUNING.creeps[creepKind].radius + TUNING.hero[heroKind].radius;
+      if (heroReach >= d) {
+        // In reach: it fights from where it stands.
+        expect(hero.y).toBe(MID.y);
+      } else {
+        // Outreached (bosses, Archers): only a melee hero, which steps in.
+        expect(TUNING.hero[heroKind].ranged).toBe(false);
+        expect(hero.y).toBeLessThan(MID.y);
+      }
+    },
+  );
+
+  it('an idle Warden hit from behind turns and attacks within 1 s', () => {
+    const { state, hero, creep } = duel('warden', 'grunt', -(creepReach('grunt', 'warden') - 0.01));
+    creep.rootUntil = 0;
+    expect(hero.facing).toBeCloseTo(-Math.PI / 2);
+    const events = runCollect(state, secondsToTicks(1));
+    expect(hero.hitBy).toBe(creep.id);
+    expect(events.some((e) => e.type === 'heroAttack' && e.heroId === hero.id)).toBe(true);
+    expect(creep.hp).toBeLessThan(creep.maxHp);
+    // Facing the Grunt, below it (+y).
+    expect(Math.sin(hero.facing)).toBeGreaterThan(0.9);
+  });
+
+  it('an idle Warden steps in to a nearby creep that is not attacking it, then walks back to where it stood', () => {
+    // A Grunt that has not noticed it, 2 tiles away edge to edge: within the engage range, out of reach.
+    const { state, hero, creep } = duel('warden', 'grunt', 2 + 0.35 + 0.5);
+    creep.mode = 'lane';
+    creep.targetId = -1;
+    const t = TUNING.hero.autoEngage;
+    expect(2).toBeLessThan(t.range);
+    const events = runCollect(state, secondsToTicks(1));
+    expect(hitsOf(events, hero.id, creep.x, creep.y).length).toBeGreaterThan(0);
+    expect(hero.y).toBeLessThan(MID.y);
+    // The creep is gone: back to its spot.
+    creep.dead = true;
+    run(state, secondsToTicks(2));
+    expect(hero.x).toBeCloseTo(MID.x);
+    expect(hero.y).toBeCloseTo(MID.y);
+  });
+
+  it('an idle Warden ignores creeps further than its engage range that are not hurting it', () => {
+    const { state, hero, creep } = duel('warden', 'grunt', TUNING.hero.autoEngage.range + 0.35 + 0.5 + 0.3);
+    creep.mode = 'lane';
+    creep.targetId = -1;
+    run(state, secondsToTicks(2));
+    expect(hero.y).toBe(MID.y);
+    expect(creep.hp).toBe(creep.maxHp);
+  });
+
+  it('never chases further than the leash from where it stood', () => {
+    const tuning = tuningCopy();
+    tuning.hero.autoEngage.leash = 2;
+    // An Archer shooting from its full range: the Warden would have to stand ~3.5 tiles away to hit it.
+    const { state, hero, creep } = duel('warden', 'archer', creepReach('archer', 'warden') - 0.01, tuning);
+    const events = runCollect(state, secondsToTicks(4));
+    expect(hero.hitBy).toBe(creep.id);
+    expect(hitsOf(events, hero.id, creep.x, creep.y)).toHaveLength(0);
+    expect(Math.hypot(hero.x - MID.x, hero.y - MID.y)).toBeLessThanOrEqual(2);
+  });
+
+  it('only fights back for a second after the last hit', () => {
+    const { state, hero, creep } = duel('warden', 'archer', creepReach('archer', 'warden') - 0.01);
+    creep.stunUntil = 1_000_000; // never shoots
+    hero.hitBy = creep.id;
+    hero.hitTick = state.tick - secondsToTicks(TUNING.hero.autoEngage.memory) - 1;
+    run(state, secondsToTicks(1));
+    expect(hero.y).toBe(MID.y);
+  });
+
+  it('a move order (the joystick) overrides auto-engage; stopping starts it again from the new spot', () => {
+    const { state, hero, creep } = duel('warden', 'grunt', 2 + 0.35 + 0.5);
+    creep.mode = 'lane';
+    creep.targetId = -1;
+    // Walk away down the lane: the Warden keeps walking.
+    applyCommand(state, 'p1', { type: 'move', x: MID.x, y: MID.y + 6 });
+    run(state, secondsToTicks(1));
+    expect(hero.y).toBeGreaterThan(MID.y + 3);
+    expect(creep.hp).toBe(creep.maxHp);
+    applyCommand(state, 'p1', { type: 'stop' });
+    const at = { x: hero.x, y: hero.y };
+    run(state, secondsToTicks(1));
+    // The Grunt is now too far to engage: the Warden guards where it stopped.
+    expect(hero.x).toBeCloseTo(at.x);
+    expect(hero.y).toBeCloseTo(at.y);
+  });
+
+  it('ranged heroes never auto-engage: they only shoot what is in reach', () => {
+    const d = TUNING.hero.ranger.attackRange + 0.33 + 0.4 + 0.5;
+    const { state, hero } = duel('ranger', 'archer', d);
+    run(state, secondsToTicks(2));
+    expect(hero.y).toBe(MID.y);
   });
 });
 

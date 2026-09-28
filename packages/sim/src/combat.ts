@@ -1,6 +1,6 @@
 // Shared combat rules: damage reduction, kills, bounties, XP and levelling.
 
-import type { AoeEffect, DamageType, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
+import type { AoeEffect, DamageType, EntityId, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
 import { getMap } from './map';
 import { nextRandom } from './rng';
 import type { Creep, GameState, Hero, Projectile, ProjectileFx, TargetKind, Tower } from './state';
@@ -192,8 +192,13 @@ export function grantXp(state: GameState, hero: Hero, amount: number): void {
   }
 }
 
-export function damageHero(state: GameState, hero: Hero, amount: number, type: DamageType): void {
+/** `attacker`: the creep dealing the damage, if any (a melee hero left idle fights back: see heroes.ts). */
+export function damageHero(state: GameState, hero: Hero, amount: number, type: DamageType, attacker?: Creep): void {
   if (!hero.alive) return;
+  if (attacker) {
+    hero.hitBy = attacker.id;
+    hero.hitTick = state.tick;
+  }
   const mult = damageMultiplier(state.tuning, type, heroArmor(state, hero), heroStats(state, hero).magicResist);
   const shield = state.tick < hero.shieldUntil ? 1 - hero.shieldPct : 1;
   hero.hp -= amount * mult * shield;
@@ -251,6 +256,8 @@ export function spawnProjectile(
     slowDuration?: number;
     crit?: boolean;
     fx?: ProjectileFx;
+    /** The creep firing it. */
+    attacker?: EntityId;
   },
 ): void {
   const p: Projectile = {
@@ -274,6 +281,7 @@ export function spawnProjectile(
     crit: opts.crit ?? false,
     fx: opts.fx ?? null,
     source: opts.source,
+    attacker: opts.attacker ?? -1,
     done: false,
   };
   state.projectiles.push(p);

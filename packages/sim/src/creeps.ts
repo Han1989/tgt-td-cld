@@ -154,9 +154,10 @@ function attackHero(state: GameState, c: Creep, hero: Hero): void {
       damage: s.damage,
       damageType: s.damageType,
       source: null,
+      attacker: c.id,
     });
   } else {
-    damageHero(state, hero, s.damage, s.damageType);
+    damageHero(state, hero, s.damage, s.damageType, c);
   }
 }
 

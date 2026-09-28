@@ -62,7 +62,7 @@ function stomp(state: GameState, c: Creep): void {
   if (heroes.length === 0 && towers.length === 0) return;
   const stunUntil = state.tick + secondsToTicks(s.stun);
   for (const h of heroes) {
-    damageHero(state, h, s.damage, 'magic');
+    damageHero(state, h, s.damage, 'magic', c);
     h.stunUntil = Math.max(h.stunUntil, stunUntil);
   }
   for (const t of towers) t.stunUntil = Math.max(t.stunUntil, stunUntil);
