@@ -46,6 +46,7 @@ export function parkHero(state: GameState, index = 0): void {
   h.y = 46.5;
   h.order = { type: 'idle' };
   h.path = [];
+  h.guard = null;
 }
 
 export function run(state: GameState, ticks: number): void {

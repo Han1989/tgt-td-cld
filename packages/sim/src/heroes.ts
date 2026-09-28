@@ -1,5 +1,5 @@
 // Hero orders (move, attack, attack-move, targeted casts), auto-attacks,
-// skills, regeneration and respawn.
+// melee auto-engage, skills, regeneration and respawn.
 
 import type { SkillSlot } from '@tdt/protocol';
 import {
@@ -30,9 +30,12 @@ export function updateHeroes(state: GameState, creepsById: Map<number, Creep>): 
 
 function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>): void {
   if (!hero.alive) {
+    hero.guard = null;
     if (state.tick >= hero.respawnTick) respawnHero(state, hero);
     return;
   }
+  // Any order (the joystick sends moves) ends the idle hero's guard; it starts again where the hero next stops.
+  if (hero.order.type !== 'idle') hero.guard = null;
   const s = heroStats(state, hero);
   hero.hp = Math.min(heroMaxHp(state, hero), hero.hp + s.hpRegen / TICK_RATE);
   hero.mana = Math.min(heroMaxMana(state, hero), hero.mana + heroManaRegen(state, hero) / TICK_RATE);
@@ -45,7 +48,8 @@ function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>
   const order = hero.order;
   switch (order.type) {
     case 'idle':
-      autoAttack(state, hero);
+      if (s.ranged) autoAttack(state, hero);
+      else autoEngage(state, hero);
       break;
     case 'move':
       // Heroes shoot the nearest enemy in range while they walk (the path is kept).
@@ -118,9 +122,16 @@ function chase(state: GameState, hero: Hero, x: number, y: number): void {
   followPath(state, hero);
 }
 
+/**
+ * How far apart (centre to centre) a hero and a creep can be for the hero's attack to land: attack range plus
+ * both radii, the same rule creeps use to hit heroes.
+ */
+function reach(state: GameState, hero: Hero, creep: Creep): number {
+  return heroStats(state, hero).attackRange + state.tuning.creeps[creep.kind].radius + heroStats(state, hero).radius;
+}
+
 function inAttackRange(state: GameState, hero: Hero, creep: Creep): boolean {
-  const reach = heroStats(state, hero).attackRange + state.tuning.creeps[creep.kind].radius;
-  return dist(hero.x, hero.y, creep.x, creep.y) <= reach;
+  return dist(hero.x, hero.y, creep.x, creep.y) <= reach(state, hero, creep);
 }
 
 /** Attacks the nearest hittable creep within attack range, if any, without leaving the current order. */
@@ -129,19 +140,89 @@ function autoAttack(state: GameState, hero: Hero): void {
   if (target) tryAttack(state, hero, target);
 }
 
-/** Nearest hittable creep within `range` of the hero. */
+/** Nearest hittable creep within `range` of the hero, edge to edge (both radii count, as for creeps). */
 function acquire(state: GameState, hero: Hero, range: number): Creep | undefined {
   let best: Creep | undefined;
   let bestD = Infinity;
+  const heroRadius = heroStats(state, hero).radius;
   for (const c of state.creeps) {
     if (c.dead || !heroCanHit(state, hero, c)) continue;
-    const d = dist(hero.x, hero.y, c.x, c.y) - state.tuning.creeps[c.kind].radius;
+    const d = dist(hero.x, hero.y, c.x, c.y) - state.tuning.creeps[c.kind].radius - heroRadius;
     if (d <= range && d < bestD) {
       best = c;
       bestD = d;
     }
   }
   return best;
+}
+
+/**
+ * A melee hero left idle fights instead of standing there being hit: it hits whatever is in reach; otherwise it
+ * steps in to the nearest hittable creep within `autoEngage.range`, or to the creep that hurt it in the last
+ * `autoEngage.memory` seconds (bosses and Archers outreach it), but never further than `autoEngage.leash` from
+ * where it stood (`hero.guard`); with nothing left to fight it walks back there.
+ */
+function autoEngage(state: GameState, hero: Hero): void {
+  const e = state.tuning.hero.autoEngage;
+  const guard = (hero.guard ??= { x: hero.x, y: hero.y });
+  const inReach = acquire(state, hero, heroStats(state, hero).attackRange);
+  if (inReach) {
+    hero.path = [];
+    tryAttack(state, hero, inReach);
+    return;
+  }
+  const target = engageTarget(state, hero, guard);
+  if (target) {
+    const { x, y } = hero;
+    walkTo(state, hero, target.x, target.y);
+    // A path around an obstacle can bend past the leash: stop at its edge.
+    if (dist(hero.x, hero.y, guard.x, guard.y) > e.leash) {
+      hero.x = x;
+      hero.y = y;
+      hero.path = [];
+    }
+    return;
+  }
+  if (dist(hero.x, hero.y, guard.x, guard.y) <= 0.05) {
+    hero.path = [];
+    return;
+  }
+  walkTo(state, hero, guard.x, guard.y);
+  // Nowhere to walk back to (the spot is blocked now): stand guard here instead.
+  if (hero.path.length === 0 && dist(hero.x, hero.y, guard.x, guard.y) > 0.05) hero.guard = { x: hero.x, y: hero.y };
+}
+
+/**
+ * The creep an idle melee hero steps in to: the nearest hittable creep within `autoEngage.range` (edge to edge) or
+ * the one that just hurt it, among those it can reach without standing further than the leash from its guard spot.
+ */
+function engageTarget(state: GameState, hero: Hero, guard: { x: number; y: number }): Creep | undefined {
+  const e = state.tuning.hero.autoEngage;
+  const heroRadius = heroStats(state, hero).radius;
+  const hurtSince = state.tick - secondsToTicks(e.memory);
+  let best: Creep | undefined;
+  let bestD = Infinity;
+  for (const c of state.creeps) {
+    if (c.dead || !heroCanHit(state, hero, c)) continue;
+    const d = dist(hero.x, hero.y, c.x, c.y);
+    const gap = d - state.tuning.creeps[c.kind].radius - heroRadius;
+    const hitMe = c.id === hero.hitBy && hero.hitTick >= hurtSince;
+    if (gap > e.range && !hitMe) continue;
+    // Where the hero would have to stand to hit it, measured from its guard spot.
+    if (dist(guard.x, guard.y, c.x, c.y) - reach(state, hero, c) > e.leash) continue;
+    if (d < bestD) {
+      best = c;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/** Walks toward (x, y), a point that may move (a creep): re-paths now and then, or at once if it moved away. */
+function walkTo(state: GameState, hero: Hero, x: number, y: number): void {
+  const goal = hero.path[hero.path.length - 1];
+  if (!goal || dist(goal.x, goal.y, x, y) > 1) hero.repathTick = 0;
+  chase(state, hero, x, y);
 }
 
 function engage(state: GameState, hero: Hero, target: Creep): void {

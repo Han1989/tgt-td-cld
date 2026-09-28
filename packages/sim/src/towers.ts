@@ -194,7 +194,7 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
   p.done = true;
   if (p.targetKind === 'hero') {
     const h = state.heroes.find((x) => x.id === p.targetId);
-    if (h) damageHero(state, h, p.damage, p.damageType);
+    if (h) damageHero(state, h, p.damage, p.damageType, creepsById.get(p.attacker));
     return;
   }
   if (p.targetKind === 'tower') {

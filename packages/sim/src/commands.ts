@@ -50,6 +50,8 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
     case 'stop':
       hero.order = { type: 'idle' };
       hero.path = [];
+      // A melee hero guards the spot where it was stopped (see autoEngage in heroes.ts).
+      hero.guard = null;
       return true;
     case 'cast': {
       if (!HERO_SKILLS[hero.kind].includes(command.slot)) return reject('Unknown skill');

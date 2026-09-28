@@ -244,13 +244,17 @@ export interface HeroStats {
   damagePerLevel: number;
   damageType: DamageType;
   attackCooldown: number;
+  /**
+   * A hero hits a creep from up to attackRange + its own radius + the creep's radius (centre to centre): the
+   * same rule creeps use to hit heroes.
+   */
   attackRange: number;
   /** Ranged heroes fire projectiles and can hit flying creeps; melee hits land instantly. */
   ranged: boolean;
   projectileSpeed: number;
   speed: number;
   radius: number;
-  /** Idle / attack-moving heroes engage creeps within this range. */
+  /** Attack-moving heroes engage creeps within this range (edge to edge). */
   acquireRange: number;
 }
 
@@ -417,6 +421,13 @@ export interface Tuning {
     startingSkills: SkillSlot[];
     respawnBase: number;
     respawnPerLevel: number;
+    /**
+     * Melee heroes left idle (no order, no joystick) step in and fight: the nearest hittable creep within
+     * `range` tiles (edge to edge), or a creep that hurt them in the last `memory` seconds (a boss or an
+     * Archer that outreaches them). They never stray more than `leash` tiles from where they stood, and
+     * walk back there once nothing is left to fight.
+     */
+    autoEngage: { range: number; leash: number; memory: number };
     ranger: RangerStats;
     warden: WardenStats;
     arcanist: ArcanistStats;
@@ -491,7 +502,7 @@ export const TUNING: Tuning = {
     ],
   },
   playerScaling: {
-    hp: [1.01, 1.42, 1.45],
+    hp: [1.01, 1.44, 1.45],
     earlyHpBonus: [0, 0.5, 1.6],
     earlyWaves: 20,
     lateHpBonus: [0, 0.16, 0.15],
@@ -682,7 +693,7 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.019, 1.48, 1.6],
+        hp: [1.019, 1.46, 1.65],
         earlyHpBonus: [0, 0.5, 1.6],
         earlyWaves: 10,
         lateHpBonus: [0, 0.15, 1.0],
@@ -699,19 +710,20 @@ export const TUNING: Tuning = {
     startingSkills: ['Q', 'W'],
     respawnBase: 5,
     respawnPerLevel: 2,
+    autoEngage: { range: 2.5, leash: 4, memory: 1 },
     ranger: {
       hp: 320, hpPerLevel: 40, hpRegen: 1.5,
       mana: 120, manaPerLevel: 20, manaRegen: 1.5, manaRegenPerLevel: 0.3,
       armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
       damage: 20, damagePerLevel: 3, damageType: 'physical',
-      attackCooldown: 0.9, attackRange: 6, ranged: true, projectileSpeed: 16,
-      speed: 4.6, radius: 0.4, acquireRange: 7,
+      attackCooldown: 0.9, attackRange: 5.6, ranged: true, projectileSpeed: 16,
+      speed: 4.6, radius: 0.4, acquireRange: 6.6,
       multishot: {
         manaCost: [30, 35, 40, 45],
         cooldown: [8, 7, 6, 5],
         targets: [3, 4, 5, 6],
         damage: [30, 45, 60, 75],
-        bonusRange: 1,
+        bonusRange: 1.4,
       },
       snareTrap: {
         manaCost: [40, 45, 50, 55],
@@ -739,12 +751,12 @@ export const TUNING: Tuning = {
       },
     },
     warden: {
-      hp: 480, hpPerLevel: 60, hpRegen: 2.5,
+      hp: 420, hpPerLevel: 60, hpRegen: 2.2,
       mana: 100, manaPerLevel: 22, manaRegen: 1.2, manaRegenPerLevel: 0.25,
-      armor: 5, armorPerLevel: 0.7, magicResist: 0.1,
-      damage: 26, damagePerLevel: 3.8, damageType: 'physical',
+      armor: 4, armorPerLevel: 0.7, magicResist: 0.1,
+      damage: 24, damagePerLevel: 3.6, damageType: 'physical',
       attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
-      speed: 4.3, radius: 0.5, acquireRange: 6,
+      speed: 4.3, radius: 0.5, acquireRange: 5.5,
       cleave: {
         manaCost: [25, 30, 35, 40],
         cooldown: [6, 5.5, 5, 4.5],
@@ -774,8 +786,8 @@ export const TUNING: Tuning = {
       mana: 200, manaPerLevel: 30, manaRegen: 2.2, manaRegenPerLevel: 0.35,
       armor: 1, armorPerLevel: 0.4, magicResist: 0.2,
       damage: 18, damagePerLevel: 2.5, damageType: 'magic',
-      attackCooldown: 1, attackRange: 5.5, ranged: true, projectileSpeed: 12,
-      speed: 4.5, radius: 0.4, acquireRange: 6.5,
+      attackCooldown: 1, attackRange: 5.1, ranged: true, projectileSpeed: 12,
+      speed: 4.5, radius: 0.4, acquireRange: 6.1,
       fireball: {
         manaCost: [35, 45, 55, 65],
         cooldown: [7, 6.5, 6, 5.5],

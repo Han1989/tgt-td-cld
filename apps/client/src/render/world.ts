@@ -696,7 +696,7 @@ export class WorldRenderer {
 
   /** Whether a melee hero has an enemy it can hit within reach, or about to be (the wind-up starts ~180 ms early). */
   private inReach(h: HeroSnap): boolean {
-    const reach = TUNING.hero[h.kind].attackRange + REACH_MARGIN;
+    const reach = TUNING.hero[h.kind].attackRange + TUNING.hero[h.kind].radius + REACH_MARGIN;
     for (const c of this.drawnCreeps) {
       const t = TUNING.creeps[c.kind];
       if (t.flying) continue;

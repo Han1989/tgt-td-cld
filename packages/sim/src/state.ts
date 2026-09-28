@@ -78,6 +78,15 @@ export interface Hero {
   shieldUntil: number;
   shieldPct: number;
   facing: number;
+  /** The creep that last hurt this hero (-1 = none yet) and the tick it did. */
+  hitBy: EntityId;
+  hitTick: number;
+  /**
+   * Melee auto-engage (`tuning.hero.autoEngage`): where the hero stood when it was left idle. It fights
+   * creeps near it without straying further than the leash from here, and walks back here afterwards.
+   * Null while it has an order (or is dead).
+   */
+  guard: { x: number; y: number } | null;
 }
 
 export type CreepMode = 'lane' | 'chase' | 'return';
@@ -203,6 +212,8 @@ export interface Projectile {
   fx: ProjectileFx | null;
   /** Player credited for kills, or null for creep projectiles. */
   source: PlayerId | null;
+  /** The creep that fired it (heroes remember who shot them), or -1. */
+  attacker: EntityId;
   done: boolean;
 }
 

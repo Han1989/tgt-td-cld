@@ -93,8 +93,8 @@ const MELEE_ENGAGE_RADIUS = 5;
 const SEEK_RADIUS = 16;
 /** In the final wave, heroes hunt the creeps that are left once there are this few. */
 const STRAGGLERS = 5;
-/** A ranged hero stops this much inside its attack range of the creep it walks to. */
-const STANDOFF_MARGIN = 1;
+/** A ranged hero stops this much inside its attack range of the creep it walks to (its reach adds its own radius). */
+const STANDOFF_MARGIN = 0.6;
 
 /**
  * A sensible-build bot for any hero and team size. It builds on its own zone's pads (and on open pads),
