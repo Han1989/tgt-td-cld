@@ -8,7 +8,8 @@ import { armorMultiplier, damageHero, damageTower, grantXp, heroArmor, heroManaR
 import { snapshot } from '../src/game';
 import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
-import { secondsToTicks, TUNING, type ActiveSkillStats, type Tuning } from '../src/tuning';
+import { runManaDrill } from '../src/headless';
+import { secondsToTicks, TUNING, type Tuning } from '../src/tuning';
 import { labGame, MID, placeCreep, run, runCollect, tuningCopy } from './helpers';
 
 /** A lab game whose heroes don't auto-attack (so skill damage is measurable). */
@@ -147,9 +148,9 @@ describe('mana', () => {
   });
 
   it.each([
-    ['ranger', 4.2],
-    ['warden', 3.45],
-    ['arcanist', 5.35],
+    ['ranger', 7],
+    ['warden', 5.7],
+    ['arcanist', 9.8],
   ] as const)('%s mana regeneration grows with level (level 10: %s/s)', (kind, atTen) => {
     const { state, heroes } = lab([kind]);
     const hero = heroes[0]!;
@@ -161,23 +162,26 @@ describe('mana', () => {
     expect(hero.mana).toBeCloseTo(10 * atTen);
   });
 
+  // Casting Q and W whenever they're ready (the cast drill: Q and W ranked first) should last about a minute
+  // before a skill is ready but unaffordable, the Arcanist longest, and a dry hero still casts often.
   it.each(['ranger', 'warden', 'arcanist'] as const)(
-    '%s: Q and W at max rank cast on cooldown empty a full pool at level 10 in 30–40 s',
+    '%s: a full pool lasts 30+ s of Q and W on cooldown (45+ s at level 10), then still casts ≥ 40%% as often',
     (kind) => {
-      const t = TUNING.hero;
-      const s = t[kind];
-      const skills: Record<HeroKind, ActiveSkillStats[]> = {
-        ranger: [t.ranger.multishot, t.ranger.snareTrap],
-        warden: [t.warden.cleave, t.warden.taunt],
-        arcanist: [t.arcanist.fireball, t.arcanist.frostNova],
-      };
-      const drain = skills[kind].reduce((sum, k) => sum + k.manaCost[3]! / k.cooldown[3]!, 0);
-      const pool = s.mana + 9 * s.manaPerLevel;
-      const seconds = pool / (drain - s.manaRegen - 9 * s.manaRegenPerLevel);
-      expect(seconds).toBeGreaterThanOrEqual(30);
-      expect(seconds).toBeLessThanOrEqual(40);
+      for (const level of [1, 6, 10]) {
+        const d = runManaDrill(kind, level);
+        expect(d.secondsToDry).toBeGreaterThanOrEqual(level === 10 ? 45 : 30);
+        expect(d.castsPerMinuteDry).toBeGreaterThanOrEqual(0.4 * d.castsPerMinuteFull);
+      }
     },
   );
+
+  it('the Arcanist runs dry last at every level', () => {
+    for (const level of [1, 6, 10]) {
+      const arcanist = runManaDrill('arcanist', level).secondsToDry;
+      expect(arcanist).toBeGreaterThan(runManaDrill('ranger', level).secondsToDry);
+      expect(arcanist).toBeGreaterThan(runManaDrill('warden', level).secondsToDry);
+    }
+  });
 });
 
 describe('Ranger', () => {

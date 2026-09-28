@@ -2,7 +2,7 @@
 // applyCommand lives in commands.ts.
 
 import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
-import { effectiveArmor, emit, HERO_SKILLS, heroMaxHp, heroMaxMana } from './combat';
+import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana } from './combat';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
 import { getMap } from './map';
@@ -176,6 +176,7 @@ export function snapshot(state: GameState): Snapshot {
         maxHp: heroMaxHp(state, h),
         mana: Math.floor(h.mana),
         maxMana: heroMaxMana(state, h),
+        manaRegen: r2(heroManaRegen(state, h)),
         level: h.level,
         maxLevel: t.hero.maxLevel,
         xp: Math.floor(h.xp),

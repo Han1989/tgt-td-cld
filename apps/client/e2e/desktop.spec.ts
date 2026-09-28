@@ -1,6 +1,7 @@
 // Desktop keeps mouse and keyboard control (docs/MOBILE.md §4, GAME_DESIGN.md §8),
 // with the map fitted to the height and the HUD in the side margins.
 
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { box, sent, startSolo, toScreen } from './helpers';
 
@@ -126,4 +127,28 @@ test("placing or selecting a tower shows the true radius of a Warden's Bulwark A
   await page.mouse.click(at.x, at.y);
   await expect(page.locator('#tower-panel')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__tdt.auraRings())).toEqual({ drawn: 1, covering: 1 });
+});
+
+test('end screen: "Save match report" downloads the report and the replay as one small JSON file', async ({ page }) => {
+  await startSolo(page, '?lab', 'quick', 'Arcanist');
+  await expect(page.locator('#end-save')).toBeHidden();
+  const target = await toScreen(page, 13, 25);
+  await page.mouse.click(target.x, target.y, { button: 'right' });
+  await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBe(1);
+  await page.evaluate(() => window.__tdt.lose());
+  await expect(page.locator('#end-screen')).toBeVisible();
+  await expect(page.locator('#end-save')).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#end-save').click()]);
+  expect(download.suggestedFilename()).toMatch(/^tdt-match-\d{4}-\d{2}-\d{2}-\d{4}-quick-defeat\.json$/);
+  const file = JSON.parse(readFileSync((await download.path())!, 'utf8'));
+  expect(file.report).toMatchObject({ mode: 'quick', result: 'defeat', heroes: [{ hero: 'arcanist' }] });
+  expect(file.replay.players).toEqual([{ id: 'local', name: 'You', hero: 'arcanist' }]);
+  // A local build (no VERCEL_GIT_COMMIT_SHA) stamps 'dev'.
+  expect([file.report.build, file.replay.build]).toEqual(['dev', 'dev']);
+  expect(file.replay.log.some((e: unknown[]) => e[2] === 'move')).toBe(true);
+
+  // Play again: a new match, no report until it ends.
+  await page.locator('#restart').click();
+  await expect(page.locator('#end-screen')).toBeHidden();
+  await expect(page.locator('#end-save')).toBeHidden();
 });

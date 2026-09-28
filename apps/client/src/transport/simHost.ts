@@ -5,36 +5,54 @@
 import {
   decodeClientMessage,
   encodeServerMessage,
+  normalizeBuild,
   type Command,
   type GameMode,
   type HeroKind,
   type PlayerId,
 } from '@tdt/protocol';
-import { applyCommand, createGame, snapshot, step, type GameState, type Tuning } from '@tdt/sim';
+import {
+  createMatch,
+  matchCommand,
+  matchOver,
+  matchReplay,
+  matchReport,
+  matchStep,
+  snapshot,
+  type GameState,
+  type Match,
+  type Tuning,
+} from '@tdt/sim';
 
 export const LOCAL_PLAYER_ID: PlayerId = 'local';
 
 export class SimHost {
-  private state!: GameState;
+  private match!: Match;
+  /** The report of the finished match has been sent. */
+  private reported = false;
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
   private mode: GameMode = 'full';
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
 
+  /** `build`: the client's build (git commit or 'dev'), stamped into solo match reports and replays. */
   constructor(
     private readonly emit: (raw: string) => void,
     private readonly nextSeed: () => number,
+    private readonly build = 'dev',
   ) {
     this.reset();
   }
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
-    this.state = createGame(
+    this.match = createMatch(
       { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode, tuning: this.tuning },
       this.nextSeed(),
+      normalizeBuild(this.build),
     );
+    this.reported = false;
     this.queue = [];
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
@@ -60,11 +78,28 @@ export class SimHost {
     // Other room and lobby messages only mean something to the online server.
   }
 
-  /** Applies queued commands, advances one tick and broadcasts a snapshot. */
+  /** Browser tests only (the worker's e2e `lose` control): the Heart drops to 0, so the match ends next tick. */
+  debugLose(): void {
+    this.state.heartHp = 0;
+  }
+
+  private get state(): GameState {
+    return this.match.state;
+  }
+
+  /**
+   * Applies queued commands, advances one tick and broadcasts a snapshot; once the match ends, its report and
+   * replay (for "Save match report").
+   */
   tick(): void {
-    for (const cmd of this.queue) applyCommand(this.state, LOCAL_PLAYER_ID, cmd);
+    for (const cmd of this.queue) matchCommand(this.match, LOCAL_PLAYER_ID, cmd);
     this.queue = [];
-    step(this.state);
+    matchStep(this.match);
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
+    if (matchOver(this.match) && !this.reported) {
+      this.reported = true;
+      const report = matchReport(this.match);
+      this.emit(encodeServerMessage({ t: 'report', report, replay: matchReplay(this.match) }));
+    }
   }
 }

@@ -12,8 +12,10 @@ import {
   type HeroKind,
   type HeroSnap,
   type LobbyState,
+  type MatchReport,
   type PlayerId,
   type PlayerSnap,
+  type Replay,
   type SkillSlot,
   type Snapshot,
   type TargetPriority,
@@ -30,6 +32,7 @@ import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
 import { Counter } from './counter';
 import { pulse } from './press';
+import { matchFile, saveMatchFile } from './matchFile';
 import { skillFace } from './skillFace';
 import {
   branchChoices,
@@ -167,6 +170,9 @@ export class Hud {
   private readonly restartBtn = $('restart') as HTMLButtonElement;
   private readonly changeHeroBtn = $('end-change-hero') as HTMLButtonElement;
   private readonly endLeave = $('end-leave');
+  private readonly endSave = $('end-save') as HTMLButtonElement;
+  /** The finished match's report and replay (sent by the host when it ends), for "Save match report". */
+  private report: { report: MatchReport; replay: Replay } | null = null;
   private readonly team = $('team');
   private readonly teamCode = $('team-code');
   private readonly teamList = $('team-list');
@@ -225,6 +231,12 @@ export class Hud {
     this.restartBtn.addEventListener('click', () => actions.restart());
     this.changeHeroBtn.addEventListener('click', () => actions.changeHero());
     this.endLeave.addEventListener('click', () => actions.leave());
+    this.endSave.addEventListener('click', () => {
+      if (!this.report) return;
+      void saveMatchFile(matchFile(this.report.report, this.report.replay, new Date())).catch(() =>
+        this.toast('Could not save the match report'),
+      );
+    });
     // Keep clicks on HUD panels from reaching the canvas.
     for (const el of [this.padMenu, this.towerPanel, this.callEarly]) {
       el.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -283,6 +295,7 @@ export class Hud {
       setText(this.restartBtn, online ? 'Back to lobby' : 'Play again');
       this.changeHeroBtn.classList.toggle('hidden', online);
       this.endLeave.classList.toggle('hidden', !online);
+      this.endSave.classList.toggle('hidden', this.report === null);
       const won = snap.phase === 'victory';
       setText(this.endTitle, won ? 'Victory!' : 'Defeat');
       this.endTitle.className = won ? 'victory' : 'defeat';
@@ -292,6 +305,11 @@ export class Hud {
         : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
     }
+  }
+
+  /** The host's report and replay of the match that just ended (null: none yet, or a new match started). */
+  setReport(report: { report: MatchReport; replay: Replay } | null): void {
+    this.report = report;
   }
 
   /** Tall (phone) layout on or off. */
@@ -544,13 +562,18 @@ export class Hud {
       b.ring.classList.toggle('hidden', !f.ultimate || f.locked);
       b.ring.style.setProperty('--cd', `${(1 - f.cooldown) * 360}deg`);
       setText(b.cdText, f.cdText);
+      b.cdText.classList.toggle('mana', f.waitingMana);
       b.root.classList.toggle('no-mana', f.noMana);
       b.root.classList.toggle('ready', f.ready);
       b.root.classList.toggle('cooling', skill.cooldown > 0);
       b.root.classList.toggle('passive', skill.passive);
       b.root.classList.toggle('unlearned', f.locked);
       b.root.disabled = !hero.alive || f.locked;
-      const cost = skill.passive ? 'Passive' : f.ultimate ? 'No mana cost' : `${skill.manaCost} mana`;
+      const cost = skill.passive
+        ? 'Passive'
+        : f.ultimate
+          ? 'No mana cost'
+          : `${skill.manaCost} mana${f.manaWait > 0 ? ` (affordable in ${f.manaWait}s)` : ''}`;
       const unlock = skill.nextRankLevel > hero.level ? ` · next rank at level ${skill.nextRankLevel}` : '';
       const title = `${text.name} (${skill.slot}) — ${text.desc}\n${cost} · rank ${skill.rank}/${skill.maxRank}${unlock}`;
       if (b.root.title !== title) b.root.title = title;

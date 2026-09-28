@@ -5,8 +5,8 @@ import { CLOSE_VERSION_MISMATCH, type GameServer, type HealthReport } from '../s
 import { bot, fullRoom, ORIGIN, sleep, startServer } from './helpers';
 
 let current: GameServer | null = null;
-async function start(overrides: Parameters<typeof startServer>[0] = {}) {
-  const s = await startServer(overrides);
+async function start(overrides: Parameters<typeof startServer>[0] = {}, log?: (msg: string) => void) {
+  const s = await startServer(overrides, log);
   current = s.server;
   return s;
 }
@@ -117,6 +117,38 @@ describe('lobby', () => {
     // The two restarts travel on different sockets, so the guest's error may arrive after the lobby.
     await guest!.waitFor(() => guest!.errors.some((e) => e.t === 'error' && e.code === 'not_host'));
     expect(guest!.lobby!.players.map((p) => p.ready)).toEqual([true, false]);
+  });
+});
+
+describe('match reports', () => {
+  it('sends every player the report and replay when the match ends, logs one line, and resends it on rejoin', async () => {
+    const lines: string[] = [];
+    const { server, url } = await start({ build: 'abc1234' }, (msg) => lines.push(msg));
+    const [host, guest] = await fullRoom(url, 2);
+    host!.send({ t: 'mode', mode: 'quick' });
+    await guest!.waitFor(() => guest!.lobby?.mode === 'quick');
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => (guest!.snap?.tick ?? 0) > 40);
+    guest!.close();
+    await sleep(100);
+    const room = server.rooms.get(host!.code!)!;
+    room.state!.heartHp = 0;
+    await host!.waitFor(() => host!.report !== null);
+    const { report, replay } = host!.report!;
+    expect(report).toMatchObject({ mode: 'quick', result: 'defeat', protocol: PROTOCOL_VERSION, build: 'abc1234', heartHp: 0 });
+    expect(replay.build).toBe('abc1234');
+    expect(report.heroes.map((h) => h.player)).toEqual(['p1', 'p2']);
+    expect(replay.players.map((p) => p.hero)).toEqual(['ranger', 'warden']);
+    expect(replay.log.some((e) => e[1] === 1 && e[2] === 'drop')).toBe(true);
+    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick seed ${report.seed} `))).toHaveLength(1);
+    expect(lines[0]).toContain(' build abc1234 defeat ');
+
+    // A player who comes back after the end gets it too.
+    const back = bot(url, 'Back');
+    await back.open();
+    back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code: guest!.code!, token: guest!.token! });
+    await back.waitFor(() => back.report !== null);
+    expect(back.report!.report).toEqual(report);
   });
 });
 

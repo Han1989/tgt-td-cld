@@ -13,6 +13,7 @@ export interface Box {
 
 interface Hook {
   sent: { type: string; [k: string]: unknown }[];
+  lose: () => void;
   latest(): {
     tick: number;
     totalWaves: number;

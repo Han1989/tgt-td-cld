@@ -560,6 +560,11 @@ button {
   pointer-events: none;
 }
 
+/* Short of mana: the seconds until it is affordable, in mana blue. */
+.skill .cd-text.mana {
+  color: var(--mana-text);
+}
+
 .skill .tag.mana {
   color: var(--mana-text);
   font-weight: 700;
@@ -1792,8 +1797,14 @@ body.touch .touch-overlay:not(.hidden) {
   font-size: 19px;
 }
 
-.tskill.cooling .letter {
+.tskill.cooling .letter,
+.tskill.waiting-mana .letter {
   display: none;
+}
+
+/* Short of mana: the seconds until it is affordable, in mana blue (full strength over the dimmed button). */
+.tskill.waiting-mana .cd-text {
+  color: var(--mana-text);
 }
 
 .tskill-btn .pips {

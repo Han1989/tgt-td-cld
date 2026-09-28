@@ -5,8 +5,11 @@ import { BotClient, type BotClientOptions } from '../src/testing/botClient';
 
 export const ORIGIN = 'http://localhost:5173';
 
-export async function startServer(overrides: Partial<ServerConfig> = {}): Promise<{ server: GameServer; url: string; http: string }> {
-  const server = createGameServer(defaultConfig({ allowedOriginsList: ORIGIN, ...overrides }));
+export async function startServer(
+  overrides: Partial<ServerConfig> = {},
+  log?: (msg: string) => void,
+): Promise<{ server: GameServer; url: string; http: string }> {
+  const server = createGameServer(defaultConfig({ allowedOriginsList: ORIGIN, ...overrides }), log);
   const port = await server.listen(0);
   return { server, url: `ws://127.0.0.1:${port}`, http: `http://127.0.0.1:${port}` };
 }

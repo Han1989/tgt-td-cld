@@ -374,6 +374,8 @@ export class GameView {
         },
         frameCosts: () => frameCosts.slice(),
         sent,
+        /** Solo: ends the match in defeat at once (the Heart drops to 0), to reach the end screen. */
+        lose: () => view.transport?.debug?.('lose'),
         latest: (): Snapshot | undefined => buffer.latest,
         me: () => view.me,
         layout: () => layout,
@@ -405,6 +407,8 @@ export class GameView {
         const now = performance.now();
         this.buffer.push(msg.snap, now);
         this.predictor.snapshot(msg.snap.heroes.find((h) => h.owner === this.me) ?? null, now);
+      } else if (msg.t === 'report') {
+        this.hud.setReport({ report: msg.report, replay: msg.replay });
       }
     });
   }
@@ -431,6 +435,7 @@ export class GameView {
     this.predictor.reset();
     this.renderer.reset();
     this.hud.resetEffects();
+    this.hud.setReport(null);
     this.controls.clearSelection();
     this.controls.setMode({ type: 'none' });
     this.needsCentre = true;

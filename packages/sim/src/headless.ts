@@ -5,8 +5,9 @@ import type { GameMode, GamePhase, HeroKind } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
+import { heroManaRegen, heroMaxMana } from './combat';
 import { skillInfo } from './skills';
-import { TICK_RATE, type Tuning } from './tuning';
+import { secondsToTicks, TICK_RATE, TUNING, type Tuning } from './tuning';
 
 export interface HeadlessResult {
   result: GamePhase;
@@ -126,5 +127,74 @@ export function runHeadlessMatch(opts: {
         ultLearnedTick: u.learned,
       };
     }),
+  };
+}
+
+/** What `runManaDrill` measures for one hero at one level. */
+export interface ManaDrillResult {
+  kind: HeroKind;
+  level: number;
+  /** Q and W ranks the drill uses (Q and W first: the most mana-hungry build). */
+  ranks: { Q: number; W: number };
+  /** Seconds from a full pool until Q or W is first ready but unaffordable, or -1 if never (within 10 minutes). */
+  secondsToDry: number;
+  /** Q + W casts per minute once dry (over the 2 minutes after), and with unlimited mana (cooldowns only). */
+  castsPerMinuteDry: number;
+  castsPerMinuteFull: number;
+}
+
+/**
+ * Q / W ranks at `level` when every point goes to R when it can, else to Q and W (Q first): level 1 Q1 W1,
+ * level 6 Q3 W3 (R1), level 10 Q4 W4 (R3).
+ */
+export function drillRanks(tuning: Tuning, level: number): { Q: number; W: number } {
+  let points = level - 1;
+  const r = tuning.hero.ultimateLevels.filter((l) => l <= level).length;
+  points -= r;
+  const q = Math.min(tuning.hero.maxSkillRank, 1 + Math.ceil(points / 2));
+  const w = Math.min(tuning.hero.maxSkillRank, 1 + Math.floor(points / 2));
+  return { Q: q, W: w };
+}
+
+/**
+ * A hero at `level` with a full pool casts Q and W whenever each is ready and affordable (nothing else spends
+ * or refills mana: no Clarity Aura, since the drill's build has no E). Uses the sim's own mana numbers
+ * (`heroMaxMana`, `heroManaRegen`, `skillInfo`), tick by tick.
+ */
+export function runManaDrill(kind: HeroKind, level: number, tuning: Tuning = TUNING): ManaDrillResult {
+  const state = createGame({ players: [{ id: 'p1', name: 'Drill', hero: kind }], tuning }, 1);
+  const hero = state.heroes[0]!;
+  const ranks = drillRanks(state.tuning, level);
+  hero.level = level;
+  hero.ranks = { Q: ranks.Q, W: ranks.W, E: 0, R: 0 };
+  hero.mana = heroMaxMana(state, hero);
+  const slots = ['Q', 'W'] as const;
+  const limit = 10 * 60 * TICK_RATE;
+  let dryTick = -1;
+  let dryCasts = 0;
+  for (let tick = 1; tick <= limit; tick++) {
+    hero.mana = Math.min(heroMaxMana(state, hero), hero.mana + heroManaRegen(state, hero) / TICK_RATE);
+    for (const slot of slots) if (hero.skillCd[slot] > 0) hero.skillCd[slot]--;
+    for (const slot of slots) {
+      if (hero.skillCd[slot] > 0) continue;
+      const info = skillInfo(state, hero, slot);
+      if (hero.mana < info.manaCost) {
+        if (dryTick < 0) dryTick = tick;
+        continue;
+      }
+      hero.mana -= info.manaCost;
+      hero.skillCd[slot] = secondsToTicks(info.cooldown);
+      if (dryTick >= 0) dryCasts++;
+    }
+    if (dryTick >= 0 && tick >= dryTick + 120 * TICK_RATE) break;
+  }
+  const full = slots.reduce((sum, slot) => sum + 60 / skillInfo(state, hero, slot).cooldown, 0);
+  return {
+    kind,
+    level,
+    ranks,
+    secondsToDry: dryTick < 0 ? -1 : dryTick / TICK_RATE,
+    castsPerMinuteDry: dryTick < 0 ? full : dryCasts / 2,
+    castsPerMinuteFull: full,
   };
 }

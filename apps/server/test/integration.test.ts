@@ -1,7 +1,7 @@
 // Phase 2 "Done when" (with 3 players, the most a room holds): 3 bot clients join one room and play 5 waves,
-// and every client's final snapshot must match the server's.
+// and every client's final snapshot must match the server's; the match's replay re-runs to the same state.
 
-import { snapshot } from '@tdt/sim';
+import { matchReplay, replayMatch, snapshot } from '@tdt/sim';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { GameServer } from '../src/server';
 import { fullRoom, sleep, startServer } from './helpers';
@@ -48,6 +48,10 @@ describe('3-bot integration', () => {
     expect(owners.size).toBe(3);
     // Each player built on their own lane zone (West, Mid, East).
     for (const t of state.towers) expect(state.pads.find((p) => p.id === t.padId)!.owner).toBe(t.owner);
+    // The match's replay (every command as the server applied it) re-runs to the very same state.
+    const replay = JSON.parse(JSON.stringify(matchReplay(room.match!))) as ReturnType<typeof matchReplay>;
+    expect(replay.log.length).toBeGreaterThan(50);
+    expect(snapshot(replayMatch(replay).state)).toEqual(serverSnap);
     for (const c of clients) c.close();
   }, 150_000);
 });

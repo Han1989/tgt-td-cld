@@ -1,4 +1,6 @@
 import type { CreepKind, GameEvent, HeroKind, LaneId } from '@tdt/protocol';
+import { expect } from 'vitest';
+import type { HeadlessResult } from '../src/headless';
 import { createGame, step } from '../src/game';
 import { getMap } from '../src/map';
 import type { GameState } from '../src/state';
@@ -86,3 +88,24 @@ export const QUICK_MIN_LEVEL = 8;
 
 /** Heart HP a winning balance bot (solo or a team) must end with on Normal: a challenge, not a walkover. */
 export const HEART_TARGET = { min: 40, max: 80 };
+
+/**
+ * Difficulty curve of teams (2 and 3 players): over a gate's matches, the share of all Heart HP lost that each third
+ * of the match costs (`HeadlessResult.heartLost`). The last third must be the tensest: at least `lastMin`, and the
+ * first at most `firstMax`.
+ */
+export const CURVE = { firstMax: 0.45, lastMin: 0.25 };
+
+/** Shares of the Heart HP lost per third, summed over `results` (0 / 0 / 0 if nothing was lost). */
+export function lostShares(results: HeadlessResult[]): number[] {
+  const lost = [0, 1, 2].map((i) => results.reduce((sum, r) => sum + (r.heartLost[i] ?? 0), 0));
+  const total = lost.reduce((a, b) => a + b, 0);
+  return lost.map((x) => (total > 0 ? x / total : 0));
+}
+
+/** Asserts the team difficulty curve (`CURVE`) over a gate's matches. */
+export function expectTeamCurve(results: HeadlessResult[]): void {
+  const [first, , last] = lostShares(results);
+  expect(first).toBeLessThanOrEqual(CURVE.firstMax);
+  expect(last).toBeGreaterThanOrEqual(CURVE.lastMin);
+}

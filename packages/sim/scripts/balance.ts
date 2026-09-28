@@ -3,7 +3,8 @@
 // Solo runs the balance bot and the idle bot for every hero; mixed teams of 2 and 3 bots follow (3 is the most
 // a match holds). Target, in Full and Quick: the balance bot wins with 40–80 Heart HP left with 1, 2 and 3 players.
 // "unspent gold" is each player's gold at the end (and the team's total); "R casts" each hero's ultimates.
-// "lost" is the Heart HP lost in each third of the match (Full: waves 1–10 / 11–20 / 21–30; Quick: 1–5 / 6–10 / 11–15).
+// "lost" is the Heart HP lost in each third of the match (Full: waves 1–10 / 11–20 / 21–30; Quick: 1–5 / 6–10 / 11–15);
+// each team also prints its share of the Heart lost per third over the seeds.
 
 import { HERO_KINDS, type GameMode, type HeroKind } from '@tdt/protocol';
 import { createBalanceBot, createIdleBot, runHeadlessMatch, type HeadlessResult } from '../src';
@@ -40,6 +41,7 @@ const TEAMS: HeroKind[][] = [
 for (const team of TEAMS) {
   if (only && only !== 'teams' && only !== `${team.length}p`) continue;
   console.log(`${team.length} bots (${team.join(', ')}):`);
+  const lost = [0, 0, 0];
   for (const seed of SEEDS) {
     const result = runHeadlessMatch({
       bots: team.map((_, i) => createBalanceBot(`p${i + 1}`, undefined, i)),
@@ -47,6 +49,10 @@ for (const team of TEAMS) {
       seed,
       mode,
     });
+    result.heartLost.forEach((x, i) => (lost[i]! += x));
     console.log(`  seed ${seed}: ${describe(result)}`);
   }
+  // The team gates want the last third to cost ≥ 25% of the Heart lost and the first ≤ 45% (test/helpers.ts CURVE).
+  const total = sum(lost) || 1;
+  console.log(`  share of the Heart lost per third: ${lost.map((x) => `${Math.round((100 * x) / total)}%`).join(' / ')}`);
 }

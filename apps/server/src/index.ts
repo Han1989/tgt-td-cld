@@ -13,7 +13,7 @@ function main(): void {
     console.error(`Invalid configuration: ${(err as Error).message}`);
     process.exit(1);
   }
-  const server = createGameServer(config);
+  const server = createGameServer(config, log);
   server.listen(config.port).then(
     (port) => log(`Listening on :${port} (shard ${config.shard}; allowed origins: ${config.allowedOriginsList})`),
     (err: unknown) => {

@@ -17,6 +17,7 @@ const host = new SimHost(
   (raw) => ctx.postMessage(raw),
   // Seeding is outside the sim, so a non-deterministic seed is fine here.
   () => Math.floor(Math.random() * 2 ** 31),
+  __BUILD__,
 );
 
 /** When the next tick is due (performance.now() ms). */
@@ -40,6 +41,10 @@ ctx.onmessage = (e) => {
     // `?lab&auras`: heroes start with their passive (E) learned, so auras can be tested at once.
     if (data.auras === true) tuning.hero.startingSkills = ['Q', 'W', 'E'];
     host.tuning = tuning;
+    return;
+  }
+  if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'lose') {
+    host.debugLose();
     return;
   }
   host.receive(e.data);

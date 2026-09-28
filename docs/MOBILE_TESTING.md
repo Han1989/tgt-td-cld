@@ -44,6 +44,7 @@ Start **Play solo offline** (or solo from the hero pick).
   - [ ] A quick tap on Sell only says "Hold Sell to sell". Holding it ~0.5 s fills the button red and sells.
 - [ ] 3.5 **Close menus:** tapping anywhere else on the map closes the ring. The joystick still works while a ring is open.
 - [ ] 3.6 **Smart cast:** with creeps nearby, tap Q. The skill fires (point skills land on the biggest group in range). With nothing in range, the button shakes, says "Nothing in range", and no mana is spent.
+- [ ] 3.6b **Mana:** keep casting Q and W whenever they're ready. A full pool lasts about a minute (the Arcanist longer), and once it's dry the buttons still come back every few seconds. A button short of mana dims with a blue edge and counts down in blue the **seconds until you can afford it** (instead of the cooldown, when that's longer); the count should reach 0 as the button lights up again.
 - [ ] 3.7 **Drag to aim:** press W (Ranger / Arcanist) or R once learned, and drag. A range circle shows around the hero and the area at the aim point. Release to cast there.
 - [ ] 3.8 **Cancel:** drag out, then back onto the button (it turns red), and release. Nothing is cast.
 - [ ] 3.9 **Learn skills:** after a level-up, "+" badges appear on the buttons and the top bar shows "+1". Tapping "+" learns the skill. R unlocks at level 6.
@@ -62,6 +63,7 @@ Start **Play solo offline** (or solo from the hero pick).
 
 - [ ] 5.1 Play a solo **Quick** match to the end. Report the hero, the result, the Heart HP left and how long it took.
 - [ ] 5.2 The victory / defeat screen fits the phone. **Play again** and **Change hero / mode** work.
+- [ ] 5.2b **Save match report:** on the victory / defeat screen, tap **Save match report**. On a phone that can share files the share sheet opens: send the file to yourself in a chat app (WhatsApp, Telegram, Messenger…) and check it arrives as a `tdt-match-….json` file of a few hundred KB at most (Quick; a Full match up to ~1 MB). Where sharing isn't offered (or on desktop) the file downloads instead: find it in Files (iPhone: Downloads) or the Downloads folder. Cancelling the share sheet does nothing. Send one such file with your report: `npm run replay <file>` re-runs the match and prints the same report.
 - [ ] 5.3 Smoothness: no stutter in the late waves. If it feels slow, try ⚙ → Graphics → **Low** and say whether that helped. Auto switches to Low on its own if the frame rate stays under 45.
 - [ ] 5.4 **Stress check:** open `…/?stress=300` (the page shows 300 creeps and an FPS readout). Note the FPS. Target: 60 FPS with 150 creeps on screen, at least 30 with 300. `?stress=150` checks the first number.
 
@@ -87,6 +89,7 @@ A match holds at most **3 players, one per lane**. Use the phone, the desktop an
 - [ ] 7.3 Start the match. Each player's pads are rimmed in their own colour (blue, orange, violet): the first player gets the West lane's pads, the second Mid, the third East. There is no fourth zone around the Heart. Each player can only build on their own lane's pads.
 - [ ] 7.4 With 3 players each lane zone has one extra pad (29 pads in all, against 26 solo and with 2 players).
 - [ ] 7.5 Play a few waves (Quick is fine). Report the result and the Heart HP left if you finish.
+- [ ] 7.6 Finish a match (win or lose): every player's end screen shows **Save match report**, each phone can save or share the file, and the three files are the same match (same seed at the top). Someone who reconnects after the end gets the button too. The server's log (Render → Logs) shows one `match <code> …` line for it, whose `build` is the commit Render deployed (the same as `"build"` at the top of the saved files).
 
 ## Results
 

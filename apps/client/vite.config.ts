@@ -86,8 +86,17 @@ self.addEventListener('fetch', (event) => {
 `;
 }
 
+/**
+ * The client's build, stamped into solo match reports and replays (`__BUILD__`): the commit Vercel builds
+ * (VERCEL_GIT_COMMIT_SHA, set at build time), else 'dev'. Online reports carry the server's build instead.
+ */
+const BUILD = /^[0-9A-Za-z._-]{1,64}$/.test(process.env.VERCEL_GIT_COMMIT_SHA?.trim() ?? '')
+  ? process.env.VERCEL_GIT_COMMIT_SHA!.trim()
+  : 'dev';
+
 export default defineConfig({
   plugins: [serviceWorker()],
+  define: { __BUILD__: JSON.stringify(BUILD) },
   worker: { format: 'es' },
   build: {
     target: 'es2022',

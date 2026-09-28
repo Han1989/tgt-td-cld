@@ -501,11 +501,12 @@ export const TUNING: Tuning = {
       w({ grunt: 14, runner: 2, archer: 8, brute: 8, wisp: 8 }, 'shardback'), // 30: final boss (Shifting Hide)
     ],
   },
+  // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
-    hp: [1.01, 1.44, 1.45],
-    earlyHpBonus: [0, 0.5, 1.6],
+    hp: [1.04, 1.43, 1.46],
+    earlyHpBonus: [0, 0.4, 1.25],
     earlyWaves: 20,
-    lateHpBonus: [0, 0.16, 0.15],
+    lateHpBonus: [0, 0.2, 0.55],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
@@ -668,7 +669,7 @@ export const TUNING: Tuning = {
     // waves 5, 10 and 15, air waves on 8 and 13): creep HP and armour grow about twice as fast per wave, and
     // each wave pays about as much as two Full waves. A little more starting gold, and heroes need 60% of the
     // Full XP per level (a match has half the kills), so they reach level 8–10. The team bonus fades over 10
-    // waves; teams of 3–4 get a higher late multiplier than in Full (their gold still outruns their pads).
+    // waves; teams of 3 get a higher late bonus than in Full (their gold still outruns their pads).
     quick: {
       economy: { startingGold: 120, waveIncomeBase: 84, waveIncomePerWave: 64 },
       waves: {
@@ -693,10 +694,10 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.019, 1.46, 1.65],
-        earlyHpBonus: [0, 0.5, 1.6],
+        hp: [1.012, 1.42, 1.6],
+        earlyHpBonus: [0, 0.25, 1.2],
         earlyWaves: 10,
-        lateHpBonus: [0, 0.15, 1.0],
+        lateHpBonus: [0, 0.3, 1.15],
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
@@ -713,20 +714,20 @@ export const TUNING: Tuning = {
     autoEngage: { range: 2.5, leash: 4, memory: 1 },
     ranger: {
       hp: 320, hpPerLevel: 40, hpRegen: 1.5,
-      mana: 120, manaPerLevel: 20, manaRegen: 1.5, manaRegenPerLevel: 0.3,
+      mana: 140, manaPerLevel: 25, manaRegen: 2.5, manaRegenPerLevel: 0.5,
       armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
       damage: 20, damagePerLevel: 3, damageType: 'physical',
       attackCooldown: 0.9, attackRange: 5.6, ranged: true, projectileSpeed: 16,
       speed: 4.6, radius: 0.4, acquireRange: 6.6,
       multishot: {
-        manaCost: [30, 35, 40, 45],
+        manaCost: [25, 30, 35, 40],
         cooldown: [8, 7, 6, 5],
         targets: [3, 4, 5, 6],
         damage: [30, 45, 60, 75],
         bonusRange: 1.4,
       },
       snareTrap: {
-        manaCost: [40, 45, 50, 55],
+        manaCost: [30, 35, 40, 45],
         cooldown: [14, 13, 12, 11],
         castRange: 8,
         armDelay: 0.5,
@@ -752,19 +753,19 @@ export const TUNING: Tuning = {
     },
     warden: {
       hp: 420, hpPerLevel: 60, hpRegen: 2.2,
-      mana: 100, manaPerLevel: 22, manaRegen: 1.2, manaRegenPerLevel: 0.25,
+      mana: 110, manaPerLevel: 26, manaRegen: 2.1, manaRegenPerLevel: 0.4,
       armor: 4, armorPerLevel: 0.7, magicResist: 0.1,
       damage: 24, damagePerLevel: 3.6, damageType: 'physical',
       attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
       speed: 4.3, radius: 0.5, acquireRange: 5.5,
       cleave: {
-        manaCost: [25, 30, 35, 40],
+        manaCost: [20, 25, 30, 35],
         cooldown: [6, 5.5, 5, 4.5],
         radius: 2.2,
         damage: [52, 85, 117, 150],
       },
       taunt: {
-        manaCost: [40, 45, 50, 55],
+        manaCost: [30, 35, 40, 45],
         cooldown: [16, 15, 14, 13],
         radius: 4.5,
         duration: [2, 2.5, 3, 3.5],
@@ -783,13 +784,13 @@ export const TUNING: Tuning = {
     },
     arcanist: {
       hp: 280, hpPerLevel: 35, hpRegen: 1.2,
-      mana: 200, manaPerLevel: 30, manaRegen: 2.2, manaRegenPerLevel: 0.35,
+      mana: 260, manaPerLevel: 34, manaRegen: 4.4, manaRegenPerLevel: 0.6,
       armor: 1, armorPerLevel: 0.4, magicResist: 0.2,
       damage: 18, damagePerLevel: 2.5, damageType: 'magic',
       attackCooldown: 1, attackRange: 5.1, ranged: true, projectileSpeed: 12,
       speed: 4.5, radius: 0.4, acquireRange: 6.1,
       fireball: {
-        manaCost: [35, 45, 55, 65],
+        manaCost: [30, 35, 45, 50],
         cooldown: [7, 6.5, 6, 5.5],
         castRange: 8,
         radius: 2,
@@ -797,7 +798,7 @@ export const TUNING: Tuning = {
         projectileSpeed: 12,
       },
       frostNova: {
-        manaCost: [50, 55, 60, 65],
+        manaCost: [40, 45, 50, 55],
         cooldown: [12, 11, 10, 9],
         castRange: 7,
         radius: 2.5,
