@@ -452,7 +452,11 @@ export class Hud {
     }
   }
 
+  /** Called with every message shown (sounds: "Not enough gold"…). */
+  onToast: (text: string) => void = () => {};
+
   toast(text: string): void {
+    this.onToast(text);
     const el = document.createElement('div');
     el.className = 'toast';
     el.textContent = text;

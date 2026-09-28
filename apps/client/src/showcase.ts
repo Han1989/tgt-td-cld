@@ -17,6 +17,9 @@ import {
 } from '@tdt/protocol';
 import { towerStats, TUNING } from '@tdt/sim';
 import { Application, Container, type Sprite } from 'pixi.js';
+import { createAudio } from './audio';
+import type { MusicScene } from './audio/score';
+import { SOUNDS } from './audio/sounds';
 import { ICONS, installIcons } from './render/art/icons';
 import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
@@ -213,6 +216,29 @@ export async function runShowcase(): Promise<void> {
       .join('') +
     `</div>`;
   root.insertBefore(icons, app.canvas);
+
+  // Sounds (docs/ART.md §13): every effect and the music scenes, made in code. Tap to play (the first tap starts audio).
+  const audio = createAudio();
+  audio.engine.setMix({ music: 0.5, sfx: 0.8, muted: false });
+  const sounds = document.createElement('section');
+  sounds.className = 'sc-sounds';
+  const scenes: MusicScene[] = ['lobby', 'build', 'waves', 'boss', 'none'];
+  sounds.innerHTML =
+    `<h2>Sounds (${Object.keys(SOUNDS).length})</h2><p>Made in code (src/audio/). Tap one to hear it at its in-game level.</p>` +
+    `<div class="sc-display sc-music">Music: ${scenes.map((m) => `<button data-scene="${m}">${m === 'none' ? 'Stop' : m}</button>`).join('')}</div>` +
+    `<div class="sc-sound-grid">${Object.keys(SOUNDS).map((id) => `<button data-sound="${id}">${id}</button>`).join('')}</div>`;
+  sounds.addEventListener('click', (e) => {
+    const b = (e.target as Element).closest('button');
+    if (!b) return;
+    const id = b.dataset.sound as keyof typeof SOUNDS | undefined;
+    if (id) audio.engine.play(id, { gain: SOUNDS[id].volume });
+    const scene = b.dataset.scene as MusicScene | undefined;
+    if (scene) {
+      audio.music.setScene(scene);
+      for (const x of sounds.querySelectorAll('[data-scene]')) x.classList.toggle('active', x === b && scene !== 'none');
+    }
+  });
+  root.insertBefore(sounds, app.canvas);
 
   const paintStages = () => {
     for (const { stage, ground } of stages) stage.style.background = toCss(liftColor(ground === 'lane' ? RL.lane : RL.moss, display));
@@ -503,5 +529,8 @@ const CSS = `
 #showcase .sc-icon i { width: 48px; height: 48px; background: var(--ico) center / contain no-repeat; flex: none; }
 #showcase .sc-icon i.small { width: 24px; height: 24px; }
 #showcase .sc-icon span { font-size: 11px; color: #9fb0c2; word-break: break-all; }
+#showcase .sc-sound-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+#showcase .sc-sound-grid button { font: 12px system-ui, sans-serif; padding: 10px 6px; border-radius: 8px; border: 1px solid #243242;
+  background: #16202b; color: #e8eef5; }
 #showcase .sc-todo span { display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 10px; background: #243242; color: #c9d6e3; }
 `;

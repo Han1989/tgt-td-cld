@@ -1,7 +1,7 @@
 // Platform and PWA (docs/MOBILE.md §7): manifest, service worker and offline solo,
-// pause when hidden, browser gesture blocking; effects (Phase 4b) and their settings.
+// pause when hidden, browser gesture blocking; effects (Phase 4b) and their settings; sound.
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { startSolo, waitForReady } from './helpers';
 
 test('the manifest describes an installable, full-screen, portrait app', async ({ page, request }) => {
@@ -119,4 +119,89 @@ test('Graphics → Low turns off particles and shake; Screen shake has its own s
   await page.locator('#settings-shake .btn[data-value="on"]').tap();
   await page.locator('#settings-quality .btn[data-value="low"]').tap();
   await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: false, shake: false, live: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// Sound (docs/ART.md §13)
+// ---------------------------------------------------------------------------
+
+const audio = (page: Page) => page.evaluate(() => window.__tdt.audio());
+
+test('sound starts on the first tap, plays the lobby then the match, and pauses in the background', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?lab');
+  await waitForReady(page, 'solo');
+  // Nothing plays (no AudioContext) before a gesture: iOS would refuse it anyway.
+  expect(await audio(page)).toMatchObject({ state: 'locked', scene: 'lobby' });
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).tap();
+  await expect.poll(async () => (await audio(page)).state).toBe('running');
+  // Every sound is baked (in a worker) and the lobby music plays.
+  await expect.poll(async () => (await audio(page)).baked).toBeGreaterThanOrEqual(48);
+  await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
+  await page.locator('#lobby-solo-play').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+  await expect.poll(async () => (await audio(page)).scene).toBe('build');
+  await page.locator('#call-early').tap();
+  await expect.poll(async () => (await audio(page)).byId.waveStart ?? 0).toBe(1);
+  expect((await audio(page)).byId.tap).toBeGreaterThan(0);
+  await expect.poll(async () => (await audio(page)).scene).toBe('waves');
+
+  const hide = (state: 'hidden' | 'visible') =>
+    page.evaluate((s) => {
+      Object.defineProperty(document, 'visibilityState', { value: s, configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+  await hide('hidden');
+  await expect.poll(async () => (await audio(page)).state).toBe('suspended');
+  await hide('visible');
+  await expect.poll(async () => (await audio(page)).state).toBe('running');
+  expect(errors).toEqual([]);
+});
+
+test('Settings → Sound: music and effects volume and mute, remembered; the lobby has a mute button too', async ({ page }) => {
+  await startSolo(page);
+  await page.locator('#settings-btn').tap();
+  // Defaults: effects 80%, music 50%.
+  await expect(page.locator('#settings-music-val')).toHaveText('50%');
+  await expect(page.locator('#settings-sfx-val')).toHaveText('80%');
+  const slide = (id: string, value: number) =>
+    page.evaluate(
+      ([sel, v]) => {
+        const input = document.getElementById(sel as string) as HTMLInputElement;
+        input.value = String(v);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+      [id, value],
+    );
+  await slide('settings-music', 20);
+  await slide('settings-sfx', 65);
+  await expect(page.locator('#settings-music-val')).toHaveText('20%');
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!));
+  expect(await stored()).toMatchObject({ music: 0.2, sfx: 0.65, muted: false });
+
+  await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
+  await page.locator('#settings-mute').tap();
+  await expect(page.locator('#settings-mute')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#settings-mute')).toContainText('Sound off');
+  expect(await stored()).toMatchObject({ muted: true });
+  expect((await audio(page)).muted).toBe(true);
+  // Muted: no music is scheduled and no effects are even considered.
+  const notes = (await audio(page)).notes;
+  const skipped = (await audio(page)).skipped;
+  await page.locator('#call-early').tap();
+  await page.waitForTimeout(600);
+  expect((await audio(page)).notes).toBe(notes);
+  expect((await audio(page)).byId.waveStart ?? 0).toBe(0);
+  expect((await audio(page)).skipped).toBe(skipped);
+
+  // Remembered on the next visit, and shown on the lobby's speaker button.
+  await page.reload();
+  await waitForReady(page, 'solo');
+  await expect(page.locator('#lobby-sound')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#lobby-sound').tap();
+  await expect(page.locator('#lobby-sound')).toHaveAttribute('aria-pressed', 'false');
+  expect(await stored()).toMatchObject({ music: 0.2, sfx: 0.65, muted: false });
+  await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
 });

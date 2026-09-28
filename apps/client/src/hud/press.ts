@@ -1,10 +1,14 @@
 // Buttons react to presses (Phase 4b): a `pressed` class while a finger or the mouse is down
-// on a button, for every button in the game. Touch handlers call preventDefault, which can
+// on a button, for every button in the game, and a tap sound. Touch handlers call preventDefault, which can
 // keep `:active` from applying on phones, so this doesn't rely on it.
 
 const PRESSABLE = 'button, .btn, .joy';
 
-export function installPressFeedback(root: Document = document): void {
+/** Presses that play no tap sound: the joystick and skill buttons (the cast has its own). */
+const SILENT = '.joy, .tskill-btn, .skill';
+
+/** Adds press feedback; `onPress` hears every press on an enabled button (its tap sound). */
+export function installPressFeedback(root: Document = document, onPress: (el: Element) => void = () => {}): void {
   const held = new Map<number, Element>();
   const release = (e: PointerEvent) => {
     const el = held.get(e.pointerId);
@@ -21,6 +25,7 @@ export function installPressFeedback(root: Document = document): void {
       held.get(e.pointerId)?.classList.remove('pressed');
       held.set(e.pointerId, el);
       el.classList.add('pressed');
+      if (!el.matches(SILENT)) onPress(el);
     },
     true,
   );

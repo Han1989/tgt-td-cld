@@ -18,6 +18,7 @@
 
     <div id="lobby" class="lobby hidden">
       <div class="lobby-card">
+        <button id="lobby-sound" class="btn icon-btn sound-btn" aria-pressed="false" aria-label="Mute sound" title="Mute sound"><i class="ico"></i></button>
         <h1 class="logo">Tower Defense <span>Together</span></h1>
 
         <section id="lobby-home">
@@ -144,6 +145,12 @@
 
 
       <div id="settings" class="popup settings hidden">
+        <section>
+          <h3>Sound</h3>
+          <button id="settings-mute" class="btn sound-toggle" aria-pressed="false"><i class="ico"></i><span></span></button>
+          <label class="volume"><span>Music</span><input id="settings-music" type="range" min="0" max="100" step="5" /><b id="settings-music-val"></b></label>
+          <label class="volume"><span>Effects</span><input id="settings-sfx" type="range" min="0" max="100" step="5" /><b id="settings-sfx-val"></b></label>
+        </section>
         <section class="touch-only">
           <h3>Controls layout</h3>
           <div id="settings-thumbs" class="choices"></div>

@@ -280,6 +280,10 @@ export class WorldRenderer {
   entityScale = 1;
   /** Called when one of my kills pays a bounty: where it happened on screen (px), for the flying coin. */
   onBounty: (screenX: number, screenY: number, bounty: number) => void = () => {};
+  /** A tower fired (its projectile just appeared), for its shot sound. */
+  onTowerShot: (tower: TowerSnap) => void = () => {};
+  /** A melee blow visibly landed (its impact plays now), for its sound. */
+  onMeleeImpact: (heroId: number, x: number, y: number) => void = () => {};
 
   constructor(
     app: Application,
@@ -732,6 +736,7 @@ export class WorldRenderer {
       const dx = hero ? x - hero.root.x / S : 1;
       const dy = hero ? y - hero.root.y / S : 0;
       this.fx.meleeImpact(x, y, Math.atan2(dy, dx));
+      this.onMeleeImpact(i.heroId, x, y);
       if (id >= 0) this.creeps.get(id)?.art?.knock(now, dx, dy);
     }
   }
@@ -1471,6 +1476,7 @@ export class WorldRenderer {
       }
     }
     if (!best) return;
+    this.onTowerShot(best);
     const s = this.towers.get(best.id);
     const dx = p.x - best.x;
     const dy = p.y - best.y;

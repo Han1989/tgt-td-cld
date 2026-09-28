@@ -1,6 +1,7 @@
-// Settings popup (the ⚙ in the top bar): touch controls layout (docs/MOBILE.md §5),
-// graphics quality (§7), screen shake, display (Normal / Bright, docs/ART.md §2) and installing the
-// app (Android prompt / iPhone sheet).
+// Settings popup (the ⚙ in the top bar): sound (mute, music and effects volume, docs/ART.md §13),
+// touch controls layout (docs/MOBILE.md §5), graphics quality (§7), screen shake, display (Normal /
+// Bright, docs/ART.md §2) and installing the app (Android prompt / iPhone sheet). The lobby's
+// speaker button mutes too.
 
 import type { ThumbLayout } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
@@ -28,9 +29,25 @@ export class SettingsPanel {
   private readonly install = $('install-btn');
   private readonly iosInstall = $('ios-install-btn');
   private readonly iosSheet = $('ios-install');
+  private readonly mutes = [$('settings-mute'), $('lobby-sound')];
+  private readonly volumes = [
+    { input: $('settings-music') as HTMLInputElement, label: $('settings-music-val'), key: 'music' as const },
+    { input: $('settings-sfx') as HTMLInputElement, label: $('settings-sfx-val'), key: 'sfx' as const },
+  ];
 
-  constructor(private readonly store: SettingsStore) {
+  /** `previewSfx` plays a sound after the effects volume changes, at the new level. */
+  constructor(
+    private readonly store: SettingsStore,
+    previewSfx: () => void = () => {},
+  ) {
     $('settings-btn').addEventListener('click', () => this.toggle());
+    for (const b of this.mutes) b.addEventListener('click', () => store.set({ muted: !store.get().muted }));
+    for (const v of this.volumes) {
+      v.input.addEventListener('input', () => store.set({ [v.key]: Number(v.input.value) / 100 }));
+      // Moving a slider turns the sound back on.
+      v.input.addEventListener('pointerdown', () => store.get().muted && store.set({ muted: false }));
+    }
+    this.volumes[1]!.input.addEventListener('change', previewSfx);
     // Tap anywhere else closes it.
     window.addEventListener(
       'pointerdown',
@@ -66,6 +83,19 @@ export class SettingsPanel {
 
   private render(): void {
     const s = this.store.get();
+    for (const b of this.mutes) {
+      b.setAttribute('aria-pressed', String(s.muted));
+      const label = s.muted ? 'Sound off: tap to turn it on' : 'Mute sound';
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      const text = b.querySelector('span');
+      if (text) text.textContent = s.muted ? 'Sound off' : 'Sound on';
+    }
+    for (const v of this.volumes) {
+      const pct = String(Math.round(s[v.key] * 100));
+      if (v.input.value !== pct) v.input.value = pct;
+      v.label.textContent = `${pct}%`;
+    }
     this.choices(this.thumbs, Object.entries(THUMB_NAMES) as [ThumbLayout, string][], s.thumbs, (v) => this.store.set({ thumbs: v }));
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
     this.choices(this.shake, SHAKE_CHOICES, s.shake ? 'on' : 'off', (v) => this.store.set({ shake: v === 'on' }));

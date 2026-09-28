@@ -34,6 +34,19 @@ interface Hook {
   /** Coins launched to the gold counter so far. */
   coins(): number;
   art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };
+  /** Sound (docs/ART.md §13): the context's state, the music scene, notes queued, effects played / skipped. */
+  audio(): {
+    state: string;
+    scene: string;
+    notes: number;
+    muted: boolean;
+    started: number;
+    baked: number;
+    bakeMs: number;
+    played: number;
+    skipped: number;
+    byId: Record<string, number>;
+  };
   layout(): {
     kind: string;
     tilePx: number;

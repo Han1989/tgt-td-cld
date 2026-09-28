@@ -1,10 +1,12 @@
 // The in-match view: Pixi renderer, HUD, controls (mouse / keyboard and touch),
-// the snapshot buffer and the screen layout, fed by whichever Transport is
-// attached (local worker, game server or the stress scene).
+// the snapshot buffer, the screen layout and the sound (music in the lobby too),
+// fed by whichever Transport is attached (local worker, game server or the stress scene).
 
 import type { ClientMessage, Command, PlayerId, Snapshot } from '@tdt/protocol';
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
+import { createAudio, type Audio } from './audio';
+import type { ViewBox } from './audio/mix';
 import { Hud } from './hud/hud';
 import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
@@ -49,6 +51,8 @@ export class GameView {
     private readonly renderer: WorldRenderer,
     /** Your hero, drawn moving at once while you steer it (docs/MOBILE.md §5, Decision Log). */
     readonly predictor: HeroPredictor,
+    /** Music and sound effects (docs/ART.md §13). */
+    readonly audio: Audio,
   ) {}
 
   static async create(): Promise<GameView> {
@@ -157,9 +161,27 @@ export class GameView {
       heroAt: () => predictor.drawn,
     });
 
-    new SettingsPanel(settings);
-    installPressFeedback();
-    view = new GameView(hud, controls, touch, buffer, renderer, predictor);
+    // Sound: starts on the first tap or key press (engine.ts); volumes and mute from the settings.
+    const audio = createAudio();
+    const applySound = () => {
+      const s = settings.get();
+      audio.engine.setMix({ music: s.music, sfx: s.sfx, muted: s.muted });
+    };
+    applySound();
+    settings.onChange(applySound);
+    renderer.onTowerShot = (t) => audio.game.towerShot(t, performance.now());
+    renderer.onMeleeImpact = (heroId, x, y) => audio.game.meleeHit(heroId, x, y, performance.now());
+    hud.onToast = (text) => audio.game.notice(text, performance.now());
+    /** What's on screen (tiles), for the mix: off-screen sounds are quieter or skipped. */
+    const hearing = (): ViewBox => {
+      const a = camera.screenToWorld(0, 0);
+      const b = camera.screenToWorld(camera.viewW, camera.viewH);
+      return { left: a.x / TILE_PX, top: a.y / TILE_PX, right: b.x / TILE_PX, bottom: b.y / TILE_PX };
+    };
+
+    new SettingsPanel(settings, () => audio.game.tap(performance.now()));
+    installPressFeedback(document, () => audio.game.tap(performance.now()));
+    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio);
     renderer.onBounty = (x, y) => hud.flyCoin(x, y);
 
     // ---------------------------------------------------------------------
@@ -315,6 +337,8 @@ export class GameView {
       const mine = latest?.heroes.find((h) => h.owner === view.me);
       if (mine) predictor.speed = TUNING.hero[mine.kind].speed;
       predictor.frame(now, Math.min(100, ticker.deltaMS));
+      // Before the early return: the lobby has music too.
+      audio.game.frame(latest, view.me, hearing(), now);
       if (!latest || !frame) return;
       if (view.needsCentre && view.me) {
         view.needsCentre = false;
@@ -333,6 +357,7 @@ export class GameView {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
       hud.handleEvents(events, latest, view.me);
+      audio.game.events(events, now);
       renderer.render(frame, latest, view.me, ui, now);
       hud.update(latest, view.me);
     });
@@ -387,6 +412,17 @@ export class GameView {
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
+        audio: () => ({
+          state: audio.engine.state,
+          scene: audio.music.scene,
+          notes: audio.music.notes,
+          muted: audio.engine.muted,
+          started: audio.engine.stats.played,
+          baked: audio.engine.stats.baked,
+          bakeMs: audio.engine.stats.bakeMs,
+          ...audio.game.stats,
+          byId: { ...audio.game.stats.byId },
+        }),
       };
     }
     return view;
@@ -436,6 +472,7 @@ export class GameView {
     this.renderer.reset();
     this.hud.resetEffects();
     this.hud.setReport(null);
+    this.audio.game.reset();
     this.controls.clearSelection();
     this.controls.setMode({ type: 'none' });
     this.needsCentre = true;
