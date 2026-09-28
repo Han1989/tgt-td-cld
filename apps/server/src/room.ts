@@ -17,7 +17,18 @@ import {
   type ServerMessage,
   type Snapshot,
 } from '@tdt/protocol';
-import { applyCommand, createGame, setPlayerConnected, setPlayerLeft, snapshot, step, type GameState } from '@tdt/sim';
+import {
+  createMatch,
+  matchCommand,
+  matchPresence,
+  matchReplay,
+  matchReport,
+  matchStep,
+  reportSummary,
+  snapshot,
+  type GameState,
+  type Match,
+} from '@tdt/sim';
 import type { ServerConfig } from './config';
 import { RollingAverage } from './stats';
 
@@ -52,7 +63,10 @@ export class Room {
   phase: 'lobby' | 'playing' = 'lobby';
   /** Match mode picked by the host in the lobby; kept for the next match after "Back to lobby". */
   mode: GameMode = 'full';
-  state: GameState | null = null;
+  /** The running match (its state, replay log and report numbers), or null in the lobby. */
+  match: Match | null = null;
+  /** The match report message, encoded once when the match ends (sent again to players who rejoin). */
+  private reportMessage: string | null = null;
   /** The last snapshot sent to clients. */
   lastSnap: Snapshot | null = null;
   /** Test hook: a paused room neither steps nor broadcasts. */
@@ -69,8 +83,14 @@ export class Room {
     private readonly config: ServerConfig,
     private readonly newSeed: () => number,
     now: number,
+    /** Server log (one line per finished match). */
+    private readonly log: (msg: string) => void = () => {},
   ) {
     this.emptySince = now;
+  }
+
+  get state(): GameState | null {
+    return this.match?.state ?? null;
   }
 
   get activeMembers(): Member[] {
@@ -121,12 +141,13 @@ export class Room {
     member.disconnectedAt = null;
     member.needsKeyframe = true;
     this.emptySince = null;
-    if (this.state) setPlayerConnected(this.state, member.id, true);
+    if (this.match) matchPresence(this.match, member.id, 'join');
     this.sendTo(member, { t: 'welcome', playerId: member.id, room: { code: this.code, token: member.token } });
     this.broadcastLobby();
     if (this.phase === 'playing' && this.lastSnap) {
       this.sendTo(member, { t: 'snapshot', snap: this.lastSnap });
       member.needsKeyframe = false;
+      if (this.reportMessage) this.sendRaw(member, this.reportMessage);
     }
     return member;
   }
@@ -137,7 +158,7 @@ export class Room {
     member.socket = null;
     member.disconnectedAt = now;
     member.ready = false;
-    if (this.state) setPlayerConnected(this.state, member.id, false);
+    if (this.match) matchPresence(this.match, member.id, 'drop');
     if (this.connectedCount === 0) this.emptySince = now;
     this.migrateHost();
     this.broadcastLobby();
@@ -153,7 +174,7 @@ export class Room {
     member.socket = null;
     member.left = true;
     member.disconnectedAt ??= now;
-    if (this.state) setPlayerLeft(this.state, member.id);
+    if (this.match) matchPresence(this.match, member.id, 'leave');
     if (this.phase === 'lobby') this.members.splice(this.members.indexOf(member), 1);
     socket?.close(CLOSE_NORMAL, 'Left the room');
     if (this.connectedCount === 0) this.emptySince ??= now;
@@ -224,10 +245,11 @@ export class Room {
 
   private startMatch(): void {
     const players = this.activeMembers.map((m) => ({ id: m.id, name: m.name, hero: m.hero }));
-    this.state = createGame({ players, mode: this.mode }, this.newSeed());
+    this.match = createMatch({ players, mode: this.mode }, this.newSeed());
+    this.reportMessage = null;
     this.phase = 'playing';
     this.queue = [];
-    this.lastSnap = snapshot(this.state);
+    this.lastSnap = snapshot(this.match.state);
     this.broadcastLobby();
     this.broadcast(encodeServerMessage({ t: 'snapshot', snap: this.lastSnap }));
     for (const m of this.members) m.needsKeyframe = false;
@@ -235,7 +257,8 @@ export class Room {
 
   private backToLobby(): void {
     this.phase = 'lobby';
-    this.state = null;
+    this.match = null;
+    this.reportMessage = null;
     this.lastSnap = null;
     this.queue = [];
     for (let i = this.members.length - 1; i >= 0; i--) {
@@ -258,14 +281,15 @@ export class Room {
         this.leave(m, now);
       }
     }
-    const state = this.state;
-    if (this.phase !== 'playing' || !state || this.paused) return false;
+    const match = this.match;
+    if (this.phase !== 'playing' || !match || this.paused) return false;
+    const state = match.state;
     if (this.matchOver && this.lastSnap && this.lastSnap.phase === state.phase) return false;
 
     const t0 = measure();
-    for (const { playerId, cmd } of this.queue) applyCommand(state, playerId, cmd);
+    for (const { playerId, cmd } of this.queue) matchCommand(match, playerId, cmd);
     this.queue = [];
-    step(state);
+    matchStep(match);
     const snap = snapshot(state);
     const prev = this.lastSnap;
     const keyframe = !prev || state.tick % this.config.keyframeEveryTicks === 0;
@@ -282,8 +306,17 @@ export class Room {
       }
     }
     this.lastSnap = snap;
+    if (this.matchOver && !this.reportMessage) this.finishMatch(match);
     this.tickTime.add(measure() - t0);
     return true;
+  }
+
+  /** The match just ended: log its one-line summary and send every player the report and the replay. */
+  private finishMatch(match: Match): void {
+    const report = matchReport(match);
+    this.log(reportSummary(report, this.code));
+    this.reportMessage = encodeServerMessage({ t: 'report', report, replay: matchReplay(match) });
+    this.broadcast(this.reportMessage);
   }
 
   /** True once nobody has been connected for the empty-room TTL. */

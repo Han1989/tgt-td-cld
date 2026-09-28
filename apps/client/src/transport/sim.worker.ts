@@ -42,6 +42,10 @@ ctx.onmessage = (e) => {
     host.tuning = tuning;
     return;
   }
+  if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'lose') {
+    host.debugLose();
+    return;
+  }
   host.receive(e.data);
 };
 

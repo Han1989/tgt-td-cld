@@ -8,7 +8,7 @@ function skill(over: Partial<SkillSnap>): SkillSnap {
     targeted: false, passive: false, learnable: false, nextRankLevel: 1, ...over,
   };
 }
-const hero = (mana: number, alive = true) => ({ mana, alive }) as HeroSnap;
+const hero = (mana: number, alive = true, manaRegen = 2) => ({ mana, alive, manaRegen }) as HeroSnap;
 
 describe('skill button faces', () => {
   it('Q and W show their mana cost and dim when it is more than the hero has', () => {
@@ -32,5 +32,16 @@ describe('skill button faces', () => {
     const r = skillFace(hero(0), skill({ slot: 'R', manaCost: 0, cooldown: 300, cooldownTotal: 1200 }), 20);
     expect(r).toMatchObject({ cooldown: 0.25, cdText: '15', ready: false });
     expect(skillFace(hero(0), skill({ cooldown: 1, cooldownTotal: 0 }), 20).cooldown).toBe(0);
+  });
+
+  it('counts down the seconds until a skill short of mana is affordable', () => {
+    // 30 mana, 21 in the pool, 2 per second: 4.5 s, shown as 5.
+    expect(skillFace(hero(21), skill({}), 20)).toMatchObject({ noMana: true, manaWait: 5, cdText: '5', waitingMana: true });
+    // A longer cooldown shows the cooldown instead.
+    expect(skillFace(hero(21), skill({ cooldown: 200 }), 20)).toMatchObject({ manaWait: 5, cdText: '10', waitingMana: false });
+    // Affordable, dead or without regeneration: no mana countdown.
+    expect(skillFace(hero(30), skill({}), 20)).toMatchObject({ manaWait: 0, cdText: '', waitingMana: false });
+    expect(skillFace(hero(0, false), skill({}), 20)).toMatchObject({ manaWait: 0, cdText: '' });
+    expect(skillFace(hero(0, true, 0), skill({}), 20).manaWait).toBe(0);
   });
 });

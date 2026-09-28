@@ -3,8 +3,11 @@ import {
   MAX_CLIENT_MESSAGE_LENGTH,
   PROTOCOL_VERSION,
   decodeClientMessage,
+  decodeReplayCommand,
   decodeServerMessage,
   encodeClientMessage,
+  encodeReplayCommand,
+  type Command,
   encodeServerMessage,
   type ClientMessage,
 } from '../src';
@@ -136,5 +139,38 @@ describe('server message codec', () => {
   it('rejects garbage', () => {
     expect(decodeServerMessage('{"t":"snapshot"}')).toBeNull();
     expect(decodeServerMessage('oops')).toBeNull();
+  });
+});
+
+describe('replay command encoding', () => {
+  const commands: Command[] = [
+    { type: 'move', x: 12.35, y: 30 },
+    { type: 'attackMove', x: 1, y: 2.5 },
+    { type: 'attack', targetId: 42 },
+    { type: 'stop' },
+    { type: 'callEarly' },
+    { type: 'cast', slot: 'Q' },
+    { type: 'cast', slot: 'R', x: 13, y: 20.25 },
+    { type: 'learn', slot: 'E' },
+    { type: 'build', padId: 3, tower: 'frost' },
+    { type: 'sell', towerId: 9 },
+    { type: 'upgrade', towerId: 9 },
+    { type: 'upgrade', towerId: 9, branch: 'glacier' },
+    { type: 'setPriority', towerId: 9, priority: 'strongest' },
+    { type: 'gift', to: 'p2', amount: 100 },
+  ];
+
+  it('stores every command as a compact array and reads it back', () => {
+    expect(encodeReplayCommand({ type: 'move', x: 12.35, y: 30 })).toEqual(['move', 12.35, 30]);
+    for (const cmd of commands) expect(decodeReplayCommand(encodeReplayCommand(cmd))).toEqual(cmd);
+  });
+
+  it('rejects malformed entries like a malformed client command', () => {
+    expect(decodeReplayCommand(['teleport', 1, 2])).toBeNull();
+    expect(decodeReplayCommand(['move', 1])).toBeNull();
+    expect(decodeReplayCommand(['move', 1, 2, 3])).toBeNull();
+    expect(decodeReplayCommand(['build', 1, 'laser'])).toBeNull();
+    expect(decodeReplayCommand(['toString'])).toBeNull();
+    expect(decodeReplayCommand([])).toBeNull();
   });
 });

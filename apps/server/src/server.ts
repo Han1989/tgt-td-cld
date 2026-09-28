@@ -65,7 +65,8 @@ interface Conn {
   alive: boolean;
 }
 
-export function createGameServer(config: ServerConfig): GameServer {
+/** `log` gets one line per finished match (the report summary), for the host's logs (Render: Logs). */
+export function createGameServer(config: ServerConfig, log: (msg: string) => void = () => {}): GameServer {
   const startedAt = performance.now();
   const rooms = new Map<string, Room>();
   const conns = new Set<Conn>();
@@ -206,7 +207,7 @@ export function createGameServer(config: ServerConfig): GameServer {
     if (msg.t === 'create') {
       if (rooms.size >= config.maxRooms) return entryError(conn, 'server_full', 'The server is full; try again later');
       const code = generateRoomCode(config.shard, (c) => rooms.has(c), () => randomInt(0, 1 << 30) / (1 << 30));
-      const room = new Room(code, config, () => randomInt(0, 2 ** 31 - 1), now);
+      const room = new Room(code, config, () => randomInt(0, 2 ** 31 - 1), now, log);
       rooms.set(code, room);
       enter(conn, room, room.join(msg.name, msg.hero, socketOf(conn)));
       return;

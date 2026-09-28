@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -174,6 +174,8 @@ export interface HeroSnap {
   maxHp: number;
   mana: number;
   maxMana: number;
+  /** Mana regenerated per second right now (level and Clarity Aura included); skill buttons count down from it. */
+  manaRegen: number;
   level: number;
   maxLevel: number;
   xp: number;
@@ -325,6 +327,70 @@ export interface Snapshot {
 }
 
 // ---------------------------------------------------------------------------
+// Match reports and replays (sent once, when a match ends)
+// ---------------------------------------------------------------------------
+
+/** How one hero's match went (`MatchReport.heroes`). Seconds are match time (ticks / tick rate). */
+export interface HeroReport {
+  player: PlayerId;
+  name: string;
+  hero: HeroKind;
+  /** Level at the end. */
+  level: number;
+  kills: number;
+  deaths: number;
+  /** Second each level was reached: index 0 = level 2. */
+  levelUps: number[];
+  /** Level when each wave ended (same indices as `MatchReport.heartAfterWave`). */
+  levelByWave: number[];
+  casts: { Q: number; W: number; R: number };
+  /** Seconds Q / W were learned and off cooldown but cost more mana than the hero had (while alive). */
+  noManaSeconds: { Q: number; W: number };
+  /** Ultimates cast within 2 s of another hero's ultimate (either side). */
+  rOverlaps: number;
+}
+
+/** A summary of a finished match, built by the host (server or local worker) from the simulation. */
+export interface MatchReport {
+  /** Report format version. */
+  format: 1;
+  protocol: number;
+  mode: GameMode;
+  seed: number;
+  result: 'victory' | 'defeat';
+  /** Waves started (the last one reached on a defeat) and the match's total. */
+  wave: number;
+  totalWaves: number;
+  seconds: number;
+  heartHp: number;
+  heartMaxHp: number;
+  /** Heart HP when each wave ended (when the next one started; the last: when the match ended). */
+  heartAfterWave: number[];
+  heroes: HeroReport[];
+}
+
+/**
+ * One entry of a replay log, applied when the simulation is at `tick` (before stepping to tick + 1):
+ * `[tick, player index, command type, …arguments]` (see `encodeReplayCommand`), or
+ * `[tick, player index, 'join' | 'drop' | 'leave']` (reconnected / disconnected / gone for good).
+ */
+export type ReplayEntry = [tick: number, player: number, what: string, ...args: (string | number)[]];
+
+/** Everything needed to re-run a match with the simulation: the seed, the setup and every input with its tick. */
+export interface Replay {
+  /** Replay format version. */
+  format: 1;
+  protocol: number;
+  seed: number;
+  mode: GameMode;
+  players: { id: PlayerId; name: string; hero: HeroKind }[];
+  /** Inputs in the order the host applied them. */
+  log: ReplayEntry[];
+  /** How the match ended; a re-run must end the same way. */
+  end: { tick: number; result: GamePhase; wave: number; heartHp: number };
+}
+
+// ---------------------------------------------------------------------------
 // Rooms and lobby (online play)
 // ---------------------------------------------------------------------------
 
@@ -445,4 +511,6 @@ export type ServerMessage =
   | { t: 'delta'; delta: SnapshotDelta }
   | { t: 'error'; code: ErrorCode; message: string }
   /** The server is shutting down; it closes this connection within `closesInMs`. */
-  | { t: 'notice'; kind: 'server_restarting'; message: string; closesInMs: number };
+  | { t: 'notice'; kind: 'server_restarting'; message: string; closesInMs: number }
+  /** Sent once when a match ends (and again to a player who rejoins after): its report and full replay. */
+  | { t: 'report'; report: MatchReport; replay: Replay };

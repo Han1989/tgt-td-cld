@@ -25,5 +25,19 @@ export { findPath, nearestWalkable } from './pathfinding';
 export type { GameConfig, GameState, PlayerConfig } from './state';
 export { createBalanceBot, createIdleBot } from './bots';
 export type { Bot } from './bots';
-export { runHeadlessMatch } from './headless';
-export type { HeadlessResult, HeroMatchStats } from './headless';
+export { runHeadlessMatch, runManaDrill, drillRanks } from './headless';
+export type { HeadlessResult, HeroMatchStats, ManaDrillResult } from './headless';
+export {
+  createMatch,
+  matchCommand,
+  matchPresence,
+  matchStep,
+  matchOver,
+  matchReport,
+  matchReplay,
+  replayMatch,
+  replayProblem,
+  reportSummary,
+  R_OVERLAP_SECONDS,
+} from './match';
+export type { Match, Presence } from './match';

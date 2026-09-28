@@ -43,6 +43,8 @@ export class BotClient {
   snap: Snapshot | null = null;
   errors: ServerMessage[] = [];
   notices: ServerMessage[] = [];
+  /** The match report and replay, once the match ended. */
+  report: Extract<ServerMessage, { t: 'report' }> | null = null;
   closed: { code: number; reason: string } | null = null;
   snapshotsReceived = 0;
   bytesReceived = 0;
@@ -161,6 +163,9 @@ export class BotClient {
         break;
       case 'notice':
         this.notices.push(msg);
+        break;
+      case 'report':
+        this.report = msg;
         break;
     }
     this.notify();

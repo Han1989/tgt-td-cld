@@ -112,7 +112,8 @@ export function decodeServerMessage(raw: unknown): ServerMessage | null {
     (data.t === 'delta' && isRecord(data.delta)) ||
     (data.t === 'lobby' && isRecord(data.lobby)) ||
     (data.t === 'error' && typeof data.code === 'string') ||
-    (data.t === 'notice' && typeof data.kind === 'string');
+    (data.t === 'notice' && typeof data.kind === 'string') ||
+    (data.t === 'report' && isRecord(data.report) && isRecord(data.replay));
   return ok ? (data as unknown as ServerMessage) : null;
 }
 
@@ -240,4 +241,62 @@ function isTowerKind(value: unknown): value is TowerKind {
 
 function isTowerBranch(value: unknown): value is TowerBranch {
   return typeof value === 'string' && (TOWER_BRANCH_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * A command as the compact array a replay log stores after `[tick, player]`: its type, then its fields in a
+ * fixed order (optional ones last, left out when absent). `decodeReplayCommand` reverses it.
+ */
+export function encodeReplayCommand(cmd: Command): (string | number)[] {
+  switch (cmd.type) {
+    case 'move':
+    case 'attackMove':
+      return [cmd.type, cmd.x, cmd.y];
+    case 'attack':
+      return [cmd.type, cmd.targetId];
+    case 'stop':
+    case 'callEarly':
+      return [cmd.type];
+    case 'cast':
+      return cmd.x === undefined || cmd.y === undefined ? [cmd.type, cmd.slot] : [cmd.type, cmd.slot, cmd.x, cmd.y];
+    case 'learn':
+      return [cmd.type, cmd.slot];
+    case 'build':
+      return [cmd.type, cmd.padId, cmd.tower];
+    case 'sell':
+      return [cmd.type, cmd.towerId];
+    case 'upgrade':
+      return cmd.branch === undefined ? [cmd.type, cmd.towerId] : [cmd.type, cmd.towerId, cmd.branch];
+    case 'setPriority':
+      return [cmd.type, cmd.towerId, cmd.priority];
+    case 'gift':
+      return [cmd.type, cmd.to, cmd.amount];
+  }
+}
+
+/** Reads a command back from `encodeReplayCommand`'s array, validated like a client's (null if malformed). */
+export function decodeReplayCommand(parts: readonly unknown[]): Command | null {
+  const [type, a, b, c] = parts;
+  const fields: Record<string, readonly string[]> = {
+    move: ['x', 'y'],
+    attackMove: ['x', 'y'],
+    attack: ['targetId'],
+    stop: [],
+    callEarly: [],
+    cast: ['slot', 'x', 'y'],
+    learn: ['slot'],
+    build: ['padId', 'tower'],
+    sell: ['towerId'],
+    upgrade: ['towerId', 'branch'],
+    setPriority: ['towerId', 'priority'],
+    gift: ['to', 'amount'],
+  };
+  if (typeof type !== 'string' || !Object.hasOwn(fields, type)) return null;
+  const names = fields[type]!;
+  if (parts.length - 1 > names.length) return null;
+  const obj: Record<string, unknown> = { type };
+  [a, b, c].forEach((v, i) => {
+    if (i < parts.length - 1) obj[names[i]!] = v;
+  });
+  return parseCommand(obj);
 }

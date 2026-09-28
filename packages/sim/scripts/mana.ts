@@ -1,11 +1,14 @@
-// Prints how heroes use mana and ultimates in balance-bot matches: `npm run mana [quick] [seeds…]`.
+// Prints how heroes use mana and ultimates in balance-bot matches: `npm run mana [quick|drill] [seeds…]` (`drill`: the
+// cast drill only).
 // Per hero, solo and in teams (the three pairs and the 3-bot team of `npm run balance`), averaged over the seeds:
 // ultimates cast per match, the share of living time with less mana than Q costs, and the share of time after R
 // is learned with R off cooldown but unaffordable; then when R is learned (match minute) and the share of time after
 // that with R off cooldown (the bot only casts it on a group, `MIN_TARGETS.R` in bots.ts, so a ready R can wait).
+// First, the cast drill (`runManaDrill`): a hero at level 1, 6 and 10 with a full pool casts Q and W whenever they're
+// ready; seconds until one is first ready but unaffordable, and Q + W casts per minute after that (vs cooldowns only).
 
 import { HERO_KINDS, type GameMode, type HeroKind } from '@tdt/protocol';
-import { createBalanceBot, runHeadlessMatch, TICK_RATE, type HeroMatchStats } from '../src';
+import { createBalanceBot, runHeadlessMatch, runManaDrill, TICK_RATE, type HeroMatchStats } from '../src';
 
 const args = process.argv.slice(2);
 const mode: GameMode = args.includes('quick') ? 'quick' : 'full';
@@ -17,6 +20,21 @@ const TEAMS: HeroKind[][] = [
   ['arcanist', 'ranger'],
   ['ranger', 'warden', 'arcanist'],
 ];
+
+console.log('Cast drill (Q and W whenever ready, from a full pool)');
+console.log('hero       level  Q/W ranks  seconds to dry  casts/min dry  casts/min, cooldowns only');
+for (const hero of HERO_KINDS) {
+  for (const level of [1, 6, 10]) {
+    const d = runManaDrill(hero, level);
+    console.log(
+      `${hero.padEnd(10)} ${String(level).padStart(5)}  ${`${d.ranks.Q}/${d.ranks.W}`.padStart(9)}  ` +
+        `${d.secondsToDry.toFixed(0).padStart(14)}  ${d.castsPerMinuteDry.toFixed(1).padStart(13)}  ` +
+        `${d.castsPerMinuteFull.toFixed(1).padStart(10)}`,
+    );
+  }
+}
+if (args.includes('drill')) process.exit(0);
+console.log();
 
 const rows = new Map<string, HeroMatchStats[]>();
 const add = (key: string, s: HeroMatchStats) => rows.set(key, [...(rows.get(key) ?? []), s]);

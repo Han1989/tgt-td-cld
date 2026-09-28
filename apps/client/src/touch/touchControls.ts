@@ -340,7 +340,7 @@ export class TouchControls {
       const f = skillFace(hero, skill, tickRate);
       const key =
         `${hero.kind}|${skill.rank}|${skill.maxRank}|${skill.learnable}|${f.noMana}|${f.cost}|${f.ready}|` +
-        `${hero.alive}|${f.cdText}|${Math.round(f.cooldown * 50)}`;
+        `${hero.alive}|${f.cdText}|${f.waitingMana}|${Math.round(f.cooldown * 50)}`;
       if (key === el.key) continue;
       el.key = key;
       el.ico.style.setProperty('--ico', iconVar(skillIcon(hero.kind, skill.slot)));
@@ -349,6 +349,7 @@ export class TouchControls {
       el.wrap.classList.toggle('dead', !hero.alive);
       el.wrap.classList.toggle('cooling', skill.cooldown > 0);
       el.wrap.classList.toggle('ready', f.ready);
+      el.wrap.classList.toggle('waiting-mana', f.waitingMana);
       el.learn.classList.toggle('hidden', !skill.learnable);
       // Q / W: a dark sweep over the button. R: a ring that fills up as the cooldown runs out.
       el.cd.style.setProperty('--cd', `${(f.ultimate ? 1 - f.cooldown : f.cooldown) * 360}deg`);
