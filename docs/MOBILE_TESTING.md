@@ -1,6 +1,6 @@
 # Real-device checklist (Phase 4a)
 
-> For Han. `docs/MOBILE.md` §8–9: Phase 4a is done when this checklist passes on **one iPhone** (iPhone 12 or newer, iOS 17+, Safari) and **one Android phone** (2021 or newer, current Chrome), plus one online match with a phone and a desktop player together, and one full 3-player room (the most a match holds, one player per lane). The automated browser tests (`npm run test:e2e`) cover the same flows in emulation; this list covers what emulation can't show: real fingers, real screens, notches, home indicators, backgrounding and real GPUs.
+> For Han. `docs/MOBILE.md` §8–9 (§8 below, the sound check, is Phase 4b): Phase 4a is done when this checklist passes on **one iPhone** (iPhone 12 or newer, iOS 17+, Safari) and **one Android phone** (2021 or newer, current Chrome), plus one online match with a phone and a desktop player together, and one full 3-player room (the most a match holds, one player per lane). The automated browser tests (`npm run test:e2e`) cover the same flows in emulation; this list covers what emulation can't show: real fingers, real screens, notches, home indicators, backgrounding and real GPUs.
 
 ## Before you start
 
@@ -91,10 +91,25 @@ A match holds at most **3 players, one per lane**. Use the phone, the desktop an
 - [ ] 7.5 Play a few waves (Quick is fine). Report the result and the Heart HP left if you finish.
 - [ ] 7.6 Finish a match (win or lose): every player's end screen shows **Save match report**, each phone can save or share the file, and the three files are the same match (same seed at the top). Someone who reconnects after the end gets the button too. The server's log (Render → Logs) shows one `match <code> …` line for it, whose `build` is the commit Render deployed (the same as `"build"` at the top of the saved files).
 
+## 8. Sound (Phase 4b)
+
+Everything you hear is made in code (docs/ART.md §13). Do this on **both phones**, first in a **solo** match, then in the **online** match of §6. Volume up; on the iPhone, the silent switch off unless a step says otherwise.
+
+- [ ] 8.1 **First tap:** open the game fresh (in the browser, then the installed app). Nothing plays before you touch the screen. The first tap anywhere starts a calm lobby tune (bells over a soft pad) within a second. The speaker button at the top right of the lobby card mutes and unmutes it.
+- [ ] 8.2 **Music follows the match:** starting a match switches to the match tune: calm while you build, a bass / woodblock pulse once waves run, drums and a high bell pattern on boss waves (Quick: waves 5, 10 and 15), easing back after. A victory or defeat plays its fanfare, then the lobby tune returns after a few seconds. The music never stutters, even when the game does.
+- [ ] 8.3 **Effects:** each tower kind sounds different (Arrow thrum, Cannon boom, Frost tinkle, Arcane hum, Flak pops), branches a little higher or lower; creeps pop when they die (bosses with a deep boom), and your kills chime a coin; the Heart gives a **clear two-bell warning** when a creep reaches it; a horn at each wave start, drums for a boss wave; your hero's basic attack (Ranger bow, Arcanist zap, and the **Warden's slash sounds exactly when the blade lands**, not when the swing starts); every Q, W and R; level up; build, upgrade, branch and sell; a dull double knock for "Not enough gold"; a small tick on button taps. Nothing is harsh or shrill. After ~10 minutes, say which sound is too loud, too quiet or annoying.
+- [ ] 8.4 **Busy late waves:** with many towers firing and creeps dying, it stays readable (never a wall of noise, no crackling or distortion) and the Heart warning always cuts through. Note the FPS with ⚙ → Sound on and with it off: it should be the same.
+- [ ] 8.5 **Settings:** ⚙ → **Sound**: the Music and Effects sliders (defaults 50% and 80%) change the level at once (letting go of Effects plays a tick at the new level); **Sound on / Sound off** silences everything. Close and reopen the app: all three are remembered, and the lobby's speaker button shows the same state.
+- [ ] 8.6 **Background:** mid-match, switch to another app, then lock the screen: the sound stops at once (nothing plays from your pocket). Come back: it resumes (on the iPhone it may wait for your first tap). The same while the solo game shows "Paused".
+- [ ] 8.7 **iPhone silent switch:** with the switch on silent the game is silent; switch it back and the sound returns. Start music in another app, then open the game: your music keeps playing under the game's sounds (the game doesn't stop it). This needs iOS 16.4 or newer; on older iOS, note what happens.
+- [ ] 8.8 **Android:** the volume keys change the game's volume. A call or an alarm interrupts it, and the game's sound comes back afterwards.
+- [ ] 8.9 **Online** (phone and desktop): each player hears their own hero, towers and kills louder than the teammate's. On the desktop, zoomed in (wheel), creeps dying far off screen are quieter or silent. Both hear the Heart warning and the wave horns. After the ~20 s reconnect of §6.5, sound resumes.
+- [ ] 8.10 **Every sound once:** open `…/?showcase`, scroll to **Sounds** and tap through every sound and the music scenes on the phone's speaker. Note any that sound wrong there (too thin, too boomy, inaudible).
+
 ## Results
 
-| Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Notes |
-|---|---|---|---|---|---|
-| iPhone … | iOS … Safari | | | | |
-| Android … | Android … Chrome | | | | |
-| Desktop (online test) | … | | | | |
+| Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Notes |
+|---|---|---|---|---|---|---|
+| iPhone … | iOS … Safari | | | | | |
+| Android … | Android … Chrome | | | | | |
+| Desktop (online test) | … | | | | | |

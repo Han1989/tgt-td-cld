@@ -1,6 +1,7 @@
 // Render performance (docs/MOBILE.md §7–8): the 300-creep stress scene under 4×
 // CPU throttling on the phone profile, at High quality with every effect on (the
-// scene hits every creep every tick and streams kills, splashes and skills).
+// scene hits every creep every tick and streams kills, splashes and skills) and
+// the sound on (music and effects, docs/ART.md §13).
 //
 // Asserted everywhere, from a DevTools CPU profile: the JavaScript per frame (our
 // frame update and Pixi building the draw calls) plus the fixed-rate work (snapshots,
@@ -28,6 +29,10 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   await page.goto('/?stress=300');
   await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);
+  // A key press is the first gesture: audio starts (Shift alone does nothing in the game).
+  await page.keyboard.press('Shift');
+  await expect.poll(() => page.evaluate(() => window.__tdt.audio().state)).toBe('running');
+  await expect.poll(() => page.evaluate(() => window.__tdt.audio().baked)).toBeGreaterThanOrEqual(48);
   const gpu = await page.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2');
     const info = gl?.getExtension('WEBGL_debug_renderer_info');
@@ -58,6 +63,7 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   };
   const visible = await page.evaluate(() => window.__tdt.visibleCreeps());
   const fx = await page.evaluate(() => window.__tdt.fx());
+  const sound = await page.evaluate(() => window.__tdt.audio());
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
   // JavaScript time per sample, split into per-frame work (anything under Pixi's ticker: our frame update and the
@@ -89,13 +95,17 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   const software = /swiftshader|llvmpipe|software/i.test(gpu);
   const report =
     `${fps.toFixed(1)} FPS measured; JavaScript ${perFrameMs.toFixed(1)} ms per frame + ${fixedPerSecMs.toFixed(0)} ms/s fixed ` +
-    `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; ${fx.live} effect particles live; GPU: ${gpu}`;
+    `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; ${fx.live} effect particles live; ` +
+    `sound ${sound.state}: ${sound.played} effects played, ${sound.skipped} skipped, ${sound.notes} music notes; GPU: ${gpu}`;
   test.info().annotations.push({ type: 'stress', description: report });
   console.log(`Stress scene (300 creeps, 4× CPU throttling): ${report}`);
 
   expect(visible).toBe(300);
   expect(fx.particles).toBe(true);
   expect(fx.live).toBeGreaterThan(50);
+  expect(sound.state).toBe('running');
+  expect(sound.played).toBeGreaterThan(0);
+  expect(sound.notes).toBeGreaterThan(0);
   expect(perFrameMs).toBeLessThanOrEqual(BUDGET_MS);
   expect(at30).toBeLessThanOrEqual(1000);
   if (!software) expect(fps).toBeGreaterThanOrEqual(30);

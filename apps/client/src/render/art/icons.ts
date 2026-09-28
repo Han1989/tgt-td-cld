@@ -393,7 +393,31 @@ const UI_ICONS: Record<string, IconDraw> = {
     p.part(c, star(0, 1, 16, 7, 5), k.gold, box(-16, -15, 16, 16));
     p.accent(c, circle(0, 2, 2.5), k.eye);
   },
+  // Sound on: a stone speaker with two moonlit waves.
+  sound: (c, p, k) => {
+    speaker(c, p, k);
+    for (const r of [7, 12.5]) {
+      const w = new Path2D();
+      w.arc(3, 0, r, -0.85, 0.85);
+      p.line(c, w, k.ink, 4.4);
+      p.line(c, w, k.moon, 2.2);
+    }
+  },
+  // Muted: the speaker with a red cross.
+  muted: (c, p, k) => {
+    speaker(c, p, k);
+    const x = pathLine([8, -6, 17, 6]);
+    x.addPath(pathLine([8, 6, 17, -6]));
+    p.line(c, x, k.ink, 5);
+    p.line(c, x, k.heart, 2.6);
+  },
 };
+
+/** A speaker: a box and a cone, facing right. */
+function speaker(c: Ctx, p: Painter, k: Tokens): void {
+  p.part(c, poly([-16, -6, -8, -6, 3, -15, 3, 15, -8, 6, -16, 6], 1.5), k.stone, box(-16, -15, 3, 15));
+  p.detail(c, rrect(-14, -4, 5, 8, 1), k.stoneDark);
+}
 
 // ---------------------------------------------------------------------------
 // Registry and baking
@@ -412,7 +436,9 @@ export type IconId =
   | 'upgrade'
   | 'sell'
   | 'target'
-  | 'level';
+  | 'level'
+  | 'sound'
+  | 'muted';
 
 /** Every icon, by id. */
 export const ICONS: ReadonlyMap<string, IconDraw> = (() => {

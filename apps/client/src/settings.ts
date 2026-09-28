@@ -1,5 +1,5 @@
 // Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake;
-// Display: docs/ART.md §2).
+// Display: docs/ART.md §2; sound: docs/ART.md §13).
 
 import type { ThumbLayout } from './layout';
 import type { Display } from './render/art/tokens';
@@ -13,6 +13,11 @@ export interface Settings {
   shake: boolean;
   /** Normal, or Bright (lifts the ground and shadows for outdoor play). */
   display: Display;
+  /** Music and effects volume, 0–1 (the sliders, in steps of 5%). */
+  music: number;
+  sfx: number;
+  /** Mutes all sound (music and effects). */
+  muted: boolean;
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
@@ -33,7 +38,20 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 };
 
 const KEY = 'tdt.settings';
-export const DEFAULT_SETTINGS: Settings = { thumbs: 'one', quality: 'auto', shake: true, display: 'normal' };
+export const DEFAULT_SETTINGS: Settings = {
+  thumbs: 'one',
+  quality: 'auto',
+  shake: true,
+  display: 'normal',
+  music: 0.5,
+  sfx: 0.8,
+  muted: false,
+};
+
+/** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
+function volume(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1 ? Math.round(v * 20) / 20 : null;
+}
 
 /** Parses stored settings, keeping only known values. */
 export function parseSettings(raw: string | null): Settings {
@@ -45,6 +63,9 @@ export function parseSettings(raw: string | null): Settings {
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;
     if (typeof v.shake === 'boolean') out.shake = v.shake;
     if (v.display === 'normal' || v.display === 'bright') out.display = v.display;
+    out.music = volume(v.music) ?? out.music;
+    out.sfx = volume(v.sfx) ?? out.sfx;
+    if (typeof v.muted === 'boolean') out.muted = v.muted;
   } catch {
     // Corrupt value: defaults.
   }

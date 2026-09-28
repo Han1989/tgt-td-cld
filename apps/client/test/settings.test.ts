@@ -6,10 +6,17 @@ describe('settings', () => {
   it('keeps known values and falls back to the defaults', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{bad json')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ thumbs: 'twoLeft', quality: 'low', shake: true, display: 'normal' });
+    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ ...DEFAULT_SETTINGS, thumbs: 'twoLeft', quality: 'low' });
     expect(parseSettings(JSON.stringify({ thumbs: 'three', quality: 7 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ display: 'bright' })).display).toBe('bright');
     expect(parseSettings(JSON.stringify({ display: 'neon' })).display).toBe('normal');
+  });
+
+  it('keeps the sound settings: effects 80% and music 50% by default, volumes in 5% steps', () => {
+    expect(DEFAULT_SETTINGS).toMatchObject({ sfx: 0.8, music: 0.5, muted: false });
+    expect(parseSettings(JSON.stringify({ music: 0.33, sfx: 0, muted: true }))).toMatchObject({ music: 0.35, sfx: 0, muted: true });
+    expect(parseSettings(JSON.stringify({ music: 2, sfx: -1, muted: 'yes' }))).toMatchObject({ music: 0.5, sfx: 0.8, muted: false });
+    expect(parseSettings(JSON.stringify({ music: 'loud', sfx: null }))).toMatchObject({ music: 0.5, sfx: 0.8 });
   });
 });
 

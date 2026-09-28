@@ -114,7 +114,7 @@ The two-thumb layouts use the same overlay approach.
   - Viewport `width=device-width, initial-scale=1, viewport-fit=cover`.
   - Stop the browser taking over gestures: `touch-action: none` on the canvas, `overscroll-behavior: none`, no text selection or long-press callout, no context menu.
 - **Leaving the app:** in solo, the game pauses automatically when the page is hidden. Online, it rejoins within 60 s, with a "Reconnecting…" overlay.
-- **Screen Wake Lock** during matches, where supported. **Audio** (Phase 4b) starts on the first tap.
+- **Screen Wake Lock** during matches, where supported. **Audio** (Phase 4b, done: `docs/ART.md` §13) starts on the first tap, pauses in the background and uses Safari's ambient audio session (the silent switch mutes it).
 - **PWA:**
   - Manifest with name, short_name "TD Together", icons at 192 and 512 px (including maskable), `display: fullscreen`, `orientation: portrait`.
   - The service worker caches the app shell for a fast start and **offline solo play**, and never touches the WebSocket.
@@ -154,7 +154,7 @@ The two-thumb layouts use the same overlay approach.
 - Han completes the real-device checklist.
 
 ### Phase 4b: Polish
-- Sprites and sound. **Art direction: Runelight, see `docs/ART.md`** (Art Track 0: style guide, art registry, `?showcase`, Display setting).
+- Sprites and sound. **Art direction: Runelight, see `docs/ART.md`** (Art Track 0: style guide, art registry, `?showcase`, Display setting). **Sound: done** (music and effects made in code, `docs/ART.md` §13; real-device check: `docs/MOBILE_TESTING.md` §8).
 - Team pings (long-press on the map on phones, Alt-click on desktop) and quick-chat emotes.
 - Difficulty modes.
 - Balance carry-overs: a 3-player gate (**done: matches hold 3 players, and 1, 2 and 3 are gated in Full and Quick**), per-hero tuning, how often ultimates get used (**done: the hero mana rework**, ultimates cost no mana, and the balance bot casts R on 3+ creeps; Decision Log).
