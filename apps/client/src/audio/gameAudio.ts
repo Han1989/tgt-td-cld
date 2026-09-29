@@ -5,18 +5,31 @@
 // Mixing (mix.ts): your own hero, towers and kills are louder than a teammate's; off-screen sounds
 // are quieter or skipped; every sound has a cooldown and a voice cap, so 300 creeps and a map full of
 // towers stay music, not noise, and cost next to nothing when nothing can be heard (muted: no work).
+// Every play is a new take (`Takes`): another baked variant, a slightly different pitch and level,
+// a few ms of timing and more or less room, so repeats never sound identical.
 
 import type { CreepKind, GameEvent, HeroSnap, PlayerId, Snapshot, TowerBranch, TowerSnap } from '@tdt/protocol';
 import { TUNING, tuningForMode, type Tuning } from '@tdt/sim';
-import { placement, OTHERS_GAIN, VoiceGate, type ViewBox } from './mix';
+import { placement, OTHERS_GAIN, Takes, VoiceGate, type ViewBox } from './mix';
 import type { MusicScene } from './score';
 import { SOUNDS, type Priority, type SoundId } from './sounds';
 import { soundSeconds } from './synth';
 
+/** How one sound plays: level, stereo position, rate, variant, timing and reverb send. */
+export interface SoundPlay {
+  gain: number;
+  pan: number;
+  rate: number;
+  variant: number;
+  /** Seconds after now. */
+  delay: number;
+  wet: number;
+}
+
 /** Where sounds go: the engine, or a fake in the tests. */
 export interface SoundSink {
   readonly sfxOn: boolean;
-  play(id: string, o: { gain: number; pan: number; rate: number }): boolean;
+  play(id: string, o: SoundPlay): boolean;
 }
 
 /** Branch shots play their tower's sound at another pitch: heavier (< 1) or lighter (> 1). */
@@ -87,7 +100,7 @@ export class GameAudio {
   private endedAt = -Infinity;
   private sceneTick = -1;
   private scene: MusicScene = 'none';
-  private seed = 1;
+  private readonly takes = new Takes();
   /** Effects played and skipped (by the mix or the gate), and plays by id (browser tests). */
   readonly stats = { played: 0, skipped: 0, byId: {} as Record<string, number> };
 
@@ -245,12 +258,6 @@ export class GameAudio {
     return this.latest?.heroes.some((h) => h.owner === this.me && h.kind === kind) ?? false;
   }
 
-  /** ±3% pitch, so repeated sounds don't machine-gun. */
-  private jitter(): number {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return 1 + (this.seed / 0x7fffffff - 0.5) * 0.06;
-  }
-
   /**
    * Plays `id` if the mix lets it: `at` places it on the map (null / absent: heard everywhere, like
    * the Heart or the UI), `mine` says whether it's yours.
@@ -275,7 +282,8 @@ export class GameAudio {
       this.stats.skipped++;
       return;
     }
-    if (!this.sink.play(sid, { gain, pan, rate: rate * this.jitter() })) return;
+    const take = this.takes.next(sid, spec);
+    if (!this.sink.play(sid, { gain: gain * take.gain, pan, rate: rate * take.rate, variant: take.variant, delay: take.delay, wet: take.wet })) return;
     this.stats.played++;
     this.stats.byId[sid] = (this.stats.byId[sid] ?? 0) + 1;
   }

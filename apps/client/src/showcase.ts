@@ -19,7 +19,10 @@ import { towerStats, TUNING } from '@tdt/sim';
 import { Application, Container, type Sprite } from 'pixi.js';
 import { createAudio } from './audio';
 import type { MusicScene } from './audio/score';
-import { SOUNDS } from './audio/sounds';
+import { MUSIC_FILES } from './audio/files';
+import { Takes } from './audio/mix';
+import { SOUND_IDS, SOUNDS, type SoundId } from './audio/sounds';
+import { soundSeconds } from './audio/synth';
 import { ICONS, installIcons } from './render/art/icons';
 import { ArtKit } from './render/art/kit';
 import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
@@ -217,27 +220,53 @@ export async function runShowcase(): Promise<void> {
     `</div>`;
   root.insertBefore(icons, app.canvas);
 
-  // Sounds (docs/ART.md §13): every effect and the music scenes, made in code. Tap to play (the first tap starts audio).
+  // Sounds (docs/ART.md §13): every effect and the music scenes. Tap to play (the first tap starts audio).
+  // Each tap is a new take (another variant, pitch, level, timing and room), as in a match; "×4" plays
+  // four in a row, to hear that no two are the same. Effects and music from recorded files are marked.
   const audio = createAudio();
   audio.engine.setMix({ music: 0.5, sfx: 0.8, muted: false });
+  const takes = new Takes(Date.now() & 0xffff);
   const sounds = document.createElement('section');
   sounds.className = 'sc-sounds';
   const scenes: MusicScene[] = ['lobby', 'build', 'waves', 'boss', 'none'];
+  const files = audio.engine.files;
+  const musicFiles = MUSIC_FILES.filter((m) => files.music[m]);
   sounds.innerHTML =
-    `<h2>Sounds (${Object.keys(SOUNDS).length})</h2><p>Made in code (src/audio/). Tap one to hear it at its in-game level.</p>` +
-    `<div class="sc-display sc-music">Music: ${scenes.map((m) => `<button data-scene="${m}">${m === 'none' ? 'Stop' : m}</button>`).join('')}</div>` +
-    `<div class="sc-sound-grid">${Object.keys(SOUNDS).map((id) => `<button data-sound="${id}">${id}</button>`).join('')}</div>`;
+    `<h2>Sounds (${SOUND_IDS.length})</h2><p>Made in code (src/audio/): a lobby in a Japanese garden, matches in a war epic. ` +
+    `Tap one to hear it at its in-game level; every tap is a new take. Recorded files (docs/SOUND_FILES.md): ` +
+    `${musicFiles.length ? `music ${musicFiles.join(', ')}` : 'no music'}, ${Object.keys(files.sfx).length} effects.</p>` +
+    `<div class="sc-display sc-music">Music: ${scenes.map((m) => `<button data-scene="${m}">${m === 'none' ? 'Stop' : m}</button>`).join('')}` +
+    `<span class="sc-music-now" id="sc-music-now"></span></div>` +
+    `<div class="sc-display">Play: <button data-repeat="1" class="active">×1</button><button data-repeat="4">×4</button></div>` +
+    `<div class="sc-sound-grid">${SOUND_IDS.map(
+      (id) => `<button data-sound="${id}">${id}${files.sfx[id] ? ' <b>file</b>' : ''}<small>${SOUNDS[id].variants} take${SOUNDS[id].variants > 1 ? 's' : ''}</small></button>`,
+    ).join('')}</div>`;
+  let repeat = 1;
+  const playTake = (id: SoundId, after: number) => {
+    const spec = SOUNDS[id];
+    const t = takes.next(id, spec);
+    audio.engine.play(id, { gain: spec.volume * t.gain, rate: t.rate, variant: t.variant, delay: after + t.delay, wet: t.wet });
+  };
   sounds.addEventListener('click', (e) => {
     const b = (e.target as Element).closest('button');
     if (!b) return;
-    const id = b.dataset.sound as keyof typeof SOUNDS | undefined;
-    if (id) audio.engine.play(id, { gain: SOUNDS[id].volume });
+    const id = b.dataset.sound as SoundId | undefined;
+    if (id) for (let i = 0; i < repeat; i++) playTake(id, i * Math.min(1.2, Math.max(0.35, soundSeconds(SOUNDS[id].def) * 0.6)));
+    if (b.dataset.repeat) {
+      repeat = Number(b.dataset.repeat);
+      for (const x of sounds.querySelectorAll('[data-repeat]')) x.classList.toggle('active', x === b);
+    }
     const scene = b.dataset.scene as MusicScene | undefined;
     if (scene) {
       audio.music.setScene(scene);
       for (const x of sounds.querySelectorAll('[data-scene]')) x.classList.toggle('active', x === b && scene !== 'none');
     }
   });
+  const now = sounds.querySelector('#sc-music-now')!;
+  setInterval(() => {
+    const src = audio.music.source;
+    now.textContent = src === 'none' ? '' : src === 'code' ? '· code-made' : `· ${src}.mp3`;
+  }, 400);
   root.insertBefore(sounds, app.canvas);
 
   const paintStages = () => {
@@ -532,5 +561,8 @@ const CSS = `
 #showcase .sc-sound-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
 #showcase .sc-sound-grid button { font: 12px system-ui, sans-serif; padding: 10px 6px; border-radius: 8px; border: 1px solid #243242;
   background: #16202b; color: #e8eef5; }
+#showcase .sc-sound-grid button small { display: block; color: #7f91a4; font-size: 10px; margin-top: 2px; }
+#showcase .sc-sound-grid button b { color: #f2c46d; font-weight: 600; font-size: 10px; }
+#showcase .sc-music-now { color: #9fb0c2; font-size: 12px; margin-left: 6px; }
 #showcase .sc-todo span { display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 10px; background: #243242; color: #c9d6e3; }
 `;

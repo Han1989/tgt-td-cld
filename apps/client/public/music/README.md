@@ -1,10 +1,18 @@
 # Music files (optional)
 
-The game makes its music in code (`src/audio/score.ts`). To use recorded music instead:
+The game makes its music in code (`src/audio/score.ts`). A recorded file replaces it for its scene
+as soon as it's in this folder (after the next deploy; no code change):
 
-1. Put `lobby.mp3`, `match.mp3` and, if you have one, `boss.mp3` in this folder. Each file loops;
-   without `boss.mp3`, boss waves keep playing `match.mp3`.
-2. In `src/audio/musicFiles.ts`, change `MUSIC_DIR` from `null` to `'/music/'`.
+| File | Plays | If it's missing |
+|---|---|---|
+| `lobby.mp3` | The lobby and the end screen | The code-made lobby music (koto, shakuhachi, taiko) |
+| `match.mp3` | A match: building and waves (and boss waves, without `boss.mp3`) | The code-made match music (war drums, erhu, guzheng) |
+| `boss.mp3` | Boss waves and while a boss lives | `match.mp3`, else the code-made boss layers |
 
-Keep the files small (a loop of 1–2 minutes, ~1–2 MB each): the service worker precaches everything
-in `public/` so solo plays offline.
+- Each file loops. The game trims the encoder's silence at both ends, so a file cut on the beat
+  loops without a gap, and it levels every file to the same loudness.
+- Stereo, 44.1 kHz, 128 kbps, a loop of 1–2 minutes: 1–2 MB (a warning at build time above 4.5 MB).
+- Files aren't downloaded when the app installs: each one is fetched the first time it plays and then
+  kept for offline play. Until it has arrived, the code-made music plays.
+
+Step by step, with where to get music you may use in a paid game: `docs/SOUND_FILES.md`.

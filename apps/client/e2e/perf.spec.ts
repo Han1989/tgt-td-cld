@@ -32,7 +32,7 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   // A key press is the first gesture: audio starts (Shift alone does nothing in the game).
   await page.keyboard.press('Shift');
   await expect.poll(() => page.evaluate(() => window.__tdt.audio().state)).toBe('running');
-  await expect.poll(() => page.evaluate(() => window.__tdt.audio().baked)).toBeGreaterThanOrEqual(48);
+  await expect.poll(() => page.evaluate(() => window.__tdt.audio().baked === window.__tdt.audio().total)).toBe(true);
   const gpu = await page.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2');
     const info = gl?.getExtension('WEBGL_debug_renderer_info');

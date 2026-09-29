@@ -3,12 +3,35 @@ import { join } from 'node:path';
 import { HERO_KINDS, TOWER_KINDS, type GameEvent, type Snapshot } from '@tdt/protocol';
 import { applyCommand, createGame, snapshot, TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
-import { END_QUIET_MS, GameAudio, isBossWave, musicScene, type SoundSink } from '../src/audio/gameAudio';
-import { HEAR_MARGIN, OTHERS_GAIN, placement, VOICE_CAPS, VoiceGate, type ViewBox } from '../src/audio/mix';
-import { MUSIC_DIR } from '../src/audio/musicFiles';
-import { lobbyTrack, matchTrack, noteRate, SCENE_LAYERS, SCENE_TRACK, stepSeconds, STEPS_PER_BAR, type MusicScene } from '../src/audio/score';
-import { allSynthDefs, INSTRUMENTS, SOUNDS } from '../src/audio/sounds';
-import { BAKE_RATE, MAX_SECONDS, PEAK, renderSound, rms, soundSeconds } from '../src/audio/synth';
+import { END_QUIET_MS, GameAudio, isBossWave, musicScene, type SoundPlay, type SoundSink } from '../src/audio/gameAudio';
+import {
+  fitFile,
+  levelGain,
+  loudness,
+  MAX_ADJUST_DB,
+  MUSIC_FILES,
+  MUSIC_TARGET_DB,
+  musicFileFor,
+  soundFiles,
+  trimSilence,
+} from '../src/audio/files';
+import { HEAR_MARGIN, OTHERS_GAIN, placement, TAKE_DELAY, TAKE_GAIN_DB, Takes, VOICE_CAPS, VoiceGate, type ViewBox } from '../src/audio/mix';
+import {
+  humanize,
+  lobbyTrack,
+  matchTrack,
+  mixdown,
+  SCENE_LAYERS,
+  SCENE_TRACK,
+  stepSeconds,
+  STEPS_PER_BAR,
+  type MusicScene,
+  type Note,
+  type Track,
+} from '../src/audio/score';
+import { allSynthDefs, INSTRUMENTS, noteSample, SOUND_IDS, SOUNDS, variantId, type Instrument } from '../src/audio/sounds';
+import { BAKE_RATE, MAX_SECONDS, midiHz, PEAK, renderSound, rms, roomImpulse, soundSeconds, varyDef } from '../src/audio/synth';
+import { isMediaPath, MEDIA_CACHE, swSource } from '../src/platform/swSource';
 
 /** How bright a sound is: RMS of its first difference over its RMS (a sine at f Hz gives 2·sin(π·f / rate)). */
 function brightness(s: Float32Array): number {
@@ -19,15 +42,25 @@ function brightness(s: Float32Array): number {
 
 describe('synth and sound bank', () => {
   const defs = allSynthDefs();
+  const baked = new Map<string, Float32Array>();
+  const bake = (id: string) => {
+    let s = baked.get(id);
+    if (!s) {
+      const job = defs.get(id)!;
+      baked.set(id, (s = renderSound(job.def, BAKE_RATE, job.seed)));
+    }
+    return s;
+  };
 
-  it('renders every sound and instrument: finite, normalised, audible, short, deterministic', () => {
+  it('renders every sound, variant and instrument: finite, normalised, audible, short, deterministic', () => {
     const t0 = performance.now();
-    const baked = [...defs].map(([id, def]) => [id, def, renderSound(def)] as const);
+    for (const id of defs.keys()) bake(id);
     const ms = performance.now() - t0;
     console.log(`Baked ${defs.size} sounds in ${ms.toFixed(0)} ms (Node, ${BAKE_RATE} Hz)`);
-    // The whole bank bakes in a fraction of a second (in a worker in the browser).
-    expect(ms).toBeLessThan(2000);
-    for (const [id, def, s] of baked) {
+    // The whole bank bakes in about a second (in a worker in the browser, the lobby's instruments first).
+    expect(ms).toBeLessThan(2500);
+    for (const [id, { def }] of defs) {
+      const s = bake(id);
       expect(s.length, id).toBe(Math.ceil(soundSeconds(def) * BAKE_RATE));
       expect(soundSeconds(def), id).toBeLessThanOrEqual(MAX_SECONDS);
       let peak = 0;
@@ -42,16 +75,71 @@ describe('synth and sound bank', () => {
       // Ends without a click.
       expect(Math.abs(s[s.length - 1]!), id).toBeLessThan(0.01);
     }
-    expect(renderSound(SOUNDS.death.def)).toEqual(renderSound(SOUNDS.death.def));
+    const job = defs.get('death')!;
+    expect(renderSound(job.def, BAKE_RATE, job.seed)).toEqual(bake('death'));
   });
 
   it('nothing is harsh: every sound is soft (little energy up high)', () => {
-    for (const [id, def] of defs) {
-      // 0.9 ≈ a pure sine at 3.5 kHz: chimes and whooshes sit below it, raw noise or a square wave far above.
-      expect(brightness(renderSound(def)), id).toBeLessThan(0.9);
+    for (const id of defs.keys()) {
+      // 0.9 ≈ a pure sine at 3.5 kHz: strings, drums, gongs and steel sit below it, raw noise or a square wave far above.
+      expect(brightness(bake(id)), id).toBeLessThan(0.9);
     }
     const harsh = renderSound({ layers: [{ wave: 'noise', freq: 0, decay: 0.2, gain: 1 }] });
     expect(brightness(harsh)).toBeGreaterThan(1);
+  });
+
+  it('bakes each effect in several variants, all different, so repeats never sound identical', () => {
+    for (const id of SOUND_IDS) {
+      const n = SOUNDS[id].variants;
+      expect(n, id).toBeGreaterThanOrEqual(1);
+      for (let k = 0; k < n; k++) expect(defs.has(variantId(id, k)), id).toBe(true);
+      expect(defs.has(variantId(id, n)), id).toBe(false);
+    }
+    // Frequent sounds get the most.
+    expect(SOUNDS.death.variants).toBeGreaterThanOrEqual(4);
+    expect(SOUNDS['shot.arrow'].variants).toBeGreaterThanOrEqual(4);
+    const a = bake('death');
+    const b = bake(variantId('death', 1));
+    const c = bake(variantId('death', 2));
+    expect(b).not.toEqual(a);
+    expect(c).not.toEqual(b);
+    // …but still the same sound: about as long and as loud.
+    expect(Math.abs(b.length - a.length) / a.length).toBeLessThan(0.15);
+    expect(Math.abs(20 * Math.log10(rms(b) / rms(a)))).toBeLessThan(3);
+    // Variants move each layer a few ms, never the first one.
+    const v = varyDef(SOUNDS.victory.def, 3);
+    expect(v.layers[0]!.at ?? 0).toBe(SOUNDS.victory.def.layers[0]!.at ?? 0);
+    expect(v.layers.some((l, i) => Math.abs((l.at ?? 0) - (SOUNDS.victory.def.layers[i]!.at ?? 0)) > 0.001)).toBe(true);
+    expect(varyDef(SOUNDS.victory.def, 0)).toBe(SOUNDS.victory.def);
+  });
+
+  it('plucks strings in tune (Karplus-Strong with a fractional delay), and bends them', () => {
+    for (const note of [45, 57, 69, 81]) {
+      const f = midiHz(note);
+      const s = renderSound({ layers: [{ wave: 'pluck', freq: f, decay: 1.5, gain: 1, pluck: { bright: 0.6, damp: 0.3 } }] });
+      expect(pitchOf(s.subarray(2400, 14_400), BAKE_RATE) / f, `note ${note}`).toBeCloseTo(1, 2);
+    }
+    const bent = renderSound({ layers: [{ wave: 'pluck', freq: 220, glide: 1.12, glideTime: 0.1, glideAt: 0.2, decay: 1.2, gain: 1 }] });
+    expect(pitchOf(bent.subarray(0, 4000), BAKE_RATE)).toBeCloseTo(220, -1);
+    expect(pitchOf(bent.subarray(9000, 16_000), BAKE_RATE)).toBeGreaterThan(240);
+  });
+
+  it('drums drop in pitch as the skin relaxes; gongs bloom: their upper partials swell after the strike', () => {
+    const drum = bake('m.wardrum');
+    expect(pitchOf(drum.subarray(0, 1200), BAKE_RATE)).toBeGreaterThan(pitchOf(drum.subarray(4800, 12_000), BAKE_RATE));
+    const gong = renderSound({ layers: [{ wave: 'sine', freq: 200, decay: 0.05, gain: 1, partials: [[4, 1, 100, 0.5]] }] });
+    expect(rms(gong.subarray(12_000, 14_400))).toBeGreaterThan(rms(gong.subarray(0, 2400)) * 2);
+  });
+
+  it('has a room reverb: stereo, no direct sound, dying away and darker as it goes', () => {
+    const [l, r] = roomImpulse(48_000, 1.1);
+    expect(l.length).toBe(52_800);
+    expect(l).not.toEqual(r);
+    expect(Math.abs(l[0]!)).toBeLessThan(0.01);
+    const tenth = l.length / 10;
+    expect(rms(l.subarray(l.length - tenth))).toBeLessThan(rms(l.subarray(0, tenth)) * 0.01);
+    for (const v of [...l, ...r]) expect(Number.isFinite(v)).toBe(true);
+    expect(brightness(l.subarray(l.length / 2))).toBeLessThan(brightness(l.subarray(0, l.length / 4)));
   });
 
   it('has a sound for each tower kind, hero attack, Q / W / R cast and every listed event', () => {
@@ -69,10 +157,13 @@ describe('synth and sound bank', () => {
       expect(s.volume, id).toBeLessThanOrEqual(1);
       expect(s.max, id).toBeGreaterThanOrEqual(1);
       expect(s.cooldown, id).toBeGreaterThanOrEqual(0);
+      expect(s.wet, id).toBeGreaterThanOrEqual(0);
+      expect(s.wet, id).toBeLessThanOrEqual(0.5);
+      expect(s.pitch, id).toBeLessThanOrEqual(0.05);
     }
   });
 
-  it('uses no sound files: all audio is made in code (until music files are switched on)', () => {
+  it('uses no sound files except recorded ones under their names in public/music and public/sfx', () => {
     const root = new URL('..', import.meta.url).pathname;
     const found: string[] = [];
     const walk = (dir: string) => {
@@ -80,18 +171,51 @@ describe('synth and sound bank', () => {
         if (name === 'node_modules' || name.startsWith('dist') || name === 'test-results') continue;
         const p = join(dir, name);
         if (statSync(p).isDirectory()) walk(p);
-        else if (/\.(mp3|ogg|wav|m4a|aac|flac|opus|webm)$/i.test(name)) found.push(p);
+        else if (/\.(mp3|ogg|wav|m4a|aac|flac|opus|webm)$/i.test(name)) found.push(p.slice(root.length));
       }
     };
     walk(root);
-    // Recorded music may only come in through public/music/, switched on by MUSIC_DIR (musicFiles.ts).
-    if (MUSIC_DIR === null) expect(found).toEqual([]);
-    else expect(found.filter((f) => !f.includes('/public/music/'))).toEqual([]);
+    const allowed = [...MUSIC_FILES.map((m) => `public/music/${m}.mp3`), ...SOUND_IDS.map((id) => `public/sfx/${id}.mp3`)];
+    expect(found.filter((f) => !allowed.includes(f))).toEqual([]);
     // The synth itself never reaches for randomness or the clock: it bakes the same every time.
     const src = readFileSync(new URL('../src/audio/synth.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/Math\.random|Date\.now|performance\.now/);
   });
+
+  it('lists every replaceable effect in public/sfx/README.md and the music files in public/music/README.md', () => {
+    // The build takes the allowed names from these tables (vite.config.ts), so they must list exactly the game's.
+    const names = (dir: string) => {
+      const text = readFileSync(new URL(`../public/${dir}/README.md`, import.meta.url), 'utf8');
+      return [...text.matchAll(/^\| `([^`]+)\.mp3` \|/gm)].map((m) => m[1]!).sort();
+    };
+    expect(names('sfx')).toEqual([...SOUND_IDS].sort());
+    expect(names('music')).toEqual([...MUSIC_FILES].sort());
+  });
 });
+
+/** The fundamental (Hz) of a stretch of samples, by autocorrelation (50 Hz – 2 kHz). */
+function pitchOf(s: Float32Array, rate: number): number {
+  let best = 0;
+  let bestLag = 1;
+  const corr = (lag: number) => {
+    let c = 0;
+    for (let i = 0; i + lag < s.length; i++) c += s[i]! * s[i + lag]!;
+    return c / (s.length - lag);
+  };
+  for (let lag = Math.floor(rate / 2000); lag < rate / 50; lag++) {
+    const c = corr(lag);
+    if (c > best * 1.0001) {
+      best = c;
+      bestLag = lag;
+    }
+  }
+  // Refine between samples (a parabola through the peak).
+  const a = corr(bestLag - 1);
+  const b = corr(bestLag);
+  const c = corr(bestLag + 1);
+  const shift = (a - c) / (2 * (a - 2 * b + c) || 1);
+  return rate / (bestLag + shift);
+}
 
 describe('mix', () => {
   const view: ViewBox = { left: 0, top: 0, right: 20, bottom: 40 };
@@ -127,35 +251,273 @@ describe('mix', () => {
   });
 });
 
+describe('takes', () => {
+  it('never plays the same variant twice in a row, and varies pitch, level, timing and room a little', () => {
+    const takes = new Takes(3);
+    const spec = SOUNDS.death;
+    let last = -1;
+    const rates = new Set<number>();
+    for (let i = 0; i < 200; i++) {
+      const t = takes.next('death', spec);
+      expect(t.variant).not.toBe(last);
+      expect(t.variant).toBeGreaterThanOrEqual(0);
+      expect(t.variant).toBeLessThan(spec.variants);
+      last = t.variant;
+      expect(Math.abs(t.rate - 1)).toBeLessThanOrEqual(spec.pitch);
+      expect(Math.abs(20 * Math.log10(t.gain))).toBeLessThanOrEqual(TAKE_GAIN_DB + 1e-9);
+      expect(t.delay).toBeGreaterThanOrEqual(0);
+      expect(t.delay).toBeLessThanOrEqual(TAKE_DELAY);
+      expect(t.wet).toBeGreaterThanOrEqual(spec.wet * 0.8 - 1e-9);
+      expect(t.wet).toBeLessThanOrEqual(spec.wet * 1.2 + 1e-9);
+      rates.add(t.rate);
+    }
+    expect(rates.size).toBeGreaterThan(150);
+    // Tunes stay in tune; warnings and the UI are barely late.
+    expect(Math.abs(takes.next('levelUp', SOUNDS.levelUp).rate - 1)).toBeLessThanOrEqual(0.006);
+    for (let i = 0; i < 50; i++) expect(takes.next('tap', SOUNDS.tap).delay).toBeLessThanOrEqual(TAKE_DELAY / 3);
+    const one = takes.next('victory', SOUNDS.victory);
+    expect(one.variant).toBe(0);
+  });
+});
+
 describe('music', () => {
-  it('loops in bars and plays every note within the instruments’ range', () => {
-    for (const t of [lobbyTrack(), matchTrack()]) {
+  const tracks = [lobbyTrack(), matchTrack()];
+  const jobs = allSynthDefs();
+  const cache = new Map<string, Float32Array>();
+  const samples = (id: string) => {
+    let s = cache.get(id);
+    if (!s) cache.set(id, (s = renderSound(jobs.get(id)!.def, BAKE_RATE, 0)));
+    return s;
+  };
+  const notes = (t: Track) => t.byStep.flat();
+
+  it('loops in bars and plays every note from a sample baked near it (±6 semitones)', () => {
+    for (const t of tracks) {
       expect(t.steps % STEPS_PER_BAR).toBe(0);
       const seconds = t.steps * stepSeconds(t);
-      expect(seconds).toBeGreaterThan(15);
-      for (const notes of t.byStep) {
-        for (const n of notes) {
-          expect(INSTRUMENTS[n.inst]).toBeDefined();
-          const r = noteRate(n.inst, n.note);
-          expect(r).toBeGreaterThanOrEqual(0.25);
-          expect(r).toBeLessThanOrEqual(4);
-          expect(n.vel).toBeGreaterThan(0);
-          expect(n.vel).toBeLessThanOrEqual(1);
-        }
+      expect(seconds).toBeGreaterThan(30);
+      for (const n of notes(t)) {
+        expect(INSTRUMENTS[n.inst]).toBeDefined();
+        const { id, rate } = noteSample(n.inst, n.note);
+        expect(jobs.has(id), id).toBe(true);
+        expect(rate, `${n.inst} ${n.note}`).toBeGreaterThanOrEqual(Math.pow(2, -6 / 12) - 1e-9);
+        expect(rate, `${n.inst} ${n.note}`).toBeLessThanOrEqual(Math.pow(2, 6 / 12) + 1e-9);
+        expect(n.vel).toBeGreaterThan(0);
+        expect(n.vel).toBeLessThanOrEqual(1);
+        if (n.len !== undefined) expect(n.len).toBeGreaterThan(0);
+        expect(n.nudge ?? 0).toBeGreaterThanOrEqual(0);
+        expect(n.nudge ?? 0).toBeLessThan(1);
       }
     }
   });
 
-  it('builds with the match: calm while building, a pulse in waves, drums on boss waves', () => {
-    const layers = (scene: MusicScene) => new Set(matchTrack().byStep.flat().filter((n) => SCENE_LAYERS[scene].includes(n.layer)).map((n) => n.inst));
-    expect([...layers('build')].sort()).toEqual(['bell', 'pad']);
-    expect(layers('waves').has('bass')).toBe(true);
-    expect(layers('waves').has('drum')).toBe(false);
-    expect(layers('boss').has('drum')).toBe(true);
+  it('the lobby is Japanese (koto, shakuhachi, taiko in the in scale), the match Chinese (D yu pentatonic)', () => {
+    const pitched = (t: Track) => notes(t).filter((n) => INSTRUMENTS[n.inst].roots);
+    const classes = (t: Track) => new Set(pitched(t).map((n) => n.note % 12));
+    // D E♭ G A B♭
+    expect([...classes(lobbyTrack())].every((c) => [2, 3, 7, 9, 10].includes(c))).toBe(true);
+    expect(new Set(notes(lobbyTrack()).map((n) => n.inst))).toEqual(new Set<Instrument>(['koto', 'shaku', 'taiko', 'shime']));
+    // D F G A C
+    expect([...classes(matchTrack())].every((c) => [2, 5, 7, 9, 0].includes(c))).toBe(true);
+    // Sustained instruments always say how long.
+    for (const t of tracks) for (const n of notes(t)) if (['shaku', 'erhu', 'dizi'].includes(n.inst)) expect(n.len, n.inst).toBeDefined();
+  });
+
+  it('builds with the match: calm while building, war drums and the erhu in waves, gongs and faster drums on boss waves', () => {
+    const inLayer = (layer: string) => notes(matchTrack()).filter((n) => n.layer === layer);
+    const insts = (scene: MusicScene) => new Set(notes(matchTrack()).filter((n) => SCENE_LAYERS[scene].includes(n.layer)).map((n) => n.inst));
+    expect([...insts('build')].sort()).toEqual(['erhu', 'guzheng', 'wardrum']);
+    expect(insts('waves').has('tanggu')).toBe(true);
+    expect(insts('waves').has('gong')).toBe(false);
+    expect(insts('boss').has('gong')).toBe(true);
+    expect(insts('boss').has('dizi')).toBe(true);
+    const drums = (ns: Note[]) => ns.filter((n) => ['wardrum', 'tanggu', 'rim'].includes(n.inst)).length;
+    // Boss waves drum half as fast again.
+    expect(drums([...inLayer('pulse'), ...inLayer('boss')])).toBeGreaterThan(drums(inLayer('pulse')) * 1.5);
     expect(SCENE_TRACK.lobby).toBe('lobby');
     expect(SCENE_TRACK.boss).toBe('match');
     expect(SCENE_TRACK.none).toBeNull();
-    expect(new Set(lobbyTrack().byStep.flat().map((n) => n.layer))).toEqual(new Set(['base']));
+    expect(new Set(notes(lobbyTrack()).map((n) => n.layer))).toEqual(new Set(['base']));
+  });
+
+  it('humanises: every note a little early or late within its player’s looseness, differently each pass', () => {
+    for (const t of tracks) {
+      for (const [index, n] of notes(t).entries()) {
+        const h = humanize(n, 0, index);
+        expect(Math.abs(h.dt)).toBeLessThanOrEqual(INSTRUMENTS[n.inst].loose / 1000 + 1e-9);
+        expect(h.vel).toBeLessThanOrEqual(1);
+        expect(h.vel).toBeGreaterThanOrEqual(n.vel * 0.9 - 1e-9);
+      }
+    }
+    const n = lobbyTrack().byStep[0]![0]!;
+    const dts = new Set([0, 1, 2, 3, 4].map((loop) => humanize(n, loop, 0).dt));
+    expect(dts.size).toBe(5);
+    expect(humanize(n, 2, 0)).toEqual(humanize(n, 2, 0));
+  });
+
+  it('the lobby plays louder than it used to (−21.6 dB), level with the match; recorded music is levelled to the match', () => {
+    const level = (t: Track, scene: MusicScene) => loudness([mixdown(t, SCENE_LAYERS[scene], samples, BAKE_RATE, 40)], BAKE_RATE);
+    const lobby = level(lobbyTrack(), 'lobby');
+    const build = level(matchTrack(), 'build');
+    const waves = level(matchTrack(), 'waves');
+    const boss = level(matchTrack(), 'boss');
+    console.log(`Music loudness (dB): lobby ${lobby.toFixed(1)}, build ${build.toFixed(1)}, waves ${waves.toFixed(1)}, boss ${boss.toFixed(1)}`);
+    expect(lobby).toBeGreaterThan(-21.6 + 4);
+    expect(Math.abs(lobby - waves)).toBeLessThan(3);
+    expect(build).toBeLessThan(waves);
+    expect(waves).toBeLessThan(boss);
+    expect(Math.abs(MUSIC_TARGET_DB - waves)).toBeLessThan(2);
+  });
+});
+
+describe('recorded files', () => {
+  it('uses music and effect files under the names the game knows, with a hash in the URL', () => {
+    const f = soundFiles(
+      [
+        { dir: 'music', name: 'lobby', hash: 'a1' },
+        { dir: 'music', name: 'intro', hash: 'b2' },
+        { dir: 'sfx', name: 'shot.arrow', hash: 'c3' },
+        { dir: 'sfx', name: 'boom', hash: 'd4' },
+      ],
+      SOUND_IDS,
+    );
+    expect(f).toEqual({ music: { lobby: '/music/lobby.mp3?v=a1' }, sfx: { 'shot.arrow': '/sfx/shot.arrow.mp3?v=c3' } });
+  });
+
+  it('plays a file for a scene when there is one; boss waves fall back to the match file, then to code', () => {
+    const all = { lobby: 'l', match: 'm', boss: 'b' };
+    expect(musicFileFor('lobby', all)).toBe('lobby');
+    expect(musicFileFor('build', all)).toBe('match');
+    expect(musicFileFor('waves', all)).toBe('match');
+    expect(musicFileFor('boss', all)).toBe('boss');
+    expect(musicFileFor('boss', { match: 'm' })).toBe('match');
+    expect(musicFileFor('boss', { lobby: 'l' })).toBeNull();
+    expect(musicFileFor('lobby', { match: 'm' })).toBeNull();
+    expect(musicFileFor('none', all)).toBeNull();
+  });
+
+  const rate = 44_100;
+  /** A decoded file: `pad` s of encoder silence, `seconds` of a tone at `db`, `pad` s of silence again. */
+  const file = (pad: number, seconds: number, db: number): Float32Array[] => {
+    const n = Math.round((pad * 2 + seconds) * rate);
+    const a = Math.pow(10, db / 20) * Math.SQRT2;
+    const l = new Float32Array(n);
+    const p = Math.round(pad * rate);
+    for (let i = p; i < n - p; i++) l[i] = a * Math.sin((2 * Math.PI * 440 * i) / rate) + (i % 7) * 1e-6;
+    return [l, l.slice()];
+  };
+
+  it('trims the encoder’s silence at both ends, so a loop has no gap (but never more than a second)', () => {
+    const f = file(0.026, 3, -12);
+    const { start, end } = trimSilence(f, rate);
+    expect(start / rate).toBeCloseTo(0.026, 3);
+    expect((f[0]!.length - end) / rate).toBeCloseTo(0.026, 3);
+    const quiet = file(2.5, 1, -12);
+    expect(trimSilence(quiet, rate).start / rate).toBeCloseTo(1, 3);
+    expect(trimSilence([new Float32Array(1000)], rate).end).toBeGreaterThan(0);
+  });
+
+  it('measures loudness like a meter (silence and quiet tails don’t count) and levels files within ±12 dB', () => {
+    // A sine at −12 dB RMS.
+    expect(loudness(file(0, 2, -12), rate)).toBeCloseTo(-12, 0);
+    // Padding doesn't make it quieter, and a long quiet tail barely does.
+    expect(loudness(file(1, 2, -12), rate)).toBeCloseTo(-12, 0);
+    const tail = file(0, 2, -12)[0]!;
+    const withTail = new Float32Array(tail.length * 2);
+    withTail.set(tail);
+    for (let i = tail.length; i < withTail.length; i++) withTail[i] = 0.003 * Math.sin(i / 10);
+    expect(loudness([withTail], rate)).toBeCloseTo(-12, 0);
+    expect(loudness([new Float32Array(100)], rate)).toBe(-Infinity);
+    expect(levelGain(-20, -15, 0.3)).toBeCloseTo(Math.pow(10, 5 / 20));
+    expect(levelGain(-40, -15, 0.01)).toBeCloseTo(Math.pow(10, MAX_ADJUST_DB / 20));
+    expect(levelGain(0, -15, 1)).toBeCloseTo(Math.pow(10, -MAX_ADJUST_DB / 20));
+    // Never turned up into clipping.
+    expect(levelGain(-25, -15, 0.8)).toBeCloseTo(1 / 0.8);
+    const fit = fitFile(file(0.05, 3, -9), rate, MUSIC_TARGET_DB);
+    expect(fit.start).toBeCloseTo(0.05, 3);
+    expect(fit.end).toBeCloseTo(3.05, 3);
+    expect(20 * Math.log10(fit.gain)).toBeCloseTo(MUSIC_TARGET_DB + 9, 0);
+  });
+});
+
+describe('service worker', () => {
+  /** Runs the generated worker against fake caches and a fake network. */
+  function worker(shell: string[]) {
+    const stores = new Map<string, Map<string, { url: string; body: string }>>();
+    const net: string[] = [];
+    const store = (name: string) => {
+      let s = stores.get(name);
+      if (!s) stores.set(name, (s = new Map()));
+      return s;
+    };
+    const res = (url: string, body: string) => ({ ok: true, status: 200, url, body, clone: () => res(url, body) });
+    const cacheApi = (name: string) => ({
+      addAll: async (urls: string[]) => urls.forEach((u) => store(name).set(u, { url: `https://td.test${u}`, body: u })),
+      match: async (req: { url: string }) => {
+        const hit = store(name).get(req.url);
+        return hit ? res(hit.url, hit.body) : undefined;
+      },
+      keys: async () => [...store(name).keys()].map((url) => ({ url })),
+      delete: async (req: { url: string }) => store(name).delete(req.url),
+      put: async (req: { url: string }, r: { body: string }) => void store(name).set(req.url, { url: req.url, body: r.body }),
+    });
+    const listeners: Record<string, (e: unknown) => void> = {};
+    const self = {
+      location: { origin: 'https://td.test' },
+      addEventListener: (type: string, f: (e: unknown) => void) => (listeners[type] = f),
+      skipWaiting: () => {},
+      clients: { claim: async () => {} },
+    };
+    const caches = {
+      open: async (name: string) => cacheApi(name),
+      keys: async () => [...stores.keys()],
+      delete: async (name: string) => stores.delete(name),
+      match: async (req: { url: string }) => {
+        for (const s of stores.values()) {
+          const hit = [...s.values()].find((h) => h.url.split('?')[0] === req.url.split('?')[0]);
+          if (hit) return res(hit.url, hit.body);
+        }
+        return undefined;
+      },
+    };
+    const fetch = async (req: { url: string }) => {
+      net.push(req.url);
+      return res(req.url, `net:${req.url}`);
+    };
+    new Function('self', 'caches', 'fetch', swSource('v1', shell))(self, caches, fetch);
+    const get = async (path: string) => {
+      let responded: Promise<{ body: string }> | undefined;
+      listeners.fetch!({ request: { method: 'GET', url: `https://td.test${path}`, mode: 'cors' }, respondWith: (p: Promise<{ body: string }>) => (responded = p) });
+      const r = await responded!;
+      await new Promise((ok) => setTimeout(ok, 0));
+      return r.body;
+    };
+    return { stores, net, get, listeners };
+  }
+
+  it('precaches the shell but not recorded sound files, which it caches on first play and replaces on a new upload', async () => {
+    expect(isMediaPath('/music/lobby.mp3')).toBe(true);
+    expect(isMediaPath('/sfx/tap.mp3')).toBe(true);
+    expect(isMediaPath('/assets/index.js')).toBe(false);
+    const w = worker(['/index.html', '/assets/a.js', '/music/README.md', '/music/lobby.mp3', '/sfx/tap.mp3']);
+    let installed: Promise<unknown> | undefined;
+    w.listeners.install!({ waitUntil: (p: Promise<unknown>) => (installed = p) });
+    await installed;
+    expect([...w.stores.get('tdt-v1')!.keys()]).toEqual(['/index.html', '/assets/a.js']);
+    expect(w.stores.has(MEDIA_CACHE)).toBe(false);
+    // First play: from the network, then kept.
+    expect(await w.get('/music/lobby.mp3?v=aa')).toBe('net:https://td.test/music/lobby.mp3?v=aa');
+    expect(await w.get('/music/lobby.mp3?v=aa')).toBe('net:https://td.test/music/lobby.mp3?v=aa');
+    expect(w.net).toEqual(['https://td.test/music/lobby.mp3?v=aa']);
+    // A new upload (another hash) is fetched and replaces the old copy.
+    await w.get('/music/lobby.mp3?v=bb');
+    expect([...w.stores.get(MEDIA_CACHE)!.keys()]).toEqual(['https://td.test/music/lobby.mp3?v=bb']);
+    // A new version of the app keeps the media cache.
+    w.stores.set('tdt-old', new Map());
+    let activated: Promise<unknown> | undefined;
+    w.listeners.activate!({ waitUntil: (p: Promise<unknown>) => (activated = p) });
+    await activated;
+    expect([...w.stores.keys()].sort()).toEqual([MEDIA_CACHE, 'tdt-v1']);
   });
 });
 
@@ -165,8 +527,8 @@ describe('music', () => {
 
 class FakeSink implements SoundSink {
   sfxOn = true;
-  plays: { id: string; gain: number; pan: number; rate: number }[] = [];
-  play(id: string, o: { gain: number; pan: number; rate: number }): boolean {
+  plays: ({ id: string } & SoundPlay)[] = [];
+  play(id: string, o: SoundPlay): boolean {
     this.plays.push({ id, ...o });
     return true;
   }
@@ -238,7 +600,9 @@ describe('game audio', () => {
     const gain = (id: string) => sink.plays.filter((p) => p.id === id).map((p) => p.gain);
     const [mineQ] = gain('ranger.Q');
     const [mateQ] = gain('warden.Q');
-    expect(mateQ! / SOUNDS['warden.Q'].volume).toBeCloseTo((mineQ! / SOUNDS['ranger.Q'].volume) * OTHERS_GAIN);
+    // Each play's take moves its level by at most ±1.5 dB.
+    const ratio = mateQ! / SOUNDS['warden.Q'].volume / ((mineQ! / SOUNDS['ranger.Q'].volume) * OTHERS_GAIN);
+    expect(Math.abs(20 * Math.log10(ratio))).toBeLessThanOrEqual(2 * TAKE_GAIN_DB);
     audio.meleeHit(mate.id, mate.x, mate.y - 1, 1100);
     expect(sink.ids().at(-1)).toBe('attack.warden');
   });
@@ -250,6 +614,9 @@ describe('game audio', () => {
     audio.towerShot({ ...t, tier: 4, branch: 'sniper' }, 500);
     expect(sink.ids()).toEqual(['shot.arrow', 'shot.arrow']);
     expect(sink.plays[1]!.rate).toBeLessThan(sink.plays[0]!.rate);
+    // Two takes: other variants, both with some room.
+    expect(sink.plays[1]!.variant).not.toBe(sink.plays[0]!.variant);
+    expect(sink.plays[0]!.wet).toBeGreaterThan(0);
     audio.notice('Not enough gold', 600);
     audio.notice('Wave 3', 700);
     expect(sink.ids().at(-1)).toBe('noGold');

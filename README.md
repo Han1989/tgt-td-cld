@@ -5,6 +5,7 @@ A browser co-op tower defense for 1–3 players (one per lane): build towers, co
 - **Design and build plan:** [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
 - **Working in this repo (commands, layout, rules):** [`CLAUDE.md`](CLAUDE.md)
 - **Deploying (Render game server + Vercel client):** [`docs/DEPLOY.md`](docs/DEPLOY.md)
+- **Adding recorded music and sound effects (no code needed):** [`docs/SOUND_FILES.md`](docs/SOUND_FILES.md)
 
 **Status:** Phase 2, online co-op for 1–3 players (rooms, lobby, reconnect), plus offline solo.
 

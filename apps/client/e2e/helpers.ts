@@ -43,6 +43,15 @@ interface Hook {
     started: number;
     baked: number;
     bakeMs: number;
+    /** Buffers to bake in all. */
+    total: number;
+    /** What the music plays: a recorded file's name, the code-made music, or nothing. */
+    source: string;
+    /** The recorded music file playing: its loop (s, the encoder's silence trimmed) and levelling gain. */
+    musicFile: { name: string; start: number; end: number; gain: number; db: number } | null;
+    /** Recorded effects decoded, and plays of them. */
+    sfxFiles: number;
+    filePlays: number;
     played: number;
     skipped: number;
     byId: Record<string, number>;

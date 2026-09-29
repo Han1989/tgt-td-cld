@@ -10,13 +10,13 @@ const ctx = self as unknown as {
   onmessage: ((e: MessageEvent<{ ids: string[] }>) => void) | null;
 };
 
-const defs = allSynthDefs();
+const jobs = allSynthDefs();
 
 ctx.onmessage = (e) => {
   for (const id of e.data.ids) {
-    const def = defs.get(id);
-    if (!def) continue;
-    const samples = renderSound(def);
+    const job = jobs.get(id);
+    if (!job) continue;
+    const samples = renderSound(job.def, undefined, job.seed);
     ctx.postMessage({ id, samples }, [samples.buffer]);
   }
 };
