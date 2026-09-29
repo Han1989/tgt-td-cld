@@ -420,6 +420,13 @@ export class GameView {
           started: audio.engine.stats.played,
           baked: audio.engine.stats.baked,
           bakeMs: audio.engine.stats.bakeMs,
+          total: audio.engine.stats.total,
+          source: audio.music.source,
+          musicFile: audio.music.files.current
+            ? { name: audio.music.files.current.name, ...audio.music.files.current.fit }
+            : null,
+          sfxFiles: audio.engine.stats.files,
+          filePlays: audio.engine.stats.filePlays,
           ...audio.game.stats,
           byId: { ...audio.game.stats.byId },
         }),

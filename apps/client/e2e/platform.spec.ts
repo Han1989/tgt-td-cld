@@ -137,7 +137,7 @@ test('sound starts on the first tap, plays the lobby then the match, and pauses 
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).tap();
   await expect.poll(async () => (await audio(page)).state).toBe('running');
   // Every sound is baked (in a worker) and the lobby music plays.
-  await expect.poll(async () => (await audio(page)).baked).toBeGreaterThanOrEqual(48);
+  await expect.poll(async () => { const a = await audio(page); return a.total > 100 && a.baked === a.total; }).toBe(true);
   await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
   await page.locator('#lobby-solo-play').tap();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
@@ -157,6 +157,75 @@ test('sound starts on the first tap, plays the lobby then the match, and pauses 
   await hide('visible');
   await expect.poll(async () => (await audio(page)).state).toBe('running');
   expect(errors).toEqual([]);
+});
+
+/** A WAV file: `pad` s of silence (an encoder's padding), `seconds` of a soft tone, `pad` s of silence. */
+function wav(pad: number, seconds: number, freq: number): Buffer {
+  const rate = 44_100;
+  const n = Math.round((pad * 2 + seconds) * rate);
+  const data = Buffer.alloc(n * 2);
+  const p = Math.round(pad * rate);
+  for (let i = p; i < n - p; i++) data.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * freq * i) / rate)), i * 2);
+  const head = Buffer.alloc(44);
+  head.write('RIFF', 0);
+  head.writeUInt32LE(36 + data.length, 4);
+  head.write('WAVEfmt ', 8);
+  head.writeUInt32LE(16, 16);
+  head.writeUInt16LE(1, 20);
+  head.writeUInt16LE(1, 22);
+  head.writeUInt32LE(rate, 24);
+  head.writeUInt32LE(rate * 2, 28);
+  head.writeUInt16LE(2, 32);
+  head.writeUInt16LE(16, 34);
+  head.write('data', 36);
+  head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
+
+test.describe('recorded sound files', () => {
+  // The page's own requests (no service worker in between), so the routes below answer them.
+  test.use({ serviceWorkers: 'block' });
+
+  test('a music file plays instead of the code-made music, looped without its silence; an effect file replaces its sound', async ({ page }) => {
+    // What the build would list if public/music/lobby.mp3 and public/sfx/tap.mp3 existed (e2e builds only).
+    await page.addInitScript(() => {
+      (window as unknown as { __tdtSoundFiles: unknown }).__tdtSoundFiles = [
+        { dir: 'music', name: 'lobby', hash: 't1' },
+        { dir: 'sfx', name: 'tap', hash: 't2' },
+      ];
+    });
+    const fetched: string[] = [];
+    await page.route(/\/music\/lobby\.mp3\?v=t1$/, (route) => {
+      fetched.push('lobby');
+      return route.fulfill({ body: wav(0.1, 2, 220), contentType: 'audio/mpeg' });
+    });
+    await page.route(/\/sfx\/tap\.mp3\?v=t2$/, (route) => {
+      fetched.push('tap');
+      return route.fulfill({ body: wav(0.05, 0.1, 880), contentType: 'audio/mpeg' });
+    });
+    await page.route(/\/music\/match\.mp3/, (route) => route.abort());
+    await page.goto('/?lab');
+    await waitForReady(page, 'solo');
+    // Nothing is fetched before the first tap.
+    expect(fetched).toEqual([]);
+    await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Warden' }).tap();
+    await expect.poll(async () => (await audio(page)).source).toBe('lobby');
+    const file = (await audio(page)).musicFile!;
+    expect(file.name).toBe('lobby');
+    // The loop runs from the end of the leading silence to the start of the trailing one.
+    expect(file.start).toBeCloseTo(0.1, 2);
+    expect(file.end).toBeCloseTo(2.1, 2);
+    expect(file.gain).toBeGreaterThan(0);
+    await expect.poll(async () => (await audio(page)).sfxFiles).toBe(1);
+    await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).tap();
+    await expect.poll(async () => (await audio(page)).filePlays).toBeGreaterThan(0);
+    // No match file in this build: the match plays the code-made music; match.mp3 is never asked for.
+    await page.locator('#lobby-solo-play').tap();
+    await expect.poll(async () => (await audio(page)).scene).toBe('build');
+    await expect.poll(async () => (await audio(page)).source).toBe('code');
+    await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
+    expect(fetched.filter((f) => f === 'lobby')).toHaveLength(1);
+  });
 });
 
 test('Settings → Sound: music and effects volume and mute, remembered; the lobby has a mute button too', async ({ page }) => {

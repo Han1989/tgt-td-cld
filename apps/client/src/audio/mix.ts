@@ -79,3 +79,56 @@ export class VoiceGate {
     this.voices = [];
   }
 }
+
+// ---------------------------------------------------------------------------
+// Takes: every play of a sound a little different
+// ---------------------------------------------------------------------------
+
+/** How one play of a sound differs from the last: which baked variant, pitch, level, a few ms of timing, reverb. */
+export interface Take {
+  variant: number;
+  rate: number;
+  gain: number;
+  /** Seconds after now. */
+  delay: number;
+  wet: number;
+}
+
+/** A play's level spread (dB, ±). */
+export const TAKE_GAIN_DB = 1.5;
+/** A play's timing spread (s): up to this late (warnings and the UI: a third of it). */
+export const TAKE_DELAY = 0.014;
+
+/**
+ * Picks each play's take (seeded, so tests are repeatable): never the same variant twice in a row,
+ * the pitch within the sound's `pitch` spread, ±1.5 dB, 0–14 ms late, and the reverb send ±20%.
+ */
+export class Takes {
+  private seed: number;
+  private readonly last = new Map<string, number>();
+
+  constructor(seed = 1) {
+    this.seed = seed;
+  }
+
+  private r(): number {
+    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
+    return this.seed / 0x7fffffff;
+  }
+
+  next(id: string, spec: { variants: number; pitch: number; wet: number; priority: Priority }): Take {
+    let variant = 0;
+    if (spec.variants > 1) {
+      const last = this.last.get(id) ?? -1;
+      variant = last < 0 ? Math.floor(this.r() * spec.variants) : (last + 1 + Math.floor(this.r() * (spec.variants - 1))) % spec.variants;
+      this.last.set(id, variant);
+    }
+    return {
+      variant,
+      rate: 1 + (this.r() * 2 - 1) * spec.pitch,
+      gain: Math.pow(10, ((this.r() * 2 - 1) * TAKE_GAIN_DB) / 20),
+      delay: this.r() * TAKE_DELAY * (spec.priority === 2 ? 1 / 3 : 1),
+      wet: spec.wet * (0.8 + 0.4 * this.r()),
+    };
+  }
+}
