@@ -1,8 +1,9 @@
 // Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake;
-// Display: docs/ART.md §2; sound: docs/ART.md §13).
+// Display: docs/ART.md §2; sound: docs/ART.md §13; the first-match lesson: tutorial/logic.ts).
 
 import type { ThumbLayout } from './layout';
 import type { Display } from './render/art/tokens';
+import type { TutorialStatus } from './tutorial/logic';
 
 export type Quality = 'auto' | 'high' | 'low';
 
@@ -18,6 +19,11 @@ export interface Settings {
   sfx: number;
   /** Mutes all sound (music and effects). */
   muted: boolean;
+  /**
+   * First-match lesson. `new` runs it on the next solo match; `completed` and `skipped`
+   * do not. Replay sets it back to `new`.
+   */
+  tutorial: TutorialStatus;
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
@@ -46,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   music: 0.5,
   sfx: 0.8,
   muted: false,
+  tutorial: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -66,10 +73,19 @@ export function parseSettings(raw: string | null): Settings {
     out.music = volume(v.music) ?? out.music;
     out.sfx = volume(v.sfx) ?? out.sfx;
     if (typeof v.muted === 'boolean') out.muted = v.muted;
+    if (v.tutorial === 'new' || v.tutorial === 'completed' || v.tutorial === 'skipped') out.tutorial = v.tutorial;
   } catch {
     // Corrupt value: defaults.
   }
   return out;
+}
+
+let shared: SettingsStore | null = null;
+
+/** The one settings object for this page (the lesson, the lobby and the match all read it). */
+export function sharedSettings(): SettingsStore {
+  if (!shared) shared = new SettingsStore();
+  return shared;
 }
 
 export class SettingsStore {

@@ -18,6 +18,14 @@ describe('settings', () => {
     expect(parseSettings(JSON.stringify({ music: 2, sfx: -1, muted: 'yes' }))).toMatchObject({ music: 0.5, sfx: 0.8, muted: false });
     expect(parseSettings(JSON.stringify({ music: 'loud', sfx: null }))).toMatchObject({ music: 0.5, sfx: 0.8 });
   });
+
+  it('remembers the lesson: new until it is finished or skipped', () => {
+    expect(DEFAULT_SETTINGS.tutorial).toBe('new');
+    expect(parseSettings(null).tutorial).toBe('new');
+    expect(parseSettings(JSON.stringify({ tutorial: 'completed' })).tutorial).toBe('completed');
+    expect(parseSettings(JSON.stringify({ tutorial: 'skipped' })).tutorial).toBe('skipped');
+    expect(parseSettings(JSON.stringify({ tutorial: 'later' })).tutorial).toBe('new');
+  });
 });
 
 describe('render quality', () => {

@@ -15,6 +15,8 @@ import {
 import { HERO_INFO } from '../heroInfo';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
+import { sharedSettings } from '../settings';
+import { lessonStatus } from '../tutorial/logic';
 import { DifficultyPicker } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { ModePicker } from './modePicker';
@@ -115,6 +117,15 @@ export class LobbyUi {
       if (e.key === 'Enter') join();
     });
     $('lobby-offline').addEventListener('click', () => actions.playOffline());
+    $('tutorial-offer-start').addEventListener('click', () => actions.playOffline());
+    $('tutorial-offer-skip').addEventListener('click', () => {
+      sharedSettings().set({ tutorial: lessonStatus('skip') });
+      this.syncLesson();
+    });
+    $('lobby-tutorial-replay').addEventListener('click', () => {
+      sharedSettings().set({ tutorial: lessonStatus('replay') });
+      actions.playOffline();
+    });
     // Through the service worker, so a cached old app shell can't survive the refresh.
     this.refresh.addEventListener('click', () => void updateAndReload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
@@ -143,6 +154,13 @@ export class LobbyUi {
     );
   }
 
+  /** The home strip: a new player can start or skip the lesson. Anyone else can replay it. */
+  private syncLesson(): void {
+    const status = sharedSettings().get().tutorial;
+    $('tutorial-offer').classList.toggle('hidden', status !== 'new');
+    $('lobby-tutorial-replay').classList.toggle('hidden', status === 'new');
+  }
+
   /** True if the page was opened from an invite link. */
   get invitedCode(): string | null {
     return normalizeRoomCode(this.code.value);
@@ -161,6 +179,7 @@ export class LobbyUi {
     this.solo.classList.add('hidden');
     this.refresh.classList.add('hidden');
     this.homePicker.select(this.hero);
+    this.syncLesson();
     this.showError(error);
     const focus = !this.name.value ? this.name : this.code.value ? $('lobby-join') : $('lobby-create');
     focus.focus();

@@ -1,8 +1,9 @@
+import type { Difficulty, GameMode, HeroKind } from '@tdt/protocol';
 import './style.css';
 import { installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
 import { showSoloPick } from './lobby/solo';
-import { OnlineController, playSolo } from './online';
+import { endSolo, OnlineController, playSolo } from './online';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
 
@@ -40,7 +41,12 @@ async function main(): Promise<void> {
   if (!serverUrl) {
     // No game server configured: local solo mode, after a hero, mode and difficulty pick.
     // Analytics needs the server (docs/ANALYTICS.md); this path sends nothing.
-    showSoloPick((hero, mode, difficulty) => playSolo(view, hero, mode, difficulty));
+    const solo = (hero: HeroKind, mode: GameMode, difficulty: Difficulty) => playSolo(view, hero, mode, difficulty);
+    view.onReplayTutorial = () => {
+      endSolo(view);
+      showSoloPick(solo);
+    };
+    showSoloPick(solo);
     ready('solo');
     return;
   }

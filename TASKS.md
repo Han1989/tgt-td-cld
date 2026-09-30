@@ -39,9 +39,11 @@ From `docs/MOBILE.md` §9 and the checklist: long-press on the map on phones, Al
 
 Done: a map ping (phone long-press, desktop Alt-click) shows on the map for teammates, or at the screen edge when it is off screen, with a gong. Six phrases (Help, On my way, Danger, Thanks, Nice, Defend) from the speech button or C; the codec rejects any other text. The server rate-limits both (1 s / 1.5 s). Touch rule `mapPing` is unit-tested. `PROTOCOL_VERSION` 13. Real-device steps in `docs/MOBILE_TESTING.md` §3.14–3.15 and §6.7.
 
-### T-03 · First five minutes · checklist `a-tutorial` · Team · ☐
+### T-03 · First five minutes · checklist `a-tutorial` · Team · ☑
 
 A guided first match that teaches moving, building, casting and upgrading within the first two waves. Do it **after T-02**, so it can teach pings too. Proposed: it runs once for a new player (solo), can be skipped, and is replayable from settings.
+
+Done: a solo Quick match on Normal, once, for a new player (`tdt.settings` `tutorial`). Steps are move, build an Arrow, cast Q, upgrade, ping, and an optional quick-chat phrase. Each step advances when the player does it. Skip is on the card and on the hero pick. Online create / join does not start it. Replay from ⚙ or the lobby home. `PROTOCOL_VERSION` stays 13. Real-device steps in `docs/MOBILE_TESTING.md` §2.6.
 
 ### T-04 · Art for projectiles and traps · NEW · Team · ☑
 

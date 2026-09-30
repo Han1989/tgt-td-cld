@@ -20,7 +20,9 @@ import { COLORS, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
 import { WorldRenderer } from './render/world';
-import { SettingsStore } from './settings';
+import { sharedSettings } from './settings';
+import { TutorialCoach } from './tutorial/coach';
+import { lessonStatus } from './tutorial/logic';
 import { INTERP_DELAY_MS, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
@@ -38,6 +40,8 @@ export class GameView {
   onLeave: () => void = () => {};
   /** Called when the player clicks "Change hero" on the solo end screen. */
   onChangeHero: () => void = () => {};
+  /** Settings → Replay tutorial, after the lesson flag is set back to new. */
+  onReplayTutorial: () => void = () => {};
 
   private transport: Transport | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -56,7 +60,11 @@ export class GameView {
     /** Music and sound effects (docs/ART.md §13). */
     readonly audio: Audio,
     private readonly marks: MarkerLayer,
+    private readonly coach: TutorialCoach,
   ) {}
+
+  /** The first-match lesson is running on this solo match. */
+  private lesson = false;
 
   /** Last accepted ping and emote. The server enforces the same gap. */
   private readonly social: SocialClock = freshSocialClock();
@@ -67,7 +75,7 @@ export class GameView {
   }
 
   static async create(): Promise<GameView> {
-    const settings = new SettingsStore();
+    const settings = sharedSettings();
     let autoDegraded = false;
     const quality = () => effectiveQuality(settings.get().quality, autoDegraded);
 
@@ -197,11 +205,18 @@ export class GameView {
       return { left: a.x / TILE_PX, top: a.y / TILE_PX, right: b.x / TILE_PX, bottom: b.y / TILE_PX };
     };
 
-    new SettingsPanel(settings, () => audio.game.tap(performance.now()));
+    new SettingsPanel(settings, () => audio.game.tap(performance.now()), () => view.onReplayTutorial());
     installPressFeedback(document, () => audio.game.tap(performance.now()));
     const marks = new MarkerLayer();
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
-    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks);
+    const coach = new TutorialCoach(() => (document.body.classList.contains('touch') ? 'touch' : 'desktop'));
+    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach);
+    coach.onSkip = () => {
+      settings.set({ tutorial: lessonStatus('skip') });
+      view.setLesson(false);
+    };
+    coach.onComplete = () => settings.set({ tutorial: lessonStatus('complete') });
+    coach.onDismiss = () => view.setLesson(false);
     renderer.onBounty = (x, y) => hud.flyCoin(x, y);
 
     // ---------------------------------------------------------------------
@@ -373,6 +388,7 @@ export class GameView {
         camera.place(layout.map.left, layout.map.top - follow);
       }
       const events = buffer.drainEvents(now);
+      view.feedLesson(latest, events, now);
       renderer.playEvents(events, latest, view.me, now);
       for (const e of events) {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
@@ -458,6 +474,37 @@ export class GameView {
     return view;
   }
 
+  /**
+   * Solo only: show the first-match lesson. Online matches never call this.
+   * A new match (the tick counter restarting) starts the card again while the lesson is still new.
+   */
+  setLesson(on: boolean): void {
+    this.lesson = on;
+    this.syncLesson();
+  }
+
+  private feedLesson(latest: Snapshot, events: Snapshot['events'], now: number): void {
+    if (!this.lesson || !this.me) return;
+    const hero = latest.heroes.find((h) => h.owner === this.me) ?? null;
+    this.coach.feed(
+      {
+        phase: latest.phase,
+        wave: latest.wave,
+        me: this.me,
+        hero: hero ? { id: hero.id, kind: hero.kind, x: hero.x, y: hero.y } : null,
+        towers: latest.towers,
+        events,
+      },
+      now,
+    );
+  }
+
+  private syncLesson(): void {
+    const run = this.lesson && sharedSettings().get().tutorial === 'new';
+    if (run) this.coach.begin();
+    else this.coach.stop();
+  }
+
   /** Starts showing whatever `transport` sends. */
   attach(transport: Transport): void {
     this.detach();
@@ -469,7 +516,12 @@ export class GameView {
       } else if (msg.t === 'snapshot') {
         // A new match (tick counter restarted) or the first snapshot: reset the view.
         const latest = this.buffer.latest;
-        if (!latest || msg.snap.tick < latest.tick) this.resetView();
+        // A tick that goes backwards is a new match. The opening hero/mode/difficulty
+        // messages also reset the counter while it is still near 0; those must not
+        // restart the lesson the player has already begun.
+        const restarted = latest !== undefined && msg.snap.tick < latest.tick;
+        if (!latest || restarted) this.resetView();
+        if (restarted && latest.tick > 30) this.syncLesson();
         const now = performance.now();
         this.buffer.push(msg.snap, now);
         this.predictor.snapshot(msg.snap.heroes.find((h) => h.owner === this.me) ?? null, now);
@@ -484,8 +536,10 @@ export class GameView {
     this.unsubscribe = null;
     this.transport = null;
     this.me = null;
+    this.lesson = false;
     this.resume();
     this.resetView();
+    this.coach.stop();
   }
 
   /** Solo: restart the simulation after a pause (the page was hidden). */

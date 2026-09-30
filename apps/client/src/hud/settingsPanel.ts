@@ -7,6 +7,7 @@ import type { ThumbLayout } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import type { Display } from '../render/art/tokens';
 import { DISPLAY_NAMES, QUALITY_NAMES, THUMB_NAMES, type Quality, type SettingsStore } from '../settings';
+import { lessonStatus } from '../tutorial/logic';
 
 const SHAKE_CHOICES: ['on' | 'off', string][] = [
   ['on', 'On'],
@@ -35,10 +36,11 @@ export class SettingsPanel {
     { input: $('settings-sfx') as HTMLInputElement, label: $('settings-sfx-val'), key: 'sfx' as const },
   ];
 
-  /** `previewSfx` plays a sound after the effects volume changes, at the new level. */
+  /** `previewSfx` plays a sound after the effects volume changes, at the new level. `onReplay` starts the lesson again. */
   constructor(
     private readonly store: SettingsStore,
     previewSfx: () => void = () => {},
+    onReplay: () => void = () => {},
   ) {
     $('settings-btn').addEventListener('click', () => this.toggle());
     for (const b of this.mutes) b.addEventListener('click', () => store.set({ muted: !store.get().muted }));
@@ -48,6 +50,11 @@ export class SettingsPanel {
       v.input.addEventListener('pointerdown', () => store.get().muted && store.set({ muted: false }));
     }
     this.volumes[1]!.input.addEventListener('change', previewSfx);
+    $('settings-tutorial').addEventListener('click', () => {
+      this.close();
+      store.set({ tutorial: lessonStatus('replay') });
+      onReplay();
+    });
     // Tap anywhere else closes it.
     window.addEventListener(
       'pointerdown',

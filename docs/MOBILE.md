@@ -156,6 +156,7 @@ The two-thumb layouts use the same overlay approach.
 ### Phase 4b: Polish
 - Sprites and sound. **Art direction: Runelight, see `docs/ART.md`** (Art Track 0: style guide, art registry, `?showcase`, Display setting). **Sound: done** (music and effects made in code, `docs/ART.md` §13; real-device check: `docs/MOBILE_TESTING.md` §8).
 - Team pings (long-press on the map on phones, Alt-click on desktop) and quick-chat emotes. **Done:** six phrases (Help, On my way, Danger, Thanks, Nice, Defend), no free-text chat; the server rate-limits both (`PROTOCOL_VERSION` 13). Real-device check: `docs/MOBILE_TESTING.md` §3.14 and §6.7.
+- First-match lesson. **Done:** a new player's first solo match is Quick on Normal and teaches move, build, Q, upgrade, ping and an optional phrase. Skip is always there. Online rooms do not start it. Replay from ⚙ or the lobby. Real-device check: `docs/MOBILE_TESTING.md` §2.6.
 - Difficulty modes.
 - Balance carry-overs: a 3-player gate (**done: matches hold 3 players, and 1, 2 and 3 are gated in Full and Quick**), per-hero tuning, how often ultimates get used (**done: the hero mana rework**, ultimates cost no mana, and the balance bot casts R on 3+ creeps; Decision Log).
 

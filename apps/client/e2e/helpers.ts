@@ -96,10 +96,15 @@ export async function waitForReady(page: Page, screen?: 'showcase' | 'stress' | 
   await expect(page.locator('html')).toHaveAttribute('data-ready', screen ?? /.+/);
 }
 
-/** Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`). */
+/**
+ * Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`).
+ * A fresh profile is offered the first-match lesson; this skips it so the caller's mode pick is used.
+ */
 export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick', hero = 'Ranger'): Promise<void> {
   await page.goto(`/${query}`);
   await waitForReady(page, 'solo');
+  const skipLesson = page.locator('#tutorial-solo-skip');
+  if (await skipLesson.isVisible()) await skipLesson.click();
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: hero }).click();
   await page.locator(`#lobby-mode-solo .mode-pick[data-mode="${mode}"]`).click();
   await page.locator('#lobby-solo-play').click();

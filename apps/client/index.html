@@ -22,6 +22,13 @@
         <h1 class="logo">Tower Defense <span>Together</span></h1>
 
         <section id="lobby-home">
+          <div id="tutorial-offer" class="tutorial-offer hidden">
+            <p>New here? A short solo lesson (Quick, Normal) covers moving, building, a skill, upgrading and pings. Creating or joining a room does not start it.</p>
+            <div class="tutorial-offer-actions">
+              <button id="tutorial-offer-start" class="btn" type="button">Start lesson</button>
+              <button id="tutorial-offer-skip" class="btn" type="button">Skip</button>
+            </div>
+          </div>
           <label class="field">
             <span>Nickname</span>
             <input id="lobby-name" maxlength="16" autocomplete="nickname" placeholder="Your name" />
@@ -36,6 +43,7 @@
             <button id="lobby-join" class="btn">Join room</button>
           </div>
           <button id="lobby-offline" class="link">Play solo offline</button>
+          <button id="lobby-tutorial-replay" class="link hidden" type="button">Replay the lesson</button>
         </section>
 
         <section id="lobby-room" class="hidden">
@@ -68,6 +76,7 @@
         </section>
 
         <section id="lobby-solo" class="hidden">
+          <p id="tutorial-solo-note" class="tutorial-solo-note hidden">This first match is a short lesson: Quick, Normal. It teaches moving, building, a skill, upgrading and pings. You can skip it in the match.</p>
           <div class="field">
             <span>Pick your hero</span>
             <div id="lobby-heroes-solo" class="hero-picks"></div>
@@ -81,6 +90,7 @@
             <div id="lobby-difficulty-solo" class="hero-picks mode-picks"></div>
           </div>
           <button id="lobby-solo-play" class="btn big">Play</button>
+          <button id="tutorial-solo-skip" class="link hidden" type="button">Skip lesson</button>
         </section>
 
         <section id="lobby-busy" class="hidden">
@@ -114,6 +124,16 @@
         <ul id="team-list"></ul>
       </aside>
       <div id="emote-feed"></div>
+      </div>
+
+      <div id="tutorial" class="tutorial hidden" role="dialog" aria-labelledby="tutorial-title">
+        <div id="tutorial-kicker" class="tutorial-kicker"></div>
+        <h2 id="tutorial-title"></h2>
+        <p id="tutorial-body"></p>
+        <div class="tutorial-actions">
+          <button id="tutorial-skip" class="btn" type="button">Skip</button>
+          <button id="tutorial-next" class="btn hidden" type="button">Continue</button>
+        </div>
       </div>
 
       <div id="build-hint" class="build-hint hidden"></div>
@@ -179,6 +199,11 @@
           <h3>Display</h3>
           <div id="settings-display" class="choices row"></div>
           <p class="settings-note">Bright lifts the ground and shadows for playing outdoors.</p>
+        </section>
+        <section>
+          <h3>Lesson</h3>
+          <button id="settings-tutorial" class="btn" type="button">Replay tutorial</button>
+          <p class="settings-note">Starts a solo Quick match on Normal. Leaves an online room.</p>
         </section>
         <section id="settings-app" class="hidden">
           <h3>App</h3>
