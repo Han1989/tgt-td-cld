@@ -225,7 +225,8 @@ describe('difficulty', () => {
     expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
 
     server.rooms.get(host!.code!)!.state!.heartHp = 0;
-    await host!.waitFor(() => host!.snap?.phase === 'defeat');
+    // The defeat snapshot is sent, then the report, as two messages of the same tick.
+    await host!.waitFor(() => host!.snap?.phase === 'defeat' && host!.report !== null);
     expect(host!.report?.report.difficulty).toBe('hard');
     expect(host!.report?.replay.difficulty).toBe('hard');
     host!.send({ t: 'restart' });
