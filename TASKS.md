@@ -18,7 +18,7 @@ Tests have only ever run inside build sessions. The team workflow lands in this 
 - **Han:** protect `main` in the repo settings: require a pull request, require the CI checks to pass, block force pushes. **Done 30 Sep 2026:** `main` requires PR + status check `ci`, force pushes blocked, admins enforced; repo `allow_auto_merge` on.
 - **Done when:** a PR shows green checks, and a PR with a deliberately failing test can't be merged.
 
-### T-01 · Hard difficulty and an expert bot · checklist `a-hard` · Team · ☐
+### T-01 · Hard difficulty and an expert bot · checklist `a-hard` · Team · ☑
 
 **Why:** Han's solo match report shows 99 of 100 Heart on Normal where the balance bot ends with 46 on the same seed. Normal suits new players (friends found it hard); Hard is for players who branch towers, call waves early and don't die.
 

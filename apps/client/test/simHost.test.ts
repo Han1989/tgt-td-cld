@@ -72,6 +72,21 @@ describe('SimHost (local transport backend)', () => {
     expect([snap.tick, snap.mode, snap.heroes[0]!.kind]).toEqual([0, 'quick', 'arcanist']);
   });
 
+  it('starts a new match at the picked difficulty and keeps it for "play again"', () => {
+    const { host, snaps } = harness();
+    expect(snaps().at(-1)!.difficulty).toBe('normal');
+    host.receive(encodeClientMessage({ t: 'difficulty', difficulty: 'hard' }));
+    expect(snaps().at(-1)!.difficulty).toBe('hard');
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'callEarly' } }));
+    host.tick();
+    host.receive(encodeClientMessage({ t: 'difficulty', difficulty: 'normal' }));
+    expect(snaps().at(-1)!.difficulty).toBe('hard');
+    (host as unknown as { state: { heartHp: number } }).state.heartHp = 0;
+    host.tick();
+    host.receive(encodeClientMessage({ t: 'restart' }));
+    expect(snaps().at(-1)!.difficulty).toBe('hard');
+  });
+
   it('sends the match report and replay once, when the match ends', () => {
     const { host, out } = harness();
     host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'build', padId: 0, tower: 'arrow' } }));
@@ -85,7 +100,14 @@ describe('SimHost (local transport backend)', () => {
     const reports = out.filter((m) => m.t === 'report');
     expect(reports).toHaveLength(1);
     const { report, replay } = reports[0] as Extract<ServerMessage, { t: 'report' }>;
-    expect(report).toMatchObject({ result: 'defeat', seed: 1, mode: 'full', heartHp: 0, build: 'dev' });
+    expect(report).toMatchObject({
+      result: 'defeat',
+      seed: 1,
+      mode: 'full',
+      difficulty: 'normal',
+      heartHp: 0,
+      build: 'dev',
+    });
     expect(replay.build).toBe('dev');
     expect(report.heroes[0]).toMatchObject({ player: LOCAL_PLAYER_ID, hero: 'ranger' });
     expect(replay.log).toEqual([

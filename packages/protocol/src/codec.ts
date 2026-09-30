@@ -1,4 +1,5 @@
 import {
+  DIFFICULTIES,
   GAME_MODES,
   HERO_KINDS,
   MAX_NAME_LENGTH,
@@ -10,6 +11,7 @@ import {
   TOWER_KINDS,
   type ClientMessage,
   type Command,
+  type Difficulty,
   type GameMode,
   type HeroKind,
   type ServerMessage,
@@ -82,6 +84,9 @@ export function decodeClientMessage(raw: unknown): ClientMessage | null {
     case 'mode':
       if (!hasOnlyKeys(data, ['t', 'mode']) || !isGameMode(data.mode)) return null;
       return { t: 'mode', mode: data.mode };
+    case 'difficulty':
+      if (!hasOnlyKeys(data, ['t', 'difficulty']) || !isDifficulty(data.difficulty)) return null;
+      return { t: 'difficulty', difficulty: data.difficulty };
     case 'ready':
       if (!hasOnlyKeys(data, ['t', 'ready']) || typeof data.ready !== 'boolean') return null;
       return { t: 'ready', ready: data.ready };
@@ -233,6 +238,10 @@ function isHeroKind(value: unknown): value is HeroKind {
 
 function isGameMode(value: unknown): value is GameMode {
   return typeof value === 'string' && (GAME_MODES as readonly string[]).includes(value);
+}
+
+function isDifficulty(value: unknown): value is Difficulty {
+  return typeof value === 'string' && (DIFFICULTIES as readonly string[]).includes(value);
 }
 
 function isTowerKind(value: unknown): value is TowerKind {

@@ -2,7 +2,17 @@
 // seconds, distances in tiles, speeds in tiles per second. The sim converts
 // seconds to ticks with `secondsToTicks`.
 
-import type { BossKind, CreepKind, DamageType, GameMode, LaneId, SkillSlot, TowerBranch, TowerKind } from '@tdt/protocol';
+import type {
+  BossKind,
+  CreepKind,
+  DamageType,
+  Difficulty,
+  GameMode,
+  LaneId,
+  SkillSlot,
+  TowerBranch,
+  TowerKind,
+} from '@tdt/protocol';
 
 /** Fixed simulation rate. */
 export const TICK_RATE = 20;
@@ -317,11 +327,64 @@ export interface ShiftingHideStats {
  * What a match mode changes (docs/MOBILE.md §6). Each section is merged over the Full-mode numbers of
  * the same section; anything left out keeps its Full-mode value. `tuningForMode` applies it.
  */
+/**
+ * How a difficulty changes creep HP and how many non-boss creeps spawn, on top of wave growth and
+ * player-count scaling. `lateHp` / `lateCount` are added on the final wave and grow linearly over the
+ * last third (0 before it), so the end of a Hard match is the heavy part. Normal is 1 / 1 / 0 / 0:
+ * the same creeps as a build without a difficulty.
+ */
+/** Creep HP and count multipliers. Normal is all ones, so it changes nothing. */
+export interface DifficultyBand {
+  /** Non-boss creep HP × this. Boss HP uses `bossHp` (a boss leak is 20 Heart, so it is tuned on its own). */
+  hp: number;
+  /** Non-boss creep count × this. Bosses stay at one per listed lane. */
+  count: number;
+  /** Added to `hp` on the final wave; 0 before the last third. */
+  lateHp: number;
+  /** Added to `count` on the final wave; 0 before the last third. Bosses are not multiplied. */
+  lateCount: number;
+  /** Boss HP × this at wave 1. Defaults to `hp`. */
+  bossHp?: number;
+  /** Added to `bossHp` on the final wave; 0 before the last third. Defaults to `lateHp`. */
+  lateBossHp?: number;
+  /**
+   * When set, `lateHp` / `lateCount` / `lateBossHp` follow match progress to this power
+   * (2 = gentle early, heavy late) instead of staying 0 until the last third. Quick leaves
+   * it unset so the last third carries the whole ramp.
+   */
+  ease?: number;
+  /**
+   * Flat extra non-boss creeps per lane in every group, after the count multiplier. A multiplier near 1
+   * rounds away on small groups; this is how Hard adds bodies on those waves too. A fraction adds that
+   * share of groups (wave by wave), so 0.5 is one extra creep in every other group.
+   */
+  extra?: number;
+  /** Added to `extra` on the final wave; 0 before the ramp starts. */
+  lateExtra?: number;
+  /** Added to every creep's magic resist (Hard chips magic damage, which otherwise ignores the armour on brutes). */
+  magicResist?: number;
+  /**
+   * Heart HP lost when the final wave starts. Combat on a long Hard match clumps a couple of HP either
+   * side of the gate; this is the last, visible strain of that wave (a leak, no creep to shoot).
+   */
+  finale?: number;
+}
+
+export interface DifficultyScaling extends DifficultyBand {
+  /**
+   * Per player count (index 0 = solo), used instead of the scalars above. One multiplier cannot put a
+   * solo expert and a 3-player team on the same Heart band, so Hard sets a band for each team size.
+   */
+  byPlayers?: DifficultyBand[];
+}
+
 export interface ModeTuning {
   economy?: Partial<Tuning['economy']>;
   waves?: Partial<Tuning['waves']>;
   playerScaling?: Partial<Tuning['playerScaling']>;
   hero?: Partial<Pick<Tuning['hero'], 'xpForLevel'>>;
+  /** Hard-only overrides for this match length, merged over `tuning.difficulty.hard`. */
+  hard?: Partial<DifficultyScaling>;
 }
 
 export interface Tuning {
@@ -409,6 +472,11 @@ export interface Tuning {
   branches: Record<TowerBranch, BranchStats>;
   /** Per-mode changes to the numbers above; the top-level numbers are Full mode. */
   modes: Record<GameMode, ModeTuning>;
+  /**
+   * Creep difficulty. The engine multiplies HP and non-boss counts by these (Normal is ×1, so it matches
+   * the numbers above exactly). A mode may override Hard in `modes.<mode>.hard`.
+   */
+  difficulty: Record<Difficulty, DifficultyScaling>;
   hero: {
     maxLevel: number;
     /** Total XP needed to reach level i+1 (index 0 = level 1). */
@@ -701,6 +769,50 @@ export const TUNING: Tuning = {
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
+      // Quick is shorter, so the same Full bands either walk over a 3-player team or cliff a solo seed.
+      // Measured expert hearts (gate seeds): solo 44–78, pairs 51–78 (last third 89% of the loss),
+      // three players 46–68 (37/28/35).
+      hard: {
+        byPlayers: [
+          { hp: 1.032, count: 1.06, lateHp: 0.16, lateCount: 0.09, bossHp: 1.02, lateBossHp: 0.04 },
+          { hp: 1.048, count: 1.042, lateHp: 0.115, lateCount: 0.04, bossHp: 1.02, lateBossHp: 0.03 },
+          { hp: 1.08, count: 1.1, lateHp: 0.13, lateCount: 0.06, bossHp: 1.03, lateBossHp: 0.04 },
+        ],
+      },
+    },
+  },
+  // Normal is identity, so existing formulas and the casual gates are unchanged. Hard multiplies non-boss
+  // HP and count (more bodies, not just tougher ones). `extra` adds creeps a near-1 multiplier would round
+  // away. Boss HP is its own, smaller multiplier: a boss leak is 20 Heart. One band cannot sit a solo expert
+  // and a 3-player team in 40–80 Heart, so `byPlayers` is per team size (index 0 = solo). Quick overrides all
+  // three in `modes.quick.hard`. Tuned for the expert bot (Decision Log).
+  difficulty: {
+    normal: { hp: 1, count: 1, lateHp: 0, lateCount: 0 },
+    hard: {
+      hp: 1.009,
+      count: 1.029,
+      lateHp: 0.043,
+      lateCount: 0.024,
+      bossHp: 1.026,
+      lateBossHp: 0.02,
+      extra: 0.588,
+      lateExtra: 0.193,
+      magicResist: 0.12,
+      finale: 2,
+      byPlayers: [
+        // Full solo expert: 41–80 after the final-wave strain (the stuck seed was 82, the floor 43).
+        {
+          hp: 1.009, count: 1.029, lateHp: 0.043, lateCount: 0.024, bossHp: 1.026, lateBossHp: 0.02,
+          extra: 0.588, lateExtra: 0.193, magicResist: 0.12, finale: 2,
+        },
+        // Full pairs: 41–80, last third 56% of the Heart lost.
+        { hp: 1.005, count: 1, lateHp: 0.02, lateCount: 0, bossHp: 1.01, lateBossHp: 0.01, extra: 0.45 },
+        // Full three players: 49–73, loss shares 23/0/77. Ease 2 keeps the first third light.
+        {
+          hp: 1, count: 1.06, lateHp: 0.26, lateCount: 0.12, bossHp: 1.01, lateBossHp: 0.035,
+          extra: 0.1, lateExtra: 0.15, magicResist: 0.04, ease: 2,
+        },
+      ],
     },
   },
   hero: {

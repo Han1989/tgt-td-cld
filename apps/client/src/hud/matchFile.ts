@@ -11,10 +11,11 @@ export interface MatchFile {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** `tdt-match-2026-09-28-1432-quick-victory.json` (local time of `date`). */
+/** `tdt-match-2026-09-28-1432-quick-normal-victory.json` (local time of `date`). */
 export function matchFileName(report: MatchReport, date: Date): string {
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  return `tdt-match-${day}-${pad(date.getHours())}${pad(date.getMinutes())}-${report.mode}-${report.result}.json`;
+  const difficulty = report.difficulty ?? 'normal';
+  return `tdt-match-${day}-${pad(date.getHours())}${pad(date.getMinutes())}-${report.mode}-${difficulty}-${report.result}.json`;
 }
 
 export function matchFile(report: MatchReport, replay: Replay, date: Date): MatchFile {

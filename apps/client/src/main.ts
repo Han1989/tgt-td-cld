@@ -38,9 +38,9 @@ async function main(): Promise<void> {
   }
   const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
   if (!serverUrl) {
-    // No game server configured: local solo mode, after a hero and mode pick.
+    // No game server configured: local solo mode, after a hero, mode and difficulty pick.
     // Analytics needs the server (docs/ANALYTICS.md); this path sends nothing.
-    showSoloPick((hero, mode) => playSolo(view, hero, mode));
+    showSoloPick((hero, mode, difficulty) => playSolo(view, hero, mode, difficulty));
     ready('solo');
     return;
   }

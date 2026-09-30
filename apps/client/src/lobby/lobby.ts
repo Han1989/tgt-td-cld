@@ -6,6 +6,7 @@ import {
   MAX_PLAYERS,
   normalizeName,
   normalizeRoomCode,
+  type Difficulty,
   type GameMode,
   type HeroKind,
   type LobbyState,
@@ -14,6 +15,7 @@ import {
 import { HERO_INFO } from '../heroInfo';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
+import { DifficultyPicker } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { ModePicker } from './modePicker';
 
@@ -26,6 +28,8 @@ export interface LobbyActions {
   setHero(hero: HeroKind): void;
   /** Host only: the match mode. */
   setMode(mode: GameMode): void;
+  /** Host only: Normal or Hard. */
+  setDifficulty(difficulty: Difficulty): void;
   setReady(ready: boolean): void;
   start(): void;
   leave(): void;
@@ -79,11 +83,13 @@ export class LobbyUi {
   private readonly start = $('lobby-start') as HTMLButtonElement;
   private readonly refresh = $('lobby-refresh');
   private readonly modeLabel = $('lobby-mode-room-label');
+  private readonly difficultyLabel = $('lobby-difficulty-room-label');
 
   private hero: HeroKind = storedHero();
   private readonly homePicker: HeroPicker;
   private readonly roomPicker: HeroPicker;
   private readonly modePicker: ModePicker;
+  private readonly difficultyPicker: DifficultyPicker;
   private amReady = false;
   private current: LobbyState | null = null;
 
@@ -132,6 +138,9 @@ export class LobbyUi {
       actions.setHero(hero);
     });
     this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => actions.setMode(mode));
+    this.difficultyPicker = new DifficultyPicker($('lobby-difficulty-room'), 'normal', (difficulty) =>
+      actions.setDifficulty(difficulty),
+    );
   }
 
   /** True if the page was opened from an invite link. */
@@ -191,6 +200,9 @@ export class LobbyUi {
     this.modePicker.select(lobby.mode);
     this.modePicker.setEnabled(isHost);
     this.modeLabel.textContent = isHost ? 'Mode' : 'Mode (the host picks)';
+    this.difficultyPicker.select(lobby.difficulty);
+    this.difficultyPicker.setEnabled(isHost);
+    this.difficultyLabel.textContent = isHost ? 'Difficulty' : 'Difficulty (the host picks)';
 
     const seats = lobby.players.length;
     this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS}${seats < MAX_PLAYERS ? ' (one per lane)' : ' (full)'}`;

@@ -15,6 +15,8 @@ export type {
   ArcanistStats,
   WaveGroup,
   ModeTuning,
+  DifficultyScaling,
+  DifficultyBand,
 } from './tuning';
 export { SKILL_MODES } from './skills';
 export type { SkillMode } from './skills';
@@ -23,7 +25,8 @@ export type { GameMap, MapData, PadData, PadZone, BuildPad, Lane, TileType } fro
 export { padLayout } from './pads';
 export { findPath, nearestWalkable } from './pathfinding';
 export type { GameConfig, GameState, PlayerConfig } from './state';
-export { createBalanceBot, createIdleBot } from './bots';
+export { createBalanceBot, createExpertBot, createIdleBot } from './bots';
+export type { BotStyle } from './bots';
 export type { Bot } from './bots';
 export { runHeadlessMatch, runManaDrill, drillRanks } from './headless';
 export type { HeadlessResult, HeroMatchStats, ManaDrillResult } from './headless';

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGame, snapshot, step } from '../src/game';
 import { TUNING, tuningForMode } from '../src/tuning';
-import { creepMaxHp, playerHpMultiplier, waveIncome } from '../src/waves';
+import { creepMaxHp, playerHpMultiplier, scaledCount, waveIncome } from '../src/waves';
 import { tuningCopy } from './helpers';
 
 const QUICK = tuningForMode(TUNING, 'quick');
@@ -24,12 +24,14 @@ function bossWaves(list: typeof TUNING.waves.list): number[] {
 }
 
 describe('match modes', () => {
-  it('defaults to Full mode: 30 waves and the top-level tuning', () => {
+  it('defaults to Full mode on Normal: 30 waves and the top-level tuning', () => {
     const state = game();
     expect(state.mode).toBe('full');
+    expect(state.difficulty).toBe('normal');
     expect(state.tuning).toEqual(TUNING);
     const snap = snapshot(state);
     expect(snap.mode).toBe('full');
+    expect(snap.difficulty).toBe('normal');
     expect(snap.totalWaves).toBe(30);
   });
 
@@ -114,5 +116,73 @@ describe('match modes', () => {
     for (let t = 0; t < 20 * 60 * 30 && !won(); t++) step(state);
     expect(won()).toBe(true);
     expect(state.wave).toBe(15);
+  });
+});
+
+describe('difficulty', () => {
+  function at(difficulty: 'normal' | 'hard') {
+    return createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], difficulty }, 1);
+  }
+
+  it('Normal creep HP and counts are the player-scaling formulas with no extra multiplier', () => {
+    const state = at('normal');
+    const base = TUNING.creeps.grunt.hp;
+    expect(creepMaxHp(state, 'grunt', 1)).toBe(Math.round(base * TUNING.playerScaling.hp[0]!));
+    state.wave = 1;
+    expect(scaledCount(state, 4)).toBe(4);
+    state.wave = 30;
+    expect(scaledCount(state, 4)).toBe(4);
+  });
+
+  it('Hard raises creep HP and how many non-boss creeps spawn, more so in the last third', () => {
+    const normal = at('normal');
+    const hard = at('hard');
+    expect(creepMaxHp(hard, 'grunt', 1)).toBeGreaterThan(creepMaxHp(normal, 'grunt', 1));
+    expect(creepMaxHp(hard, 'ironhorn', 30)).toBeGreaterThan(creepMaxHp(normal, 'ironhorn', 30));
+    // A single group can round the same way early and late. Across the sizes a wave actually uses, the last
+    // third spawns more bodies (the late HP/count ramp, plus any flat extras that grow then).
+    const sizes = [4, 8, 10, 14, 16];
+    const total = (wave: number) => {
+      hard.wave = wave;
+      return sizes.reduce((sum, n) => sum + scaledCount(hard, n), 0);
+    };
+    const early = total(1);
+    const late = total(30);
+    normal.wave = 1;
+    expect(early).toBeGreaterThan(scaledCount(normal, 10));
+    expect(late).toBeGreaterThan(early);
+  });
+
+  it('Hard does not add bosses: a boss wave still spawns one, and a grunt wave spawns more', () => {
+    const tuning = tuningCopy();
+    tuning.waves.list = [
+      [{ kind: 'grunt', perLane: 10, lanes: [0, 1, 2] }],
+      [{ kind: 'ironhorn', perLane: 1, lanes: [1] }],
+    ];
+    tuning.waves.buildPhase = 0.05;
+    tuning.waves.interval = 3;
+    tuning.waves.spawnInterval = 0.05;
+    const seen = (difficulty: 'normal' | 'hard') => {
+      const state = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], tuning, difficulty }, 3);
+      state.heartHp = 1e9;
+      const grunts = new Set<number>();
+      const bosses = new Set<number>();
+      for (let t = 0; t < 20 * 30 && state.wave < 2; t++) {
+        step(state);
+        for (const c of state.creeps) {
+          if (c.kind === 'grunt') grunts.add(c.id);
+          if (c.kind === 'ironhorn') bosses.add(c.id);
+        }
+      }
+      // The boss spawns on the tick wave 2 starts; step once more so it exists.
+      step(state);
+      for (const c of state.creeps) if (c.kind === 'ironhorn') bosses.add(c.id);
+      return { grunts: grunts.size, bosses: bosses.size };
+    };
+    const normal = seen('normal');
+    const hard = seen('hard');
+    expect(normal.bosses).toBe(1);
+    expect(hard.bosses).toBe(1);
+    expect(hard.grunts).toBeGreaterThan(normal.grunts);
   });
 });

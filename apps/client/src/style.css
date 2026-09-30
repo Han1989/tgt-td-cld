@@ -1218,9 +1218,14 @@ button {
   box-shadow: var(--stone-rim), 0 0 14px rgba(127, 252, 216, 0.25);
 }
 
-/* Guests see the host's mode pick without being able to change it. */
-.mode-pick:disabled.selected {
+/* Guests see the host's mode and difficulty picks without being able to change them. */
+.mode-pick:disabled.selected,
+.difficulty-pick:disabled.selected {
   opacity: 1;
+}
+
+.stat.wave.hard .label {
+  color: var(--trim);
 }
 
 .link {

@@ -135,12 +135,19 @@ describe('match reports', () => {
     room.state!.heartHp = 0;
     await host!.waitFor(() => host!.report !== null);
     const { report, replay } = host!.report!;
-    expect(report).toMatchObject({ mode: 'quick', result: 'defeat', protocol: PROTOCOL_VERSION, build: 'abc1234', heartHp: 0 });
+    expect(report).toMatchObject({
+      mode: 'quick',
+      difficulty: 'normal',
+      result: 'defeat',
+      protocol: PROTOCOL_VERSION,
+      build: 'abc1234',
+      heartHp: 0,
+    });
     expect(replay.build).toBe('abc1234');
     expect(report.heroes.map((h) => h.player)).toEqual(['p1', 'p2']);
     expect(replay.players.map((p) => p.hero)).toEqual(['ranger', 'warden']);
     expect(replay.log.some((e) => e[1] === 1 && e[2] === 'drop')).toBe(true);
-    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick seed ${report.seed} `))).toHaveLength(1);
+    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick normal seed ${report.seed} `))).toHaveLength(1);
     expect(lines[0]).toContain(' build abc1234 defeat ');
 
     // A player who comes back after the end gets it too.
@@ -190,6 +197,40 @@ describe('match mode', () => {
     host!.send({ t: 'restart' });
     await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
     expect(guest!.lobby!.mode).toBe('quick');
+  });
+});
+
+describe('difficulty', () => {
+  it('lets only the host pick Hard, shows it to everyone, and starts the match on it', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    expect(host!.lobby!.difficulty).toBe('normal');
+
+    guest!.send({ t: 'difficulty', difficulty: 'hard' });
+    await guest!.waitFor(() => guest!.errors.length > 0);
+    expect(guest!.errors[0]).toMatchObject({ code: 'not_host' });
+    expect(host!.lobby!.difficulty).toBe('normal');
+
+    host!.send({ t: 'difficulty', difficulty: 'hard' });
+    await guest!.waitFor(() => guest!.lobby?.difficulty === 'hard');
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    expect(guest!.snap!.difficulty).toBe('hard');
+    expect(server.rooms.get(host!.code!)!.state!.difficulty).toBe('hard');
+
+    host!.send({ t: 'difficulty', difficulty: 'normal' });
+    await host!.waitFor(() => host!.errors.length > 0);
+    expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
+
+    server.rooms.get(host!.code!)!.state!.heartHp = 0;
+    await host!.waitFor(() => host!.snap?.phase === 'defeat');
+    expect(host!.report?.report.difficulty).toBe('hard');
+    expect(host!.report?.replay.difficulty).toBe('hard');
+    host!.send({ t: 'restart' });
+    await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
+    expect(guest!.lobby!.difficulty).toBe('hard');
   });
 });
 

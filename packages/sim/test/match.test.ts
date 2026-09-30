@@ -65,7 +65,14 @@ describe('match reports and replays', () => {
   it('reports the Heart after each wave and every hero’s levels, deaths and casts', () => {
     const match = botMatch(['ranger', 'arcanist'], 3, 'quick');
     const report = matchReport(match);
-    expect(report).toMatchObject({ mode: 'quick', seed: 3, wave: 15, totalWaves: 15, result: match.state.phase });
+    expect(report).toMatchObject({
+      mode: 'quick',
+      difficulty: 'normal',
+      seed: 3,
+      wave: 15,
+      totalWaves: 15,
+      result: match.state.phase,
+    });
     expect(report.heartAfterWave).toHaveLength(15);
     expect(report.heartAfterWave.at(-1)).toBe(report.heartHp);
     // The Heart never heals.
@@ -78,9 +85,17 @@ describe('match reports and replays', () => {
       expect(h.casts.R).toBeGreaterThan(0);
       expect(h.rOverlaps).toBeLessThanOrEqual(h.casts.R);
       expect(h.noManaSeconds.Q).toBeGreaterThanOrEqual(0);
+      expect(h.towersBuilt).toBeGreaterThan(0);
+      expect(h.upgrades).toBeGreaterThan(0);
+      expect(h.branches).toBeGreaterThanOrEqual(0);
+      expect(h.goldSpent).toBeGreaterThan(0);
+      expect(h.goldUnspent).toBeGreaterThanOrEqual(0);
+      expect(h.wavesCalledEarly).toBe(0);
     }
     expect(report.build).toBe('dev');
-    expect(reportSummary(report, 'ABCDE')).toMatch(/^match ABCDE quick seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /);
+    expect(reportSummary(report, 'ABCDE')).toMatch(
+      /^match ABCDE quick normal seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /,
+    );
     expect(reportSummary(report)).not.toContain('\n');
   });
 

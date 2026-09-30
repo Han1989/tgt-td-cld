@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -85,6 +85,13 @@ export type LaneId = 0 | 1 | 2;
 /** Match length: Full (30 waves) or Quick (15 waves, compressed difficulty). A match option picked before the start. */
 export const GAME_MODES = ['full', 'quick'] as const;
 export type GameMode = (typeof GAME_MODES)[number];
+
+/**
+ * How hard the creeps are. Normal is the tuned baseline. Hard raises creep HP and how many spawn
+ * (not HP alone), picked in the lobby next to Full / Quick. Orthogonal to match length.
+ */
+export const DIFFICULTIES = ['normal', 'hard'] as const;
+export type Difficulty = (typeof DIFFICULTIES)[number];
 
 /** Lingering or delayed ground effects of hero ultimates. */
 export const ZONE_KINDS = ['arrowStorm', 'meteor'] as const;
@@ -304,6 +311,8 @@ export interface Snapshot {
   tickRate: number;
   /** Match mode (fixed for the whole match). */
   mode: GameMode;
+  /** Creep difficulty (fixed for the whole match). Normal is the baseline. */
+  difficulty: Difficulty;
   phase: GamePhase;
   heartHp: number;
   heartMaxHp: number;
@@ -348,6 +357,18 @@ export interface HeroReport {
   noManaSeconds: { Q: number; W: number };
   /** Ultimates cast within 2 s of another hero's ultimate (either side). */
   rOverlaps: number;
+  /** Towers this player built. */
+  towersBuilt: number;
+  /** Tier upgrades (not the tier-4 branch). */
+  upgrades: number;
+  /** Towers taken into a tier-4 branch. */
+  branches: number;
+  /** Net gold paid for towers: builds and upgrades, minus sell refunds. */
+  goldSpent: number;
+  /** Gold still held when the match ended. */
+  goldUnspent: number;
+  /** Waves this player called early. */
+  wavesCalledEarly: number;
 }
 
 /** A summary of a finished match, built by the host (server or local worker) from the simulation. */
@@ -358,6 +379,8 @@ export interface MatchReport {
   /** The host's build: its git commit (server: Render's, solo: the client's from Vercel), or 'dev'. */
   build: string;
   mode: GameMode;
+  /** Creep difficulty (Normal is the tuned baseline). */
+  difficulty: Difficulty;
   seed: number;
   result: 'victory' | 'defeat';
   /** Waves started (the last one reached on a defeat) and the match's total. */
@@ -387,6 +410,8 @@ export interface Replay {
   build: string;
   seed: number;
   mode: GameMode;
+  /** Absent on replays saved before Hard existed: those matches were Normal. */
+  difficulty?: Difficulty;
   players: { id: PlayerId; name: string; hero: HeroKind }[];
   /** Inputs in the order the host applied them. */
   log: ReplayEntry[];
@@ -420,6 +445,8 @@ export interface LobbyState {
   hostId: PlayerId;
   /** Match mode the host picked; used when the match starts. */
   mode: GameMode;
+  /** Creep difficulty the host picked; used when the match starts. */
+  difficulty: Difficulty;
   players: LobbyPlayer[];
 }
 
@@ -493,6 +520,11 @@ export type ClientMessage =
    * in that mode, like `hero`.
    */
   | { t: 'mode'; mode: GameMode }
+  /**
+   * Lobby: pick Normal or Hard (online: host only, before the start). Local solo: start a new match
+   * at that difficulty, like `mode`.
+   */
+  | { t: 'difficulty'; difficulty: Difficulty }
   /** Lobby: toggle ready. */
   | { t: 'ready'; ready: boolean }
   /** Lobby: host starts the match. */

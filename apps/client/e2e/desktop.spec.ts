@@ -145,9 +145,9 @@ test('end screen: "Save match report" downloads the report and the replay as one
   // No game server in this build, so the rating control stays out of the way.
   await expect(page.locator('#end-feedback')).toBeHidden();
   const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#end-save').click()]);
-  expect(download.suggestedFilename()).toMatch(/^tdt-match-\d{4}-\d{2}-\d{2}-\d{4}-quick-defeat\.json$/);
+  expect(download.suggestedFilename()).toMatch(/^tdt-match-\d{4}-\d{2}-\d{2}-\d{4}-quick-normal-defeat\.json$/);
   const file = JSON.parse(readFileSync((await download.path())!, 'utf8'));
-  expect(file.report).toMatchObject({ mode: 'quick', result: 'defeat', heroes: [{ hero: 'arcanist' }] });
+  expect(file.report).toMatchObject({ mode: 'quick', difficulty: 'normal', result: 'defeat', heroes: [{ hero: 'arcanist' }] });
   expect(file.replay.players).toEqual([{ id: 'local', name: 'You', hero: 'arcanist' }]);
   // A local build (no VERCEL_GIT_COMMIT_SHA) stamps 'dev'.
   expect([file.report.build, file.replay.build]).toEqual(['dev', 'dev']);

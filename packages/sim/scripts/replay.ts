@@ -72,7 +72,7 @@ const ms = performance.now() - started;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 console.log(
-  `${cap(report.mode)} match, seed ${report.seed}, protocol v${replay.protocol}, build ${build}: ${report.result} on wave ` +
+  `${cap(report.mode)} ${report.difficulty} match, seed ${report.seed}, protocol v${replay.protocol}, build ${build}: ${report.result} on wave ` +
     `${report.wave}/${report.totalWaves}, Heart ${report.heartHp}/${report.heartMaxHp}, ${mmss(report.seconds)} ` +
     `(${replay.log.length} inputs, re-run in ${(ms / 1000).toFixed(1)} s)`,
 );
@@ -86,7 +86,9 @@ for (const h of report.heroes) {
     `${cap(h.hero)} (${h.name}, ${h.player}): level ${h.level}, ${h.kills} kills, ${h.deaths} deaths; ` +
       `casts Q ${h.casts.Q}, W ${h.casts.W}, R ${h.casts.R}; Q / W ready without mana ` +
       `${Math.round(h.noManaSeconds.Q)} s / ${Math.round(h.noManaSeconds.W)} s; ` +
-      `R within 2 s of another R: ${h.rOverlaps}`,
+      `R within 2 s of another R: ${h.rOverlaps}; ` +
+      `towers ${h.towersBuilt}, upgrades ${h.upgrades}, branches ${h.branches}, ` +
+      `gold spent ${h.goldSpent}, unspent ${h.goldUnspent}, waves called early ${h.wavesCalledEarly}`,
   );
   console.log(`  level by wave: ${h.levelByWave.join(' ')}`);
   console.log(`  levels reached at: ${h.levelUps.map((s, i) => `L${i + 2} ${mmss(s)}`).join(', ')}`);
