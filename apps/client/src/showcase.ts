@@ -25,7 +25,17 @@ import { SOUND_IDS, SOUNDS, type SoundId } from './audio/sounds';
 import { soundSeconds } from './audio/synth';
 import { ICONS, installIcons } from './render/art/icons';
 import { ArtKit } from './render/art/kit';
-import { allArt, creepArt, heroArt, towerArt, type ArtEntry, type HeroRig } from './render/art/registry';
+import {
+  allArt,
+  creepArt,
+  heroArt,
+  PROJECTILE_STYLES,
+  projectileArt,
+  towerArt,
+  trapArt,
+  type ArtEntry,
+  type HeroRig,
+} from './render/art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './render/art/rigs';
 import { liftColor, RL, type Display } from './render/art/tokens';
 import { createFxAtlas, type FxAtlas } from './render/fx/atlas';
@@ -119,6 +129,8 @@ export async function runShowcase(): Promise<void> {
     hero: 'Heroes',
     creep: 'Creeps',
     tower: 'Towers',
+    projectile: 'Projectiles',
+    trap: 'Traps',
     heart: 'The Heart',
     portal: 'Portals',
     pad: 'Build pads',
@@ -167,6 +179,18 @@ export async function runShowcase(): Promise<void> {
         }
         break;
       }
+      case 'projectile':
+        addCard(grid, e, `projectile · ${e.kind}`, 'lane', () => projectileActor(kit, e.id), 2.2, PHONE.entity);
+        break;
+      case 'trap': {
+        // The ring is scaled to the root radius in a match; the phone copy uses that, not the raw frame.
+        const rootPx = TUNING.hero.ranger.snareTrap.rootRadius * 32;
+        const ringPhone = PHONE.world * (rootPx / e.ringRadius);
+        addCard(grid, e, 'idle · arming', 'lane', () => frameActor(kit, e.id, 'idle', false), 2, PHONE.entity);
+        addCard(grid, e, 'armed', 'lane', () => frameActor(kit, e.id, 'armed', true), 2, PHONE.entity);
+        addCard(grid, e, 'root ring', 'lane', () => frameActor(kit, e.id, 'ring', false), 1.35, ringPhone);
+        break;
+      }
       case 'heart':
         for (const [label, stage] of [
           ['the Heart', 0],
@@ -202,6 +226,8 @@ export async function runShowcase(): Promise<void> {
     ...HERO_KINDS.filter((k) => !heroArt(k)).map((k) => `hero · ${k}`),
     ...CREEP_KINDS.filter((k) => !creepArt(k)).map((k) => `creep · ${k}`),
     ...TOWER_KINDS.filter((k) => !towerArt(k)).map((k) => `tower · ${k}`),
+    ...PROJECTILE_STYLES.filter((s) => !projectileArt(s)).map((s) => `projectile · ${s}`),
+    ...(trapArt('snare') ? [] : ['trap · snare']),
   ];
   const todo = document.createElement('section');
   todo.className = 'sc-todo';
@@ -515,6 +541,34 @@ function portalActor(kit: ArtKit, id: string, flare: boolean): Actor {
       burst.alpha = t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
       burst.scale.set(0.55 + t * 0.7);
       burst.rotation = t * 0.6;
+    },
+  };
+}
+
+/** A shot, weaving inside its card and facing the way it travels (the in-match aim). */
+function projectileActor(kit: ArtKit, id: string): Actor {
+  const view = new Container();
+  const body = kit.sprite(id, 'body');
+  view.addChild(body);
+  return {
+    view,
+    animate(now) {
+      const t = now / 520;
+      const vx = Math.cos(t) * 16;
+      const vy = Math.cos(t * 2) * 3;
+      body.position.set(Math.sin(t) * 10, Math.sin(t * 2) * 3);
+      body.rotation = Math.atan2(vy, vx);
+    },
+  };
+}
+
+/** One baked frame. `pulse` is the armed trap's glow breathing. */
+function frameActor(kit: ArtKit, id: string, frame: string, pulse: boolean): Actor {
+  const sprite = kit.sprite(id, frame);
+  return {
+    view: sprite,
+    animate(now) {
+      if (pulse) sprite.alpha = 0.84 + Math.sin(now / 260) * 0.16;
     },
   };
 }

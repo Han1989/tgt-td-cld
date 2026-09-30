@@ -11,9 +11,12 @@ import {
   checkArt,
   creepArt,
   heroArt,
+  PROJECTILE_STYLES,
+  projectileArt,
   propArts,
   registerArt,
   towerArt,
+  trapArt,
   type ArtEntry,
   type CreepArt,
 } from '../src/render/art/registry';
@@ -76,6 +79,19 @@ describe('art registry', () => {
       for (const b of TOWER_BRANCHES[e.kind]) allowed.add(`${b}.base`).add(`${b}.top`);
       for (const name of Object.keys(e.frames)) expect(allowed.has(name), `${e.id}/${name}`).toBe(true);
     }
+  });
+
+  it('every projectile style and the snare trap have art', () => {
+    for (const style of PROJECTILE_STYLES) {
+      const e = projectileArt(style);
+      expect(e, style).toBeDefined();
+      expect(e!.frames.body, style).toBeDefined();
+    }
+    const trap = trapArt('snare');
+    expect(trap?.frames.idle).toBeDefined();
+    expect(trap?.frames.armed).toBeDefined();
+    expect(trap?.frames.ring).toBeDefined();
+    expect(trap!.ringRadius).toBeGreaterThan(8);
   });
 
   it('every tower kind has art for both of its branches, and a turret that turns (for aim and recoil)', () => {

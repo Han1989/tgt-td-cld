@@ -44,6 +44,8 @@ export const RL = {
   iron: 0x444b5b,
   ironDark: 0x262b36,
   gold: 0xe8b94a,
+  /** Root / snare rope. Same hex as `COLORS.root`, so the trap ring matches the root tint. */
+  snare: 0xc8a165,
   bone: 0xe6dac0,
   string: 0xdfe8f0,
   /** Deep hole / void (cannon mouths, visor slits). */
@@ -120,6 +122,8 @@ export const RL = {
   voidGlow: 0xff5fd2,
   /** Flak muzzles and runes (hotter and redder than ember). */
   flare: 0xff6a3d,
+  /** Ranger Multishot and Arrow Storm (`PROJECTILE_COLORS.multishot`). */
+  multishot: 0xe6ff7a,
   heart: 0xff3a60,
   heartFacet: 0x5a0a20,
   portal: 0x8a4fe0,

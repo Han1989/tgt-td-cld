@@ -10,13 +10,13 @@
 
 ## Now: in this order
 
-### T-00 · CI and branch protection · NEW · Team, then Han · ◐
+### T-00 · CI and branch protection · NEW · Team, then Han · ☑
 
-Tests have only ever run inside build sessions. The team workflow lands in this pull request. Still open: the first green `ci` check, which is also what stops a failing test from merging.
+Tests have only ever run inside build sessions. The team workflow and the required `ci` check are on `main` (PR #24).
 
 - **Team:** ☑ `.github/workflows/ci.yml` for pull requests and pushes to `main`: Node 22.12+, `npm ci`, `npm test`, `npm run build`. A second job runs `npm run test:e2e` (Playwright Chromium) when `apps/client/**`, `packages/**`, or `.github/workflows/ci.yml` change. npm and the Playwright browsers are cached. The e2e job takes several minutes; the stress test still runs alone at the end.
 - **Han:** protect `main` in the repo settings: require a pull request, require the CI checks to pass, block force pushes. **Done 30 Sep 2026:** `main` requires PR + status check `ci`, force pushes blocked, admins enforced; repo `allow_auto_merge` on.
-- **Done when:** a PR shows green checks, and a PR with a deliberately failing test can't be merged.
+- **Done when:** a PR shows green checks, and a PR with a deliberately failing test can't be merged. **Done 30 Sep 2026:** `ci` is on `main` (PR #24) and is the required status check.
 
 ### T-01 · Hard difficulty and an expert bot · checklist `a-hard` · Team · ☑
 
@@ -43,9 +43,11 @@ Proposed acceptance criteria: teammates see the ping on the map (and at the scre
 
 A guided first match that teaches moving, building, casting and upgrading within the first two waves. Do it **after T-02**, so it can teach pings too. Proposed: it runs once for a new player (solo), can be skipped, and is replayable from settings.
 
-### T-04 · Art for projectiles and traps · NEW · Team · ☐
+### T-04 · Art for projectiles and traps · NEW · Team · ☑
 
 The last things still drawn as plain shapes (`CLAUDE.md` status). Follow the new-entity checklist in `docs/ART.md` §10 and check them at phone size in `?showcase`, in Normal and Bright.
+
+**Done 30 Sep 2026:** every shot style and the Snare Trap are Runelight sprites (`docs/ART.md` §6). `?showcase` lists them in Normal and Bright.
 
 ### T-05 · Docs clean-up · NEW · Team · ☐
 
