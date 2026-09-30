@@ -56,7 +56,7 @@ test('mouse and keyboard: right-click moves, left-click a pad and press 1 to bui
   expect(await page.evaluate(() => window.__tdt.camera.zoom)).toBeGreaterThan(zoom0);
 });
 
-test('Alt-click pings, and a ping leaves the edge of the screen when you zoom away', async ({ page }) => {
+test('Alt-click pings, and a ping sits on the edge of the screen when you look away', async ({ page }) => {
   await startSolo(page);
   const at = await toScreen(page, 2, 3);
   await page.keyboard.down('Alt');
@@ -65,9 +65,15 @@ test('Alt-click pings, and a ping leaves the edge of the screen when you zoom aw
   await expect.poll(() => sent(page, 'ping').then((p) => p.length)).toBe(1);
   expect(await sent(page, 'move')).toHaveLength(0);
   await expect(page.locator('#pings .ping')).toBeVisible();
+  await expect(page.locator('#pings .ping.off')).toHaveCount(0);
 
-  await page.mouse.move(683, 200);
-  for (let i = 0; i < 8; i++) await page.mouse.wheel(0, -400);
+  // Look at the far corner at the highest zoom. A wheel zoom stops at 2× and stays near the cursor,
+  // so it does not reliably push a nearby ping off the map; the camera does.
+  await page.evaluate(() => {
+    const cam = window.__tdt.camera;
+    cam.zoom = 2;
+    cam.centerOn(window.__tdt.map.width * 32 - 16, window.__tdt.map.height * 32 - 16);
+  });
   await expect(page.locator('#pings .ping.off')).toBeVisible();
   const vp = page.viewportSize()!;
   const mark = await box(page, '#pings .ping');
