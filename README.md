@@ -3,12 +3,14 @@
 A browser co-op tower defense for 1–3 players (one per lane): build towers, control a hero and hold the Heart against waves of creeps.
 
 - **Design and build plan:** [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
+- **Roadmap (vision, locked decisions, phases):** [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- **Task list:** [`TASKS.md`](TASKS.md)
 - **Working in this repo (commands, layout, rules):** [`CLAUDE.md`](CLAUDE.md)
 - **Deploying (Render game server + Vercel client):** [`docs/DEPLOY.md`](docs/DEPLOY.md)
 - **Rollout analytics (one dashboard, channel tags):** [`docs/ANALYTICS.md`](docs/ANALYTICS.md)
 - **Adding recorded music and sound effects (no code needed):** [`docs/SOUND_FILES.md`](docs/SOUND_FILES.md)
 
-**Status:** Phase 2, online co-op for 1–3 players (rooms, lobby, reconnect), plus offline solo.
+**Status:** Phases 1–3 are done (solo, online co-op for 1–3 players, and content). Phase 4a (portrait Spire, touch controls, PWA, Quick mode) and the Phase 4b polish list through T-04 are done: Runelight art and sound, Hard difficulty, team pings, and a first-match tutorial. Real-device checks and the optional app-store wrap are still open. Later phases wait on Gate 1; see the roadmap.
 
 ```bash
 npm install

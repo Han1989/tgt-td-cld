@@ -51,12 +51,14 @@ The last things still drawn as plain shapes (`CLAUDE.md` status). Follow the new
 
 **Done 30 Sep 2026:** every shot style and the Snare Trap are Runelight sprites (`docs/ART.md` §6). `?showcase` lists them in Normal and Bright.
 
-### T-05 · Docs clean-up · NEW · Team · ☐
+### T-05 · Docs clean-up · NEW · Team · ☑
 
 - README: the status line still says Phase 2.
 - Add `docs/ROADMAP.md` (vision, locked decisions and phases, from `HANDOVER.md` §2 and this file) and link it from `CLAUDE.md`.
 - `docs/GAME_DESIGN.md` §11 "Out of scope": mark accounts, leaderboards, PvP and monetisation as planned for Phases 6–8, after Gate 1.
 - Add `AGENTS.md` pointing to `CLAUDE.md` if your tooling reads it.
+
+**Done 30 Sep 2026:** README status is Phases 1–3 done and Phase 4 polish through the tutorial (T-00–T-04). [`docs/ROADMAP.md`](docs/ROADMAP.md) is linked from `CLAUDE.md`. §11 marks accounts, leaderboards, PvP and monetisation as Phases 6–8 after Gate 1. [`AGENTS.md`](AGENTS.md) points at `CLAUDE.md`.
 
 ### Han, in parallel
 
@@ -76,7 +78,7 @@ The last things still drawn as plain shapes (`CLAUDE.md` status). Follow the new
 
 ## After polish · Discovery and rollout · NEW
 
-**Do not start discovery or store submission until the polish path is done:** T-00 → T-01 → T-02 → T-03 → T-04 → T-05 (CI, Hard, pings, tutorial, art, docs). Gate 1 (friends) can run in parallel with late polish.
+**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). Discovery and store submission still wait on Gate 1 and on the measurement below; friends-only signal is not a store go. Gate 1 (friends) can run in parallel with anything left on Han's list.
 
 **Why:** current playtesters are only **2–3 friends**. That is enough for confusion and hook notes, not for whether strangers stay. Discovery is the first real-audience signal **before or alongside** store submission.
 
