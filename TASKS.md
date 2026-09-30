@@ -1,7 +1,9 @@
 # Tower Defense Together: Task list
 
 **As of 30 Sep 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated same day: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship.
-**This file is now the tracker.** Update a task's status in the same pull request that finishes it.
+**This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)).
+
+**Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress).
 
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked

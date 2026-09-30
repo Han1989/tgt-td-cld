@@ -88,7 +88,7 @@ A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an acco
 
 | Event | When |
 |---|---|
-| `session_start` | Page open (not `?showcase` or `?stress`) |
+| `session_start` | Page open (not `?showcase`, `?stress`, or `?progress`) |
 | `session_heartbeat` | Every 25 seconds while the tab is visible |
 | `session_end` | The page is going away (`pagehide`: close, refresh, or a phone app switch). Hiding a desktop tab only stops heartbeats; 90 seconds without one ends the session. A return within 90 seconds continues the same session. |
 | `match_end` | The Heart survives or falls: result, Heart HP, mode, wave, player count |
@@ -96,7 +96,7 @@ A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an acco
 
 The end-screen control is hidden when there is no server URL. Tapping it never blocks **Play again**. If the post fails, the match is unchanged.
 
-Showcase (`?showcase`) and the stress scene do not start a session.
+Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do not start a session.
 
 ## Limits
 
