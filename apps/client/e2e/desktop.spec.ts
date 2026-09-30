@@ -43,6 +43,10 @@ test('mouse and keyboard: right-click moves, left-click a pad and press 1 to bui
   await page.keyboard.press('q');
   await expect.poll(() => sent(page, 'cast').then((c) => c.length)).toBe(1);
 
+  // The open tower panel sits on the pad and takes the wheel. Zoom the map itself.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#tower-panel')).toBeHidden();
+
   // Wheel zoom works, but never zooms out past the fitted map.
   const zoom0 = await page.evaluate(() => window.__tdt.camera.zoom);
   await page.mouse.move(683, 384);
@@ -138,6 +142,8 @@ test('end screen: "Save match report" downloads the report and the replay as one
   await page.evaluate(() => window.__tdt.lose());
   await expect(page.locator('#end-screen')).toBeVisible();
   await expect(page.locator('#end-save')).toBeVisible();
+  // No game server in this build, so the rating control stays out of the way.
+  await expect(page.locator('#end-feedback')).toBeHidden();
   const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#end-save').click()]);
   expect(download.suggestedFilename()).toMatch(/^tdt-match-\d{4}-\d{2}-\d{2}-\d{4}-quick-defeat\.json$/);
   const file = JSON.parse(readFileSync((await download.path())!, 'utf8'));
