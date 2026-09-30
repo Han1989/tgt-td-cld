@@ -39,3 +39,7 @@ services:
         value: "280"
       - key: MAX_ROOMS
         value: "200"
+      # Shared secret for https://<service>.onrender.com/analytics?key=… (docs/ANALYTICS.md).
+      # Leave it unset to keep the dashboard off. Never commit the value.
+      - key: ANALYTICS_DASHBOARD_KEY
+        sync: false

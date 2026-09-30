@@ -81,6 +81,10 @@ After changing it: Render → *Environment* → edit → **Save, rebuild and dep
 | `MAX_ROOMS` | `200` | New rooms are refused (`server_full`) beyond this. |
 | `WS_COMPRESSION` | on | `off` disables permessage-deflate. |
 | `RENDER_GIT_COMMIT` | `dev` | Set by Render itself (the deployed commit); stamped into every online match report and replay and the `match …` log line. Don't set it by hand. |
+| `ANALYTICS_DASHBOARD_KEY` | unset (dashboard off) | Shared secret for `GET /analytics`. See [`docs/ANALYTICS.md`](ANALYTICS.md). Do not commit it. |
+| `ANALYTICS_DIR` | system temp dir | Where the analytics JSONL is written. A Render Disk path keeps it across deploys; the default temp file does not. `memory` keeps RAM only. |
+
+Startup logs one analytics line: where events are stored, and whether the dashboard is on. The page itself is [`docs/ANALYTICS.md`](ANALYTICS.md).
 
 ## 6. Operations
 

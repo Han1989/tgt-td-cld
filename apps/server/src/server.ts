@@ -15,6 +15,8 @@ import {
   type ServerMessage,
 } from '@tdt/protocol';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
+import { createAnalyticsHttp } from './analytics/http';
+import { AnalyticsStore } from './analytics/store';
 import type { ServerConfig } from './config';
 import { TokenBucket } from './rateLimit';
 import { CLOSE_SERVICE_RESTART, Room, type Member } from './room';
@@ -44,9 +46,21 @@ export interface HealthReport {
   tickMs: number;
 }
 
+export interface AnalyticsStatus {
+  /** A JSONL file is being written. */
+  persistent: boolean;
+  /** The file is on an explicit ANALYTICS_DIR, not the temp fallback. */
+  durable: boolean;
+  dir: string | null;
+  /** GET /analytics is enabled (a key is set). */
+  dashboard: boolean;
+  diskError: string | null;
+}
+
 export interface GameServer {
   readonly config: ServerConfig;
   readonly rooms: Map<string, Room>;
+  readonly analytics: AnalyticsStatus;
   /** Starts listening; resolves with the bound port (use port 0 for a random one). */
   listen(port?: number): Promise<number>;
   health(): HealthReport;
@@ -78,7 +92,18 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
   let tickTimer: NodeJS.Timeout | null = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
 
-  const httpServer: Server = createServer((req, res) => handleHttp(req, res));
+  const analyticsStore = new AnalyticsStore(config.analyticsDir);
+  analyticsStore.open();
+  const analyticsHttp = createAnalyticsHttp({
+    store: analyticsStore,
+    dashboardKey: config.analyticsDashboardKey,
+    isOriginAllowed: (origin) => config.isOriginAllowed(origin),
+    connectedPlayers: () => health().players,
+  });
+
+  const httpServer: Server = createServer((req, res) => {
+    void handleHttp(req, res);
+  });
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: config.maxPayloadBytes,
@@ -97,7 +122,16 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws));
   });
 
-  function handleHttp(req: IncomingMessage, res: ServerResponse): void {
+  async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    try {
+      if (await analyticsHttp(req, res)) return;
+    } catch {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Error\n');
+      }
+      return;
+    }
     const path = (req.url ?? '/').split('?')[0];
     if (req.method === 'GET' && (path === '/health' || path === '/healthz')) {
       const body = JSON.stringify(health());
@@ -322,7 +356,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
     for (const room of rooms.values()) room.closeAll(CLOSE_SERVICE_RESTART, 'Server restarting');
     rooms.clear();
     for (const conn of conns) conn.ws.close(CLOSE_SERVICE_RESTART, 'Server restarting');
-    return new Promise((resolve) => {
+    const closed = new Promise<void>((resolve) => {
       // Give close frames a moment to flush, then drop whatever is left.
       setTimeout(() => {
         for (const conn of conns) conn.ws.terminate();
@@ -331,11 +365,24 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
         httpServer.closeAllConnections();
       }, 250);
     });
+    return analyticsStore.flush().then(
+      () => closed,
+      () => closed,
+    );
   }
 
   return {
     config,
     rooms,
+    get analytics(): AnalyticsStatus {
+      return {
+        persistent: analyticsStore.persistent,
+        durable: analyticsStore.location.durable && analyticsStore.persistent,
+        dir: analyticsStore.location.dir,
+        dashboard: config.analyticsDashboardKey.length > 0,
+        diskError: analyticsStore.diskError,
+      };
+    },
     listen(port = config.port) {
       return new Promise((resolve, reject) => {
         httpServer.once('error', reject);

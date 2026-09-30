@@ -28,6 +28,13 @@ export interface ServerConfig {
   compression: boolean;
   /** This server's build, stamped into match reports and replays: RENDER_GIT_COMMIT on Render, else 'dev'. */
   build: string;
+  /**
+   * Analytics JSONL directory. `memory` keeps events in RAM. Empty (from env, when unset)
+   * uses the system temp dir, which a deploy wipes. A Render Disk path keeps history.
+   */
+  analyticsDir: string;
+  /** Shared secret for GET /analytics. Empty disables the dashboard (POST /analytics/event still works). */
+  analyticsDashboardKey: string;
 }
 
 const DEV_ORIGINS = 'http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:4173';
@@ -49,6 +56,8 @@ export function defaultConfig(overrides: Partial<ServerConfig> = {}): ServerConf
     heartbeatMs: 15_000,
     compression: true,
     build: 'dev',
+    analyticsDir: 'memory',
+    analyticsDashboardKey: '',
     ...overrides,
     allowedOriginsList,
     isOriginAllowed: overrides.isOriginAllowed ?? parseAllowedOrigins(allowedOriginsList),
@@ -79,5 +88,13 @@ export function configFromEnv(env: NodeJS.ProcessEnv): ServerConfig {
     shutdownGraceMs: int('SHUTDOWN_GRACE_SECONDS', 280) * 1000,
     compression: env.WS_COMPRESSION !== 'off',
     build: normalizeBuild(env.RENDER_GIT_COMMIT),
+    analyticsDir: (env.ANALYTICS_DIR ?? '').trim(),
+    analyticsDashboardKey: dashboardKey(env.ANALYTICS_DASHBOARD_KEY),
   });
+}
+
+function dashboardKey(raw: string | undefined): string {
+  const key = (raw ?? '').trim();
+  if (key.length > 200) throw new Error('ANALYTICS_DASHBOARD_KEY must be at most 200 characters.');
+  return key;
 }
