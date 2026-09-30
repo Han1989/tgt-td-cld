@@ -2,7 +2,7 @@
 // Pixel projects), docs/MOBILE.md §8.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, centre, Finger, overlaps, sent, startSolo, type Box } from './helpers';
+import { box, centre, Finger, overlaps, sent, startSolo, waitForReady, type Box } from './helpers';
 
 const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn'];
 
@@ -367,5 +367,27 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('#rotate')).toBeVisible();
     await expect(page.locator('#rotate')).toContainText('Rotate to portrait');
     await ctx.close();
+  });
+
+  test('the lesson card stays off the controls, Move advances, and Skip dismisses it', async ({ page }) => {
+    await page.goto('/?lab');
+    await waitForReady(page, 'solo');
+    await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
+    await page.locator('#lobby-solo-play').click();
+    await expect(page.locator('#tutorial-title')).toHaveText('Move');
+    await expect(page.locator('#tutorial-body')).toContainText('joystick');
+
+    const card = await box(page, '#tutorial');
+    const top = await box(page, '#topbar');
+    expect(card.top).toBeGreaterThanOrEqual(top.bottom - 1);
+    for (const sel of OVERLAY) expect(overlaps(card, await box(page, sel))).toBe(false);
+
+    const finger = await Finger.on(page);
+    const joy = centre(await box(page, '#joystick'));
+    await finger.drag(joy, { x: joy.x, y: joy.y - 55 }, 800);
+    await expect(page.locator('#tutorial-title')).toHaveText('Build a tower');
+
+    await page.locator('#tutorial-skip').click();
+    await expect(page.locator('#tutorial')).toBeHidden();
   });
 });

@@ -3,7 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { box, sent, startSolo, toScreen } from './helpers';
+import { box, sent, startSolo, toScreen, waitForReady } from './helpers';
 
 test('wide layout: map centred and fitted to the height, HUD in the side margins, no touch overlay', async ({ page }) => {
   await startSolo(page);
@@ -194,4 +194,43 @@ test('end screen: "Save match report" downloads the report and the replay as one
   await page.locator('#restart').click();
   await expect(page.locator('#end-screen')).toBeHidden();
   await expect(page.locator('#end-save')).toBeHidden();
+});
+
+test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, Settings can replay it', async ({ page }) => {
+  await page.goto('/?lab');
+  await waitForReady(page, 'solo');
+  await expect(page.locator('#tutorial-solo-note')).toBeVisible();
+  await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
+  await expect(page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]')).toBeDisabled();
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-solo-play').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
+  await expect(page.locator('#tutorial-title')).toHaveText('Move');
+  await expect(page.locator('#tutorial-body')).toContainText('Right-click');
+
+  const target = await toScreen(page, 13, 20);
+  await page.mouse.click(target.x, target.y, { button: 'right' });
+  await expect(page.locator('#tutorial-title')).toHaveText('Build a tower');
+
+  await page.locator('#tutorial-skip').click();
+  await expect(page.locator('#tutorial')).toBeHidden();
+
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#settings-tutorial')).toBeVisible();
+  await page.locator('#settings-tutorial').click();
+  await expect(page.locator('#tutorial-solo-note')).toBeVisible();
+  await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
+});
+
+test('Skip lesson on the hero pick keeps the chosen mode and hides the card', async ({ page }) => {
+  await page.goto('/?lab');
+  await waitForReady(page, 'solo');
+  await page.locator('#tutorial-solo-skip').click();
+  await expect(page.locator('#tutorial-solo-note')).toBeHidden();
+  await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
+  await page.locator('#lobby-solo-play').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(30);
+  await expect(page.locator('#tutorial')).toBeHidden();
 });

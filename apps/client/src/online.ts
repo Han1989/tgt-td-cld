@@ -11,6 +11,8 @@ import {
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
 import { showSoloPick } from './lobby/solo';
+import { sharedSettings } from './settings';
+import { shouldStartLesson, tutorialMatch } from './tutorial/logic';
 import { LocalTransport } from './transport/localTransport';
 import { NetworkTransport, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
 
@@ -35,6 +37,10 @@ export class OnlineController {
       leave: () => this.leave(),
     });
     view.onLeave = () => this.leave();
+    view.onReplayTutorial = () => {
+      this.leave();
+      this.playOffline();
+    };
   }
 
   start(): void {
@@ -141,18 +147,33 @@ export class OnlineController {
   }
 }
 
+let soloTransport: LocalTransport | null = null;
+
+/** Stops the local match, if one is running (Replay tutorial returns to the hero pick). */
+export function endSolo(view: GameView): void {
+  soloTransport?.close();
+  soloTransport = null;
+  view.detach();
+}
+
 /**
  * Starts a local solo match (simulation in a Web Worker) with `hero` in `mode` at `difficulty`.
+ * A new player's lesson forces Quick and Normal for this match only.
  * "Change hero / mode" on the end screen reopens the solo pick; the local host starts a new match
  * with the new picks.
  */
 export function playSolo(view: GameView, hero: HeroKind, mode: GameMode, difficulty: Difficulty): void {
+  endSolo(view);
   const transport = new LocalTransport();
+  soloTransport = transport;
   view.attach(transport);
   const start = (h: HeroKind, m: GameMode, d: Difficulty) => {
-    transport.send({ t: 'difficulty', difficulty: d });
-    transport.send({ t: 'mode', mode: m });
+    const status = sharedSettings().get().tutorial;
+    const lesson = tutorialMatch(status);
+    transport.send({ t: 'difficulty', difficulty: lesson?.difficulty ?? d });
+    transport.send({ t: 'mode', mode: lesson?.mode ?? m });
     transport.send({ t: 'hero', hero: h });
+    view.setLesson(shouldStartLesson(status, true));
   };
   view.onChangeHero = () => showSoloPick(start);
   start(hero, mode, difficulty);

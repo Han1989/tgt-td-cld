@@ -82,7 +82,8 @@ button {
 #hud button,
 #hud details,
 #hud .popup,
-#hud .end-screen {
+#hud .end-screen,
+#hud .tutorial {
   pointer-events: auto;
 }
 
@@ -1246,6 +1247,89 @@ button {
   align-self: center;
 }
 
+/* First-match lesson (T-03). Sits under the top bar, off the joystick. */
+.tutorial {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--topbar-bottom, 56px) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, calc(100% - 16px));
+  padding: 10px 12px 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 12px;
+  box-shadow: var(--panel-shadow);
+  pointer-events: auto;
+}
+
+.tutorial h2 {
+  margin: 0 0 4px;
+  font-family: var(--title-font);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.tutorial p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.tutorial-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.tutorial-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.tutorial-actions .btn {
+  min-height: 44px;
+  padding: 4px 12px;
+}
+
+body.layout-wide .tutorial {
+  top: calc(var(--map-top) + 12px);
+  left: calc(var(--margin) + 12px);
+  transform: none;
+}
+
+.tutorial-offer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 12px;
+  background: rgba(16, 12, 22, 0.35);
+}
+
+.tutorial-offer p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.tutorial-offer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tutorial-solo-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--gold);
+}
+
 .room-code-row {
   display: flex;
   justify-content: space-between;
@@ -1573,7 +1657,8 @@ body.layout-wide .toasts {
 }
 
 body.layout-wide .build-hint,
-body.layout-wide .notice {
+body.layout-wide .notice,
+body.layout-wide .tutorial {
   top: calc(var(--map-top) + 12px);
 }
 
