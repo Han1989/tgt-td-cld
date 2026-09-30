@@ -86,11 +86,11 @@ The last things still drawn as plain shapes (`CLAUDE.md` status). Follow the new
 | Retention | Return rate (aim for D1 and D7; add D30 when Phase 6a analytics exist) |
 | Repeat visits | Same player / same browser returning after the first session |
 
-Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. Until full analytics exist, use whatever is already available (match reports, server logs, portal dashboards) and log the gaps under D-01.
+Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The minimal funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30 still waits for Phase 6a.
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. | Team | ☐ |
+| D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. | Team | ☑ |
 | D-02 | Post polished build to **r/PlayMyGame** (follow sub rules; one clear link; channel tag). | Han | ☐ |
 | D-03 | Post polished build to **r/incremental_games** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
 | D-04 | Post polished build to **r/cozygames** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
