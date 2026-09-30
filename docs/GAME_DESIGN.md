@@ -186,9 +186,19 @@ Phase 4 is planned in `docs/MOBILE.md` §9:
 
 See `docs/REPLAYABILITY.md`: top-tier tower branches, lane surges and match modifiers, more maps.
 
-### Out of scope
+### Out of scope (this build)
 
-Accounts, persistence and leaderboards, PvP, public matchmaking, monetisation.
+Phases 1–5 do not include accounts, persistence, leaderboards, PvP, public matchmaking or monetisation.
+
+They are planned, not cancelled, and nothing in Phase 6 starts before **Gate 1** (the friends playtest in `TASKS.md`):
+
+- **Accounts and persistence** — Phase 6a, after Gate 1.
+- **Leaderboards** — Phase 6d, after Gate 1.
+- **Monetisation** — Phase 7, after Gate 1 and after Gate 2 (public soft launch).
+- **PvP** — Phase 8, after Gate 1.
+- **Public matchmaking** stays out of today's room-code co-op. A clan party queue is Phase 6b; PvP queues are Phase 8.
+
+Phase list and locked decisions: [`docs/ROADMAP.md`](ROADMAP.md). Live status: `TASKS.md`.
 
 ## 12. Working rules for Claude Code sessions
 
@@ -399,3 +409,4 @@ Accounts, persistence and leaderboards, PvP, public matchmaking, monetisation.
 | 2026-09-30 | **First-match lesson is client-only** (`tdt.settings` `tutorial`: `new` / `completed` / `skipped`). It runs once, on the next **solo** match, for a player who has not finished or skipped it. Online create / join never starts it. The lobby home offers Start lesson and Skip; Settings and the home screen can replay it, which sets `new` again and opens the solo pick (leaving an online room). Steps: move, build an Arrow, cast Q, upgrade, ping, then an optional quick-chat phrase (Continue skips that step). Each step advances when that action shows up in the snapshots and events the client already has. A step already done when it opens stays up 0.9 s so the line can be read. Skip is always on the card until the closing line. Finishing marks `completed`; Skip marks `skipped`. The sim is not paused and nothing is retuned. `PROTOCOL_VERSION` stays 13. Pings and emotes still use the existing commands and rate limits; there is no text field | T-03. A new account system does not exist yet, so the browser is the place the "once" flag can live. Teaching inside a real match means the lesson must not change gold, waves or the protocol. |
 | 2026-09-30 | **The lesson match is Quick on Normal**, whatever Full / Hard the player had saved. Those saved picks are left as they were and apply to the next match. Quick starts with 120 gold and wave 1 pays 84, so one Arrow (60) and its upgrade (140) fit in the first wave. Full starts with 100 and wave 1 pays 40, which does not. Normal stays the tuned first match; friends already found it hard, so the lesson is not Hard | The lesson has to be short enough to finish inside the first waves, and the upgrade step has to be affordable without a gift of gold. |
 | 2026-09-30 | **The lesson teaches the controls the game has.** On a phone: drag the joystick, tap a pad, tap Q, tap the tower then Upgrade, long-press the map to ping, tap the speech button for a phrase. On desktop: right-click or the arrow keys, left-click, Q, U, Alt-click, C. It does not teach WASD. W casts a skill and A is attack-move | WASD would either do nothing or fire W. The card should match the buttons that already work. |
+| 2026-09-30 | **§11 "Out of scope" means "not in Phases 1–5", not cancelled.** Accounts and persistence are Phase 6a, leaderboards Phase 6d, monetisation Phase 7, PvP Phase 8. All of them wait for Gate 1; monetisation also waits for Gate 2. Public matchmaking is not added to room-code co-op: a clan party queue is Phase 6b and PvP queues are Phase 8. The phase list and locked decisions are in `docs/ROADMAP.md`; `TASKS.md` is the tracker | T-05. The one-line list read as "never". `HANDOVER.md` §2 and `TASKS.md` had already scheduled them. |

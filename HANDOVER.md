@@ -94,9 +94,9 @@ Everything below is on `main` unless marked otherwise. The whole build so far to
 
 ## 4. What's next
 
-The full list, with briefs and acceptance criteria, is in `TASKS.md`. In short:
+The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish items **T-00–T-05 are done** (CI, Hard, pings, the first-match tutorial, projectile art, docs). Do not jump to stores or public discovery from the docs pass alone. In short:
 
-1. **Polish the app first** (do not jump to stores or public discovery early):
+1. **Polish** (done):
    - **T-00** CI and branch protection
    - **T-01** Hard difficulty and an expert bot
    - **T-02** Team pings and quick-chat emotes
@@ -161,7 +161,8 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 
 | Document | What it's for | Read it when |
 |---|---|---|
-| `CLAUDE.md` | Commands, repo layout, architecture rules, conventions, current status | Every task |
+| `CLAUDE.md` | Commands, repo layout, architecture rules, conventions, current status. `AGENTS.md` points here | Every task |
+| `docs/ROADMAP.md` | Vision, locked decisions and phases (from §2 and `TASKS.md`) | Choosing what phase you are in |
 | `docs/GAME_DESIGN.md` | Design source of truth, and the Decision Log (§13) | Any gameplay change |
 | `docs/MOBILE.md` | Spire map, touch controls, layouts, Quick mode | Touch, layout or map work |
 | `docs/MOBILE_TESTING.md` | The real-device checklist Han runs on phones | Adding steps for Han to check |
@@ -176,10 +177,10 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 
 ## 8. Known gaps and gotchas
 
-- **No CI.** Tests have only run inside build sessions. That's why T-00 comes first.
-- **Stale README.** Its status line still says Phase 2.
-- **`docs/GAME_DESIGN.md` §11 "Out of scope"** lists accounts, leaderboards, PvP and monetisation, which are now Phases 6–8. Mark them as planned after Gate 1 rather than deleting them now.
-- **Claude-specific names.** `CLAUDE.md` and the `claude/…` branch names come from how the game was built. Keep `CLAUDE.md` as the guide; if your tool reads `AGENTS.md`, add one that points to it. Use your own branch prefix.
+- **CI is on.** T-00: `.github/workflows/ci.yml` on pull requests and `main`. `main` requires the `ci` check.
+- **README status.** Updated in T-05: Phases 1–3 done, Phase 4 polish through the tutorial.
+- **`docs/GAME_DESIGN.md` §11.** Updated in T-05: accounts, leaderboards, PvP and monetisation are Phases 6–8 after Gate 1 (`docs/ROADMAP.md`).
+- **Claude-specific names.** `CLAUDE.md` and the `claude/…` branch names come from how the game was built. Keep `CLAUDE.md` as the guide. `AGENTS.md` points at it (T-05). Use your own branch prefix. The hook-test branch `claude/loving-hawking-7fvsu7` stays unmerged.
 - **One tracker.** Han's original checklist lives in his claude.ai account and nobody else can tick it. From now on `TASKS.md` in the repo is the tracker.
 - **Balance cliffs.** Solo and pairs break with small changes (see the balance notes in `CLAUDE.md` → Conventions). Ranger + Warden is the weakest pair.
 - **Slow browser tests.** `npm run test:e2e` takes several minutes; the 300-creep stress test runs alone at the end (about 4 minutes).
