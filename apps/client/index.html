@@ -106,12 +106,14 @@
         <div id="wave-stat" class="stat wave" title="Wave"><span class="icon wave-icon"></span><span id="wave-label" class="label">Wave</span><span id="wave">0 / 10</span></div>
         <div class="stat timer"><span class="icon timer-icon"></span><span id="timer-label" class="label">Next wave</span><span id="timer">0:30</span></div>
         <button id="call-early" class="btn" title="Start the next wave now; every player gets bonus gold">Call early</button>
+        <button id="emote-btn" class="btn icon-btn" title="Quick chat (C)" aria-label="Quick chat" aria-expanded="false" aria-haspopup="menu"><i class="ico chat-ico"></i></button>
         <button id="settings-btn" class="btn icon-btn" title="Settings" aria-label="Settings"><i class="ico gear-ico"></i></button>
       </header>
       <aside id="team" class="team hidden">
         <div class="team-head">Room <span id="team-code"></span></div>
         <ul id="team-list"></ul>
       </aside>
+      <div id="emote-feed"></div>
       </div>
 
       <div id="build-hint" class="build-hint hidden"></div>
@@ -134,12 +136,15 @@
         <div id="respawn" class="respawn hidden"></div>
       </section>
 
+      <div id="pings"></div>
+      <div id="emote-menu" class="radial hidden"></div>
       <div id="pad-menu" class="popup hidden"></div>
       <div id="tower-panel" class="popup hidden"></div>
 
       <details class="help">
         <summary>Controls</summary>
         <ul>
+          <li><kbd>Alt</kbd> + <kbd>Left-click</kbd> ping the map · <kbd>C</kbd> quick chat (no typing)</li>
           <li><kbd>Right-click</kbd> move / attack</li>
           <li><kbd>A</kbd> + <kbd>Left-click</kbd> attack-move</li>
           <li><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> skills (targeted ones: then left-click) · E is passive</li>

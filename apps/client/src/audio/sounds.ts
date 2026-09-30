@@ -430,6 +430,10 @@ export const SOUNDS = {
   // UI --------------------------------------------------------------------
   /** A button tap: a tiny bamboo tick. */
   tap: sfx(0.3, 40, 2, 2, { layers: [knock(1250, 0.035, 1), { wave: 'sine', freq: 2200, decay: 0.02, gain: 0.2 }] }, { wet: 0.04, pitch: 0.04 }),
+  /** A map ping: a small struck gong, heard wherever you are looking. */
+  ping: sfx(0.55, 200, 2, 2, { layers: [...gong(520, 0.45, 1, 0, 1.01), knock(880, 0.04, 0.25)] }, { wet: 0.22, variants: 2 }),
+  /** A quick-chat phrase: a short guzheng pluck. */
+  emote: sfx(0.4, 180, 2, 1, { layers: [...guzheng(A4, 0.28, 1), bell(D6, 0.2, 0.25, 0.04)] }, { wet: 0.16, variants: 2 }),
   /** Not enough gold: two dull clapper knocks, falling. */
   noGold: sfx(0.55, 250, 1, 2, { layers: [knock(330, 0.09, 1), knock(247, 0.13, 1, 0.1)] }, { wet: 0.1 }),
   /** Not enough mana, nothing in range: a muted string. */

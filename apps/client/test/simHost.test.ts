@@ -127,6 +127,20 @@ describe('SimHost (local transport backend)', () => {
     expect([msg.report.build, msg.replay.build]).toEqual(['c0ffee1', 'c0ffee1']);
   });
 
+  it('drops a second ping or emote sent in the same breath', () => {
+    const { host, snaps } = harness();
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'ping', x: 5, y: 6 } }));
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'ping', x: 7, y: 8 } }));
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'emote', emote: 'help' } }));
+    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'emote', emote: 'nice' } }));
+    host.tick();
+    const events = snaps().at(-1)!.events.filter((e) => e.type === 'ping' || e.type === 'emote');
+    expect(events).toEqual([
+      { type: 'ping', by: LOCAL_PLAYER_ID, x: 5, y: 6 },
+      { type: 'emote', by: LOCAL_PLAYER_ID, emote: 'help' },
+    ]);
+  });
+
   it('only restarts a finished match', () => {
     const { host, out } = harness();
     host.tick();

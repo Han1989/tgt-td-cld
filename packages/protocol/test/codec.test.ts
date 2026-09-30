@@ -36,6 +36,9 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'closest' } },
     { t: 'cmd', cmd: { type: 'callEarly' } },
     { t: 'cmd', cmd: { type: 'gift', to: 'p2', amount: 50 } },
+    { t: 'cmd', cmd: { type: 'ping', x: 12.5, y: 4 } },
+    { t: 'cmd', cmd: { type: 'emote', emote: 'help' } },
+    { t: 'cmd', cmd: { type: 'emote', emote: 'defend' } },
     { t: 'restart' },
     { t: 'start' },
     { t: 'leave' },
@@ -109,6 +112,12 @@ describe('client message codec', () => {
     ['gift without a recipient', '{"t":"cmd","cmd":{"type":"gift","amount":5}}'],
     ['gift to a non-id', '{"t":"cmd","cmd":{"type":"gift","to":"<p2>","amount":5}}'],
     ['gift with extra keys', '{"t":"cmd","cmd":{"type":"gift","to":"p2","amount":5,"from":"p3"}}'],
+    ['free-text chat', '{"t":"cmd","cmd":{"type":"chat","text":"hello"}}'],
+    ['ping with a message', '{"t":"cmd","cmd":{"type":"ping","x":1,"y":2,"text":"look"}}'],
+    ['ping with one coordinate', '{"t":"cmd","cmd":{"type":"ping","x":1}}'],
+    ['unknown emote', '{"t":"cmd","cmd":{"type":"emote","emote":"gg"}}'],
+    ['emote that is a sentence', '{"t":"cmd","cmd":{"type":"emote","emote":"good game everyone"}}'],
+    ['emote with extra text', '{"t":"cmd","cmd":{"type":"emote","emote":"help","text":"gg"}}'],
   ])('rejects %s', (_label, raw) => {
     expect(decodeClientMessage(raw)).toBeNull();
   });
@@ -163,6 +172,8 @@ describe('replay command encoding', () => {
     { type: 'upgrade', towerId: 9, branch: 'glacier' },
     { type: 'setPriority', towerId: 9, priority: 'strongest' },
     { type: 'gift', to: 'p2', amount: 100 },
+    { type: 'ping', x: 4.25, y: 18 },
+    { type: 'emote', emote: 'coming' },
   ];
 
   it('stores every command as a compact array and reads it back', () => {

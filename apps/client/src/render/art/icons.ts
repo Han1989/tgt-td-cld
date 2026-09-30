@@ -363,6 +363,14 @@ const UI_ICONS: Record<string, IconDraw> = {
     p.part(c, star(0, 0, 16, 12.5, 8, 0, 1.4), k.stone, box(-16, -16, 16, 16));
     p.detail(c, circle(0, 0, 5.5), k.ironDark);
   },
+  // Quick chat: a stone speech bubble with three rune dots. There is no text field.
+  chat: (c, p, k) => {
+    p.part(c, rrect(-16, -14, 32, 22, 6), k.stone, box(-16, -14, 16, 8));
+    p.part(c, poly([-6, 6, -1, 6, -9, 16], 1), k.stone, box(-9, 6, -1, 16), { line: 0.5 });
+    p.accent(c, circle(-7, -3, 2.1), k.rune);
+    p.accent(c, circle(0, -3, 2.1), k.rune);
+    p.accent(c, circle(7, -3, 2.1), k.rune);
+  },
   upgrade: (c, p, k) => {
     p.part(c, poly([0, -17, 14, -3, 6, -3, 6, 15, -6, 15, -6, -3, -14, -3], 1.5), k.gold, box(-14, -17, 14, 15));
     p.accent(c, ngon(0, 6, 2.5, 4, 0, 0.3), k.eye);
@@ -433,6 +441,7 @@ export type IconId =
   | 'wave'
   | 'timer'
   | 'gear'
+  | 'chat'
   | 'upgrade'
   | 'sell'
   | 'target'

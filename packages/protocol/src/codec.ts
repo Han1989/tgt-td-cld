@@ -1,5 +1,6 @@
 import {
   DIFFICULTIES,
+  EMOTES,
   GAME_MODES,
   HERO_KINDS,
   MAX_NAME_LENGTH,
@@ -12,6 +13,7 @@ import {
   type ClientMessage,
   type Command,
   type Difficulty,
+  type Emote,
   type GameMode,
   type HeroKind,
   type ServerMessage,
@@ -194,6 +196,14 @@ export function parseCommand(value: unknown): Command | null {
       if (!hasOnlyKeys(value, ['type', 'to', 'amount']) || !isPlayerId(value.to)) return null;
       if (!isId(value.amount) || value.amount < 1 || value.amount > MAX_GIFT_AMOUNT) return null;
       return { type: 'gift', to: value.to, amount: value.amount };
+    case 'ping':
+      if (!hasOnlyKeys(value, ['type', 'x', 'y'])) return null;
+      if (!isCoord(value.x) || !isCoord(value.y)) return null;
+      return { type: 'ping', x: value.x, y: value.y };
+    case 'emote':
+      // A closed id. Any other string, or an extra text field, is not a command.
+      if (!hasOnlyKeys(value, ['type', 'emote']) || !isEmote(value.emote)) return null;
+      return { type: 'emote', emote: value.emote };
     default:
       return null;
   }
@@ -252,6 +262,10 @@ function isTowerBranch(value: unknown): value is TowerBranch {
   return typeof value === 'string' && (TOWER_BRANCH_KINDS as readonly string[]).includes(value);
 }
 
+function isEmote(value: unknown): value is Emote {
+  return typeof value === 'string' && (EMOTES as readonly string[]).includes(value);
+}
+
 /**
  * A command as the compact array a replay log stores after `[tick, player]`: its type, then its fields in a
  * fixed order (optional ones last, left out when absent). `decodeReplayCommand` reverses it.
@@ -280,6 +294,10 @@ export function encodeReplayCommand(cmd: Command): (string | number)[] {
       return [cmd.type, cmd.towerId, cmd.priority];
     case 'gift':
       return [cmd.type, cmd.to, cmd.amount];
+    case 'ping':
+      return [cmd.type, cmd.x, cmd.y];
+    case 'emote':
+      return [cmd.type, cmd.emote];
   }
 }
 
@@ -299,6 +317,8 @@ export function decodeReplayCommand(parts: readonly unknown[]): Command | null {
     upgrade: ['towerId', 'branch'],
     setPriority: ['towerId', 'priority'],
     gift: ['to', 'amount'],
+    ping: ['x', 'y'],
+    emote: ['emote'],
   };
   if (typeof type !== 'string' || !Object.hasOwn(fields, type)) return null;
   const names = fields[type]!;

@@ -4,8 +4,10 @@
 
 import { randomBytes } from 'node:crypto';
 import {
+  allowSocial,
   diffSnapshot,
   encodeServerMessage,
+  freshSocialClock,
   MAX_PLAYERS,
   type ClientMessage,
   type Command,
@@ -17,6 +19,7 @@ import {
   type PlayerId,
   type ServerMessage,
   type Snapshot,
+  type SocialClock,
 } from '@tdt/protocol';
 import {
   createMatch,
@@ -52,6 +55,8 @@ export interface Member {
   left: boolean;
   /** Next broadcast must be a full snapshot (just joined or reconnected). */
   needsKeyframe: boolean;
+  /** Last accepted ping and emote (ms). The server drops anything sooner. */
+  social: SocialClock;
 }
 
 /** WebSocket close code 1012: "service restart". */
@@ -127,6 +132,7 @@ export class Room {
       disconnectedAt: null,
       left: false,
       needsKeyframe: true,
+      social: freshSocialClock(),
     };
     this.members.push(member);
     this.emptySince = null;
@@ -236,7 +242,12 @@ export class Room {
         return;
       }
       case 'cmd':
-        if (this.phase === 'playing' && this.state && !this.matchOver) this.queue.push({ playerId: member.id, cmd: msg.cmd });
+        if (this.phase === 'playing' && this.state && !this.matchOver) {
+          if ((msg.cmd.type === 'ping' || msg.cmd.type === 'emote') && !allowSocial(member.social, msg.cmd.type, now)) {
+            return this.error(member, 'rate_limited', 'Slow down');
+          }
+          this.queue.push({ playerId: member.id, cmd: msg.cmd });
+        }
         return;
       case 'restart':
         if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can return to the lobby');

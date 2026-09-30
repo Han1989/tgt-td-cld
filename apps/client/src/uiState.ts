@@ -36,8 +36,10 @@ export interface UiState {
   /** Radial build menu: the tower previewed on a pad (first tap), before the second tap builds it. */
   preview: { padId: number; tower: TowerKind } | null;
   aim: AimState | null;
+  /** The quick-chat wheel is open (a map tap closes it instead of selecting). */
+  emoteOpen: boolean;
 }
 
 export function createUiState(): UiState {
-  return { mode: { type: 'none' }, hover: null, selectedTowerId: null, selectedPadId: null, markers: [], preview: null, aim: null };
+  return { mode: { type: 'none' }, hover: null, selectedTowerId: null, selectedPadId: null, markers: [], preview: null, aim: null, emoteOpen: false };
 }

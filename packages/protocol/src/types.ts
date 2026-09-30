@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -111,6 +111,13 @@ export type AoeEffect =
 
 export type DamageType = 'physical' | 'magic';
 
+/**
+ * Quick-chat phrases. The wire value is one of these ids. There is no free-text chat: a message
+ * that is not one of these ids, or that carries any extra text, is rejected by the codec.
+ */
+export const EMOTES = ['help', 'coming', 'danger', 'thanks', 'nice', 'defend'] as const;
+export type Emote = (typeof EMOTES)[number];
+
 // ---------------------------------------------------------------------------
 // Commands (client -> host)
 // ---------------------------------------------------------------------------
@@ -129,7 +136,11 @@ export type Command =
   | { type: 'setPriority'; towerId: EntityId; priority: TargetPriority }
   | { type: 'callEarly' }
   /** Give some of your gold to a teammate. */
-  | { type: 'gift'; to: PlayerId; amount: number };
+  | { type: 'gift'; to: PlayerId; amount: number }
+  /** A map marker for teammates. */
+  | { type: 'ping'; x: number; y: number }
+  /** One phrase from `EMOTES`. Not a text message. */
+  | { type: 'emote'; emote: Emote };
 
 export type CommandType = Command['type'];
 
@@ -304,6 +315,10 @@ export type GameEvent =
   /** A hero's auto-attack went off (a melee hit lands now; a ranged one launches its projectile), at the target's position. */
   | { type: 'heroAttack'; heroId: EntityId; x: number; y: number }
   | { type: 'rejected'; player: PlayerId; command: CommandType; reason: string }
+  /** A map marker from a teammate. */
+  | { type: 'ping'; by: PlayerId; x: number; y: number }
+  /** A quick-chat phrase from a teammate (`EMOTES`). */
+  | { type: 'emote'; by: PlayerId; emote: Emote }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };
 
 export interface Snapshot {

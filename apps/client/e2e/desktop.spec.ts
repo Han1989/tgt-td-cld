@@ -56,6 +56,37 @@ test('mouse and keyboard: right-click moves, left-click a pad and press 1 to bui
   expect(await page.evaluate(() => window.__tdt.camera.zoom)).toBeGreaterThan(zoom0);
 });
 
+test('Alt-click pings, and a ping leaves the edge of the screen when you zoom away', async ({ page }) => {
+  await startSolo(page);
+  const at = await toScreen(page, 2, 3);
+  await page.keyboard.down('Alt');
+  await page.mouse.click(at.x, at.y, { button: 'left' });
+  await page.keyboard.up('Alt');
+  await expect.poll(() => sent(page, 'ping').then((p) => p.length)).toBe(1);
+  expect(await sent(page, 'move')).toHaveLength(0);
+  await expect(page.locator('#pings .ping')).toBeVisible();
+
+  await page.mouse.move(683, 200);
+  for (let i = 0; i < 8; i++) await page.mouse.wheel(0, -400);
+  await expect(page.locator('#pings .ping.off')).toBeVisible();
+  const vp = page.viewportSize()!;
+  const mark = await box(page, '#pings .ping');
+  expect(mark.left).toBeGreaterThanOrEqual(0);
+  expect(mark.right).toBeLessThanOrEqual(vp.width + 1);
+  expect(mark.top).toBeGreaterThanOrEqual(0);
+  expect(mark.bottom).toBeLessThanOrEqual(vp.height + 1);
+});
+
+test('C opens quick chat: six phrases, no text field', async ({ page }) => {
+  await startSolo(page);
+  await page.keyboard.press('c');
+  await expect(page.locator('#emote-menu .emote-pick')).toHaveCount(6);
+  await expect(page.locator('#emote-menu input, #emote-menu textarea')).toHaveCount(0);
+  await page.locator('[data-emote="danger"]').click();
+  await expect.poll(() => sent(page, 'emote')).toEqual([{ type: 'emote', emote: 'danger' }]);
+  await expect(page.locator('#emote-feed')).toContainText('Danger');
+});
+
 test('desktop tower panel: at tier 3 it offers the two specialisations; clicking one buys it', async ({ page }) => {
   await startSolo(page);
   const padId = await page.evaluate(() => window.__tdt.latest()!.pads[2]!.id);

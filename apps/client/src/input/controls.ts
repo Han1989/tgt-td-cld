@@ -22,6 +22,8 @@ export interface ControlActions {
   openTowerPanel(towerId: number): void;
   closeMenus(): void;
   toast(text: string): void;
+  /** Opens or closes the quick-chat wheel (C). */
+  toggleEmotes(): void;
 }
 
 export class Controls {
@@ -127,7 +129,16 @@ export class Controls {
       this.onRightClick(at);
       return;
     }
-    if (e.button === 0) this.onLeftClick(at);
+    if (e.button === 0) {
+      if (e.altKey) {
+        e.preventDefault();
+        this.actions.closeMenus();
+        this.setMode({ type: 'none' });
+        this.actions.send({ type: 'ping', x: at.x, y: at.y });
+        return;
+      }
+      this.onLeftClick(at);
+    }
   }
 
   private onRightClick(at: { x: number; y: number }): void {
@@ -279,6 +290,9 @@ export class Controls {
         break;
       case 'b':
         this.setMode({ type: 'buildMenu' });
+        break;
+      case 'c':
+        this.actions.toggleEmotes();
         break;
       case 's':
         this.actions.send({ type: 'stop' });
