@@ -7,7 +7,7 @@ const replay = { format: 1, seed: 5, log: [[0, 0, 'move', 1.5, 2]] } as unknown 
 
 describe('match report file', () => {
   it('is named after the local date, time, mode and result', () => {
-    expect(matchFileName(report, new Date(2026, 8, 28, 9, 5))).toBe('tdt-match-2026-09-28-0905-quick-victory.json');
+    expect(matchFileName(report, new Date(2026, 8, 28, 9, 5))).toBe('tdt-match-2026-09-28-0905-quick-normal-victory.json');
   });
 
   it('holds the report (indented, at the top) and the replay (compact), and reads back', () => {

@@ -7,6 +7,7 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
     tick,
     tickRate: 20,
     mode: 'full',
+    difficulty: 'normal',
     phase: 'waves',
     heartHp: 100,
     heartMaxHp: 100,

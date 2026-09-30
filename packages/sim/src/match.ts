@@ -6,6 +6,7 @@
 import {
   decodeReplayCommand,
   encodeReplayCommand,
+  DIFFICULTIES,
   GAME_MODES,
   HERO_KINDS,
   PROTOCOL_VERSION,
@@ -35,6 +36,11 @@ interface HeroTrack {
   casts: { Q: number; W: number; R: number };
   noManaTicks: { Q: number; W: number };
   rTicks: number[];
+  towersBuilt: number;
+  upgrades: number;
+  branches: number;
+  goldSpent: number;
+  wavesCalledEarly: number;
 }
 
 export interface Match {
@@ -63,6 +69,11 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       casts: { Q: 0, W: 0, R: 0 },
       noManaTicks: { Q: 0, W: 0 },
       rTicks: [],
+      towersBuilt: 0,
+      upgrades: 0,
+      branches: 0,
+      goldSpent: 0,
+      wavesCalledEarly: 0,
     })),
   };
 }
@@ -85,8 +96,28 @@ export function matchCommand(match: Match, playerId: PlayerId, command: Command)
     'x' in command && command.x !== undefined && command.y !== undefined
       ? ({ ...command, x: q(command.x), y: q(command.y) } as Command)
       : command;
+  const player = match.state.players[index]!;
+  const before = player.gold;
   match.log.push([match.state.tick, index, ...(encodeReplayCommand(cmd) as [string, ...(string | number)[]])]);
-  return applyCommand(match.state, playerId, cmd);
+  const ok = applyCommand(match.state, playerId, cmd);
+  if (ok) noteEconomy(match.heroes[index]!, cmd, before - player.gold);
+  return ok;
+}
+
+/** Counts a successful build, upgrade, branch, sell or call-early toward the report. */
+function noteEconomy(track: HeroTrack, cmd: Command, spent: number): void {
+  if (cmd.type === 'build') {
+    track.towersBuilt++;
+    track.goldSpent += spent;
+  } else if (cmd.type === 'upgrade') {
+    if (cmd.branch) track.branches++;
+    else track.upgrades++;
+    track.goldSpent += spent;
+  } else if (cmd.type === 'sell') {
+    track.goldSpent += spent;
+  } else if (cmd.type === 'callEarly') {
+    track.wavesCalledEarly++;
+  }
 }
 
 /** A player reconnected (`join`), dropped (`drop`) or left for good (`leave`); logged for the replay. */
@@ -159,6 +190,12 @@ export function matchReport(match: Match): MatchReport {
       casts: { ...t.casts },
       noManaSeconds: { Q: t.noManaTicks.Q / TICK_RATE, W: t.noManaTicks.W / TICK_RATE },
       rOverlaps: t.rTicks.filter((tick) => others.some((o) => Math.abs(o - tick) <= window)).length,
+      towersBuilt: t.towersBuilt,
+      upgrades: t.upgrades,
+      branches: t.branches,
+      goldSpent: t.goldSpent,
+      goldUnspent: Math.floor(player.gold),
+      wavesCalledEarly: t.wavesCalledEarly,
     };
   });
   return {
@@ -166,6 +203,7 @@ export function matchReport(match: Match): MatchReport {
     protocol: PROTOCOL_VERSION,
     build: match.build,
     mode: state.mode,
+    difficulty: state.difficulty,
     seed: match.seed,
     result: state.phase === 'victory' ? 'victory' : 'defeat',
     wave: state.wave,
@@ -187,6 +225,7 @@ export function matchReplay(match: Match): Replay {
     build: match.build,
     seed: match.seed,
     mode: state.mode,
+    difficulty: state.difficulty,
     players: state.players.map((p) => ({ id: p.id, name: p.name, hero: state.heroes.find((h) => h.id === p.heroId)!.kind })),
     log: match.log.slice(),
     end: { tick: state.tick, result: state.phase, wave: state.wave, heartHp: state.heartHp },
@@ -199,7 +238,12 @@ export function matchReplay(match: Match): Replay {
  */
 export function replayMatch(replay: Replay, tuning?: Tuning): Match {
   const match = createMatch(
-    { players: replay.players, mode: replay.mode, ...(tuning ? { tuning } : {}) },
+    {
+      players: replay.players,
+      mode: replay.mode,
+      difficulty: replay.difficulty ?? 'normal',
+      ...(tuning ? { tuning } : {}),
+    },
     replay.seed,
     replay.build,
   );
@@ -230,6 +274,7 @@ export function replayProblem(data: unknown): string | null {
   // Replays saved before builds were stamped have none.
   if (r.build !== undefined && typeof r.build !== 'string') return 'bad build';
   if (!GAME_MODES.includes(r.mode as never)) return 'bad mode';
+  if (r.difficulty !== undefined && !DIFFICULTIES.includes(r.difficulty as never)) return 'bad difficulty';
   if (!Array.isArray(r.players) || r.players.length === 0) return 'no players';
   for (const p of r.players) {
     if (typeof p?.id !== 'string' || typeof p.name !== 'string' || !HERO_KINDS.includes(p.hero)) return 'bad player';
@@ -254,9 +299,15 @@ export function reportSummary(report: MatchReport, room?: string): string {
       `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps}`,
   );
   return (
-    `match${room ? ` ${room}` : ''} ${report.mode} seed ${report.seed} v${report.protocol} build ${report.build} ` +
+    `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} seed ${report.seed} v${report.protocol} build ${report.build} ` +
     `${report.result} ` +
-    `wave ${report.wave}/${report.totalWaves} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} | ` +
+    `wave ${report.wave}/${report.totalWaves} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} ` +
+    `towers ${report.heroes.reduce((n, h) => n + h.towersBuilt, 0)} ` +
+    `upgrades ${report.heroes.reduce((n, h) => n + h.upgrades, 0)} ` +
+    `branches ${report.heroes.reduce((n, h) => n + h.branches, 0)} ` +
+    `spent ${report.heroes.reduce((n, h) => n + h.goldSpent, 0)} ` +
+    `unspent ${report.heroes.reduce((n, h) => n + h.goldUnspent, 0)} ` +
+    `early ${report.heroes.reduce((n, h) => n + h.wavesCalledEarly, 0)} | ` +
     `heart by wave ${report.heartAfterWave.join(' ')} | ${heroes.join(' | ')}`
   );
 }

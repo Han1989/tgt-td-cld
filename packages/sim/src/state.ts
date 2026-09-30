@@ -4,6 +4,7 @@ import type {
   DamageType,
   EntityId,
   GameEvent,
+  Difficulty,
   GameMode,
   GamePhase,
   HeroKind,
@@ -28,6 +29,8 @@ export interface GameConfig {
   players: PlayerConfig[];
   /** Match mode (default Full); its changes are applied to the tuning (`tuningForMode`). */
   mode?: GameMode;
+  /** Creep difficulty (default Normal). Normal does not change HP or counts. */
+  difficulty?: Difficulty;
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
 }
@@ -257,6 +260,8 @@ export interface GameState {
   tick: number;
   rng: number;
   mode: GameMode;
+  /** Creep difficulty. Normal leaves HP and counts exactly as the tuning states them. */
+  difficulty: Difficulty;
   /** The tuning of this match, with the mode's changes applied. */
   tuning: Tuning;
   phase: GamePhase;

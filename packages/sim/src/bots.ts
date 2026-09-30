@@ -27,6 +27,9 @@ export interface Bot {
   decide(snap: Snapshot): Command[];
 }
 
+/** Casual is the balance bot the Normal gates use. Expert spends gold on fewer, branched towers. */
+export type BotStyle = 'casual' | 'expert';
+
 /** Never issues a command. Used to prove that an idle player loses. */
 export function createIdleBot(playerId: PlayerId): Bot {
   return { playerId, decide: () => [] };
@@ -96,6 +99,34 @@ const STRAGGLERS = 5;
 /** A ranged hero stops this much inside its attack range of the creep it walks to (its reach adds its own radius). */
 const STANDOFF_MARGIN = 0.6;
 
+/** Expert casts on a single creep; the casual bot waits for a group. */
+const EXPERT_MIN_TARGETS: Record<SkillSlot, number> = { Q: 1, W: 1, E: 0, R: 1 };
+/** Towers an expert puts down before it spends gold on tiers instead of more pads. */
+const EXPERT_MIN_TOWERS = 8;
+/** Share of this bot's pads it fills. The rest of the gold goes into tiers and branches (solo: 20 of 26). */
+const EXPERT_PAD_FRACTION = 0.77;
+/** Heart HP at or above which an expert will call the next wave (below this, it lets the timer run). */
+const EXPERT_SAFE_HEART = 55;
+/** Seconds the map must stay empty before an expert calls, so a wave still spawning is not stacked. */
+const EXPERT_CLEAR_SECONDS = 1.5;
+/** Seconds left on the timer below which the bonus is too small to call. */
+const EXPERT_MIN_CALL_SECONDS = 6;
+/** From this share of the match on, an expert branches tier-3 towers before it builds another pad. */
+const EXPERT_BRANCH_FROM = 0.4;
+/** Heart HP an expert wants before it calls a wave during the first third (the defence is still growing). */
+const EXPERT_EARLY_HEART = 80;
+
+/**
+ * The expert balance bot: the same hero and the same read of the wave list as the casual balance bot, but it
+ * plays like a strong player. It fills about three quarters of its pads and spends the rest of its gold on
+ * tiers and branches, calls the next wave once the field has been clear and the Heart is healthy (the first
+ * player only, so the bonus is not paid twice), casts Q, W and R on a single creep, and walks off sooner
+ * when it is hurt.
+ */
+export function createExpertBot(playerId: PlayerId, baseTuning: Tuning = TUNING, botIndex = 0): Bot {
+  return createBalanceBot(playerId, baseTuning, botIndex, 'expert');
+}
+
 /**
  * A sensible-build bot for any hero and team size. It builds on its own zone's pads (and on open pads),
  * best pads first, cycling through the towers and reading the coming waves (a Flak before Wisps, an
@@ -106,7 +137,12 @@ const STANDOFF_MARGIN = 0.6;
  * ultimate, to a post further up its zone's lane and to groups to use it on. It hunts a live boss,
  * retreats when hurt, learns skills and casts them on groups.
  */
-export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING, botIndex = 0): Bot {
+export function createBalanceBot(
+  playerId: PlayerId,
+  baseTuning: Tuning = TUNING,
+  botIndex = 0,
+  style: BotStyle = 'casual',
+): Bot {
   const pads = rankPads(baseTuning);
   const padRank = new Map(pads.map((p, i) => [p.id, i]));
   let posts: { guard: Vec2; forward: Vec2 } | null = null;
@@ -115,6 +151,8 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
   let lastMoveTick = -Infinity;
   // The numbers of the match's mode (its wave list, income…), known once the first snapshot names it.
   let modeTuning: Tuning | null = null;
+  /** Tick the map last became empty, for the expert's call-early check; -1 while creeps are up. */
+  let clearSince = -1;
 
   return {
     playerId,
@@ -142,61 +180,97 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
       const team = new Set(snap.towers.map((t) => t.kind));
       const needs = waveNeeds(tuning, snap.wave);
       const free = pads.filter((p) => usable.has(p.id) && !taken.has(p.id));
-      for (;;) {
-        const kind = nextTower(needs, kinds, team);
-        const cost = tuning.towers[kind].tiers[0]!.cost;
-        const pad = free.shift();
-        if (!pad || gold < cost) break;
-        cmds.push({ type: 'build', padId: pad.id, tower: kind });
-        gold -= cost;
-        kinds.push(kind);
-        team.add(kind);
-      }
-      // Cannon and Arcane towers go for the Strongest creep, and every tower focuses a boss in its range,
-      // so bosses and Brutes that stop to hit towers don't get ignored behind a stream of fresher creeps.
       const bosses = snap.creeps.filter((c) => tuning.creeps[c.kind].boss);
-      for (const t of mine) {
-        const focus = bosses.some((b) => dist(b.x, b.y, t.x, t.y) <= t.range);
-        const want = focus ? 'strongest' : PRIORITY[t.kind];
-        if (t.priority !== want) cmds.push({ type: 'setPriority', towerId: t.id, priority: want });
-      }
-      // None of its pads is free: upgrade the lowest-tier towers first, best pads first; Arcane first while
-      // a boss with a Stone hide is coming (magic damage ignores its armour). Past tier 3 each tower takes the
-      // branch the coming waves and the team's branches call for: the late-game gold sink.
-      if (free.length === 0) {
-        // (Arcane first only for its regular tiers: its branch waits its turn like any other.)
-        const first = (t: TowerSnap) =>
-          needs.stone && t.kind === 'arcane' && t.tier < tuning.towers.arcane.tiers.length ? 0 : 1;
-        const order = [...mine].sort(
-          (a, b) => first(a) - first(b) || a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!,
-        );
-        const teamBranches = snap.towers.flatMap((t) => (t.branch ? [t.branch] : []));
-        const branchNeed = branchNeeds(tuning, snap.wave);
-        for (const t of order) {
-          if (t.branch) continue;
-          const next = tuning.towers[t.kind].tiers[t.tier];
-          const branch = next ? null : pickBranch(t.kind, branchNeed, teamBranches);
-          const cost = next ? next.cost : tuning.branches[branch!].cost;
-          if (gold < cost) break;
-          cmds.push(branch ? { type: 'upgrade', towerId: t.id, branch } : { type: 'upgrade', towerId: t.id });
+      if (style === 'expert') {
+        gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses);
+      } else {
+        for (;;) {
+          const kind = nextTower(needs, kinds, team);
+          const cost = tuning.towers[kind].tiers[0]!.cost;
+          const pad = free.shift();
+          if (!pad || gold < cost) break;
+          cmds.push({ type: 'build', padId: pad.id, tower: kind });
           gold -= cost;
-          if (branch) teamBranches.push(branch);
+          kinds.push(kind);
+          team.add(kind);
+        }
+        // Cannon and Arcane towers go for the Strongest creep, and every tower focuses a boss in its range,
+        // so bosses and Brutes that stop to hit towers don't get ignored behind a stream of fresher creeps.
+        for (const t of mine) {
+          const focus = bosses.some((b) => dist(b.x, b.y, t.x, t.y) <= t.range);
+          const want = focus ? 'strongest' : PRIORITY[t.kind];
+          if (t.priority !== want) cmds.push({ type: 'setPriority', towerId: t.id, priority: want });
+        }
+        // None of its pads is free: upgrade the lowest-tier towers first, best pads first; Arcane first while
+        // a boss with a Stone hide is coming (magic damage ignores its armour). Past tier 3 each tower takes the
+        // branch the coming waves and the team's branches call for: the late-game gold sink.
+        if (free.length === 0) {
+          // (Arcane first only for its regular tiers: its branch waits its turn like any other.)
+          const first = (t: TowerSnap) =>
+            needs.stone && t.kind === 'arcane' && t.tier < tuning.towers.arcane.tiers.length ? 0 : 1;
+          const order = [...mine].sort(
+            (a, b) => first(a) - first(b) || a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!,
+          );
+          const teamBranches = snap.towers.flatMap((t) => (t.branch ? [t.branch] : []));
+          const branchNeed = branchNeeds(tuning, snap.wave);
+          for (const t of order) {
+            if (t.branch) continue;
+            const next = tuning.towers[t.kind].tiers[t.tier];
+            const branch = next ? null : pickBranch(t.kind, branchNeed, teamBranches);
+            const cost = next ? next.cost : tuning.branches[branch!].cost;
+            if (gold < cost) break;
+            cmds.push(branch ? { type: 'upgrade', towerId: t.id, branch } : { type: 'upgrade', towerId: t.id });
+            gold -= cost;
+            if (branch) teamBranches.push(branch);
+          }
+        }
+
+        // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
+        // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
+        if (free.length === 0 && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
+          const to = neediestTeammate(snap, playerId, tuning);
+          if (to) cmds.push({ type: 'gift', to, amount: Math.floor(gold) });
         }
       }
 
-      // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
-      // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
-      if (free.length === 0 && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
-        const to = neediestTeammate(snap, playerId, tuning);
-        if (to) cmds.push({ type: 'gift', to, amount: Math.floor(gold) });
+      // The first player calls for the team: the bonus is paid to everyone, and a second call the same
+      // tick would pay it again.
+      if (style === 'expert' && snap.players[0]?.id === playerId) {
+        if (snap.creeps.length === 0) {
+          if (clearSince < 0) clearSince = snap.tick;
+        } else clearSince = -1;
+        const secondsLeft = snap.nextWaveIn < 0 ? 0 : snap.nextWaveIn / snap.tickRate;
+        const clearFor = clearSince < 0 ? 0 : (snap.tick - clearSince) / snap.tickRate;
+        const mineCount = snap.towers.filter((t) => t.owner === playerId).length;
+        const firstThird = snap.wave <= Math.ceil(snap.totalWaves / 3);
+        if (
+          snap.wave >= 1 &&
+          snap.nextWaveIn >= 0 &&
+          mineCount >= EXPERT_MIN_TOWERS &&
+          clearFor >= EXPERT_CLEAR_SECONDS &&
+          secondsLeft >= EXPERT_MIN_CALL_SECONDS &&
+          snap.heartHp >= (firstThird ? EXPERT_EARLY_HEART : EXPERT_SAFE_HEART)
+        ) {
+          cmds.push({ type: 'callEarly' });
+        }
       }
 
       if (!hero.alive) return cmds;
 
       // Hero: retreat to the Heart when hurt (shooting on the way), otherwise walk to where it is needed.
+      const expert = style === 'expert';
       const hpFrac = hero.hp / hero.maxHp;
-      if (hpFrac < 0.3) retreating = true;
-      if (hpFrac > 0.6) retreating = false;
+      const ranged = tuning.hero[hero.kind].ranged;
+      // Casual: 30% / 60%. Expert leaves earlier and comes back healthier, melee sooner than ranged.
+      const retreatLow = expert ? (ranged ? 0.54 : 0.65) : 0.3;
+      const retreatHigh = expert ? (ranged ? 0.85 : 0.9) : 0.6;
+      if (hpFrac < retreatLow) retreating = true;
+      if (hpFrac > retreatHigh) retreating = false;
+      if (expert) {
+        let packed = 0;
+        for (const c of snap.creeps) if (dist(hero.x, hero.y, c.x, c.y) <= 2.2) packed++;
+        if (packed >= 3 && hpFrac < 0.72) retreating = true;
+      }
       const skill = (slot: SkillSlot) => hero.skills.find((s) => s.slot === slot);
       const r = skill('R');
       const later = r !== undefined && r.rank > 0 && snap.wave >= Math.round(FORWARD_FROM * snap.totalWaves);
@@ -209,33 +283,42 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
       const ultReady = later && r.cooldown === 0;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
-      const ranged = tuning.hero[hero.kind].ranged;
       const hittable = snap.creeps.filter((c) => ranged || !tuning.creeps[c.kind].flying);
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
-      const group = ultReady ? densestGroup(nearPost(SEEK_RADIUS), r.radius, groundOnlyR, tuning) : undefined;
+      const group = ultReady
+        ? densestGroup(nearPost(SEEK_RADIUS), r.radius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
+        : undefined;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
-      const target = bosses[0] ?? straggler ?? group ?? closest;
+      // A melee expert does not walk onto a boss while hurt; it lets the boss come to the post.
+      const diveBoss = bosses[0] && !(expert && !ranged && hpFrac < 0.75) ? bosses[0] : undefined;
+      const target = diveBoss ?? straggler ?? group ?? closest;
       const heart = getMap().heroSpawn;
-      const goal = retreating ? { x: heart.x, y: heart.y + 1 } : target ? standoff(hero, ranged, target) : post;
+      const goal = retreating
+        ? { x: heart.x, y: heart.y + 1 }
+        : target
+          ? standoff(hero, ranged, target, expert ? 0.15 : STANDOFF_MARGIN)
+          : post;
       const moved = lastGoal === null || dist(goal.x, goal.y, lastGoal.x, lastGoal.y) > 1;
       if (dist(hero.x, hero.y, goal.x, goal.y) > 0.5 && (moved || snap.tick - lastMoveTick > 40)) {
         cmds.push({ type: 'move', x: goal.x, y: goal.y });
         lastGoal = goal;
         lastMoveTick = snap.tick;
       }
-      if (retreating) return cmds;
+      // The casual bot runs home without casting. The expert still casts (Last Stand, a trap, a shot) on the way.
+      if (retreating && !expert) return cmds;
 
       const near = (range: number, ground: boolean): CreepSnap[] =>
         snap.creeps.filter(
           (c) => dist(hero.x, hero.y, c.x, c.y) <= range && (!ground || !tuning.creeps[c.kind].flying),
         );
       // Like a player: ultimate, Q and W each go off on a group whenever they are ready and affordable.
+      const mins = expert ? EXPERT_MIN_TARGETS : MIN_TARGETS;
       let mana = hero.mana;
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
         const ground = GROUND_ONLY[hero.kind].includes(slot);
-        const cmd = skillCommand(s, near(Math.max(s.range, s.radius), ground), hero, MIN_TARGETS[slot]);
+        const cmd = skillCommand(s, near(Math.max(s.range, s.radius), ground), hero, mins[slot]);
         if (!cmd) continue;
         cmds.push(cmd);
         mana -= s.manaCost;
@@ -243,6 +326,157 @@ export function createBalanceBot(playerId: PlayerId, baseTuning: Tuning = TUNING
       return cmds;
     },
   };
+}
+
+interface PlannedTower {
+  id: number;
+  kind: TowerKind;
+  tier: number;
+  branch: TowerBranch | null;
+  padId: number;
+  x: number;
+  y: number;
+  range: number;
+  priority: TargetPriority;
+}
+
+/**
+ * Expert economy: a base of towers, then tiers before more pads, then branches from the middle of the
+ * match on, stopping once `EXPERT_PAD_FRACTION` of the pads are filled. Returns the gold left.
+ */
+function spendExpert(
+  cmds: Command[],
+  snap: Snapshot,
+  tuning: Tuning,
+  playerId: PlayerId,
+  goldStart: number,
+  padRank: Map<number, number>,
+  free: BuildPad[],
+  kinds: TowerKind[],
+  team: Set<TowerKind>,
+  needs: { air: boolean; armour: boolean; stone: boolean },
+  bosses: CreepSnap[],
+): number {
+  let gold = goldStart;
+  const mine: PlannedTower[] = snap.towers
+    .filter((t) => t.owner === playerId)
+    .map((t) => ({
+      id: t.id,
+      kind: t.kind,
+      tier: t.tier,
+      branch: t.branch,
+      padId: t.padId,
+      x: t.x,
+      y: t.y,
+      range: t.range,
+      priority: t.priority,
+    }));
+  const owned = mine.length + free.length;
+  // Solo owns the whole map: the pads farthest from the lanes are a poor buy (about 20 of 26), and the
+  // gold goes into tiers and branches. A lane zone is already that slice, so fill it — a hole there leaks —
+  // but only after the towers it has are tiered and branched. Spreading that gold across every pad first
+  // leaves a physical pair one branch short of the late waves.
+  const zone = owned < 20;
+  const cap = zone ? owned : Math.max(EXPERT_MIN_TOWERS, Math.floor(owned * EXPERT_PAD_FRACTION));
+  const teamBranches = snap.towers.flatMap((t) => (t.branch ? [t.branch] : []));
+  const branchNeed = branchNeeds(tuning, snap.wave);
+  const branchFrom = Math.round(EXPERT_BRANCH_FROM * snap.totalWaves);
+
+  for (const t of mine) {
+    const focus = bosses.some((b) => dist(b.x, b.y, t.x, t.y) <= t.range);
+    const want = focus ? 'strongest' : PRIORITY[t.kind];
+    if (t.priority !== want) cmds.push({ type: 'setPriority', towerId: t.id, priority: want });
+  }
+
+  const rank = (t: PlannedTower) => padRank.get(t.padId) ?? 0;
+  const buildNext = (): boolean => {
+    if (kinds.length >= cap) return false;
+    const kind = nextTower(needs, kinds, team);
+    const cost = tuning.towers[kind].tiers[0]!.cost;
+    const pad = free[0];
+    if (!pad || gold < cost) return false;
+    cmds.push({ type: 'build', padId: pad.id, tower: kind });
+    gold -= cost;
+    kinds.push(kind);
+    team.add(kind);
+    free.shift();
+    return true;
+  };
+  const cheapest = (): { t: PlannedTower; branch: TowerBranch | null; cost: number } | null => {
+    const order = mine.filter((t) => !t.branch).sort((a, b) => {
+      const stoneFirst = (t: PlannedTower) =>
+        needs.stone && t.kind === 'arcane' && t.tier < tuning.towers.arcane.tiers.length ? 0 : 1;
+      return stoneFirst(a) - stoneFirst(b) || a.tier - b.tier || rank(a) - rank(b);
+    });
+    for (const t of order) {
+      const next = tuning.towers[t.kind].tiers[t.tier];
+      if (!next && kinds.length < EXPERT_MIN_TOWERS) continue;
+      const branch = next ? null : pickBranch(t.kind, branchNeed, teamBranches, 1);
+      const cost = next ? next.cost : tuning.branches[branch!].cost;
+      if (gold >= cost) return { t, branch, cost };
+    }
+    return null;
+  };
+  const readyBranch = (): { t: PlannedTower; branch: TowerBranch; cost: number } | null => {
+    if (kinds.length < EXPERT_MIN_TOWERS || snap.wave < branchFrom) return null;
+    let best: PlannedTower | undefined;
+    for (const t of mine) {
+      if (t.branch || t.tier < tuning.towers[t.kind].tiers.length) continue;
+      if (!best || rank(t) < rank(best)) best = t;
+    }
+    if (!best) return null;
+    const branch = pickBranch(best.kind, branchNeed, teamBranches, 1);
+    const cost = tuning.branches[branch].cost;
+    return gold >= cost ? { t: best, branch, cost } : null;
+  };
+  const apply = (u: { t: PlannedTower; branch: TowerBranch | null; cost: number }) => {
+    cmds.push(u.branch ? { type: 'upgrade', towerId: u.t.id, branch: u.branch } : { type: 'upgrade', towerId: u.t.id });
+    gold -= u.cost;
+    if (u.branch) {
+      u.t.branch = u.branch;
+      teamBranches.push(u.branch);
+    } else u.t.tier += 1;
+  };
+
+  for (let n = 0; n < 48; n++) {
+    if (kinds.length < EXPERT_MIN_TOWERS && buildNext()) continue;
+    if (kinds.length >= EXPERT_MIN_TOWERS) {
+      const up = cheapest();
+      if (up && !up.branch && up.t.tier === 1) {
+        apply(up);
+        continue;
+      }
+    }
+    const branched = readyBranch();
+    if (branched) {
+      apply(branched);
+      continue;
+    }
+    // Lane zone, from the middle of the match: take the towers you have up a tier before another pad,
+    // and hold gold that is already most of a branch instead of opening a pad with it.
+    if (zone && snap.wave >= branchFrom) {
+      const up = cheapest();
+      if (up && !up.branch) {
+        apply(up);
+        continue;
+      }
+    }
+    if (buildNext()) continue;
+    const up = cheapest();
+    if (up) {
+      apply(up);
+      continue;
+    }
+    break;
+  }
+
+  const filled = kinds.length >= cap || free.length === 0;
+  const builtThisTick = kinds.length > mine.length;
+  if (filled && !builtThisTick && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
+    const to = neediestTeammate(snap, playerId, tuning);
+    if (to) cmds.push({ type: 'gift', to, amount: Math.floor(gold) });
+  }
+  return gold;
 }
 
 /**
@@ -274,10 +508,15 @@ function neediestTeammate(snap: Snapshot, playerId: PlayerId, tuning: Tuning): P
  * Where a hero walks to fight `target`: a melee hero onto it; a ranged hero to a point just inside its
  * attack range, on the side facing the hero.
  */
-function standoff(hero: { x: number; y: number; attackRange: number }, ranged: boolean, target: Vec2): Vec2 {
+function standoff(
+  hero: { x: number; y: number; attackRange: number },
+  ranged: boolean,
+  target: Vec2,
+  margin = STANDOFF_MARGIN,
+): Vec2 {
   if (!ranged) return { x: target.x, y: target.y };
   const d = dist(hero.x, hero.y, target.x, target.y);
-  const keep = Math.max(1, hero.attackRange - STANDOFF_MARGIN);
+  const keep = Math.max(1, hero.attackRange - margin);
   if (d <= keep) return { x: hero.x, y: hero.y };
   return { x: target.x + ((hero.x - target.x) / d) * keep, y: target.y + ((hero.y - target.y) / d) * keep };
 }
@@ -387,10 +626,15 @@ function branchNeeds(tuning: Tuning, wave: number): Record<BranchNeed, boolean> 
  * The branch for a tower of `kind`: its specialist while the coming waves need it and the team has fewer than
  * `SPECIALISTS_PER_NEED` of them, else its all-round branch.
  */
-function pickBranch(kind: TowerKind, needs: Record<BranchNeed, boolean>, teamBranches: TowerBranch[]): TowerBranch {
+function pickBranch(
+  kind: TowerKind,
+  needs: Record<BranchNeed, boolean>,
+  teamBranches: TowerBranch[],
+  maxSpecialists = SPECIALISTS_PER_NEED,
+): TowerBranch {
   const { specialist, general, need } = BRANCH_ROLES[kind];
   const specialists = teamBranches.filter((b) => b === specialist).length;
-  return needs[need] && specialists < SPECIALISTS_PER_NEED ? specialist : general;
+  return needs[need] && specialists < maxSpecialists ? specialist : general;
 }
 
 /**
@@ -435,11 +679,17 @@ function nearest<T extends { x: number; y: number }>(items: T[], from: { x: numb
   return best;
 }
 
-/** Centre creep of the biggest group within `radius` (at least the ultimate's minimum), or undefined. */
-function densestGroup(creeps: CreepSnap[], radius: number, groundOnly: boolean, tuning: Tuning): CreepSnap | undefined {
+/** Centre creep of the biggest group within `radius` (at least `min` creeps), or undefined. */
+function densestGroup(
+  creeps: CreepSnap[],
+  radius: number,
+  groundOnly: boolean,
+  tuning: Tuning,
+  min = MIN_TARGETS.R,
+): CreepSnap | undefined {
   const pool = groundOnly ? creeps.filter((c) => !tuning.creeps[c.kind].flying) : creeps;
   let best: CreepSnap | undefined;
-  let bestCount = MIN_TARGETS.R - 1;
+  let bestCount = min - 1;
   for (const c of pool) {
     const count = pool.filter((o) => dist(o.x, o.y, c.x, c.y) <= radius).length;
     if (count > bestCount) {

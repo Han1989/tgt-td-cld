@@ -1,7 +1,7 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { GameMode, GamePhase, HeroKind } from '@tdt/protocol';
+import type { Difficulty, GameMode, GamePhase, HeroKind } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
@@ -27,6 +27,11 @@ export interface HeadlessResult {
   heartLost: number[];
   /** Bosses that reached the Heart. */
   bossLeaks: number;
+  /** Hero deaths over the match. */
+  deaths: number;
+  /** Successful call-early commands (one event each; a team does not double-pay). */
+  earlyCalls: number;
+  casts: { Q: number; W: number; R: number };
   /** How each hero used its mana and its ultimate. */
   heroes: HeroMatchStats[];
 }
@@ -53,6 +58,8 @@ export function runHeadlessMatch(opts: {
   tuning?: Tuning;
   /** Match mode (default Full). */
   mode?: GameMode;
+  /** Creep difficulty (default Normal). */
+  difficulty?: Difficulty;
   /** Bots think this many times per second. */
   decisionsPerSecond?: number;
   maxSeconds?: number;
@@ -62,6 +69,7 @@ export function runHeadlessMatch(opts: {
       players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' })),
       ...(opts.tuning ? { tuning: opts.tuning } : {}),
       ...(opts.mode ? { mode: opts.mode } : {}),
+      ...(opts.difficulty ? { difficulty: opts.difficulty } : {}),
     },
     opts.seed,
   );
@@ -72,6 +80,9 @@ export function runHeadlessMatch(opts: {
   const heartAt: number[] = [state.heartHp];
   const bossIds = new Set<number>();
   let bossLeaks = 0;
+  let deaths = 0;
+  let earlyCalls = 0;
+  const casts = { Q: 0, W: 0, R: 0 };
   const usage = state.heroes.map(() => ({ ultCasts: 0, alive: 0, lowMana: 0, withUlt: 0, ultUnaffordable: 0, offCd: 0, learned: -1 }));
   while (state.phase !== 'victory' && state.phase !== 'defeat' && state.tick < maxTicks) {
     // Heart HP when the second and the last third start (Full: waves 11 and 21).
@@ -86,6 +97,9 @@ export function runHeadlessMatch(opts: {
     for (const c of state.creeps) if (state.tuning.creeps[c.kind].boss) bossIds.add(c.id);
     for (const e of state.events) {
       if (e.type === 'leak' && bossIds.has(e.creepId)) bossLeaks++;
+      if (e.type === 'heroDied') deaths++;
+      if (e.type === 'callEarly') earlyCalls++;
+      if (e.type === 'cast' && e.slot !== 'E') casts[e.slot]++;
       if (e.type === 'cast' && e.slot === 'R') {
         const i = state.heroes.findIndex((h) => h.id === e.heroId);
         if (i >= 0) usage[i]!.ultCasts++;
@@ -115,6 +129,9 @@ export function runHeadlessMatch(opts: {
     heroLevels: state.heroes.map((h) => h.level),
     gold: state.players.map((p) => p.gold),
     bossLeaks,
+    deaths,
+    earlyCalls,
+    casts,
     heartLost: [0, 1, 2].map((i) => (heartAt[i] ?? state.heartHp) - (heartAt[i + 1] ?? state.heartHp)),
     heroes: state.heroes.map((h, i) => {
       const u = usage[i]!;

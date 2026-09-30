@@ -142,6 +142,8 @@ export class Hud {
   private readonly gold = $('gold');
   private readonly heartFill = $('heart-fill');
   private readonly heartText = $('heart-text');
+  private readonly waveStat = $('wave-stat');
+  private readonly waveLabel = $('wave-label');
   private readonly wave = $('wave');
   private readonly timerLabel = $('timer-label');
   private readonly timer = $('timer');
@@ -290,6 +292,10 @@ export class Hud {
     const low = snap.heartHp > 0 && snap.heartHp <= snap.heartMaxHp * HEART_LOW;
     if (this.heartStat.classList.contains('low') !== low) this.heartStat.classList.toggle('low', low);
     this.coins.update(now);
+    const hard = snap.difficulty === 'hard';
+    this.waveStat.classList.toggle('hard', hard);
+    this.waveStat.title = hard ? 'Hard: more creeps, and tougher' : 'Wave';
+    setText(this.waveLabel, hard ? 'Hard' : 'Wave');
     setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
 
     const c = this.compact;
@@ -330,9 +336,10 @@ export class Hud {
       setText(this.endTitle, won ? 'Victory!' : 'Defeat');
       this.endTitle.className = won ? 'victory' : 'defeat';
       this.endEmblem.className = `end-emblem ${won ? 'victory' : 'defeat'}`;
+      const onHard = snap.difficulty === 'hard' ? ' on Hard' : '';
       const summary = won
-        ? `The Heart survived all ${snap.totalWaves} waves with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
-        : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`;
+        ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
+        : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. Kills: ${player?.kills ?? 0}.`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
       if (!this.outcomeSent) {
         this.outcomeSent = true;

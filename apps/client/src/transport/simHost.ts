@@ -7,6 +7,7 @@ import {
   encodeServerMessage,
   normalizeBuild,
   type Command,
+  type Difficulty,
   type GameMode,
   type HeroKind,
   type PlayerId,
@@ -33,6 +34,7 @@ export class SimHost {
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
   private mode: GameMode = 'full';
+  private difficulty: Difficulty = 'normal';
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
 
@@ -48,7 +50,12 @@ export class SimHost {
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
     this.match = createMatch(
-      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode, tuning: this.tuning },
+      {
+        players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }],
+        mode: this.mode,
+        difficulty: this.difficulty,
+        tuning: this.tuning,
+      },
       this.nextSeed(),
       normalizeBuild(this.build),
     );
@@ -65,11 +72,12 @@ export class SimHost {
     const over = this.state.phase === 'victory' || this.state.phase === 'defeat';
     if (msg.t === 'restart') {
       if (over) this.reset();
-    } else if (msg.t === 'hero' || msg.t === 'mode') {
-      // Solo hero / mode pick: starts a new match with it, unless waves are already running.
+    } else if (msg.t === 'hero' || msg.t === 'mode' || msg.t === 'difficulty') {
+      // Solo hero / mode / difficulty pick: starts a new match with it, unless waves are already running.
       if (this.state.phase !== 'waves') {
         if (msg.t === 'hero') this.hero = msg.hero;
-        else this.mode = msg.mode;
+        else if (msg.t === 'mode') this.mode = msg.mode;
+        else this.difficulty = msg.difficulty;
         this.reset();
       }
     } else if (msg.t === 'cmd') {

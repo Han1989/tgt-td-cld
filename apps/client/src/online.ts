@@ -1,6 +1,13 @@
 // Online mode: lobby screens + NetworkTransport + the game view.
 
-import { PROTOCOL_VERSION, type GameMode, type HeroKind, type LobbyState, type ServerMessage } from '@tdt/protocol';
+import {
+  PROTOCOL_VERSION,
+  type Difficulty,
+  type GameMode,
+  type HeroKind,
+  type LobbyState,
+  type ServerMessage,
+} from '@tdt/protocol';
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
 import { showSoloPick } from './lobby/solo';
@@ -22,6 +29,7 @@ export class OnlineController {
       playOffline: () => this.playOffline(),
       setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
       setMode: (mode: GameMode) => this.transport?.send({ t: 'mode', mode }),
+      setDifficulty: (difficulty: Difficulty) => this.transport?.send({ t: 'difficulty', difficulty }),
       setReady: (ready) => this.transport?.send({ t: 'ready', ready }),
       start: () => this.transport?.send({ t: 'start' }),
       leave: () => this.leave(),
@@ -129,21 +137,23 @@ export class OnlineController {
   private playOffline(): void {
     this.transport?.close();
     this.drop();
-    showSoloPick((hero, mode) => playSolo(this.view, hero, mode));
+    showSoloPick((hero, mode, difficulty) => playSolo(this.view, hero, mode, difficulty));
   }
 }
 
 /**
- * Starts a local solo match (simulation in a Web Worker) with `hero` in `mode`. "Change hero / mode"
- * on the end screen reopens the solo pick; the local host starts a new match with the new picks.
+ * Starts a local solo match (simulation in a Web Worker) with `hero` in `mode` at `difficulty`.
+ * "Change hero / mode" on the end screen reopens the solo pick; the local host starts a new match
+ * with the new picks.
  */
-export function playSolo(view: GameView, hero: HeroKind, mode: GameMode): void {
+export function playSolo(view: GameView, hero: HeroKind, mode: GameMode, difficulty: Difficulty): void {
   const transport = new LocalTransport();
   view.attach(transport);
-  const start = (h: HeroKind, m: GameMode) => {
+  const start = (h: HeroKind, m: GameMode, d: Difficulty) => {
+    transport.send({ t: 'difficulty', difficulty: d });
     transport.send({ t: 'mode', mode: m });
     transport.send({ t: 'hero', hero: h });
   };
   view.onChangeHero = () => showSoloPick(start);
-  start(hero, mode);
+  start(hero, mode, difficulty);
 }

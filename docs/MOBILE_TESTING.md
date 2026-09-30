@@ -6,7 +6,7 @@
 
 - **Build to test:** the Vercel preview (or production) deploy of this branch, with `VITE_SERVER_URL` set so the lobby shows. Note the URL and the commit.
 - **Server:** the Render service from the same commit. Its `ALLOWED_ORIGINS` must include the preview URL (docs/DEPLOY.md §3).
-- **Quick mode** (15 waves, ~10–12 min) is picked under the hero cards in the solo pick, or by the host in an online room.
+- **Quick mode** (15 waves, ~10–12 min) is picked under the hero cards in the solo pick, or by the host in an online room. **Hard** sits next to it (Normal is the default). The host picks it; everyone in the room sees the same cards, and only the host's are clickable. Solo remembers the last pick. A Hard match shows **Hard** on the wave label (gold trim). There are more creeps, not only tougher ones.
 - For each phone, write down the model, OS version, browser version and the screen size the game reports. To get the size, open `…/?stress=1`: the FPS readout shows at the top left, and `window.innerWidth × innerHeight` is visible in the browser's desktop-site view or remote devtools. It's optional.
 - Report anything that fails as: phone, step number, what you did, what you saw, and a screenshot if you can.
 
@@ -62,6 +62,7 @@ Start **Play solo offline** (or solo from the hero pick).
 ## 5. Solo match to the end
 
 - [ ] 5.1 Play a solo **Quick** match to the end. Report the hero, the result, the Heart HP left and how long it took.
+- [ ] 5.1b **Hard:** in the solo pick, choose **Hard** next to Full / Quick, start a match, and check the wave label says **Hard**. Leave and come back: the pick is still Hard. In an online room the host's Hard pick shows for everyone, and a guest cannot change it. Play a few waves: the lanes are busier than Normal, not only slower. The saved report's file name includes `hard`, and the end screen says the match was on Hard.
 - [ ] 5.2 The victory / defeat screen fits the phone. **Play again** and **Change hero / mode** work.
 - [ ] 5.2b **Save match report:** on the victory / defeat screen, tap **Save match report**. On a phone that can share files the share sheet opens: send the file to yourself in a chat app (WhatsApp, Telegram, Messenger…) and check it arrives as a `tdt-match-….json` file of a few hundred KB at most (Quick; a Full match up to ~1 MB). Where sharing isn't offered (or on desktop) the file downloads instead: find it in Files (iPhone: Downloads) or the Downloads folder. Cancelling the share sheet does nothing. Send one such file with your report: `npm run replay <file>` re-runs the match and prints the same report.
 - [ ] 5.3 Smoothness: no stutter in the late waves. If it feels slow, try ⚙ → Graphics → **Low** and say whether that helped. Auto switches to Low on its own if the frame rate stays under 45.

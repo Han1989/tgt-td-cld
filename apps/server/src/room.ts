@@ -10,6 +10,7 @@ import {
   type ClientMessage,
   type Command,
   type ErrorCode,
+  type Difficulty,
   type GameMode,
   type HeroKind,
   type LobbyState,
@@ -63,6 +64,8 @@ export class Room {
   phase: 'lobby' | 'playing' = 'lobby';
   /** Match mode picked by the host in the lobby; kept for the next match after "Back to lobby". */
   mode: GameMode = 'full';
+  /** Creep difficulty picked by the host; kept for the next match after "Back to lobby". */
+  difficulty: Difficulty = 'normal';
   /** The running match (its state, replay log and report numbers), or null in the lobby. */
   match: Match | null = null;
   /** The match report message, encoded once when the match ends (sent again to players who rejoin). */
@@ -211,6 +214,12 @@ export class Room {
         this.mode = msg.mode;
         this.broadcastLobby();
         return;
+      case 'difficulty':
+        if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can change the difficulty');
+        if (this.phase !== 'lobby') return this.error(member, 'bad_request', 'The difficulty is locked once the match starts');
+        this.difficulty = msg.difficulty;
+        this.broadcastLobby();
+        return;
       case 'ready':
         if (this.phase !== 'lobby') return;
         member.ready = msg.ready;
@@ -245,7 +254,11 @@ export class Room {
 
   private startMatch(): void {
     const players = this.activeMembers.map((m) => ({ id: m.id, name: m.name, hero: m.hero }));
-    this.match = createMatch({ players, mode: this.mode }, this.newSeed(), this.config.build);
+    this.match = createMatch(
+      { players, mode: this.mode, difficulty: this.difficulty },
+      this.newSeed(),
+      this.config.build,
+    );
     this.reportMessage = null;
     this.phase = 'playing';
     this.queue = [];
@@ -330,6 +343,7 @@ export class Room {
       phase: this.phase,
       hostId: this.hostId,
       mode: this.mode,
+      difficulty: this.difficulty,
       players: this.activeMembers.map((m) => ({
         id: m.id,
         name: m.name,
