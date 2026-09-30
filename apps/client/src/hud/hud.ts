@@ -24,6 +24,7 @@ import {
   type TowerSnap,
 } from '@tdt/protocol';
 import { getMap, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
+import { currentAnalytics } from '../analytics/install';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
@@ -171,6 +172,13 @@ export class Hud {
   private readonly changeHeroBtn = $('end-change-hero') as HTMLButtonElement;
   private readonly endLeave = $('end-leave');
   private readonly endSave = $('end-save') as HTMLButtonElement;
+  private readonly endFeedback = $('end-feedback');
+  private readonly endRatings = $('end-ratings');
+  private readonly endComment = $('end-comment') as HTMLInputElement;
+  private readonly endThanks = $('end-feedback-thanks');
+  /** One match-result event and one rating per finished match. */
+  private outcomeSent = false;
+  private feedbackSent = false;
   /** The finished match's report and replay (sent by the host when it ends), for "Save match report". */
   private report: { report: MatchReport; replay: Replay } | null = null;
   private readonly team = $('team');
@@ -231,6 +239,25 @@ export class Hud {
     this.restartBtn.addEventListener('click', () => actions.restart());
     this.changeHeroBtn.addEventListener('click', () => actions.changeHero());
     this.endLeave.addEventListener('click', () => actions.leave());
+    this.endFeedback.addEventListener('pointerdown', (e) => e.stopPropagation());
+    for (const btn of this.endRatings.querySelectorAll<HTMLButtonElement>('.end-rate')) {
+      btn.addEventListener('click', () => {
+        if (this.feedbackSent) return;
+        const rating = Number(btn.dataset.rating);
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) return;
+        this.feedbackSent = true;
+        const comment = this.endComment.value;
+        try {
+          currentAnalytics()?.feedback(rating, comment);
+        } catch {
+          // The rating is local feedback. A failed send must not block Play again.
+        }
+        this.endComment.blur();
+        this.endRatings.classList.add('hidden');
+        this.endComment.classList.add('hidden');
+        this.endThanks.classList.remove('hidden');
+      });
+    }
     this.endSave.addEventListener('click', () => {
       if (!this.report) return;
       void saveMatchFile(matchFile(this.report.report, this.report.replay, new Date())).catch(() =>
@@ -288,7 +315,10 @@ export class Hud {
 
     const over = snap.phase === 'victory' || snap.phase === 'defeat';
     this.endScreen.classList.toggle('hidden', !over);
-    if (over) {
+    if (!over) {
+      if (this.outcomeSent) this.resetFeedback();
+      this.outcomeSent = false;
+    } else {
       const online = this.room !== null;
       const isHost = online && this.room!.hostId === me;
       this.restartBtn.classList.toggle('hidden', online && !isHost);
@@ -304,7 +334,39 @@ export class Hud {
         ? `The Heart survived all ${snap.totalWaves} waves with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
         : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}. Kills: ${player?.kills ?? 0}.`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
+      if (!this.outcomeSent) {
+        this.outcomeSent = true;
+        this.openFeedback(snap);
+      }
     }
+  }
+
+  /** Shows the rating when a server is configured, and reports the outcome either way it can. */
+  private openFeedback(snap: Snapshot): void {
+    const client = currentAnalytics();
+    this.endFeedback.classList.toggle('hidden', client === null);
+    if (!client) return;
+    try {
+      client.matchEnd({
+        result: snap.phase === 'victory' ? 'victory' : 'defeat',
+        heartHp: snap.heartHp,
+        heartMax: snap.heartMaxHp,
+        mode: snap.mode,
+        wave: snap.wave,
+        players: snap.players.length,
+      });
+    } catch {
+      // Outcome reporting is optional.
+    }
+  }
+
+  private resetFeedback(): void {
+    this.feedbackSent = false;
+    this.endFeedback.classList.add('hidden');
+    this.endRatings.classList.remove('hidden');
+    this.endComment.classList.remove('hidden');
+    this.endComment.value = '';
+    this.endThanks.classList.add('hidden');
   }
 
   /** The host's report and replay of the match that just ended (null: none yet, or a new match started). */

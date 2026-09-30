@@ -187,6 +187,18 @@
           <div id="end-emblem" class="end-emblem" aria-hidden="true"></div>
           <h1 id="end-title">Victory</h1>
           <p id="end-text"></p>
+          <div id="end-feedback" class="end-feedback hidden">
+            <div class="end-q">How was this match?</div>
+            <div id="end-ratings" class="end-ratings" role="group" aria-label="Rate this match from 1 to 5">
+              <button type="button" class="end-rate" data-rating="1" aria-label="1, poor">1</button>
+              <button type="button" class="end-rate" data-rating="2" aria-label="2">2</button>
+              <button type="button" class="end-rate" data-rating="3" aria-label="3">3</button>
+              <button type="button" class="end-rate" data-rating="4" aria-label="4">4</button>
+              <button type="button" class="end-rate" data-rating="5" aria-label="5, great">5</button>
+            </div>
+            <input id="end-comment" class="end-comment" maxlength="140" placeholder="Optional note" autocomplete="off" enterkeyhint="done" />
+            <div id="end-feedback-thanks" class="end-thanks hidden">Thanks — that helps.</div>
+          </div>
           <div class="end-actions">
             <button id="restart" class="btn big">Play again</button>
             <button id="end-change-hero" class="btn hidden">Change hero / mode</button>

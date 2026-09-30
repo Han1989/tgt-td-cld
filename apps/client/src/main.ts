@@ -1,4 +1,5 @@
 import './style.css';
+import { installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
 import { showSoloPick } from './lobby/solo';
 import { OnlineController, playSolo } from './online';
@@ -38,10 +39,12 @@ async function main(): Promise<void> {
   const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
   if (!serverUrl) {
     // No game server configured: local solo mode, after a hero and mode pick.
+    // Analytics needs the server (docs/ANALYTICS.md); this path sends nothing.
     showSoloPick((hero, mode) => playSolo(view, hero, mode));
     ready('solo');
     return;
   }
+  installAnalytics(serverUrl);
   new OnlineController(view, serverUrl).start();
   ready('online');
 }

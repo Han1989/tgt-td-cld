@@ -76,6 +76,16 @@ describe('configFromEnv', () => {
     expect(configFromEnv({ RENDER_GIT_COMMIT: 'not a commit!' }).build).toBe('dev');
   });
 
+  it('leaves the analytics dashboard off until a key is set, and keeps the directory explicit', () => {
+    expect(configFromEnv({}).analyticsDashboardKey).toBe('');
+    expect(configFromEnv({}).analyticsDir).toBe('');
+    expect(configFromEnv({ ANALYTICS_DASHBOARD_KEY: '  secret  ', ANALYTICS_DIR: ' memory ' })).toMatchObject({
+      analyticsDashboardKey: 'secret',
+      analyticsDir: 'memory',
+    });
+    expect(() => configFromEnv({ ANALYTICS_DASHBOARD_KEY: 'x'.repeat(201) })).toThrow(/ANALYTICS_DASHBOARD_KEY/);
+  });
+
   it('rejects bad values', () => {
     expect(() => configFromEnv({ SHARD: 'I' })).toThrow(/SHARD/);
     expect(() => configFromEnv({ PORT: 'abc' })).toThrow(/PORT/);
