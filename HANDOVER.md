@@ -23,6 +23,7 @@ A browser co-op tower defense for **1–3 players, one per lane**, in the spirit
 | Live game server | Render service `tgt-td-server` (Singapore, room codes start with `A`), health at `/health` |
 | Hook test (never merge) | https://tgt-td-cld-git-claude-loving-hawking-7fvsu7-han1989.vercel.app/?spike=hook&practice |
 | Art and sound showcase | `/?showcase` on any build |
+| Roadmap progress | `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress) |
 | Render stress test | `/?stress=300` on any build |
 | Task list | `TASKS.md` (copy of Han's roadmap checklist, 11 of 50 done) |
 
@@ -172,6 +173,7 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 | `docs/SOUND_FILES.md` | Dropping in recorded music and effects | Sound files |
 | `docs/HOOK_SPIKE.md` (spike branch only) | Combos, the boss shield, the bot ally, the spike server | Phase 6c (combos and raids) |
 | `TASKS.md` | Roadmap and task list, with status | Choosing and closing work |
+| `docs/PROGRESS.md` | The `/?progress` page, and the rule to update it with `TASKS.md` | Closing a task |
 
 ---
 

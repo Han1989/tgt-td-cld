@@ -8,7 +8,7 @@
 
 **Business target:** a few thousand loyal players and about **US$2k a month** from a fair model, not millions of free players. The reference points are Legion TD 2 and Bloons: a small loyal community, cosmetics, a season pass, fair purchases. Han may sell the game later, so everything in it has to be original or properly licensed.
 
-**Where the build is:** Phases 1–3 are done. Phase 4a (mobile) and the Phase 4b polish list **T-00–T-05** are done (CI, Hard, pings, the first-match tutorial, projectile and trap art, these docs). Real-device checks (`docs/MOBILE_TESTING.md`, H-05) and the optional app-store wrap (Phase 4c) are still open. Tower branches (Phase 5 §1) are in; the rest of Phase 5 is not. Nothing in Phase 6 starts before Gate 1.
+**Where the build is:** Phases 1–3 are done. Phase 4a (mobile) and the Phase 4b polish list **T-00–T-05** are done (CI, Hard, pings, the first-match tutorial, projectile and trap art, these docs). Real-device checks (`docs/MOBILE_TESTING.md`, H-05) and the optional app-store wrap (Phase 4c) are still open. Tower branches (Phase 5 §1) are in; the rest of Phase 5 is not. Nothing in Phase 6 starts before Gate 1. The same picture is on the site at `/?progress` ([`docs/PROGRESS.md`](PROGRESS.md); production: https://tgt-td-cld.vercel.app/?progress). `TASKS.md` stays the tracker.
 
 ## Locked decisions
 
