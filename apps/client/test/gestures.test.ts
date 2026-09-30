@@ -7,6 +7,8 @@ import {
   inOverlay,
   isCancelRelease,
   isDrag,
+  mapPing,
+  PING_HOLD_MS,
   placeRadial,
   radialSpots,
   resolveTap,
@@ -181,6 +183,17 @@ describe('hold to sell', () => {
     expect(holdProgress(1000, 1000)).toEqual({ progress: 0, done: false });
     expect(holdProgress(1000, 1000 + SELL_HOLD_MS / 2).done).toBe(false);
     expect(holdProgress(1000, 1000 + SELL_HOLD_MS)).toEqual({ progress: 1, done: true });
+  });
+});
+
+describe('map ping', () => {
+  it('pings only after a still hold, and a drag cancels it', () => {
+    expect(mapPing(0, false)).toEqual({ progress: 0, ping: false });
+    expect(mapPing(PING_HOLD_MS / 2, false)).toEqual({ progress: 0.5, ping: false });
+    expect(mapPing(PING_HOLD_MS, false)).toEqual({ progress: 1, ping: true });
+    expect(mapPing(PING_HOLD_MS + 100, false).ping).toBe(true);
+    expect(mapPing(PING_HOLD_MS + 100, true)).toEqual({ progress: 0, ping: false });
+    expect(mapPing(-10, false)).toEqual({ progress: 0, ping: false });
   });
 });
 

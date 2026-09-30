@@ -33,11 +33,11 @@ Tests have only ever run inside build sessions. The team workflow and the requir
 > 5. Update GAME_DESIGN.md, the Decision Log and docs/MOBILE_TESTING.md.
 > npm test, npm run build and npm run test:e2e must pass. Bump PROTOCOL_VERSION. Commit to a new branch and open a PR.
 
-### T-02 · Team pings and quick-chat emotes · checklist `a-pings` · Team · ☐
+### T-02 · Team pings and quick-chat emotes · checklist `a-pings` · Team · ☑
 
 From `docs/MOBILE.md` §9 and the checklist: long-press on the map on phones, Alt-click on desktop. Quick-chat emotes only, **no free-text chat** (a locked guardrail).
 
-Proposed acceptance criteria: teammates see the ping on the map (and at the screen edge when it's off screen) with a sound; a small fixed set of emotes; the server rate-limits both; touch rules stay pure and unit-tested in `touch/gestures.ts`; the controls never cover gameplay and radial menus never cover the controls (existing layout and e2e rules); protocol bump; a step added to `docs/MOBILE_TESTING.md`.
+Done: a map ping (phone long-press, desktop Alt-click) shows on the map for teammates, or at the screen edge when it is off screen, with a gong. Six phrases (Help, On my way, Danger, Thanks, Nice, Defend) from the speech button or C; the codec rejects any other text. The server rate-limits both (1 s / 1.5 s). Touch rule `mapPing` is unit-tested. `PROTOCOL_VERSION` 13. Real-device steps in `docs/MOBILE_TESTING.md` §3.14–3.15 and §6.7.
 
 ### T-03 · First five minutes · checklist `a-tutorial` · Team · ☐
 

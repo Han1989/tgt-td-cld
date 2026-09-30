@@ -2,12 +2,14 @@
 // the snapshot buffer, the screen layout and the sound (music in the lobby too),
 // fed by whichever Transport is attached (local worker, game server or the stress scene).
 
-import type { ClientMessage, Command, PlayerId, Snapshot } from '@tdt/protocol';
+import { allowSocial, freshSocialClock, type ClientMessage, type Command, type PlayerId, type Snapshot, type SocialClock, type SocialKind } from '@tdt/protocol';
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import type { ViewBox } from './audio/mix';
+import { EmoteMenu } from './hud/emotes';
 import { Hud } from './hud/hud';
+import { MarkerLayer, type Box as MarkerBox } from './hud/markers';
 import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
 import { towerName } from './hud/towerInfo';
@@ -53,7 +55,16 @@ export class GameView {
     readonly predictor: HeroPredictor,
     /** Music and sound effects (docs/ART.md §13). */
     readonly audio: Audio,
+    private readonly marks: MarkerLayer,
   ) {}
+
+  /** Last accepted ping and emote. The server enforces the same gap. */
+  private readonly social: SocialClock = freshSocialClock();
+
+  /** False when this ping or emote is inside the gap (the clock moves when it is allowed). */
+  allowChat(kind: SocialKind): boolean {
+    return allowSocial(this.social, kind, performance.now());
+  }
 
   static async create(): Promise<GameView> {
     const settings = new SettingsStore();
@@ -91,6 +102,10 @@ export class GameView {
     /** Commands sent, for the browser tests (e2e builds only). */
     const sent: Command[] = [];
     const send = (msg: ClientMessage) => {
+      if (msg.t === 'cmd' && (msg.cmd.type === 'ping' || msg.cmd.type === 'emote') && !view.allowChat(msg.cmd.type)) {
+        view.hud.toast('Slow down');
+        return;
+      }
       if (E2E && msg.t === 'cmd') sent.push(msg.cmd);
       if (msg.t === 'cmd' && view.transport) {
         const cmd = msg.cmd;
@@ -108,9 +123,11 @@ export class GameView {
 
     // Radial menus on phones and touch screens; the desktop panels otherwise.
     const radial = () => layout.kind === 'tall' || touch.active;
+    let emotes: EmoteMenu;
     const closeMenus = () => {
       hud.closeMenus();
       touch.closeMenus();
+      emotes?.close();
     };
 
     const hud = new Hud(camera, ui, {
@@ -149,6 +166,7 @@ export class GameView {
       },
       closeMenus,
       toast: (text) => hud.toast(text),
+      toggleEmotes: () => emotes.toggle(),
     });
 
     const touch: TouchControls = new TouchControls(canvas, camera, ui, renderer, {
@@ -181,7 +199,9 @@ export class GameView {
 
     new SettingsPanel(settings, () => audio.game.tap(performance.now()));
     installPressFeedback(document, () => audio.game.tap(performance.now()));
-    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio);
+    const marks = new MarkerLayer();
+    emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
+    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks);
     renderer.onBounty = (x, y) => hud.flyCoin(x, y);
 
     // ---------------------------------------------------------------------
@@ -236,6 +256,7 @@ export class GameView {
       renderer.entityScale = clamp(ENTITY_TILE_PX / Math.max(1, layout.tilePx), 1, MAX_ENTITY_SCALE);
       hud.setCompact(layout.kind === 'tall');
       touch.setLayout(layout);
+      emotes.layout();
       // A resize that keeps the layout (e.g. a browser toolbar showing) leaves open menus alone.
       const key = `${layout.kind}|${layout.tilePx}|${layout.map.left}|${layout.map.top}|${layout.controls?.top}`;
       if (key !== layoutKey) {
@@ -357,6 +378,8 @@ export class GameView {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
       hud.handleEvents(events, latest, view.me);
+      marks.sync(events, latest, now);
+      marks.update(now, (x, y) => camera.worldToScreen(x * TILE_PX, y * TILE_PX), markerView(layout, camera.viewW, camera.viewH));
       audio.game.events(events, now);
       renderer.render(frame, latest, view.me, ui, now);
       hud.update(latest, view.me);
@@ -482,8 +505,18 @@ export class GameView {
     this.audio.game.reset();
     this.controls.clearSelection();
     this.controls.setMode({ type: 'none' });
+    this.social.ping = -Infinity;
+    this.social.emote = -Infinity;
+    this.marks.clear();
     this.needsCentre = true;
   }
+}
+
+/** The screen area a ping may sit in: under the top bar and above the controls. */
+function markerView(layout: Layout, w: number, h: number): MarkerBox {
+  const top = layout.kind === 'tall' ? layout.topBarBottom : 8;
+  const bottom = layout.controls ? layout.controls.top : h - 8;
+  return { left: 8, top, right: Math.max(9, w - 8), bottom: Math.max(top + 48, bottom) };
 }
 
 /** Browser-test builds (`vite build --mode e2e`) expose a small debug hook on `window.__tdt`. */

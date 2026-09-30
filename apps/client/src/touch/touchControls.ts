@@ -47,6 +47,7 @@ import {
   inOverlay,
   isCancelRelease,
   isDrag,
+  mapPing,
   placeRadial,
   radialSpots,
   resolveTap,
@@ -121,8 +122,10 @@ export class TouchControls {
   private lastMoveAt = 0;
   /** A finger on a skill button: a tap (smart cast) or, once dragged, a manual aim. */
   private press: { slot: SkillSlot; id: number; start: Pt; drag: boolean; button: HTMLButtonElement } | null = null;
-  /** A finger on the map: a tap unless it moves. */
-  private mapTouch: { id: number; start: Pt; drag: boolean } | null = null;
+  /** A finger on the map: a tap unless it moves, or a ping once it has been held still. */
+  private mapTouch: { id: number; start: Pt; drag: boolean; at: number; pinged: boolean; dismiss: boolean } | null = null;
+  /** Grows under a still finger until the ping fires. */
+  private readonly pingHold: HTMLElement;
   /** Hold-to-sell in progress. */
   private sellHold: { id: number; start: number; towerId: number; button: HTMLElement } | null = null;
 
@@ -158,6 +161,7 @@ export class TouchControls {
     this.chip.id = 'radial-chip';
     this.picker = div('popup picker hidden', hud);
     this.picker.id = 'picker';
+    this.pingHold = div('ping-hold hidden', hud);
 
     this.joy.addEventListener('pointerdown', (e) => this.onStickDown(e));
     this.joy.addEventListener('pointermove', (e) => this.onStickMove(e));
@@ -168,7 +172,7 @@ export class TouchControls {
     canvas.addEventListener('pointerdown', (e) => this.onMapDown(e));
     canvas.addEventListener('pointermove', (e) => this.onMapMove(e));
     canvas.addEventListener('pointerup', (e) => this.onMapUp(e));
-    canvas.addEventListener('pointercancel', () => (this.mapTouch = null));
+    canvas.addEventListener('pointercancel', () => this.cancelMap());
     // No synthesized click after a map tap: it would land on the radial menu the tap just opened.
     canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
     // Keep popups' touches away from the canvas below.
@@ -223,6 +227,7 @@ export class TouchControls {
     if (this.active && hero) this.updateSkills(hero, snap!.tickRate);
     this.driveStick(hero, now);
     this.updateHold(now);
+    this.updatePing(now);
     this.updateMenu(snap);
   }
 
@@ -465,7 +470,10 @@ export class TouchControls {
 
   private onMapDown(e: PointerEvent): void {
     if (e.pointerType === 'mouse' || this.mapTouch) return;
-    this.mapTouch = { id: e.pointerId, start: this.screenPt(e), drag: false };
+    const start = this.screenPt(e);
+    // An open menu is dismissed by the release; that press is not a ping.
+    const dismiss = this.menu !== null || !this.picker.classList.contains('hidden') || this.ui.emoteOpen;
+    this.mapTouch = { id: e.pointerId, start, drag: false, at: performance.now(), pinged: false, dismiss };
   }
 
   private onMapMove(e: PointerEvent): void {
@@ -477,16 +485,46 @@ export class TouchControls {
   private onMapUp(e: PointerEvent): void {
     const t = this.mapTouch;
     if (!t || e.pointerId !== t.id) return;
+    this.cancelMap();
+    if (!t.pinged && !t.drag) this.tap(this.screenPt(e));
+  }
+
+  private cancelMap(): void {
     this.mapTouch = null;
-    if (!t.drag) this.tap(this.screenPt(e));
+    this.pingHold.classList.add('hidden');
+  }
+
+  /** A still finger on the map grows a ring, then pings once. A drag or an open menu never pings. */
+  private updatePing(now: number): void {
+    const t = this.mapTouch;
+    if (!t || t.dismiss || t.drag || t.pinged) {
+      if (!t || t.dismiss || t.drag) this.pingHold.classList.add('hidden');
+      return;
+    }
+    const { progress, ping } = mapPing(now - t.at, t.drag);
+    if (progress <= 0) {
+      this.pingHold.classList.add('hidden');
+      return;
+    }
+    this.pingHold.classList.remove('hidden');
+    this.pingHold.style.left = `${t.start.x}px`;
+    this.pingHold.style.top = `${t.start.y}px`;
+    this.pingHold.style.setProperty('--p', String(0.35 + progress * 0.65));
+    if (!ping) return;
+    t.pinged = true;
+    this.pingHold.classList.add('hidden');
+    const c = this.layout?.controls;
+    if (c && inOverlay(t.start, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
+    const w = this.camera.screenToWorld(t.start.x, t.start.y);
+    this.actions.send({ type: 'ping', x: w.x / TILE_PX, y: w.y / TILE_PX });
   }
 
   /** A tap selects: your pad → build menu, your tower → ring, an enemy → focus target. It never moves the hero. */
   tap(p: Pt): void {
     const c = this.layout?.controls;
     if (c && inOverlay(p, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
-    if (this.menu || !this.picker.classList.contains('hidden')) {
-      // Tap anywhere else closes the open menu.
+    if (this.menu || !this.picker.classList.contains('hidden') || this.ui.emoteOpen) {
+      // Tap anywhere else closes the open menu (the build ring, the picker, or quick chat).
       this.actions.clearSelection();
       return;
     }

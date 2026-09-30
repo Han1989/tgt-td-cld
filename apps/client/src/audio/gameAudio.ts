@@ -57,6 +57,7 @@ const NOTICES: Record<string, SoundId> = {
   'Not enough gold': 'noGold',
   'Not enough mana': 'deny',
   'Nothing in range': 'deny',
+  'Slow down': 'deny',
 };
 
 const lengthMs = new Map<SoundId, number>();
@@ -209,6 +210,13 @@ export class GameAudio {
           break;
         case 'gift':
           if (e.to === me) this.play('coin', now);
+          break;
+        case 'ping':
+          // Heard even when the point is off screen (the edge marker is the picture).
+          this.play('ping', now, null, e.by === me);
+          break;
+        case 'emote':
+          this.play('emote', now, null, e.by === me);
           break;
         case 'gameOver':
           this.endedAt = now;

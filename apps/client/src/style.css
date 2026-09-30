@@ -161,6 +161,13 @@ button {
   vertical-align: middle;
 }
 
+.chat-ico {
+  --ico: var(--icon-chat);
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+}
+
 /* Bars: an ink groove with a lit fill (a highlight on top, darker below). */
 .bar {
   position: relative;
@@ -1475,11 +1482,13 @@ button {
 .heart-num,
 .gold .label,
 .heart .label,
-#settings-btn.icon-btn {
+#settings-btn.icon-btn,
+#emote-btn.icon-btn {
   display: none;
 }
 
-#settings-btn.icon-btn {
+#settings-btn.icon-btn,
+#emote-btn.icon-btn {
   font-size: 17px;
   padding: 4px 10px;
   line-height: 0;
@@ -1497,7 +1506,8 @@ button {
 
 /* Wide: the map centred, the HUD in the side margins ----------------------- */
 
-body.layout-wide #settings-btn.icon-btn {
+body.layout-wide #settings-btn.icon-btn,
+body.layout-wide #emote-btn.icon-btn {
   display: inline-block;
 }
 
@@ -1681,11 +1691,12 @@ body.layout-tall #call-early {
   line-height: 1.1;
 }
 
-body.layout-tall #settings-btn.icon-btn {
+body.layout-tall #settings-btn.icon-btn,
+body.layout-tall #emote-btn.icon-btn {
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   flex: none;
 }
@@ -2033,6 +2044,120 @@ body.touch .touch-overlay:not(.hidden) {
   width: 0;
   height: 0;
   z-index: 3;
+}
+
+/* Pings, the quick-chat wheel and its line. Markers never take touches. */
+
+#pings,
+#emote-feed,
+.ping-hold {
+  pointer-events: none;
+}
+
+#pings {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+.ping {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+}
+
+.ping-ring {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--c, var(--gold));
+  box-shadow: 0 0 0 1px var(--ink), 0 0 10px var(--c, var(--gold));
+  animation: ping-pulse 0.9s ease-out infinite;
+}
+
+.ping.off .ping-ring {
+  width: 16px;
+  height: 16px;
+}
+
+.ping-arrow {
+  display: none;
+  width: 0;
+  height: 0;
+  margin-bottom: 2px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid var(--c, var(--gold));
+  filter: drop-shadow(0 1px 1px var(--ink));
+}
+
+.ping.off .ping-arrow {
+  display: block;
+}
+
+.ping-name {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c, var(--gold));
+  text-shadow: 0 1px 2px var(--ink), 0 0 4px var(--ink);
+  white-space: nowrap;
+}
+
+@keyframes ping-pulse {
+  0% { transform: scale(0.7); opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0.35; }
+}
+
+.ping-hold {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 0 1px var(--ink);
+  transform: scale(var(--p, 0.3));
+  z-index: 3;
+}
+
+#emote-menu .emote-pick {
+  font-size: 10px;
+  line-height: 1.05;
+  white-space: normal;
+  text-align: center;
+  padding: 4px;
+}
+
+#emote-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 4;
+}
+
+.emote-line {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(13, 12, 20, 0.88);
+  border: 1px solid var(--panel-edge);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 1px 2px var(--ink);
+}
+
+body.layout-tall #emote-feed {
+  position: absolute;
+  top: calc(var(--topbar-bottom) + 6px);
+  left: 8px;
+  max-width: calc(100% - 16px);
+}
+
+body.layout-wide #emote-feed {
+  position: static;
 }
 
 .radial-btn {

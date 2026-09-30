@@ -27,6 +27,8 @@ export const STICK_TURN_RAD = 0.25;
 export const AIM_DRAG_PX = 90;
 /** Hold Sell this long (ms). */
 export const SELL_HOLD_MS = 500;
+/** Hold a still finger on the map this long (ms) to ping. A drag cancels it. */
+export const PING_HOLD_MS = 450;
 
 // ---------------------------------------------------------------------------
 // Joystick
@@ -75,6 +77,16 @@ export function shouldResendMove(lastDir: number | null, dir: number, lastSentMs
 /** Has a press that started at `start` become a drag at `now`? Once a drag, always a drag. */
 export function isDrag(start: Pt, now: Pt, wasDrag = false, slop = TAP_SLOP): boolean {
   return wasDrag || Math.hypot(now.x - start.x, now.y - start.y) > slop;
+}
+
+/**
+ * A map press that has not moved. `progress` grows 0..1 over `holdMs`; `ping` once it has been
+ * held that long. Any drag cancels it (progress stays 0), so a swipe never pings.
+ */
+export function mapPing(elapsedMs: number, dragged: boolean, holdMs = PING_HOLD_MS): { progress: number; ping: boolean } {
+  if (dragged || elapsedMs <= 0) return { progress: 0, ping: false };
+  const progress = clamp(elapsedMs / holdMs, 0, 1);
+  return { progress, ping: elapsedMs >= holdMs };
 }
 
 // ---------------------------------------------------------------------------

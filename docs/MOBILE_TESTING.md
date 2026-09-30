@@ -52,6 +52,8 @@ Start **Play solo offline** (or solo from the hero pick).
 - [ ] 3.11 **Taps in the control area** (between the buttons) never open anything on the map.
 - [ ] 3.12 No page scroll, pull-to-refresh, pinch-zoom, text selection or long-press menu anywhere in the game.
 - [ ] 3.13 ⚙ → **Two thumbs**: joystick bottom-left, skills bottom-right. **Two thumbs, left-handed** mirrors it. Both play well, and the choice is remembered after a restart.
+- [ ] 3.14 **Ping:** press and hold on the map (not on the joystick) for about half a second. A ring grows under your finger, then a marker with your name appears there and you hear a small gong. Sliding your finger cancels it. A quick tap still selects a pad or a creep and does not ping. The marker never sits under the joystick.
+- [ ] 3.15 **Quick chat:** tap the speech button in the top bar. Six phrases open (Help!, On my way, Danger, Thanks, Nice!, Defend). The wheel stays on screen and never covers the joystick or the skill buttons. Tap one: a short line shows your name and the phrase, and you hear a pluck. There is no box to type in. Sending several in a row only lets one through every second or so, and the game says **Slow down**.
 
 ## 4. Leaving the app
 
@@ -80,6 +82,7 @@ Start **Play solo offline** (or solo from the hero pick).
 - [ ] 6.4 The desktop still plays with mouse and keyboard as before: right-click to move / attack, A + click, Q/W/E/R (then a click to aim), B + 1–5, U, S, Space, wheel zoom, and a left-click on your tower for the upgrade / sell panel. On desktop the map sits centred, with the HUD in the side margins.
 - [ ] 6.5 **Reconnect:** on the phone, switch away for ~20 s mid-match and come back. It shows "Connection lost — reconnecting…" briefly (or nothing) and rejoins the same seat with your hero and gold. The match did not pause for the desktop player.
 - [ ] 6.6 **Updates:** after a new deploy, the installed app shows **Update available — tap to reload**, and tapping it loads the new version.
+- [ ] 6.7 **Pings and quick chat:** on the phone, long-press the map. The desktop player sees that marker on the map, or at the edge of their screen with an arrow if they are zoomed away from it, and hears the gong. On the desktop, Alt-click the map (or press C and pick a phrase): the phone sees the ping, or the line ("Ada: Help!"), and hears it. Neither player can type a message. A burst of pings or phrases only lets one of each through, then **Slow down**.
 
 ## 7. Online: a full room of 3
 

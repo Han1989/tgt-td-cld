@@ -163,6 +163,14 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       emit(state, { type: 'gift', from: playerId, to: to.id, amount: command.amount });
       return true;
     }
+    case 'ping': {
+      if (command.x < 0 || command.y < 0 || command.x > map.width || command.y > map.height) return reject('Off the map');
+      emit(state, { type: 'ping', by: playerId, x: command.x, y: command.y });
+      return true;
+    }
+    case 'emote':
+      emit(state, { type: 'emote', by: playerId, emote: command.emote });
+      return true;
   }
 }
 

@@ -44,7 +44,7 @@ test.describe('portrait phone layout', () => {
     expect(top.bottom - top.top).toBeLessThanOrEqual(47);
     expect(top.right).toBeLessThanOrEqual(vp.width + 0.5);
     // Every top-bar item is inside the bar (nothing wraps or spills over).
-    for (const sel of ['#top-level', '#gold-stat', '.stat.heart', '.stat.wave', '.stat.timer', '#call-early', '#settings-btn']) {
+    for (const sel of ['#top-level', '#gold-stat', '.stat.heart', '.stat.wave', '.stat.timer', '#call-early', '#emote-btn', '#settings-btn']) {
       const b = await box(page, sel);
       expect(b.left).toBeGreaterThanOrEqual(-0.5);
       expect(b.right).toBeLessThanOrEqual(vp.width + 0.5);
@@ -313,6 +313,45 @@ test.describe('portrait phone layout', () => {
     const cast = (await sent(page, 'cast'))[1]!;
     expect(cast).toMatchObject({ type: 'cast', slot: 'W' });
     expect(cast.y as number).toBeLessThan(heroY - 2);
+  });
+
+  test('a long-press on the map pings; a quick tap does not', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const l = await page.evaluate(() => window.__tdt.layout());
+    const x = (l.map.left + l.map.right) / 2;
+    const y = l.topBarBottom + 48;
+    await finger.down(x, y);
+    await page.waitForTimeout(650);
+    await finger.up();
+    await expect.poll(() => sent(page, 'ping').then((p) => p.length)).toBe(1);
+    await expect(page.locator('#pings .ping')).toBeVisible();
+    await page.touchscreen.tap(x, y + 36);
+    await page.waitForTimeout(250);
+    expect(await sent(page, 'ping')).toHaveLength(1);
+  });
+
+  test('quick chat is six phrases, never covers the controls, and has no text field', async ({ page }) => {
+    await startSolo(page);
+    const controls = await overlayBoxes(page);
+    const vp = page.viewportSize()!;
+    await page.locator('#emote-btn').tap();
+    const picks = page.locator('#emote-menu .emote-pick');
+    await expect(picks).toHaveCount(6);
+    await expect(page.locator('#emote-menu input, #emote-menu textarea')).toHaveCount(0);
+    for (const b of await picks.all()) {
+      const box = await b.boundingBox();
+      expect(box).not.toBeNull();
+      const r = { left: box!.x, top: box!.y, right: box!.x + box!.width, bottom: box!.y + box!.height };
+      expect(r.left).toBeGreaterThanOrEqual(-1);
+      expect(r.right).toBeLessThanOrEqual(vp.width + 1);
+      expect(r.top).toBeGreaterThanOrEqual(-1);
+      for (const c of controls) expect(overlaps(r, c)).toBe(false);
+    }
+    await page.locator('[data-emote="help"]').tap();
+    await expect.poll(() => sent(page, 'emote')).toEqual([{ type: 'emote', emote: 'help' }]);
+    await expect(page.locator('#emote-feed')).toContainText('Help!');
+    await expect(page.locator('#emote-menu .emote-pick')).toHaveCount(0);
   });
 
   test('landscape shows the rotate screen', async ({ browser, browserName }, info) => {

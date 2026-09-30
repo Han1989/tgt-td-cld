@@ -1,4 +1,4 @@
-import { encodeClientMessage, PROTOCOL_VERSION, type ClientMessage, type GameEvent } from '@tdt/protocol';
+import { EMOTE_GAP_MS, encodeClientMessage, PING_GAP_MS, PROTOCOL_VERSION, type ClientMessage, type GameEvent } from '@tdt/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { CLOSE_VERSION_MISMATCH, type GameServer, type HealthReport } from '../src/server';
@@ -485,5 +485,56 @@ describe('graceful shutdown', () => {
     expect(a2!.closed!.code).toBe(1012);
     expect(server.health().status).toBe('draining');
     current = null;
+  });
+});
+
+describe('pings and emotes', () => {
+  it('delivers a ping and an emote to a teammate and rate-limits both, with no free text', async () => {
+    const { server, url } = await start({ tickMs: 20 });
+    const seen: GameEvent[] = [];
+    const [host, guest] = await fullRoom(url, 2, {
+      onSnapshot: (c, snap) => {
+        if (c.playerId === 'p2') for (const e of snap.events) if (e.type === 'ping' || e.type === 'emote') seen.push(e);
+      },
+    });
+    host!.acting = false;
+    guest!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    const room = server.rooms.get(host!.code!)!;
+    const count = (type: string) => room.match!.log.filter((e) => e[2] === type).length;
+
+    host!.send({ t: 'cmd', cmd: { type: 'ping', x: 10.5, y: 12 } });
+    await guest!.waitFor(() => seen.some((e) => e.type === 'ping' && e.by === 'p1' && e.x === 10.5 && e.y === 12));
+    expect(count('ping')).toBe(1);
+
+    host!.send({ t: 'cmd', cmd: { type: 'ping', x: 11, y: 12 } });
+    await host!.waitFor(() => host!.errors.some((e) => e.t === 'error' && e.code === 'rate_limited' && e.message === 'Slow down'));
+    await sleep(50);
+    expect(count('ping')).toBe(1);
+
+    host!.send({ t: 'cmd', cmd: { type: 'emote', emote: 'help' } });
+    await guest!.waitFor(() => seen.some((e) => e.type === 'emote' && e.by === 'p1' && e.emote === 'help'));
+    expect(count('emote')).toBe(1);
+
+    const errors = host!.errors.length;
+    host!.send({ t: 'cmd', cmd: { type: 'emote', emote: 'thanks' } });
+    await host!.waitFor(() => host!.errors.length > errors);
+    await sleep(50);
+    expect(count('emote')).toBe(1);
+
+    await sleep(PING_GAP_MS);
+    host!.send({ t: 'cmd', cmd: { type: 'ping', x: 8, y: 9 } });
+    await guest!.waitFor(() => count('ping') === 2);
+
+    await sleep(EMOTE_GAP_MS);
+    host!.send({ t: 'cmd', cmd: { type: 'emote', emote: 'nice' } });
+    await guest!.waitFor(() => seen.some((e) => e.type === 'emote' && e.emote === 'nice'));
+
+    host!.ws.send(JSON.stringify({ t: 'cmd', cmd: { type: 'chat', text: 'hello' } }));
+    host!.ws.send(JSON.stringify({ t: 'cmd', cmd: { type: 'emote', emote: 'help', text: 'gg' } }));
+    await sleep(80);
+    expect(room.match!.log.some((e) => String(e[2]).includes('chat') || e.includes('hello'))).toBe(false);
+    expect(seen.filter((e) => e.type === 'emote').map((e) => (e.type === 'emote' ? e.emote : ''))).toEqual(['help', 'nice']);
   });
 });

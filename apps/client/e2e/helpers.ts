@@ -65,8 +65,12 @@ interface Hook {
     map: Box;
     controls: { top: number; rects: Box[] } | null;
   };
-  map: { pads: { id: number; x: number; y: number; zone: string }[] };
-  camera: { zoom: number; worldToScreen(x: number, y: number): { x: number; y: number } };
+  map: { width: number; height: number; pads: { id: number; x: number; y: number; zone: string }[] };
+  camera: {
+    zoom: number;
+    centerOn(x: number, y: number): void;
+    worldToScreen(x: number, y: number): { x: number; y: number };
+  };
 }
 
 /** The ?showcase page's hook (showcase.ts). */

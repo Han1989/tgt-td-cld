@@ -13,6 +13,8 @@ deploy; no code change. Step by step, with size targets and where to get sounds:
 | File | When it plays | Length |
 |---|---|---|
 | `tap.mp3` | Any button | < 0.1 s |
+| `ping.mp3` | A map ping | 0.3–0.6 s |
+| `emote.mp3` | A quick-chat phrase | 0.2–0.5 s |
 | `noGold.mp3` | "Not enough gold" | 0.2–0.4 s |
 | `deny.mp3` | "Not enough mana", "Nothing in range" | 0.1–0.3 s |
 | `shot.arrow.mp3` | An Arrow tower fires (branches play it at another pitch) | 0.2–0.4 s |

@@ -3,14 +3,17 @@
 // messages and emits raw server messages.
 
 import {
+  allowSocial,
   decodeClientMessage,
   encodeServerMessage,
+  freshSocialClock,
   normalizeBuild,
   type Command,
   type Difficulty,
   type GameMode,
   type HeroKind,
   type PlayerId,
+  type SocialClock,
 } from '@tdt/protocol';
 import {
   createMatch,
@@ -37,6 +40,8 @@ export class SimHost {
   private difficulty: Difficulty = 'normal';
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
+  /** Same ping / emote gap the game server enforces. */
+  private social: SocialClock = freshSocialClock();
 
   /** `build`: the client's build (git commit or 'dev'), stamped into solo match reports and replays. */
   constructor(
@@ -61,6 +66,7 @@ export class SimHost {
     );
     this.reported = false;
     this.queue = [];
+    this.social = freshSocialClock();
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
   }
@@ -81,7 +87,9 @@ export class SimHost {
         this.reset();
       }
     } else if (msg.t === 'cmd') {
-      this.queue.push(msg.cmd);
+      const cmd = msg.cmd;
+      if ((cmd.type === 'ping' || cmd.type === 'emote') && !allowSocial(this.social, cmd.type, performance.now())) return;
+      this.queue.push(cmd);
     }
     // Other room and lobby messages only mean something to the online server.
   }
