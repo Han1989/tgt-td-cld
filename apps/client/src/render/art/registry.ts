@@ -137,6 +137,40 @@ export interface PadArt extends ArtBase {
 }
 
 /**
+ * A projectile in flight: one `body` pointing +x (no shadow). The renderer rotates it along its
+ * travel. `kind` is the snapshot style (`arrow`, `fireball`, `archer`…).
+ */
+export interface ProjectileArt extends ArtBase {
+  category: 'projectile';
+  kind: string;
+}
+
+/**
+ * A trap, from above. `idle` while it arms, `armed` once it can trigger, `ring` the root-radius
+ * rope (scaled to the snapshot radius; `ringRadius` is that circle's radius in the frame, world px).
+ */
+export interface TrapArt extends ArtBase {
+  category: 'trap';
+  kind: string;
+  ringRadius: number;
+}
+
+/** Snapshot styles the sim puts on projectiles (tower kind, ranged hero, skill, or the Archer). */
+export const PROJECTILE_STYLES = [
+  'arrow',
+  'cannon',
+  'frost',
+  'arcane',
+  'flak',
+  'ranger',
+  'arcanist',
+  'crit',
+  'multishot',
+  'fireball',
+  'archer',
+] as const;
+
+/**
  * A decorative prop (trees, rocks, mushrooms…), from above. Props are not sprites: the ground painter
  * draws them into the ground canvas once (docs/ART.md §4), so they cost nothing per frame. Every
  * frame is a variant; the painter picks one per spot with `hash()`.
@@ -154,7 +188,7 @@ export interface CommonArt extends ArtBase {
   category: 'common';
 }
 
-export type ArtEntry = CreepArt | TowerArt | HeroArt | HeartArt | PortalArt | PadArt | PropArt | CommonArt;
+export type ArtEntry = CreepArt | TowerArt | HeroArt | HeartArt | PortalArt | PadArt | ProjectileArt | TrapArt | PropArt | CommonArt;
 export type ArtCategory = ArtEntry['category'];
 
 /** Frames every entry of a category must have. */
@@ -165,12 +199,25 @@ export const REQUIRED_FRAMES: Record<ArtCategory, readonly string[]> = {
   heart: ['base', 'gem', 'cracks1', 'cracks2'],
   portal: ['rim', 'swirl', 'flare'],
   pad: ['slab', 'rim', 'wash'],
+  projectile: ['body'],
+  trap: ['idle', 'armed', 'ring'],
   prop: [],
   common: [],
 };
 
 /** Order of categories in ?showcase. */
-export const CATEGORY_ORDER: readonly ArtCategory[] = ['hero', 'creep', 'tower', 'heart', 'portal', 'pad', 'prop', 'common'];
+export const CATEGORY_ORDER: readonly ArtCategory[] = [
+  'hero',
+  'creep',
+  'tower',
+  'projectile',
+  'trap',
+  'heart',
+  'portal',
+  'pad',
+  'prop',
+  'common',
+];
 
 const entries = new Map<string, ArtEntry>();
 
@@ -190,6 +237,7 @@ export function checkArt(e: ArtEntry): string[] {
   }
   if (e.category === 'heart' && !e.frames.gem?.flash) out.push(`${e.id}: gem needs a flash silhouette`);
   if (e.category === 'prop' && Object.keys(e.frames).length === 0) out.push(`${e.id}: a prop needs at least one frame`);
+  if (e.category === 'trap' && !(e.ringRadius > 0)) out.push(`${e.id}: ringRadius must be > 0`);
   for (const [name, f] of Object.entries(e.frames)) {
     if (!(f.w > 0 && f.h > 0 && f.w <= 200 && f.h <= 200)) out.push(`${e.id}/${name}: frame size must be 1–200 px`);
   }
@@ -232,6 +280,8 @@ function single<T extends ArtEntry>(category: T['category']): T {
 export const heartArt = (): HeartArt => single<HeartArt>('heart');
 export const portalArt = (): PortalArt => single<PortalArt>('portal');
 export const padArt = (): PadArt => single<PadArt>('pad');
+export const projectileArt = (style: string): ProjectileArt | undefined => byKind<ProjectileArt>('projectile', style);
+export const trapArt = (kind: string): TrapArt | undefined => byKind<TrapArt>('trap', kind);
 
 /** Every prop, by id (the ground painter scatters them). */
 export const propArts = (): PropArt[] => allArt().filter((e): e is PropArt => e.category === 'prop');

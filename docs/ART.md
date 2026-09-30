@@ -8,7 +8,7 @@ Art Track 0 chose style C, **"Runelight"**, from the art-direction spike (styles
 
 Twilight in a mossy forest clearing. Dark teal-green moss, packed-earth lanes worn pale in the middle, a few glowing motes. Every part has an **ink outline**, a body that **darkens downwards**, and a **cool moonlit rim** on its upper-left edge. Colour is used sparingly: materials are muted (wood, stone, iron, cloth), and the brightest things on screen are small **glowing accents**: runes, embers, eyes, gems. Creeps are warm (reds, oranges) against the cool ground so they are always the brightest thing on a lane; the player's side is cool and teal-lit; the enemy's portals are violet.
 
-**Status (Art Tracks 1–3):** restyled: the ground, the forest (trees over the border and the safe zone) and a few props, build pads, portals (with a wave-start flare), the Heart (with damage states), **all three heroes** (Ranger, Warden, Arcanist, with walk, attack, cast, hit and death; Art Track 1; the Warden's melee reworked to read at phone size, §7), **every creep** (Grunt, Archer, Runner, Brute, Wisp, the Matriarch's Hatchlings) and **the three bosses** (Ironhorn, Matriarch, Shardback with both hides), **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches** (Art Track 2), every effect colour (§8) and the whole UI (§12: HUD, radial menus, skill buttons, lobby, settings, end screen, code-drawn icons). Still shapes: projectiles and traps. `?showcase` lists both, the UI icons and the sounds. **Sound** (§13): music and every effect, made in code.
+**Status (Art Tracks 1–3):** restyled: the ground, the forest (trees over the border and the safe zone) and a few props, build pads, portals (with a wave-start flare), the Heart (with damage states), **all three heroes** (Ranger, Warden, Arcanist, with walk, attack, cast, hit and death; Art Track 1; the Warden's melee reworked to read at phone size, §7), **every creep** (Grunt, Archer, Runner, Brute, Wisp, the Matriarch's Hatchlings) and **the three bosses** (Ironhorn, Matriarch, Shardback with both hides), **all five towers** (Arrow, Cannon, Frost, Arcane, Flak) at tiers 1–3 with **all ten branches** (Art Track 2), every effect colour (§8) and the whole UI (§12: HUD, radial menus, skill buttons, lobby, settings, end screen, code-drawn icons). **Projectiles and the Snare Trap** are restyled (§6): one carved body per shot, and the trap's coil plus its root ring. `?showcase` lists both, the UI icons and the sounds. **Sound** (§13): music and every effect, made in code.
 
 ## 2. Palette tokens
 
@@ -38,6 +38,7 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `stone` / `stoneDark` | `#8f8ba2` / `#58556d` | Keeps, pedestals, portal rims |
 | `iron` / `ironDark` | `#444b5b` / `#262b36` | Armour, barrels, crossbow arms |
 | `gold` | `#e8b94a` | Tier-3 trim, buckles, tips (gold = upgraded / valuable) |
+| `snare` | `#c8a165` | Root / snare rope (same hex as `COLORS.root`) |
 | `bone` | `#e6dac0` | Horns, tusks, fletching |
 | `string` | `#dfe8f0` | Bow and crossbow strings |
 | `hole` | `#0d0a10` | Barrel mouths, visor slits |
@@ -71,6 +72,7 @@ All art colours come from `RL` in `apps/client/src/render/art/tokens.ts`. **Neve
 | `arcane` | `#d68cff` | Arcane tower runes and orbs |
 | `voidGlow` | `#ff5fd2` | The Void branch's rim and needle |
 | `flare` | `#ff6a3d` | Flak runes and breeches (redder than `ember`) |
+| `multishot` | `#e6ff7a` | Ranger Multishot vanes (same hex as the skill) |
 | `eye` | `#ffd24a` | Creature eyes |
 | `heroEye` | `#b6ff9e` | Hero eyes under a hood or behind a visor |
 | `staffGem` | `#ff9be0` | The Arcanist's staff gem and its flare |
@@ -115,6 +117,7 @@ Scatter decorations with `hash()` (deterministic), never `Math.random()`: the ar
 - **Characters (heroes, creeps) are seen from the front**, in a 3/4 view, **facing right** (+x). The rig flips them to face left. Feet at the bottom; draw the frame so the rig's pivot (the feet) is a known `feet` offset below the frame centre. Give them a contact shadow under the feet.
 - **Towers and buildings are seen from above.** A tower's platform (`base*`) is a top-down plan; its turret (`top*`) points **+x** with its pivot at the frame centre, so the rig can rotate it towards a target. Shadows fall down-right.
 - **The Heart** mixes both: a pedestal from above, the gem in 3/4 view floating over it. **Portals** are from above.
+- **Projectiles** point **+x** with the pivot at the frame centre (the renderer turns them along their path). No contact shadow. **Traps** are from above, like a building; the coil has a contact shadow.
 - Frames are drawn in **world px around (0, 0)** (1 tile = 32 px); the atlas bakes them at 2×.
 
 ## 6. Size and readability at phone size
@@ -126,6 +129,8 @@ On the reference phone (412 × 839, Spire's 26 tiles across the width) a tile is
 | Creeps, heroes | × 0.78 | a Grunt frame 32 × 36 → 25 × 28 px |
 | Towers | × 0.59 | an 84 px tower frame → 50 px |
 | Heart, portals, pads | × 0.50 | a 96 px pad → 48 px |
+| Projectiles, trap coil | × 0.78 | a bolt ~28 px long → ~22 px; same scale as creeps |
+| Trap root ring | × 0.50 | the root radius in tiles, not scaled up with creeps |
 
 Rules:
 - **Silhouette first.** Each entity must be recognisable from its outline alone at phone size (`?showcase` shows each at that size, bottom right of its card). Different creeps need different silhouettes, not just different colours.
@@ -133,6 +138,28 @@ Rules:
 - **Smallest detail:** 2.5 world px for characters (~2 px on a phone), 3.5 for towers. Anything smaller is texture, not information.
 - **Contrast hierarchy:** creeps (warm, bright) > heroes > towers > pads > lanes > moss. Creeps must stay distinct from the lane (`#5a4c3a`) and the moss; tower tiers must be told apart by shape (ring size, merlons, second crossbow, gold trim), not only by colour.
 - Leave the HP bar zone clear: bars sit ~7 px above a creep's radius and 12 px above a hero's.
+
+### Projectiles and traps
+
+Shots and the Snare Trap are their own categories (`projectile`, `trap` in `registry.ts`). They are baked sprites, not per-frame `Graphics`.
+
+**Projectiles** are one `body` frame, drawn pointing **+x** around (0, 0), with no ground shadow (they are in flight). The renderer rotates that sprite to the direction of travel and scales the whole shot with `entityScale`, the same scale as creeps, so a bolt does not shrink to a dot when a phone's tiles are ~16 px. One frame per snapshot style. Branch shots keep their tower's body; the trail colour (`shotColor`) still marks the branch. At most one glow. The Archer's arrow does not glow (warm wood and bone); player shots may.
+
+| Style | Silhouette |
+|---|---|
+| `arrow` | Short iron quarrel, bone vanes, a rune on the head |
+| `cannon` | Round iron ball, one ember |
+| `frost` | Long ice diamond |
+| `arcane` | Four-point amethyst star |
+| `flak` | Stubby steel slug, tracer at the tail |
+| `ranger` | Long arrow, leaf vanes, bone head, no glow |
+| `crit` | That arrow with a gold head and a spark above the shaft |
+| `multishot` | Wider barbed head, yellow-green vanes (`multishot`) |
+| `arcanist` | Narrow pink crystal |
+| `fireball` | Coal with three tongues |
+| `archer` | Short crude arrow, orange vanes, no glow |
+
+**The Snare Trap** is seen from above. `idle` is a closed wooden coil (stakes inside the outline, no glow) while it arms. `armed` springs four stakes outward, so the outline becomes a star, and lights one rune. `ring` is the root-radius rope in `snare` (the root colour). The renderer scales the ring to the snapshot radius (`ringRadius` is the circle's radius in the frame) and does **not** apply `entityScale` to it, so the rooted area stays true to tuning. Arming only changes alpha.
 
 **Tower tiers and branches** (Art Track 2) all speak one language, so a player reads a tower's tier from its glow at a glance:
 
@@ -179,7 +206,7 @@ Keep these meanings:
 | Danger to you, leaks, taunt | `#ff5b5b` | `COLORS.bad`, Heart hit |
 | Good / valid | `#5bff9c` | `COLORS.good` |
 | Slow / frost | `#8fd3ff`, `#bfeaff`, Frost Nova `#9fe3ff`, Blizzard `#cff4ff` | `COLORS.slow`, ICE, `AOE_COLORS` |
-| Root / snare | `#c8a165` | `COLORS.root` |
+| Root / snare | `#c8a165` | `COLORS.root`, `RL.snare` (the trap ring) |
 | Stun | `#ffe066` | `COLORS.stun` |
 | Shield / Last Stand | `#ffd24a` | `COLORS.shield`, `AOE_COLORS.lastStand` |
 | Fire (Fireball, Meteor) | `#ff8a3d`, `#ff5a1f` | `AOE_COLORS`, `ZONE_COLORS` |
@@ -202,7 +229,7 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 - **No per-frame visibility toggles.** In Pixi v8, changing `visible` (or adding / removing children) rebuilds the draw list. Hide parts with `alpha = 0`, flash with alpha, and only toggle `visible` when something really appears or disappears (culling, a pooled sprite coming back).
 - **Tints are quantised** and set only when they change (a creep that isn't hit or slowed costs nothing).
 - **Frames stay small:** at most 200 × 200 world px (the registry refuses bigger); size a frame to its drawing plus the glow (~8 px). Every page is 4 MB of GPU memory, so prefer reusing a frame (tint, flip, scale) over a near-copy. With every tower drawn (50 tower frames) the atlas is **2 pages**. The bake is timed as `tdt:art-bake` (a `performance` measure) and the first screen as `tdt:ready`: going from 1 page to 2 took the bake from ~10 to ~19 ms (median; ~52 → ~94 ms at 4× CPU throttling) and open → lobby from ~204 to ~214 ms (~663 → ~717 ms at 4×), Pixel 7 emulation, cold.
-- Pool sprites that come and go (creeps, projectiles); rigs are pooled with their creep sprite.
+- Pool sprites that come and go (creeps, projectiles, traps); rigs are pooled with their creep sprite. Projectiles and traps are atlas sprites (rotation, scale, alpha), not redrawn `Graphics`.
 
 ## 10. Adding a new entity (checklist)
 
@@ -212,6 +239,8 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
    - **creep**: `body` with contact shadow and weapon baked in, `flash` set (the silhouette without the shadow), `feet`, a `gait` from `GAITS`. A flyer draws its shadow as its own `shadow` frame instead (the registry refuses a flyer without one). Other looks go in `variants` (frames the size of `body`, each with a flash).
    - **tower**: `base1..3` and `top1..3` (top points +x), optional `<branch>.base` / `<branch>.top` for its two branches (`TOWER_BRANCHES`), `turret`.
    - **hero**: any frames (each with `flash: true` for the hit flash) plus a `rig(kit, mine)` returning a `HeroRig`: extend `HeroRigBase`, make parts with `this.part(frame)` and pose them in `pose()` (walk, attack from `shotAt`, cast from `casting()`); see `ranger.ts`, `warden.ts`, `arcanist.ts`.
+   - **projectile**: `body`, pointing +x, no shadow. `kind` is the snapshot style. The renderer rotates it along its travel and scales it with creeps (`entityScale`). See §6.
+   - **trap**: `idle`, `armed` and `ring`, from above, plus `ringRadius` (the ring circle's radius in world px). The ring is scaled to the snapshot radius; the coil uses `entityScale`. See §6.
 4. Use **tokens only** (`k.<token>`; add new ones to `RL` and to §2), the **painter** calls (§3), light from the upper left, glow only on emitters.
 5. Follow the **camera** (§5) and **size** (§6) rules; check the phone-size copy in `?showcase` in both Normal and Bright.
 6. Animate with transforms, tint and alpha only (§7, §9).
@@ -220,7 +249,7 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 
 A **prop** (category `prop`) is a file too: frames are its variants, `where` says forest or clearing, `weight` how often it is picked; the ground painter places it (§4). Check it in the real map as well as `?showcase` (it must not look like a creep or something to tap).
 
-A **new category** (e.g. projectiles or traps) is the one case that touches shared files: add its type and required frames to `registry.ts`, its use to `render/world.ts`, its cards to `showcase.ts`, and a section here.
+A **new category** is the one case that touches shared files: add its type and required frames to `registry.ts`, its use to `render/world.ts`, its cards to `showcase.ts`, and a section here. Projectiles and traps are that case (§6).
 
 ## 11. Files
 
@@ -229,7 +258,7 @@ apps/client/src/render/art/
   tokens.ts        RL palette tokens, Display, LIGHTING, liftColor
   paint.ts         The painter (part / detail / accent / line / shadow), LINE weights, path helpers, hash
   parts.ts         Shared drawing helpers (planks, stone blocks, rune rings, tower tier runes)
-  registry.ts      registerArt, entry types by category, REQUIRED_FRAMES, lookups (creepArt, towerArt…)
+  registry.ts      registerArt, entry types by category, REQUIRED_FRAMES, lookups (creepArt, towerArt, projectileArt, trapArt…)
   load.ts          Imports common.ts and every file in entities/ (import.meta.glob)
   common.ts        Shared frames (contact shadow)
   atlas.ts         Bakes every frame into 1024 px pages (+ flash silhouettes); re-bakes on Display change
@@ -241,7 +270,8 @@ apps/client/src/render/art/
   icons.ts         UI icons (§12): drawn with the painter, baked to CSS images
   entities/        One file per entity (ranger, warden, arcanist, grunt, archer, runner, brute, wisp, hatchling, ironhorn,
                    matriarch, shardback, arrowTower, cannonTower, frostTower, arcaneTower, flakTower, heart, portal, pad,
-                   tree, rock, mushrooms, runestone)
+                   tree, rock, mushrooms, runestone; projectiles: arrowShot, cannonShot, frostShot, arcaneShot, flakShot,
+                   rangerArrow, critArrow, multishotArrow, arcanistBolt, fireball, archerArrow; traps: snareTrap)
 apps/client/src/showcase.ts   ?showcase dev page (entities, variants, UI icons, sounds)
 apps/client/src/audio/        Sound (§13): synth, sound bank, mix, score, engine, music, game events → sounds
 apps/client/src/style.css     The Runelight UI (§12)

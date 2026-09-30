@@ -3,8 +3,9 @@
 //
 // Art (docs/ART.md): the Runelight look. The ground is painted once into one canvas;
 // entities with registered art (render/art/entities/) are rigs of baked atlas sprites,
-// animated by transform, tint and alpha only. Entities without art yet keep their
-// shapes: a distinct shape and colour per type. Everything gets an HP bar.
+// animated by transform, tint and alpha only. Projectiles and traps are sprites too
+// (one body turned along the shot; a trap's idle / armed frames and its root ring).
+// Anything without art keeps its shape: a distinct shape and colour per type. Everything gets an HP bar.
 //
 // Effects (Phase 4b) are client-only: hits are read from creep HP dropping between
 // the snapshots being rendered, shots from projectiles appearing, and everything
@@ -51,7 +52,18 @@ import { heartStage, HEART_LOW } from './art/damage';
 import { ArtKit } from './art/kit';
 import { createGround, type Ground } from './art/ground';
 import { PAD_PX } from './art/entities/pad';
-import { creepArt, heartArt, heroArt, padArt, portalArt, towerArt, type HeartArt, type HeroRig } from './art/registry';
+import {
+  creepArt,
+  heartArt,
+  heroArt,
+  padArt,
+  portalArt,
+  projectileArt,
+  towerArt,
+  trapArt,
+  type HeartArt,
+  type HeroRig,
+} from './art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
 import { RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
@@ -156,9 +168,24 @@ interface HeroSprite extends EntitySprite {
 interface ProjectileSprite {
   root: Container;
   trail: Sprite;
+  /** Baked art pointing +x, or the old shape when a style has none. Turned to the heading. */
+  body: Container;
   style: string;
   lastX: number;
   lastY: number;
+  heading: number;
+}
+
+interface TrapSprite {
+  root: Container;
+  ring: Sprite | null;
+  idle: Sprite | null;
+  armed: Sprite | null;
+  /** Radius of the ring frame (world px), for scaling it to the snapshot radius. */
+  ringRadius: number;
+  /** Shape fallback when the snare has no art. Redrawn only when it arms. */
+  g: Graphics | null;
+  state: boolean | null;
 }
 
 interface ZoneSprite {
@@ -251,7 +278,8 @@ export class WorldRenderer {
   private readonly towers = new Map<number, TowerSprite>();
   private readonly heroes = new Map<number, HeroSprite>();
   private readonly projectiles = new Map<number, ProjectileSprite>();
-  private readonly traps = new Map<number, { g: Graphics; armed: boolean | null }>();
+  private readonly traps = new Map<number, TrapSprite>();
+  private readonly trapPool: TrapSprite[] = [];
   private readonly zones = new Map<number, ZoneSprite>();
   private readonly portals: PortalSprite[] = [];
   private readonly heart: HeartSprite;
@@ -1406,20 +1434,25 @@ export class WorldRenderer {
         g = this.projectilePool.get(p.style)?.pop() ?? this.makeProjectile(p.style);
         g.trail.visible = trails;
         g.trail.alpha = 0;
+        g.body.rotation = 0;
+        g.heading = 0;
         g.lastX = p.x;
         g.lastY = p.y;
         this.projectileLayer.addChild(g.root);
         this.projectiles.set(p.id, g);
         this.launched(p, g, heroes);
       }
+      // Same scale as creeps, so a bolt stays readable when tiles are small on a phone.
+      g.root.scale.set(this.entityScale);
       g.root.position.set(p.x * S, p.y * S);
+      const dx = (p.x - g.lastX) * S;
+      const dy = (p.y - g.lastY) * S;
+      const d = Math.hypot(dx, dy);
+      if (d > 0.01) this.aimProjectile(g, dx, dy);
       if (trails) {
         // The trail points back along the way it came; its length follows the speed.
-        const dx = (p.x - g.lastX) * S;
-        const dy = (p.y - g.lastY) * S;
-        const d = Math.hypot(dx, dy);
         if (d > 0.01) {
-          g.trail.rotation = Math.atan2(dy, dx);
+          g.trail.rotation = g.heading;
           g.trail.scale.x = Math.min(1.1, 0.25 + (d / Math.max(1, dtMs)) * 0.9);
           g.trail.alpha = 0.85;
         }
@@ -1447,8 +1480,17 @@ export class WorldRenderer {
     trail.tint = SHOT_COLORS[style as TowerKind] ?? PROJECTILE_COLORS[style] ?? FX.moonLight;
     trail.blendMode = 'add';
     trail.scale.y = style === 'fireball' ? 1.6 : style === 'cannon' || style === 'flak' ? 1.1 : 0.7;
-    root.addChild(trail, projectileBody(style));
-    return { root, trail, style, lastX: 0, lastY: 0 };
+    const art = projectileArt(style);
+    const body: Container = art ? this.art.sprite(art.id, 'body') : projectileBody(style);
+    root.addChild(trail, body);
+    return { root, trail, body, style, lastX: 0, lastY: 0, heading: 0 };
+  }
+
+  /** Point the body along (dx, dy). The art is drawn pointing +x. */
+  private aimProjectile(g: ProjectileSprite, dx: number, dy: number): void {
+    if (dx * dx + dy * dy < 1e-6) return;
+    g.heading = Math.atan2(dy, dx);
+    g.body.rotation = g.heading;
   }
 
   /** A projectile just appeared: find who fired it for the muzzle flash, recoil and Multishot fan. */
@@ -1458,11 +1500,26 @@ export class WorldRenderer {
       if (!h) return;
       const dx = p.x - h.x;
       const dy = p.y - h.y;
+      this.aimProjectile(g, dx, dy);
       if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy);
       else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? FX.spark, 0.4);
       return;
     }
-    if (!(p.style in TOWER_COLORS)) return;
+    if (!(p.style in TOWER_COLORS)) {
+      // Creep shots (the Archer): aim from the creep that just fired.
+      let creep: CreepSnap | undefined;
+      let creepD = 1.6;
+      for (const c of this.drawnCreeps) {
+        if (c.kind !== p.style) continue;
+        const d = Math.hypot(c.x - p.x, c.y - p.y);
+        if (d < creepD) {
+          creep = c;
+          creepD = d;
+        }
+      }
+      if (creep) this.aimProjectile(g, p.x - creep.x, p.y - creep.y);
+      return;
+    }
     // Pooled sprites may come from another branch: start from the tower kind's glow.
     g.trail.tint = SHOT_COLORS[p.style as TowerKind];
     let best: TowerSnap | undefined;
@@ -1480,6 +1537,7 @@ export class WorldRenderer {
     const s = this.towers.get(best.id);
     const dx = p.x - best.x;
     const dy = p.y - best.y;
+    this.aimProjectile(g, dx, dy);
     const len = Math.hypot(dx, dy) || 1;
     if (s) {
       s.recoilAt = this.lastRenderAt;
@@ -1495,30 +1553,62 @@ export class WorldRenderer {
     this.fx.muzzle(best.x, best.y, dx, dy, glow, 0.9);
   }
 
-  /** Traps are redrawn only when they arm, not every frame. */
+  private makeTrap(): TrapSprite {
+    const art = trapArt('snare');
+    const root = new Container();
+    if (!art) {
+      const g = new Graphics();
+      root.addChild(g);
+      return { root, ring: null, idle: null, armed: null, ringRadius: 1, g, state: null };
+    }
+    const ring = this.art.sprite(art.id, 'ring');
+    const idle = this.art.sprite(art.id, 'idle');
+    const armed = this.art.sprite(art.id, 'armed');
+    root.addChild(ring, idle, armed);
+    return { root, ring, idle, armed, ringRadius: art.ringRadius, g: null, state: null };
+  }
+
+  /**
+   * Traps don't move. The ring stays at the snapshot radius (the root area). The coil scales with
+   * creeps so it reads on a phone. Arming only changes alpha — nothing is redrawn.
+   */
   private syncTraps(snap: Snapshot): void {
     const seen = new Set<number>();
     for (const t of snap.traps) {
       seen.add(t.id);
       let s = this.traps.get(t.id);
       if (!s) {
-        s = { g: new Graphics(), armed: null };
-        s.g.position.set(t.x * S, t.y * S);
-        this.trapLayer.addChild(s.g);
+        s = this.trapPool.pop() ?? this.makeTrap();
+        s.state = null;
+        s.root.position.set(t.x * S, t.y * S);
+        if (s.ring) s.ring.scale.set((t.radius * S) / s.ringRadius);
+        this.trapLayer.addChild(s.root);
         this.traps.set(t.id, s);
       }
-      if (s.armed === t.armed) continue;
-      if (s.armed === false && t.armed) this.fx.sparkle(t.x, t.y, COLORS.root, 5, 0.3);
-      s.armed = t.armed;
-      s.g.clear();
-      s.g.circle(0, 0, t.radius * S).stroke({ width: 2, color: COLORS.root, alpha: t.armed ? 0.5 : 0.25 });
-      s.g.star(0, 0, 6, S * 0.45, S * 0.2).fill({ color: COLORS.root, alpha: t.armed ? 1 : 0.5 });
+      if (s.idle && s.armed) {
+        s.idle.scale.set(this.entityScale);
+        s.armed.scale.set(this.entityScale);
+      }
+      if (s.state === t.armed) continue;
+      if (s.state === false && t.armed) this.fx.sparkle(t.x, t.y, COLORS.root, 5, 0.3);
+      s.state = t.armed;
+      if (s.idle && s.armed && s.ring) {
+        s.idle.alpha = t.armed ? 0 : 1;
+        s.armed.alpha = t.armed ? 1 : 0;
+        s.ring.alpha = t.armed ? 0.85 : 0.4;
+      } else if (s.g) {
+        s.g.clear();
+        s.g.circle(0, 0, t.radius * S).stroke({ width: 2, color: COLORS.root, alpha: t.armed ? 0.5 : 0.25 });
+        s.g.star(0, 0, 6, S * 0.45, S * 0.2).fill({ color: COLORS.root, alpha: t.armed ? 1 : 0.5 });
+      }
     }
     for (const [id, s] of this.traps) {
-      if (!seen.has(id)) {
-        s.g.destroy();
-        this.traps.delete(id);
-      }
+      if (seen.has(id)) continue;
+      this.traps.delete(id);
+      s.root.removeFromParent();
+      s.state = null;
+      if (this.trapPool.length < 16) this.trapPool.push(s);
+      else s.root.destroy({ children: true });
     }
   }
 
