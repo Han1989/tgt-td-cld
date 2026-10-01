@@ -5,7 +5,7 @@
  * dashboard reads. When a pull request finishes a task, update both TASKS.md and
  * this file in that same PR. How: docs/PROGRESS.md.
  *
- * Seeded from main as of 30 Sep 2026 (early Oct). Production protocol is 13.
+ * Seeded from main as of 1 Oct 2026. Production protocol is 13.
  * Do not start Phase 6 from this page; it only reports status.
  */
 
@@ -201,6 +201,15 @@ const items: ProgressItem[] = [
     section: 'discovery',
     note: 'Playtime, D1/D7 retention, repeat visits, and a post-match rating, tagged by source. First-party HTTP on the game server. Not Phase 6a accounts.',
     proof: pr(25),
+  },
+  {
+    id: 'SL-01',
+    title: 'Soft-launch co-op presentation',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Mirrored ping and emote burst, gift sent/received toasts, and a twin-ultimate ribbon. Protocol stays 13. Leak lane, gift totals, live syncCast and boss role banners wait on Gameplay.',
+    proof: pr(35),
   },
   {
     id: 'D-02',
@@ -637,7 +646,7 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '30 Sep 2026',
+  asOf: '1 Oct 2026',
   protocol: 13,
   polishLabel: 'T-00–T-05',
   polishComplete: true,

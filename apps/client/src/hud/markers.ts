@@ -147,6 +147,18 @@ export class MarkerLayer {
     }
   }
 
+  /**
+   * Grow the markers that were born at these times (a mirrored ping or emote).
+   * The shared silhouette is separate; this is the mark still sitting on the map.
+   */
+  emphasize(kind: 'ping' | 'emote', bornAt: readonly number[]): void {
+    const times = new Set(bornAt);
+    const list = kind === 'ping' ? this.pings : this.emotes;
+    for (const item of list) {
+      if (times.has(item.born)) item.el.classList.add('mirrored');
+    }
+  }
+
   clear(): void {
     for (const p of this.pings) p.el.remove();
     for (const e of this.emotes) e.el.remove();

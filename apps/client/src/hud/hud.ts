@@ -28,6 +28,7 @@ import { currentAnalytics } from '../analytics/install';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
+import { giftLine, playerTint, type GiftLine } from '../coop/cues';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
@@ -497,9 +498,9 @@ export class Hud {
         if (b) pulse(b.root, FIRED_PULSE, 320);
       } else if (e.type === 'hideShift') {
         this.toast(e.hide === 'stone' ? 'Shardback: Stone hide — use magic damage' : 'Shardback: Ether hide — use physical damage');
-      } else if (e.type === 'gift' && (e.to === me || e.from === me)) {
-        const name = (id: PlayerId) => snap.players.find((p) => p.id === id)?.name ?? '?';
-        this.toast(e.to === me ? `${name(e.from)} gave you ${e.amount} gold` : `You gave ${name(e.to)} ${e.amount} gold`);
+      } else if (e.type === 'gift') {
+        const line = giftLine(e, snap, me);
+        if (line) this.giftToast(line, toCss(playerTint(snap, line.partnerId)));
       } else if (e.type === 'heroDied' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
         this.toast('Your hero has fallen');
       } else if (e.type === 'levelUp') {
@@ -523,6 +524,8 @@ export class Hud {
 
   /** Called with every message shown (sounds: "Not enough gold"…). */
   onToast: (text: string) => void = () => {};
+  /** A gift toast went up. `accent` is the other player's colour (css). */
+  onGift: (accent: string) => void = () => {};
 
   toast(text: string): void {
     this.onToast(text);
@@ -532,6 +535,26 @@ export class Hud {
     this.toasts.appendChild(el);
     while (this.toasts.children.length > 4) this.toasts.firstChild?.remove();
     setTimeout(() => el.remove(), 2200);
+  }
+
+  /** Gold sent or received: a large gold figure, the partner's colour on the rim. */
+  private giftToast(line: GiftLine, accent: string): void {
+    const el = document.createElement('div');
+    el.className = `toast gift ${line.kind}`;
+    el.style.setProperty('--gift', accent);
+    const coin = document.createElement('i');
+    coin.className = 'icon coin';
+    coin.setAttribute('aria-hidden', 'true');
+    const strong = document.createElement('b');
+    strong.textContent = line.kind === 'received' ? `+${line.amount}` : `Sent ${line.amount}`;
+    const sub = document.createElement('span');
+    sub.textContent = line.kind === 'received' ? `from ${line.who}` : `to ${line.who}`;
+    el.append(coin, strong, sub);
+    this.onToast(`${strong.textContent} ${sub.textContent}`);
+    this.onGift(accent);
+    this.toasts.appendChild(el);
+    while (this.toasts.children.length > 4) this.toasts.firstChild?.remove();
+    setTimeout(() => el.remove(), 2600);
   }
 
   /** A coin flies from a screen point (px) to the gold counter (not at Low quality). */

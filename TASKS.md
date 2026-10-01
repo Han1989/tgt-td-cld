@@ -99,6 +99,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. | Team | ☑ |
+| SL-01 | Soft-launch co-op presentation (client only, protocol 13): mirrored ping and same-emote burst within 1 s, gift sent/received toasts, twin-ultimate ribbon when two R casts land within 2 s (`R_OVERLAP_SECONDS`). Leak lane, gift totals, live `syncCast` and boss role banners wait on Gameplay. | Team | ☑ |
 | D-02 | Post polished build to **r/PlayMyGame** (follow sub rules; one clear link; channel tag). | Han | ☐ |
 | D-03 | Post polished build to **r/incremental_games** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
 | D-04 | Post polished build to **r/cozygames** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |

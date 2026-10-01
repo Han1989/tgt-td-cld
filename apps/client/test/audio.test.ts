@@ -607,6 +607,17 @@ describe('game audio', () => {
     expect(sink.ids().at(-1)).toBe('attack.warden');
   });
 
+  it('plays a coin for gold you send or receive, and the co-op flourishes', () => {
+    const { sink, audio } = match();
+    audio.events([{ type: 'gift', from: 'me', to: 'mate', amount: 25 }], 0);
+    audio.events([{ type: 'gift', from: 'mate', to: 'me', amount: 100 }], 300);
+    audio.events([{ type: 'gift', from: 'mate', to: 'other', amount: 10 }], 600);
+    audio.flourish('pingBurst', 900);
+    audio.flourish('emoteBurst', 1700);
+    audio.flourish('twinCast', 2700);
+    expect(sink.ids()).toEqual(['coin', 'coin', 'pingBurst', 'emoteBurst', 'twinCast']);
+  });
+
   it('plays tower shots at their branch’s pitch, and "Not enough gold"', () => {
     const { snap, sink, audio } = match();
     const t = snap.towers[0]!;

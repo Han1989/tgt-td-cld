@@ -7,16 +7,18 @@ import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import type { ViewBox } from './audio/mix';
+import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
 import { EmoteMenu } from './hud/emotes';
+import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
-import { MarkerLayer, type Box as MarkerBox } from './hud/markers';
+import { EMOTE_LABEL, MarkerLayer, type Box as MarkerBox } from './hud/markers';
 import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
 import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
-import { COLORS, TOWER_NAMES } from './render/palette';
+import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
 import { WorldRenderer } from './render/world';
@@ -61,7 +63,13 @@ export class GameView {
     readonly audio: Audio,
     private readonly marks: MarkerLayer,
     private readonly coach: TutorialCoach,
-  ) {}
+    private readonly stage: CoopStage,
+  ) {
+    this.cues = emptyCues();
+  }
+
+  /** Recent pings, emotes and ultimates, for the shared flourishes. */
+  private cues: CueMemory;
 
   /** The first-match lesson is running on this solo match. */
   private lesson = false;
@@ -198,6 +206,8 @@ export class GameView {
     renderer.onTowerShot = (t) => audio.game.towerShot(t, performance.now());
     renderer.onMeleeImpact = (heroId, x, y) => audio.game.meleeHit(heroId, x, y, performance.now());
     hud.onToast = (text) => audio.game.notice(text, performance.now());
+    const stage = new CoopStage();
+    hud.onGift = (accent) => stage.edge(accent, toCss(FX.gold));
     /** What's on screen (tiles), for the mix: off-screen sounds are quieter or skipped. */
     const hearing = (): ViewBox => {
       const a = camera.screenToWorld(0, 0);
@@ -210,7 +220,7 @@ export class GameView {
     const marks = new MarkerLayer();
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
     const coach = new TutorialCoach(() => (document.body.classList.contains('touch') ? 'touch' : 'desktop'));
-    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach);
+    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
     coach.onSkip = () => {
       settings.set({ tutorial: lessonStatus('skip') });
       view.setLesson(false);
@@ -395,6 +405,31 @@ export class GameView {
       }
       hud.handleEvents(events, latest, view.me);
       marks.sync(events, latest, now);
+      const cues = readCues(view.cues, events, latest, now);
+      view.cues = cues.memory;
+      const who = (id: PlayerId): StageWho => ({
+        name: latest.players.find((p) => p.id === id)?.name ?? 'Teammate',
+        color: toCss(playerTint(latest, id)),
+      });
+      if (cues.beat.ping) {
+        marks.emphasize('ping', [cues.beat.ping.a.at, cues.beat.ping.b.at]);
+        const a = who(cues.beat.ping.a.by);
+        const b = who(cues.beat.ping.b.by);
+        view.stage.mirror('Together', a, b);
+        audio.game.flourish('pingBurst', now);
+      }
+      if (cues.beat.emote) {
+        marks.emphasize('emote', [cues.beat.emote.a.at, cues.beat.emote.b.at]);
+        view.stage.mirror(EMOTE_LABEL[cues.beat.emote.emote], who(cues.beat.emote.a.by), who(cues.beat.emote.b.by));
+        audio.game.flourish('emoteBurst', now);
+      }
+      if (cues.beat.twin) {
+        const a = who(cues.beat.twin.a.by);
+        const b = who(cues.beat.twin.b.by);
+        renderer.twinRibbon(cues.beat.twin.a.data, cues.beat.twin.b.data, playerTint(latest, cues.beat.twin.a.by), playerTint(latest, cues.beat.twin.b.by));
+        view.stage.edge(a.color, b.color);
+        audio.game.flourish('twinCast', now);
+      }
       marks.update(now, (x, y) => camera.worldToScreen(x * TILE_PX, y * TILE_PX), markerView(layout, camera.viewW, camera.viewH));
       audio.game.events(events, now);
       renderer.render(frame, latest, view.me, ui, now);
@@ -562,6 +597,8 @@ export class GameView {
     this.social.ping = -Infinity;
     this.social.emote = -Infinity;
     this.marks.clear();
+    this.cues = emptyCues();
+    this.stage.clear();
     this.needsCentre = true;
   }
 }

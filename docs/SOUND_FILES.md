@@ -35,7 +35,7 @@ You can add one file or all of them. Anything without a file keeps its code-made
 | `music/` | `lobby.mp3` | The lobby and the end screen |
 | `music/` | `match.mp3` | A match: building and waves (and boss waves if there's no `boss.mp3`) |
 | `music/` | `boss.mp3` | Boss waves and while a boss is alive |
-| `sfx/` | `waveStart.mp3`, `heartHit.mp3`, `shot.arrow.mp3`, … | The 42 effects in `public/sfx/README.md` (when each plays, and a length) |
+| `sfx/` | `waveStart.mp3`, `heartHit.mp3`, `shot.arrow.mp3`, … | Every effect in `public/sfx/README.md` (when each plays, and a length) |
 
 Names are **case-sensitive** and must be exact (`shot.arrow.mp3`, not `Shot Arrow.mp3`). A file with
 another name **stops the deploy** (see step 6 below), so a typo can't go live unnoticed.

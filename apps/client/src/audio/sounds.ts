@@ -434,6 +434,12 @@ export const SOUNDS = {
   ping: sfx(0.55, 200, 2, 2, { layers: [...gong(520, 0.45, 1, 0, 1.01), knock(880, 0.04, 0.25)] }, { wet: 0.22, variants: 2 }),
   /** A quick-chat phrase: a short guzheng pluck. */
   emote: sfx(0.4, 180, 2, 1, { layers: [...guzheng(A4, 0.28, 1), bell(D6, 0.2, 0.25, 0.04)] }, { wet: 0.16, variants: 2 }),
+  /** Two players ping together: a larger gong and a higher partial, over the single ping. */
+  pingBurst: sfx(0.7, 700, 1, 2, { layers: [...gong(420, 0.5, 1, 0, 1.01), ...gong(630, 0.36, 0.5, 0.04, 1.02)] }, { wet: 0.24, variants: 2, pitch: 0.02 }),
+  /** The same phrase from two players: two guzheng notes a fifth apart. */
+  emoteBurst: sfx(0.55, 700, 1, 2, { layers: [...guzheng(D5, 0.32, 1), ...guzheng(A5, 0.28, 0.7, 0.05)] }, { wet: 0.18, variants: 2, pitch: 0.012 }),
+  /** Two ultimates in the overlap window: a low gong and a higher one, struck together. */
+  twinCast: sfx(0.72, 900, 1, 2, { layers: [...gong(hz(D3), 0.55, 1, 0, 0.99), ...gong(hz(A3), 0.42, 0.65, 0.03, 1.01), bell(D6, 0.28, 0.28, 0.02)] }, { wet: 0.28, variants: 2, pitch: 0.01 }),
   /** Not enough gold: two dull clapper knocks, falling. */
   noGold: sfx(0.55, 250, 1, 2, { layers: [knock(330, 0.09, 1), knock(247, 0.13, 1, 0.1)] }, { wet: 0.1 }),
   /** Not enough mana, nothing in range: a muted string. */
