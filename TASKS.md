@@ -1,18 +1,20 @@
 # Tower Defense Together: Task list
 
 **As of 1 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 1 Oct: Gate 1 waived and treated as passed.
-**This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)).
+**This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
-**Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress).
+**Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
 
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked
 
-**Next:** Gate 1 is waived and treated as passed (1 Oct 2026). Immediate open work is Han's list (H-01–H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
+**Next:** Gate 1 is waived and treated as passed (1 Oct 2026). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). Immediate open work is Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
 
 ---
 
 ## Now: in this order
+
+**Overnight bots.** Open **Team** rows in this section, top to bottom, are the auto-pull order. Skip Han rows and anything already done. The order is this file only.
 
 ### T-00 · CI and branch protection · NEW · Team, then Han · ☑
 
@@ -74,7 +76,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 
 | ID | Task | Notes | Status |
 |---|---|---|---|
-| H-01 | Let friends open preview links | Vercel → project → Settings → Deployment Protection → Vercel Authentication: **Disabled** → Save. Otherwise friends see a Vercel login page. | ☐ |
+| H-01 | Let friends open preview links | Vercel → project → Settings → Deployment Protection → Vercel Authentication: **Disabled** → Save. **Done 1 Oct 2026:** Han confirmed this is already Disabled on the tgt-td-cld project, so friends do not see a Vercel login page. | ☑ |
 | H-02 | Confirm the hook test server | In Render, check `tgt-td-spike` is **Live** and copy its exact address. `/health` should show `"shard":"H"`. On 30 Sep, `tgt-td-spike.onrender.com/health` returned 404. | ☐ |
 | H-03 | Try the hook test on your phone (`b-try`) | Solo with the bot ally first (`?spike=hook&practice`), then online with one friend (`?spike=hook&server=wss://<spike address>`). | ☐ |
 | H-04 | Three music tracks (`a-music`, optional) | Done 1 Oct 2026: `lobby.mp3`, `match.mp3`, and `boss.mp3` in `apps/client/public/music/` (AI-generated via Google Gemini, by Han). See `docs/SOUND_FILES.md`. | ☑ |

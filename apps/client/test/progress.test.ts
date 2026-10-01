@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PROGRESS } from '../src/progress/data';
-import { matchesFilter, summarize, visibleSections } from '../src/progress/model';
-import { boardHasStatus, renderBoard, renderSummary } from '../src/progress/view';
+import { cookingNow, matchesFilter, summarize, visibleSections, type ProgressData } from '../src/progress/model';
+import { boardHasStatus, renderBoard, renderCooking, renderSummary } from '../src/progress/view';
 
 const byId = (id: string) => {
   const item = PROGRESS.items.find((row) => row.id === id);
@@ -34,7 +34,8 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('soft launch');
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
-    expect(summary.hanOpen).toBe(10);
+    expect(summary.hanOpen).toBe(9);
+    expect(summary.inProgress).toBe(0);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -64,9 +65,14 @@ describe('progress dashboard data', () => {
     }
     expect(byId('g1-gate').note.toLowerCase()).toContain('passed');
     expect(byId('g1-gate').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/37');
-    for (const id of ['H-01', 'H-02', 'H-06', 'D-02', 'D-06', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
+    for (const id of ['H-02', 'H-06', 'D-02', 'D-06', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
       expect(byId(id).status).toBe('todo');
     }
+    expect(byId('H-01').status).toBe('done');
+    expect(byId('H-01').note).toContain('Disabled');
+    expect(byId('H-01').note).toContain('1 Oct 2026');
+    expect(byId('H-01').proof?.label).toBe('Han, 1 Oct 2026');
+    expect(byId('H-01').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/blob/main/docs/GAME_DESIGN.md');
     expect(byId('g1-tune').owner).toBe('Team');
     expect(byId('H-01').owner).toBe('Han');
     expect(matchesFilter(PROGRESS, byId('p6a-accounts'), 'later')).toBe(true);
@@ -98,7 +104,7 @@ describe('progress dashboard data', () => {
     expect(done.every((item) => item.status === 'done')).toBe(true);
     expect(done.map((item) => item.id)).toContain('T-00');
     expect(done.map((item) => item.id)).toContain('g1-gate');
-    expect(done.map((item) => item.id)).not.toContain('H-01');
+    expect(done.map((item) => item.id)).toContain('H-01');
 
     const later = visibleSections(PROGRESS, 'later', '').flatMap((section) => section.items.map((item) => item.id));
     expect(later).toContain('p6c-combos');
@@ -124,5 +130,47 @@ describe('progress dashboard data', () => {
     expect(summary).toContain('Gate 2');
     expect(summary).toContain('15');
     expect(summary).toContain('Complete');
+  });
+
+  it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
+    expect(cookingNow(PROGRESS)).toEqual([]);
+    const empty = renderCooking(PROGRESS);
+    expect(empty).toContain('Cooking now');
+    expect(empty).toContain('Nothing is marked in progress.');
+    expect(empty).toContain('Ops Dashboard');
+    expect(empty).toContain('auto-pull list');
+    expect(empty).toContain('no separate queue');
+    expect(empty).not.toContain('<script');
+    expect(empty).not.toContain('H-01');
+
+    const flying: ProgressData = {
+      ...PROGRESS,
+      items: [
+        {
+          id: 'Z-8',
+          title: 'Sample blocked',
+          owner: 'Team',
+          status: 'blocked',
+          section: 'han',
+          note: 'Waiting.',
+        },
+        {
+          id: 'Z-9',
+          title: 'Sample in flight',
+          owner: 'Team',
+          status: 'in_progress',
+          section: 'han',
+          note: 'Working the tracker row.',
+        },
+        ...PROGRESS.items,
+      ],
+    };
+    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9']);
+    const html = renderCooking(flying);
+    expect(html).toContain('Z-9');
+    expect(html).toContain('data-status="in_progress"');
+    expect(html).not.toContain('Z-8');
+    expect(html).not.toContain('Nothing is marked in progress.');
+    expect(html).not.toContain('H-02');
   });
 });

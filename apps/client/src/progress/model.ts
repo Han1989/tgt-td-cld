@@ -180,6 +180,14 @@ export function filterCounts(data: ProgressData): Record<ProgressFilter, number>
   return counts;
 }
 
+/**
+ * In-flight tracker rows, in data order. Cooking now reads this.
+ * Open pull requests are not included: the Ops Dashboard is that feed.
+ */
+export function cookingNow(data: ProgressData): ProgressItem[] {
+  return data.items.filter((item) => item.status === 'in_progress');
+}
+
 export function statusLabel(status: ProgressStatus): string {
   switch (status) {
     case 'done':

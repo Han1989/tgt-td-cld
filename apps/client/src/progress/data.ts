@@ -3,7 +3,7 @@
  *
  * TASKS.md is the human tracker and stays the authority. This file is what the
  * dashboard reads. When a pull request finishes a task, update both TASKS.md and
- * this file in that same PR. How: docs/PROGRESS.md.
+ * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 1 Oct 2026. Production protocol is 15.
  * Gate 1 is waived and treated as passed. This page only reports status.
@@ -27,7 +27,7 @@ const sections: ProgressSection[] = [
   {
     id: 'han',
     title: 'Han, in parallel',
-    blurb: 'Only Han can do these: phones, friends, accounts, and the hook-test server. None of them block the team from reading the tracker.',
+    blurb: 'Only Han can do these: phones, friends, accounts, and the hook-test server. Preview links (H-01) are done. The rest do not block the team from reading the tracker.',
     group: 'now',
   },
   {
@@ -154,9 +154,10 @@ const items: ProgressItem[] = [
     id: 'H-01',
     title: 'Let friends open preview links',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'han',
-    note: 'Vercel → Settings → Deployment Protection → Vercel Authentication: Disabled. Otherwise friends see a login page.',
+    note: 'Vercel Deployment Protection → Vercel Authentication is Disabled on the tgt-td-cld project. Han confirmed 1 Oct 2026. Friends opening a preview do not see a Vercel login page.',
+    proof: { label: 'Han, 1 Oct 2026', href: `${REPO}/blob/main/docs/GAME_DESIGN.md` },
   },
   {
     id: 'H-02',
