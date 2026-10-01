@@ -6,6 +6,7 @@ import {
   continueTutorial,
   freshTutorial,
   heroMoved,
+  homeLessonControls,
   lessonStatus,
   parseTutorialStatus,
   shouldStartLesson,
@@ -50,6 +51,12 @@ describe('tutorial status', () => {
     expect(lessonStatus('skip')).toBe('skipped');
     expect(lessonStatus('complete')).toBe('completed');
     expect(lessonStatus('replay')).toBe('new');
+  });
+
+  it('offers the lesson on the online home only while it is new, and never a Replay control', () => {
+    expect(homeLessonControls('new')).toEqual({ offer: true, replay: false });
+    expect(homeLessonControls('completed')).toEqual({ offer: false, replay: false });
+    expect(homeLessonControls('skipped')).toEqual({ offer: false, replay: false });
   });
 
   it('Quick can pay for an Arrow and its upgrade inside the first wave; Full cannot', () => {

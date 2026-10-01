@@ -86,6 +86,22 @@ export function lessonStatus(action: 'skip' | 'complete' | 'replay'): TutorialSt
   return 'new';
 }
 
+/**
+ * What the online home screen shows for the lesson.
+ * A new player gets the Start lesson / Skip card. Replay is not on that screen:
+ * finishing or skipping hides it, and it is not a second control next to the card.
+ * ⚙ → Replay tutorial is the way back.
+ */
+export function homeLessonControls(status: TutorialStatus): { offer: boolean; replay: boolean } {
+  switch (status) {
+    case 'new':
+      return { offer: true, replay: false };
+    case 'completed':
+    case 'skipped':
+      return { offer: false, replay: false };
+  }
+}
+
 export function heroMoved(origin: { x: number; y: number }, hero: { x: number; y: number }): boolean {
   const dx = hero.x - origin.x;
   const dy = hero.y - origin.y;

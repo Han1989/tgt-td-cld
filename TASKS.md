@@ -47,7 +47,7 @@ Done: a map ping (phone long-press, desktop Alt-click) shows on the map for team
 
 A guided first match that teaches moving, building, casting and upgrading within the first two waves. Do it **after T-02**, so it can teach pings too. Proposed: it runs once for a new player (solo), can be skipped, and is replayable from settings.
 
-Done: a solo Quick match on Normal, once, for a new player (`tdt.settings` `tutorial`). Steps are move, build an Arrow, cast Q, upgrade, ping, and an optional quick-chat phrase. Each step advances when the player does it. Skip is on the card and on the hero pick. Online create / join does not start it. Replay from ⚙ or the lobby home. `PROTOCOL_VERSION` stays 13. Real-device steps in `docs/MOBILE_TESTING.md` §2.6.
+Done: a solo Quick match on Normal, once, for a new player (`tdt.settings` `tutorial`). Steps are move, build an Arrow, cast Q, upgrade, ping, and an optional quick-chat phrase. Each step advances when the player does it. Skip is on the card and on the hero pick. Online create / join does not start it. The lobby home offers Start lesson and Skip only while the flag is `new`. Replay is ⚙ → Replay tutorial, not a control on the home screen after the lesson. `PROTOCOL_VERSION` stays 13. Real-device steps in `docs/MOBILE_TESTING.md` §2.6.
 
 ### T-04 · Art for projectiles and traps · NEW · Team · ☑
 
