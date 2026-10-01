@@ -104,14 +104,15 @@ The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish ite
    - **T-03** First five minutes (tutorial; after pings)
    - **T-04** Projectile and trap art
    - **T-05** Docs clean-up
-2. **Han, in parallel with polish:** open preview links to friends, confirm the hook test server, try the hook test, then **Gate 1: the friends playtest** (2–3 friends only — not enough signal for go/no-go on stores).
-3. **After Gate 1 passes:** per-hero tuning from match reports, then Phase 6 (accounts, clans, loot, leaderboards). Nothing in Phase 6 starts before Gate 1.
-4. **After polish (T-00–T-05): Discovery and rollout** (plan in `TASKS.md`). Before or alongside store submission, put the polished build in front of **strangers** and measure response:
+2. **Gate 1 was waived on 1 Oct 2026** (Han, time) and is treated as passed. The friends playtest was not run: no Render plan change, no matches, and no per-hero retune from friend reports (g1-render, g1-play, g1-watch, g1-tune, g1-gate). Friends-only play was never the store go/no-go.
+3. **Han's list (H-01–H-06) stays open:** preview links, the hook-test server, trying the hook test, optional music, the iPhone checklist, and GitHub access.
+4. **Phase 6 may proceed** (accounts, clans, loot, leaderboards). Those tasks are not started. Per-hero tuning from a friends session was waived with Gate 1.
+5. **Discovery and rollout** (plan in `TASKS.md`) is the public soft-launch path and is still open. Before or alongside store submission, put the polished build in front of **strangers** and measure response:
    - Reddit: **r/PlayMyGame**, **r/incremental_games**, **r/cozygames**
    - **CrazyGames Basic Launch** (Gate 2)
    - Per channel, track **average playtime**, **retention** (at least D1 / D7), and **repeat visits**
    - Decide store push vs more polish from that data — friends alone are not the audience test
-5. **Modes for that build:** lead the store-facing surface with **1p and 2p**; keep **3p co-op** as the flagship community mode.
+6. **Modes for that build:** lead the store-facing surface with **1p and 2p**; keep **3p co-op** as the flagship community mode.
 
 ---
 
@@ -181,7 +182,7 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 
 - **CI is on.** T-00: `.github/workflows/ci.yml` on pull requests and `main`. `main` requires the `ci` check.
 - **README status.** Updated in T-05: Phases 1–3 done, Phase 4 polish through the tutorial.
-- **`docs/GAME_DESIGN.md` §11.** Updated in T-05: accounts, leaderboards, PvP and monetisation are Phases 6–8 after Gate 1 (`docs/ROADMAP.md`).
+- **`docs/GAME_DESIGN.md` §11.** Updated in T-05, then on 1 Oct 2026: Gate 1 is waived and treated as passed, so Phase 6 may proceed. Monetisation still waits for Gate 2 (`docs/ROADMAP.md`).
 - **Claude-specific names.** `CLAUDE.md` and the `claude/…` branch names come from how the game was built. Keep `CLAUDE.md` as the guide. `AGENTS.md` points at it (T-05). Use your own branch prefix. The hook-test branch `claude/loving-hawking-7fvsu7` stays unmerged.
 - **One tracker.** Han's original checklist lives in his claude.ai account and nobody else can tick it. From now on `TASKS.md` in the repo is the tracker.
 - **Balance cliffs.** Solo and pairs break with small changes (see the balance notes in `CLAUDE.md` → Conventions). Ranger + Warden is the weakest pair.

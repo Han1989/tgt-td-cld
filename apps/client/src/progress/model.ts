@@ -43,7 +43,7 @@ export interface ProgressSection {
   id: string;
   title: string;
   blurb: string;
-  /** now = current work; later = do not start yet; archive = already shipped. */
+  /** now = current work; later = scheduled, not the current focus; archive = already shipped. */
   group: 'now' | 'later' | 'archive';
 }
 
