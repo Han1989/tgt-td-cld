@@ -21,6 +21,8 @@ import {
   playerTint,
   readCues,
   showGiftTotals,
+  TOGETHER_GAP_MS,
+  TOGETHER_KILL_MS,
   TWIN_CAST_MS,
   type CueMemory,
 } from '../src/coop/cues';
@@ -214,5 +216,80 @@ describe('coop presentation cues', () => {
     expect(giftLine({ from: 'p1', to: 'p2', amount: 25 }, state, null)).toBeNull();
     expect(playerTint(state, 'p1')).toBe(PLAYER_COLORS[0]);
     expect(playerTint(state, 'p2')).toBe(PLAYER_COLORS[1]);
+  });
+});
+
+function living(alive: readonly boolean[] = [true, true]): Snapshot {
+  const state = snap();
+  state.heroes = alive.map((up, i) => ({
+    id: i + 1,
+    owner: `p${i + 1}`,
+    alive: up,
+    x: 6 + i * 8,
+    y: 20,
+  })) as Snapshot['heroes'];
+  return state;
+}
+
+function hit(by: string, creepId = 7, amount = 12): GameEvent {
+  return { type: 'damage', by, hits: [creepId, amount] };
+}
+
+function killed(creepId = 7, by = 'p1'): GameEvent {
+  return { type: 'kill', creepId, kind: 'grunt', x: 11, y: 14, by, bounty: 4 };
+}
+
+describe('together-kill flash', () => {
+  it('flashes when two living heroes damaged the creep inside the window, including the killing blow', () => {
+    const state = living();
+    const early = feed(emptyCues(), [hit('p2', 7, 8)], 1000, state);
+    expect(early.beat.together).toBeNull();
+    const same = feed(emptyCues(), [hit('p1'), hit('p2'), killed()], 1000, state);
+    expect(same.beat.together).toEqual({
+      creepId: 7,
+      x: 11,
+      y: 14,
+      kind: 'grunt',
+      by: ['p1', 'p2'],
+    });
+    // The kill can be listed before this tick's damage. Both still count.
+    const reversed = feed(emptyCues(), [killed(), hit('p2'), hit('p1', 7, 3)], 1000, state);
+    expect(reversed.beat.together?.by).toEqual(['p1', 'p2']);
+    const held = feed(early.memory, [hit('p1'), killed()], 1000 + TOGETHER_KILL_MS, state);
+    expect(held.beat.together?.by).toEqual(['p1', 'p2']);
+    const late = feed(early.memory, [hit('p1'), killed()], 1000 + TOGETHER_KILL_MS + 1, state);
+    expect(late.beat.together).toBeNull();
+  });
+
+  it('stays quiet for one hero, a dead hero, another creep, or a neutral hit', () => {
+    const state = living();
+    expect(feed(emptyCues(), [hit('p1'), hit('p1', 7, 4), killed()], 0, state).beat.together).toBeNull();
+    expect(feed(emptyCues(), [hit('p1', 7), hit('p2', 8), killed(7)], 0, state).beat.together).toBeNull();
+    expect(feed(emptyCues(), [hit('p1'), { type: 'damage', by: null, hits: [7, 20] }, killed()], 0, state).beat.together).toBeNull();
+    expect(feed(emptyCues(), [hit('p1'), hit('p2', 7, 0), killed()], 0, state).beat.together).toBeNull();
+
+    const down = living([true, false]);
+    expect(feed(emptyCues(), [hit('p1'), hit('p2'), killed()], 0, down).beat.together).toBeNull();
+    const wasUp = feed(emptyCues(), [hit('p1'), hit('p2')], 0, state);
+    expect(feed(wasUp.memory, [killed()], 500, down).beat.together).toBeNull();
+  });
+
+  it('lists three living heroes in seat order and does not strobe the next kill', () => {
+    const state = snap();
+    state.players = [
+      ...state.players,
+      { id: 'p3', name: 'Cy', gold: 10, heroId: 3, kills: 0, connected: true },
+    ];
+    state.heroes = [
+      { id: 1, owner: 'p1', alive: true, x: 4, y: 4 },
+      { id: 2, owner: 'p2', alive: true, x: 8, y: 4 },
+      { id: 3, owner: 'p3', alive: true, x: 12, y: 4 },
+    ] as Snapshot['heroes'];
+    const first = feed(emptyCues(), [hit('p3'), hit('p1'), hit('p2'), killed()], 2000, state);
+    expect(first.beat.together?.by).toEqual(['p1', 'p2', 'p3']);
+    const packed = feed(first.memory, [hit('p1', 9), hit('p2', 9), killed(9)], 2000 + TOGETHER_GAP_MS - 1, state);
+    expect(packed.beat.together).toBeNull();
+    const later = feed(first.memory, [hit('p1', 9), hit('p3', 9), killed(9)], 2000 + TOGETHER_GAP_MS, state);
+    expect(later.beat.together).toMatchObject({ creepId: 9, by: ['p1', 'p3'] });
   });
 });

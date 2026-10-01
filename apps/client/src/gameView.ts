@@ -68,7 +68,7 @@ export class GameView {
     this.cues = emptyCues();
   }
 
-  /** Recent pings, emotes and ultimates, for the shared flourishes. */
+  /** Recent pings, emotes, ultimates and creep damage, for the shared flourishes. */
   private cues: CueMemory;
 
   /** The first-match lesson is running on this solo match. */
@@ -450,6 +450,12 @@ export class GameView {
           const portal = lanes[lane]?.waypoints[0];
           if (portal) marks.clutch(portal.x, portal.y, laneName(lane), toCss(COLORS.bad), now);
         }
+      }
+      if (cues.beat.together) {
+        const t = cues.beat.together;
+        renderer.togetherFlash(t.x, t.y, t.by.map((id) => playerTint(latest, id)));
+        view.stage.together(t.by.map(who));
+        audio.game.flourish('togetherKill', now);
       }
       marks.update(now, (x, y) => camera.worldToScreen(x * TILE_PX, y * TILE_PX), markerView(layout, camera.viewW, camera.viewH));
       audio.game.events(events, now);

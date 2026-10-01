@@ -7,6 +7,8 @@
 // missing, or its heroes are not on the snapshot, fall back to two R `cast`
 // events inside `R_OVERLAP_SECONDS` — the same window as HeroReport.rOverlaps.
 // Lane clutch: a real leak (not the Hard finale strain) names its lane.
+// Together-kill: two or more living heroes' `damage` hits land on the creep a
+// `kill` names, inside a short window ending at that kill. Celebration only.
 
 import {
   BOSS_WAVES,
@@ -16,6 +18,7 @@ import {
   laneName,
   R_OVERLAP_SECONDS,
   type BossKind,
+  type CreepKind,
   type Emote,
   type GameEvent,
   type HeroKind,
@@ -36,6 +39,18 @@ export const TWIN_CAST_MS = R_OVERLAP_SECONDS * 1000;
  * and not a strobe. A different lane still announces immediately.
  */
 export const CLUTCH_GAP_MS = 3200;
+/**
+ * Damage from a living hero's owner counts toward a together-kill when it
+ * landed on that creep within this many milliseconds of the kill.
+ * Long enough for two attack cycles (heroes swing about once a second) and
+ * the same length as the twin-ultimate window.
+ */
+export const TOGETHER_KILL_MS = 2000;
+/**
+ * One together-kill flash per this gap, so a pack dying to the same two heroes
+ * is one glance and not a strobe. The flash itself is shorter (~0.7 s).
+ */
+export const TOGETHER_GAP_MS = 800;
 
 export interface Stamp<T> {
   by: PlayerId;
@@ -53,6 +68,13 @@ export interface CastSpot {
   y: number;
 }
 
+/** One living hero's owner damaged this creep. The newest hit replaces an older one. */
+export interface ContribHit {
+  creepId: number;
+  by: PlayerId;
+  at: number;
+}
+
 export interface CueMemory {
   pings: Stamp<PingSpot>[];
   emotes: Stamp<Emote>[];
@@ -61,6 +83,10 @@ export interface CueMemory {
   fired: Record<string, number>;
   /** Last time each lane showed a Heart-save cue. */
   clutchAt: Partial<Record<LaneId, number>>;
+  /** Recent creep damage from owners whose hero was alive when the hit was shown. */
+  contrib: ContribHit[];
+  /** Last together-kill flash. */
+  togetherAt: number;
 }
 
 /** A live `syncCast`: hero positions in `heroIds` order (the protocol sorts them). */
@@ -82,6 +108,18 @@ export interface LaneClutch {
   line: string;
 }
 
+/**
+ * A creep died after two or more living heroes' owners had damaged it.
+ * `by` is seat order (the snapshot's player list). No reward is attached.
+ */
+export interface TogetherKill {
+  creepId: number;
+  x: number;
+  y: number;
+  kind: CreepKind;
+  by: PlayerId[];
+}
+
 export interface CueBeat {
   ping: { a: Stamp<PingSpot>; b: Stamp<PingSpot> } | null;
   emote: { emote: Emote; a: Stamp<Emote>; b: Stamp<Emote> } | null;
@@ -89,6 +127,7 @@ export interface CueBeat {
   twin: { a: Stamp<CastSpot>; b: Stamp<CastSpot> } | null;
   sync: SyncRibbon | null;
   clutch: LaneClutch | null;
+  together: TogetherKill | null;
 }
 
 export interface BossLaneRole {
@@ -120,7 +159,7 @@ export interface GiftLine {
 }
 
 export function emptyCues(): CueMemory {
-  return { pings: [], emotes: [], ults: [], fired: {}, clutchAt: {} };
+  return { pings: [], emotes: [], ults: [], fired: {}, clutchAt: {}, contrib: [], togetherAt: -Infinity };
 }
 
 /** Three lane lines for a boss wave, from `bossLaneHint`. Hints only. */
@@ -188,8 +227,10 @@ export function readCues(
     ults: prev.ults.filter((s) => now - s.at <= TWIN_CAST_MS),
     fired: pruneFired(prev.fired, now),
     clutchAt: pruneClutch(prev.clutchAt, now),
+    contrib: prev.contrib.filter((h) => now - h.at <= TOGETHER_KILL_MS),
+    togetherAt: prev.togetherAt,
   };
-  const beat: CueBeat = { ping: null, emote: null, twin: null, sync: null, clutch: null };
+  const beat: CueBeat = { ping: null, emote: null, twin: null, sync: null, clutch: null, together: null };
   const leaking = new Map<LaneId, number>();
   for (const e of events) {
     if (e.type === 'ping') {
@@ -211,12 +252,68 @@ export function readCues(
       if (next) beat.sync = next;
     } else if (e.type === 'leak' && e.creepId !== FINALE_LEAK_CREEP_ID) {
       leaking.set(e.lane, (leaking.get(e.lane) ?? 0) + e.damage);
+    } else if (e.type === 'damage' && e.by && heroAlive(snap, e.by)) {
+      // `by` is the player, shared by their hero, towers and traps. A dead hero's
+      // towers are skipped here. Recorded before kills in this batch are judged.
+      noteContrib(memory.contrib, e.by, e.hits, now);
     }
   }
   // A live syncCast is the ribbon. Cast overlap stays only when that event did not draw.
   if (beat.sync) beat.twin = null;
   beat.clutch = takeClutch(leaking, memory.clutchAt, now);
+  // Kills after every damage event in the batch, so a same-tick killing blow counts
+  // even when the kill is listed first.
+  for (const e of events) {
+    if (e.type !== 'kill' || beat.together) continue;
+    beat.together = takeTogether(e, memory, snap, now);
+  }
   return { memory, beat };
+}
+
+/** The owner's hero is on the field. A missing or downed hero does not count. */
+function heroAlive(snap: Snapshot, id: PlayerId): boolean {
+  return snap.heroes.some((h) => h.owner === id && h.alive);
+}
+
+/**
+ * Remember that `by` damaged these creeps. Hits are flat `[creepId, amount]` pairs.
+ * A later hit from the same owner replaces the timestamp. Zero amounts are dropped
+ * (the sim already omits damage that rounds to 0).
+ */
+function noteContrib(list: ContribHit[], by: PlayerId, hits: readonly number[], at: number): void {
+  for (let i = 0; i + 1 < hits.length; i += 2) {
+    const creepId = hits[i];
+    const amount = hits[i + 1];
+    if (creepId === undefined || amount === undefined || amount <= 0) continue;
+    const hit = { creepId, by, at };
+    const atIndex = list.findIndex((h) => h.creepId === creepId && h.by === by);
+    if (atIndex >= 0) list[atIndex] = hit;
+    else list.push(hit);
+  }
+}
+
+/**
+ * Living owners who damaged this creep inside the window, in seat order.
+ * Null when fewer than two qualify, or the last flash is still inside the gap.
+ */
+function takeTogether(
+  e: { creepId: number; kind: CreepKind; x: number; y: number },
+  memory: CueMemory,
+  snap: Snapshot,
+  now: number,
+): TogetherKill | null {
+  if (now - memory.togetherAt < TOGETHER_GAP_MS) return null;
+  const ids = new Set<PlayerId>();
+  for (const hit of memory.contrib) {
+    if (hit.creepId !== e.creepId || now - hit.at > TOGETHER_KILL_MS) continue;
+    if (!heroAlive(snap, hit.by)) continue;
+    ids.add(hit.by);
+  }
+  if (ids.size < 2) return null;
+  const by = snap.players.map((p) => p.id).filter((id) => ids.has(id));
+  for (const id of ids) if (!by.includes(id)) by.push(id);
+  memory.togetherAt = now;
+  return { creepId: e.creepId, x: e.x, y: e.y, kind: e.kind, by };
 }
 
 /** Positions for a `syncCast`, in the event's hero id order. Null when fewer than two heroes are on screen. */

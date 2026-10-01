@@ -440,6 +440,8 @@ export const SOUNDS = {
   emoteBurst: sfx(0.55, 700, 1, 2, { layers: [...guzheng(D5, 0.32, 1), ...guzheng(A5, 0.28, 0.7, 0.05)] }, { wet: 0.18, variants: 2, pitch: 0.012 }),
   /** Two ultimates in the overlap window: a low gong and a higher one, struck together. */
   twinCast: sfx(0.72, 900, 1, 2, { layers: [...gong(hz(D3), 0.55, 1, 0, 0.99), ...gong(hz(A3), 0.42, 0.65, 0.03, 1.01), bell(D6, 0.28, 0.28, 0.02)] }, { wet: 0.28, variants: 2, pitch: 0.01 }),
+  /** Two living heroes drop the same creep: two bells a fifth apart, short enough to read with the flash. */
+  togetherKill: sfx(0.66, 800, 1, 2, { layers: [bell(D5, 0.46, 1, 0), bell(A5, 0.4, 0.75, 0.05)] }, { wet: 0.22, variants: 2, pitch: 0.012 }),
   /** Not enough gold: two dull clapper knocks, falling. */
   noGold: sfx(0.55, 250, 1, 2, { layers: [knock(330, 0.09, 1), knock(247, 0.13, 1, 0.1)] }, { wet: 0.1 }),
   /** Not enough mana, nothing in range: a muted string. */

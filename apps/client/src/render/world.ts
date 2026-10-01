@@ -484,6 +484,23 @@ export class WorldRenderer {
     if (shake) this.fx.bump(0.2);
   }
 
+  /**
+   * Together-kill: a short burst at the corpse, one ring and flash per seat colour,
+   * plus a gold core. Essential, so it still reads at Low. About 0.6 s.
+   */
+  togetherFlash(x: number, y: number, colors: readonly number[]): void {
+    const life = 620;
+    const n = Math.max(1, colors.length);
+    for (let i = 0; i < colors.length; i++) {
+      const color = colors[i]!;
+      const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      this.fx.flash(x + Math.cos(ang) * 0.32, y + Math.sin(ang) * 0.32, 1.05, color, life, 0.85);
+      this.fx.ring(x, y, 0.9 + i * 0.38, color, life, 0.22);
+    }
+    this.fx.flash(x, y, 0.5, FX.goldLight, 420, 0.9);
+    this.fx.bump(0.14);
+  }
+
   playEvents(events: GameEvent[], latest: Snapshot | undefined, me: PlayerId | null, now: number): void {
     const fx = this.fx;
     // Damage numbers: everyone's in solo, only your hero's and towers' online.

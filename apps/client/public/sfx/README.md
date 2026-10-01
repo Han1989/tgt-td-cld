@@ -18,6 +18,7 @@ deploy; no code change. Step by step, with size targets and where to get sounds:
 | `emote.mp3` | A quick-chat phrase | 0.2–0.5 s |
 | `emoteBurst.mp3` | Two players use the same phrase within a second | 0.3–0.6 s |
 | `twinCast.mp3` | Two ultimates within two seconds | 0.5–1 s |
+| `togetherKill.mp3` | Two or more living heroes' damage on the same creep kill | 0.4–0.7 s |
 | `noGold.mp3` | "Not enough gold" | 0.2–0.4 s |
 | `deny.mp3` | "Not enough mana", "Nothing in range" | 0.1–0.3 s |
 | `shot.arrow.mp3` | An Arrow tower fires (branches play it at another pitch) | 0.2–0.4 s |

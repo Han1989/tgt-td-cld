@@ -908,6 +908,10 @@ button {
   animation: coop-edge 0.9s ease forwards;
 }
 
+#coop-glow.on.brief {
+  animation-duration: 0.7s;
+}
+
 @keyframes coop-edge {
   0% { opacity: 0; }
   20% { opacity: 1; }
@@ -977,6 +981,58 @@ button {
 
 body.layout-tall #coop-burst {
   top: 32%;
+}
+
+/* Together-kill: one word under the top bar, gone in well under a second.
+   Seat colours are the names and the edge glow; the corpse flash is in the world. */
+#together-kill {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+#together-kill.on {
+  animation: together-pop 0.7s ease forwards;
+}
+
+#together-kill-word {
+  font-family: var(--title-font);
+  font-size: clamp(28px, 8vw, 44px);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: -1px 0 var(--ink), 1px 0 var(--ink), 0 -1px var(--ink), 0 1px var(--ink), 0 2px 12px #000;
+  white-space: nowrap;
+}
+
+#together-kill-who {
+  font-size: clamp(14px, 4.2vw, 18px);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: 0 1px 2px var(--ink), 0 0 6px #000;
+}
+
+@keyframes together-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.84); }
+  16% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.04); }
+  28% { transform: translateX(-50%) translateY(0) scale(1); }
+  62% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(1.02); }
+}
+
+body.layout-tall #together-kill {
+  top: calc(var(--topbar-bottom, 44px) + 8px);
 }
 
 /* Heart-save: the lane name, large enough for a phone clip, with a ping ring.

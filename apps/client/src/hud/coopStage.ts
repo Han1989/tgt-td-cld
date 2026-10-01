@@ -1,9 +1,12 @@
-// Full-screen co-op flourishes: a shared ping/emote silhouette, and a soft
-// edge glow in two player colours. DOM only. The world ribbon is the renderer.
+// Full-screen co-op flourishes: a shared ping/emote silhouette, a soft
+// edge glow in two player colours, and a short together-kill word.
+// DOM only. The world ribbon and the kill flash are the renderer.
 
 const BURST_MS = 1200;
 const EDGE_MS = 900;
 const CLUTCH_MS = 1700;
+/** Together-kill word and edge glow. One glance, then gone. */
+const TOGETHER_MS = 700;
 
 export interface StageWho {
   name: string;
@@ -22,9 +25,12 @@ export class CoopStage {
   private readonly clutchKicker: HTMLElement;
   private readonly clutchWord: HTMLElement;
   private readonly clutchLine: HTMLElement;
+  private readonly togetherEl: HTMLElement;
+  private readonly togetherWho: HTMLElement;
   private burstTimer = 0;
   private edgeTimer = 0;
   private clutchTimer = 0;
+  private togetherTimer = 0;
 
   constructor(doc: Document = document) {
     this.burst = doc.getElementById('coop-burst')!;
@@ -37,6 +43,8 @@ export class CoopStage {
     this.clutchKicker = doc.getElementById('lane-clutch-kicker')!;
     this.clutchWord = doc.getElementById('lane-clutch-word')!;
     this.clutchLine = doc.getElementById('lane-clutch-line')!;
+    this.togetherEl = doc.getElementById('together-kill')!;
+    this.togetherWho = doc.getElementById('together-kill-who')!;
   }
 
   /** A phone-readable pair of rings and a short word, in the two players' colours. */
@@ -49,10 +57,31 @@ export class CoopStage {
   }
 
   /** Soft inset glow along the screen edge, one colour each side of the pair. */
-  edge(colorA: string, colorB: string): void {
+  edge(colorA: string, colorB: string, brief = false): void {
     this.glow.style.setProperty('--a', colorA);
     this.glow.style.setProperty('--b', colorB);
-    this.kick(this.glow, 'on', EDGE_MS, (id) => (this.edgeTimer = id), this.edgeTimer, false);
+    this.glow.classList.toggle('brief', brief);
+    this.kick(this.glow, 'on', brief ? TOGETHER_MS : EDGE_MS, (id) => (this.edgeTimer = id), this.edgeTimer, false);
+  }
+
+  /**
+   * Phone-readable together-kill: the word under the top bar, names in seat
+   * colours, and a short edge glow. The world flash is separate.
+   */
+  together(whos: readonly StageWho[]): void {
+    if (whos.length < 2) return;
+    this.togetherWho.replaceChildren();
+    whos.forEach((w, i) => {
+      if (i > 0) this.togetherWho.append(document.createTextNode(' · '));
+      const name = document.createElement('b');
+      name.textContent = w.name;
+      name.style.color = w.color;
+      this.togetherWho.append(name);
+    });
+    const first = whos[0]!.color;
+    const last = whos[whos.length - 1]!.color;
+    this.edge(first, last, true);
+    this.kick(this.togetherEl, 'on', TOGETHER_MS, (id) => (this.togetherTimer = id), this.togetherTimer, true);
   }
 
   /**
@@ -70,11 +99,14 @@ export class CoopStage {
     window.clearTimeout(this.burstTimer);
     window.clearTimeout(this.edgeTimer);
     window.clearTimeout(this.clutchTimer);
+    window.clearTimeout(this.togetherTimer);
     this.burst.classList.add('hidden');
     this.burst.classList.remove('on');
-    this.glow.classList.remove('on');
+    this.glow.classList.remove('on', 'brief');
     this.clutchEl.classList.add('hidden');
     this.clutchEl.classList.remove('on');
+    this.togetherEl.classList.add('hidden');
+    this.togetherEl.classList.remove('on');
   }
 
   private kick(
