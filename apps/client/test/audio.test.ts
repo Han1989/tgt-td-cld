@@ -566,7 +566,7 @@ describe('game audio', () => {
     const mate = snap.heroes.find((h) => h.owner === 'mate')!;
     const events: GameEvent[] = [
       { type: 'waveStart', wave: 1, income: 0 },
-      { type: 'leak', creepId: 1, damage: 1 },
+      { type: 'leak', creepId: 1, damage: 1, lane: 1 },
       { type: 'cast', heroId: me.id, slot: 'Q', x: 0, y: 0 },
       { type: 'cast', heroId: mate.id, slot: 'Q', x: 0, y: 0 },
       { type: 'cast', heroId: mate.id, slot: 'E', x: 0, y: 0 },
@@ -668,7 +668,7 @@ describe('game audio', () => {
   it('does no work while nothing can be heard (muted)', () => {
     const { snap, sink, audio } = match();
     sink.sfxOn = false;
-    audio.events([{ type: 'leak', creepId: 1, damage: 1 }], 0);
+    audio.events([{ type: 'leak', creepId: 1, damage: 1, lane: 1 }], 0);
     audio.towerShot(snap.towers[0]!, 0);
     audio.tap(0);
     expect(sink.plays).toHaveLength(0);

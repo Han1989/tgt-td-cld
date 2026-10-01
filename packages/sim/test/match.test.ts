@@ -125,6 +125,31 @@ describe('match reports and replays', () => {
     ]);
   });
 
+  it('counts gold gifted and received on both heroes', () => {
+    const match = createMatch(
+      {
+        players: [
+          { id: 'p1', name: 'A', hero: 'ranger' },
+          { id: 'p2', name: 'B', hero: 'warden' },
+        ],
+      },
+      1,
+    );
+    expect(matchCommand(match, 'p1', { type: 'gift', to: 'p1', amount: 10 })).toBe(false);
+    matchStep(match);
+    expect(matchCommand(match, 'p1', { type: 'gift', to: 'p2', amount: 40 })).toBe(true);
+    matchStep(match);
+    expect(matchCommand(match, 'p2', { type: 'gift', to: 'p1', amount: 15 })).toBe(true);
+    matchStep(match);
+    const report = matchReport(match);
+    expect(report.heroes.map((h) => [h.player, h.goldGifted, h.goldReceived])).toEqual([
+      ['p1', 40, 15],
+      ['p2', 15, 40],
+    ]);
+    expect(reportSummary(report)).toContain('gifted 40 got 15');
+    expect(reportSummary(report)).toContain('gifted 15 got 40');
+  });
+
   it('counts seconds Q or W is ready but unaffordable', () => {
     const match = createMatch({ players: [{ id: 'p1', name: 'A', hero: 'arcanist' }] }, 1);
     const hero = match.state.heroes[0]!;

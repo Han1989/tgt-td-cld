@@ -10,6 +10,7 @@ import {
   GAME_MODES,
   HERO_KINDS,
   PROTOCOL_VERSION,
+  R_OVERLAP_SECONDS,
   type Command,
   type HeroReport,
   type MatchReport,
@@ -26,8 +27,8 @@ import { TICK_RATE, type Tuning } from './tuning';
 /** What happens to a player's connection: back (rejoined), dropped, or gone for good. */
 export type Presence = 'join' | 'drop' | 'leave';
 
-/** Two ultimates cast this close together (either order) overlap in the report. */
-export const R_OVERLAP_SECONDS = 2;
+/** Re-exported so hosts that already import the window from the sim keep working. Defined in the protocol. */
+export { R_OVERLAP_SECONDS };
 
 interface HeroTrack {
   deaths: number;
@@ -41,6 +42,8 @@ interface HeroTrack {
   branches: number;
   goldSpent: number;
   wavesCalledEarly: number;
+  goldGifted: number;
+  goldReceived: number;
 }
 
 export interface Match {
@@ -74,6 +77,8 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       branches: 0,
       goldSpent: 0,
       wavesCalledEarly: 0,
+      goldGifted: 0,
+      goldReceived: 0,
     })),
   };
 }
@@ -158,6 +163,11 @@ export function matchStep(match: Match): void {
         t.casts[e.slot]++;
         if (e.slot === 'R') t.rTicks.push(state.tick);
       }
+    } else if (e.type === 'gift') {
+      const from = match.heroes[state.players.findIndex((p) => p.id === e.from)];
+      const to = match.heroes[state.players.findIndex((p) => p.id === e.to)];
+      if (from) from.goldGifted += e.amount;
+      if (to) to.goldReceived += e.amount;
     }
   }
   state.heroes.forEach((h, i) => {
@@ -196,6 +206,8 @@ export function matchReport(match: Match): MatchReport {
       goldSpent: t.goldSpent,
       goldUnspent: Math.floor(player.gold),
       wavesCalledEarly: t.wavesCalledEarly,
+      goldGifted: t.goldGifted,
+      goldReceived: t.goldReceived,
     };
   });
   return {
@@ -296,7 +308,8 @@ export function reportSummary(report: MatchReport, room?: string): string {
   const heroes = report.heroes.map(
     (h) =>
       `${h.name}/${h.hero} L${h.level} k${h.kills} d${h.deaths} Q${h.casts.Q} W${h.casts.W} R${h.casts.R} ` +
-      `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps}`,
+      `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps} ` +
+      `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0}`,
   );
   return (
     `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} seed ${report.seed} v${report.protocol} build ${report.build} ` +

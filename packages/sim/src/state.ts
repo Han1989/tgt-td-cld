@@ -90,6 +90,11 @@ export interface Hero {
    * Null while it has an order (or is dead).
    */
   guard: { x: number; y: number } | null;
+  /**
+   * Tick the next snapshot will show for this hero's last successful R, or -1.
+   * Not sent to clients. `syncCast` reads it. Instant casts store the upcoming snapshot tick.
+   */
+  rCastTick: number;
 }
 
 export type CreepMode = 'lane' | 'chase' | 'return';

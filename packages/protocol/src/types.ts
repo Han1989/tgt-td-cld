@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -81,6 +81,55 @@ export const SKILL_SLOTS = ['Q', 'W', 'E', 'R'] as const;
 export type SkillSlot = (typeof SKILL_SLOTS)[number];
 
 export type LaneId = 0 | 1 | 2;
+
+/** Spire lane names. Index is `LaneId`: West, Mid, East. */
+export const LANE_NAMES = ['West', 'Mid', 'East'] as const;
+
+/** Display name for a lane. West is 0, Mid is 1, East is 2. */
+export function laneName(lane: LaneId): (typeof LANE_NAMES)[number] {
+  return LANE_NAMES[lane];
+}
+
+/**
+ * `leak.creepId` when the Heart drop is not a creep (Hard's final-wave strain).
+ * That event still carries `lane`, but it is not a lane leak — see `FINALE_LEAK_LANE`.
+ */
+export const FINALE_LEAK_CREEP_ID = 0;
+
+/** Lane stamped on the finale strain so the field stays a `LaneId`. Clients should not label it as a lane leak. */
+export const FINALE_LEAK_LANE: LaneId = 1;
+
+/**
+ * Two ultimates this close together (either order) overlap: the match report's `rOverlaps`,
+ * and one live `syncCast` when the later cast lands. No extra damage.
+ */
+export const R_OVERLAP_SECONDS = 2;
+
+/**
+ * Advisory lane lines for boss waves, for Client Polish banners.
+ * Index 0 is West, 1 Mid, 2 East (`LANE_NAMES`). One short hint per lane.
+ *
+ * Hints only: they do not assign a player, a tower, or a branch. Bosses walk Mid.
+ * Side lanes share that wave's other creeps (flyers, brutes, runners). The Matriarch's
+ * hatchlings stay on her lane. Shardback's body swaps Stone (physical) and Ether (magic).
+ */
+export const BOSS_LANE_HINTS: Record<BossKind, readonly [string, string, string]> = {
+  ironhorn: ['flyers and brutes', 'boss body — stomp nearby', 'flyers and brutes'],
+  matriarch: ['mixed pack', 'boss body and hatchlings', 'mixed pack'],
+  shardback: ['runners and flyers', 'boss body — stone or ether', 'runners and flyers'],
+};
+
+/** Full and Quick wave numbers each boss walks. Advisory, same order as the wave lists. */
+export const BOSS_WAVES: Record<BossKind, { readonly full: number; readonly quick: number }> = {
+  ironhorn: { full: 10, quick: 5 },
+  matriarch: { full: 20, quick: 10 },
+  shardback: { full: 30, quick: 15 },
+};
+
+/** Advisory hint for one lane of a boss wave. Not a required counter. */
+export function bossLaneHint(kind: BossKind, lane: LaneId): string {
+  return BOSS_LANE_HINTS[kind][lane];
+}
 
 /** Match length: Full (30 waves) or Quick (15 waves, compressed difficulty). A match option picked before the start. */
 export const GAME_MODES = ['full', 'quick'] as const;
@@ -287,7 +336,12 @@ export type GameEvent =
   | { type: 'waveStart'; wave: number; income: number }
   | { type: 'callEarly'; by: PlayerId; bonus: number }
   | { type: 'kill'; creepId: EntityId; kind: CreepKind; x: number; y: number; by: PlayerId | null; bounty: number }
-  | { type: 'leak'; creepId: EntityId; damage: number }
+  /**
+   * A creep reached the Heart. `lane` is that creep's lane (`laneName`).
+   * Hard's final-wave strain is not a creep: `creepId` is `FINALE_LEAK_CREEP_ID` and `lane` is
+   * `FINALE_LEAK_LANE`. Clients that name the lane should skip that id.
+   */
+  | { type: 'leak'; creepId: EntityId; damage: number; lane: LaneId }
   | { type: 'heroDied'; heroId: EntityId }
   | { type: 'heroRespawned'; heroId: EntityId }
   | { type: 'levelUp'; heroId: EntityId; level: number }
@@ -296,6 +350,12 @@ export type GameEvent =
   | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number; branch: TowerBranch | null }
   | { type: 'towerDestroyed'; towerId: EntityId }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
+  /**
+   * A living hero's R landed while another living hero's R was still inside `R_OVERLAP_SECONDS`.
+   * Emitted once, when the later cast lands (not every tick). `heroIds` is every living hero in
+   * that window, sorted by id. No extra damage — Client Polish draws the ribbon from this.
+   */
+  | { type: 'syncCast'; heroIds: EntityId[]; slot: 'R' }
   | { type: 'trapTriggered'; x: number; y: number; radius: number }
   | { type: 'stomp'; x: number; y: number; radius: number }
   | { type: 'hatch'; creepId: EntityId; x: number; y: number; count: number }
@@ -370,8 +430,12 @@ export interface HeroReport {
   casts: { Q: number; W: number; R: number };
   /** Seconds Q / W were learned and off cooldown but cost more mana than the hero had (while alive). */
   noManaSeconds: { Q: number; W: number };
-  /** Ultimates cast within 2 s of another hero's ultimate (either side). */
+  /** Ultimates cast within `R_OVERLAP_SECONDS` of another hero's ultimate (either side). */
   rOverlaps: number;
+  /** Gold this player gave to teammates. Reports from before protocol 14 omit it: read as 0. */
+  goldGifted: number;
+  /** Gold teammates gave this player. Reports from before protocol 14 omit it: read as 0. */
+  goldReceived: number;
   /** Towers this player built. */
   towersBuilt: number;
   /** Tier upgrades (not the tier-4 branch). */
@@ -384,6 +448,20 @@ export interface HeroReport {
   goldUnspent: number;
   /** Waves this player called early. */
   wavesCalledEarly: number;
+}
+
+/**
+ * Gift totals on a hero report. New reports always set both.
+ * A report saved before protocol 14 omits them; those count as 0.
+ */
+export function heroGiftTotals(hero: {
+  goldGifted?: number;
+  goldReceived?: number;
+}): { goldGifted: number; goldReceived: number } {
+  return {
+    goldGifted: hero.goldGifted ?? 0,
+    goldReceived: hero.goldReceived ?? 0,
+  };
 }
 
 /** A summary of a finished match, built by the host (server or local worker) from the simulation. */

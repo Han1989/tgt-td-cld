@@ -112,7 +112,7 @@ function leak(state: GameState, c: Creep): void {
   const damage = state.tuning.creeps[c.kind].leakDamage;
   c.dead = true;
   state.heartHp = Math.max(0, state.heartHp - damage);
-  emit(state, { type: 'leak', creepId: c.id, damage });
+  emit(state, { type: 'leak', creepId: c.id, damage, lane: c.lane });
 }
 
 function nearestHero(state: GameState, c: Creep, range: number): Hero | undefined {

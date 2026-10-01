@@ -74,6 +74,7 @@ interface TeamRow {
   gifts: HTMLButtonElement[];
 }
 
+// One-line boss toast. Lane banners are Client Polish: `BOSS_LANE_HINTS` / `bossLaneHint` in `@tdt/protocol`.
 const BOSS_HINTS: Record<BossKind, string> = {
   ironhorn: 'Ironhorn stomps: it stuns heroes and towers close to it',
   matriarch: 'The Matriarch hatches broods of hatchlings as it walks',
@@ -492,6 +493,7 @@ export class Hud {
         else this.showBanner(last, e.income > 0 ? `+${e.income} gold` : '', false);
         if (boss) this.toast(BOSS_HINTS[boss]);
       } else if (e.type === 'leak') {
+        // `e.lane` / `laneName` is the leak lane (skip `FINALE_LEAK_CREEP_ID`). This pulse stays on the Heart.
         pulse(this.heartStat, HIT_PULSE, 380);
       } else if (e.type === 'cast' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
         const b = this.skillButtons.get(e.slot);
