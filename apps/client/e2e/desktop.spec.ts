@@ -209,8 +209,8 @@ test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, S
   await expect(page.locator('#tutorial-body')).toContainText('Right-click');
 
   const card = await lessonCard(page);
-  expect(card.alpha).toBeGreaterThan(0.35);
-  expect(card.alpha).toBeLessThanOrEqual(0.65);
+  expect(card.alpha).toBeGreaterThan(0.28);
+  expect(card.alpha).toBeLessThanOrEqual(0.45);
   expect(card.pointerEvents).toBe('none');
   expect(card.textPassesThrough).toBe(true);
   expect(card.skipHitsButton).toBe(true);

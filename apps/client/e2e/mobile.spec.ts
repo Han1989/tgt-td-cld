@@ -384,8 +384,8 @@ test.describe('portrait phone layout', () => {
 
     // See-through and click-through, including the long "Cast a skill" line.
     const shown = await lessonCard(page);
-    expect(shown.alpha).toBeGreaterThan(0.35);
-    expect(shown.alpha).toBeLessThanOrEqual(0.65);
+    expect(shown.alpha).toBeGreaterThan(0.28);
+    expect(shown.alpha).toBeLessThanOrEqual(0.45);
     expect(shown.pointerEvents).toBe('none');
     expect(shown.textPassesThrough).toBe(true);
     expect(shown.skipHitsButton).toBe(true);
