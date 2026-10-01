@@ -112,6 +112,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'gate1',
     note: 'Waived 1 Oct 2026 by Han (time) with Gate 1. Skipped. No Render plan change. Treated as passed so Phase 6 may proceed.',
+    proof: pr(37),
   },
   {
     id: 'g1-play',
@@ -120,6 +121,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'gate1',
     note: 'Waived 1 Oct 2026 by Han (time). The friends session was not run. Skipped and treated as passed.',
+    proof: pr(37),
   },
   {
     id: 'g1-watch',
@@ -128,6 +130,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'gate1',
     note: 'Waived 1 Oct 2026 by Han (time). The friends session was not run, so there are no watch notes. Skipped and treated as passed.',
+    proof: pr(37),
   },
   {
     id: 'g1-tune',
@@ -136,6 +139,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'gate1',
     note: 'Waived 1 Oct 2026 with the playtest. No retune from friend reports. Skipped and treated as passed.',
+    proof: pr(37),
   },
   {
     id: 'g1-gate',
@@ -144,6 +148,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'gate1',
     note: 'Treated as passed 1 Oct 2026. Han waived the unprompted play-again check (time). Phase 6 may proceed. The evening was not run.',
+    proof: pr(37),
   },
   {
     id: 'H-01',

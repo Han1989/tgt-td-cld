@@ -62,6 +62,7 @@ describe('progress dashboard data', () => {
       expect(item.note.toLowerCase()).toContain('waived');
     }
     expect(byId('g1-gate').note.toLowerCase()).toContain('passed');
+    expect(byId('g1-gate').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/37');
     for (const id of ['H-01', 'H-02', 'H-06', 'D-02', 'D-06', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
       expect(byId(id).status).toBe('todo');
     }
