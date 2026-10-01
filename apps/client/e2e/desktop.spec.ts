@@ -3,7 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { box, sent, startSolo, toScreen, waitForReady } from './helpers';
+import { box, lessonCard, sent, startSolo, toScreen, waitForReady } from './helpers';
 
 test('wide layout: map centred and fitted to the height, HUD in the side margins, no touch overlay', async ({ page }) => {
   await startSolo(page);
@@ -207,6 +207,15 @@ test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, S
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
   await expect(page.locator('#tutorial-body')).toContainText('Right-click');
+
+  const card = await lessonCard(page);
+  expect(card.alpha).toBeGreaterThan(0.28);
+  expect(card.alpha).toBeLessThanOrEqual(0.45);
+  expect(card.pointerEvents).toBe('none');
+  expect(card.textPassesThrough).toBe(true);
+  expect(card.skipHitsButton).toBe(true);
+  expect(card.skipHeight).toBeGreaterThanOrEqual(44);
+  expect(card.box.right).toBeLessThanOrEqual(card.map.left + 1);
 
   const target = await toScreen(page, 13, 20);
   await page.mouse.click(target.x, target.y, { button: 'right' });
