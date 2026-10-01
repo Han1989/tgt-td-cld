@@ -82,8 +82,7 @@ button {
 #hud button,
 #hud details,
 #hud .popup,
-#hud .end-screen,
-#hud .tutorial {
+#hud .end-screen {
   pointer-events: auto;
 }
 
@@ -1247,59 +1246,74 @@ button {
   align-self: center;
 }
 
-/* First-match lesson (T-03). Sits under the top bar, off the joystick. */
+/* First-match lesson (T-03). A short see-through strip under the top bar: the
+   lanes stay readable through it, and a tap on the copy reaches the map.
+   Skip and Continue stay solid. Wide screens park the card in the side margin. */
 .tutorial {
   position: absolute;
   z-index: 2;
-  top: calc(var(--topbar-bottom, 56px) + 8px);
+  top: calc(var(--topbar-bottom, 56px) + 6px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(300px, calc(100% - 16px));
-  padding: 10px 12px 8px;
-  background: var(--panel);
-  border: 1px solid var(--panel-edge);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: min(300px, calc(100% - 20px));
+  padding: 7px 8px 7px 10px;
+  background: rgba(14, 16, 24, 0.52);
+  border: 1px solid rgba(207, 230, 255, 0.34);
   border-radius: 12px;
-  box-shadow: var(--panel-shadow);
-  pointer-events: auto;
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.18), 0 0 0 1px rgba(16, 12, 22, 0.4);
+  color: #f4f8ff;
+  text-shadow: 0 1px 2px #100c16, 0 0 8px rgba(16, 12, 22, 0.95);
+  pointer-events: none;
+}
+
+.tutorial-copy {
+  flex: 1;
+  min-width: 0;
 }
 
 .tutorial h2 {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   font-family: var(--title-font);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.03em;
+  line-height: 1.15;
+  color: #fff;
 }
 
 .tutorial p {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.3;
+  color: #f4f8ff;
 }
 
 .tutorial-kicker {
-  font-size: 11px;
+  margin-bottom: 1px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
+  line-height: 1.2;
   text-transform: uppercase;
   color: var(--gold);
 }
 
 .tutorial-actions {
   display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .tutorial-actions .btn {
+  min-width: 84px;
   min-height: 44px;
   padding: 4px 12px;
-}
-
-body.layout-wide .tutorial {
-  top: calc(var(--map-top) + 12px);
-  left: calc(var(--margin) + 12px);
-  transform: none;
+  white-space: nowrap;
+  pointer-events: auto;
 }
 
 .tutorial-offer {
@@ -1657,9 +1671,18 @@ body.layout-wide .toasts {
 }
 
 body.layout-wide .build-hint,
-body.layout-wide .notice,
-body.layout-wide .tutorial {
+body.layout-wide .notice {
   top: calc(var(--map-top) + 12px);
+}
+
+/* In the left margin, under the stats, so the map stays clear. */
+body.layout-wide .tutorial {
+  position: static;
+  top: auto;
+  left: auto;
+  width: auto;
+  margin-top: 4px;
+  transform: none;
 }
 
 body.layout-wide .settings {

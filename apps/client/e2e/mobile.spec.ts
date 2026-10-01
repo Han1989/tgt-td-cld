@@ -2,7 +2,7 @@
 // Pixel projects), docs/MOBILE.md §8.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, centre, Finger, overlaps, sent, startSolo, waitForReady, type Box } from './helpers';
+import { box, centre, Finger, lessonCard, overlaps, sent, startSolo, waitForReady, type Box } from './helpers';
 
 const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn'];
 
@@ -381,6 +381,24 @@ test.describe('portrait phone layout', () => {
     const top = await box(page, '#topbar');
     expect(card.top).toBeGreaterThanOrEqual(top.bottom - 1);
     for (const sel of OVERLAY) expect(overlaps(card, await box(page, sel))).toBe(false);
+
+    // See-through and click-through, including the long "Cast a skill" line.
+    const shown = await lessonCard(page);
+    expect(shown.alpha).toBeGreaterThan(0.35);
+    expect(shown.alpha).toBeLessThanOrEqual(0.65);
+    expect(shown.pointerEvents).toBe('none');
+    expect(shown.textPassesThrough).toBe(true);
+    expect(shown.skipHitsButton).toBe(true);
+    expect(shown.skipHeight).toBeGreaterThanOrEqual(44);
+    const vp = page.viewportSize()!;
+    await page.locator('#tutorial-body').evaluate((el) => {
+      el.textContent =
+        'When a creep is close, tap Q (Keen Eye). If it says nothing in range, walk nearer and tap again. Creeps arrive when the first wave starts.';
+    });
+    const tall = await lessonCard(page);
+    expect(tall.height).toBeLessThan(160);
+    expect(tall.height).toBeLessThan(vp.height * 0.22);
+    expect(tall.textPassesThrough).toBe(true);
 
     const finger = await Finger.on(page);
     const joy = centre(await box(page, '#joystick'));

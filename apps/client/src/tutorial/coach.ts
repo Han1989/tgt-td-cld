@@ -50,6 +50,7 @@ export class TutorialCoach {
   constructor(private readonly input: () => 'touch' | 'desktop') {
     this.skip.addEventListener('click', () => this.onSkip());
     this.next.addEventListener('click', () => this.forward());
+    // The card itself is click-through (style.css). Button presses stop here so they do not reach the map.
     this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
 

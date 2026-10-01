@@ -127,6 +127,40 @@ export function centre(b: Box): { x: number; y: number } {
   return { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
 }
 
+/** The lesson card: wash strength, whether the copy lets taps through, and where it sits. */
+export async function lessonCard(page: Page): Promise<{
+  alpha: number;
+  pointerEvents: string;
+  height: number;
+  box: Box;
+  map: Box;
+  textPassesThrough: boolean;
+  skipHitsButton: boolean;
+  skipHeight: number;
+}> {
+  return page.evaluate(() => {
+    const card = document.getElementById('tutorial')!;
+    const rect = card.getBoundingClientRect();
+    const skip = document.getElementById('tutorial-skip')!.getBoundingClientRect();
+    const style = getComputedStyle(card);
+    const textHit = document.elementFromPoint(rect.left + 12, Math.min(rect.bottom - 6, rect.top + 28));
+    const skipHit = document.elementFromPoint(skip.left + skip.width / 2, skip.top + skip.height / 2);
+    const match = style.backgroundColor.match(/rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*([\d.]+))?\s*\)/);
+    const alpha = match && match[1] !== undefined ? Number(match[1]) : 1;
+    const map = window.__tdt.layout().map;
+    return {
+      alpha,
+      pointerEvents: style.pointerEvents,
+      height: rect.height,
+      box: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      map,
+      textPassesThrough: !!textHit && !card.contains(textHit),
+      skipHitsButton: !!skipHit && !!skipHit.closest('#tutorial-skip'),
+      skipHeight: skip.height,
+    };
+  });
+}
+
 export function overlaps(a: Box, b: Box): boolean {
   return a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
 }
