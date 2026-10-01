@@ -475,6 +475,15 @@ export class WorldRenderer {
     this.texts = [];
   }
 
+  /**
+   * Twin ultimates: a Runelight ribbon between the two cast origins, in each player's colour.
+   * Client-only. The caller decides when the overlap window hit.
+   */
+  twinRibbon(a: { x: number; y: number }, b: { x: number; y: number }, colorA: number, colorB: number): void {
+    this.fx.ribbon(a.x, a.y, b.x, b.y, colorA, colorB);
+    this.fx.bump(0.2);
+  }
+
   playEvents(events: GameEvent[], latest: Snapshot | undefined, me: PlayerId | null, now: number): void {
     const fx = this.fx;
     // Damage numbers: everyone's in solo, only your hero's and towers' online.

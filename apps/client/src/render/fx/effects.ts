@@ -279,6 +279,51 @@ export class Effects {
     });
   }
 
+  /**
+   * A short ribbon between two points (tile units), one strand in each colour plus a gold core.
+   * Essential, so it still reads at Low quality. The spark frame is 32×8 px, stretched along the line.
+   */
+  ribbon(x0: number, y0: number, x1: number, y1: number, colorA: number, colorB: number): void {
+    const ax = x0 * S;
+    const ay = y0 * S;
+    const bx = x1 * S;
+    const by = y1 * S;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx);
+    const px = Math.cos(ang + Math.PI / 2);
+    const py = Math.sin(ang + Math.PI / 2);
+    if (len >= 8) {
+      const strands: readonly (readonly [number, number, number])[] = [
+        [colorA, -5, 1.35],
+        [colorB, 5, 1.35],
+        [FX.goldLight, 0, 0.7],
+      ];
+      for (const [tint, off, thick] of strands) {
+        this.emit({
+          frame: 'spark',
+          x: (ax + bx) / 2 + px * off,
+          y: (ay + by) / 2 + py * off,
+          life: [820, 820],
+          scale: [thick, thick * 0.55],
+          stretch: len / (32 * thick),
+          tint,
+          alpha: [0.95, 0],
+          rotation: ang,
+          layer: 'add',
+          essential: true,
+        });
+      }
+    }
+    this.flash(x0, y0, 1.15, colorA, 520, 0.75);
+    this.flash(x1, y1, 1.15, colorB, 520, 0.75);
+    this.ring(x0, y0, 1.35, colorA, 640, 0.25);
+    this.ring(x1, y1, 1.35, colorB, 640, 0.25);
+    this.sparkle(x0, y0, colorA, 8, 0.5);
+    this.sparkle(x1, y1, colorB, 8, 0.5);
+  }
+
   /** A filled flash of a radius (tile units) that fades. Essential. */
   flash(x: number, y: number, radius: number, color: number, life: number, alpha = 0.6, layer: FxLayerName = 'add'): void {
     this.emit({

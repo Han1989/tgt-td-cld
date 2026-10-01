@@ -209,7 +209,7 @@ export class GameAudio {
           this.play('towerBreak', now);
           break;
         case 'gift':
-          if (e.to === me) this.play('coin', now);
+          if (e.to === me || e.from === me) this.play('coin', now);
           break;
         case 'ping':
           // Heard even when the point is off screen (the edge marker is the picture).
@@ -252,6 +252,12 @@ export class GameAudio {
   /** A button was pressed. */
   tap(now: number): void {
     if (this.sink.sfxOn) this.play('tap', now);
+  }
+
+  /** A shared co-op flourish (mirrored ping, mirrored emote, twin ultimates). Heard everywhere. */
+  flourish(id: 'pingBurst' | 'emoteBurst' | 'twinCast', now: number): void {
+    if (!this.sink.sfxOn) return;
+    this.play(id, now);
   }
 
   private hero(id: number): HeroSnap | undefined {

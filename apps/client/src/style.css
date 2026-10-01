@@ -842,6 +842,143 @@ button {
   }
 }
 
+/* Gift theater: a gold figure with the other player's colour on the rim. */
+.toast.gift {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 168px;
+  padding: 10px 18px 12px;
+  background: linear-gradient(180deg, rgba(62, 48, 16, 0.96), rgba(16, 12, 8, 0.96));
+  border: 2px solid var(--gift, var(--gold));
+  box-shadow: 0 0 0 1px var(--ink), 0 0 18px var(--gift, var(--gold));
+  animation: gift-toast 2.6s ease forwards;
+}
+
+.toast.gift .icon {
+  width: 28px;
+  height: 28px;
+}
+
+.toast.gift b {
+  font-family: var(--title-font);
+  font-size: 28px;
+  line-height: 1;
+  color: var(--gold);
+  text-shadow: -1px 0 var(--ink), 1px 0 var(--ink), 0 -1px var(--ink), 0 1px var(--ink);
+}
+
+.toast.gift span {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 1px 2px var(--ink);
+}
+
+@keyframes gift-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Shared ping / emote silhouette, and the twin-cast edge glow. */
+#coop-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 18px 0 46px 8px var(--a, transparent),
+    inset -18px 0 46px 8px var(--b, transparent),
+    inset 0 0 28px 6px var(--a, transparent);
+}
+
+#coop-glow.on {
+  animation: coop-edge 0.9s ease forwards;
+}
+
+@keyframes coop-edge {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+#coop-burst {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+#coop-burst.on {
+  animation: coop-pop 1.15s ease forwards;
+}
+
+.coop-rings {
+  position: relative;
+  width: 156px;
+  height: 92px;
+}
+
+.coop-ring {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 6px solid var(--c, var(--gold));
+  box-shadow: 0 0 0 2px var(--ink), 0 0 18px var(--c, var(--gold));
+  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.2), transparent 62%);
+}
+
+.coop-ring.a { left: 0; top: 0; }
+.coop-ring.b { right: 0; top: 8px; }
+
+#coop-burst-word {
+  font-family: var(--title-font);
+  font-size: clamp(20px, 6.2vw, 34px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: -1px 0 var(--ink), 1px 0 var(--ink), 0 -1px var(--ink), 0 1px var(--ink), 0 2px 10px #000;
+  white-space: nowrap;
+}
+
+#coop-burst-who {
+  font-size: 15px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px var(--ink);
+}
+
+@keyframes coop-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.62); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  24% { transform: translate(-50%, -50%) scale(1); }
+  68% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.03); }
+}
+
+body.layout-tall #coop-burst {
+  top: 32%;
+}
+
 .banner {
   position: absolute;
   top: 22%;
@@ -939,6 +1076,7 @@ button {
 .end-screen {
   position: absolute;
   inset: 0;
+  z-index: 8;
   display: grid;
   place-items: center;
   overflow: auto;
@@ -2212,6 +2350,23 @@ body.touch .touch-overlay:not(.hidden) {
   color: var(--c, var(--gold));
   text-shadow: 0 1px 2px var(--ink), 0 0 4px var(--ink);
   white-space: nowrap;
+}
+
+.ping.mirrored .ping-ring {
+  width: 64px;
+  height: 64px;
+  border-width: 5px;
+}
+
+.ping.mirrored .ping-name {
+  font-size: 16px;
+}
+
+.emote-line.mirrored {
+  font-size: 18px;
+  border-width: 2px;
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(255, 210, 74, 0.45);
 }
 
 @keyframes ping-pulse {
