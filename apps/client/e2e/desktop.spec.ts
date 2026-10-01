@@ -243,8 +243,15 @@ test('Skip lesson on the hero pick keeps the chosen mode and hides the card', as
   await expect(page.locator('#tutorial-solo-note')).toBeHidden();
   await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
   await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText('No modifiers');
+  const beforeReroll = await page.locator('#lobby-modifiers-solo .mod-names').innerText();
   await page.locator('#lobby-modifiers-solo .mod-reroll').click();
-  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
+  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeEnabled();
+  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toHaveText('Reroll');
+  const afterReroll = await page.locator('#lobby-modifiers-solo .mod-names').innerText();
+  expect(afterReroll).not.toBe(beforeReroll);
+  await page.locator('#lobby-modifiers-solo .mod-reroll').click();
+  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeEnabled();
+  await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText(afterReroll);
   await page.locator('#lobby-modifiers-solo .mod-none').click();
   await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
   await expect(page.locator('#lobby-modifiers-solo button.mod-offer')).toBeVisible();

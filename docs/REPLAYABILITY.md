@@ -33,7 +33,7 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 - The casual balance bot answers: it prefers a free pad on the surged lane, a teammate may gift up to 20 gold (keeping 60), and a hero whose post is clear walks to that lane. Under Swift the hero stays on its post. The expert bot does not move its pads, gift, or walk for a surge.
 
 **Match modifiers**
-- A match runs 1–2 modifiers, or none. The draw and the one reroll come from the match seed (`modifierRolls`), so the same seed reproduces them. Choosing none does not spend the reroll; "Use modifiers" turns the current draw back on.
+- A match runs 1–2 modifiers, or none. Each draw comes from the match seed (`modifierDraw`): the opening offer, then a new draw on every reroll. The same seed and the same number of rerolls reproduce the current set. The host may reroll until the match starts. Choosing none does not advance the draw; "Use modifiers" turns the current draw back on.
 - Online: the room rolls them when it is created (and again on Back to lobby). The host sends `{ t: 'modifiers', action: 'reroll' | 'none' | 'offer' }`. Guests see the draw and cannot change it.
 - Solo: the hero pick shows the draw. The lesson locks it to none. Play again keeps the chosen modifiers and takes a new seed.
 - Shown in the lobby as one chip per modifier (name and sentence; the offered draw stays visible, labelled Offered, after "No modifiers") and as a wrapping banner before the first wave. The match keeps a short chip per modifier under the top of the map. The match report and the server log name them (`swift+fog`, or `plain`).

@@ -1,8 +1,8 @@
 // Modifier cards for the solo pick and the online lobby.
-// The draw comes from the match seed (`modifierRolls`). The host may reroll once or choose none.
+// The draw comes from the match seed (`modifierDraw`). The host may reroll until Play, or choose none.
 
 import type { Modifier, ModifierAction } from '@tdt/protocol';
-import { modifierRolls } from '@tdt/sim';
+import { modifierDraw } from '@tdt/sim';
 import { modifierChipEl } from './modifierDom';
 import { modifierLobbyFace, type ModifierActionFace, type ModifierChip, type ModifierLobbyFace } from './modifierFace';
 
@@ -23,16 +23,14 @@ export function freshSeed(): number {
 export class SoloModifierPicker {
   private seed = freshSeed();
   private offer: Modifier[];
-  private reroll: Modifier[];
+  /** How many rerolls this pick has taken. The current draw is `modifierDraw(seed, roll)`. */
+  private roll = 0;
   private modifiers: Modifier[];
-  private rerolled = false;
   private locked = false;
 
   constructor(private readonly container: HTMLElement) {
-    const rolled = modifierRolls(this.seed);
-    this.offer = rolled.offer;
-    this.reroll = rolled.reroll;
-    this.modifiers = rolled.offer.slice();
+    this.offer = modifierDraw(this.seed, 0);
+    this.modifiers = this.offer.slice();
     this.paint();
   }
 
@@ -50,10 +48,9 @@ export class SoloModifierPicker {
   private onAction(action: ModifierAction): void {
     if (this.locked) return;
     if (action === 'reroll') {
-      if (this.rerolled) return;
-      this.offer = this.reroll.slice();
+      this.roll += 1;
+      this.offer = modifierDraw(this.seed, this.roll);
       this.modifiers = this.offer.slice();
-      this.rerolled = true;
     } else if (action === 'none') {
       this.modifiers = [];
     } else {
@@ -64,7 +61,7 @@ export class SoloModifierPicker {
 
   private paint(): void {
     const face = modifierLobbyFace(
-      { modifiers: this.modifiers, modifierOffer: this.offer, modifiersRerolled: this.rerolled },
+      { modifiers: this.modifiers, modifierOffer: this.offer },
       { buttons: true, locked: this.locked },
     );
     renderModifierFace(this.container, face, (action) => this.onAction(action));
@@ -74,7 +71,7 @@ export class SoloModifierPicker {
 /** Online lobby: the room already owns the draw. `onAction` is host-only. */
 export function renderModifierLobby(
   container: HTMLElement,
-  state: { modifiers: Modifier[]; modifierOffer: Modifier[]; modifiersRerolled: boolean },
+  state: { modifiers: Modifier[]; modifierOffer: Modifier[] },
   host: boolean,
   onAction: (action: ModifierAction) => void,
 ): void {

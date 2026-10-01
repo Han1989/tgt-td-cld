@@ -144,7 +144,7 @@ export type Difficulty = (typeof DIFFICULTIES)[number];
 
 /**
  * Match modifiers (docs/REPLAYABILITY.md §2). A match runs one or two of these, or none when the host
- * turns them off. The set is drawn from the match seed; the host may reroll that draw once.
+ * turns them off. The set is drawn from the match seed; the host may reroll that draw until the match starts.
  */
 export const MODIFIERS = ['swift', 'ironclad', 'skyTide', 'fog', 'goldRush'] as const;
 export type Modifier = (typeof MODIFIERS)[number];
@@ -576,7 +576,10 @@ export interface LobbyState {
   modifiers: Modifier[];
   /** The seed's current draw (one or two). Restored by the `offer` action after "No modifiers". */
   modifierOffer: Modifier[];
-  /** True once the host has used the one reroll. */
+  /**
+   * Kept so protocol 15's lobby shape does not change. Always false: rerolls are not capped,
+   * and the Reroll button stays available until the match starts.
+   */
   modifiersRerolled: boolean;
   players: LobbyPlayer[];
 }
@@ -658,7 +661,8 @@ export type ClientMessage =
   | { t: 'difficulty'; difficulty: Difficulty }
   /**
    * Lobby: change the modifier draw (online: host only, before the start).
-   * `reroll` once, `none` clears them, `offer` restores the current draw.
+   * `reroll` advances to the next seed draw (no cap), `none` clears them without advancing,
+   * `offer` restores the current draw.
    */
   | { t: 'modifiers'; action: ModifierAction }
   /** Lobby: toggle ready. */
