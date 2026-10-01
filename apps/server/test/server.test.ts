@@ -255,8 +255,11 @@ describe('modifiers', () => {
     expect(host!.lobby!.modifiers).toEqual(offer);
 
     host!.send({ t: 'modifiers', action: 'reroll' });
+    // Each client gets its own lobby message. Assert the host only after that socket has it.
+    await host!.waitFor(() => host!.lobby?.modifiersRerolled === true);
     await guest!.waitFor(() => guest!.lobby?.modifiersRerolled === true);
     expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
+    expect(guest!.lobby!.modifiers).toEqual(host!.lobby!.modifiers);
     expect(host!.lobby!.modifiers).not.toEqual(offer);
 
     host!.send({ t: 'modifiers', action: 'reroll' });
