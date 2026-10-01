@@ -148,6 +148,20 @@ export class MarkerLayer {
   }
 
   /**
+   * An emphasized ping on a leaking lane (its portal, in tiles). Not a player ping:
+   * the label is the lane name, already at the mirrored size so a clip can read it.
+   */
+  clutch(x: number, y: number, label: string, color: string, now: number): void {
+    const el = document.createElement('div');
+    el.className = 'ping mirrored clutch';
+    el.style.setProperty('--c', color);
+    el.innerHTML = '<i class="ping-arrow"></i><i class="ping-ring"></i><b class="ping-name"></b>';
+    el.querySelector('.ping-name')!.textContent = label;
+    this.root.appendChild(el);
+    this.pings.push({ name: label, x, y, color, born: now, el });
+  }
+
+  /**
    * Grow the markers that were born at these times (a mirrored ping or emote).
    * The shared silhouette is separate; this is the mark still sitting on the map.
    */

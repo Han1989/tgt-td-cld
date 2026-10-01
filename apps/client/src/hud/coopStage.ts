@@ -3,6 +3,7 @@
 
 const BURST_MS = 1200;
 const EDGE_MS = 900;
+const CLUTCH_MS = 1700;
 
 export interface StageWho {
   name: string;
@@ -17,8 +18,13 @@ export class CoopStage {
   private readonly ringA: HTMLElement;
   private readonly ringB: HTMLElement;
   private readonly glow: HTMLElement;
+  private readonly clutchEl: HTMLElement;
+  private readonly clutchKicker: HTMLElement;
+  private readonly clutchWord: HTMLElement;
+  private readonly clutchLine: HTMLElement;
   private burstTimer = 0;
   private edgeTimer = 0;
+  private clutchTimer = 0;
 
   constructor(doc: Document = document) {
     this.burst = doc.getElementById('coop-burst')!;
@@ -27,6 +33,10 @@ export class CoopStage {
     this.ringA = this.burst.querySelector('.coop-ring.a')!;
     this.ringB = this.burst.querySelector('.coop-ring.b')!;
     this.glow = doc.getElementById('coop-glow')!;
+    this.clutchEl = doc.getElementById('lane-clutch')!;
+    this.clutchKicker = doc.getElementById('lane-clutch-kicker')!;
+    this.clutchWord = doc.getElementById('lane-clutch-word')!;
+    this.clutchLine = doc.getElementById('lane-clutch-line')!;
   }
 
   /** A phone-readable pair of rings and a short word, in the two players' colours. */
@@ -45,12 +55,26 @@ export class CoopStage {
     this.kick(this.glow, 'on', EDGE_MS, (id) => (this.edgeTimer = id), this.edgeTimer, false);
   }
 
+  /**
+   * Phone-readable Heart-save: the lane name large, with a ping ring.
+   * The Heart stat pulse is separate and stays where it was.
+   */
+  clutch(kicker: string, word: string, line: string): void {
+    this.clutchKicker.textContent = kicker;
+    this.clutchWord.textContent = word;
+    this.clutchLine.textContent = line;
+    this.kick(this.clutchEl, 'on', CLUTCH_MS, (id) => (this.clutchTimer = id), this.clutchTimer, true);
+  }
+
   clear(): void {
     window.clearTimeout(this.burstTimer);
     window.clearTimeout(this.edgeTimer);
+    window.clearTimeout(this.clutchTimer);
     this.burst.classList.add('hidden');
     this.burst.classList.remove('on');
     this.glow.classList.remove('on');
+    this.clutchEl.classList.add('hidden');
+    this.clutchEl.classList.remove('on');
   }
 
   private kick(

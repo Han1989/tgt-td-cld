@@ -979,6 +979,134 @@ body.layout-tall #coop-burst {
   top: 32%;
 }
 
+/* Heart-save: the lane name, large enough for a phone clip, with a ping ring.
+   The Heart stat pulse is separate. */
+#lane-clutch {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+#lane-clutch.on {
+  animation: clutch-pop 1.7s ease forwards;
+}
+
+.clutch-ring {
+  width: 88px;
+  height: 88px;
+  margin-bottom: -10px;
+  border-radius: 50%;
+  border: 6px solid var(--heart);
+  box-shadow: 0 0 0 2px var(--ink), 0 0 22px var(--heart);
+  animation: ping-pulse 0.9s ease-out infinite;
+}
+
+#lane-clutch-kicker {
+  font-size: clamp(13px, 3.6vw, 16px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--heart);
+  text-shadow: 0 1px 2px var(--ink), 0 0 8px #000;
+}
+
+#lane-clutch-word {
+  font-family: var(--title-font);
+  font-size: clamp(42px, 13vw, 72px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: #ffe8ec;
+  text-shadow: 0 0 18px rgba(255, 58, 96, 0.9), 0 2px 0 var(--ink), 0 3px 12px #000;
+}
+
+#lane-clutch-line {
+  margin-top: 2px;
+  font-size: clamp(16px, 4.6vw, 22px);
+  font-weight: 800;
+  color: var(--text);
+  text-shadow: 0 1px 2px var(--ink), 0 0 6px #000;
+  white-space: nowrap;
+}
+
+@keyframes clutch-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  22% { transform: translate(-50%, -50%) scale(1); }
+  68% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.02); }
+}
+
+body.layout-tall #lane-clutch {
+  top: 28%;
+}
+
+/* Advisory lane roles on a boss wave. The arrival banner and toast stay. */
+#lane-roles {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(360px, calc(100% - 24px));
+  pointer-events: none;
+  animation: lane-roles 4.6s ease forwards;
+}
+
+.lane-role {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(16, 12, 22, 0.88);
+  border: 1px solid rgba(255, 58, 96, 0.5);
+  box-shadow: 0 0 0 1px var(--ink), 0 4px 14px rgba(0, 0, 8, 0.45);
+}
+
+.lane-role b {
+  flex: none;
+  min-width: 3.2em;
+  font-size: clamp(15px, 4.2vw, 18px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--heart);
+}
+
+.lane-role span {
+  font-size: clamp(15px, 4vw, 17px);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lane-role.lane-1 {
+  border-color: rgba(255, 210, 74, 0.75);
+}
+
+.lane-role.lane-1 b {
+  color: var(--gold);
+}
+
+@keyframes lane-roles {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  8% { opacity: 1; transform: translateX(-50%); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%); }
+}
+
+body.layout-tall #lane-roles {
+  top: 44%;
+}
+
 .banner {
   position: absolute;
   top: 22%;
@@ -1147,6 +1275,45 @@ body.layout-tall #coop-burst {
 .end-card p {
   color: var(--muted);
   margin: 0 0 16px;
+}
+
+.end-gifts {
+  list-style: none;
+  margin: -4px auto 16px;
+  padding: 8px 12px;
+  width: min(360px, 100%);
+  text-align: left;
+  background: rgba(8, 6, 12, 0.55);
+  border: 1px solid rgba(232, 185, 74, 0.4);
+  border-radius: 10px;
+}
+
+.end-gifts-head {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding-bottom: 4px;
+}
+
+.end-gifts li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 3px 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.end-gifts .who {
+  color: var(--text);
+}
+
+.end-gifts .amt {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
 }
 
 .end-feedback {
@@ -2360,6 +2527,12 @@ body.touch .touch-overlay:not(.hidden) {
 
 .ping.mirrored .ping-name {
   font-size: 16px;
+}
+
+.ping.clutch .ping-name {
+  font-size: clamp(16px, 4.4vw, 20px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .emote-line.mirrored {

@@ -2,7 +2,7 @@
 // the snapshot buffer, the screen layout and the sound (music in the lobby too),
 // fed by whichever Transport is attached (local worker, game server or the stress scene).
 
-import { allowSocial, freshSocialClock, type ClientMessage, type Command, type PlayerId, type Snapshot, type SocialClock, type SocialKind } from '@tdt/protocol';
+import { allowSocial, freshSocialClock, laneName, type ClientMessage, type Command, type PlayerId, type Snapshot, type SocialClock, type SocialKind } from '@tdt/protocol';
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
@@ -423,12 +423,33 @@ export class GameView {
         view.stage.mirror(EMOTE_LABEL[cues.beat.emote.emote], who(cues.beat.emote.a.by), who(cues.beat.emote.b.by));
         audio.game.flourish('emoteBurst', now);
       }
-      if (cues.beat.twin) {
-        const a = who(cues.beat.twin.a.by);
-        const b = who(cues.beat.twin.b.by);
-        renderer.twinRibbon(cues.beat.twin.a.data, cues.beat.twin.b.data, playerTint(latest, cues.beat.twin.a.by), playerTint(latest, cues.beat.twin.b.by));
-        view.stage.edge(a.color, b.color);
+      const syncSpots = cues.beat.sync
+        ? cues.beat.sync.spots
+        : cues.beat.twin
+          ? [
+              { by: cues.beat.twin.a.by, x: cues.beat.twin.a.data.x, y: cues.beat.twin.a.data.y },
+              { by: cues.beat.twin.b.by, x: cues.beat.twin.b.data.x, y: cues.beat.twin.b.data.y },
+            ]
+          : null;
+      if (syncSpots && syncSpots.length >= 2) {
+        for (let i = 0; i < syncSpots.length - 1; i++) {
+          const a = syncSpots[i]!;
+          const b = syncSpots[i + 1]!;
+          renderer.twinRibbon(a, b, playerTint(latest, a.by), playerTint(latest, b.by), i === 0);
+        }
+        const first = syncSpots[0]!;
+        const last = syncSpots[syncSpots.length - 1]!;
+        view.stage.edge(toCss(playerTint(latest, first.by)), toCss(playerTint(latest, last.by)));
         audio.game.flourish('twinCast', now);
+      }
+      if (cues.beat.clutch) {
+        const c = cues.beat.clutch;
+        view.stage.clutch(c.title, c.name, c.line);
+        const lanes = getMap().lanes;
+        for (const lane of c.lanes) {
+          const portal = lanes[lane]?.waypoints[0];
+          if (portal) marks.clutch(portal.x, portal.y, laneName(lane), toCss(COLORS.bad), now);
+        }
       }
       marks.update(now, (x, y) => camera.worldToScreen(x * TILE_PX, y * TILE_PX), markerView(layout, camera.viewW, camera.viewH));
       audio.game.events(events, now);
