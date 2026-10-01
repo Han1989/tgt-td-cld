@@ -238,7 +238,7 @@ describe('difficulty', () => {
 });
 
 describe('modifiers', () => {
-  it('lets only the host reroll once or choose none, and starts the match on that draw', async () => {
+  it('lets only the host reroll until the match starts, or choose none', async () => {
     const { server, url } = await start();
     const [host, guest] = await fullRoom(url, 2);
     host!.acting = false;
@@ -254,27 +254,35 @@ describe('modifiers', () => {
     expect(guest!.errors[0]).toMatchObject({ code: 'not_host' });
     expect(host!.lobby!.modifiers).toEqual(offer);
 
-    host!.send({ t: 'modifiers', action: 'reroll' });
-    await guest!.waitFor(() => guest!.lobby?.modifiersRerolled === true);
-    expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
-    expect(host!.lobby!.modifiers).not.toEqual(offer);
-
-    host!.send({ t: 'modifiers', action: 'reroll' });
-    await host!.waitFor(() => host!.errors.length > 0);
-    expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
-    expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
+    let previous = offer.join('+');
+    for (let i = 0; i < 3; i++) {
+      host!.send({ t: 'modifiers', action: 'reroll' });
+      await host!.waitFor(() => (host!.lobby?.modifiers.join('+') ?? '') !== previous);
+      await guest!.waitFor(() => guest!.lobby?.modifiers.join('+') === host!.lobby?.modifiers.join('+'));
+      expect(host!.lobby!.modifiersRerolled).toBe(false);
+      expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
+      expect(host!.errors).toEqual([]);
+      previous = host!.lobby!.modifiers.join('+');
+    }
 
     const rolled = host!.lobby!.modifiers.slice();
     host!.send({ t: 'modifiers', action: 'none' });
     await guest!.waitFor(() => guest!.lobby?.modifiers.length === 0);
+    expect(guest!.lobby!.modifierOffer).toEqual(rolled);
     host!.send({ t: 'modifiers', action: 'offer' });
     await guest!.waitFor(() => (guest!.lobby?.modifiers.length ?? 0) > 0);
     expect(guest!.lobby!.modifiers).toEqual(rolled);
 
+    host!.send({ t: 'modifiers', action: 'reroll' });
+    await host!.waitFor(() => host!.lobby?.modifiers.join('+') !== rolled.join('+'));
+    await guest!.waitFor(() => guest!.lobby?.modifiers.join('+') === host!.lobby?.modifiers.join('+'));
+    expect(host!.lobby!.modifiersRerolled).toBe(false);
+    const started = host!.lobby!.modifiers.slice();
+
     host!.send({ t: 'start' });
     await guest!.waitFor(() => guest!.snap !== null);
-    expect(guest!.snap!.modifiers).toEqual(rolled);
-    expect(server.rooms.get(host!.code!)!.state!.modifiers).toEqual(rolled);
+    expect(guest!.snap!.modifiers).toEqual(started);
+    expect(server.rooms.get(host!.code!)!.state!.modifiers).toEqual(started);
 
     host!.send({ t: 'modifiers', action: 'none' });
     await host!.waitFor(() => host!.errors.length > 0);

@@ -34,7 +34,7 @@ export interface LobbyActions {
   setMode(mode: GameMode): void;
   /** Host only: Normal or Hard. */
   setDifficulty(difficulty: Difficulty): void;
-  /** Host only: reroll once, choose none, or turn the seed's draw back on. */
+  /** Host only: reroll, choose none, or turn the seed's draw back on. */
   setModifiers(action: ModifierAction): void;
   setReady(ready: boolean): void;
   start(): void;

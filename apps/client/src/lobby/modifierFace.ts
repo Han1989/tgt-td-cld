@@ -51,7 +51,7 @@ export interface ModifierLobbyFace {
  * `buttons` is true for the solo player and the online host. `locked` is the lesson (none, no changes).
  */
 export function modifierLobbyFace(
-  state: { modifiers: readonly Modifier[]; modifierOffer: readonly Modifier[]; modifiersRerolled: boolean },
+  state: { modifiers: readonly Modifier[]; modifierOffer: readonly Modifier[] },
   opts: { buttons: boolean; locked: boolean },
 ): ModifierLobbyFace {
   const live = opts.buttons && !opts.locked;
@@ -66,9 +66,9 @@ export function modifierLobbyFace(
     ? [
         {
           action: 'reroll' as const,
-          label: state.modifiersRerolled ? 'Rerolled' : 'Reroll',
-          title: state.modifiersRerolled ? 'The one reroll is used.' : 'Reroll once, for a different draw.',
-          enabled: live && !state.modifiersRerolled,
+          label: 'Reroll',
+          title: 'Reroll for a different draw.',
+          enabled: live,
           hidden: false,
         },
         {
