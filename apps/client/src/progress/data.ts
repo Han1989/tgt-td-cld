@@ -209,6 +209,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'discovery',
     note: 'Mirrored ping and emote burst, gift sent/received toasts, and a twin-ultimate ribbon. Protocol stays 13. Leak lane, gift totals, live syncCast and boss role banners wait on Gameplay.',
+    proof: pr(35),
   },
   {
     id: 'D-02',
