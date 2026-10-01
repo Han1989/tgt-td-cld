@@ -10,7 +10,7 @@ A browser co-op tower defense for 1–3 players (one per lane): build towers, co
 - **Rollout analytics (one dashboard, channel tags):** [`docs/ANALYTICS.md`](docs/ANALYTICS.md)
 - **Adding recorded music and sound effects (no code needed):** [`docs/SOUND_FILES.md`](docs/SOUND_FILES.md)
 
-**Status:** Phases 1–3 are done (solo, online co-op for 1–3 players, and content). Phase 4a (portrait Spire, touch controls, PWA, Quick mode) and the Phase 4b polish list through T-04 are done: Runelight art and sound, Hard difficulty, team pings, and a first-match tutorial. Real-device checks and the optional app-store wrap are still open. Later phases wait on Gate 1; see the roadmap.
+**Status:** Phases 1–3 are done (solo, online co-op for 1–3 players, and content). Phase 4a (portrait Spire, touch controls, PWA, Quick mode) and the Phase 4b polish list through T-04 are done: Runelight art and sound, Hard difficulty, team pings, and a first-match tutorial. Real-device checks and the optional app-store wrap are still open. Gate 1 (friends playtest) was waived on 1 Oct 2026 and is treated as passed, so Phase 6 may proceed and is not started. Discovery D-02–D-06 and Gate 2 are the public soft-launch path. See the roadmap.
 
 ```bash
 npm install

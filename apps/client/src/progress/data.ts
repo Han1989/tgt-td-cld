@@ -6,7 +6,7 @@
  * this file in that same PR. How: docs/PROGRESS.md.
  *
  * Seeded from main as of 1 Oct 2026. Production protocol is 14.
- * Do not start Phase 6 from this page; it only reports status.
+ * Gate 1 is waived and treated as passed. This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -21,8 +21,8 @@ const sections: ProgressSection[] = [
   {
     id: 'gate1',
     title: 'Gate 1 · Friends playtest',
-    blurb: 'Next gate. Two or three friends, saved match reports, then a go/no-go. Phase 6 waits on this.',
-    group: 'now',
+    blurb: 'Waived 1 Oct 2026 by Han (time). Skipped and treated as passed, so Phase 6 may proceed. The evening was not run.',
+    group: 'archive',
   },
   {
     id: 'han',
@@ -33,7 +33,7 @@ const sections: ProgressSection[] = [
   {
     id: 'discovery',
     title: 'Discovery and rollout',
-    blurb: 'Strangers, not just friends. Measurement is in. Posts and the go/no-go are Han.',
+    blurb: 'Public soft-launch path. Measurement is in. Posts (D-02–D-06) and the go/no-go are Han, and still open.',
     group: 'now',
   },
   {
@@ -51,31 +51,31 @@ const sections: ProgressSection[] = [
   {
     id: 'p6a',
     title: 'Phase 6a · Accounts and data',
-    blurb: 'Do not start before Gate 1 passes.',
+    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started.',
     group: 'later',
   },
   {
     id: 'p6b',
     title: 'Phase 6b · Clans',
-    blurb: 'Do not start before Gate 1 passes.',
+    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started.',
     group: 'later',
   },
   {
     id: 'p6c',
     title: 'Phase 6c · Loot and progression',
-    blurb: 'Do not start before Gate 1. Combos are rebuilt here; the hook-test branch is not merged.',
+    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started. Combos are rebuilt here; the hook-test branch is not merged.',
     group: 'later',
   },
   {
     id: 'p6d',
     title: 'Phase 6d · Competition',
-    blurb: 'Do not start before Gate 1 passes.',
+    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started.',
     group: 'later',
   },
   {
     id: 'gate2',
     title: 'Gate 2 · Public soft launch',
-    blurb: 'After polish, with the Reddit posts. Same measurement bar as D-01 and D-06. Han calls the gate.',
+    blurb: 'Public soft-launch path, still open, with the Reddit posts (D-02–D-06). Same measurement bar as D-01 and D-06. Han calls the gate.',
     group: 'later',
   },
   {
@@ -109,41 +109,46 @@ const items: ProgressItem[] = [
     id: 'g1-render',
     title: 'Render on Starter for the evening',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'gate1',
-    note: 'Switch both Render services to Starter for the playtest, then back to Free. Free sleeps and can drop matches.',
+    note: 'Waived 1 Oct 2026 by Han (time) with Gate 1. Skipped. No Render plan change. Treated as passed so Phase 6 may proceed.',
+    proof: pr(37),
   },
   {
     id: 'g1-play',
     title: 'Play 2–3 matches with two friends',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'gate1',
-    note: 'Mix phones and desktop, and include the hook test. Everyone taps Save match report after each match.',
+    note: 'Waived 1 Oct 2026 by Han (time). The friends session was not run. Skipped and treated as passed.',
+    proof: pr(37),
   },
   {
     id: 'g1-watch',
     title: 'Watch, don’t coach',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'gate1',
-    note: 'Note where people get confused, what makes them shout or laugh, and whether they use combos.',
+    note: 'Waived 1 Oct 2026 by Han (time). The friends session was not run, so there are no watch notes. Skipped and treated as passed.',
+    proof: pr(37),
   },
   {
     id: 'g1-tune',
     title: 'Per-hero tuning from the match reports',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'gate1',
-    note: 'After the matches. Use the saved reports (npm run replay), not bots alone. Quick pairs are the noisiest; Ranger + Warden is the weakest pair.',
+    note: 'Waived 1 Oct 2026 with the playtest. No retune from friend reports. Skipped and treated as passed.',
+    proof: pr(37),
   },
   {
     id: 'g1-gate',
     title: 'Gate: they ask to play again',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'gate1',
-    note: 'At least half the players ask to play again unprompted. If not, rework the hook before Phase 6.',
+    note: 'Treated as passed 1 Oct 2026. Han waived the unprompted play-again check (time). Phase 6 may proceed. The evening was not run.',
+    proof: pr(37),
   },
   {
     id: 'H-01',
@@ -311,7 +316,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'polish',
-    note: 'README status, docs/ROADMAP.md, GAME_DESIGN §11 (Phases 6–8 after Gate 1), and AGENTS.md.',
+    note: 'README status, docs/ROADMAP.md, GAME_DESIGN §11, and AGENTS.md. As of 1 Oct 2026 Gate 1 is waived, so Phase 6 may proceed.',
     proof: pr(31),
   },
   {
@@ -668,8 +673,8 @@ export const PROGRESS: ProgressData = {
   protocol: 14,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
-  nextGate: 'Gate 1',
-  nextGateDetail: 'Friends playtest',
+  nextGate: 'Gate 2',
+  nextGateDetail: 'Public soft launch',
   phases: [
     { id: '1', title: 'Solo', state: 'done' },
     { id: '2', title: 'Online', state: 'done' },

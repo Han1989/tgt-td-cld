@@ -190,12 +190,12 @@ See `docs/REPLAYABILITY.md`: top-tier tower branches, lane surges and match modi
 
 Phases 1–5 do not include accounts, persistence, leaderboards, PvP, public matchmaking or monetisation.
 
-They are planned, not cancelled, and nothing in Phase 6 starts before **Gate 1** (the friends playtest in `TASKS.md`):
+They are planned. **Gate 1** (the friends playtest in `TASKS.md`) was waived by Han on 1 Oct 2026 (time) and is treated as passed, so Phase 6 may proceed. The evening was not run. Monetisation still waits for **Gate 2** (public soft launch):
 
-- **Accounts and persistence** — Phase 6a, after Gate 1.
-- **Leaderboards** — Phase 6d, after Gate 1.
-- **Monetisation** — Phase 7, after Gate 1 and after Gate 2 (public soft launch).
-- **PvP** — Phase 8, after Gate 1.
+- **Accounts and persistence** — Phase 6a. Unblocked. Not started.
+- **Leaderboards** — Phase 6d. Unblocked. Not started.
+- **Monetisation** — Phase 7, after Gate 2.
+- **PvP** — Phase 8. Unblocked. Not started.
 - **Public matchmaking** stays out of today's room-code co-op. A clan party queue is Phase 6b; PvP queues are Phase 8.
 
 Phase list and locked decisions: [`docs/ROADMAP.md`](ROADMAP.md). Live status: `TASKS.md`.
@@ -414,3 +414,4 @@ Phase list and locked decisions: [`docs/ROADMAP.md`](ROADMAP.md). Live status: `
 | 2026-10-01 | **Soft-launch co-op flourishes are client-only** (that change left the protocol at 13). Two players pinging within 1 s, or sending the same quick-chat id within 1 s, get one oversized shared mark (both colours) plus a louder flourish. A gift the local player sends or receives is a gold toast in the partner's colour. Two R casts within `R_OVERLAP_SECONDS` (2 s, the same window `HeroReport.rOverlaps` already counts) draw a ribbon between the heroes and a soft edge glow in both colours, inferred from `cast` events | CrazyGames and a phone clip need the moment to read without a new message. |
 | 2026-10-01 | **Soft-launch co-op hooks are signals, not new combat** (`PROTOCOL_VERSION` 14). A `leak` event carries the creep's `lane` (`LANE_NAMES` / `laneName`: 0 West, 1 Mid, 2 East). Hard's final-wave Heart strain stays a leak with no creep (`FINALE_LEAK_CREEP_ID` 0, `lane` `FINALE_LEAK_LANE`); clients that say "leak on Mid" should skip that id. `HeroReport` adds `goldGifted` and `goldReceived` (old saves omit them; `heroGiftTotals` reads that as 0). `R_OVERLAP_SECONDS` (2) is the protocol constant the report already used. A live `syncCast` (`heroIds`, `slot: 'R'`) fires once when a later R lands while another **living** hero's R is still inside that window. It does not change damage. Boss lane copy is advisory data only (`BOSS_LANE_HINTS`, `bossLaneHint`, `BOSS_WAVES`): three short lines per boss, no required tower or branch. **Pings stay client-only** — a double-ping effect is two `ping` events within 1 s. The ribbon can keep using `cast` events, or switch to `syncCast` | Client Polish draws the lane label, gift theater, sync ribbon and boss banners. Fused ultimates stay out (no combo damage). |
 | 2026-10-01 | **The HUD consumes those protocol 14 signals and does not bump the protocol.** A leak whose `creepId` is not `FINALE_LEAK_CREEP_ID` shows a phone-sized "Heart save" named with `laneName`, plus an emphasized ping on that lane's portal. The Heart stat pulse and the world hit stay. The same lane waits 3.2 s before saying it again; another lane still can. The end screen lists each hero's gold given and received through `heroGiftTotals` (a missing field is 0). A solo report with both at 0 hides that block; two or more heroes always show it. The twin ribbon, edge glow and twin-cast sound prefer a live `syncCast` (a ribbon along `heroIds` in order, one shake and one sound) and still infer the pair from `cast` events when that event is absent or fewer than two of its heroes are on screen. Boss waves keep the arrival banner and the `BOSS_HINTS` toast, and add one advisory line per lane from `bossLaneHint` (`BOSS_WAVES` rides along as the full and quick wave numbers). | Clips need the lane, the gift totals and the boss roles. Fused ultimates stay out. |
+| 2026-10-01 | **Han waived Gate 1 (the friends playtest); treat it as passed.** g1-render, g1-play, g1-watch, g1-tune and g1-gate are closed without a session, without a Render plan change, and without per-hero retuning from friend reports. Phase 6 may proceed and is not started. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path. | Han cancelled the evening (time). A playtest that will not happen was the only hold on Phase 6. |
