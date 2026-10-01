@@ -6,7 +6,7 @@ import { applyCommand } from '../src/commands';
 import { creepBounty, grantXp } from '../src/combat';
 import { createGame, snapshot, step } from '../src/game';
 import { createMatch, matchReplay, matchStep, replayMatch, replayProblem } from '../src/match';
-import { modifierRolls, normalizeModifiers } from '../src/modifiers';
+import { modifierDraw, modifierRolls, normalizeModifiers } from '../src/modifiers';
 import type { GameState } from '../src/state';
 import { TUNING } from '../src/tuning';
 import { LAB_PAD, parkHero, placeCreep, run } from './helpers';
@@ -32,18 +32,28 @@ function kinds(state: GameState): Map<string, number> {
 }
 
 describe('modifier rolls', () => {
-  it('draws 1–2 known modifiers from the seed, and a different reroll', () => {
+  it('draws 1–2 known modifiers from the seed, and a different set on every reroll', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed <= 40; seed++) {
       const { offer, reroll } = modifierRolls(seed);
       expect(modifierRolls(seed)).toEqual({ offer, reroll });
+      expect(modifierDraw(seed, 0)).toEqual(offer);
+      expect(modifierDraw(seed, 1)).toEqual(reroll);
       expect(offer.length).toBeGreaterThanOrEqual(1);
       expect(offer.length).toBeLessThanOrEqual(2);
-      expect(reroll.length).toBeGreaterThanOrEqual(1);
       expect(new Set(offer).size).toBe(offer.length);
       expect(offer.every((id) => MODIFIERS.includes(id))).toBe(true);
       expect(offer).toEqual(MODIFIERS.filter((id) => offer.includes(id)));
-      expect(offer).not.toEqual(reroll);
+      let previous = offer;
+      for (let index = 1; index <= 6; index++) {
+        const draw = modifierDraw(seed, index);
+        expect(modifierDraw(seed, index)).toEqual(draw);
+        expect(draw.length).toBeGreaterThanOrEqual(1);
+        expect(draw.length).toBeLessThanOrEqual(2);
+        expect(draw).toEqual(MODIFIERS.filter((id) => draw.includes(id)));
+        expect(draw).not.toEqual(previous);
+        previous = draw;
+      }
       seen.add(offer.join('+'));
     }
     expect(seen.size).toBeGreaterThan(5);

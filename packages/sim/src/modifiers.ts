@@ -20,33 +20,54 @@ export function mix32(seed: number, salt: number): number {
   return (x ^ (x >>> 16)) >>> 0;
 }
 
+/** How many extra salts to try when a draw matches the one before it. */
+const REROLL_SPINS = 24;
+
+/** One or two modifiers from `seed` and `salt`, in `MODIFIERS` order so the lobby text is stable. */
+function drawAt(seed: number, salt: number): Modifier[] {
+  const count = (mix32(seed, salt) % 2) + 1;
+  let s = mix32(seed, salt + 99);
+  const order = [...MODIFIERS];
+  for (let i = order.length - 1; i > 0; i--) {
+    s = mix32(s, i + 1);
+    const j = s % (i + 1);
+    const swap = order[i]!;
+    order[i] = order[j]!;
+    order[j] = swap;
+  }
+  const picked = order.slice(0, count);
+  return MODIFIERS.filter((m) => picked.includes(m));
+}
+
 /**
- * One or two modifiers from `seed`, and a different draw for the host's one reroll.
- * Both lists follow `MODIFIERS` order so the lobby text is stable.
+ * The draw at `index` for `seed`. Index 0 is the opening offer (salt 1). Each later index is the
+ * next draw that differs from the one before it, walking salts forward from 2. The same seed and
+ * index always return the same list, so a replay of the lobby's rerolls repeats the current draw.
+ * There is no cap on `index`.
+ */
+export function modifierDraw(seed: number, index: number): Modifier[] {
+  const steps = Number.isFinite(index) && index > 0 ? Math.floor(index) : 0;
+  let current = drawAt(seed, 1);
+  let salt = 2;
+  for (let n = 0; n < steps; n++) {
+    let next = drawAt(seed, salt);
+    salt += 1;
+    let spins = 0;
+    while (sameModifiers(current, next) && spins < REROLL_SPINS) {
+      next = drawAt(seed, salt);
+      salt += 1;
+      spins += 1;
+    }
+    current = next;
+  }
+  return current;
+}
+
+/**
+ * The opening offer and the first reroll. Later rerolls are `modifierDraw(seed, 2)`, `3`, …
  */
 export function modifierRolls(seed: number): { offer: Modifier[]; reroll: Modifier[] } {
-  const take = (salt: number): Modifier[] => {
-    const count = (mix32(seed, salt) % 2) + 1;
-    let s = mix32(seed, salt + 99);
-    const order = [...MODIFIERS];
-    for (let i = order.length - 1; i > 0; i--) {
-      s = mix32(s, i + 1);
-      const j = s % (i + 1);
-      const swap = order[i]!;
-      order[i] = order[j]!;
-      order[j] = swap;
-    }
-    const picked = order.slice(0, count);
-    return MODIFIERS.filter((m) => picked.includes(m));
-  };
-  const offer = take(1);
-  let reroll = take(2);
-  let salt = 3;
-  while (sameModifiers(offer, reroll) && salt < 12) {
-    reroll = take(salt);
-    salt++;
-  }
-  return { offer, reroll };
+  return { offer: modifierDraw(seed, 0), reroll: modifierDraw(seed, 1) };
 }
 
 export function sameModifiers(a: readonly Modifier[], b: readonly Modifier[]): boolean {

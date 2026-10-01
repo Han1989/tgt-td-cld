@@ -29,7 +29,7 @@ describe('modifier chips', () => {
 describe('modifier lobby face', () => {
   it('shows the draw as chips, and the offer only after No modifiers', () => {
     const on = modifierLobbyFace(
-      { modifiers: ['swift', 'fog'], modifierOffer: ['swift', 'fog'], modifiersRerolled: false },
+      { modifiers: ['swift', 'fog'], modifierOffer: ['swift', 'fog'] },
       { buttons: true, locked: false },
     );
     expect(on.status).toBe('Swift · Fog');
@@ -43,7 +43,7 @@ describe('modifier lobby face', () => {
     ]);
 
     const none = modifierLobbyFace(
-      { modifiers: [], modifierOffer: ['goldRush'], modifiersRerolled: true },
+      { modifiers: [], modifierOffer: ['goldRush'] },
       { buttons: true, locked: false },
     );
     expect(none.status).toBe('No modifiers');
@@ -51,8 +51,8 @@ describe('modifier lobby face', () => {
     expect(none.active).toEqual([]);
     expect(none.offered.map((chip) => chip.id)).toEqual(['goldRush']);
     expect(none.buttons?.find((button) => button.action === 'reroll')).toMatchObject({
-      enabled: false,
-      label: 'Rerolled',
+      enabled: true,
+      label: 'Reroll',
     });
     expect(none.buttons?.find((button) => button.action === 'none')?.enabled).toBe(false);
     expect(none.buttons?.find((button) => button.action === 'offer')).toMatchObject({
@@ -64,7 +64,7 @@ describe('modifier lobby face', () => {
 
   it('locks the lesson to none and gives guests no buttons', () => {
     const lesson = modifierLobbyFace(
-      { modifiers: ['swift'], modifierOffer: ['swift'], modifiersRerolled: false },
+      { modifiers: ['swift'], modifierOffer: ['swift'] },
       { buttons: true, locked: true },
     );
     expect(lesson.status).toBe('No modifiers');
@@ -75,7 +75,7 @@ describe('modifier lobby face', () => {
     expect(lesson.buttons?.find((button) => button.action === 'offer')?.hidden).toBe(true);
 
     const guest = modifierLobbyFace(
-      { modifiers: [], modifierOffer: ['ironclad', 'skyTide'], modifiersRerolled: false },
+      { modifiers: [], modifierOffer: ['ironclad', 'skyTide'] },
       { buttons: false, locked: false },
     );
     expect(guest.buttons).toBeNull();
