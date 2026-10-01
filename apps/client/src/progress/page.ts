@@ -1,7 +1,7 @@
 import { PROGRESS } from './data';
 import { FILTER_LABEL, PROGRESS_FILTERS, filterCounts, parseFilter, type ProgressFilter } from './model';
 import './progress.css';
-import { renderBoard, renderSummary } from './view';
+import { renderBoard, renderCooking, renderSummary } from './view';
 
 const LINKS: { href: string; label: string; external: boolean }[] = [
   { href: '/', label: 'This build', external: false },
@@ -49,6 +49,7 @@ export function runProgress(): void {
     `stays the tracker.</p>` +
     `<nav class="pg-links" aria-label="Related">${linkHtml}</nav>` +
     `<div class="pg-stats">${renderSummary(PROGRESS)}</div>` +
+    renderCooking(PROGRESS) +
     `</header>` +
     `<div class="pg-toolbar"><div class="pg-toolbar-inner">` +
     `<div class="pg-chips" role="toolbar" aria-label="Filter tasks"></div>` +
@@ -57,7 +58,7 @@ export function runProgress(): void {
     `<div id="pg-list"></div>` +
     `<footer class="pg-foot"><p>When a pull request finishes a task, update <code>TASKS.md</code> and ` +
     `<a href="https://github.com/Han1989/tgt-td-cld/blob/main/apps/client/src/progress/data.ts" target="_blank" rel="noopener noreferrer">apps/client/src/progress/data.ts</a> ` +
-    `in that same PR. See <a href="https://github.com/Han1989/tgt-td-cld/blob/main/docs/PROGRESS.md" target="_blank" rel="noopener noreferrer">docs/PROGRESS.md</a>.</p></footer>`;
+    `in that same PR. Do not add a third list. See <a href="https://github.com/Han1989/tgt-td-cld/blob/main/docs/PROGRESS.md" target="_blank" rel="noopener noreferrer">docs/PROGRESS.md</a>.</p></footer>`;
 
   document.body.appendChild(root);
 

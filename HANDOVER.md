@@ -105,7 +105,7 @@ The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish ite
    - **T-04** Projectile and trap art
    - **T-05** Docs clean-up
 2. **Gate 1 was waived on 1 Oct 2026** (Han, time) and is treated as passed. The friends playtest was not run: no Render plan change, no matches, and no per-hero retune from friend reports (g1-render, g1-play, g1-watch, g1-tune, g1-gate). Friends-only play was never the store go/no-go.
-3. **Han's list (H-01–H-06) stays open:** preview links, the hook-test server, trying the hook test, optional music, the iPhone checklist, and GitHub access.
+3. **Han's list:** H-01 is done (Vercel Authentication Disabled on tgt-td-cld, Han confirmed 1 Oct 2026). H-04 is done (lobby, match, and boss music, PR #42). H-02, H-03, H-05, and H-06 stay open: the hook-test server, trying the hook test, the iPhone checklist, and GitHub access.
 4. **Phase 6 may proceed** (accounts, clans, loot, leaderboards). Those tasks are not started. Per-hero tuning from a friends session was waived with Gate 1.
 5. **Discovery and rollout** (plan in `TASKS.md`) is the public soft-launch path and is still open. Before or alongside store submission, put the polished build in front of **strangers** and measure response:
    - Reddit: **r/PlayMyGame**, **r/incremental_games**, **r/cozygames**
@@ -184,7 +184,7 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 - **README status.** Updated in T-05: Phases 1–3 done, Phase 4 polish through the tutorial.
 - **`docs/GAME_DESIGN.md` §11.** Updated in T-05, then on 1 Oct 2026: Gate 1 is waived and treated as passed, so Phase 6 may proceed. Monetisation still waits for Gate 2 (`docs/ROADMAP.md`).
 - **Claude-specific names.** `CLAUDE.md` and the `claude/…` branch names come from how the game was built. Keep `CLAUDE.md` as the guide. `AGENTS.md` points at it (T-05). Use your own branch prefix. The hook-test branch `claude/loving-hawking-7fvsu7` stays unmerged.
-- **One tracker.** Han's original checklist lives in his claude.ai account and nobody else can tick it. From now on `TASKS.md` in the repo is the tracker.
+- **One tracker.** Han's original checklist lives in his claude.ai account and nobody else can tick it. `TASKS.md` is the tracker. `apps/client/src/progress/data.ts` mirrors it for `/?progress`. Do not add a third list.
 - **Balance cliffs.** Solo and pairs break with small changes (see the balance notes in `CLAUDE.md` → Conventions). Ranger + Warden is the weakest pair.
 - **Slow browser tests.** `npm run test:e2e` takes several minutes; the 300-creep stress test runs alone at the end (about 4 minutes).
 - **No recorded music yet.** `apps/client/public/music/` holds only a README; the game plays its code-made music.

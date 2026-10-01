@@ -112,6 +112,39 @@
   color: var(--gold);
 }
 
+.pg-cook {
+  margin-top: 14px;
+  padding: 12px 12px 10px;
+  border-radius: 16px;
+  background: rgba(255, 210, 74, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 74, 0.28);
+}
+
+.pg-cook h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pg-cook-head p,
+.pg-cook-order,
+.pg-cook-empty {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 70ch;
+}
+
+.pg-cook .pg-cards {
+  margin-top: 10px;
+}
+
+.pg-cook-order {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(207, 230, 255, 0.08);
+}
+
 .pg-toolbar {
   position: sticky;
   top: 0;

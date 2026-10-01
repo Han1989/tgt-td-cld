@@ -1,5 +1,13 @@
 import type { ProgressData, ProgressFilter, ProgressItem, ProgressStatus } from './model';
-import { ownerLabel, statusLabel, summarize, visibleSections } from './model';
+import { cookingNow, ownerLabel, statusLabel, summarize, visibleSections } from './model';
+
+/** Shown under Cooking now. The page does not fetch pull requests. */
+export const COOKING_NOTE =
+  'In progress on the tracker. Open pull requests and CI stay on the Ops Dashboard.';
+
+/** Team to-dos in Now, in TASKS.md order, are what overnight bots pull. No third list. */
+export const NOW_ORDER_NOTE =
+  'Overnight bots: open Team to-dos in the Now section of TASKS.md, top to bottom, are the auto-pull list. There is no separate queue.';
 
 const ESC: Record<string, string> = {
   '&': '&amp;',
@@ -46,6 +54,22 @@ function card(item: ProgressItem): string {
     `<p class="pg-note">${escapeHtml(item.note)}</p>` +
     proof +
     `</article>`
+  );
+}
+
+export function renderCooking(data: ProgressData): string {
+  const items = cookingNow(data);
+  const body =
+    items.length === 0
+      ? '<p class="pg-cook-empty">Nothing is marked in progress.</p>'
+      : `<div class="pg-cards">${items.map(card).join('')}</div>`;
+  return (
+    `<aside class="pg-cook" aria-label="Cooking now">` +
+    `<div class="pg-cook-head"><h2>Cooking now</h2>` +
+    `<p>${escapeHtml(COOKING_NOTE)}</p></div>` +
+    body +
+    `<p class="pg-cook-order">${escapeHtml(NOW_ORDER_NOTE)}</p>` +
+    `</aside>`
   );
 }
 

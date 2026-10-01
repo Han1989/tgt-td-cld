@@ -26,7 +26,7 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run map` | Print the map as ASCII (lanes, pads by zone, extra pads, safe zone); use it when editing `maps/*.ts` |
 | `npm run icons -w @tdt/client` | Regenerate the PWA icons (`apps/client/public/icons`) |
 | `/?showcase` (any build) | Art dev page: every entity in `render/art/entities/` with each variant (tower tiers, branches, projectiles, the snare trap, pad zone tints, Heart damage states, portal flare, props), animated, large and at phone size; Normal / Bright; the UI icons; every sound (a new take each tap, ×4 to compare, recorded ones marked) and music scene (code-made or file); lists the kinds that are still shapes |
-| `/?progress` (any build) | Roadmap dashboard: done, now, Han, team, and later. Reads `apps/client/src/progress/data.ts`; keep it in step with `TASKS.md` (`docs/PROGRESS.md`). No match and no analytics session |
+| `/?progress` (any build) | Roadmap dashboard: Cooking now (`in_progress` only), done, now, Han, team, and later. Reads `apps/client/src/progress/data.ts`; keep it in step with `TASKS.md` (`docs/PROGRESS.md`). No third task list. No match and no analytics session |
 | `/?stress=300` (any build) | Render stress scene: 300 creeps, a tower on every pad, every effect busy (hits, kills, skills, zones), an FPS readout; no simulation |
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
