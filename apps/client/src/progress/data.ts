@@ -312,6 +312,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'polish',
     note: 'Protocol 14. Leak events carry a lane. Reports count gold gifted and received. A syncCast marks overlapping ultimates, with no extra damage. Boss lane lines are advisory. Double-ping FX stays on the client.',
+    proof: pr(34),
   },
   {
     id: 'a-units',
