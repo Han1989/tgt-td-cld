@@ -45,6 +45,12 @@ async function main(): Promise<void> {
     ready('stress');
     return;
   }
+  // Browser tests open the online home card with no game server (`?lobby`). Create / Join stay on the card.
+  if (import.meta.env.MODE === 'e2e' && params.has('lobby')) {
+    new OnlineController(view, 'ws://127.0.0.1:9').start();
+    ready('online');
+    return;
+  }
   const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
   if (!serverUrl) {
     // No game server configured: local solo mode, after a hero, mode and difficulty pick.

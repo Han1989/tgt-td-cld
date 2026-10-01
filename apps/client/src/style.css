@@ -1741,6 +1741,11 @@ body.layout-tall:has(#tutorial:not(.hidden)) .match-flags {
   flex: 1;
 }
 
+/* Secondary to Create / Join: the same carved stone, a full-width thumb target, no teal glow. */
+#lobby-offline {
+  min-height: 44px;
+}
+
 .hero-picks {
   display: flex;
   gap: 8px;

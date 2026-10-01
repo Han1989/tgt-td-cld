@@ -1,4 +1,4 @@
-// Online lobby screens (HTML): home (nickname, hero, create / join), room
+// Online lobby screens (HTML): home (nickname, hero, create / join, solo), room
 // (code + invite link, players, hero, mode, ready / start) and a busy state.
 
 import {
@@ -17,7 +17,7 @@ import { HERO_INFO } from '../heroInfo';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
 import { sharedSettings } from '../settings';
-import { lessonStatus } from '../tutorial/logic';
+import { homeLessonControls, lessonStatus } from '../tutorial/logic';
 import { DifficultyPicker } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { renderModifierLobby } from './modifierPicker';
@@ -129,10 +129,6 @@ export class LobbyUi {
       sharedSettings().set({ tutorial: lessonStatus('skip') });
       this.syncLesson();
     });
-    $('lobby-tutorial-replay').addEventListener('click', () => {
-      sharedSettings().set({ tutorial: lessonStatus('replay') });
-      actions.playOffline();
-    });
     // Through the service worker, so a cached old app shell can't survive the refresh.
     this.refresh.addEventListener('click', () => void updateAndReload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
@@ -161,11 +157,10 @@ export class LobbyUi {
     );
   }
 
-  /** The home strip: a new player can start or skip the lesson. Anyone else can replay it. */
+  /** A new player can start or skip the lesson. Replay stays in Settings. */
   private syncLesson(): void {
-    const status = sharedSettings().get().tutorial;
-    $('tutorial-offer').classList.toggle('hidden', status !== 'new');
-    $('lobby-tutorial-replay').classList.toggle('hidden', status === 'new');
+    const { offer } = homeLessonControls(sharedSettings().get().tutorial);
+    $('tutorial-offer').classList.toggle('hidden', !offer);
   }
 
   /** True if the page was opened from an invite link. */

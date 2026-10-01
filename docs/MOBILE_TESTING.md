@@ -31,7 +31,7 @@ Start **Play solo offline** (or solo from the hero pick).
 - [ ] 2.5 Tiles look at least as big as in spike round 4. Creeps, heroes and towers are readable.
 - [ ] 2.6 **First-match lesson** (a fresh browser, or after you have skipped or finished it once: ⚙ → **Replay tutorial**). On the solo pick the note says this match is a lesson, Quick and Normal are locked, and the button says **Start lesson**. **Skip lesson** returns the usual Play button and your saved Full / Hard pick. In an online lobby the home card offers **Start lesson** and **Skip**; **Create room** and **Join** still work and do not start the lesson.
   - [ ] Start the lesson. A card under the top bar, clear of the joystick and the skill buttons, says **Move**. Drag the joystick (desktop: right-click or the arrow keys). It changes to **Build a tower**. Build an Arrow. When creeps are near, cast Q. Tap the tower and **Upgrade** (the first wave's gold covers an Arrow). Long-press the map to ping (desktop: Alt-click). Optionally send one quick-chat phrase, or tap **Continue**. Then **Got it**. The card goes away and the match keeps going.
-  - [ ] **Skip** on the card dismisses it at any step. Leave and start another solo match: the lesson does not come back. ⚙ → **Replay tutorial** (or **Replay the lesson** on the lobby home) brings the lesson pick back. An online room never shows the card.
+  - [ ] **Skip** on the card dismisses it at any step. Leave and start another solo match: the lesson does not come back. ⚙ → **Replay tutorial** brings the lesson pick back. The online home does not keep a Replay control after the lesson is finished or skipped. An online room never shows the card.
 
 ## 3. Touch controls
 
