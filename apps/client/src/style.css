@@ -1309,10 +1309,18 @@ body.layout-tall:has(#tutorial:not(.hidden)) .match-flags {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* The lobby field is uppercase. Modifier sentences stay in sentence case. */
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
+  font-size: 14px;
 }
 
 .mod-names {
+  font-family: var(--title-font);
   font-weight: 800;
+  font-size: 15px;
   letter-spacing: 0.04em;
   color: var(--gold);
 }
