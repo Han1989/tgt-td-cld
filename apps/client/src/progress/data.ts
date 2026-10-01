@@ -208,8 +208,16 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Mirrored ping and emote burst, gift sent/received toasts, and a twin-ultimate ribbon from cast events. Sim signals (leak lane, gift totals, syncCast, boss hints) are protocol 14 (T-06).',
+    note: 'Mirrored ping and emote burst, gift sent/received toasts, and a twin-ultimate ribbon from cast events. Sim signals (leak lane, gift totals, syncCast, boss hints) are protocol 14 (T-06). The live wires are SL-02.',
     proof: pr(35),
+  },
+  {
+    id: 'SL-02',
+    title: 'Soft-launch HUD hooks',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Lane clutch names the leaking lane and skips the Hard finale strain. The end screen shows gold given and received. The twin ribbon prefers syncCast. Boss waves add advisory lane banners. Protocol stays 14.',
   },
   {
     id: 'D-02',

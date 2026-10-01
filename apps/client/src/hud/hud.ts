@@ -28,7 +28,7 @@ import { currentAnalytics } from '../analytics/install';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
-import { giftLine, playerTint, type GiftLine } from '../coop/cues';
+import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
@@ -74,7 +74,7 @@ interface TeamRow {
   gifts: HTMLButtonElement[];
 }
 
-// One-line boss toast. Lane banners are Client Polish: `BOSS_LANE_HINTS` / `bossLaneHint` in `@tdt/protocol`.
+// One-line boss toast. Lane role banners sit under it (`bossLaneRoles` / `bossLaneHint`).
 const BOSS_HINTS: Record<BossKind, string> = {
   ironhorn: 'Ironhorn stomps: it stuns heroes and towers close to it',
   matriarch: 'The Matriarch hatches broods of hatchlings as it walks',
@@ -168,6 +168,10 @@ export class Hud {
   private readonly towerPanel = $('tower-panel');
   private readonly toasts = $('toasts');
   private readonly banner = $('banner');
+  private readonly laneRoles = $('lane-roles');
+  private laneRoleTimer = 0;
+  private readonly endGifts = $('end-gifts');
+  private giftKey = '';
   private readonly endScreen = $('end-screen');
   private readonly endEmblem = $('end-emblem');
   private readonly endTitle = $('end-title');
@@ -326,6 +330,7 @@ export class Hud {
     if (!over) {
       if (this.outcomeSent) this.resetFeedback();
       this.outcomeSent = false;
+      this.renderGifts(null);
     } else {
       const online = this.room !== null;
       const isHost = online && this.room!.hostId === me;
@@ -343,6 +348,7 @@ export class Hud {
         ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
         : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. Kills: ${player?.kills ?? 0}.`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
+      this.renderGifts(this.report?.report ?? null);
       if (!this.outcomeSent) {
         this.outcomeSent = true;
         this.openFeedback(snap);
@@ -489,11 +495,16 @@ export class Hud {
         const waves = tuningForMode(TUNING, snap.mode).waves.list;
         const boss = waves[e.wave - 1]?.map((g) => g.kind).find(isBossKind);
         const last = e.wave === snap.totalWaves ? 'Final wave' : `Wave ${e.wave}`;
-        if (boss) this.showBanner(`${CREEP_NAMES[boss]} approaches!`, `${last} · Boss`, true);
-        else this.showBanner(last, e.income > 0 ? `+${e.income} gold` : '', false);
-        if (boss) this.toast(BOSS_HINTS[boss]);
+        if (boss) {
+          this.showBanner(`${CREEP_NAMES[boss]} approaches!`, `${last} · Boss`, true);
+          this.toast(BOSS_HINTS[boss]);
+          this.showLaneRoles(boss);
+        } else {
+          this.showBanner(last, e.income > 0 ? `+${e.income} gold` : '', false);
+          this.hideLaneRoles();
+        }
       } else if (e.type === 'leak') {
-        // `e.lane` / `laneName` is the leak lane (skip `FINALE_LEAK_CREEP_ID`). This pulse stays on the Heart.
+        // The Heart stat still pulses. The lane name is the clutch cue (it skips the finale strain).
         pulse(this.heartStat, HIT_PULSE, 380);
       } else if (e.type === 'cast' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
         const b = this.skillButtons.get(e.slot);
@@ -575,6 +586,8 @@ export class Hud {
     this.heartCounter.reset();
     this.lastGold = null;
     this.coins.clear();
+    this.hideLaneRoles();
+    this.renderGifts(null);
   }
 
   /** The gold counter swells when gold comes in (at most every 90 ms, so a stream of coins doesn't stutter). */
@@ -583,6 +596,67 @@ export class Hud {
     if (now - this.lastGainPulse < 90) return;
     this.lastGainPulse = now;
     pulse(this.gold, GAIN_PULSE, 260);
+  }
+
+  /** Advisory lane roles under the boss banner. The one-line toast stays. */
+  private showLaneRoles(kind: BossKind): void {
+    window.clearTimeout(this.laneRoleTimer);
+    const roles = bossLaneRoles(kind);
+    this.laneRoles.replaceChildren();
+    for (const lane of roles.lanes) {
+      const row = document.createElement('div');
+      row.className = `lane-role lane-${lane.lane}`;
+      const name = document.createElement('b');
+      name.textContent = lane.name;
+      const hint = document.createElement('span');
+      hint.textContent = lane.hint;
+      row.append(name, hint);
+      this.laneRoles.appendChild(row);
+    }
+    this.laneRoles.classList.remove('hidden');
+    this.laneRoles.style.animation = 'none';
+    void this.laneRoles.offsetWidth;
+    this.laneRoles.style.animation = '';
+    this.laneRoleTimer = window.setTimeout(() => this.hideLaneRoles(), 4600);
+  }
+
+  private hideLaneRoles(): void {
+    window.clearTimeout(this.laneRoleTimer);
+    this.laneRoles.classList.add('hidden');
+    this.laneRoles.replaceChildren();
+  }
+
+  /** Gold given and received. Missing fields on an old report count as 0. */
+  private renderGifts(report: MatchReport | null): void {
+    const lines = report ? giftTotalsLines(report.heroes) : [];
+    if (!report || !showGiftTotals(lines)) {
+      if (this.giftKey !== '') {
+        this.giftKey = '';
+        this.endGifts.classList.add('hidden');
+        this.endGifts.replaceChildren();
+      }
+      return;
+    }
+    const key = lines.map((l) => `${l.name}:${l.hero}:${l.goldGifted}:${l.goldReceived}`).join('|');
+    if (key === this.giftKey) return;
+    this.giftKey = key;
+    this.endGifts.replaceChildren();
+    const head = document.createElement('li');
+    head.className = 'end-gifts-head';
+    head.textContent = 'Gold shared';
+    this.endGifts.appendChild(head);
+    for (const line of lines) {
+      const li = document.createElement('li');
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = line.name;
+      const amt = document.createElement('span');
+      amt.className = 'amt';
+      amt.textContent = `Given ${line.goldGifted} · Received ${line.goldReceived}`;
+      li.append(who, amt);
+      this.endGifts.appendChild(li);
+    }
+    this.endGifts.classList.remove('hidden');
   }
 
   private showBanner(text: string, sub: string, boss: boolean): void {
