@@ -77,7 +77,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 | H-01 | Let friends open preview links | Vercel → project → Settings → Deployment Protection → Vercel Authentication: **Disabled** → Save. Otherwise friends see a Vercel login page. | ☐ |
 | H-02 | Confirm the hook test server | In Render, check `tgt-td-spike` is **Live** and copy its exact address. `/health` should show `"shard":"H"`. On 30 Sep, `tgt-td-spike.onrender.com/health` returned 404. | ☐ |
 | H-03 | Try the hook test on your phone (`b-try`) | Solo with the bot ally first (`?spike=hook&practice`), then online with one friend (`?spike=hook&server=wss://<spike address>`). | ☐ |
-| H-04 | Three music tracks (`a-music`, optional) | `lobby.mp3` (Japanese), `match.mp3` (Three Kingdoms war), `boss.mp3` (intense war drums). Pixabay Music, or Suno Pro subscribed **before** generating (free-plan songs can't go in a paid game). Upload through a PR; see `docs/SOUND_FILES.md`. | ☐ |
+| H-04 | Three music tracks (`a-music`, optional) | Done 1 Oct 2026: `lobby.mp3`, `match.mp3`, and `boss.mp3` in `apps/client/public/music/` (AI-generated via Google Gemini, by Han). See `docs/SOUND_FILES.md`. | ☑ |
 | H-05 | Test on an iPhone (`a-iphone`) | Safari has the most quirks. Run `docs/MOBILE_TESTING.md` once and fill in its Results table. | ☐ |
 | H-06 | Give the team access | GitHub write access for branches and PRs (merging stays with you). Nothing else is needed to start. | ☐ |
 

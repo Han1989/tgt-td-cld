@@ -178,9 +178,10 @@ const items: ProgressItem[] = [
     id: 'H-04',
     title: 'Three music tracks (optional)',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'han',
-    note: 'lobby.mp3, match.mp3, and boss.mp3. Licensed for a paid game. Upload through a PR; see docs/SOUND_FILES.md.',
+    note: 'Done 1 Oct 2026. lobby.mp3, match.mp3, and boss.mp3 are in public/music (AI-generated via Google Gemini, by Han).',
+    proof: pr(42),
   },
   {
     id: 'H-05',
