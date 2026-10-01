@@ -68,6 +68,10 @@
             <span id="lobby-difficulty-room-label">Difficulty</span>
             <div id="lobby-difficulty-room" class="hero-picks mode-picks"></div>
           </div>
+          <div class="field">
+            <span id="lobby-modifiers-room-label">Modifiers</span>
+            <div id="lobby-modifiers-room" class="mod-picks"></div>
+          </div>
           <div class="room-actions">
             <button id="lobby-leave" class="btn">Leave</button>
             <button id="lobby-ready" class="btn big">Ready</button>
@@ -88,6 +92,10 @@
           <div class="field">
             <span>Difficulty</span>
             <div id="lobby-difficulty-solo" class="hero-picks mode-picks"></div>
+          </div>
+          <div class="field">
+            <span>Modifiers</span>
+            <div id="lobby-modifiers-solo" class="mod-picks"></div>
           </div>
           <button id="lobby-solo-play" class="btn big">Play</button>
           <button id="tutorial-solo-skip" class="link hidden" type="button">Skip lesson</button>
@@ -217,6 +225,7 @@
       <div id="reconnecting" class="reconnecting hidden">Connection lost — reconnecting…</div>
 
       <div id="toasts" class="toasts"></div>
+      <div id="match-flags" class="match-flags hidden"></div>
       <div id="banner" class="banner hidden"></div>
       <div id="coop-glow" aria-hidden="true"></div>
       <div id="coop-burst" class="hidden" aria-hidden="true">

@@ -4,8 +4,9 @@ import { FINALE_LEAK_CREEP_ID, FINALE_LEAK_LANE, type CreepKind, type LaneId, ty
 import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
 import { getMap } from './map';
+import { countFactor, flavorKind, goldFactor, surgeCounts, surgeNotice, surgeShare } from './modifiers';
 import type { Creep, GameState } from './state';
-import { secondsToTicks, TICK_RATE, type DifficultyBand } from './tuning';
+import { secondsToTicks, TICK_RATE, type DifficultyBand, type WaveGroup } from './tuning';
 
 export function totalWaves(state: GameState): number {
   return state.tuning.waves.list.length;
@@ -13,7 +14,7 @@ export function totalWaves(state: GameState): number {
 
 export function waveIncome(state: GameState, wave: number): number {
   const e = state.tuning.economy;
-  return e.waveIncomeBase + e.waveIncomePerWave * (wave - 1);
+  return Math.round((e.waveIncomeBase + e.waveIncomePerWave * (wave - 1)) * goldFactor(state));
 }
 
 /** Gold each player would get for calling the next wave right now. */
@@ -59,16 +60,36 @@ function startWave(state: GameState): void {
     emit(state, { type: 'leak', creepId: FINALE_LEAK_CREEP_ID, damage: finale, lane: FINALE_LEAK_LANE });
   }
 
+  // This wave's surge, and the announcement of the next one (a wave ahead).
+  state.surgeLane = state.surgeLanes[wave] ?? null;
+  const ahead = surgeNotice(state.surgeLanes, wave + 1);
+  const changed = ahead?.wave !== state.nextSurge?.wave || ahead?.lane !== state.nextSurge?.lane;
+  state.nextSurge = ahead;
+  if (ahead && changed) emit(state, { type: 'surge', wave: ahead.wave, lane: ahead.lane });
+
   const groups = t.list[wave - 1] ?? [];
-  const spawnGap = secondsToTicks(t.spawnInterval);
+  const natural = secondsToTicks(t.spawnInterval);
+  const intervalTicks = secondsToTicks(t.interval);
+  const surge = state.surgeLane;
+  const share = surgeShare(state);
+  const isBoss = (kind: CreepKind) => state.tuning.creeps[kind].boss;
+  const countFor = (g: WaveGroup, lane: LaneId): number => {
+    if (!g.lanes.includes(lane)) return 0;
+    if (isBoss(g.kind)) return g.perLane;
+    // A surge piles regular creeps that were listed on every lane. A single-lane group stays put.
+    if (surge != null && g.lanes.length >= 3) {
+      const total = scaledCount(state, g.perLane) * g.lanes.length;
+      return surgeCounts(total, surge, share)[lane];
+    }
+    return scaledCount(state, g.perLane);
+  };
   for (const lane of [0, 1, 2] as LaneId[]) {
     const laneGroups = groups.filter((g) => g.lanes.includes(lane));
-    const isBoss = (kind: CreepKind) => state.tuning.creeps[kind].boss;
     const regular = laneGroups.filter((g) => !isBoss(g.kind));
     const bosses = laneGroups.filter((g) => isBoss(g.kind));
     // Interleave kinds so a lane gets a mixed stream, bosses last.
     const order: CreepKind[] = [];
-    const left = regular.map((g) => scaledCount(state, g.perLane));
+    const left = regular.map((g) => countFor(g, lane));
     let any = true;
     while (any) {
       any = false;
@@ -81,10 +102,25 @@ function startWave(state: GameState): void {
       });
     }
     for (const b of bosses) for (let i = 0; i < b.perLane; i++) order.push(b.kind);
+    // A surged lane can hold most of the wave. Tighten the gap so the last creep still spawns
+    // before the next wave, instead of stacking two waves on that portal.
+    const gap = spawnGap(natural, intervalTicks, order.length);
     order.forEach((kind, i) => {
-      state.spawnQueue.push({ tick: state.tick + i * spawnGap, kind, lane, wave });
+      state.spawnQueue.push({
+        tick: state.tick + i * gap,
+        kind: flavorKind(state.tuning, state.modifiers, kind, i, wave, lane),
+        lane,
+        wave,
+      });
     });
   }
+}
+
+/** Ticks between spawns in one lane. The natural gap, unless that would run past the next wave. */
+function spawnGap(natural: number, intervalTicks: number, count: number): number {
+  if (count <= 1) return natural;
+  if ((count - 1) * natural < intervalTicks) return natural;
+  return Math.max(1, Math.floor((intervalTicks - 1) / (count - 1)));
 }
 
 /** Extra players beyond the first, for player-count scaling. */
@@ -158,9 +194,11 @@ function wholeExtra(extra: number, wave: number, perLane: number): number {
 /** Creeps per lane after player-count scaling (+30% per extra player by default) and difficulty. */
 export function scaledCount(state: GameState, perLane: number): number {
   const scale = difficultyScaling(state, Math.max(1, state.wave));
-  const multiplied = Math.round(
+  let multiplied = Math.round(
     perLane * scale.count * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)),
   );
+  const rush = countFactor(state);
+  if (rush !== 1) multiplied = Math.max(0, Math.round(multiplied * rush));
   return multiplied + wholeExtra(scale.extra, Math.max(1, state.wave), perLane);
 }
 

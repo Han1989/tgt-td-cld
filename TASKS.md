@@ -208,12 +208,12 @@ Start store work only after Discovery (D-01–D-06 / Gate 2) shows strangers sta
 
 ### Backlog (not scheduled)
 
-- The rest of Phase 5 (`docs/REPLAYABILITY.md`): lane surges, match modifiers, more maps.
+- The rest of Phase 5 (`docs/REPLAYABILITY.md`): more maps. Lane surges and match modifiers are in.
 - Should Quick be the default mode on phones? (`docs/MOBILE.md` §11, Han decides.)
 
 ---
 
-## Done · 11 of 50
+## Done · 12 of 50
 
 | ID | What | Proof |
 |---|---|---|
@@ -228,3 +228,4 @@ Start store work only after Discovery (D-01–D-06 / Gate 2) shows strangers sta
 | a-sound | Sound: music and effects made in code | PR #22 |
 | a-theme | Sound theme: Japanese lobby, Three Kingdoms battles (no recorded files yet) | PR #23 |
 | b-spike | Hook test branch: combo ultimates, boss shield, solo bot ally. **Never merge.** | Branch `claude/loving-hawking-7fvsu7` |
+| p5-surges | Lane surges and match modifiers (Swift, Ironclad, Sky Tide, Fog, Gold Rush). Protocol 15 | This PR |

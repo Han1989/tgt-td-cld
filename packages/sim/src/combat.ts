@@ -2,6 +2,7 @@
 
 import type { AoeEffect, DamageType, EntityId, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
 import { getMap } from './map';
+import { bountyFactor, xpFactor } from './modifiers';
 import { nextRandom } from './rng';
 import type { Creep, GameState, Hero, Projectile, ProjectileFx, TargetKind, Tower } from './state';
 import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
@@ -52,7 +53,8 @@ export function damageMultiplier(tuning: Tuning, type: DamageType, armor: number
 /** Bounty for killing `creep`, grown by its wave number. */
 export function creepBounty(state: GameState, creep: Creep): number {
   const base = state.tuning.creeps[creep.kind].bounty;
-  return Math.round(base * (1 + state.tuning.economy.bountyGrowthPerWave * (creep.wave - 1)));
+  const grown = base * (1 + state.tuning.economy.bountyGrowthPerWave * (creep.wave - 1));
+  return Math.round(grown * bountyFactor(state));
 }
 
 export function heroStats(state: GameState, hero: Hero): HeroStats {
@@ -180,7 +182,7 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
 export function grantXp(state: GameState, hero: Hero, amount: number): void {
   const { xpForLevel, maxLevel } = state.tuning.hero;
   const cap = xpForLevel[maxLevel - 1] ?? 0;
-  hero.xp = Math.min(cap, hero.xp + amount);
+  hero.xp = Math.min(cap, hero.xp + amount * xpFactor(state));
   while (hero.level < maxLevel && hero.xp >= (xpForLevel[hero.level] ?? Infinity)) {
     const oldHp = heroMaxHp(state, hero);
     const oldMana = heroMaxMana(state, hero);

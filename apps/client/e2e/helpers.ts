@@ -18,6 +18,8 @@ interface Hook {
     tick: number;
     totalWaves: number;
     phase: string;
+    modifiers: string[];
+    surgeLane: number | null;
     heroes: { owner: string; x: number; y: number; mana: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
     creeps: { x: number; y: number; kind: string }[];
     towers: { id: number; padId: number; owner: string; tier: number; branch: string | null; priority: string; x: number; y: number }[];

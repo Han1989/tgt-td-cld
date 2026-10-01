@@ -1163,6 +1163,72 @@ body.layout-tall #lane-roles {
   top: 44%;
 }
 
+/* Modifiers and the surge chip, under the top bar. The wave banner still names the surge itself. */
+.match-flags {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: min(420px, calc(100% - 16px));
+  pointer-events: none;
+}
+
+.mod-flag,
+.surge-flag {
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: rgba(16, 12, 22, 0.88);
+  border: 1px solid rgba(255, 210, 74, 0.55);
+  box-shadow: 0 0 0 1px var(--ink), 0 4px 14px rgba(0, 0, 8, 0.45);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-align: center;
+}
+
+.surge-flag.lane-0 {
+  border-color: rgba(255, 58, 96, 0.7);
+}
+
+.surge-flag.lane-1 {
+  border-color: rgba(255, 210, 74, 0.75);
+}
+
+.surge-flag.lane-2 {
+  border-color: rgba(127, 252, 216, 0.7);
+}
+
+.mod-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mod-names {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+}
+
+.mod-blurb {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.mod-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .banner {
   position: absolute;
   top: 22%;

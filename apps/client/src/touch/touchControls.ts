@@ -18,7 +18,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, TILE_PX, TUNING } from '@tdt/sim';
+import { getMap, TILE_PX, towerRangeScale, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
@@ -704,7 +704,8 @@ export class TouchControls {
       if (this.branchPick) chip = branchChip(this.branchPick);
       else if (choices.length > 0) chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: pick a specialisation`;
       else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
-      else chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier) || 'max tier'}`;
+      else
+        chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier, TUNING, 2, towerRangeScale(snap.modifiers, TUNING)) || 'max tier'}`;
     }
     const at = placeRadial(this.toScreen(anchor.x, anchor.y), extent, CHIP_H, this.bounds());
     this.radial.style.left = `${Math.round(at.x)}px`;

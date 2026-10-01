@@ -147,7 +147,7 @@ describe('match reports', () => {
     expect(report.heroes.map((h) => h.player)).toEqual(['p1', 'p2']);
     expect(replay.players.map((p) => p.hero)).toEqual(['ranger', 'warden']);
     expect(replay.log.some((e) => e[1] === 1 && e[2] === 'drop')).toBe(true);
-    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick normal seed ${report.seed} `))).toHaveLength(1);
+    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick normal plain seed ${report.seed} `))).toHaveLength(1);
     expect(lines[0]).toContain(' build abc1234 defeat ');
 
     // A player who comes back after the end gets it too.
@@ -232,6 +232,57 @@ describe('difficulty', () => {
     host!.send({ t: 'restart' });
     await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
     expect(guest!.lobby!.difficulty).toBe('hard');
+  });
+});
+
+describe('modifiers', () => {
+  it('lets only the host reroll once or choose none, and starts the match on that draw', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    const offer = host!.lobby!.modifiers.slice();
+    expect(offer.length).toBeGreaterThanOrEqual(1);
+    expect(offer.length).toBeLessThanOrEqual(2);
+    expect(host!.lobby!.modifiersRerolled).toBe(false);
+    expect(guest!.lobby!.modifierOffer).toEqual(offer);
+
+    guest!.send({ t: 'modifiers', action: 'reroll' });
+    await guest!.waitFor(() => guest!.errors.length > 0);
+    expect(guest!.errors[0]).toMatchObject({ code: 'not_host' });
+    expect(host!.lobby!.modifiers).toEqual(offer);
+
+    host!.send({ t: 'modifiers', action: 'reroll' });
+    await guest!.waitFor(() => guest!.lobby?.modifiersRerolled === true);
+    expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
+    expect(host!.lobby!.modifiers).not.toEqual(offer);
+
+    host!.send({ t: 'modifiers', action: 'reroll' });
+    await host!.waitFor(() => host!.errors.length > 0);
+    expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
+    expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
+
+    const rolled = host!.lobby!.modifiers.slice();
+    host!.send({ t: 'modifiers', action: 'none' });
+    await guest!.waitFor(() => guest!.lobby?.modifiers.length === 0);
+    host!.send({ t: 'modifiers', action: 'offer' });
+    await guest!.waitFor(() => (guest!.lobby?.modifiers.length ?? 0) > 0);
+    expect(guest!.lobby!.modifiers).toEqual(rolled);
+
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    expect(guest!.snap!.modifiers).toEqual(rolled);
+    expect(server.rooms.get(host!.code!)!.state!.modifiers).toEqual(rolled);
+
+    host!.send({ t: 'modifiers', action: 'none' });
+    await host!.waitFor(() => host!.errors.length > 0);
+    expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
+
+    server.rooms.get(host!.code!)!.state!.heartHp = 0;
+    await host!.waitFor(() => host!.snap?.phase === 'defeat');
+    host!.send({ t: 'restart' });
+    await guest!.waitFor(() => guest!.lobby?.phase === 'lobby' && guest!.lobby.modifiersRerolled === false);
+    expect(guest!.lobby!.modifiers.length).toBeGreaterThanOrEqual(1);
   });
 });
 

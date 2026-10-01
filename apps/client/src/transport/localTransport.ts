@@ -1,4 +1,4 @@
-import { decodeServerMessage, encodeClientMessage, type ClientMessage, type ServerMessage } from '@tdt/protocol';
+import { decodeServerMessage, encodeClientMessage, type ClientMessage, type Modifier, type ServerMessage } from '@tdt/protocol';
 import { SOLO_INTERP_DELAY_MS } from '../snapshotBuffer';
 import type { Transport } from './transport';
 
@@ -24,6 +24,11 @@ export class LocalTransport implements Transport {
 
   send(msg: ClientMessage): void {
     this.worker.postMessage(encodeClientMessage(msg));
+  }
+
+  /** Solo pick: pin the seed and modifiers before the match-starting hero / mode / difficulty messages. */
+  setDeal(seed: number, modifiers: readonly Modifier[]): void {
+    this.worker.postMessage({ ctl: 'deal', seed, modifiers });
   }
 
   debug(ctl: 'lose'): void {

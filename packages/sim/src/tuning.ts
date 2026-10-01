@@ -370,6 +370,32 @@ export interface DifficultyBand {
   finale?: number;
 }
 
+/** Lane surges (docs/REPLAYABILITY.md §2). Numbers only; the schedule comes from the match seed. */
+export interface SurgeTuning {
+  /** First wave that can surge (1-based). It is announced when the previous wave starts. */
+  fromWave: number;
+  /** From `fromWave` on, a wave surges when a seed mix modulo this is 0. 3 is about one wave in three. */
+  period: number;
+  /** Share of that wave's regular creeps on the surge lane, for 2 and 3 players. */
+  share: number;
+  /** Solo share. Milder, so one player covering three lanes is not hit with the co-op pile. */
+  soloShare: number;
+}
+
+/** What each match modifier changes. Swift and Fog match the replayability doc; the others are the "more". */
+export interface ModifierStats {
+  /** Creeps move this much faster, and kills pay this much more. */
+  swift: { speed: number; bounty: number };
+  /** From `fromWave`, every Nth eligible ground creep spawns as a Brute. */
+  ironclad: { every: number; fromWave: number };
+  /** From `fromWave`, every Nth eligible ground creep spawns as a Wisp. Brutes stay Brutes. */
+  skyTide: { every: number; fromWave: number };
+  /** Tower range times this. Hero experience times `xp`. */
+  fog: { towerRange: number; xp: number };
+  /** Starting gold and wave income times `gold`. Bounty times `bounty`. Creep count times `count`. */
+  goldRush: { gold: number; bounty: number; count: number };
+}
+
 export interface DifficultyScaling extends DifficultyBand {
   /**
    * Per player count (index 0 = solo), used instead of the scalars above. One multiplier cannot put a
@@ -477,6 +503,10 @@ export interface Tuning {
    * the numbers above exactly). A mode may override Hard in `modes.<mode>.hard`.
    */
   difficulty: Record<Difficulty, DifficultyScaling>;
+  /** Lane surges from wave 6. Solo uses `soloShare`. */
+  surges: SurgeTuning;
+  /** Match modifiers. A match runs one or two, or none. */
+  modifierStats: ModifierStats;
   hero: {
     maxLevel: number;
     /** Total XP needed to reach level i+1 (index 0 = level 1). */
@@ -814,6 +844,18 @@ export const TUNING: Tuning = {
         },
       ],
     },
+  },
+  // About one wave in three from wave 6, ~60% of that wave's regular creeps on one lane.
+  // Solo is 0.44 so the pile is a nudge over an even split (one third), not the co-op crush.
+  // Bosses stay on the lane the wave list names. The spawn gap tightens when a lane would
+  // still be spawning at the next wave.
+  surges: { fromWave: 6, period: 3, share: 0.6, soloShare: 0.44 },
+  modifierStats: {
+    swift: { speed: 1.15, bounty: 1.1 },
+    ironclad: { every: 32, fromWave: 1 },
+    skyTide: { every: 9, fromWave: 1 },
+    fog: { towerRange: 0.9, xp: 1.2 },
+    goldRush: { gold: 1.1, bounty: 1.1, count: 1.12 },
   },
   hero: {
     maxLevel: 10,

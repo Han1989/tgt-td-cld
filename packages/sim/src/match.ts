@@ -9,6 +9,7 @@ import {
   DIFFICULTIES,
   GAME_MODES,
   HERO_KINDS,
+  MODIFIERS,
   PROTOCOL_VERSION,
   R_OVERLAP_SECONDS,
   type Command,
@@ -20,6 +21,7 @@ import {
 } from '@tdt/protocol';
 import { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
 import { createGame, step } from './game';
+import { normalizeModifiers } from './modifiers';
 import { skillInfo } from './skills';
 import type { GameConfig, GameState } from './state';
 import { TICK_RATE, type Tuning } from './tuning';
@@ -216,6 +218,7 @@ export function matchReport(match: Match): MatchReport {
     build: match.build,
     mode: state.mode,
     difficulty: state.difficulty,
+    modifiers: state.modifiers,
     seed: match.seed,
     result: state.phase === 'victory' ? 'victory' : 'defeat',
     wave: state.wave,
@@ -238,6 +241,7 @@ export function matchReplay(match: Match): Replay {
     seed: match.seed,
     mode: state.mode,
     difficulty: state.difficulty,
+    modifiers: state.modifiers,
     players: state.players.map((p) => ({ id: p.id, name: p.name, hero: state.heroes.find((h) => h.id === p.heroId)!.kind })),
     log: match.log.slice(),
     end: { tick: state.tick, result: state.phase, wave: state.wave, heartHp: state.heartHp },
@@ -254,6 +258,7 @@ export function replayMatch(replay: Replay, tuning?: Tuning): Match {
       players: replay.players,
       mode: replay.mode,
       difficulty: replay.difficulty ?? 'normal',
+      modifiers: replayModifiersProblem(replay.modifiers) ? [] : normalizeModifiers(replay.modifiers),
       ...(tuning ? { tuning } : {}),
     },
     replay.seed,
@@ -287,6 +292,7 @@ export function replayProblem(data: unknown): string | null {
   if (r.build !== undefined && typeof r.build !== 'string') return 'bad build';
   if (!GAME_MODES.includes(r.mode as never)) return 'bad mode';
   if (r.difficulty !== undefined && !DIFFICULTIES.includes(r.difficulty as never)) return 'bad difficulty';
+  if (r.modifiers !== undefined && replayModifiersProblem(r.modifiers)) return 'bad modifiers';
   if (!Array.isArray(r.players) || r.players.length === 0) return 'no players';
   for (const p of r.players) {
     if (typeof p?.id !== 'string' || typeof p.name !== 'string' || !HERO_KINDS.includes(p.hero)) return 'bad player';
@@ -303,6 +309,22 @@ export function replayProblem(data: unknown): string | null {
 
 const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
+function modifierLabel(modifiers: readonly string[] | undefined): string {
+  return modifiers && modifiers.length > 0 ? modifiers.join('+') : 'plain';
+}
+
+/** A present list must be known ids, no duplicates, at most two. Absent means an older replay: no modifiers. */
+function replayModifiersProblem(list: unknown): boolean {
+  if (list === undefined) return false;
+  if (!Array.isArray(list) || list.length > 2) return true;
+  const seen = new Set<string>();
+  for (const id of list) {
+    if (typeof id !== 'string' || seen.has(id) || !(MODIFIERS as readonly string[]).includes(id)) return true;
+    seen.add(id);
+  }
+  return false;
+}
+
 /** A one-line summary of a report, for server logs. */
 export function reportSummary(report: MatchReport, room?: string): string {
   const heroes = report.heroes.map(
@@ -312,7 +334,7 @@ export function reportSummary(report: MatchReport, room?: string): string {
       `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0}`,
   );
   return (
-    `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} seed ${report.seed} v${report.protocol} build ${report.build} ` +
+    `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} ${modifierLabel(report.modifiers)} seed ${report.seed} v${report.protocol} build ${report.build} ` +
     `${report.result} ` +
     `wave ${report.wave}/${report.totalWaves} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} ` +
     `towers ${report.heroes.reduce((n, h) => n + h.towersBuilt, 0)} ` +

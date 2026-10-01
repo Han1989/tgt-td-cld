@@ -5,7 +5,7 @@
  * dashboard reads. When a pull request finishes a task, update both TASKS.md and
  * this file in that same PR. How: docs/PROGRESS.md.
  *
- * Seeded from main as of 1 Oct 2026. Production protocol is 14.
+ * Seeded from main as of 1 Oct 2026. Production protocol is 15.
  * Gate 1 is waived and treated as passed. This page only reports status.
  */
 
@@ -45,7 +45,7 @@ const sections: ProgressSection[] = [
   {
     id: 'earlier',
     title: 'Shipped earlier',
-    blurb: 'The checklist’s “Done · 11 of 50”, already on main. The hook-test branch stays unmerged.',
+    blurb: 'The checklist’s “Done · 12 of 50”, already on main. The hook-test branch stays unmerged.',
     group: 'archive',
   },
   {
@@ -99,7 +99,7 @@ const sections: ProgressSection[] = [
   {
     id: 'backlog',
     title: 'Backlog',
-    blurb: 'Not scheduled. The rest of Phase 5, and one open decision.',
+    blurb: 'Not scheduled. More maps, and one open decision.',
     group: 'later',
   },
 ];
@@ -660,12 +660,20 @@ const items: ProgressItem[] = [
     note: 'Wrap the same web build with Capacitor, same protocol. Needs Apple and Google developer accounts.',
   },
   {
+    id: 'p5-surges',
+    title: 'Lane surges and match modifiers',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Protocol 15. From wave 6 some waves pile onto one lane, announced a wave ahead. Solo surges are milder. Each match rolls 1–2 modifiers from the seed. The host can reroll once or choose none.',
+  },
+  {
     id: 'p5-rest',
-    title: 'Rest of Phase 5',
+    title: 'More maps',
     owner: 'Team',
     status: 'todo',
     section: 'backlog',
-    note: 'Lane surges, match modifiers, and more maps. Tower branches (tier 4) are already shipped. See docs/REPLAYABILITY.md.',
+    note: 'The rest of Phase 5. Lane surges, match modifiers, and tower branches (tier 4) are already shipped. See docs/REPLAYABILITY.md.',
   },
   {
     id: 'p5-quick',
@@ -679,7 +687,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '1 Oct 2026',
-  protocol: 14,
+  protocol: 15,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'Gate 2',

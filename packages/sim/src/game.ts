@@ -11,6 +11,7 @@ import { seedRng } from './rng';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import type { GameConfig, GameState, Hero } from './state';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
+import { normalizeModifiers, planSurgeLanes, scaledTowerRange, surgeNotice, goldFactor } from './modifiers';
 import { secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
 import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
@@ -24,6 +25,10 @@ export function createGame(config: GameConfig, seed: number): GameState {
     rng: seedRng(seed),
     mode,
     difficulty: config.difficulty ?? 'normal',
+    modifiers: normalizeModifiers(config.modifiers),
+    surgeLanes: planSurgeLanes(seed, tuning.waves.list.length, tuning),
+    surgeLane: null,
+    nextSurge: null,
     tuning,
     phase: 'build',
     heartHp: tuning.heart.maxHp,
@@ -84,6 +89,10 @@ export function createGame(config: GameConfig, seed: number): GameState {
     state.heroes.push(hero);
     state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true, left: false });
   });
+  const gold = goldFactor(state);
+  if (gold !== 1) for (const p of state.players) p.gold = Math.round(p.gold * gold);
+  // Wave 0 (the build): the chip can name wave 1's surge before the first step. Wave 1 is before surges start.
+  state.nextSurge = surgeNotice(state.surgeLanes, 1);
   return state;
 }
 
@@ -152,6 +161,9 @@ export function snapshot(state: GameState): Snapshot {
     tickRate: TICK_RATE,
     mode: state.mode,
     difficulty: state.difficulty,
+    modifiers: state.modifiers,
+    surgeLane: state.surgeLane,
+    nextSurge: state.nextSurge,
     phase: state.phase,
     heartHp: state.heartHp,
     heartMaxHp: t.heart.maxHp,
@@ -235,7 +247,7 @@ export function snapshot(state: GameState): Snapshot {
       maxHp: tw.maxHp,
       tier: tw.tier,
       branch: tw.branch,
-      range: towerStats(t, tw.kind, tw.tier, tw.branch).range,
+      range: scaledTowerRange(state, towerStats(t, tw.kind, tw.tier, tw.branch).range),
       spent: tw.spent,
       priority: tw.priority,
       stunned: state.tick < tw.stunUntil,

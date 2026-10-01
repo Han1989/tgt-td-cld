@@ -1,7 +1,7 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { Difficulty, GameMode, GamePhase, HeroKind } from '@tdt/protocol';
+import type { Difficulty, GameMode, GamePhase, HeroKind, Modifier } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
@@ -60,6 +60,8 @@ export function runHeadlessMatch(opts: {
   mode?: GameMode;
   /** Creep difficulty (default Normal). */
   difficulty?: Difficulty;
+  /** Match modifiers (default none). */
+  modifiers?: Modifier[];
   /** Bots think this many times per second. */
   decisionsPerSecond?: number;
   maxSeconds?: number;
@@ -70,6 +72,7 @@ export function runHeadlessMatch(opts: {
       ...(opts.tuning ? { tuning: opts.tuning } : {}),
       ...(opts.mode ? { mode: opts.mode } : {}),
       ...(opts.difficulty ? { difficulty: opts.difficulty } : {}),
+      ...(opts.modifiers ? { modifiers: opts.modifiers } : {}),
     },
     opts.seed,
   );

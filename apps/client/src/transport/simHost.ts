@@ -12,6 +12,7 @@ import {
   type Difficulty,
   type GameMode,
   type HeroKind,
+  type Modifier,
   type PlayerId,
   type SocialClock,
 } from '@tdt/protocol';
@@ -22,6 +23,7 @@ import {
   matchReplay,
   matchReport,
   matchStep,
+  normalizeModifiers,
   snapshot,
   type GameState,
   type Match,
@@ -38,6 +40,13 @@ export class SimHost {
   private hero: HeroKind = 'ranger';
   private mode: GameMode = 'full';
   private difficulty: Difficulty = 'normal';
+  /** Modifiers for the next match. Empty is none. */
+  private modifiers: Modifier[] = [];
+  /**
+   * Seed chosen on the solo pick, so the lobby draw and the match are the same.
+   * Cleared on "Play again", which takes a fresh seed and keeps the chosen modifiers.
+   */
+  private pinnedSeed: number | null = null;
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
   /** Same ping / emote gap the game server enforces. */
@@ -59,9 +68,10 @@ export class SimHost {
         players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }],
         mode: this.mode,
         difficulty: this.difficulty,
+        modifiers: this.modifiers,
         tuning: this.tuning,
       },
-      this.nextSeed(),
+      this.pinnedSeed ?? this.nextSeed(),
       normalizeBuild(this.build),
     );
     this.reported = false;
@@ -77,7 +87,10 @@ export class SimHost {
     if (!msg) return;
     const over = this.state.phase === 'victory' || this.state.phase === 'defeat';
     if (msg.t === 'restart') {
-      if (over) this.reset();
+      if (over) {
+        this.pinnedSeed = null;
+        this.reset();
+      }
     } else if (msg.t === 'hero' || msg.t === 'mode' || msg.t === 'difficulty') {
       // Solo hero / mode / difficulty pick: starts a new match with it, unless waves are already running.
       if (this.state.phase !== 'waves') {
@@ -92,6 +105,16 @@ export class SimHost {
       this.queue.push(cmd);
     }
     // Other room and lobby messages only mean something to the online server.
+  }
+
+  /**
+   * Solo pick: the seed and modifiers the player is looking at. The next `reset` (hero / mode / difficulty)
+   * starts the match with them. Online rooms do not use this; the server owns the draw.
+   */
+  setDeal(seed: number, modifiers: readonly string[]): void {
+    if (!Number.isSafeInteger(seed) || seed < 0) return;
+    this.pinnedSeed = seed;
+    this.modifiers = normalizeModifiers(modifiers);
   }
 
   /** Browser tests only (the worker's e2e `lose` control): the Heart drops to 0, so the match ends next tick. */

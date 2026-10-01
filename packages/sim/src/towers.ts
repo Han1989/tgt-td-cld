@@ -13,6 +13,7 @@ import {
   spawnProjectile,
   stunCreep,
 } from './combat';
+import { scaledTowerRange } from './modifiers';
 import type { Creep, GameState, Projectile, ProjectileFx, Tower } from './state';
 import { secondsToTicks, TICK_RATE, towerStats, type TowerLevelStats } from './tuning';
 import { dist, moveToward } from './vec';
@@ -22,7 +23,9 @@ export function updateTowers(state: GameState): void {
     if (tower.dead) continue;
     if (tower.cooldown > 0) tower.cooldown--;
     if (state.tick < tower.stunUntil || tower.cooldown > 0) continue;
-    const st = towerStats(state.tuning, tower.kind, tower.tier, tower.branch);
+    const rolled = towerStats(state.tuning, tower.kind, tower.tier, tower.branch);
+    const range = scaledTowerRange(state, rolled.range);
+    const st = range === rolled.range ? rolled : { ...rolled, range };
     if (st.pulse) {
       if (pulse(state, tower, st)) tower.cooldown = secondsToTicks(st.attackCooldown);
       continue;

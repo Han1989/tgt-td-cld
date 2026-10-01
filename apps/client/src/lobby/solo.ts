@@ -8,6 +8,7 @@ import { sharedSettings } from '../settings';
 import { DifficultyPicker, storedDifficulty, storeDifficulty } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { ModePicker, storedMode, storeMode } from './modePicker';
+import { SoloModifierPicker, type ModifierDeal } from './modifierPicker';
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -18,8 +19,10 @@ function $(id: string): HTMLElement {
 let onPlayClick: (() => void) | null = null;
 let onSkipClick: (() => void) | null = null;
 
-/** Shows the solo pick and calls `onPlay` with the chosen hero, mode and difficulty. */
-export function showSoloPick(onPlay: (hero: HeroKind, mode: GameMode, difficulty: Difficulty) => void): void {
+/** Shows the solo pick and calls `onPlay` with the chosen hero, mode, difficulty and modifier deal. */
+export function showSoloPick(
+  onPlay: (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal) => void,
+): void {
   const root = $('lobby');
   for (const id of ['lobby-home', 'lobby-room', 'lobby-busy']) $(id).classList.add('hidden');
   $('lobby-solo').classList.remove('hidden');
@@ -27,6 +30,7 @@ export function showSoloPick(onPlay: (hero: HeroKind, mode: GameMode, difficulty
   const picker = new HeroPicker($('lobby-heroes-solo'), storedHero(), storeHero);
   const modes = new ModePicker($('lobby-mode-solo'), storedMode(), storeMode);
   const difficulties = new DifficultyPicker($('lobby-difficulty-solo'), storedDifficulty(), storeDifficulty);
+  const modifiers = new SoloModifierPicker($('lobby-modifiers-solo'));
   const play = $('lobby-solo-play');
   const skip = $('tutorial-solo-skip');
   const note = $('tutorial-solo-note');
@@ -36,6 +40,7 @@ export function showSoloPick(onPlay: (hero: HeroKind, mode: GameMode, difficulty
     skip.classList.toggle('hidden', !lesson);
     modes.setEnabled(!lesson);
     difficulties.setEnabled(!lesson);
+    modifiers.setLocked(lesson);
     if (lesson) {
       modes.select('quick');
       difficulties.select('normal');
@@ -52,7 +57,7 @@ export function showSoloPick(onPlay: (hero: HeroKind, mode: GameMode, difficulty
   if (onSkipClick) skip.removeEventListener('click', onSkipClick);
   onPlayClick = () => {
     root.classList.add('hidden');
-    onPlay(picker.hero, modes.mode, difficulties.difficulty);
+    onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal());
   };
   onSkipClick = () => {
     sharedSettings().set({ tutorial: lessonStatus('skip') });

@@ -3,6 +3,7 @@ import {
   EMOTES,
   GAME_MODES,
   HERO_KINDS,
+  MODIFIER_ACTIONS,
   MAX_NAME_LENGTH,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
@@ -15,6 +16,7 @@ import {
   type Difficulty,
   type Emote,
   type GameMode,
+  type ModifierAction,
   type HeroKind,
   type ServerMessage,
   type SkillSlot,
@@ -89,6 +91,9 @@ export function decodeClientMessage(raw: unknown): ClientMessage | null {
     case 'difficulty':
       if (!hasOnlyKeys(data, ['t', 'difficulty']) || !isDifficulty(data.difficulty)) return null;
       return { t: 'difficulty', difficulty: data.difficulty };
+    case 'modifiers':
+      if (!hasOnlyKeys(data, ['t', 'action']) || !isModifierAction(data.action)) return null;
+      return { t: 'modifiers', action: data.action };
     case 'ready':
       if (!hasOnlyKeys(data, ['t', 'ready']) || typeof data.ready !== 'boolean') return null;
       return { t: 'ready', ready: data.ready };
@@ -252,6 +257,10 @@ function isGameMode(value: unknown): value is GameMode {
 
 function isDifficulty(value: unknown): value is Difficulty {
   return typeof value === 'string' && (DIFFICULTIES as readonly string[]).includes(value);
+}
+
+function isModifierAction(value: unknown): value is ModifierAction {
+  return typeof value === 'string' && (MODIFIER_ACTIONS as readonly string[]).includes(value);
 }
 
 function isTowerKind(value: unknown): value is TowerKind {

@@ -26,7 +26,7 @@ let next = performance.now() + TICK_MS;
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; seed?: unknown; modifiers?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
     next = performance.now() + TICK_MS;
@@ -41,6 +41,15 @@ ctx.onmessage = (e) => {
     // `?lab&auras`: heroes start with their passive (E) learned, so auras can be tested at once.
     if (data.auras === true) tuning.hero.startingSkills = ['Q', 'W', 'E'];
     host.tuning = tuning;
+    return;
+  }
+  if (data && typeof data === 'object' && data.ctl === 'deal' && typeof data.seed === 'number' && Array.isArray(data.modifiers)) {
+    const modifiers: string[] = [];
+    for (const m of data.modifiers) {
+      if (typeof m !== 'string') return;
+      modifiers.push(m);
+    }
+    host.setDeal(data.seed, modifiers);
     return;
   }
   if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'lose') {
