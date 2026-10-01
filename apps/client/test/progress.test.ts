@@ -23,8 +23,8 @@ describe('progress dashboard data', () => {
     expect(PROGRESS.items.some((item) => item.status === 'todo')).toBe(true);
   });
 
-  it('seeds protocol 13, a finished polish path, and Gate 1 as next', () => {
-    expect(PROGRESS.protocol).toBe(13);
+  it('seeds protocol 14, a finished polish path, and Gate 1 as next', () => {
+    expect(PROGRESS.protocol).toBe(14);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -112,7 +112,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('Gate 1');
-    expect(summary).toContain('13');
+    expect(summary).toContain('14');
     expect(summary).toContain('Complete');
   });
 });

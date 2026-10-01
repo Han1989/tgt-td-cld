@@ -15,6 +15,10 @@ describe('match report file', () => {
     expect(f.text.indexOf('"report"')).toBeLessThan(f.text.indexOf('"replay"'));
     expect(f.text).toContain('[[0,0,"move",1.5,2]]');
     expect(parseMatchFile(f.text)).toEqual({ report, replay });
+    expect(parseMatchFile('{"report":{"heroes":[{"player":"p1"}]},"replay":{}}')?.report.heroes[0]).toMatchObject({
+      goldGifted: 0,
+      goldReceived: 0,
+    });
     expect(parseMatchFile('nope')).toBeNull();
     expect(parseMatchFile('{"report":1}')).toBeNull();
   });

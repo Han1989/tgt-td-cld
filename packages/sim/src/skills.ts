@@ -3,7 +3,7 @@
 // ultimates (Arrow Storm, Meteor). Passives (E) are applied where they act:
 // Keen Eye in hero auto-attacks, the auras in combat.ts.
 
-import type { HeroKind, SkillSlot } from '@tdt/protocol';
+import { R_OVERLAP_SECONDS, type HeroKind, type SkillSlot } from '@tdt/protocol';
 import {
   applySlow,
   controlTicks,
@@ -17,7 +17,7 @@ import {
   stunCreep,
 } from './combat';
 import type { GameState, Hero, Zone } from './state';
-import { secondsToTicks, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
+import { secondsToTicks, TICK_RATE, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
 import { dist } from './vec';
 
 /** How a skill is used: cast at once, cast at a clicked point, or always on. */
@@ -177,7 +177,11 @@ export function castInstant(state: GameState, hero: Hero, slot: SkillSlot): stri
     default:
       return 'Pick a target point';
   }
-  if (result === null) emit(state, { type: 'cast', heroId: hero.id, slot, x: hero.x, y: hero.y });
+  if (result === null) {
+    emit(state, { type: 'cast', heroId: hero.id, slot, x: hero.x, y: hero.y });
+    // Commands apply before step(), which increments the tick and then publishes this event.
+    if (slot === 'R') noteUltimate(state, hero, state.tick + 1);
+  }
   return result;
 }
 
@@ -212,6 +216,23 @@ export function castAtPoint(state: GameState, hero: Hero, slot: SkillSlot, x: nu
   }
   pay(state, hero, slot);
   emit(state, { type: 'cast', heroId: hero.id, slot, x, y });
+  // Point casts resolve inside step(), after the tick has already advanced.
+  if (slot === 'R') noteUltimate(state, hero, state.tick);
+}
+
+/**
+ * Records a successful R and, when another living hero's R is still inside
+ * `R_OVERLAP_SECONDS`, emits one `syncCast`. No extra damage.
+ */
+function noteUltimate(state: GameState, hero: Hero, atTick: number): void {
+  const window = R_OVERLAP_SECONDS * TICK_RATE;
+  const others = state.heroes.filter(
+    (h) => h.id !== hero.id && h.alive && h.rCastTick >= 0 && atTick >= h.rCastTick && atTick - h.rCastTick <= window,
+  );
+  hero.rCastTick = atTick;
+  if (others.length === 0) return;
+  const heroIds = [...others, hero].map((h) => h.id).sort((a, b) => a - b);
+  emit(state, { type: 'syncCast', heroIds, slot: 'R' });
 }
 
 // ---------------------------------------------------------------------------

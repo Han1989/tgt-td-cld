@@ -5,7 +5,7 @@
  * dashboard reads. When a pull request finishes a task, update both TASKS.md and
  * this file in that same PR. How: docs/PROGRESS.md.
  *
- * Seeded from main as of 1 Oct 2026. Production protocol is 13.
+ * Seeded from main as of 1 Oct 2026. Production protocol is 14.
  * Do not start Phase 6 from this page; it only reports status.
  */
 
@@ -38,8 +38,8 @@ const sections: ProgressSection[] = [
   },
   {
     id: 'polish',
-    title: 'Polish · T-00–T-05',
-    blurb: 'The polish path is done. CI, Hard, pings, the tutorial, projectile art, and the docs.',
+    title: 'Polish · T-00–T-06',
+    blurb: 'The polish path is done. CI, Hard, pings, the tutorial, projectile art, the docs, and co-op hook signals.',
     group: 'archive',
   },
   {
@@ -208,7 +208,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Mirrored ping and emote burst, gift sent/received toasts, and a twin-ultimate ribbon. Protocol stays 13. Leak lane, gift totals, live syncCast and boss role banners wait on Gameplay.',
+    note: 'Mirrored ping and emote burst, gift sent/received toasts, and a twin-ultimate ribbon from cast events. Sim signals (leak lane, gift totals, syncCast, boss hints) are protocol 14 (T-06).',
     proof: pr(35),
   },
   {
@@ -304,6 +304,14 @@ const items: ProgressItem[] = [
     section: 'polish',
     note: 'README status, docs/ROADMAP.md, GAME_DESIGN §11 (Phases 6–8 after Gate 1), and AGENTS.md.',
     proof: pr(31),
+  },
+  {
+    id: 'T-06',
+    title: 'Soft-launch co-op hook signals',
+    owner: 'Team',
+    status: 'done',
+    section: 'polish',
+    note: 'Protocol 14. Leak events carry a lane. Reports count gold gifted and received. A syncCast marks overlapping ultimates, with no extra damage. Boss lane lines are advisory. Double-ping FX stays on the client.',
   },
   {
     id: 'a-units',
@@ -647,8 +655,8 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '1 Oct 2026',
-  protocol: 13,
-  polishLabel: 'T-00–T-05',
+  protocol: 14,
+  polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'Gate 1',
   nextGateDetail: 'Friends playtest',

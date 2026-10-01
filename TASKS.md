@@ -62,6 +62,12 @@ The last things still drawn as plain shapes (`CLAUDE.md` status). Follow the new
 
 **Done 30 Sep 2026:** README status is Phases 1–3 done and Phase 4 polish through the tutorial (T-00–T-04). [`docs/ROADMAP.md`](docs/ROADMAP.md) is linked from `CLAUDE.md`. §11 marks accounts, leaderboards, PvP and monetisation as Phases 6–8 after Gate 1. [`AGENTS.md`](AGENTS.md) points at `CLAUDE.md`.
 
+### T-06 · Soft-launch co-op hook signals (sim) · Team · ☑
+
+Signals only, for Client Polish to present. No new damage, no fused ultimates, no HUD ribbons in this change.
+
+**Done 1 Oct 2026:** `PROTOCOL_VERSION` 14. A leak event carries `lane` (West / Mid / East via `laneName`). Match reports add `goldGifted` and `goldReceived` (missing on old saves counts as 0). `R_OVERLAP_SECONDS` (2) lives in the protocol, and a live `syncCast` fires once when a second living hero's R lands inside that window. Boss waves export advisory lane lines (`BOSS_LANE_HINTS`). Pings need no sim change: a double ping is two `ping` events, and the client can see that they are within 1 s.
+
 ### Han, in parallel
 
 | ID | Task | Notes | Status |
@@ -99,7 +105,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. | Team | ☑ |
-| SL-01 | Soft-launch co-op presentation (client only, protocol 13): mirrored ping and same-emote burst within 1 s, gift sent/received toasts, twin-ultimate ribbon when two R casts land within 2 s (`R_OVERLAP_SECONDS`). Leak lane, gift totals, live `syncCast` and boss role banners wait on Gameplay. | Team | ☑ |
+| SL-01 | Soft-launch co-op presentation (client, #35): mirrored ping and same-emote burst within 1 s, gift sent/received toasts, twin-ultimate ribbon from two R casts within `R_OVERLAP_SECONDS`. Sim signals are T-06 (protocol 14): leak lane, gift totals, live `syncCast`, advisory boss lane lines. | Team | ☑ |
 | D-02 | Post polished build to **r/PlayMyGame** (follow sub rules; one clear link; channel tag). | Han | ☐ |
 | D-03 | Post polished build to **r/incremental_games** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
 | D-04 | Post polished build to **r/cozygames** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |

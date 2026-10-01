@@ -85,9 +85,9 @@ describe('SnapshotBuffer', () => {
   it('releases events when their snapshot is rendered', () => {
     const buf = new SnapshotBuffer(100);
     buf.push(snap(0, 0), 0);
-    buf.push(snap(1, 0, [{ type: 'leak', creepId: 1, damage: 1 }]), 50);
+    buf.push(snap(1, 0, [{ type: 'leak', creepId: 1, damage: 1, lane: 1 }]), 50);
     expect(buf.drainEvents(100)).toEqual([]);
-    expect(buf.drainEvents(150)).toEqual([{ type: 'leak', creepId: 1, damage: 1 }]);
+    expect(buf.drainEvents(150)).toEqual([{ type: 'leak', creepId: 1, damage: 1, lane: 1 }]);
     expect(buf.drainEvents(1000)).toEqual([]);
   });
 

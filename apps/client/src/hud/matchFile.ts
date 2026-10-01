@@ -2,7 +2,7 @@
 // in a chat and readable at the top (the report is indented; the replay's log stays compact).
 // `npm run replay <file>` re-runs it. DOM-free, so it is unit tested; `saveMatchFile` does the browser part.
 
-import type { MatchReport, Replay } from '@tdt/protocol';
+import { heroGiftTotals, type MatchReport, type Replay } from '@tdt/protocol';
 
 export interface MatchFile {
   name: string;
@@ -27,9 +27,13 @@ export function matchFile(report: MatchReport, replay: Replay, date: Date): Matc
 export function parseMatchFile(text: string): { report: MatchReport; replay: Replay } | null {
   try {
     const data = JSON.parse(text) as { report?: MatchReport; replay?: Replay };
-    return data && typeof data.report === 'object' && typeof data.replay === 'object'
-      ? { report: data.report, replay: data.replay }
-      : null;
+    if (!data || typeof data.report !== 'object' || typeof data.replay !== 'object') return null;
+    const report = data.report;
+    // Old saves omit gift totals. New reports always set them.
+    if (Array.isArray(report.heroes)) {
+      report.heroes = report.heroes.map((h) => ({ ...h, ...heroGiftTotals(h) }));
+    }
+    return { report, replay: data.replay };
   } catch {
     return null;
   }

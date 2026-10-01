@@ -1,6 +1,6 @@
 // Wave timer, wave income, call-early and creep spawning.
 
-import type { CreepKind, LaneId, PlayerId } from '@tdt/protocol';
+import { FINALE_LEAK_CREEP_ID, FINALE_LEAK_LANE, type CreepKind, type LaneId, type PlayerId } from '@tdt/protocol';
 import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
 import { getMap } from './map';
@@ -55,7 +55,8 @@ function startWave(state: GameState): void {
   if (wave === totalWaves(state) && finale > 0) {
     state.heartHp = Math.max(0, state.heartHp - finale);
     // No creep: towers cannot snipe it, and the final wave has no call left for the Heart drop to change.
-    emit(state, { type: 'leak', creepId: 0, damage: finale });
+    // Not a lane leak: creepId 0, lane stamped only so the event stays well-typed.
+    emit(state, { type: 'leak', creepId: FINALE_LEAK_CREEP_ID, damage: finale, lane: FINALE_LEAK_LANE });
   }
 
   const groups = t.list[wave - 1] ?? [];

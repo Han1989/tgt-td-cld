@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
+import { heroGiftTotals, PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
 import { matchReport, replayMatch, replayProblem } from '../src';
 
 const path = process.argv[2];
@@ -88,7 +88,8 @@ for (const h of report.heroes) {
       `${Math.round(h.noManaSeconds.Q)} s / ${Math.round(h.noManaSeconds.W)} s; ` +
       `R within 2 s of another R: ${h.rOverlaps}; ` +
       `towers ${h.towersBuilt}, upgrades ${h.upgrades}, branches ${h.branches}, ` +
-      `gold spent ${h.goldSpent}, unspent ${h.goldUnspent}, waves called early ${h.wavesCalledEarly}`,
+      `gold spent ${h.goldSpent}, unspent ${h.goldUnspent}, waves called early ${h.wavesCalledEarly}, ` +
+      `gold gifted ${h.goldGifted ?? 0}, received ${h.goldReceived ?? 0}`,
   );
   console.log(`  level by wave: ${h.levelByWave.join(' ')}`);
   console.log(`  levels reached at: ${h.levelUps.map((s, i) => `L${i + 2} ${mmss(s)}`).join(', ')}`);
@@ -101,7 +102,14 @@ if (state.phase !== end.result) problems.push(`result ${state.phase}, recorded $
 if (state.wave !== end.wave) problems.push(`wave ${state.wave}, recorded ${end.wave}`);
 if (state.heartHp !== end.heartHp) problems.push(`Heart ${state.heartHp}, recorded ${end.heartHp}`);
 // The build is checked above (a re-run of an unstamped file gets the default one), so compare the rest.
-if (saved && JSON.stringify({ ...saved, build: '' }) !== JSON.stringify({ ...report, build: '' })) {
+// Reports saved before protocol 14 omit gift totals; those count as 0.
+const comparable = (r: MatchReport) =>
+  JSON.stringify({
+    ...r,
+    build: '',
+    heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h) })),
+  });
+if (saved && comparable(saved) !== comparable(report)) {
   problems.push('the report differs from the saved one');
 }
 if (problems.length > 0) {
