@@ -615,7 +615,11 @@ describe('game audio', () => {
     audio.flourish('pingBurst', 900);
     audio.flourish('emoteBurst', 1700);
     audio.flourish('twinCast', 2700);
-    expect(sink.ids()).toEqual(['coin', 'coin', 'pingBurst', 'emoteBurst', 'twinCast']);
+    audio.flourish('togetherKill', 3700);
+    expect(sink.ids()).toEqual(['coin', 'coin', 'pingBurst', 'emoteBurst', 'twinCast', 'togetherKill']);
+    const seconds = soundSeconds(SOUNDS.togetherKill.def);
+    expect(seconds).toBeGreaterThanOrEqual(0.4);
+    expect(seconds).toBeLessThanOrEqual(0.8);
   });
 
   it('plays tower shots at their branch’s pitch, and "Not enough gold"', () => {

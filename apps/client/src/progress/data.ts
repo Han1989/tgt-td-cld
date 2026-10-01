@@ -226,6 +226,15 @@ const items: ProgressItem[] = [
     proof: pr(36),
   },
   {
+    id: 'SL-03',
+    title: 'Together-kill flash',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Two or more living heroes who damaged the same creep within 2 seconds of the kill get a short flash in their seat colours, an edge glow, and a dual-pitch chime. No rewards. Protocol stays 14. Towers share damage.by, so a living player’s towers count until Gameplay adds a hero-only signal.',
+    proof: pr(38),
+  },
+  {
     id: 'D-02',
     title: 'Post to r/PlayMyGame',
     owner: 'Han',

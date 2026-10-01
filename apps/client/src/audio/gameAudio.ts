@@ -254,8 +254,8 @@ export class GameAudio {
     if (this.sink.sfxOn) this.play('tap', now);
   }
 
-  /** A shared co-op flourish (mirrored ping, mirrored emote, twin ultimates). Heard everywhere. */
-  flourish(id: 'pingBurst' | 'emoteBurst' | 'twinCast', now: number): void {
+  /** A shared co-op flourish (mirrored ping, mirrored emote, twin ultimates, together-kill). Heard everywhere. */
+  flourish(id: 'pingBurst' | 'emoteBurst' | 'twinCast' | 'togetherKill', now: number): void {
     if (!this.sink.sfxOn) return;
     this.play(id, now);
   }
