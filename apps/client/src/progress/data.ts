@@ -218,6 +218,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'discovery',
     note: 'Lane clutch names the leaking lane and skips the Hard finale strain. The end screen shows gold given and received. The twin ribbon prefers syncCast. Boss waves add advisory lane banners. Protocol stays 14.',
+    proof: pr(36),
   },
   {
     id: 'D-02',
