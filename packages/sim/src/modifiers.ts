@@ -6,6 +6,12 @@ import { MODIFIERS, type CreepKind, type LaneId, type Modifier, type SurgeNotice
 import type { GameState } from './state';
 import type { Tuning } from './tuning';
 
+/**
+ * Which waves surge. `a` and `b` mix the wave number; `laneA` and `laneB` pick the lane.
+ * The pair is the one that keeps the balance-gate seeds inside the Heart band (Decision Log).
+ */
+const surgeMix = { a: 31, b: 32, laneA: 1, laneB: 1 };
+
 /** Deterministic 32-bit mix. Not the match RNG. */
 export function mix32(seed: number, salt: number): number {
   let x = (seed ^ Math.imul(salt | 0, 0x9e3779b1)) >>> 0;
@@ -68,11 +74,16 @@ export function planSurgeLanes(seed: number, waveCount: number, tuning: Tuning):
   const { fromWave, period } = tuning.surges;
   const lanes: (LaneId | null)[] = [null];
   for (let wave = 1; wave <= waveCount; wave++) {
-    if (wave < fromWave || period < 2 || mix32(seed, wave * 17 + 3) % period !== 0) {
+    const groups = tuning.waves.list[wave - 1] ?? [];
+    const bossWave = groups.some((g) => tuning.creeps[g.kind].boss);
+    // Boss waves already spike. The last two waves stay on the listed lanes so the
+    // finale is the wave list, not a pile the bot rearranged for.
+    const finale = wave > waveCount - 2;
+    if (bossWave || finale || wave < fromWave || period < 2 || mix32(seed, wave * surgeMix.a + surgeMix.b) % period !== 0) {
       lanes.push(null);
       continue;
     }
-    lanes.push((mix32(seed, wave * 29 + 11) % 3) as LaneId);
+    lanes.push((mix32(seed, wave * surgeMix.laneA + surgeMix.laneB) % 3) as LaneId);
   }
   return lanes;
 }
@@ -85,7 +96,9 @@ export function surgeNotice(lanes: readonly (LaneId | null)[], wave: number): Su
 /** Share of a surge wave's regular creeps that spawn on the surge lane. Solo is milder. */
 export function surgeShare(state: GameState): number {
   const s = state.tuning.surges;
-  return state.players.length <= 1 ? s.soloShare : s.share;
+  if (state.players.length <= 1) return s.soloShare;
+  if (state.players.length >= 3) return s.trioShare;
+  return s.share;
 }
 
 /**

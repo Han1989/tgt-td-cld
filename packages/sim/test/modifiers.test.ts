@@ -79,17 +79,23 @@ describe('modifier effects', () => {
     const base = game();
     const iron = game(['ironclad']);
     const sky = game(['skyTide']);
-    openWave(base, 16);
-    openWave(iron, 16);
-    openWave(sky, 16);
-    const plain = kinds(base);
-    const armoured = kinds(iron);
-    const flying = kinds(sky);
-    const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
-    expect(armoured.get('brute')).toBeGreaterThan(plain.get('brute') ?? 0);
-    expect(flying.get('wisp')).toBeGreaterThan(plain.get('wisp') ?? 0);
-    expect(sum(armoured)).toBe(sum(plain));
-    expect(sum(flying)).toBe(sum(plain));
+    let bruteGain = 0;
+    let wispGain = 0;
+    for (let wave = 1; wave <= TUNING.waves.list.length; wave++) {
+      openWave(base, wave);
+      openWave(iron, wave);
+      openWave(sky, wave);
+      const plain = kinds(base);
+      const armoured = kinds(iron);
+      const flying = kinds(sky);
+      const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+      bruteGain += (armoured.get('brute') ?? 0) - (plain.get('brute') ?? 0);
+      wispGain += (flying.get('wisp') ?? 0) - (plain.get('wisp') ?? 0);
+      expect(sum(armoured)).toBe(sum(plain));
+      expect(sum(flying)).toBe(sum(plain));
+    }
+    expect(bruteGain).toBeGreaterThan(0);
+    expect(wispGain).toBeGreaterThan(0);
   });
 
   it('Fog shortens tower range and raises hero experience', () => {
@@ -108,11 +114,18 @@ describe('modifier effects', () => {
     const plain = game();
     const rush = game(['goldRush']);
     expect(rush.players[0]!.gold).toBe(Math.round(plain.players[0]!.gold * TUNING.modifierStats.goldRush.gold));
-    openWave(plain, 6);
-    openWave(rush, 6);
     const count = (state: GameState) =>
       state.creeps.filter((c) => c.wave === state.wave).length + state.spawnQueue.filter((s) => s.wave === state.wave).length;
-    expect(count(rush)).toBeGreaterThan(count(plain));
+    let extra = 0;
+    for (let wave = 1; wave <= TUNING.waves.list.length; wave++) {
+      openWave(plain, wave);
+      openWave(rush, wave);
+      const gained = count(rush) - count(plain);
+      expect(gained).toBeGreaterThanOrEqual(0);
+      extra += gained;
+    }
+    // +6% rounds away on a small wave and shows up once a lane's count is large enough.
+    expect(extra).toBeGreaterThan(0);
   });
 });
 

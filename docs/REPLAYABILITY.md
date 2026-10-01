@@ -26,11 +26,11 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 > **Done.** Numbers in `tuning.ts` (`surges`, `modifierStats`). `PROTOCOL_VERSION` 15. Mechanics in the Decision Log in `GAME_DESIGN.md`. More maps (§3) are not started.
 
 **Lane surges**
-- From wave 6, about one wave in three concentrates regular creeps onto one lane. Co-op puts 60% of that wave's regular creeps there (`surges.share`). Solo uses 44% (`surges.soloShare`).
-- Bosses stay on the lane they were listed on, still one per lane. The spawn gap on a piled lane tightens so the last creep still leaves before the next wave.
+- From wave 6, about one wave in nine concentrates walking creeps onto one lane. Two players put 60% of that wave's walking creeps there (`surges.share`). Three players put 40% (`surges.trioShare`). Solo uses 34% (`surges.soloShare`), a nudge over an even split.
+- Wisps stay on the portal they were listed on (they fly straight to the Heart). Boss waves and the last two waves do not surge. Bosses stay on the lane they were listed on, still one per lane. The spawn gap tightens only on a surged lane, so the last creep still leaves before the next wave.
 - A surge is **announced a wave ahead**: a `surge` event, a chip under the top bar, and that lane's portal flares. The wave banner names the surge when it starts. Reconnects read `snapshot.surgeLane` and `snapshot.nextSurge`.
 - The schedule comes from the match seed (not the match RNG), so a replay repeats it.
-- The balance bot answers: it prefers a free pad on the surged lane, a teammate may gift up to 40 gold (keeping 60), and a hero whose post is clear walks to that lane. Under Swift the hero stays on its post.
+- The casual balance bot answers: it prefers a free pad on the surged lane, a teammate may gift up to 20 gold (keeping 60), and a hero whose post is clear walks to that lane. Under Swift the hero stays on its post. The expert bot does not move its pads, gift, or walk for a surge.
 
 **Match modifiers**
 - A match runs 1–2 modifiers, or none. The draw and the one reroll come from the match seed (`modifierRolls`), so the same seed reproduces them. Choosing none does not spend the reroll; "Use modifiers" turns the current draw back on.
@@ -38,10 +38,10 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 - Solo: the hero pick shows the draw. The lesson locks it to none. Play again keeps the chosen modifiers and takes a new seed.
 - Shown in the lobby and as a banner before the first wave. The match report and the server log name them (`swift+fog`, or `plain`).
 - **Swift:** creeps +15% speed, bounty +10%.
-- **Ironclad:** from wave 1, every 32nd spread slot of eligible ground creeps becomes a Brute (`ironclad.every`). Brutes, bosses and flyers are not converted. The slot mixes wave, lane and index, so the lead creep of every lane is not always the one that changes.
+- **Ironclad:** from wave 1, every 80th spread slot of eligible ground creeps becomes a Brute (`ironclad.every`). Brutes, bosses and flyers are not converted. The slot mixes wave, lane and index, so the lead creep of every lane is not always the one that changes.
 - **Sky Tide:** every 9th eligible ground creep becomes a Wisp. Brutes stay Brutes. With both, the two replacements take different slots of one combined span.
 - **Fog:** tower range −10%, hero XP +20%.
-- **Gold Rush:** starting gold and wave income +10%, bounty +10%, non-boss count +12%. Swift bounty and Gold Rush bounty stack.
+- **Gold Rush:** starting gold and wave income +10%, bounty +10%, non-boss count +6%. Swift bounty and Gold Rush bounty stack.
 - The modifier balance sample is solo Full Ironclad, Sky Tide and Gold Rush, solo Quick Ironclad, and Full 3-player Sky Tide (Heart 40–80, curve not asserted). Swift and Fog stay at these rates and are outside that sample. 2-player modifiers and Quick teams are outside it too; the no-modifier team gates still cover 2 and 3 players with surges on.
 
 ## 3. More maps over time

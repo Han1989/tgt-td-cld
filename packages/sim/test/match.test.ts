@@ -94,7 +94,7 @@ describe('match reports and replays', () => {
     }
     expect(report.build).toBe('dev');
     expect(reportSummary(report, 'ABCDE')).toMatch(
-      /^match ABCDE quick normal seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /,
+      /^match ABCDE quick normal plain seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /,
     );
     expect(reportSummary(report)).not.toContain('\n');
   });

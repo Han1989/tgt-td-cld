@@ -186,7 +186,9 @@ export function createBalanceBot(
       const bosses = snap.creeps.filter((c) => tuning.creeps[c.kind].boss);
       // A surge announced a wave ahead (or already walking): the thin lane gets the next pad.
       const focusLane = snap.nextSurge?.lane ?? snap.surgeLane;
-      if (focusLane != null) biasSurgePad(free, mine, focusLane);
+      // The expert's pad plan is already tight. Pulling a pad onto the surge lane, gifting, or
+      // walking over moved Hard gate seeds out of 40–80 Heart. The casual bot does all three.
+      if (focusLane != null && style !== 'expert') biasSurgePad(free, mine, focusLane);
       if (style === 'expert') {
         gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses);
       } else {
@@ -210,7 +212,18 @@ export function createBalanceBot(
         // None of its pads is free: upgrade the lowest-tier towers first, best pads first; Arcane first while
         // a boss with a Stone hide is coming (magic damage ignores its armour). Past tier 3 each tower takes the
         // branch the coming waves and the team's branches call for: the late-game gold sink.
-        if (free.length === 0) gold = spendUpgrades(cmds, gold, mine, tuning, needs, snap.wave, padRank);
+        if (free.length === 0) {
+          gold = spendUpgrades(
+            cmds,
+            gold,
+            mine,
+            tuning,
+            needs,
+            snap.wave,
+            padRank,
+            snap.towers.flatMap((t) => (t.branch ? [t.branch] : [])),
+          );
+        }
 
         // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
         // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
@@ -224,7 +237,7 @@ export function createBalanceBot(
         }
       }
 
-      surgeGifted = giftForSurge(cmds, snap, playerId, gold, surgeGifted);
+      if (style !== 'expert') surgeGifted = giftForSurge(cmds, snap, playerId, gold, surgeGifted);
 
       // The first player calls for the team: the bonus is paid to everyone, and a second call the same
       // tick would pay it again.
@@ -289,6 +302,7 @@ export function createBalanceBot(
       // Own lane is clear during a surge: walk over and help. A creep near the post keeps the hero home.
       // Swift creeps outrun a hero that leaves its lane. Stay on the post unless the map is quiet.
       const surgeHelp =
+        style !== 'expert' &&
         snap.surgeLane != null &&
         !snap.modifiers.includes('swift') &&
         nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS).length === 0
@@ -604,7 +618,7 @@ function surgeLaneOwner(snap: Snapshot, lane: LaneId): PlayerId | null {
 }
 
 /**
- * Once per announced surge, a teammate sends a little gold to the lane's owner and keeps enough for a tower.
+ * Once per announced surge, a teammate sends up to 20 gold to the lane's owner and keeps enough for a tower.
  * Returns the wave this bot has finished considering (so it does not pay twice).
  */
 function giftForSurge(cmds: Command[], snap: Snapshot, playerId: PlayerId, gold: number, giftedWave: number): number {
@@ -612,7 +626,7 @@ function giftForSurge(cmds: Command[], snap: Snapshot, playerId: PlayerId, gold:
   if (!upcoming || upcoming.wave === giftedWave || snap.players.length < 2) return giftedWave;
   const owner = surgeLaneOwner(snap, upcoming.lane);
   if (!owner || owner === playerId) return upcoming.wave;
-  const amount = Math.min(40, Math.floor(gold - 60));
+  const amount = Math.min(20, Math.floor(gold - 60));
   if (amount < 20) return giftedWave;
   cmds.push({ type: 'gift', to: owner, amount });
   return upcoming.wave;
@@ -720,12 +734,12 @@ function spendUpgrades(
   needs: { stone: boolean },
   wave: number,
   padRank: Map<number, number>,
+  teamBranches: TowerBranch[],
 ): number {
   const first = (t: TowerSnap) => (needs.stone && t.kind === 'arcane' && t.tier < tuning.towers.arcane.tiers.length ? 0 : 1);
   const order = [...mine].sort(
-    (a, b) => first(a) - first(b) || a.tier - b.tier || (padRank.get(a.padId) ?? 0) - (padRank.get(b.padId) ?? 0),
+    (a, b) => first(a) - first(b) || a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!,
   );
-  const teamBranches = mine.flatMap((t) => (t.branch ? [t.branch] : []));
   const branchNeed = branchNeeds(tuning, wave);
   for (const t of order) {
     if (t.branch) continue;

@@ -77,7 +77,9 @@ function startWave(state: GameState): void {
     if (!g.lanes.includes(lane)) return 0;
     if (isBoss(g.kind)) return g.perLane;
     // A surge piles regular creeps that were listed on every lane. A single-lane group stays put.
-    if (surge != null && g.lanes.length >= 3) {
+    // Wisps fly from the portal they spawn at. Leaving them on the listed lane keeps three
+    // flight paths; only the walking creeps pile onto the surge lane.
+    if (surge != null && g.lanes.length >= 3 && !state.tuning.creeps[g.kind].flying) {
       const total = scaledCount(state, g.perLane) * g.lanes.length;
       return surgeCounts(total, surge, share)[lane];
     }
@@ -103,8 +105,9 @@ function startWave(state: GameState): void {
     }
     for (const b of bosses) for (let i = 0; i < b.perLane; i++) order.push(b.kind);
     // A surged lane can hold most of the wave. Tighten the gap so the last creep still spawns
-    // before the next wave, instead of stacking two waves on that portal.
-    const gap = spawnGap(natural, intervalTicks, order.length);
+    // before the next wave, instead of stacking two waves on that portal. An ordinary lane
+    // keeps the natural gap, matching matches that have no surge.
+    const gap = surge == null ? natural : spawnGap(natural, intervalTicks, order.length);
     order.forEach((kind, i) => {
       state.spawnQueue.push({
         tick: state.tick + i * gap,

@@ -127,6 +127,8 @@ describe('match reports', () => {
     const [host, guest] = await fullRoom(url, 2);
     host!.send({ t: 'mode', mode: 'quick' });
     await guest!.waitFor(() => guest!.lobby?.mode === 'quick');
+    host!.send({ t: 'modifiers', action: 'none' });
+    await guest!.waitFor(() => guest!.lobby?.modifiers.length === 0);
     host!.send({ t: 'start' });
     await guest!.waitFor(() => (guest!.snap?.tick ?? 0) > 40);
     guest!.close();

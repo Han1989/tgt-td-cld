@@ -374,10 +374,13 @@ export interface DifficultyBand {
 export interface SurgeTuning {
   /** First wave that can surge (1-based). It is announced when the previous wave starts. */
   fromWave: number;
-  /** From `fromWave` on, a wave surges when a seed mix modulo this is 0. 3 is about one wave in three. */
+  /** From `fromWave` on, a wave surges when a seed mix modulo this is 0. 9 is about one wave in nine. */
   period: number;
-  /** Share of that wave's regular creeps on the surge lane, for 2 and 3 players. */
+  /** Share of that wave's regular creeps on the surge lane, for 2 players. */
   share: number;
+  /** Share for 3 players. A 60% pile on one lane is one owner's wave, and on Quick it
+   * also feeds that lane enough gold that the final boss stops leaking (seed 42 ended at 85). */
+  trioShare: number;
   /** Solo share. Milder, so one player covering three lanes is not hit with the co-op pile. */
   soloShare: number;
 }
@@ -845,17 +848,19 @@ export const TUNING: Tuning = {
       ],
     },
   },
-  // About one wave in three from wave 6, ~60% of that wave's regular creeps on one lane.
-  // Solo is 0.44 so the pile is a nudge over an even split (one third), not the co-op crush.
-  // Bosses stay on the lane the wave list names. The spawn gap tightens when a lane would
-  // still be spawning at the next wave.
-  surges: { fromWave: 6, period: 3, share: 0.6, soloShare: 0.44 },
+  // About one wave in nine from wave 6, ~60% of that wave's regular creeps on one lane.
+  // Solo is 0.34, a nudge over an even split (one third), so one player on three lanes is not
+  // handed the co-op pile. Three players use 0.4: a 60% pile on one lane also feeds that lane
+  // enough gold that a Quick final boss stops leaking. Boss waves and the last two waves do
+  // not surge. Bosses stay on the listed lane. Wisps stay on the portal they were listed on.
+  // The spawn gap tightens only on a surged lane, so an ordinary wave keeps its natural gap.
+  surges: { fromWave: 6, period: 9, share: 0.6, trioShare: 0.4, soloShare: 0.34 },
   modifierStats: {
     swift: { speed: 1.15, bounty: 1.1 },
-    ironclad: { every: 32, fromWave: 1 },
+    ironclad: { every: 80, fromWave: 1 },
     skyTide: { every: 9, fromWave: 1 },
     fog: { towerRange: 0.9, xp: 1.2 },
-    goldRush: { gold: 1.1, bounty: 1.1, count: 1.12 },
+    goldRush: { gold: 1.1, bounty: 1.1, count: 1.06 },
   },
   hero: {
     maxLevel: 10,
