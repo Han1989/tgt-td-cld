@@ -228,4 +228,4 @@ Start store work only after Discovery (D-01–D-06 / Gate 2) shows strangers sta
 | a-sound | Sound: music and effects made in code | PR #22 |
 | a-theme | Sound theme: Japanese lobby, Three Kingdoms battles (no recorded files yet) | PR #23 |
 | b-spike | Hook test branch: combo ultimates, boss shield, solo bot ally. **Never merge.** | Branch `claude/loving-hawking-7fvsu7` |
-| p5-surges | Lane surges and match modifiers (Swift, Ironclad, Sky Tide, Fog, Gold Rush). Protocol 15 | This PR |
+| p5-surges | Lane surges and match modifiers (Swift, Ironclad, Sky Tide, Fog, Gold Rush). Protocol 15 | PR #39 |
