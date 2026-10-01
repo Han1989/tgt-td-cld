@@ -34,7 +34,7 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('soft launch');
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
-    expect(summary.hanOpen).toBe(11);
+    expect(summary.hanOpen).toBe(10);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
