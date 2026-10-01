@@ -181,6 +181,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'han',
     note: 'Done 1 Oct 2026. lobby.mp3, match.mp3, and boss.mp3 are in public/music (AI-generated via Google Gemini, by Han).',
+    proof: pr(42),
   },
   {
     id: 'H-05',
