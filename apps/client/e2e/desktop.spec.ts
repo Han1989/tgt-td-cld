@@ -247,10 +247,35 @@ test('Skip lesson on the hero pick keeps the chosen mode and hides the card', as
   await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
   await page.locator('#lobby-modifiers-solo .mod-none').click();
   await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
+  await expect(page.locator('#lobby-modifiers-solo button.mod-offer')).toBeVisible();
+  await expect(page.locator('#lobby-modifiers-solo .mod-offer-label')).toHaveText('Offered');
+  await expect(page.locator('#lobby-modifiers-solo .mod-chip.offered')).not.toHaveCount(0);
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
   await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(30);
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual([]);
   await expect(page.locator('#tutorial')).toBeHidden();
+  await expect(page.locator('#match-flags')).toBeHidden();
+});
+
+test('the match strip shows the same modifier chips as the lobby', async ({ page }) => {
+  await page.goto('/?lab');
+  await waitForReady(page, 'solo');
+  await page.locator('#tutorial-solo-skip').click();
+  const ids = await page.locator('#lobby-modifiers-solo .mod-chips .mod-chip').evaluateAll((els) =>
+    els.map((el) => el.getAttribute('data-modifier')),
+  );
+  expect(ids.length).toBeGreaterThan(0);
+  expect(ids.length).toBeLessThanOrEqual(2);
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-mode-solo .mode-pick[data-mode="quick"]').click();
+  await page.locator('#lobby-solo-play').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual(ids);
+  for (const id of ids) {
+    const chip = page.locator(`#match-flags .mod-chip[data-modifier="${id}"]`);
+    await expect(chip).toBeVisible();
+    await expect(chip.locator('b')).not.toBeEmpty();
+    await expect(chip.locator('span')).not.toBeEmpty();
+  }
 });
