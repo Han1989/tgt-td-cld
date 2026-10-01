@@ -28,7 +28,8 @@ import { getMap, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/si
 import { currentAnalytics } from '../analytics/install';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
-import { modifierNames } from '../lobby/modifierInfo';
+import { modifierChipEl } from '../lobby/modifierDom';
+import { matchFlagFace, modifierBannerCopy, surgeToastCopy } from '../lobby/modifierFace';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
@@ -120,6 +121,18 @@ export interface HudActions {
   /** Online only: leave the room from the end screen. */
   leave(): void;
   closeMenus(): void;
+}
+
+function surgeFlag(copy: { lane: number; title: string; sub: string }, when: 'next' | 'now'): HTMLElement {
+  const el = document.createElement('div');
+  el.className = `surge-flag ${when} lane-${copy.lane}`;
+  el.dataset.surge = when;
+  const name = document.createElement('b');
+  name.textContent = copy.title;
+  const line = document.createElement('span');
+  line.textContent = copy.sub;
+  el.append(name, line);
+  return el;
 }
 
 function $(id: string): HTMLElement {
@@ -311,9 +324,10 @@ export class Hud {
     setText(this.waveLabel, hard ? 'Hard' : 'Wave');
     setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
     this.renderFlags(snap);
-    if (!this.modifiersAnnounced && snap.wave === 0 && snap.modifiers.length > 0) {
+    if (!this.modifiersAnnounced && snap.wave === 0) {
       this.modifiersAnnounced = true;
-      this.showBanner(modifierNames(snap.modifiers), 'Match modifiers', false);
+      const copy = modifierBannerCopy(snap.modifiers);
+      if (copy) this.showBanner(copy.title, copy.sub, false, 'mods');
     }
 
     const c = this.compact;
@@ -517,6 +531,8 @@ export class Hud {
           this.hideLaneRoles();
         }
       } else if (e.type === 'surge') {
+        // A wave ahead of the pile. The wave banner stays the wave that just started.
+        this.surgeToast(surgeToastCopy(e));
         pulse(this.matchFlags, [{ filter: 'brightness(1.8)' }, { filter: 'none' }], 420);
       } else if (e.type === 'leak') {
         // The Heart stat still pulses. The lane name is the clutch cue (it skips the finale strain).
@@ -565,6 +581,21 @@ export class Hud {
     setTimeout(() => el.remove(), 2200);
   }
 
+  /** Lane named by the surge event, large enough to read on a phone before the pile arrives. */
+  private surgeToast(copy: { lane: number; title: string; sub: string }): void {
+    const el = document.createElement('div');
+    el.className = `toast surge lane-${copy.lane}`;
+    const strong = document.createElement('b');
+    strong.textContent = copy.title;
+    const sub = document.createElement('span');
+    sub.textContent = copy.sub;
+    el.append(strong, sub);
+    this.onToast(`${copy.title} ${copy.sub}`);
+    this.toasts.appendChild(el);
+    while (this.toasts.children.length > 4) this.toasts.firstChild?.remove();
+    setTimeout(() => el.remove(), 2800);
+  }
+
   /** Gold sent or received: a large gold figure, the partner's colour on the rim. */
   private giftToast(line: GiftLine, accent: string): void {
     const el = document.createElement('div');
@@ -609,34 +640,20 @@ export class Hud {
     this.matchFlags.replaceChildren();
   }
 
-  /** Modifiers and the surge chip. The wave banner still announces the surge wave itself. */
+  /** One chip per modifier, plus the surge that is on now and the one announced ahead. */
   private renderFlags(snap: Snapshot): void {
+    const face = matchFlagFace(snap);
     const next = snap.nextSurge;
     const key = `${snap.modifiers.join('+')}|${next ? `${next.wave}:${next.lane}` : ''}|${snap.surgeLane ?? ''}`;
     if (key === this.flagsKey) return;
     this.flagsKey = key;
     this.matchFlags.replaceChildren();
-    const empty = snap.modifiers.length === 0 && next == null && snap.surgeLane == null;
+    const empty = face.modifiers.length === 0 && face.next == null && face.now == null;
     this.matchFlags.classList.toggle('hidden', empty);
     if (empty) return;
-    if (snap.modifiers.length > 0) {
-      const mods = document.createElement('div');
-      mods.className = 'mod-flag';
-      mods.textContent = modifierNames(snap.modifiers);
-      this.matchFlags.appendChild(mods);
-    }
-    if (next) {
-      const ahead = document.createElement('div');
-      ahead.className = `surge-flag lane-${next.lane}`;
-      ahead.textContent = `${laneName(next.lane)} surge next wave`;
-      this.matchFlags.appendChild(ahead);
-    }
-    if (snap.surgeLane != null) {
-      const now = document.createElement('div');
-      now.className = `surge-flag lane-${snap.surgeLane}`;
-      now.textContent = `${laneName(snap.surgeLane)} surge`;
-      this.matchFlags.appendChild(now);
-    }
+    for (const chip of face.modifiers) this.matchFlags.appendChild(modifierChipEl(chip, 'glance'));
+    if (face.next) this.matchFlags.appendChild(surgeFlag(face.next, 'next'));
+    if (face.now) this.matchFlags.appendChild(surgeFlag(face.now, 'now'));
   }
 
   /** The gold counter swells when gold comes in (at most every 90 ms, so a stream of coins doesn't stutter). */
@@ -708,7 +725,7 @@ export class Hud {
     this.endGifts.classList.remove('hidden');
   }
 
-  private showBanner(text: string, sub: string, boss: boolean): void {
+  private showBanner(text: string, sub: string, boss: boolean, kind: '' | 'mods' = ''): void {
     this.banner.innerHTML = '';
     const title = document.createElement('span');
     title.className = 'title';
@@ -721,6 +738,7 @@ export class Hud {
       this.banner.appendChild(s);
     }
     this.banner.classList.toggle('boss', boss);
+    this.banner.classList.toggle('mods', kind === 'mods');
     this.banner.classList.remove('hidden');
     // Restart the CSS animation.
     this.banner.style.animation = 'none';

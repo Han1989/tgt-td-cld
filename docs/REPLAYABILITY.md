@@ -28,7 +28,7 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 **Lane surges**
 - From wave 6, about one wave in nine concentrates walking creeps onto one lane. Two players put 60% of that wave's walking creeps there (`surges.share`). Three players put 40% (`surges.trioShare`). Solo uses 34% (`surges.soloShare`), a nudge over an even split.
 - Wisps stay on the portal they were listed on (they fly straight to the Heart). Boss waves and the last two waves do not surge. Bosses stay on the lane they were listed on, still one per lane. The spawn gap tightens only on a surged lane, so the last creep still leaves before the next wave.
-- A surge is **announced a wave ahead**: a `surge` event, a chip under the top bar, and that lane's portal flares. The wave banner names the surge when it starts. Reconnects read `snapshot.surgeLane` and `snapshot.nextSurge`.
+- A surge is **announced a wave ahead**: the `surge` event raises a toast (the lane from `laneName` and the wave number on the event), a chip stays under the top of the map (`Surge next`, and `Surge now` once that wave starts), and that lane's portal flares. The wave banner still names the surge when it starts, so the toast does not replace it. Reconnects read `snapshot.surgeLane` and `snapshot.nextSurge`.
 - The schedule comes from the match seed (not the match RNG), so a replay repeats it.
 - The casual balance bot answers: it prefers a free pad on the surged lane, a teammate may gift up to 20 gold (keeping 60), and a hero whose post is clear walks to that lane. Under Swift the hero stays on its post. The expert bot does not move its pads, gift, or walk for a surge.
 
@@ -36,7 +36,7 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 - A match runs 1–2 modifiers, or none. The draw and the one reroll come from the match seed (`modifierRolls`), so the same seed reproduces them. Choosing none does not spend the reroll; "Use modifiers" turns the current draw back on.
 - Online: the room rolls them when it is created (and again on Back to lobby). The host sends `{ t: 'modifiers', action: 'reroll' | 'none' | 'offer' }`. Guests see the draw and cannot change it.
 - Solo: the hero pick shows the draw. The lesson locks it to none. Play again keeps the chosen modifiers and takes a new seed.
-- Shown in the lobby and as a banner before the first wave. The match report and the server log name them (`swift+fog`, or `plain`).
+- Shown in the lobby as one chip per modifier (name and sentence; the offered draw stays visible, labelled Offered, after "No modifiers") and as a wrapping banner before the first wave. The match keeps a short chip per modifier under the top of the map. The match report and the server log name them (`swift+fog`, or `plain`).
 - **Swift:** creeps +15% speed, bounty +10%.
 - **Ironclad:** from wave 1, every 80th spread slot of eligible ground creeps becomes a Brute (`ironclad.every`). Brutes, bosses and flyers are not converted. The slot mixes wave, lane and index, so the lead creep of every lane is not always the one that changes.
 - **Sky Tide:** every 9th eligible ground creep becomes a Wisp. Brutes stay Brutes. With both, the two replacements take different slots of one combined span.

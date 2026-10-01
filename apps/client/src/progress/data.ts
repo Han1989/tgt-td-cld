@@ -665,7 +665,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'earlier',
-    note: 'Protocol 15. From wave 6 some waves pile onto one lane, announced a wave ahead. Solo surges are milder. Each match rolls 1–2 modifiers from the seed. The host can reroll once or choose none.',
+    note: 'Protocol 15. From wave 6 some waves pile onto one lane, announced a wave ahead by a lane toast. The lobby and the match show one chip per modifier. The host can reroll once or choose none. Solo surges are milder.',
     proof: pr(39),
   },
   {

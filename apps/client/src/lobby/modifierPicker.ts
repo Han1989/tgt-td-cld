@@ -3,7 +3,8 @@
 
 import type { Modifier, ModifierAction } from '@tdt/protocol';
 import { modifierRolls } from '@tdt/sim';
-import { MODIFIER_INFO, modifierNames } from './modifierInfo';
+import { modifierChipEl } from './modifierDom';
+import { modifierLobbyFace, type ModifierActionFace, type ModifierChip, type ModifierLobbyFace } from './modifierFace';
 
 export interface ModifierDeal {
   seed: number;
@@ -26,29 +27,12 @@ export class SoloModifierPicker {
   private modifiers: Modifier[];
   private rerolled = false;
   private locked = false;
-  private readonly names: HTMLElement;
-  private readonly blurb: HTMLElement;
-  private readonly rerollBtn: HTMLButtonElement;
-  private readonly noneBtn: HTMLButtonElement;
-  private readonly offerBtn: HTMLButtonElement;
 
-  constructor(container: HTMLElement) {
+  constructor(private readonly container: HTMLElement) {
     const rolled = modifierRolls(this.seed);
     this.offer = rolled.offer;
     this.reroll = rolled.reroll;
     this.modifiers = rolled.offer.slice();
-    container.replaceChildren();
-    this.names = document.createElement('div');
-    this.names.className = 'mod-names';
-    this.blurb = document.createElement('p');
-    this.blurb.className = 'mod-blurb';
-    const row = document.createElement('div');
-    row.className = 'mod-actions';
-    this.rerollBtn = button('Reroll', 'mod-reroll', () => this.onReroll());
-    this.noneBtn = button('No modifiers', 'mod-none', () => this.onNone());
-    this.offerBtn = button('Use modifiers', 'mod-offer', () => this.onOffer());
-    row.append(this.rerollBtn, this.noneBtn, this.offerBtn);
-    container.append(this.names, this.blurb, row);
     this.paint();
   }
 
@@ -63,39 +47,27 @@ export class SoloModifierPicker {
     return { seed: this.seed, modifiers: this.locked ? [] : this.modifiers.slice() };
   }
 
-  private onReroll(): void {
-    if (this.locked || this.rerolled) return;
-    this.offer = this.reroll.slice();
-    this.modifiers = this.offer.slice();
-    this.rerolled = true;
-    this.paint();
-  }
-
-  private onNone(): void {
+  private onAction(action: ModifierAction): void {
     if (this.locked) return;
-    this.modifiers = [];
-    this.paint();
-  }
-
-  private onOffer(): void {
-    if (this.locked) return;
-    this.modifiers = this.offer.slice();
+    if (action === 'reroll') {
+      if (this.rerolled) return;
+      this.offer = this.reroll.slice();
+      this.modifiers = this.offer.slice();
+      this.rerolled = true;
+    } else if (action === 'none') {
+      this.modifiers = [];
+    } else {
+      this.modifiers = this.offer.slice();
+    }
     this.paint();
   }
 
   private paint(): void {
-    const mods = this.locked ? [] : this.modifiers;
-    this.names.textContent = mods.length > 0 ? modifierNames(mods) : 'No modifiers';
-    this.blurb.textContent = this.locked
-      ? 'The lesson has none.'
-      : mods.length > 0
-        ? mods.map((id) => MODIFIER_INFO[id].blurb).join(' ')
-        : 'An even match. You can turn the draw back on.';
-    const host = !this.locked;
-    this.rerollBtn.disabled = !host || this.rerolled;
-    this.noneBtn.disabled = !host || mods.length === 0;
-    this.offerBtn.disabled = !host || mods.length > 0;
-    this.offerBtn.classList.toggle('hidden', !host || mods.length > 0);
+    const face = modifierLobbyFace(
+      { modifiers: this.modifiers, modifierOffer: this.offer, modifiersRerolled: this.rerolled },
+      { buttons: true, locked: this.locked },
+    );
+    renderModifierFace(this.container, face, (action) => this.onAction(action));
   }
 }
 
@@ -106,39 +78,58 @@ export function renderModifierLobby(
   host: boolean,
   onAction: (action: ModifierAction) => void,
 ): void {
+  renderModifierFace(container, modifierLobbyFace(state, { buttons: host, locked: false }), onAction);
+}
+
+function renderModifierFace(
+  container: HTMLElement,
+  face: ModifierLobbyFace,
+  onAction: (action: ModifierAction) => void,
+): void {
   container.replaceChildren();
   const names = document.createElement('div');
   names.className = 'mod-names';
-  names.textContent = state.modifiers.length > 0 ? modifierNames(state.modifiers) : 'No modifiers';
-  const blurb = document.createElement('p');
-  blurb.className = 'mod-blurb';
-  blurb.textContent =
-    state.modifiers.length > 0
-      ? state.modifiers.map((id) => MODIFIER_INFO[id].blurb).join(' ')
-      : host
-        ? 'An even match. You can turn the draw back on.'
-        : 'The host chose no modifiers.';
-  container.append(names, blurb);
-  if (!host) return;
-  const row = document.createElement('div');
-  row.className = 'mod-actions';
-  const reroll = button('Reroll', 'mod-reroll', () => onAction('reroll'));
-  reroll.disabled = state.modifiersRerolled;
-  const none = button('No modifiers', 'mod-none', () => onAction('none'));
-  none.disabled = state.modifiers.length === 0;
-  const offer = button('Use modifiers', 'mod-offer', () => onAction('offer'));
-  const showing = state.modifiers.length > 0;
-  offer.classList.toggle('hidden', showing);
-  offer.disabled = showing;
-  row.append(reroll, none, offer);
-  container.append(row);
+  names.textContent = face.status;
+  container.append(names);
+  if (face.note) {
+    const note = document.createElement('p');
+    note.className = 'mod-note';
+    note.textContent = face.note;
+    container.append(note);
+  }
+  if (face.active.length > 0) container.append(chipRow(face.active, false));
+  if (face.offered.length > 0) {
+    const block = document.createElement('div');
+    block.className = 'mod-offered';
+    const label = document.createElement('span');
+    label.className = 'mod-offer-label';
+    label.textContent = 'Offered';
+    block.append(label, chipRow(face.offered, true));
+    container.append(block);
+  }
+  if (face.buttons) container.append(actionRow(face.buttons, onAction));
 }
 
-function button(label: string, cls: string, onClick: () => void): HTMLButtonElement {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = `btn ${cls}`;
-  btn.textContent = label;
-  btn.addEventListener('click', onClick);
-  return btn;
+function chipRow(chips: readonly ModifierChip[], offered: boolean): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'mod-chips';
+  for (const chip of chips) row.append(modifierChipEl(chip, 'blurb', offered));
+  return row;
+}
+
+function actionRow(buttons: readonly ModifierActionFace[], onAction: (action: ModifierAction) => void): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'mod-actions';
+  for (const spec of buttons) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn mod-${spec.action}`;
+    btn.textContent = spec.label;
+    btn.title = spec.title;
+    btn.disabled = !spec.enabled;
+    btn.classList.toggle('hidden', spec.hidden);
+    btn.addEventListener('click', () => onAction(spec.action));
+    row.append(btn);
+  }
+  return row;
 }

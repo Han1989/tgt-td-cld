@@ -1163,45 +1163,146 @@ body.layout-tall #lane-roles {
   top: 44%;
 }
 
-/* Modifiers and the surge chip, under the top bar. The wave banner still names the surge itself. */
+/* Modifiers and the surge chip, just under the top of the map. The wave banner still names
+   the surge wave itself; the toast announces the next one. */
 .match-flags {
   position: absolute;
-  top: 48px;
+  top: calc(var(--map-top, 48px) + 6px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 4;
+  z-index: 3;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
   gap: 4px;
-  width: min(420px, calc(100% - 16px));
+  width: min(440px, calc(100% - 16px));
   pointer-events: none;
 }
 
-.mod-flag,
+/* The lesson card sits in this band. Drop the chips under it while it is open. */
+body.layout-tall:has(#tutorial:not(.hidden)) .match-flags {
+  top: calc(var(--map-top, 48px) + 112px);
+}
+
+.mod-chip,
 .surge-flag {
-  padding: 4px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 3px 8px 4px 8px;
   border-radius: 8px;
   background: rgba(16, 12, 22, 0.88);
   border: 1px solid rgba(255, 210, 74, 0.55);
+  border-left-width: 4px;
   box-shadow: 0 0 0 1px var(--ink), 0 4px 14px rgba(0, 0, 8, 0.45);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
   color: var(--text);
-  text-align: center;
+  line-height: 1.15;
+}
+
+.mod-chip b,
+.surge-flag b {
+  font-size: clamp(14px, 3.8vw, 16px);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.mod-chip span,
+.surge-flag span {
+  font-size: clamp(12px, 3.2vw, 13px);
+  font-weight: 700;
+  color: var(--moon);
+}
+
+.surge-flag b {
+  font-family: var(--title-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mod-chip[data-modifier='swift'] {
+  border-left-color: var(--accent);
+}
+
+.mod-chip[data-modifier='ironclad'] {
+  border-left-color: var(--moon);
+}
+
+.mod-chip[data-modifier='skyTide'] {
+  border-left-color: var(--mana);
+}
+
+.mod-chip[data-modifier='fog'] {
+  border-left-color: var(--xp);
+}
+
+.mod-chip[data-modifier='goldRush'] {
+  border-left-color: var(--gold);
+}
+
+.mod-chip.offered {
+  opacity: 0.72;
 }
 
 .surge-flag.lane-0 {
-  border-color: rgba(255, 58, 96, 0.7);
+  border-left-color: var(--heart);
 }
 
 .surge-flag.lane-1 {
-  border-color: rgba(255, 210, 74, 0.75);
+  border-left-color: var(--gold);
 }
 
 .surge-flag.lane-2 {
-  border-color: rgba(127, 252, 216, 0.7);
+  border-left-color: var(--accent);
+}
+
+.toast.surge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 16px 10px;
+  border-width: 2px;
+  border-style: solid;
+  background: linear-gradient(180deg, rgba(22, 18, 32, 0.96), rgba(12, 10, 18, 0.96));
+  animation: gift-toast 2.8s ease forwards;
+}
+
+.toast.surge b {
+  font-family: var(--title-font);
+  font-size: clamp(26px, 7vw, 36px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.toast.surge span {
+  font-size: clamp(13px, 3.6vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--moon);
+}
+
+.toast.surge.lane-0 {
+  border-color: var(--heart);
+  color: var(--heart);
+}
+
+.toast.surge.lane-1 {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.toast.surge.lane-2 {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .mod-picks {
@@ -1216,17 +1317,53 @@ body.layout-tall #lane-roles {
   color: var(--gold);
 }
 
-.mod-blurb {
+.mod-note {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.35;
 }
 
+.mod-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mod-picks .mod-chip span {
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.mod-offered {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mod-offer-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .mod-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.banner.mods {
+  max-width: calc(100% - 24px);
+  font-size: clamp(22px, 6.4vw, 36px);
+}
+
+.banner.mods .title {
+  white-space: normal;
+  line-height: 1.05;
 }
 
 .banner {
@@ -2275,6 +2412,12 @@ body.layout-tall .notice {
 body.layout-tall .banner {
   font-size: 28px;
   white-space: nowrap;
+}
+
+body.layout-tall .banner.mods,
+body.layout-tall .banner.mods .title {
+  white-space: normal;
+  font-size: clamp(22px, 6.2vw, 28px);
 }
 
 body.layout-tall .settings {
