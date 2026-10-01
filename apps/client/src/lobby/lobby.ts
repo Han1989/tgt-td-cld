@@ -10,6 +10,7 @@ import {
   type GameMode,
   type HeroKind,
   type LobbyState,
+  type ModifierAction,
   type PlayerId,
 } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
@@ -19,6 +20,7 @@ import { sharedSettings } from '../settings';
 import { lessonStatus } from '../tutorial/logic';
 import { DifficultyPicker } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
+import { renderModifierLobby } from './modifierPicker';
 import { ModePicker } from './modePicker';
 
 const NAME_KEY = 'tdt.name';
@@ -32,6 +34,8 @@ export interface LobbyActions {
   setMode(mode: GameMode): void;
   /** Host only: Normal or Hard. */
   setDifficulty(difficulty: Difficulty): void;
+  /** Host only: reroll once, choose none, or turn the seed's draw back on. */
+  setModifiers(action: ModifierAction): void;
   setReady(ready: boolean): void;
   start(): void;
   leave(): void;
@@ -86,6 +90,8 @@ export class LobbyUi {
   private readonly refresh = $('lobby-refresh');
   private readonly modeLabel = $('lobby-mode-room-label');
   private readonly difficultyLabel = $('lobby-difficulty-room-label');
+  private readonly modifiersLabel = $('lobby-modifiers-room-label');
+  private readonly setModifiers: (action: ModifierAction) => void;
 
   private hero: HeroKind = storedHero();
   private readonly homePicker: HeroPicker;
@@ -96,6 +102,7 @@ export class LobbyUi {
   private current: LobbyState | null = null;
 
   constructor(actions: LobbyActions) {
+    this.setModifiers = actions.setModifiers;
     this.name.value = stored(NAME_KEY);
     this.name.maxLength = MAX_NAME_LENGTH;
     const invited = normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? '');
@@ -222,6 +229,8 @@ export class LobbyUi {
     this.difficultyPicker.select(lobby.difficulty);
     this.difficultyPicker.setEnabled(isHost);
     this.difficultyLabel.textContent = isHost ? 'Difficulty' : 'Difficulty (the host picks)';
+    this.modifiersLabel.textContent = isHost ? 'Modifiers' : 'Modifiers (the host picks)';
+    renderModifierLobby($('lobby-modifiers-room'), lobby, isHost, (action) => this.setModifiers(action));
 
     const seats = lobby.players.length;
     this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS}${seats < MAX_PLAYERS ? ' (one per lane)' : ' (full)'}`;

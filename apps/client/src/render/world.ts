@@ -24,7 +24,7 @@ import {
   type TowerSnap,
   type ZoneSnap,
 } from '@tdt/protocol';
-import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
+import { getMap, padAtTile, TILE_PX, towerRangeScale, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
@@ -287,6 +287,8 @@ export class WorldRenderer {
   private heartHitAt = -Infinity;
   private portalFlareAt = -Infinity;
   private portalFlareBoss = false;
+  /** Lane whose portal is flaring for a surge announced a wave ahead. Null flares every portal. */
+  private portalSurgeLane: number | null = null;
   private heartFrac = 1;
   /** Damage state shown (0 whole, 1 cracked, 2 split; -1 not known yet, so no crack effect on a rejoin). */
   private heartShown = -1;
@@ -643,8 +645,20 @@ export class WorldRenderer {
           fx.sparkle(x, y, FX.moonLight, 10, 0.5);
           break;
         }
+        case 'surge': {
+          this.portalFlareAt = now;
+          this.portalFlareBoss = false;
+          this.portalSurgeLane = e.lane;
+          const portal = this.portals[e.lane];
+          if (portal) {
+            fx.ring(portal.x, portal.y, 2.4, COLORS.gold, 700, 0.25, 'shock');
+            fx.sparkle(portal.x, portal.y, COLORS.gold, 14, 1);
+          }
+          break;
+        }
         case 'waveStart': {
           this.portalFlareAt = now;
+          this.portalSurgeLane = null;
           const list = latest ? tuningForMode(TUNING, latest.mode).waves.list : TUNING.waves.list;
           const boss = list[e.wave - 1]?.some((g) => isBossKind(g.kind)) ?? false;
           this.portalFlareBoss = boss;
@@ -900,11 +914,15 @@ export class WorldRenderer {
   }
 
   private updatePortals(now: number, dtMs: number): void {
-    const flare = Math.max(0, 1 - (now - this.portalFlareAt) / 900);
+    const age = now - this.portalFlareAt;
     // The flare: a burst of rune light that swells and fades (bigger for a boss wave).
-    const t = Math.min(1, (now - this.portalFlareAt) / FLARE_MS);
-    const burst = t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
+    // A surge announced ahead lights only that lane's portal.
+    const tAll = Math.min(1, age / FLARE_MS);
     for (const [i, p] of this.portals.entries()) {
+      const mine = this.portalSurgeLane == null || this.portalSurgeLane === i;
+      const flare = mine ? Math.max(0, 1 - age / 900) : 0;
+      const t = mine ? tAll : 1;
+      const burst = !mine || t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
       p.swirl.rotation = -now / (500 - flare * 250) - i;
       p.root.scale.set(1 + 0.05 * Math.sin(now / 400 + i) + flare * 0.25);
       p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
@@ -1745,6 +1763,7 @@ export class WorldRenderer {
     this.auraRings = { drawn: 0, covering: 0 };
     const player = snap.players.find((p) => p.id === me);
     const hero = heroes.find((h) => h.owner === me && h.alive);
+    const rangeScale = towerRangeScale(snap.modifiers, TUNING);
 
     const selected = snap.towers.find((t) => t.id === ui.selectedTowerId);
     if (selected) {
@@ -1772,8 +1791,8 @@ export class WorldRenderer {
       const cx = pad ? pad.x : hover.x;
       const cy = pad ? pad.y : hover.y;
       const color = ok ? COLORS.good : COLORS.bad;
-      g.circle(cx * S, cy * S, stats.range * S).fill({ color, alpha: 0.08 });
-      g.circle(cx * S, cy * S, stats.range * S).stroke({ width: 2, color, alpha: 0.6 });
+      g.circle(cx * S, cy * S, stats.range * rangeScale * S).fill({ color, alpha: 0.08 });
+      g.circle(cx * S, cy * S, stats.range * rangeScale * S).stroke({ width: 2, color, alpha: 0.6 });
       const half = (TOWER_SIZE / 2) * S;
       g.rect(cx * S - half, cy * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
     } else if (hover && mode.type === 'none') {
@@ -1789,8 +1808,8 @@ export class WorldRenderer {
       if (pad) {
         const stats = towerTier(TUNING, ui.preview.tower, 1);
         const color = (player?.gold ?? 0) >= stats.cost ? COLORS.good : COLORS.bad;
-        g.circle(pad.x * S, pad.y * S, stats.range * S).fill({ color, alpha: 0.08 });
-        g.circle(pad.x * S, pad.y * S, stats.range * S).stroke({ width: 2, color, alpha: 0.7 });
+        g.circle(pad.x * S, pad.y * S, stats.range * rangeScale * S).fill({ color, alpha: 0.08 });
+        g.circle(pad.x * S, pad.y * S, stats.range * rangeScale * S).stroke({ width: 2, color, alpha: 0.7 });
         const half = (TOWER_SIZE / 2) * S;
         g.rect(pad.x * S - half, pad.y * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
       }

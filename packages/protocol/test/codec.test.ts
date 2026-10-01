@@ -57,6 +57,9 @@ describe('client message codec', () => {
     { t: 'mode', mode: 'quick' },
     { t: 'difficulty', difficulty: 'normal' },
     { t: 'difficulty', difficulty: 'hard' },
+    { t: 'modifiers', action: 'reroll' },
+    { t: 'modifiers', action: 'none' },
+    { t: 'modifiers', action: 'offer' },
   ];
 
   it.each(valid)('round-trips %j', (msg) => {
@@ -93,6 +96,8 @@ describe('client message codec', () => {
     ['mode with extra keys', '{"t":"mode","mode":"quick","waves":5}'],
     ['unknown difficulty', '{"t":"difficulty","difficulty":"nightmare"}'],
     ['difficulty with extra keys', '{"t":"difficulty","difficulty":"hard","hp":2}'],
+    ['unknown modifier action', '{"t":"modifiers","action":"swap"}'],
+    ['modifier action with extra keys', '{"t":"modifiers","action":"none","id":"swift"}'],
     ['upgrade without a tower', '{"t":"cmd","cmd":{"type":"upgrade"}}'],
     ['upgrade with a string id', '{"t":"cmd","cmd":{"type":"upgrade","towerId":"7"}}'],
     ['upgrade with extra keys', '{"t":"cmd","cmd":{"type":"upgrade","towerId":7,"tier":3}}'],

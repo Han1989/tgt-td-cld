@@ -6,10 +6,12 @@ import {
   type GameMode,
   type HeroKind,
   type LobbyState,
+  type ModifierAction,
   type ServerMessage,
 } from '@tdt/protocol';
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
+import type { ModifierDeal } from './lobby/modifierPicker';
 import { showSoloPick } from './lobby/solo';
 import { sharedSettings } from './settings';
 import { shouldStartLesson, tutorialMatch } from './tutorial/logic';
@@ -32,6 +34,7 @@ export class OnlineController {
       setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
       setMode: (mode: GameMode) => this.transport?.send({ t: 'mode', mode }),
       setDifficulty: (difficulty: Difficulty) => this.transport?.send({ t: 'difficulty', difficulty }),
+      setModifiers: (action: ModifierAction) => this.transport?.send({ t: 'modifiers', action }),
       setReady: (ready) => this.transport?.send({ t: 'ready', ready }),
       start: () => this.transport?.send({ t: 'start' }),
       leave: () => this.leave(),
@@ -143,7 +146,7 @@ export class OnlineController {
   private playOffline(): void {
     this.transport?.close();
     this.drop();
-    showSoloPick((hero, mode, difficulty) => playSolo(this.view, hero, mode, difficulty));
+    showSoloPick((hero, mode, difficulty, deal) => playSolo(this.view, hero, mode, difficulty, deal));
   }
 }
 
@@ -162,19 +165,27 @@ export function endSolo(view: GameView): void {
  * "Change hero / mode" on the end screen reopens the solo pick; the local host starts a new match
  * with the new picks.
  */
-export function playSolo(view: GameView, hero: HeroKind, mode: GameMode, difficulty: Difficulty): void {
+export function playSolo(
+  view: GameView,
+  hero: HeroKind,
+  mode: GameMode,
+  difficulty: Difficulty,
+  deal?: ModifierDeal,
+): void {
   endSolo(view);
   const transport = new LocalTransport();
   soloTransport = transport;
   view.attach(transport);
-  const start = (h: HeroKind, m: GameMode, d: Difficulty) => {
+  const start = (h: HeroKind, m: GameMode, d: Difficulty, next: ModifierDeal | undefined = deal) => {
     const status = sharedSettings().get().tutorial;
     const lesson = tutorialMatch(status);
+    // Pin the draw before hero / mode / difficulty, each of which starts the match.
+    if (next) transport.setDeal(next.seed, lesson ? [] : next.modifiers);
     transport.send({ t: 'difficulty', difficulty: lesson?.difficulty ?? d });
     transport.send({ t: 'mode', mode: lesson?.mode ?? m });
     transport.send({ t: 'hero', hero: h });
     view.setLesson(shouldStartLesson(status, true));
   };
   view.onChangeHero = () => showSoloPick(start);
-  start(hero, mode, difficulty);
+  start(hero, mode, difficulty, deal);
 }

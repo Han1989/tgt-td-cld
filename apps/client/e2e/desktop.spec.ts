@@ -201,10 +201,13 @@ test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, S
   await waitForReady(page, 'solo');
   await expect(page.locator('#tutorial-solo-note')).toBeVisible();
   await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
+  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
+  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
   await expect(page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]')).toBeDisabled();
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual([]);
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
   await expect(page.locator('#tutorial-body')).toContainText('Right-click');
 
@@ -229,6 +232,8 @@ test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, S
   await page.locator('#settings-tutorial').click();
   await expect(page.locator('#tutorial-solo-note')).toBeVisible();
   await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
+  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
+  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
 });
 
 test('Skip lesson on the hero pick keeps the chosen mode and hides the card', async ({ page }) => {
@@ -237,9 +242,15 @@ test('Skip lesson on the hero pick keeps the chosen mode and hides the card', as
   await page.locator('#tutorial-solo-skip').click();
   await expect(page.locator('#tutorial-solo-note')).toBeHidden();
   await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
+  await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText('No modifiers');
+  await page.locator('#lobby-modifiers-solo .mod-reroll').click();
+  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
+  await page.locator('#lobby-modifiers-solo .mod-none').click();
+  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
   await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(30);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual([]);
   await expect(page.locator('#tutorial')).toBeHidden();
 });

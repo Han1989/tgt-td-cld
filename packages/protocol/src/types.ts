@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -141,6 +141,23 @@ export type GameMode = (typeof GAME_MODES)[number];
  */
 export const DIFFICULTIES = ['normal', 'hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
+
+/**
+ * Match modifiers (docs/REPLAYABILITY.md §2). A match runs one or two of these, or none when the host
+ * turns them off. The set is drawn from the match seed; the host may reroll that draw once.
+ */
+export const MODIFIERS = ['swift', 'ironclad', 'skyTide', 'fog', 'goldRush'] as const;
+export type Modifier = (typeof MODIFIERS)[number];
+
+/** What the host may do to the lobby's modifier draw, before the match starts. */
+export const MODIFIER_ACTIONS = ['reroll', 'none', 'offer'] as const;
+export type ModifierAction = (typeof MODIFIER_ACTIONS)[number];
+
+/** A lane surge announced a wave ahead. `lane` is 0 West, 1 Mid, 2 East (`laneName`). */
+export interface SurgeNotice {
+  wave: number;
+  lane: LaneId;
+}
 
 /** Lingering or delayed ground effects of hero ultimates. */
 export const ZONE_KINDS = ['arrowStorm', 'meteor'] as const;
@@ -379,6 +396,11 @@ export type GameEvent =
   | { type: 'ping'; by: PlayerId; x: number; y: number }
   /** A quick-chat phrase from a teammate (`EMOTES`). */
   | { type: 'emote'; by: PlayerId; emote: Emote }
+  /**
+   * The next wave concentrates on `lane`. Sent when that wave is announced, one wave ahead
+   * (also on the snapshot as `nextSurge`, so a reconnect still sees it).
+   */
+  | { type: 'surge'; wave: number; lane: LaneId }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };
 
 export interface Snapshot {
@@ -388,6 +410,12 @@ export interface Snapshot {
   mode: GameMode;
   /** Creep difficulty (fixed for the whole match). Normal is the baseline. */
   difficulty: Difficulty;
+  /** Modifiers in force for the whole match. Empty when the host chose none. */
+  modifiers: Modifier[];
+  /** This wave's surge lane, or null when the wave is spread across the lanes. */
+  surgeLane: LaneId | null;
+  /** The next wave's surge, announced a wave ahead, or null. */
+  nextSurge: SurgeNotice | null;
   phase: GamePhase;
   heartHp: number;
   heartMaxHp: number;
@@ -474,6 +502,8 @@ export interface MatchReport {
   mode: GameMode;
   /** Creep difficulty (Normal is the tuned baseline). */
   difficulty: Difficulty;
+  /** Modifiers in force. Empty when the host chose none. */
+  modifiers: Modifier[];
   seed: number;
   result: 'victory' | 'defeat';
   /** Waves started (the last one reached on a defeat) and the match's total. */
@@ -505,6 +535,8 @@ export interface Replay {
   mode: GameMode;
   /** Absent on replays saved before Hard existed: those matches were Normal. */
   difficulty?: Difficulty;
+  /** Absent on replays saved before modifiers existed: those matches had none. */
+  modifiers?: Modifier[];
   players: { id: PlayerId; name: string; hero: HeroKind }[];
   /** Inputs in the order the host applied them. */
   log: ReplayEntry[];
@@ -540,6 +572,12 @@ export interface LobbyState {
   mode: GameMode;
   /** Creep difficulty the host picked; used when the match starts. */
   difficulty: Difficulty;
+  /** Modifiers the match will use. Empty when the host chose none. */
+  modifiers: Modifier[];
+  /** The seed's current draw (one or two). Restored by the `offer` action after "No modifiers". */
+  modifierOffer: Modifier[];
+  /** True once the host has used the one reroll. */
+  modifiersRerolled: boolean;
   players: LobbyPlayer[];
 }
 
@@ -618,6 +656,11 @@ export type ClientMessage =
    * at that difficulty, like `mode`.
    */
   | { t: 'difficulty'; difficulty: Difficulty }
+  /**
+   * Lobby: change the modifier draw (online: host only, before the start).
+   * `reroll` once, `none` clears them, `offer` restores the current draw.
+   */
+  | { t: 'modifiers'; action: ModifierAction }
   /** Lobby: toggle ready. */
   | { t: 'ready'; ready: boolean }
   /** Lobby: host starts the match. */

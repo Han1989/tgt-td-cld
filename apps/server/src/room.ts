@@ -15,6 +15,7 @@ import {
   type Difficulty,
   type GameMode,
   type HeroKind,
+  type Modifier,
   type LobbyState,
   type PlayerId,
   type ServerMessage,
@@ -28,6 +29,7 @@ import {
   matchReplay,
   matchReport,
   matchStep,
+  modifierRolls,
   reportSummary,
   snapshot,
   type GameState,
@@ -71,6 +73,16 @@ export class Room {
   mode: GameMode = 'full';
   /** Creep difficulty picked by the host; kept for the next match after "Back to lobby". */
   difficulty: Difficulty = 'normal';
+  /** Modifiers the next match will use. Empty when the host chose none. */
+  modifiers: Modifier[] = [];
+  /** The seed's current draw, so "No modifiers" can be undone without spending the reroll. */
+  modifierOffer: Modifier[] = [];
+  /** True once the host has rerolled. A room gets one reroll per match. */
+  modifiersRerolled = false;
+  /** Seed of the draw above. The match uses this same seed, so the lobby and the replay agree. */
+  private seed = 0;
+  /** The other draw, used by the one reroll. */
+  private modifierReroll: Modifier[] = [];
   /** The running match (its state, replay log and report numbers), or null in the lobby. */
   match: Match | null = null;
   /** The match report message, encoded once when the match ends (sent again to players who rejoin). */
@@ -95,6 +107,17 @@ export class Room {
     private readonly log: (msg: string) => void = () => {},
   ) {
     this.emptySince = now;
+    this.rollDeal();
+  }
+
+  /** A new seed, a new 1–2 modifier draw, and the reroll available again. */
+  private rollDeal(): void {
+    this.seed = this.newSeed();
+    const rolls = modifierRolls(this.seed);
+    this.modifierOffer = rolls.offer;
+    this.modifierReroll = rolls.reroll;
+    this.modifiers = rolls.offer.slice();
+    this.modifiersRerolled = false;
   }
 
   get state(): GameState | null {
@@ -226,6 +249,21 @@ export class Room {
         this.difficulty = msg.difficulty;
         this.broadcastLobby();
         return;
+      case 'modifiers':
+        if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can change the modifiers');
+        if (this.phase !== 'lobby') return this.error(member, 'bad_request', 'Modifiers are locked once the match starts');
+        if (msg.action === 'reroll') {
+          if (this.modifiersRerolled) return this.error(member, 'bad_request', 'Modifiers can be rerolled once');
+          this.modifierOffer = this.modifierReroll.slice();
+          this.modifiers = this.modifierOffer.slice();
+          this.modifiersRerolled = true;
+        } else if (msg.action === 'none') {
+          this.modifiers = [];
+        } else {
+          this.modifiers = this.modifierOffer.slice();
+        }
+        this.broadcastLobby();
+        return;
       case 'ready':
         if (this.phase !== 'lobby') return;
         member.ready = msg.ready;
@@ -266,8 +304,8 @@ export class Room {
   private startMatch(): void {
     const players = this.activeMembers.map((m) => ({ id: m.id, name: m.name, hero: m.hero }));
     this.match = createMatch(
-      { players, mode: this.mode, difficulty: this.difficulty },
-      this.newSeed(),
+      { players, mode: this.mode, difficulty: this.difficulty, modifiers: this.modifiers },
+      this.seed,
       this.config.build,
     );
     this.reportMessage = null;
@@ -291,6 +329,7 @@ export class Room {
       else m.ready = false;
     }
     this.migrateHost();
+    this.rollDeal();
     this.broadcastLobby();
   }
 
@@ -355,6 +394,9 @@ export class Room {
       hostId: this.hostId,
       mode: this.mode,
       difficulty: this.difficulty,
+      modifiers: this.modifiers,
+      modifierOffer: this.modifierOffer,
+      modifiersRerolled: this.modifiersRerolled,
       players: this.activeMembers.map((m) => ({
         id: m.id,
         name: m.name,

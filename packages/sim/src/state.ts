@@ -9,6 +9,8 @@ import type {
   GamePhase,
   HeroKind,
   LaneId,
+  Modifier,
+  SurgeNotice,
   PlayerId,
   SkillSlot,
   TargetPriority,
@@ -31,6 +33,8 @@ export interface GameConfig {
   mode?: GameMode;
   /** Creep difficulty (default Normal). Normal does not change HP or counts. */
   difficulty?: Difficulty;
+  /** Match modifiers (default none). At most two; the host's lobby choice, not a fresh seed roll. */
+  modifiers?: Modifier[];
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
 }
@@ -267,6 +271,17 @@ export interface GameState {
   mode: GameMode;
   /** Creep difficulty. Normal leaves HP and counts exactly as the tuning states them. */
   difficulty: Difficulty;
+  /** Modifiers in force. Empty is a normal match. */
+  modifiers: Modifier[];
+  /**
+   * Surge lane of each wave (index 0 unused). Null spreads the wave. Fixed at the start from the seed,
+   * so a replay repeats it without logging it.
+   */
+  surgeLanes: (LaneId | null)[];
+  /** This wave's surge lane, or null. */
+  surgeLane: LaneId | null;
+  /** The next wave's surge, announced a wave ahead, or null. */
+  nextSurge: SurgeNotice | null;
   /** The tuning of this match, with the mode's changes applied. */
   tuning: Tuning;
   phase: GamePhase;
