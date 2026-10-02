@@ -27,7 +27,7 @@ const sections: ProgressSection[] = [
   {
     id: 'playtest2',
     title: 'Playtest 2 · work orders',
-    blurb: 'Follow-up from the 2 Oct 2026 friends session. Stubs only. Not the overnight auto-pull list.',
+    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 (PR #57) and P2-02 (PR #63) are done. Kit, ultimates, and the retest are still open. Not the overnight auto-pull list.',
     group: 'now',
   },
   {
@@ -160,17 +160,19 @@ const items: ProgressItem[] = [
     id: 'P2-01',
     title: 'Touch controls',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client polish. Touch controls, from the 2 Oct 2026 friends session.',
+    note: 'Client polish. Touch controls and phone UX, from the 2 Oct 2026 friends session.',
+    proof: pr(57),
   },
   {
     id: 'P2-02',
     title: 'Air waves and unspent gold',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client polish. Teach air waves and unspent gold.',
+    note: 'Client polish. Teach air waves and unspent gold: flyer readability, anti-air teaching, and a gold nudge.',
+    proof: pr(63),
   },
   {
     id: 'P2-03',
