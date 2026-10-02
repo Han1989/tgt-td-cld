@@ -106,11 +106,13 @@ const STRAGGLERS = 5;
 /** A ranged hero stops this much inside its attack range of the creep it walks to (its reach adds its own radius). */
 const STANDOFF_MARGIN = 0.6;
 
-/** Novice: the share of everything it has earned that it spends on towers and upgrades in the first third of the match. */
+/**
+ * Novice: through this wave it spends only `NOVICE_EARLY_SPEND` of everything it has earned on towers and upgrades (match 1:
+ * 3–6 towers each at wave 5 against the casual bot's 9–11, and about a third of the gold unspent). Wave 5 is the end of
+ * Quick's first third; a Full match gets the same five slow waves, not ten.
+ */
+const NOVICE_EARLY_WAVES = 5;
 const NOVICE_EARLY_SPEND = 0.5;
-/** Novice: the share it may spend until `NOVICE_HOLD_UNTIL` of the match (Quick wave 6, Full wave 12). */
-const NOVICE_HOLD_SPEND = 2 / 3;
-const NOVICE_HOLD_UNTIL = 0.4;
 /** Novice: flyers that must have reached the Heart before it builds any Flak (or branches for air). */
 const NOVICE_FLYER_LEAKS = 2;
 /** Novice: the chance it casts a ready ultimate at a target; if it does not, it forgets it for this long. */
@@ -219,13 +221,10 @@ export function createBalanceBot(
         for (const id of nearHeartFlyers) if (!stillThere.has(id)) flyerLeaks++;
         nearHeartFlyers = now;
         if (flyerLeaks < NOVICE_FLYER_LEAKS) needs.air = false;
-        // Spending: half of what it has earned in the first third, two thirds until 40% of the match.
+        // Spending: half of what it has earned through the first waves, everything after.
         const earned = gold + mine.reduce((n, t) => n + t.spent, 0);
         const spent = earned - gold;
-        const share = snap.wave <= Math.ceil(snap.totalWaves / 3)
-          ? NOVICE_EARLY_SPEND
-          : snap.wave < Math.round(NOVICE_HOLD_UNTIL * snap.totalWaves) ? NOVICE_HOLD_SPEND : 1;
-        gold = Math.max(0, Math.min(gold, share * earned - spent));
+        if (snap.wave <= NOVICE_EARLY_WAVES) gold = Math.max(0, Math.min(gold, NOVICE_EARLY_SPEND * earned - spent));
       }
       const free = pads.filter((p) => usable.has(p.id) && !taken.has(p.id));
       const bosses = snap.creeps.filter((c) => tuning.creeps[c.kind].boss);
