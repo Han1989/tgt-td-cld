@@ -82,6 +82,7 @@ describe('progress dashboard data', () => {
     expect(byId('P2-03').note).toContain('05a3fc0');
     expect(byId('P2-04b').owner).toBe('Team');
     expect(byId('P2-04b').title.toLowerCase()).toContain('cast-together');
+    expect(byId('P2-04b').note).toContain('Not assigned to Claude Code');
     expect(byId('P2-05').note).toContain('P2-04b');
     expect(byId('P2-04').note.toLowerCase()).toContain('combo');
     expect(byId('P2-05').owner).toBe('Han');

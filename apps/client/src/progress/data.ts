@@ -198,7 +198,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'playtest2',
-    note: 'Client. The part of Task 4 that PR #70 left out. The P2-05 retest waits for it.',
+    note: 'Client. The part of Task 4 that PR #70 left out. The P2-05 retest waits for it. Not assigned to Claude Code; the chief of staff assigns it.',
   },
   {
     id: 'P2-05',
