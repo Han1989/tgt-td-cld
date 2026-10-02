@@ -277,6 +277,14 @@ export class TouchControls {
     return this.stick !== null;
   }
 
+  /** Stick is past the dead zone, so its direction is the hero's whole velocity. */
+  private stickSteers(): boolean {
+    const s = this.stick;
+    if (!s) return false;
+    const r = this.joy.getBoundingClientRect().width / 2 || 50;
+    return stickMoveTarget({ x: 0, y: 0 }, s.vec, r) !== null;
+  }
+
   /** A point cast stops the hero's walk in the sim: while steering, resend the move on the next frame. */
   private castAt(slot: SkillSlot, at: { x: number; y: number }): void {
     this.actions.send({ type: 'cast', slot, x: at.x, y: at.y });
@@ -563,6 +571,8 @@ export class TouchControls {
     else {
       const creep = this.renderer.drawnCreepList().find((c) => c.id === pick.id);
       if (!creep) return;
+      // Stick past the dead zone owns movement. A tap must not start a chase that fights the stick.
+      if (this.stickSteers()) return;
       this.actions.clearSelection();
       this.actions.send({ type: 'attack', targetId: creep.id });
       this.marker(creep.x, creep.y, COLORS.bad);

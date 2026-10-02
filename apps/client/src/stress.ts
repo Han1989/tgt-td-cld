@@ -23,7 +23,7 @@ import type { Transport } from './transport/transport';
 const KINDS: CreepKind[] = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'grunt', 'hatchling'];
 const PLAYER = 'local';
 /** Skill effects the scene cycles through, one every 1.5 s. */
-const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'lastStand', 'arrowStorm'];
+const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'ironVow', 'arrowStorm'];
 
 export class StressTransport implements Transport {
   private handlers: ((msg: ServerMessage) => void)[] = [];

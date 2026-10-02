@@ -13,6 +13,7 @@ import {
   spawnProjectile,
   stunCreep,
 } from './combat';
+import { hitFrom } from './coop';
 import { scaledTowerRange } from './modifiers';
 import type { Creep, GameState, Projectile, ProjectileFx, Tower } from './state';
 import { secondsToTicks, TICK_RATE, towerStats, type TowerLevelStats } from './tuning';
@@ -122,9 +123,10 @@ function pulse(state: GameState, tower: Tower, st: TowerLevelStats): boolean {
   if (hit.length === 0) return false;
   emit(state, { type: 'aoe', effect: 'blizzard', x: tower.x, y: tower.y, radius: st.range });
   const type = state.tuning.towers[tower.kind].damageType;
+  const from = hitFrom(state, tower);
   for (const c of hit) {
     if (st.slow > 0) applySlow(state, c, st.slow, secondsToTicks(st.slowDuration));
-    damageCreep(state, c, st.damage, type, tower.owner, st.ignoreResist);
+    damageCreep(state, c, st.damage, type, tower.owner, st.ignoreResist, from);
   }
   return true;
 }
@@ -229,11 +231,14 @@ function impact(state: GameState, p: Projectile, creepsById: Map<number, Creep>)
 /** Deals a projectile's damage to one creep, with its branch effects (if any). */
 function hitCreep(state: GameState, p: Projectile, c: Creep): void {
   const fx = p.fx;
-  if (!fx) return damageCreep(state, c, p.damage, p.damageType, p.source);
+  if (!fx) {
+    damageCreep(state, c, p.damage, p.damageType, p.source, false, p.from);
+    return;
+  }
   if (fx.freezeTicks > 0) stunCreep(state, c, fx.freezeTicks);
   const ground = !state.tuning.creeps[c.kind].flying;
   const amount = p.damage * (ground ? fx.groundDamage : 1) + fx.hpPercent * c.maxHp;
-  damageCreep(state, c, amount, p.damageType, p.source, fx.ignoreResist);
+  damageCreep(state, c, amount, p.damageType, p.source, fx.ignoreResist, p.from);
   if (fx.armorShred > 0 && !c.dead) shredArmor(state, c, fx.armorShred, fx.shredMax, fx.shredTicks);
 }
 
@@ -260,6 +265,7 @@ function chain(state: GameState, p: Projectile, fx: ProjectileFx, from: Creep): 
     splashGround: p.splashGround,
     splashAir: p.splashAir,
     fx: { ...fx, chains: fx.chains - 1, chainHit: hit, freezeTicks: 0 },
+    hitFrom: p.from,
   });
 }
 
@@ -280,11 +286,13 @@ export function updateTraps(state: GameState): void {
     const duration = secondsToTicks(s.rootDuration[rank] ?? 0);
     const damage = s.damage[rank] ?? 0;
     emit(state, { type: 'trapTriggered', x: trap.x, y: trap.y, radius: s.rootRadius });
+    const owner = state.heroes.find((h) => h.owner === trap.owner);
+    const from = owner ? hitFrom(state, owner) : null;
     for (const c of ground) {
       if (dist(trap.x, trap.y, c.x, c.y) > s.rootRadius) continue;
       const ticks = state.tuning.creeps[c.kind].boss ? Math.round(duration * s.bossRootFactor) : duration;
       c.rootUntil = Math.max(c.rootUntil, state.tick + ticks);
-      damageCreep(state, c, damage, 'physical', trap.owner);
+      damageCreep(state, c, damage, 'physical', trap.owner, false, from);
     }
   }
 }

@@ -38,8 +38,8 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 - Solo: the hero pick shows the draw. The lesson locks it to none. Play again keeps the chosen modifiers and takes a new seed.
 - Shown in the lobby as one chip per modifier (name and sentence; the offered draw stays visible, labelled Offered, after "No modifiers") and as a wrapping banner before the first wave. The match keeps a short chip per modifier under the top of the map. The match report and the server log name them (`swift+fog`, or `plain`).
 - **Swift:** creeps +15% speed, bounty +10%.
-- **Ironclad:** from wave 1, every 80th spread slot of eligible ground creeps becomes a Brute (`ironclad.every`). Brutes, bosses and flyers are not converted. The slot mixes wave, lane and index, so the lead creep of every lane is not always the one that changes.
-- **Sky Tide:** every 9th eligible ground creep becomes a Wisp. Brutes stay Brutes. With both, the two replacements take different slots of one combined span.
+- **Ironclad:** from wave 1, every 88th spread slot of eligible ground creeps becomes a Brute (`ironclad.every`). Brutes, bosses and flyers are not converted. The slot mixes wave, lane and index, so the lead creep of every lane is not always the one that changes.
+- **Sky Tide:** every 11th eligible ground creep becomes a Wisp. Brutes stay Brutes. With both, the two replacements take different slots of one combined span.
 - **Fog:** tower range −10%, hero XP +20%.
 - **Gold Rush:** starting gold and wave income +10%, bounty +10%, non-boss count +6%. Swift bounty and Gold Rush bounty stack.
 - The modifier balance sample is solo Full Ironclad, Sky Tide and Gold Rush, solo Quick Ironclad, and Full 3-player Sky Tide (Heart 40–80, curve not asserted). Swift and Fog stay at these rates and are outside that sample. 2-player modifiers and Quick teams are outside it too; the no-modifier team gates still cover 2 and 3 players with surges on.

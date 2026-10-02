@@ -52,16 +52,18 @@ async function main(): Promise<void> {
     return;
   }
   const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
-  if (!serverUrl) {
+  // ?practice=meteor-rain is a local solo path even when a game server is configured.
+  if (!serverUrl || params.get('practice') === 'meteor-rain') {
     // No game server configured: local solo mode, after a hero, mode and difficulty pick.
     // Analytics needs the server (docs/ANALYTICS.md); this path sends nothing.
-    const solo = (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal) =>
-      playSolo(view, hero, mode, difficulty, deal);
+    const practiceEntry = params.get('practice') === 'meteor-rain';
+    const solo = (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal, practice: boolean) =>
+      playSolo(view, hero, mode, difficulty, deal, practice);
     view.onReplayTutorial = () => {
       endSolo(view);
-      showSoloPick(solo);
+      showSoloPick(solo, practiceEntry);
     };
-    showSoloPick(solo);
+    showSoloPick(solo, practiceEntry);
     ready('solo');
     return;
   }

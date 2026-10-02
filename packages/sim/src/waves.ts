@@ -3,6 +3,7 @@
 import { FINALE_LEAK_CREEP_ID, FINALE_LEAK_LANE, type CreepKind, type LaneId, type PlayerId } from '@tdt/protocol';
 import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
+import { isPracticeAlly, onBossSpawned, teamSize } from './coop';
 import { getMap } from './map';
 import { countFactor, flavorKind, goldFactor, surgeCounts, surgeNotice, surgeShare } from './modifiers';
 import type { Creep, GameState } from './state';
@@ -26,7 +27,7 @@ export function callEarlyBonus(state: GameState): number {
 
 export function callEarly(state: GameState, by: PlayerId): void {
   const bonus = callEarlyBonus(state);
-  for (const p of state.players) p.gold += bonus;
+  for (const p of state.players) if (!isPracticeAlly(state, p.id)) p.gold += bonus;
   emit(state, { type: 'callEarly', by, bonus });
   state.nextWaveTick = state.tick;
 }
@@ -46,13 +47,13 @@ function startWave(state: GameState): void {
   state.phase = 'waves';
   const wave = state.wave;
   const income = waveIncome(state, wave);
-  for (const p of state.players) p.gold += income;
+  for (const p of state.players) if (!isPracticeAlly(state, p.id)) p.gold += income;
   emit(state, { type: 'waveStart', wave, income });
 
   const t = state.tuning.waves;
   state.nextWaveTick = wave < totalWaves(state) ? state.tick + secondsToTicks(t.interval) : -1;
 
-  const finale = difficultyBand(state).finale ?? 0;
+  const finale = finaleStrain(state);
   if (wave === totalWaves(state) && finale > 0) {
     state.heartHp = Math.max(0, state.heartHp - finale);
     // No creep: towers cannot snipe it, and the final wave has no call left for the Heart drop to change.
@@ -128,7 +129,7 @@ function spawnGap(natural: number, intervalTicks: number, count: number): number
 
 /** Extra players beyond the first, for player-count scaling. */
 function extraPlayers(state: GameState): number {
-  return Math.max(0, state.players.length - 1);
+  return Math.max(0, teamSize(state) - 1);
 }
 
 /**
@@ -137,6 +138,28 @@ function extraPlayers(state: GameState): number {
  * the final wave. A band may set `ease` to follow match progress instead (still 0 at wave 1, full on the
  * final wave). Boss counts are not multiplied (callers apply `count` only through `scaledCount`).
  */
+/**
+ * Heart HP the final wave takes as it starts. Hard's brace replaces the flat strain when the Heart
+ * is above the ceiling, so a wave that then clears still ends inside the band. One leak event, no creep.
+ */
+export function finaleStrain(state: GameState): number {
+  if (state.wave !== totalWaves(state)) return 0;
+  const flat = difficultyBand(state).finale ?? 0;
+  const brace = state.difficulty === 'hard' ? state.tuning.difficulty.hard.finaleBrace : undefined;
+  if (brace && state.heartHp > brace.ceiling) return state.heartHp - brace.ceiling;
+  return flat;
+}
+
+/**
+ * Damage one creep leak deals. On Hard's final wave, leaks stop at the brace floor. The creep still
+ * counts as a leak; only the Heart HP changes. Every other wave deals the full amount.
+ */
+export function bracedLeakDamage(state: GameState, damage: number): number {
+  const brace = state.difficulty === 'hard' ? state.tuning.difficulty.hard.finaleBrace : undefined;
+  if (!brace || state.wave !== totalWaves(state)) return damage;
+  return Math.max(0, Math.min(damage, state.heartHp - brace.floor));
+}
+
 function difficultyBand(state: GameState): DifficultyBand {
   const base = state.tuning.difficulty[state.difficulty];
   const over = state.difficulty === 'hard' ? state.tuning.modes[state.mode].hard : undefined;
@@ -212,7 +235,7 @@ export function scaledCount(state: GameState, perLane: number): number {
  */
 export function playerHpMultiplier(state: GameState, wave: number): number {
   const ps = state.tuning.playerScaling;
-  const i = Math.max(0, state.players.length - 1);
+  const i = Math.max(0, teamSize(state) - 1);
   const at = (list: number[], fallback: number) => list[Math.min(i, list.length - 1)] ?? fallback;
   const fade = Math.max(0, 1 - (wave - 1) / ps.earlyWaves);
   const lateStart = state.tuning.waves.list.length - ps.lateWaves;
@@ -275,5 +298,6 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
   };
   initBoss(state, creep);
   state.creeps.push(creep);
+  onBossSpawned(state, creep);
   return creep;
 }

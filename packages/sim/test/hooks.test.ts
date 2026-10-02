@@ -34,7 +34,8 @@ describe('leak lane', () => {
 
   it('the Hard finale strain is a leak with no creep, not a lane call', () => {
     const state = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], difficulty: 'hard' }, 1);
-    const before = state.heartHp;
+    // Below the brace ceiling the flat strain (2) still applies.
+    state.heartHp = 60;
     state.wave = state.tuning.waves.list.length - 1;
     state.nextWaveTick = state.tick;
     step(state);
@@ -44,7 +45,48 @@ describe('leak lane', () => {
       damage: 2,
       lane: FINALE_LEAK_LANE,
     });
-    expect(state.heartHp).toBe(before - 2);
+    expect(state.heartHp).toBe(58);
+  });
+
+  it('a Hard Heart above the brace ceiling loses the excess as that same finale leak', () => {
+    const state = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], difficulty: 'hard' }, 1);
+    const ceiling = state.tuning.difficulty.hard.finaleBrace!.ceiling;
+    state.heartHp = 97;
+    state.wave = state.tuning.waves.list.length - 1;
+    state.nextWaveTick = state.tick;
+    step(state);
+    expect(state.events).toContainEqual({
+      type: 'leak',
+      creepId: FINALE_LEAK_CREEP_ID,
+      damage: 97 - ceiling,
+      lane: FINALE_LEAK_LANE,
+    });
+    expect(state.heartHp).toBe(ceiling);
+  });
+
+  it('Hard final-wave creep leaks stop at the brace floor, and earlier waves do not', () => {
+    const floor = TUNING.difficulty.hard.finaleBrace!.floor;
+    const opened = (wave: number, heart: number) => {
+      const state = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], difficulty: 'hard' }, 1);
+      parkHero(state);
+      state.wave = wave;
+      state.nextWaveTick = -1;
+      state.heartHp = heart;
+      const spot = getMap().heart;
+      const creep = placeCreep(state, 'ironhorn', spot.x, spot.y - 2.4, 1);
+      creep.wp = 99;
+      const events = runCollect(state, 40);
+      return { state, leak: events.find((e) => e.type === 'leak' && e.creepId === creep.id) };
+    };
+    const braced = opened(TUNING.waves.list.length, 55);
+    expect(braced.leak).toMatchObject({ type: 'leak', damage: 55 - floor });
+    expect(braced.state.heartHp).toBe(floor);
+    const held = opened(TUNING.waves.list.length, floor);
+    expect(held.leak).toMatchObject({ type: 'leak', damage: 0 });
+    expect(held.state.heartHp).toBe(floor);
+    const earlier = opened(TUNING.waves.list.length - 1, 55);
+    expect(earlier.leak).toMatchObject({ type: 'leak', damage: 20 });
+    expect(earlier.state.heartHp).toBe(35);
   });
 });
 
@@ -145,7 +187,7 @@ describe('sync cast', () => {
     matchCommand(match, 'p2', { type: 'cast', slot: 'Q', x: arc.x, y: arc.y });
     matchStep(match);
     expect(syncs(match)).toEqual([]);
-    matchCommand(match, 'p2', { type: 'cast', slot: 'R', x: arc.x, y: arc.y });
+    matchCommand(match, 'p2', { type: 'cast', slot: 'R' });
     matchStep(match);
     expect(syncs(match)).toEqual([]);
   });

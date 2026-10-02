@@ -694,9 +694,9 @@ export class Effects {
     }
   }
 
-  /** Last Stand: a golden shockwave, a burst of sparks and a column of light. */
-  lastStand(x: number, y: number, radius: number): void {
-    this.ring(x, y, radius, AOE_COLORS.lastStand, 500, 0.15, 'shock');
+  /** Iron Vow cast: a golden shockwave at the Warden. Ally rings are the snapshot shield, not this burst. */
+  ironVow(x: number, y: number, radius: number): void {
+    this.ring(x, y, radius, AOE_COLORS.ironVow, 500, 0.15, 'shock');
     this.ring(x, y, radius * 0.8, FX.hot, 350, 0.1);
     this.flash(x, y, 1.2, FX.goldLight, 400, 0.8);
     this.bump(0.35);

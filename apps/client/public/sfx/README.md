@@ -43,7 +43,7 @@ deploy; no code change. Step by step, with size targets and where to get sounds:
 | `ranger.R.mp3` | Arrow Storm | 1–1.5 s |
 | `warden.Q.mp3` | Cleave | 0.4–0.6 s |
 | `warden.W.mp3` | Taunt | 0.5–1.2 s |
-| `warden.R.mp3` | Last Stand | 1.5–3 s |
+| `warden.R.mp3` | Iron Vow | 1.5–3 s |
 | `arcanist.Q.mp3` | Fireball cast | 0.3–0.5 s |
 | `arcanist.W.mp3` | Frost Nova | 0.4–0.7 s |
 | `arcanist.R.mp3` | Meteor cast | 1–2.5 s |

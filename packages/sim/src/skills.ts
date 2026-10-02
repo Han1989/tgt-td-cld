@@ -1,7 +1,7 @@
 // Hero skills: Q/W/E/R for every hero. Ranks and learning (R unlocks at
 // level 6), instant and point-targeted casts, and the ground zones left by
 // ultimates (Arrow Storm, Meteor). Passives (E) are applied where they act:
-// Keen Eye in hero auto-attacks, the auras in combat.ts.
+// Keen Eye and Blood Hunger in hero auto-attacks, Clarity Aura in combat.ts.
 
 import { R_OVERLAP_SECONDS, type HeroKind, type SkillSlot } from '@tdt/protocol';
 import {
@@ -11,11 +11,12 @@ import {
   damageCreep,
   emit,
   heroCanHit,
+  heroMaxHp,
   heroStats,
   newId,
   spawnProjectile,
-  stunCreep,
 } from './combat';
+import { addZone, hitFrom, onUltCast, pulseMeteorRain, rainStrike } from './coop';
 import type { GameState, Hero, Zone } from './state';
 import { secondsToTicks, TICK_RATE, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
 import { dist } from './vec';
@@ -24,9 +25,9 @@ import { dist } from './vec';
 export type SkillMode = 'instant' | 'point' | 'passive';
 
 export const SKILL_MODES: Record<HeroKind, Record<SkillSlot, SkillMode>> = {
-  ranger: { Q: 'instant', W: 'point', E: 'passive', R: 'point' },
+  ranger: { Q: 'instant', W: 'point', E: 'passive', R: 'instant' },
   warden: { Q: 'instant', W: 'instant', E: 'passive', R: 'instant' },
-  arcanist: { Q: 'point', W: 'point', E: 'passive', R: 'point' },
+  arcanist: { Q: 'point', W: 'point', E: 'passive', R: 'instant' },
 };
 
 export interface SkillInfo {
@@ -78,7 +79,7 @@ function activeStats(
     case 'ranger':
       return { Q: t.ranger.multishot, W: t.ranger.snareTrap, E: null, R: t.ranger.arrowStorm }[slot];
     case 'warden':
-      return { Q: t.warden.cleave, W: t.warden.taunt, E: null, R: t.warden.lastStand }[slot];
+      return { Q: t.warden.cleave, W: t.warden.taunt, E: null, R: t.warden.ironVow }[slot];
     case 'arcanist':
       return { Q: t.arcanist.fireball, W: t.arcanist.frostNova, E: null, R: t.arcanist.meteor }[slot];
   }
@@ -93,7 +94,7 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
         Q: { range: r.attackRange + r.multishot.bonusRange, radius: 0 },
         W: { range: r.snareTrap.castRange, radius: r.snareTrap.rootRadius },
         E: { range: 0, radius: 0 },
-        R: { range: r.arrowStorm.castRange, radius: r.arrowStorm.radius },
+        R: { range: 0, radius: 0 },
       }[slot];
     }
     case 'warden': {
@@ -101,8 +102,8 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
       return {
         Q: { range: 0, radius: w.cleave.radius },
         W: { range: 0, radius: w.taunt.radius },
-        E: { range: 0, radius: w.bulwarkAura.radius },
-        R: { range: 0, radius: w.lastStand.stunRadius },
+        E: { range: 0, radius: 0 },
+        R: { range: 0, radius: 0 },
       }[slot];
     }
     case 'arcanist': {
@@ -111,7 +112,7 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
         Q: { range: a.fireball.castRange, radius: a.fireball.radius },
         W: { range: a.frostNova.castRange, radius: a.frostNova.radius },
         E: { range: 0, radius: a.clarityAura.radius },
-        R: { range: a.meteor.castRange, radius: a.meteor.radius },
+        R: { range: 0, radius: 0 },
       }[slot];
     }
   }
@@ -172,7 +173,13 @@ export function castInstant(state: GameState, hero: Hero, slot: SkillSlot): stri
       result = taunt(state, hero);
       break;
     case 'warden.R':
-      result = lastStand(state, hero);
+      result = ironVow(state, hero);
+      break;
+    case 'ranger.R':
+      result = startRain(state, hero, 'arrowStorm');
+      break;
+    case 'arcanist.R':
+      result = startRain(state, hero, 'meteor');
       break;
     default:
       return 'Pick a target point';
@@ -199,17 +206,11 @@ export function castAtPoint(state: GameState, hero: Hero, slot: SkillSlot, x: nu
     case 'ranger.W':
       snareTrap(state, hero, x, y);
       break;
-    case 'ranger.R':
-      addZone(state, hero, 'arrowStorm', x, y);
-      break;
     case 'arcanist.Q':
       fireball(state, hero, x, y);
       break;
     case 'arcanist.W':
       frostNova(state, hero, x, y);
-      break;
-    case 'arcanist.R':
-      addZone(state, hero, 'meteor', x, y);
       break;
     default:
       return;
@@ -276,6 +277,13 @@ function snareTrap(state: GameState, hero: Hero, x: number, y: number): void {
   });
 }
 
+/** Blood Hunger: heal the Warden for a share of the damage an auto-attack actually dealt. */
+export function bloodHungerHeal(state: GameState, hero: Hero, dealt: number): void {
+  if (hero.kind !== 'warden' || hero.ranks.E === 0 || dealt <= 0) return;
+  const pct = state.tuning.hero.warden.bloodHunger.lifesteal[rankIndex(state, hero, 'E')] ?? 0;
+  hero.hp = Math.min(heroMaxHp(state, hero), hero.hp + dealt * pct);
+}
+
 /** Keen Eye: the multiplier for one auto-attack (1 = no crit). Rolls the seeded RNG only if learned. */
 export function keenEyeMultiplier(state: GameState, hero: Hero, roll: () => number): number {
   if (hero.kind !== 'ranger' || hero.ranks.E === 0) return 1;
@@ -295,7 +303,8 @@ function cleave(state: GameState, hero: Hero): string | null {
   pay(state, hero, 'Q');
   const damage = s.damage[rankIndex(state, hero, 'Q')] ?? 0;
   emit(state, { type: 'aoe', effect: 'cleave', x: hero.x, y: hero.y, radius: s.radius });
-  for (const c of targets) damageCreep(state, c, damage, 'physical', hero.owner);
+  const from = hitFrom(state, hero);
+  for (const c of targets) damageCreep(state, c, damage, 'physical', hero.owner, false, from);
   return null;
 }
 
@@ -321,15 +330,23 @@ function taunt(state: GameState, hero: Hero): string | null {
   return null;
 }
 
-function lastStand(state: GameState, hero: Hero): string | null {
-  const s = state.tuning.hero.warden.lastStand;
+/** Arrow Storm or Meteor: a global lane rain. No aim point. */
+function startRain(state: GameState, hero: Hero, kind: 'arrowStorm' | 'meteor'): string | null {
+  const t = kind === 'arrowStorm' ? state.tuning.hero.ranger.arrowStorm : state.tuning.hero.arcanist.meteor;
+  pay(state, hero, 'R');
+  const pulse = Math.max(1, secondsToTicks(t.pulseInterval));
+  const zone = addZone(state, kind, hero, secondsToTicks(t.duration), pulse, pulse);
+  onUltCast(state, hero, kind, zone);
+  return null;
+}
+
+/** Iron Vow: every living hero gains armour and regeneration until the duration ends. No stun. */
+function ironVow(state: GameState, hero: Hero): string | null {
+  const s = state.tuning.hero.warden.ironVow;
   const i = rankIndex(state, hero, 'R');
   pay(state, hero, 'R');
-  hero.shieldUntil = state.tick + secondsToTicks(s.duration[i] ?? 0);
-  hero.shieldPct = s.damageReduction[i] ?? 0;
-  emit(state, { type: 'aoe', effect: 'lastStand', x: hero.x, y: hero.y, radius: s.stunRadius });
-  const stun = secondsToTicks(s.stun[i] ?? 0);
-  for (const c of creepsInRadius(state, hero.x, hero.y, s.stunRadius, false)) stunCreep(state, c, stun);
+  hero.guardianUntil = state.tick + secondsToTicks(s.duration[i] ?? 0);
+  emit(state, { type: 'aoe', effect: 'ironVow', x: hero.x, y: hero.y, radius: 0 });
   return null;
 }
 
@@ -357,45 +374,16 @@ function frostNova(state: GameState, hero: Hero, x: number, y: number): void {
   const damage = s.damage[i] ?? 0;
   const slowTicks = secondsToTicks(s.slowDuration);
   emit(state, { type: 'aoe', effect: 'frostNova', x, y, radius: s.radius });
+  const from = hitFrom(state, hero);
   for (const c of creepsInRadius(state, x, y, s.radius, true)) {
     applySlow(state, c, s.slow[i] ?? 0, slowTicks);
-    damageCreep(state, c, damage, 'magic', hero.owner);
+    damageCreep(state, c, damage, 'magic', hero.owner, false, from);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Zones (Arrow Storm, Meteor)
+// Zones (global rains)
 // ---------------------------------------------------------------------------
-
-function addZone(state: GameState, hero: Hero, kind: Zone['kind'], x: number, y: number): void {
-  const t = state.tuning.hero;
-  let radius: number;
-  let pulseTicks: number;
-  let endTick: number;
-  if (kind === 'arrowStorm') {
-    radius = t.ranger.arrowStorm.radius;
-    pulseTicks = Math.max(1, secondsToTicks(t.ranger.arrowStorm.pulseInterval));
-    endTick = state.tick + secondsToTicks(t.ranger.arrowStorm.duration);
-  } else {
-    radius = t.arcanist.meteor.radius;
-    pulseTicks = Math.max(1, secondsToTicks(t.arcanist.meteor.delay));
-    endTick = state.tick + pulseTicks;
-  }
-  state.zones.push({
-    id: newId(state),
-    kind,
-    owner: hero.owner,
-    x,
-    y,
-    radius,
-    rank: hero.ranks.R,
-    startTick: state.tick,
-    endTick,
-    nextPulseTick: state.tick + pulseTicks,
-    pulseTicks,
-    done: false,
-  });
-}
 
 export function updateZones(state: GameState): void {
   for (const zone of state.zones) {
@@ -409,20 +397,33 @@ export function updateZones(state: GameState): void {
 }
 
 function pulseZone(state: GameState, zone: Zone): void {
+  if (pulseMeteorRain(state, zone)) return;
   const i = Math.max(0, zone.rank - 1);
-  emit(state, { type: 'aoe', effect: zone.kind, x: zone.x, y: zone.y, radius: zone.radius });
+  // Each impact emits its own `aoe` at the spot it lands. The zone itself has no circle.
   if (zone.kind === 'arrowStorm') {
-    const damage = state.tuning.hero.ranger.arrowStorm.damagePerPulse[i] ?? 0;
-    for (const c of creepsInRadius(state, zone.x, zone.y, zone.radius, true)) {
-      damageCreep(state, c, damage, 'physical', zone.owner);
-    }
-  } else {
+    const s = state.tuning.hero.ranger.arrowStorm;
+    rainStrike(state, zone, 'arrowStorm', {
+      damage: s.damage[i] ?? 0,
+      radius: s.strikeRadius,
+      air: true,
+      stunTicks: 0,
+      magic: false,
+      laneCap: s.laneCap,
+      heartCap: s.heartCap,
+      heartRadius: s.heartRadius,
+    });
+  } else if (zone.kind === 'meteor') {
     const s = state.tuning.hero.arcanist.meteor;
-    const damage = s.damage[i] ?? 0;
-    const stun = secondsToTicks(s.stun[i] ?? 0);
-    for (const c of creepsInRadius(state, zone.x, zone.y, zone.radius, false)) {
-      stunCreep(state, c, stun);
-      damageCreep(state, c, damage, 'magic', zone.owner);
-    }
+    rainStrike(state, zone, 'meteor', {
+      damage: s.damage[i] ?? 0,
+      radius: s.strikeRadius,
+      air: false,
+      stunTicks: secondsToTicks(s.stun[i] ?? 0),
+      magic: true,
+      laneCap: s.laneCap,
+      heartCap: s.heartCap,
+      heartRadius: s.heartRadius,
+      bossDamage: s.bossDamage,
+    });
   }
 }

@@ -78,6 +78,8 @@ export const FX = {
   arcanistAura: 0xc9b3ff,
   /** Matriarch's egg shells when she hatches. */
   shell: 0xf6e7c8,
+  /** Wave-10 boss shield (arcane violet, distinct from Last Stand's gold). */
+  bossShield: RL.arcane,
   shellDark: 0xe8d8b0,
   /** The Heart: warning ring, the blaze under 30% HP, ruby shards when it cracks. */
   heartWarn: 0xff2a4a,
@@ -112,17 +114,19 @@ export const HERO_COLORS: Record<HeroKind, { fill: number; edge: number }> = {
 export const AOE_COLORS: Record<AoeEffect, number> = {
   cleave: 0xdfe8f5,
   taunt: 0xff5b5b,
-  lastStand: 0xffd24a,
+  ironVow: 0xffd24a,
   fireball: 0xff8a3d,
   frostNova: 0x9fe3ff,
   meteor: 0xff5a1f,
   arrowStorm: 0xe6ff7a,
   blizzard: 0xcff4ff,
+  meteorRain: 0xff5a1f,
 };
 
 export const ZONE_COLORS: Record<ZoneKind, number> = {
   arrowStorm: 0xe6ff7a,
   meteor: 0xff5a1f,
+  meteorRain: 0xffb13d,
 };
 
 export const TOWER_COLORS: Record<TowerKind, number> = {

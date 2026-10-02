@@ -3,7 +3,7 @@
 
 import { isBranchOf, type Command, type PlayerId } from '@tdt/protocol';
 import { emit, HERO_SKILLS, newId } from './combat';
-import { setPath } from './heroes';
+import { DRIVE_HOLD_TICKS, setPath } from './heroes';
 import { getMap } from './map';
 import { padBlocker } from './pads';
 import { nearestWalkable } from './pathfinding';
@@ -27,12 +27,25 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
   const map = getMap();
 
   switch (command.type) {
-    case 'move':
+    case 'move': {
+      if (!hero.alive) return reject('Hero is dead');
+      // The joystick refreshes this every few ticks. Even a step that cannot be pathed
+      // (into a wall) holds the hero: it faces the stick and does not auto-chase.
+      hero.drivenUntil = state.tick + DRIVE_HOLD_TICKS;
+      const goal = nearestWalkable(map, command.x, command.y);
+      if (!goal || !setPath(hero, goal.x, goal.y)) {
+        hero.path = [];
+        hero.order = { type: 'move', x: command.x, y: command.y };
+        return true;
+      }
+      hero.order = { type: 'move', x: goal.x, y: goal.y };
+      return true;
+    }
     case 'attackMove': {
       if (!hero.alive) return reject('Hero is dead');
       const goal = nearestWalkable(map, command.x, command.y);
       if (!goal || !setPath(hero, goal.x, goal.y)) return reject('Cannot move there');
-      hero.order = { type: command.type, x: goal.x, y: goal.y };
+      hero.order = { type: 'attackMove', x: goal.x, y: goal.y };
       return true;
     }
     case 'attack': {
@@ -50,6 +63,7 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
     case 'stop':
       hero.order = { type: 'idle' };
       hero.path = [];
+      hero.drivenUntil = 0;
       // A melee hero guards the spot where it was stopped (see autoEngage in heroes.ts).
       hero.guard = null;
       return true;

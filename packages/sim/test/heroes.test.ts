@@ -4,8 +4,9 @@
 import { CREEP_KINDS, HERO_KINDS, type CreepKind, type GameEvent, type HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
-import { armorMultiplier, damageHero, damageTower, grantXp, heroArmor, heroManaRegen } from '../src/combat';
+import { armorMultiplier, damageTower, grantXp, heroArmor, heroManaRegen } from '../src/combat';
 import { snapshot } from '../src/game';
+import { DRIVE_HOLD_TICKS } from '../src/heroes';
 import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
 import { runManaDrill } from '../src/headless';
@@ -113,17 +114,16 @@ describe('levels and skill points', () => {
     expect(applyCommand(state, 'p2', { type: 'cast', slot: 'Q' })).toBe(false);
     expect(rejection(state)).toBe('Pick a target point');
     state.pendingEvents = [];
-    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 13, y: 20 })).toBe(false);
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R' })).toBe(false);
     expect(rejection(state)).toBe('Skill not learned');
+    state.pendingEvents = [];
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 13, y: 20 })).toBe(false);
+    expect(rejection(state)).toBe('This skill takes no target');
   });
 });
 
 describe('mana', () => {
-  it.each([
-    ['ranger', { x: 0, y: -6 }],
-    ['warden', undefined],
-    ['arcanist', { x: 0, y: -6 }],
-  ] as const)('%s casts its ultimate with no mana: cooldown only', (kind, offset) => {
+  it.each(['ranger', 'warden', 'arcanist'] as const)('%s casts its ultimate with no mana: cooldown only', (kind) => {
     const { state, heroes } = lab([kind]);
     const hero = heroes[0]!;
     hero.level = 6;
@@ -131,8 +131,7 @@ describe('mana', () => {
     hero.mana = 0;
     placeCreep(state, 'grunt', hero.x, hero.y - 1).rootUntil = 1_000_000;
     expect(snapshot(state).heroes[0]!.skills[3]).toMatchObject({ slot: 'R', manaCost: 0 });
-    const target = offset ? { x: hero.x + offset.x, y: hero.y + offset.y } : {};
-    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', ...target })).toBe(true);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     run(state, 1);
     expect(hero.skillCd.R).toBeGreaterThan(0);
     expect(hero.mana).toBeLessThan(1);
@@ -214,27 +213,29 @@ describe('Ranger', () => {
     expect(state.rng).toBe(rng);
   });
 
-  it('Arrow Storm rains 6 pulses on ground and air creeps in the area', () => {
+  it('Arrow Storm rains along the lanes, hits flyers there, and misses a corner', () => {
     const { state, heroes } = lab(['ranger']);
     const hero = heroes[0]!;
     hero.ranks.R = 1;
-    const at = { x: hero.x, y: hero.y - 6 };
-    const brute = placeCreep(state, 'brute', at.x, at.y);
-    const wisp = placeCreep(state, 'wisp', at.x + 1, at.y);
-    const far = placeCreep(state, 'grunt', at.x + 6, at.y);
-    for (const c of [brute, wisp, far]) c.rootUntil = 1_000_000;
+    const lane = { x: 13, y: 12 };
+    const brute = placeCreep(state, 'brute', lane.x, lane.y);
+    const wisp = placeCreep(state, 'wisp', lane.x, lane.y + 0.3);
+    const corner = placeCreep(state, 'grunt', 0.4, 49);
+    for (const c of [brute, wisp, corner]) c.rootUntil = 1_000_000;
     const mana = hero.mana;
-    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', ...at })).toBe(true);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: lane.x, y: lane.y })).toBe(false);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     run(state, 1);
-    expect(state.zones).toHaveLength(1);
-    expect(snapshot(state).zones[0]).toMatchObject({ kind: 'arrowStorm', radius: TUNING.hero.ranger.arrowStorm.radius });
+    expect(snapshot(state).zones[0]).toMatchObject({ kind: 'arrowStorm', radius: 0, x: hero.x, y: hero.y });
     expect(hero.mana).toBeGreaterThanOrEqual(mana);
-    const events = runCollect(state, secondsToTicks(TUNING.hero.ranger.arrowStorm.duration) + 2);
     const s = TUNING.hero.ranger.arrowStorm;
-    expect(events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm')).toHaveLength(s.duration / s.pulseInterval);
-    expect(brute.maxHp - brute.hp).toBeCloseTo(6 * s.damagePerPulse[0]! * armorMultiplier(TUNING, brute.armor));
-    expect(wisp.dead).toBe(true);
-    expect(far.hp).toBe(far.maxHp);
+    const pulses = Math.floor(s.duration / s.pulseInterval);
+    const events = runCollect(state, secondsToTicks(s.duration) + 2);
+    const impacts = events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm');
+    expect(impacts).toHaveLength(pulses);
+    expect(brute.hp).toBeLessThan(brute.maxHp);
+    expect(wisp.hp).toBeLessThan(wisp.maxHp);
+    expect(corner.hp).toBe(corner.maxHp);
     expect(state.zones).toHaveLength(0);
     expect(hero.skillCd.R).toBeGreaterThan(0);
   });
@@ -375,6 +376,30 @@ describe('hero reach and melee auto-engage', () => {
     expect(hero.y).toBe(MID.y);
   });
 
+  it('a finished stick step does not drag the hero toward a creep until the stick is released', () => {
+    const { state, hero, creep } = duel('warden', 'grunt', 2 + 0.35 + 0.5);
+    creep.mode = 'lane';
+    creep.targetId = -1;
+    applyCommand(state, 'p1', { type: 'move', x: hero.x, y: hero.y });
+    run(state, DRIVE_HOLD_TICKS - 1);
+    expect(hero.y).toBe(MID.y);
+    expect(creep.hp).toBe(creep.maxHp);
+    applyCommand(state, 'p1', { type: 'stop' });
+    run(state, secondsToTicks(1));
+    expect(hero.y).toBeLessThan(MID.y);
+  });
+
+  it('a creep in reach is hit while the stick holds the hero still', () => {
+    const { state, hero, creep } = duel('warden', 'grunt', 1.2);
+    creep.rootUntil = 1_000_000;
+    hero.attackCd = 0;
+    applyCommand(state, 'p1', { type: 'move', x: MID.x, y: MID.y });
+    run(state, 1);
+    expect(creep.hp).toBeLessThan(creep.maxHp);
+    expect(hero.x).toBeCloseTo(MID.x);
+    expect(hero.y).toBeCloseTo(MID.y);
+  });
+
   it('a move order (the joystick) overrides auto-engage; stopping starts it again from the new spot', () => {
     const { state, hero, creep } = duel('warden', 'grunt', 2 + 0.35 + 0.5);
     creep.mode = 'lane';
@@ -463,72 +488,79 @@ describe('Warden', () => {
     expect(grunt.mode).toBe('return');
   });
 
-  it('Bulwark Aura adds armour to the Warden and allies in range; auras do not stack', () => {
-    const { state, heroes } = lab(['warden', 'ranger', 'warden']);
-    const [warden, ranger, warden2] = heroes as [Hero, Hero, Hero];
-    const base = heroArmor(state, ranger);
-    warden.ranks.E = 2;
-    warden2.ranks.E = 1;
-    const bonus = TUNING.hero.warden.bulwarkAura.armor[1]!;
-    expect(heroArmor(state, ranger)).toBe(base + bonus);
-    expect(heroArmor(state, warden)).toBe(TUNING.hero.warden.armor + bonus);
-    ranger.x = warden.x + TUNING.hero.warden.bulwarkAura.radius + 1;
-    warden2.x = ranger.x + 20;
-    expect(heroArmor(state, ranger)).toBe(base);
-    warden.alive = false;
-    expect(heroArmor(state, warden2)).toBe(TUNING.hero.warden.armor + TUNING.hero.warden.bulwarkAura.armor[0]!);
+  it('Blood Hunger heals a share of auto-attack damage and Cleave does not', () => {
+    const { state, heroes } = lab(['warden']);
+    const hero = heroes[0]!;
+    hero.ranks.E = 1;
+    hero.attackCd = 0;
+    hero.hp = 200;
+    const grunt = placeCreep(state, 'grunt', hero.x, hero.y - 1);
+    grunt.rootUntil = 1_000_000;
+    const dealt = TUNING.hero.warden.damage * armorMultiplier(TUNING, grunt.armor);
+    const before = hero.hp;
+    run(state, 1);
+    const heal = dealt * TUNING.hero.warden.bloodHunger.lifesteal[0]!;
+    expect(hero.hp - before).toBeCloseTo(TUNING.hero.warden.hpRegen / 20 + heal);
+
+    hero.hp = 180;
+    const at = hero.hp;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
+    expect(hero.hp).toBe(at);
   });
 
-  it('Bulwark Aura also covers towers in range', () => {
-    const { state, heroes } = lab(['warden']);
-    const warden = heroes[0]!;
+  it('Iron Vow armours and regenerates every living hero for the whole duration', () => {
+    const { state, heroes } = lab(['warden', 'ranger']);
+    const [warden, ranger] = heroes as [Hero, Hero];
+    warden.ranks.R = 1;
+    ranger.x = warden.x + 30;
+    const s = TUNING.hero.warden.ironVow;
+    const ticks = secondsToTicks(s.duration[0]!);
+    const baseW = heroArmor(state, warden);
+    const baseR = heroArmor(state, ranger);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
+    expect(heroArmor(state, warden)).toBe(baseW + s.armor[0]!);
+    expect(heroArmor(state, ranger)).toBe(baseR + s.armor[0]!);
+    expect(state.pendingEvents).toContainEqual(expect.objectContaining({ type: 'aoe', effect: 'ironVow' }));
+    const snap = snapshot(state);
+    expect(snap.heroes.map((h) => h.shielded)).toEqual([true, true]);
+    expect(snap.heroes.map((h) => h.shieldFor)).toEqual([ticks, ticks]);
+    const grunt = placeCreep(state, 'grunt', warden.x + 1, warden.y);
+    expect(grunt.stunUntil).toBe(0);
+
+    warden.hp = 100;
+    ranger.hp = 100;
+    run(state, 1);
+    expect(warden.hp - 100).toBeCloseTo((TUNING.hero.warden.hpRegen + s.regen[0]!) / 20);
+    expect(ranger.hp - 100).toBeCloseTo((TUNING.hero.ranger.hpRegen + s.regen[0]!) / 20);
+    expect(snapshot(state).heroes[0]!.shieldFor).toBe(ticks - 1);
+
+    ranger.alive = false;
+    expect(snapshot(state).heroes[1]).toMatchObject({ shielded: false, shieldFor: 0 });
+    ranger.alive = true;
+
+    run(state, ticks);
+    expect(heroArmor(state, ranger)).toBe(baseR);
+    expect(snapshot(state).heroes.map((h) => h.shieldFor)).toEqual([0, 0]);
+  });
+
+  it('two Iron Vows do not stack, and towers are not armoured', () => {
+    const { state, heroes } = lab(['warden', 'warden']);
+    const [a, b] = heroes as [Hero, Hero];
+    a.ranks.R = 1;
+    b.ranks.R = 2;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R' })).toBe(true);
+    const bonus = TUNING.hero.warden.ironVow.armor[1]!;
+    expect(heroArmor(state, a)).toBe(TUNING.hero.warden.armor + bonus);
+    expect(heroArmor(state, b)).toBe(TUNING.hero.warden.armor + bonus);
+
     state.players[0]!.gold = 1_000;
     const pad = getMap().pads[0]!;
     applyCommand(state, 'p1', { type: 'build', padId: pad.id, tower: 'arrow' });
     const tower = state.towers[0]!;
-    const hit = () => {
-      tower.hp = tower.maxHp;
-      damageTower(state, tower, 100, 'physical');
-      return tower.maxHp - tower.hp;
-    };
-    const aura = TUNING.hero.warden.bulwarkAura;
-    warden.x = tower.x + aura.radius - 1;
-    warden.y = tower.y;
-    const bare = hit();
-    expect(bare).toBeCloseTo(100 * armorMultiplier(TUNING, TUNING.towers.arrow.armor));
-    warden.ranks.E = 3;
-    expect(hit()).toBeCloseTo(100 * armorMultiplier(TUNING, TUNING.towers.arrow.armor + aura.armor[2]!));
-    expect(hit()).toBeLessThan(bare);
-    warden.x = tower.x + aura.radius + 1;
-    expect(hit()).toBeCloseTo(bare);
-  });
-
-  it('Last Stand reduces damage taken and stuns nearby ground creeps', () => {
-    const { state, heroes } = lab(['warden']);
-    const hero = heroes[0]!;
-    hero.ranks.R = 1;
-    const grunt = placeCreep(state, 'grunt', hero.x + 2, hero.y);
-    const boss = placeCreep(state, 'ironhorn', hero.x - 2, hero.y);
-    boss.abilityCd = 1_000_000;
-    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
-    const s = TUNING.hero.warden.lastStand;
-    const stun = secondsToTicks(s.stun[0]!);
-    expect(grunt.stunUntil).toBe(state.tick + stun);
-    expect(boss.stunUntil).toBe(state.tick + Math.round(stun * TUNING.combat.bossControlFactor));
-    expect(snapshot(state).heroes[0]!.shielded).toBe(true);
-    const at = { x: grunt.x, y: grunt.y };
-    run(state, 5);
-    expect(snapshot(state).creeps.find((c) => c.id === grunt.id)!.stunned).toBe(true);
-    expect({ x: grunt.x, y: grunt.y }).toEqual(at);
-
-    const hp = hero.hp;
-    damageHero(state, hero, 100, 'magic');
-    const magic = 1 - TUNING.hero.warden.magicResist;
-    expect(hp - hero.hp).toBeCloseTo(100 * magic * (1 - s.damageReduction[0]!));
-    run(state, secondsToTicks(s.duration[0]!));
-    const hp2 = hero.hp;
-    damageHero(state, hero, 100, 'magic');
-    expect(hp2 - hero.hp).toBeCloseTo(100 * magic);
+    tower.hp = tower.maxHp;
+    damageTower(state, tower, 100, 'physical');
+    expect(tower.maxHp - tower.hp).toBeCloseTo(100 * armorMultiplier(TUNING, TUNING.towers.arrow.armor));
   });
 });
 
@@ -590,27 +622,28 @@ describe('Arcanist', () => {
     expect(heroManaRegen(state, warden)).toBe(TUNING.hero.warden.manaRegen);
   });
 
-  it('Meteor lands after its delay, damaging and stunning ground creeps', () => {
+  it('Meteor rains along the lanes, stuns ground creeps, and misses flyers', () => {
     const tuning = tuningCopy();
     tuning.creeps.brute.hp = 2000;
     const { state, heroes } = lab(['arcanist'], tuning);
     const hero = heroes[0]!;
     hero.ranks.R = 1;
-    const at = { x: hero.x, y: hero.y - 6 };
-    const brute = placeCreep(state, 'brute', at.x + 1, at.y);
-    const wisp = placeCreep(state, 'wisp', at.x - 1, at.y);
-    for (const c of [brute, wisp]) c.rootUntil = 1_000_000;
-    applyCommand(state, 'p1', { type: 'cast', slot: 'R', ...at });
+    const brute = placeCreep(state, 'brute', 13, 12);
+    const wisp = placeCreep(state, 'wisp', 13, 12.3);
+    const corner = placeCreep(state, 'grunt', 0.4, 49);
+    for (const c of [brute, wisp, corner]) c.rootUntil = 1_000_000;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     const s = tuning.hero.arcanist.meteor;
-    const delay = secondsToTicks(s.delay);
-    run(state, delay);
-    expect(snapshot(state).zones).toMatchObject([{ kind: 'meteor', endTick: 1 + delay }]);
+    run(state, 1);
+    expect(snapshot(state).zones[0]).toMatchObject({ kind: 'meteor', radius: 0 });
     expect(brute.hp).toBe(brute.maxHp);
-    const events = runCollect(state, 1);
-    expect(events).toContainEqual(expect.objectContaining({ type: 'aoe', effect: 'meteor' }));
-    expect(brute.maxHp - brute.hp).toBeCloseTo(s.damage[0]!);
-    expect(brute.stunUntil).toBe(state.tick + secondsToTicks(s.stun[0]!));
+    const events = runCollect(state, secondsToTicks(s.duration) + 2);
+    const impacts = events.filter((e) => e.type === 'aoe' && e.effect === 'meteor');
+    expect(impacts).toHaveLength(Math.floor(s.duration / s.pulseInterval));
+    expect(brute.hp).toBeLessThan(brute.maxHp);
+    expect(brute.stunUntil).toBeGreaterThan(0);
     expect(wisp.hp).toBe(wisp.maxHp);
+    expect(corner.hp).toBe(corner.maxHp);
     expect(state.zones).toHaveLength(0);
   });
 });

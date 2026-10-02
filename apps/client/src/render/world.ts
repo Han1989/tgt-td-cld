@@ -706,8 +706,9 @@ export class WorldRenderer {
           this.drawnCreeps.filter((c) => !TUNING.creeps[c.kind].flying && Math.hypot(c.x - x, c.y - y) <= radius),
         );
         break;
-      case 'lastStand':
-        fx.lastStand(x, y, radius);
+      case 'ironVow':
+        // The vow is global. The burst is the cast; ally rings follow HeroSnap.shielded for shieldFor ticks.
+        fx.ironVow(x, y, radius > 0.5 ? radius : 3.2);
         break;
       case 'fireball':
         fx.fireball(x, y, radius);
@@ -720,6 +721,9 @@ export class WorldRenderer {
         break;
       case 'arrowStorm':
         fx.arrowStormPulse(x, y, radius);
+        break;
+      case 'meteorRain':
+        fx.meteor(x, y, radius);
         break;
       case 'blizzard': {
         fx.blizzardPulse(x, y, radius);
@@ -735,36 +739,6 @@ export class WorldRenderer {
       default:
         fx.ring(x, y, radius, AOE_COLORS.cleave, 400);
     }
-  }
-
-  /**
-   * While you place or inspect a tower: the true radius of every Warden's Bulwark Aura (the only aura
-   * that reaches towers), bright with a line to the tower when it covers it, faint when it doesn't.
-   */
-  private drawAuraRanges(g: Graphics, snap: Snapshot, heroes: HeroSnap[], ui: UiState): void {
-    const at = this.towerFocus(snap, ui);
-    if (!at) return;
-    const radius = TUNING.hero.warden.bulwarkAura.radius;
-    for (const h of heroes) {
-      if (h.kind !== 'warden' || !h.alive || (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) === 0) continue;
-      const covers = Math.hypot(h.x - at.x, h.y - at.y) <= radius;
-      this.auraRings.drawn++;
-      if (covers) this.auraRings.covering++;
-      g.circle(h.x * S, h.y * S, radius * S).fill({ color: FX.wardenAura, alpha: covers ? 0.07 : 0.03 });
-      g.circle(h.x * S, h.y * S, radius * S).stroke({ width: covers ? 3 : 2, color: FX.wardenAura, alpha: covers ? 0.85 : 0.35 });
-      if (covers) g.moveTo(h.x * S, h.y * S).lineTo(at.x * S, at.y * S).stroke({ width: 2, color: FX.wardenAura, alpha: 0.5 });
-    }
-  }
-
-  /** The tower being placed (build ghost, radial preview, chosen pad) or selected, in tiles. */
-  private towerFocus(snap: Snapshot, ui: UiState): { x: number; y: number } | null {
-    const selected = ui.selectedTowerId !== null ? snap.towers.find((t) => t.id === ui.selectedTowerId) : undefined;
-    if (selected) return selected;
-    const padId = ui.preview?.padId ?? ui.selectedPadId;
-    const pad = padId !== null ? this.map.pads[padId] : undefined;
-    if (pad) return pad;
-    if (ui.mode.type === 'build' && ui.hover) return padAtTile(this.map, Math.floor(ui.hover.x), Math.floor(ui.hover.y)) ?? ui.hover;
-    return null;
   }
 
   /** Whether a melee hero has an enemy it can hit within reach, or about to be (the wind-up starts ~180 ms early). */
@@ -825,7 +799,8 @@ export class WorldRenderer {
         fx.dustRing(x, y, 0.6, FX.dust, 6);
         break;
       case 'ranger.R':
-        fx.ring(x, y, TUNING.hero.ranger.arrowStorm.radius, ZONE_COLORS.arrowStorm, 400, 1.3);
+        // The rain is global. Each impact is its own `aoe`; the cast is only a flare on the hero.
+        fx.castFlare(hx, hy, ZONE_COLORS.arrowStorm);
         break;
       case 'arcanist.Q':
         fx.castFlare(hx, hy, AOE_COLORS.fireball);
@@ -835,7 +810,6 @@ export class WorldRenderer {
         break;
       case 'arcanist.R':
         fx.castFlare(hx, hy, AOE_COLORS.meteor);
-        fx.ring(x, y, TUNING.hero.arcanist.meteor.radius, ZONE_COLORS.meteor, 500, 1.5);
         break;
       default:
         break;
@@ -1103,7 +1077,8 @@ export class WorldRenderer {
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
-      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${c.stunned ? 't' : ''}${hide}`;
+      const shield = c.shield ?? '';
+      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${c.stunned ? 't' : ''}${hide}${shield}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
@@ -1111,6 +1086,12 @@ export class WorldRenderer {
         if (c.slowed) s.status.circle(0, 0, r + 3).stroke({ width: 2, color: COLORS.slow });
         if (c.rooted) s.status.circle(0, 0, r + 6).stroke({ width: 3, color: COLORS.root });
         if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
+        if (c.shield && c.shield !== 'off') {
+          s.status.circle(0, 0, r + 10).stroke({ width: 3, color: FX.bossShield, alpha: c.shield === 'up' ? 0.45 : 0.95 });
+          if (c.shield === 'left' || c.shield === 'right') {
+            s.status.circle((c.shield === 'left' ? -1 : 1) * (r + 4), 0, 5).fill({ color: FX.bossShield, alpha: 0.9 });
+          }
+        }
       }
       this.tintCreep(s, c, now);
       if (s.art) {
@@ -1427,7 +1408,7 @@ export class WorldRenderer {
         }
         if (h.stunned) s.status.star(0, -S * 0.9, 5, 7, 3).fill(COLORS.stun);
       }
-      // Passive auras (Bulwark, Clarity): a slowly turning ring under the hero once learned.
+      // Learned passives: a slowly turning ring (Blood Hunger, Clarity). Iron Vow uses the shield ring.
       const auraOn = h.kind !== 'ranger' && (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) > 0;
       if (auraOn !== s.auraOn) {
         s.auraOn = auraOn;
@@ -1658,12 +1639,12 @@ export class WorldRenderer {
   }
 
   /**
-   * Arrow Storm: a flickering circle with arrows raining into it; Meteor: a target circle that
-   * closes in while the meteor falls towards it. Sprites, animated by transform and alpha only.
+   * Aimed zones draw a circle. Global rains (radius 0) do not: their impacts are `aoe` events.
    */
   private syncZones(snap: Snapshot, tick: number, now: number, dtMs: number): void {
     const seen = new Set<number>();
     for (const z of snap.zones) {
+      if (z.radius <= 0.05) continue;
       seen.add(z.id);
       let s = this.zones.get(z.id);
       if (!s) {
@@ -1672,7 +1653,11 @@ export class WorldRenderer {
       }
       const r = z.radius * S;
       const ringScale = r / RING_PX;
-      if (z.kind === 'meteor') {
+      if (z.kind === 'meteorRain') {
+        s.fill.alpha = 0.22 + 0.08 * Math.sin(now / 70);
+        s.ring.alpha = 0.85;
+        s.ring.rotation = now / 700;
+      } else if (z.kind === 'meteor') {
         const t = Math.max(0, Math.min(1, (tick - z.startTick) / Math.max(1, z.endTick - z.startTick)));
         s.fill.alpha = 0.12 + 0.25 * t;
         s.ring.alpha = 0.6 + 0.4 * Math.sin(now / 60) * t;
@@ -1815,8 +1800,6 @@ export class WorldRenderer {
         g.rect(pad.x * S - half, pad.y * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
       }
     }
-
-    this.drawAuraRanges(g, snap, heroes, ui);
 
     // Touch drag-to-aim: range around the hero, area at the aim point (red over the button = cancel).
     if (ui.aim && hero) {

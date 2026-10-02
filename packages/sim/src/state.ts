@@ -37,6 +37,12 @@ export interface GameConfig {
   modifiers?: Modifier[];
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
+  /**
+   * Solo Meteor Rain practice. Adds `allyId` as a bot hero that does not count toward team size,
+   * pad ownership, creep scaling, or wave income. Both heroes start at `startLevel` (default 6, so R
+   * can be learned at once). Online matches omit this.
+   */
+  practice?: { allyId: PlayerId; allyName?: string; allyHero: HeroKind; startLevel?: number };
 }
 
 export interface PlayerState {
@@ -81,9 +87,13 @@ export interface Hero {
   alive: boolean;
   respawnTick: number;
   stunUntil: number;
-  /** Last Stand: damage taken is reduced by `shieldPct` until this tick. */
-  shieldUntil: number;
-  shieldPct: number;
+  /** Iron Vow: team armour and regeneration last until this tick (0 = never cast). Survives the caster dying. */
+  guardianUntil: number;
+  /**
+   * Joystick steering: auto-chase stays off until this tick. Each `move` refreshes it; `stop` clears it.
+   * A one-shot move (a click) only holds for a few ticks after the command, so arriving still engages.
+   */
+  drivenUntil: number;
   facing: number;
   /** The creep that last hurt this hero (-1 = none yet) and the tick it did. */
   hitBy: EntityId;
@@ -226,7 +236,15 @@ export interface Projectile {
   source: PlayerId | null;
   /** The creep that fired it (heroes remember who shot them), or -1. */
   attacker: EntityId;
+  /** Lane this shot counts as for a boss shield (the tower's pad zone, or the hero's hit lane). */
+  from: HitFrom;
   done: boolean;
+}
+
+/** Where a hit came from. Towers use their pad zone; heroes use `heroHitLane`. */
+export interface HitFrom {
+  x: number;
+  lane: LaneId;
 }
 
 export interface Trap {
@@ -256,6 +274,9 @@ export interface Zone {
   nextPulseTick: number;
   pulseTicks: number;
   done: boolean;
+  /** Impacts already dropped on each lane, and inside the Heart cap, for this rain. */
+  laneStrikes: [number, number, number];
+  heartStrikes: number;
 }
 
 export interface PendingSpawn {
@@ -306,4 +327,39 @@ export interface GameState {
   pendingEvents: GameEvent[];
   /** Damage dealt to creeps since the last step, per source ('' = no one), per creep id; becomes `damage` events. */
   pendingDamage: Record<string, Record<number, number>>;
+  /** Solo Meteor Rain practice, or null. */
+  practice: PracticeState | null;
+  /** Arrow Storm and Meteor casts still inside the combo window. */
+  recentUlts: RecentUlt[];
+  /** Wave-10 bosses that spawned with a shield (kept until the creep is gone). */
+  shields: BossShield[];
+}
+
+/** Solo practice: the bot ally and the level both heroes started at. */
+export interface PracticeState {
+  allyId: PlayerId;
+  startLevel: number;
+}
+
+/** An ultimate still waiting to fuse. Only Arrow Storm and Meteor combo. */
+export interface RecentUlt {
+  heroId: EntityId;
+  kind: 'arrowStorm' | 'meteor';
+  x: number;
+  y: number;
+  radius: number;
+  tick: number;
+  zoneId: EntityId;
+  fused: boolean;
+}
+
+/** A wave-10 boss shield. */
+export interface BossShield {
+  creepId: EntityId;
+  up: boolean;
+  /** Last tick each lane hit it (-1: never). */
+  lastHit: [number, number, number];
+  /** The half lit by the latest hit, and when; null once the window ran out. */
+  side: 'left' | 'right' | null;
+  sideTick: number;
 }

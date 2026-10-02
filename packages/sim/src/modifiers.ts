@@ -117,8 +117,10 @@ export function surgeNotice(lanes: readonly (LaneId | null)[], wave: number): Su
 /** Share of a surge wave's regular creeps that spawn on the surge lane. Solo is milder. */
 export function surgeShare(state: GameState): number {
   const s = state.tuning.surges;
-  if (state.players.length <= 1) return s.soloShare;
-  if (state.players.length >= 3) return s.trioShare;
+  const ally = state.practice?.allyId;
+  const players = ally ? state.players.filter((p) => p.id !== ally).length : state.players.length;
+  if (players <= 1) return s.soloShare;
+  if (players >= 3) return s.trioShare;
   return s.share;
 }
 

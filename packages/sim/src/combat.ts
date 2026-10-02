@@ -1,10 +1,11 @@
 // Shared combat rules: damage reduction, kills, bounties, XP and levelling.
 
 import type { AoeEffect, DamageType, EntityId, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
+import { bountyCredit, hitFrom, isPracticeAlly, shieldedDamage } from './coop';
 import { getMap } from './map';
 import { bountyFactor, xpFactor } from './modifiers';
 import { nextRandom } from './rng';
-import type { Creep, GameState, Hero, Projectile, ProjectileFx, TargetKind, Tower } from './state';
+import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower } from './state';
 import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
 import { dist } from './vec';
 
@@ -86,11 +87,19 @@ function auraRank(state: GameState, target: { x: number; y: number }, kind: Hero
   return best;
 }
 
-/** Armour bonus from a Warden's Bulwark Aura, for a hero or a tower. */
-export function bulwarkBonus(state: GameState, target: { x: number; y: number }): number {
-  const aura = state.tuning.hero.warden.bulwarkAura;
-  const rank = auraRank(state, target, 'warden', aura.radius);
-  return rank < 0 ? 0 : (aura.armor[rank] ?? 0);
+/**
+ * The strongest Iron Vow still running: highest Warden R rank, and how many ticks are left
+ * on the longest vow. Two vows do not stack. Null when none is up.
+ */
+export function ironVow(state: GameState): { rank: number; ticksLeft: number } | null {
+  let rank = -1;
+  let ticksLeft = 0;
+  for (const h of state.heroes) {
+    if (h.kind !== 'warden' || state.tick >= h.guardianUntil) continue;
+    rank = Math.max(rank, h.ranks.R - 1);
+    ticksLeft = Math.max(ticksLeft, h.guardianUntil - state.tick);
+  }
+  return rank < 0 ? null : { rank, ticksLeft };
 }
 
 /** Mana regeneration bonus (per second) from an Arcanist's Clarity Aura. */
@@ -102,7 +111,16 @@ export function clarityBonus(state: GameState, hero: Hero): number {
 
 export function heroArmor(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  return s.armor + s.armorPerLevel * (hero.level - 1) + bulwarkBonus(state, hero);
+  const vow = ironVow(state);
+  const bonus = vow ? (state.tuning.hero.warden.ironVow.armor[vow.rank] ?? 0) : 0;
+  return s.armor + s.armorPerLevel * (hero.level - 1) + bonus;
+}
+
+/** Health regenerated per second, including Iron Vow while it covers living heroes. */
+export function heroHpRegen(state: GameState, hero: Hero): number {
+  const vow = ironVow(state);
+  const bonus = vow ? (state.tuning.hero.warden.ironVow.regen[vow.rank] ?? 0) : 0;
+  return heroStats(state, hero).hpRegen + bonus;
 }
 
 export function heroManaRegen(state: GameState, hero: Hero): number {
@@ -132,7 +150,11 @@ export function shredArmor(state: GameState, creep: Creep, amount: number, max: 
   creep.shredUntil = state.tick + ticks;
 }
 
-/** `pierce`: the hit ignores armour and magic resist (Void towers). */
+/**
+ * Damage actually removed from the creep (0 if it was already dead or the hit was fully blocked).
+ * `pierce`: the hit ignores armour and magic resist (Void towers).
+ * `from`: which lane the hit counts as for a wave-10 shield. Omit it and a shielded boss ignores the hit.
+ */
 export function damageCreep(
   state: GameState,
   creep: Creep,
@@ -140,10 +162,12 @@ export function damageCreep(
   type: DamageType,
   source: PlayerId | null,
   pierce = false,
-): void {
-  if (creep.dead) return;
+  from?: HitFrom | null,
+): number {
+  if (creep.dead) return 0;
+  amount = shieldedDamage(state, creep, amount, from);
   const mult = pierce ? 1 : damageMultiplier(state.tuning, type, effectiveArmor(state, creep), creep.magicResist);
-  const dealt = Math.min(creep.hp, amount * mult);
+  const dealt = Math.min(creep.hp, Math.max(0, amount * mult));
   if (dealt > 0) {
     // Reported per source at the end of the tick (`damage` events: the clients' damage numbers).
     const bySource = (state.pendingDamage[source ?? ''] ??= {});
@@ -151,6 +175,7 @@ export function damageCreep(
   }
   creep.hp -= amount * mult;
   if (creep.hp <= 0) killCreep(state, creep, source);
+  return dealt;
 }
 
 function killCreep(state: GameState, creep: Creep, source: PlayerId | null): void {
@@ -158,7 +183,8 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   creep.hp = 0;
   const stats = state.tuning.creeps[creep.kind];
   const bounty = creepBounty(state, creep);
-  const killer = source === null ? undefined : state.players.find((p) => p.id === source);
+  const credited = bountyCredit(state, source);
+  const killer = credited === null ? undefined : state.players.find((p) => p.id === credited);
   if (killer) {
     killer.gold += bounty;
     killer.kills++;
@@ -174,7 +200,7 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   });
 
   const nearby = state.heroes.filter(
-    (h) => h.alive && dist(h.x, h.y, creep.x, creep.y) <= state.tuning.combat.xpShareRadius,
+    (h) => h.alive && dist(h.x, h.y, creep.x, creep.y) <= state.tuning.combat.xpShareRadius && !isPracticeAlly(state, h.owner),
   );
   for (const hero of nearby) grantXp(state, hero, stats.xp / nearby.length);
 }
@@ -202,8 +228,7 @@ export function damageHero(state: GameState, hero: Hero, amount: number, type: D
     hero.hitTick = state.tick;
   }
   const mult = damageMultiplier(state.tuning, type, heroArmor(state, hero), heroStats(state, hero).magicResist);
-  const shield = state.tick < hero.shieldUntil ? 1 - hero.shieldPct : 1;
-  hero.hp -= amount * mult * shield;
+  hero.hp -= amount * mult;
   if (hero.hp > 0) return;
   hero.hp = 0;
   hero.alive = false;
@@ -222,7 +247,6 @@ export function respawnHero(state: GameState, hero: Hero): void {
   hero.hp = heroMaxHp(state, hero);
   hero.mana = heroMaxMana(state, hero);
   hero.stunUntil = 0;
-  hero.shieldUntil = 0;
   hero.order = { type: 'idle' };
   hero.path = [];
   emit(state, { type: 'heroRespawned', heroId: hero.id });
@@ -231,7 +255,7 @@ export function respawnHero(state: GameState, hero: Hero): void {
 export function damageTower(state: GameState, tower: Tower, amount: number, type: DamageType): void {
   if (tower.dead) return;
   const s = state.tuning.towers[tower.kind];
-  const armor = s.armor + bulwarkBonus(state, tower);
+  const armor = s.armor;
   tower.hp -= amount * damageMultiplier(state.tuning, type, armor, s.magicResist);
   if (tower.hp > 0) return;
   tower.hp = 0;
@@ -241,7 +265,7 @@ export function damageTower(state: GameState, tower: Tower, amount: number, type
 
 export function spawnProjectile(
   state: GameState,
-  from: { x: number; y: number },
+  from: { x: number; y: number; padId?: number },
   target: { kind: TargetKind; id: number; x: number; y: number },
   opts: {
     style: string;
@@ -260,6 +284,8 @@ export function spawnProjectile(
     fx?: ProjectileFx;
     /** The creep firing it. */
     attacker?: EntityId;
+    /** Lane of the hit when it is not the shooter's (a Prism chain keeps its tower's). */
+    hitFrom?: HitFrom | null;
   },
 ): void {
   const p: Projectile = {
@@ -284,6 +310,7 @@ export function spawnProjectile(
     fx: opts.fx ?? null,
     source: opts.source,
     attacker: opts.attacker ?? -1,
+    from: opts.hitFrom ?? hitFrom(state, from),
     done: false,
   };
   state.projectiles.push(p);

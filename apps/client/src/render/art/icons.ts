@@ -66,12 +66,6 @@ function heartShape(s: number, y = 0): Path2D {
   return h;
 }
 
-function shield(c: Ctx, p: Painter, k: Tokens, s = 1, y = 0): void {
-  const sh = poly([-13 * s, y - 14 * s, 13 * s, y - 14 * s, 13 * s, y + 1 * s, 0, y + 16 * s, -13 * s, y + 1 * s], 4 * s);
-  p.part(c, sh, k.iron, box(-13 * s, y - 14 * s, 13 * s, y + 16 * s));
-  p.line(c, poly([-9 * s, y - 10 * s, 9 * s, y - 10 * s, 9 * s, y + 0.5 * s, 0, y + 11 * s, -9 * s, y + 0.5 * s], 3 * s), k.gold, 1.8 * s);
-}
-
 // ---------------------------------------------------------------------------
 // Towers
 // ---------------------------------------------------------------------------
@@ -211,13 +205,12 @@ const SKILL_ICONS: Record<HeroKind, Record<SkillSlot, IconDraw>> = {
       p.part(c, circle(0, 8, 2.8), k.bone, box(-2.8, 5, 2.8, 11), { line: 0.7 });
     },
     E: (c, p, k) => {
-      // Bulwark Aura: a shield with a rune, in a faint ring.
-      p.line(c, circle(0, 1, 17), k.rune, 1.2, 0.5);
-      shield(c, p, k);
-      p.accent(c, ngon(0, -2, 3, 4, 0, 0.3), k.rune);
+      // Blood Hunger: a drop of blood.
+      p.part(c, circle(0, 4, 8), k.grunt, box(-8, -4, 8, 12));
+      p.part(c, poly([0, -16, 7, 2, 0, 6, -7, 2], 0.6), k.brute, box(-7, -16, 7, 6), { line: 0.7 });
     },
     R: (c, p, k) => {
-      // Last Stand: a sword planted before golden rays.
+      // Iron Vow: a sword planted before golden rays (the team ward).
       for (let i = 0; i < 8; i++) {
         const a = -Math.PI / 2 + ((i - 3.5) * Math.PI) / 9;
         glowLine(c, p, pathLine([Math.cos(a) * 8, 2 + Math.sin(a) * 8, Math.cos(a) * 17, 2 + Math.sin(a) * 17]), k.gold, 2);
