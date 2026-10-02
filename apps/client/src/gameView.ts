@@ -18,6 +18,7 @@ import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
+import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
@@ -432,10 +433,11 @@ export class GameView {
             ]
           : null;
       if (syncSpots && syncSpots.length >= 2) {
+        const calm = prefersReducedMotion();
         for (let i = 0; i < syncSpots.length - 1; i++) {
           const a = syncSpots[i]!;
           const b = syncSpots[i + 1]!;
-          renderer.twinRibbon(a, b, playerTint(latest, a.by), playerTint(latest, b.by), i === 0);
+          renderer.twinRibbon(a, b, playerTint(latest, a.by), playerTint(latest, b.by), twinShake(i, calm));
         }
         const first = syncSpots[0]!;
         const last = syncSpots[syncSpots.length - 1]!;

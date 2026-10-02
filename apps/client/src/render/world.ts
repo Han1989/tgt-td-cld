@@ -478,12 +478,13 @@ export class WorldRenderer {
   }
 
   /**
-   * Twin ultimates: a Runelight ribbon between the two cast origins, in each player's colour.
+   * Twin ultimates: a Runelight ribbon between the two cast origins, in each player's colour, and a kick of
+   * screen shake of `shake` trauma (`twinShake`: none after the first segment of a chain, or under reduced motion).
    * Client-only. The caller decides when the overlap window hit.
    */
-  twinRibbon(a: { x: number; y: number }, b: { x: number; y: number }, colorA: number, colorB: number, shake = true): void {
+  twinRibbon(a: { x: number; y: number }, b: { x: number; y: number }, colorA: number, colorB: number, shake: number): void {
     this.fx.ribbon(a.x, a.y, b.x, b.y, colorA, colorB);
-    if (shake) this.fx.bump(0.2);
+    if (shake > 0) this.fx.bump(shake);
   }
 
   /**
