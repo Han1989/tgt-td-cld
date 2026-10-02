@@ -260,6 +260,7 @@ export class GameView {
         touch: !!coarse?.matches,
         landscape: orientation ? orientation.startsWith('landscape') : w > h,
         thumbs: settings.get().thumbs,
+        stickAnchor: settings.get().stickAnchor,
         mapW: map.width,
         mapH: map.height,
         safeFromY: map.safeFromY,
@@ -281,6 +282,7 @@ export class GameView {
       }
       renderer.entityScale = clamp(ENTITY_TILE_PX / Math.max(1, layout.tilePx), 1, MAX_ENTITY_SCALE);
       hud.setCompact(layout.kind === 'tall');
+      touch.setStick(settings.get().stickFeel);
       touch.setLayout(layout);
       emotes.layout();
       // A resize that keeps the layout (e.g. a browser toolbar showing) leaves open menus alone.

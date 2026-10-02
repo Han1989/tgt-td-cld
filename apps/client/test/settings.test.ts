@@ -7,6 +7,8 @@ describe('settings', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{bad json')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ ...DEFAULT_SETTINGS, thumbs: 'twoLeft', quality: 'low' });
+    expect(parseSettings(JSON.stringify({ stickAnchor: 'left', stickFeel: 'light' }))).toMatchObject({ stickAnchor: 'left', stickFeel: 'light' });
+    expect(parseSettings(JSON.stringify({ stickAnchor: 'loose', stickFeel: 'tiny' }))).toMatchObject({ stickAnchor: 'center', stickFeel: 'normal' });
     expect(parseSettings(JSON.stringify({ thumbs: 'three', quality: 7 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ display: 'bright' })).display).toBe('bright');
     expect(parseSettings(JSON.stringify({ display: 'neon' })).display).toBe('normal');
