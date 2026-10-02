@@ -21,9 +21,9 @@ describe('snapshot deltas', () => {
           h.ranks.R = 1;
           h.mana = 1_000;
         }
-        // Aimed circles, side by side: two ultimates that overlap fuse into one combo zone.
-        const at = state.heroes[0]!;
-        for (const player of ['a', 'c']) applyCommand(state, player, { type: 'cast', slot: 'R', x: at.x, y: at.y - 3 });
+        // Instant global rains. Same tick, so they fuse into one Meteor Rain zone.
+        applyCommand(state, 'a', { type: 'cast', slot: 'R' });
+        applyCommand(state, 'c', { type: 'cast', slot: 'R' });
       }
       if (t === 1540) expect(server.zones.length).toBeGreaterThan(0);
       // A leaver's pads open up (pad owners change).

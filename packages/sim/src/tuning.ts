@@ -3,6 +3,7 @@
 // seconds to ticks with `secondsToTicks`.
 
 import type {
+  ComboKind,
   BossKind,
   CreepKind,
   DamageType,
@@ -166,15 +167,20 @@ export interface KeenEyeStats {
   critMultiplier: number[];
 }
 
-/** Ultimate: arrows rain on an aimed circle in pulses (ground and air). */
-export interface ArrowStormStats extends CooldownSkillStats {
-  castRange: number;
-  radius: number;
+/**
+ * Ultimate: no aim, a rain over all three lanes. Every `pulseInterval` for `duration`, strikes land on the creeps of
+ * each lane (ground and air) until every creep has been hit once; a creep takes one strike's damage a pulse. No caps.
+ */
+export interface RainStats extends CooldownSkillStats {
   duration: number;
   pulseInterval: number;
-  /** Physical damage of each pulse, by rank. */
-  damagePerPulse: number[];
+  strikeRadius: number;
+  /** Damage of one strike on one creep, by rank. */
+  damage: number[];
 }
+
+/** Arrow Storm: physical strikes. */
+export type ArrowStormStats = RainStats;
 
 // Warden ---------------------------------------------------------------------
 
@@ -241,12 +247,8 @@ export interface ClarityAuraStats {
   manaRegen: number[];
 }
 
-/** Ultimate: after a delay, a meteor hits the ground creeps in an aimed circle and stuns them. */
-export interface MeteorStats extends CooldownSkillStats {
-  castRange: number;
-  radius: number;
-  delay: number;
-  damage: number[];
+/** Meteor: magic strikes, and every impact stuns (seconds, by rank). */
+export interface MeteorStats extends RainStats {
   stun: number[];
 }
 
@@ -551,39 +553,36 @@ export interface Tuning {
     warden: WardenStats;
     arcanist: ArcanistStats;
   };
-  /** Soft-launch hook: Meteor Rain and the wave-10 two-lane shield. Always on. */
+  /** Combos and the wave-10 boss shield. Always on. */
   coop: CoopTuning;
 }
 
 /** The three combos and the wave-10 boss shield (`coop.ts`). */
 export interface CoopTuning {
   /**
-   * Two ultimates fuse into a combo when the second is cast this soon after the first and their areas overlap.
-   * The same number as the protocol's `R_OVERLAP_SECONDS`.
+   * Two ultimates fuse into a combo when the second is cast this soon after the first (no overlap check: the rains
+   * cover every lane). The same number as the protocol's `R_OVERLAP_SECONDS`.
    */
   comboWindow: number;
-  /** Arrow Storm + Meteor: small meteors over both circles. Damage by the Meteor's rank (1–3). */
+  /** The combos from the strongest down: three ultimates inside the window fire only the first of the pairs they make. */
+  comboOrder: ComboKind[];
+  /** Arrow Storm + Meteor: one denser rain of magic strikes that stun. Damage by the Meteor's rank (1–3). */
   meteorRain: {
-    /** Added to the larger of the two circles' radii. */
-    radiusBonus: number;
     duration: number;
     pulseInterval: number;
-    /** Meteors each pulse, each at a random spot in the circle. */
-    meteorsPerPulse: number;
-    meteorRadius: number;
-    /** Magic damage of one meteor, by Meteor rank. */
+    strikeRadius: number;
     damage: number[];
     stun: number;
   };
-  /** Iron Vow + Arrow Storm: the storm, wider, and every volley also stuns. */
-  stunStorm: { radiusBonus: number; stun: number };
-  /** Meteor + Iron Vow: creeps within `pullRadius` are pulled to the Meteor's point, then it lands harder. */
+  /** Iron Vow + Arrow Storm: the storm with every strike harder and stunning. */
+  stunStorm: { damageMult: number; stun: number };
+  /**
+   * Meteor + Iron Vow: the Meteor's rain where every impact first pulls the ground creeps within `pullRadius` of it
+   * `pullDistance` tiles together (bosses half as far), then lands harder.
+   */
   shockwave: {
     pullRadius: number;
-    pullTime: number;
-    /** Tiles per second (bosses are pulled at half this). */
-    pullSpeed: number;
-    radius: number;
+    pullDistance: number;
     /** Multiple of the Meteor's damage at its rank. */
     damageMult: number;
     /** Stun seconds by Meteor rank. */
@@ -665,10 +664,10 @@ export const TUNING: Tuning = {
   },
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
-    hp: [1.04, 1.43, 1.46],
-    earlyHpBonus: [0, 0.3, 1.0],
+    hp: [1.04, 1.5, 1.46],
+    earlyHpBonus: [0, 0.2, 0.9],
     earlyWaves: 20,
-    lateHpBonus: [0.08, 0.35, 0.95],
+    lateHpBonus: [0.08, 0.5, 1.2],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
@@ -856,10 +855,10 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.012, 1.5, 1.6],
+        hp: [1.012, 1.5, 1.7],
         earlyHpBonus: [0, 0.25, 0.8],
         earlyWaves: 10,
-        lateHpBonus: [0, 0.26, 1.6],
+        lateHpBonus: [0, 0.33, 1.9],
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
@@ -867,7 +866,7 @@ export const TUNING: Tuning = {
       hard: {
         byPlayers: [
           { hp: 1.2, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.22, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.28, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
           { hp: 1.3, count: 1.12, lateHp: 0.2, lateCount: 0.05, bossHp: 1, lateBossHp: 0 },
         ],
       },
@@ -891,8 +890,8 @@ export const TUNING: Tuning = {
       bossHp: 1,
       lateBossHp: 0,
       byPlayers: [
-        { hp: 1.17, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-        { hp: 1.14, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.18, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.18, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
         { hp: 1.17, count: 1.06, lateHp: 0.35, lateCount: 0.08, bossHp: 1, lateBossHp: 0 },
       ],
     },
@@ -950,15 +949,13 @@ export const TUNING: Tuning = {
         critChance: [0.15, 0.2, 0.25, 0.3],
         critMultiplier: [1.75, 2, 2.25, 2.5],
       },
-      // Aimed again (as before the lane rains): 6 pulses on a circle. Stronger than the old 25 / 37 / 50, so that one
-      // storm at rank 1 kills every ordinary creep of a Quick wave 8–10 pack inside it (test/ultimates.test.ts).
+      // A lane rain again, harder than main's: 6 pulses of `damage` on every creep (ground and air) of all three lanes.
       arrowStorm: {
-        cooldown: [40, 36, 32],
-        castRange: 10,
-        radius: 3,
+        cooldown: [75, 68, 62],
         duration: 3,
         pulseInterval: 0.5,
-        damagePerPulse: [50, 70, 90],
+        strikeRadius: 1.6,
+        damage: [80, 92, 105],
       },
     },
     warden: {
@@ -1022,30 +1019,23 @@ export const TUNING: Tuning = {
         radius: 8,
         manaRegen: [1, 1.75, 2.5, 3.25],
       },
-      // Aimed again, stronger than the old 200 / 300 / 400 (kills every ordinary creep of a Quick wave 8–10 pack at rank 1).
+      // A lane rain again: 4 magic impacts, each stunning every creep it hits.
       meteor: {
-        cooldown: [40, 36, 32],
-        castRange: 9,
-        radius: 3,
-        delay: 1.2,
-        damage: [300, 400, 500],
-        stun: [1, 1.5, 2],
+        cooldown: [75, 68, 62],
+        duration: 3,
+        pulseInterval: 0.75,
+        strikeRadius: 1.8,
+        damage: [140, 150, 155],
+        stun: [0.9, 1, 1.1],
       },
     },
   },
   coop: {
     comboWindow: 5,
-    meteorRain: {
-      radiusBonus: 0.5,
-      duration: 3.5,
-      pulseInterval: 0.35,
-      meteorsPerPulse: 2,
-      meteorRadius: 1.5,
-      damage: [200, 260, 320],
-      stun: 0.4,
-    },
-    stunStorm: { radiusBonus: 0.5, stun: 0.45 },
-    shockwave: { pullRadius: 6.5, pullTime: 0.9, pullSpeed: 5, radius: 3.5, damageMult: 1.5, stun: [1.5, 2, 2.5] },
+    comboOrder: ['meteorRain', 'shockwave', 'stunStorm'],
+    meteorRain: { duration: 3.5, pulseInterval: 0.35, strikeRadius: 1.8, damage: [160, 190, 220], stun: 0.4 },
+    stunStorm: { damageMult: 1.5, stun: 0.6 },
+    shockwave: { pullRadius: 3.5, pullDistance: 2, damageMult: 1.4, stun: [1.1, 1.2, 1.3] },
     bossShield: { waves: [10], window: 3, damageTaken: 0 },
   },
 };

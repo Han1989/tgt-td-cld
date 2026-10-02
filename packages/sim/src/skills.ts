@@ -18,7 +18,7 @@ import {
   stunCreep,
   ultimateDamage,
 } from './combat';
-import { addZone, hitFrom, onUltCast, pulseComboZone, tickComboZone } from './coop';
+import { hitFrom, onUltCast, pulseRain, startRain } from './coop';
 import type { GameState, Hero, Zone } from './state';
 import { secondsToTicks, TICK_RATE, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
 import { dist } from './vec';
@@ -27,9 +27,9 @@ import { dist } from './vec';
 export type SkillMode = 'instant' | 'point' | 'passive';
 
 export const SKILL_MODES: Record<HeroKind, Record<SkillSlot, SkillMode>> = {
-  ranger: { Q: 'instant', W: 'point', E: 'passive', R: 'point' },
+  ranger: { Q: 'instant', W: 'point', E: 'passive', R: 'instant' },
   warden: { Q: 'instant', W: 'instant', E: 'passive', R: 'instant' },
-  arcanist: { Q: 'point', W: 'point', E: 'passive', R: 'point' },
+  arcanist: { Q: 'point', W: 'point', E: 'passive', R: 'instant' },
 };
 
 export interface SkillInfo {
@@ -96,7 +96,7 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
         Q: { range: r.attackRange + r.multishot.bonusRange, radius: 0 },
         W: { range: r.snareTrap.castRange, radius: r.snareTrap.rootRadius },
         E: { range: 0, radius: 0 },
-        R: { range: r.arrowStorm.castRange, radius: r.arrowStorm.radius },
+        R: { range: 0, radius: 0 },
       }[slot];
     }
     case 'warden': {
@@ -114,7 +114,7 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
         Q: { range: a.fireball.castRange, radius: a.fireball.radius },
         W: { range: a.frostNova.castRange, radius: a.frostNova.radius },
         E: { range: 0, radius: a.clarityAura.radius },
-        R: { range: a.meteor.castRange, radius: a.meteor.radius },
+        R: { range: 0, radius: 0 },
       }[slot];
     }
   }
@@ -177,6 +177,12 @@ export function castInstant(state: GameState, hero: Hero, slot: SkillSlot): stri
     case 'warden.R':
       result = ironVow(state, hero);
       break;
+    case 'ranger.R':
+      result = rain(state, hero, 'arrowStorm');
+      break;
+    case 'arcanist.R':
+      result = rain(state, hero, 'meteor');
+      break;
     default:
       return 'Pick a target point';
   }
@@ -208,19 +214,11 @@ export function castAtPoint(state: GameState, hero: Hero, slot: SkillSlot, x: nu
     case 'arcanist.W':
       frostNova(state, hero, x, y);
       break;
-    case 'ranger.R':
-      arrowStorm(state, hero, x, y);
-      break;
-    case 'arcanist.R':
-      meteor(state, hero, x, y);
-      break;
     default:
       return;
   }
   pay(state, hero, slot);
   emit(state, { type: 'cast', heroId: hero.id, slot, x, y });
-  // Point casts resolve inside step(), after the tick has already advanced.
-  if (slot === 'R') noteUltimate(state, hero, state.tick);
 }
 
 /**
@@ -360,9 +358,9 @@ function ironVow(state: GameState, hero: Hero): string | null {
   const stun = secondsToTicks(s.burstStun[i] ?? 0);
   for (const c of creepsInRadius(state, hero.x, hero.y, s.burstRadius, true)) {
     stunCreep(state, c, stun);
-    ultimateDamage(state, c, s.burstDamage[i] ?? 0, 'physical', hero.owner, from);
+    ultimateDamage(state, c, s.burstDamage[i] ?? 0, 'physical', hero.owner, from, 'ironVow');
   }
-  onUltCast(state, hero, 'ironVow', hero.x, hero.y, s.burstRadius, null);
+  onUltCast(state, hero, 'ironVow', null);
   return null;
 }
 
@@ -401,26 +399,16 @@ function frostNova(state: GameState, hero: Hero, x: number, y: number): void {
 // Zones (Arrow Storm, Meteor and the combos)
 // ---------------------------------------------------------------------------
 
-/** Arrow Storm: arrows rain on the circle for `duration`, a pulse every `pulseInterval`. Ground and air. */
-function arrowStorm(state: GameState, hero: Hero, x: number, y: number): void {
-  const t = state.tuning.hero.ranger.arrowStorm;
-  const pulse = Math.max(1, secondsToTicks(t.pulseInterval));
-  const zone = addZone(state, 'arrowStorm', hero, x, y, t.radius, secondsToTicks(t.duration), pulse, pulse);
-  onUltCast(state, hero, 'arrowStorm', x, y, t.radius, zone);
-}
-
-/** Meteor: after `delay` it lands on the circle (ground only), damages and stuns. */
-function meteor(state: GameState, hero: Hero, x: number, y: number): void {
-  const t = state.tuning.hero.arcanist.meteor;
-  const delay = Math.max(1, secondsToTicks(t.delay));
-  const zone = addZone(state, 'meteor', hero, x, y, t.radius, delay, delay, delay);
-  onUltCast(state, hero, 'meteor', x, y, t.radius, zone);
+/** Arrow Storm or Meteor: a rain over all three lanes, no aim point. Strikes land on the creeps, ground and air. */
+function rain(state: GameState, hero: Hero, kind: 'arrowStorm' | 'meteor'): string | null {
+  pay(state, hero, 'R');
+  onUltCast(state, hero, kind, startRain(state, hero, kind));
+  return null;
 }
 
 export function updateZones(state: GameState): void {
   for (const zone of state.zones) {
     if (zone.done) continue;
-    tickComboZone(state, zone);
     if (state.tick >= zone.nextPulseTick && zone.nextPulseTick <= zone.endTick) {
       pulseZone(state, zone);
       zone.nextPulseTick += zone.pulseTicks;
@@ -430,23 +418,5 @@ export function updateZones(state: GameState): void {
 }
 
 function pulseZone(state: GameState, zone: Zone): void {
-  if (pulseComboZone(state, zone)) return;
-  const i = Math.max(0, zone.rank - 1);
-  emit(state, { type: 'aoe', effect: zone.kind as 'arrowStorm' | 'meteor', x: zone.x, y: zone.y, radius: zone.radius });
-  const owner = state.heroes.find((h) => h.owner === zone.owner);
-  const from = owner ? hitFrom(state, owner) : null;
-  if (zone.kind === 'arrowStorm') {
-    const damage = state.tuning.hero.ranger.arrowStorm.damagePerPulse[i] ?? 0;
-    for (const c of creepsInRadius(state, zone.x, zone.y, zone.radius, true)) {
-      ultimateDamage(state, c, damage, 'physical', zone.owner, from);
-    }
-  } else {
-    const s = state.tuning.hero.arcanist.meteor;
-    const damage = s.damage[i] ?? 0;
-    const stun = secondsToTicks(s.stun[i] ?? 0);
-    for (const c of creepsInRadius(state, zone.x, zone.y, zone.radius, false)) {
-      stunCreep(state, c, stun);
-      ultimateDamage(state, c, damage, 'magic', zone.owner, from);
-    }
-  }
+  pulseRain(state, zone);
 }

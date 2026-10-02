@@ -7,6 +7,7 @@ import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
 import { heroManaRegen, heroMaxMana } from './combat';
 import { skillInfo } from './skills';
+import type { UltStats } from './state';
 import { secondsToTicks, TICK_RATE, TUNING, type Tuning } from './tuning';
 
 export interface HeadlessResult {
@@ -44,6 +45,8 @@ export interface HeadlessResult {
   ultDamage: number;
   /** Creeps killed by ultimates and combos. */
   ultKills: number;
+  /** Casts, damage and kills of each ultimate and combo. */
+  ultBy: UltStats['by'];
   /** Combos that fired (`combo` events). */
   combos: number;
 }
@@ -169,6 +172,7 @@ export function runHeadlessMatch(opts: {
     totalDamage,
     ultDamage: state.ultStats.damage,
     ultKills: state.ultStats.kills,
+    ultBy: state.ultStats.by,
     combos,
     bossLeaks,
     deaths,

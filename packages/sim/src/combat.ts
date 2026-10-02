@@ -5,7 +5,7 @@ import { bountyCredit, hitFrom, isPracticeAlly, shieldedDamage } from './coop';
 import { getMap } from './map';
 import { bountyFactor, xpFactor } from './modifiers';
 import { nextRandom } from './rng';
-import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower } from './state';
+import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower, UltTag } from './state';
 import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
 import { dist } from './vec';
 
@@ -181,20 +181,26 @@ export function damageCreep(
   return dealt;
 }
 
-/** `damageCreep` for a hero ultimate or combo, counted in `state.ultStats` for the balance matrix. */
+/** `damageCreep` for a hero ultimate or combo (`tag`), counted in `state.ultStats` for the balance matrix. */
 export function ultimateDamage(
   state: GameState,
   creep: Creep,
   amount: number,
   type: DamageType,
   source: PlayerId | null,
-  from?: HitFrom | null,
+  from: HitFrom | null | undefined,
+  tag: UltTag,
 ): number {
   const alive = !creep.dead;
   if (state.tuning.creeps[creep.kind].boss) amount *= state.tuning.combat.ultimateBossFactor;
   const dealt = damageCreep(state, creep, amount, type, source, false, from);
-  state.ultStats.damage += dealt;
-  if (alive && creep.dead) state.ultStats.kills++;
+  const stats = state.ultStats;
+  stats.damage += dealt;
+  stats.by[tag].damage += dealt;
+  if (alive && creep.dead) {
+    stats.kills++;
+    stats.by[tag].kills++;
+  }
   return dealt;
 }
 

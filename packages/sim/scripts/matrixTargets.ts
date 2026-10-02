@@ -13,6 +13,7 @@ interface Match {
   ults: number;
   ultKills: number;
   ultDamage: number;
+  by: Record<'arrowStorm' | 'meteor' | 'ironVow' | 'meteorRain' | 'stunStorm' | 'shockwave', { casts: number; damage: number; kills: number }>;
   damage: number;
   combos: number;
 }
@@ -37,11 +38,10 @@ const has = (bot: string, mode: string, difficulty: string) => pick(bot, mode, d
 
 for (const mode of ['full', 'quick']) {
   if (has('novice', mode, 'normal')) {
-    for (const n of [1, 2, 3]) {
-      const ms = pick('novice', mode, 'normal').filter((e) => size(e) === n).flatMap((e) => e.matches);
-      if (ms.length === 0) continue;
-      const rate = mean(ms.map((m) => (m.won ? 1 : 0)));
-      report(rate >= 0.8, `novice ${mode} normal ${sizeName(n)}: win rate >= 80%`, `${Math.round(rate * 100)}% of ${ms.length}`);
+    // Every team on its own, not the average of a team size: a weak solo hero must not hide behind the others.
+    for (const e of pick('novice', mode, 'normal')) {
+      const rate = mean(e.matches.map((m) => (m.won ? 1 : 0)));
+      report(rate >= 0.8, `novice ${mode} normal ${e.row.team.join('+')}: win rate >= 80%`, `${Math.round(rate * 100)}% of ${e.matches.length}, mean Heart ${mean(e.matches.map((m) => m.heart)).toFixed(1)}`);
     }
   }
   if (has('casual', mode, 'normal')) {
@@ -99,6 +99,14 @@ for (const e of pick('casual', 'quick', 'normal')) {
     const rest = mean(others.map(lane));
     report(mine <= rest + 0.5, `casual quick normal three: Warden's lane flyer loss <= the others'`, `${mine.toFixed(1)} vs ${rest.toFixed(1)}`);
   }
+}
+// Rains clear packs: casual bots in Quick average at least 10 kills per Arrow Storm and 8 per Meteor.
+for (const [tag, min] of [['arrowStorm', 10], ['meteor', 8]] as const) {
+  const ms = pick('casual', 'quick', 'normal').flatMap((e) => e.matches);
+  const casts = sum(ms.map((m) => m.by[tag].casts));
+  if (casts === 0) continue;
+  const kills = sum(ms.map((m) => m.by[tag].kills)) / casts;
+  report(kills >= min, `casual quick normal: kills per ${tag} >= ${min}`, `${kills.toFixed(1)} over ${casts} casts`);
 }
 // Ultimates matter.
 for (const bot of ['casual', 'expert'])

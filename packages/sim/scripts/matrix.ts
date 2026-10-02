@@ -7,7 +7,8 @@
 //   lost   share of the Heart HP lost in each third of the match (teams: the curve gate wants last ≥ 25%, first ≤ 45%)
 //   fly    Heart HP lost to flyers per match, and on each lane (West / Mid / East)
 //   dead   hero deaths per match, and the Warden's
-//   R      ultimates cast per match; kills and damage per cast; combos per match; ultimates' share of all damage
+//   R      ultimates cast per match; kills per Arrow Storm and per Meteor; damage per cast; combos per match and their
+//          share of all damage; ultimates' (combos included) share of all damage
 // `--team ranger,warden` runs only that team (hero order = lane order).
 // `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
 // arrays and numbers replace), so a number can be tried without editing tuning.ts.
@@ -59,6 +60,7 @@ interface Match {
   ults: number;
   ultKills: number;
   ultDamage: number;
+  by: HeadlessResult['ultBy'];
   damage: number;
   combos: number;
   towers: number;
@@ -102,6 +104,7 @@ function playMatch(row: Row, seed: number): Match {
     ults: r.heroes.reduce((n, h) => n + h.ultCasts, 0),
     ultKills: r.ultKills,
     ultDamage: r.ultDamage,
+    by: r.ultBy,
     damage: r.totalDamage,
     combos: r.combos,
     towers: r.towers,
@@ -168,8 +171,17 @@ const f = (v: number, d = 0) => v.toFixed(d);
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const label = (t: HeroKind[]) => t.map((h) => h[0]!.toUpperCase()).join('+') + (t.length === 1 ? ` ${t[0]}` : '');
 
+/** Creeps killed per cast of `tag` over `ms`, or '-' when it was never cast. */
+function perCast(ms: Match[], tag: 'arrowStorm' | 'meteor'): string {
+  const casts = sum(ms.map((m) => m.by[tag].casts));
+  return casts > 0 ? f(sum(ms.map((m) => m.by[tag].kills)) / casts, 1) : '-';
+}
+
+/** Damage the combos did in one match. */
+const comboDamage = (m: Match): number => m.by.meteorRain.damage + m.by.stunStorm.damage + m.by.shockwave.damage;
+
 function print(results: Match[][]): void {
-  const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/R', 'dmg/R', 'combo', 'ult%', 'towers'];
+  const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers'];
   let group = '';
   let table: string[][] = [];
   const flush = () => {
@@ -201,9 +213,11 @@ function print(results: Match[][]): void {
       `${f(mean(ms.map((m) => m.fly)), 1)} (${[0, 1, 2].map((l) => f(mean(ms.map((m) => m.flyLane[l] ?? 0)), 1)).join('/')})`,
       `${f(mean(ms.map((m) => sum(m.deaths))), 1)}${wardenAt >= 0 ? ` (${f(mean(ms.map((m) => m.deaths[wardenAt] ?? 0)), 1)})` : ''}`,
       f(ults / Math.max(1, ms.length), 1),
-      ults > 0 ? f(sum(ms.map((m) => m.ultKills)) / ults, 1) : '-',
+      perCast(ms, 'arrowStorm'),
+      perCast(ms, 'meteor'),
       ults > 0 ? f(sum(ms.map((m) => m.ultDamage)) / ults) : '-',
       f(mean(ms.map((m) => m.combos)), 1),
+      pct(sum(ms.map((m) => comboDamage(m))) / Math.max(1, sum(ms.map((m) => m.damage)))),
       pct(sum(ms.map((m) => m.ultDamage)) / Math.max(1, sum(ms.map((m) => m.damage)))),
       f(mean(ms.map((m) => m.towers)), 1),
     ]);

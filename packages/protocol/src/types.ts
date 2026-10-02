@@ -92,8 +92,8 @@ export function laneName(lane: LaneId): (typeof LANE_NAMES)[number] {
 
 /**
  * Two ultimates this close together (either order) overlap: the match report's `rOverlaps`,
- * and one live `syncCast` when the later cast lands. When their areas also overlap, they fuse into a
- * combo (`COMBO_KINDS`). Same number as `tuning.coop.comboWindow`.
+ * and one live `syncCast` when the later cast lands. Two that pair up (Arrow Storm, Meteor and Iron Vow, any two)
+ * fuse into a combo (`COMBO_KINDS`). Same number as `tuning.coop.comboWindow`.
  */
 export const R_OVERLAP_SECONDS = 5;
 
@@ -152,12 +152,11 @@ export interface SurgeNotice {
 }
 
 /**
- * Combos: two ultimates cast within `R_OVERLAP_SECONDS` of each other whose areas overlap fuse into one stronger
- * effect, and both originals end. An Arrow Storm and a Meteor overlap when their circles do; Iron Vow has no
- * circle to aim, so its Warden must be standing inside the other ultimate's circle.
- * - `meteorRain`: Arrow Storm + Meteor (a dense rain of small meteors over both circles).
- * - `stunStorm`: Iron Vow + Arrow Storm (the storm, wider, and every volley also stuns).
- * - `shockwave`: Meteor + Iron Vow (creeps are pulled in to the Meteor's point, then it lands harder).
+ * Combos: two ultimates cast within `R_OVERLAP_SECONDS` of each other fuse into one stronger lane rain, wherever
+ * the heroes stand, and both originals end. Three inside the window fire only the strongest pair, once.
+ * - `meteorRain`: Arrow Storm + Meteor (one denser rain on all three lanes).
+ * - `stunStorm`: Iron Vow + Arrow Storm (every arrow strike hits harder and stuns).
+ * - `shockwave`: Meteor + Iron Vow (every impact pulls the creeps around it together, then lands harder).
  */
 export const COMBO_KINDS = ['meteorRain', 'stunStorm', 'shockwave'] as const;
 export type ComboKind = (typeof COMBO_KINDS)[number];
@@ -169,7 +168,7 @@ export type ComboKind = (typeof COMBO_KINDS)[number];
  */
 export type ShieldState = 'up' | 'left' | 'right' | 'off';
 
-/** Lingering or delayed ground effects of hero ultimates, and the three combos. Each has an aimed circle (`radius`). */
+/** Lane rains of hero ultimates, and the three combos. A zone has no circle (`radius` 0): its strikes are `aoe` events. */
 export const ZONE_KINDS = ['arrowStorm', 'meteor', 'meteorRain', 'stunStorm', 'shockwave'] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
@@ -428,10 +427,8 @@ export type GameEvent =
    */
   | { type: 'surge'; wave: number; lane: LaneId }
   /**
-   * Two ultimates fused into `combo`. `heroes` is the two casters. Both effects end and one zone of the combo's
-   * kind (with a `radius`) replaces them at (`x`, `y`): the middle of both circles for Meteor Rain, the storm's
-   * circle for Stun Storm, the Meteor's for Shockwave. `radius` is the area the combo covers (a Shockwave's
-   * pull radius).
+   * Two ultimates fused into `combo`. `heroes` is the two casters. Both rains end and one lane rain of the combo's
+   * kind replaces them (a zone of `radius` 0; its strikes are `aoe` events). `x`, `y`: the lead caster.
    */
   | { type: 'combo'; combo: ComboKind; x: number; y: number; radius: number; heroes: EntityId[] }
   /** A wave-10 boss spawned with a two-lane shield (no damage until two lanes hit within 3 s). */

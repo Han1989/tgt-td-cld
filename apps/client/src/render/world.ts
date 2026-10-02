@@ -772,7 +772,7 @@ export class WorldRenderer {
       case 'meteor':
       case 'arrowStorm':
       case 'meteorRain':
-        // Something falls onto each pulse of an aimed zone, and onto each meteor of a Meteor Rain.
+        // Global rains: every strike is its own event, and something falls onto it.
         fx.rainImpact(effect, x, y, radius);
         break;
       case 'stunStorm':
@@ -855,7 +855,7 @@ export class WorldRenderer {
         fx.dustRing(x, y, 0.6, FX.dust, 6);
         break;
       case 'ranger.R':
-        // The storm is an aimed zone; the cast is only a flare on the hero.
+        // The rain is global. Each impact is its own `aoe`; the cast is only a flare on the hero.
         fx.castFlare(hx, hy, ZONE_COLORS.arrowStorm);
         break;
       case 'arcanist.Q':
@@ -1793,7 +1793,7 @@ export class WorldRenderer {
       s.ring.alpha = 0.6 * fade;
       s.ring.rotation = calm ? 0 : now / 1400;
       s.column.alpha = (calm ? 0.14 : 0.24) * fade;
-      if (skyShown) this.fx.rainSky(z.kind === 'arrowStorm' || z.kind === 'meteor' ? z.kind : 'meteorRain', sky, dtMs);
+      if (skyShown) this.fx.rainSky(z.kind === 'stunStorm' ? 'arrowStorm' : z.kind === 'shockwave' ? 'meteor' : z.kind, sky, dtMs);
     }
     for (const [id, s] of this.rains) {
       if (!seen.has(id)) {

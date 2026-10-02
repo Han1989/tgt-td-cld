@@ -84,7 +84,12 @@ const LOOKAHEAD = 3;
 const MIN_GENERAL_TOWERS = 3;
 
 /** Skills that only affect ground creeps (static knowledge, like a player would have). */
-const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: [], arcanist: ['R'] };
+/** A rain is cast once this many creeps are on the lanes (the expert waits for a few more of them to be out). */
+const RAIN_CREEPS = 12;
+const EXPERT_RAIN_CREEPS = 12;
+/** Answering a teammate's ultimate needs at least this many creeps out. */
+const ANSWER_MIN_CREEPS = 6;
+const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: [], arcanist: [] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
@@ -117,8 +122,8 @@ const NOVICE_EARLY_SPEND = 0.5;
 /** Novice: flyers that must have reached the Heart before it builds any Flak (or branches for air). */
 const NOVICE_FLYER_LEAKS = 2;
 /** Novice: the chance it casts a ready ultimate at a target; if it does not, it forgets it for this long. */
-const NOVICE_ULT_CHANCE = 0.5;
-const NOVICE_ULT_FORGET_SECONDS = 90;
+const NOVICE_ULT_CHANCE = 0.75;
+const NOVICE_ULT_FORGET_SECONDS = 60;
 
 /** Expert casts on a single creep; the casual bot waits for a group. */
 const EXPERT_MIN_TARGETS: Record<SkillSlot, number> = { Q: 1, W: 1, E: 0, R: 1 };
@@ -340,7 +345,8 @@ export function createBalanceBot(
       const ultRadius = r !== undefined ? r.radius : 0;
       const hittable = snap.creeps;
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
-      const group = ultReady
+      // Arrow Storm and Meteor rain on every lane wherever the hero stands: only the Warden's burst needs a pack.
+      const group = ultReady && hero.kind === 'warden'
         ? densestGroup(nearPost(SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
         : undefined;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
@@ -408,12 +414,9 @@ export function createBalanceBot(
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
         // A player answers a teammate's ultimate (inside the combo window) so the two fuse.
-        if (slot === 'R' && !novice) {
-          const aim = comboAim(snap, hero, s.range);
-          if (aim) {
-            cmds.push(hero.kind === 'warden' ? { type: 'cast', slot: 'R' } : { type: 'cast', slot: 'R', x: aim.x, y: aim.y });
-            continue;
-          }
+        if (slot === 'R' && !novice && snap.creeps.length >= ANSWER_MIN_CREEPS && teammateUltimateJustCast(snap, hero)) {
+          cmds.push({ type: 'cast', slot: 'R' });
+          continue;
         }
         if (slot === 'R' && hero.kind === 'warden') {
           // Heals the whole team and bursts around him: cast when a pack is on the Warden, a boss is close,
@@ -424,10 +427,18 @@ export function createBalanceBot(
           if ((pack || bossNear || hurt) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
           continue;
         }
+        if (slot === 'R') {
+          // A rain: cast it when the lanes are full of creeps, wherever the hero is.
+          const minCreeps = expert ? EXPERT_RAIN_CREEPS : RAIN_CREEPS;
+          // A player holds it a few seconds for a teammate whose ultimate is about to be ready: together they combo.
+          if (snap.creeps.length >= minCreeps && !teammateUltimateSoon(snap, hero) && !novicePass()) {
+            cmds.push({ type: 'cast', slot: 'R' });
+          }
+          continue;
+        }
         const ground = GROUND_ONLY[hero.kind].includes(slot);
         const cmd = skillCommand(s, near(Math.max(s.range, s.radius), ground), hero, mins[slot]);
         if (!cmd) continue;
-        if (slot === 'R' && novicePass()) continue;
         cmds.push(cmd);
         mana -= s.manaCost;
       }
@@ -649,28 +660,34 @@ function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guar
   return { guard: lanePoint(i, GUARD_DISTANCE), forward: lanePoint(i, FORWARD_DISTANCE) };
 }
 
-/**
- * Where this hero's ultimate would fuse with a teammate's that is still on the ground or just cast (a combo, see
- * `docs/GAME_DESIGN.md` §13): a Ranger answers a Meteor (or a Warden's vow) and an Arcanist an Arrow Storm (or a vow),
- * at its circle; a Warden stands in a storm's circle to answer it. Null when nothing is waiting for an answer.
- */
-function comboAim(snap: Snapshot, hero: HeroSnap, reach: number): Vec2 | null {
-  const window = 4 * snap.tickRate;
-  const near = (p: Vec2) => dist(hero.x, hero.y, p.x, p.y) <= reach + 1;
-  if (hero.kind === 'warden') {
-    const zone = snap.zones.find((z) => z.kind === 'arrowStorm' && dist(hero.x, hero.y, z.x, z.y) <= z.radius);
-    return zone ? { x: zone.x, y: zone.y } : null;
-  }
-  const partner = hero.kind === 'ranger' ? 'meteor' : 'arrowStorm';
-  const zone = snap.zones.find((z) => z.kind === partner && near(z));
-  if (zone) return { x: zone.x, y: zone.y };
-  // A Warden whose vow went off in the last few seconds: aim where he stands (he must be inside the circle).
+/** A rain waits at most this long (seconds) for a teammate's ultimate that is coming off cooldown. */
+const COMBO_WAIT_SECONDS = 25;
+
+/** Whether a living teammate of another hero kind has its ultimate coming off cooldown within `COMBO_WAIT_SECONDS`. */
+function teammateUltimateSoon(snap: Snapshot, hero: HeroSnap): boolean {
   for (const h of snap.heroes) {
-    if (h.kind !== 'warden' || !h.alive || h.owner === hero.owner) continue;
+    if (h.owner === hero.owner || !h.alive || h.kind === hero.kind) continue;
     const r = h.skills.find((sk) => sk.slot === 'R');
-    if (r && r.rank > 0 && r.cooldown > 0 && r.cooldownTotal - r.cooldown <= window && near(h)) return { x: h.x, y: h.y };
+    if (r && r.rank > 0 && r.cooldown > 0 && r.cooldown <= COMBO_WAIT_SECONDS * snap.tickRate && r.cooldownTotal - r.cooldown > 5 * snap.tickRate) {
+      return true;
+    }
   }
-  return null;
+  return false;
+}
+
+/**
+ * Whether a teammate's ultimate went off a moment ago, inside the combo window, and is still waiting for an answer:
+ * casting this hero's own now fuses the two into a combo (see `docs/GAME_DESIGN.md` §13). Every pair of the three
+ * ultimates is a combo, so any teammate's R counts; the cast is answered for about the first 4 s of the window.
+ */
+function teammateUltimateJustCast(snap: Snapshot, hero: HeroSnap): boolean {
+  const window = 4 * snap.tickRate;
+  for (const h of snap.heroes) {
+    if (h.owner === hero.owner || !h.alive || h.kind === hero.kind) continue;
+    const r = h.skills.find((sk) => sk.slot === 'R');
+    if (r && r.rank > 0 && r.cooldown > 0 && r.cooldownTotal - r.cooldown <= window) return true;
+  }
+  return false;
 }
 
 /** A cast of `skill` that catches at least `min` of `creeps`, or null. */
