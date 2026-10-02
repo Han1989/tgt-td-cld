@@ -18,19 +18,23 @@ import {
 } from '@tdt/protocol';
 import {
   createMatch,
+  createPracticeAlly,
   matchCommand,
   matchOver,
   matchReplay,
   matchReport,
   matchStep,
+  meteorRainPartner,
   normalizeModifiers,
   snapshot,
+  type Bot,
   type GameState,
   type Match,
   type Tuning,
 } from '@tdt/sim';
 
 export const LOCAL_PLAYER_ID: PlayerId = 'local';
+const PRACTICE_ALLY_ID: PlayerId = 'practice-ally';
 
 export class SimHost {
   private match!: Match;
@@ -47,6 +51,9 @@ export class SimHost {
    * Cleared on "Play again", which takes a fresh seed and keeps the chosen modifiers.
    */
   private pinnedSeed: number | null = null;
+  /** Solo Meteor Rain practice: the next match adds an ally that answers R. */
+  private practice = false;
+  private ally: Bot | null = null;
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
   /** Same ping / emote gap the game server enforces. */
@@ -63,6 +70,8 @@ export class SimHost {
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
+    const partner = this.practice ? meteorRainPartner(this.hero) : null;
+    this.ally = partner ? createPracticeAlly(PRACTICE_ALLY_ID, LOCAL_PLAYER_ID) : null;
     this.match = createMatch(
       {
         players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }],
@@ -70,6 +79,7 @@ export class SimHost {
         difficulty: this.difficulty,
         modifiers: this.modifiers,
         tuning: this.tuning,
+        ...(partner ? { practice: { allyId: PRACTICE_ALLY_ID, allyHero: partner, allyName: 'Ally' } } : {}),
       },
       this.pinnedSeed ?? this.nextSeed(),
       normalizeBuild(this.build),
@@ -111,6 +121,11 @@ export class SimHost {
    * Solo pick: the seed and modifiers the player is looking at. The next `reset` (hero / mode / difficulty)
    * starts the match with them. Online rooms do not use this; the server owns the draw.
    */
+  /** Next solo match is Meteor Rain practice when `on` and the hero has a combo partner. */
+  setPractice(on: boolean): void {
+    this.practice = on;
+  }
+
   setDeal(seed: number, modifiers: readonly string[]): void {
     if (!Number.isSafeInteger(seed) || seed < 0) return;
     this.pinnedSeed = seed;
@@ -131,6 +146,9 @@ export class SimHost {
    * replay (for "Save match report").
    */
   tick(): void {
+    if (this.ally && this.state.phase !== 'victory' && this.state.phase !== 'defeat') {
+      for (const cmd of this.ally.decide(snapshot(this.state))) matchCommand(this.match, PRACTICE_ALLY_ID, cmd);
+    }
     for (const cmd of this.queue) matchCommand(this.match, LOCAL_PLAYER_ID, cmd);
     this.queue = [];
     matchStep(this.match);

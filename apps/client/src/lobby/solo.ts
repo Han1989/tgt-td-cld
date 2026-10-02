@@ -3,6 +3,7 @@
 // A new player's first match is the lesson (Quick, Normal); Skip leaves their saved pick alone.
 
 import type { Difficulty, GameMode, HeroKind } from '@tdt/protocol';
+import { meteorRainPartner } from '@tdt/sim';
 import { lessonStatus } from '../tutorial/logic';
 import { sharedSettings } from '../settings';
 import { DifficultyPicker, storedDifficulty, storeDifficulty } from './difficultyPicker';
@@ -17,11 +18,18 @@ function $(id: string): HTMLElement {
 }
 
 let onPlayClick: (() => void) | null = null;
+let onPracticeClick: (() => void) | null = null;
 let onSkipClick: (() => void) | null = null;
+let onHeroClick: (() => void) | null = null;
 
-/** Shows the solo pick and calls `onPlay` with the chosen hero, mode, difficulty and modifier deal. */
+/**
+ * Shows the solo pick and calls `onPlay` with the chosen hero, mode, difficulty, modifier deal,
+ * and whether this start is Meteor Rain practice.
+ * `practice` highlights that path (`?practice=meteor-rain`).
+ */
 export function showSoloPick(
-  onPlay: (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal) => void,
+  onPlay: (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal, practice: boolean) => void,
+  practice = false,
 ): void {
   const root = $('lobby');
   for (const id of ['lobby-home', 'lobby-room', 'lobby-busy']) $(id).classList.add('hidden');
@@ -32,8 +40,11 @@ export function showSoloPick(
   const difficulties = new DifficultyPicker($('lobby-difficulty-solo'), storedDifficulty(), storeDifficulty);
   const modifiers = new SoloModifierPicker($('lobby-modifiers-solo'));
   const play = $('lobby-solo-play');
+  const practiceBtn = $('lobby-solo-practice') as HTMLButtonElement;
+  const practiceNote = $('practice-solo-note');
   const skip = $('tutorial-solo-skip');
   const note = $('tutorial-solo-note');
+  practiceNote.classList.toggle('hidden', !practice);
 
   const applyLesson = (lesson: boolean): void => {
     note.classList.toggle('hidden', !lesson);
@@ -53,17 +64,37 @@ export function showSoloPick(
   };
   applyLesson(sharedSettings().get().tutorial === 'new');
 
+  const syncPractice = (): void => {
+    const ok = meteorRainPartner(picker.hero) !== null;
+    practiceBtn.disabled = !ok;
+    practiceBtn.title = ok
+      ? 'Solo practice: an ally plays the other hero and answers your ultimate'
+      : 'Meteor Rain is Ranger and Arcanist — pick one of those';
+  };
+  syncPractice();
+  const heroes = $('lobby-heroes-solo');
+  if (onHeroClick) heroes.removeEventListener('click', onHeroClick);
+  onHeroClick = syncPractice;
+  heroes.addEventListener('click', onHeroClick);
+
   if (onPlayClick) play.removeEventListener('click', onPlayClick);
+  if (onPracticeClick) practiceBtn.removeEventListener('click', onPracticeClick);
   if (onSkipClick) skip.removeEventListener('click', onSkipClick);
   onPlayClick = () => {
     root.classList.add('hidden');
-    onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal());
+    onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), false);
+  };
+  onPracticeClick = () => {
+    if (practiceBtn.disabled) return;
+    root.classList.add('hidden');
+    onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), true);
   };
   onSkipClick = () => {
     sharedSettings().set({ tutorial: lessonStatus('skip') });
     applyLesson(false);
   };
   play.addEventListener('click', onPlayClick);
+  practiceBtn.addEventListener('click', onPracticeClick);
   skip.addEventListener('click', onSkipClick);
-  play.focus();
+  (practice ? practiceBtn : play).focus();
 }

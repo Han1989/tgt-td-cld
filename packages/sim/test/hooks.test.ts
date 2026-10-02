@@ -145,7 +145,7 @@ describe('sync cast', () => {
     matchCommand(match, 'p2', { type: 'cast', slot: 'Q', x: arc.x, y: arc.y });
     matchStep(match);
     expect(syncs(match)).toEqual([]);
-    matchCommand(match, 'p2', { type: 'cast', slot: 'R', x: arc.x, y: arc.y });
+    matchCommand(match, 'p2', { type: 'cast', slot: 'R' });
     matchStep(match);
     expect(syncs(match)).toEqual([]);
   });

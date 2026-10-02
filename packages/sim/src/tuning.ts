@@ -166,13 +166,20 @@ export interface KeenEyeStats {
   critMultiplier: number[];
 }
 
-/** Ultimate: arrows rain on an area in pulses (ground and air). */
+/**
+ * Ultimate: small arrow impacts over the whole map for a few seconds.
+ * Spots are random along the lanes (creeps and the path), never empty corners.
+ * `laneCap` / `heartCap` stop one rain from dumping every strike on one lane or the Heart.
+ */
 export interface ArrowStormStats extends CooldownSkillStats {
-  castRange: number;
-  radius: number;
   duration: number;
   pulseInterval: number;
-  damagePerPulse: number[];
+  strikeRadius: number;
+  /** Physical damage of one impact, by rank. Hits ground and air. */
+  damage: number[];
+  laneCap: number;
+  heartCap: number;
+  heartRadius: number;
 }
 
 // Warden ---------------------------------------------------------------------
@@ -189,18 +196,21 @@ export interface TauntStats extends ActiveSkillStats {
   duration: number[];
 }
 
-/** Passive: armour for allied heroes (the Warden included) within the radius. */
-export interface BulwarkAuraStats {
-  radius: number;
-  armor: number[];
+/** Passive: a share of auto-attack damage dealt returns as health. */
+export interface BloodHungerStats {
+  /** Fraction of the damage the attack actually dealt (after armour). One entry per rank. */
+  lifesteal: number[];
 }
 
-/** Ultimate: the Warden takes less damage for a while and stuns nearby ground creeps. */
-export interface LastStandStats extends CooldownSkillStats {
+/**
+ * Ultimate: for a short time every living hero gains armour and health regeneration.
+ * Global (no range). Two vows do not stack; the higher rank applies.
+ */
+export interface IronVowStats extends CooldownSkillStats {
   duration: number[];
-  damageReduction: number[];
-  stunRadius: number;
-  stun: number[];
+  armor: number[];
+  /** Extra health per second. */
+  regen: number[];
 }
 
 // Arcanist -------------------------------------------------------------------
@@ -228,13 +238,21 @@ export interface ClarityAuraStats {
   manaRegen: number[];
 }
 
-/** Ultimate: after a delay, a meteor hits ground creeps in an area and stuns them. */
+/**
+ * Ultimate: small meteors over the whole map for a few seconds (ground only).
+ * Same lane and Heart caps as Arrow Storm. A short stun, not one long one.
+ */
 export interface MeteorStats extends CooldownSkillStats {
-  castRange: number;
-  radius: number;
-  delay: number;
+  duration: number;
+  pulseInterval: number;
+  strikeRadius: number;
+  /** Magic damage of one meteor, by rank. */
   damage: number[];
+  /** Stun seconds of one meteor, by rank. */
   stun: number[];
+  laneCap: number;
+  heartCap: number;
+  heartRadius: number;
 }
 
 /** Base stats shared by every hero. */
@@ -278,9 +296,8 @@ export interface RangerStats extends HeroStats {
 export interface WardenStats extends HeroStats {
   cleave: CleaveStats;
   taunt: TauntStats;
-  /** Armour for heroes and towers within `radius`. */
-  bulwarkAura: BulwarkAuraStats;
-  lastStand: LastStandStats;
+  bloodHunger: BloodHungerStats;
+  ironVow: IronVowStats;
 }
 
 export interface ArcanistStats extends HeroStats {
@@ -533,6 +550,39 @@ export interface Tuning {
     warden: WardenStats;
     arcanist: ArcanistStats;
   };
+  /** Soft-launch hook: Meteor Rain and the wave-10 two-lane shield. Always on. */
+  coop: CoopTuning;
+}
+
+/** Meteor Rain and the wave-10 boss shield (`coop.ts`). */
+export interface CoopTuning {
+  /**
+   * Arrow Storm and Meteor fuse when the second is cast this soon after the first.
+   * Both rains are global, so they do not need to overlap in space.
+   */
+  comboWindow: number;
+  /**
+   * The one soft-launch combo: a denser shared rain (more impacts per pulse) for `duration`.
+   * Damage follows the Meteor's rank. Same idea as the two rains: lane path, Heart cap.
+   */
+  meteorRain: {
+    duration: number;
+    pulseInterval: number;
+    /** Impacts each pulse. */
+    strikesPerPulse: number;
+    strikeRadius: number;
+    /** Magic damage per impact, by Meteor rank (1–3). */
+    damage: number[];
+    stun: number;
+    laneCap: number;
+    heartCap: number;
+    heartRadius: number;
+  };
+  /**
+   * Bosses of these wave numbers spawn shielded: no damage until hit from two different lanes
+   * within `window`. Full and Quick both use wave 10 (Ironhorn in Full, Matriarch in Quick).
+   */
+  bossShield: { waves: number[]; window: number; damageTaken: number };
 }
 
 const ALL: LaneId[] = [0, 1, 2];
@@ -903,11 +953,13 @@ export const TUNING: Tuning = {
       },
       arrowStorm: {
         cooldown: [60, 55, 50],
-        castRange: 10,
-        radius: 3,
-        duration: 3,
-        pulseInterval: 0.5,
-        damagePerPulse: [25, 37, 50],
+        duration: 3.6,
+        pulseInterval: 0.3,
+        strikeRadius: 1.6,
+        damage: [18, 27, 36],
+        laneCap: 5,
+        heartCap: 3,
+        heartRadius: 8,
       },
     },
     warden: {
@@ -929,16 +981,14 @@ export const TUNING: Tuning = {
         radius: 4.5,
         duration: [2, 2.5, 3, 3.5],
       },
-      bulwarkAura: {
-        radius: 8,
-        armor: [2, 4, 6, 8],
+      bloodHunger: {
+        lifesteal: [0.15, 0.22, 0.3, 0.38],
       },
-      lastStand: {
+      ironVow: {
         cooldown: [70, 65, 60],
         duration: [6, 7, 8],
-        damageReduction: [0.4, 0.5, 0.6],
-        stunRadius: 3,
-        stun: [1.25, 1.75, 2.25],
+        armor: [5, 8, 11],
+        regen: [6, 9, 12],
       },
     },
     arcanist: {
@@ -971,13 +1021,32 @@ export const TUNING: Tuning = {
       },
       meteor: {
         cooldown: [60, 55, 50],
-        castRange: 9,
-        radius: 3,
-        delay: 1.2,
-        damage: [200, 300, 400],
-        stun: [1, 1.5, 2],
+        duration: 3.2,
+        pulseInterval: 0.4,
+        strikeRadius: 1.6,
+        damage: [26, 40, 52],
+        stun: [0.35, 0.45, 0.55],
+        laneCap: 4,
+        heartCap: 2,
+        heartRadius: 8,
       },
     },
+  },
+  coop: {
+    comboWindow: 2,
+    meteorRain: {
+      duration: 3.6,
+      pulseInterval: 0.3,
+      strikesPerPulse: 2,
+      strikeRadius: 1.5,
+      // A dense lane can take more than one Meteor (laneCap × damage). The Heart pocket stays small.
+      damage: [20, 30, 40],
+      stun: 0.3,
+      laneCap: 8,
+      heartCap: 3,
+      heartRadius: 8,
+    },
+    bossShield: { waves: [10], window: 3, damageTaken: 0 },
   },
 };
 

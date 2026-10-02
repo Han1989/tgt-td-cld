@@ -3,6 +3,7 @@
 import { FINALE_LEAK_CREEP_ID, FINALE_LEAK_LANE, type CreepKind, type LaneId, type PlayerId } from '@tdt/protocol';
 import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
+import { isPracticeAlly, onBossSpawned, teamSize } from './coop';
 import { getMap } from './map';
 import { countFactor, flavorKind, goldFactor, surgeCounts, surgeNotice, surgeShare } from './modifiers';
 import type { Creep, GameState } from './state';
@@ -26,7 +27,7 @@ export function callEarlyBonus(state: GameState): number {
 
 export function callEarly(state: GameState, by: PlayerId): void {
   const bonus = callEarlyBonus(state);
-  for (const p of state.players) p.gold += bonus;
+  for (const p of state.players) if (!isPracticeAlly(state, p.id)) p.gold += bonus;
   emit(state, { type: 'callEarly', by, bonus });
   state.nextWaveTick = state.tick;
 }
@@ -46,7 +47,7 @@ function startWave(state: GameState): void {
   state.phase = 'waves';
   const wave = state.wave;
   const income = waveIncome(state, wave);
-  for (const p of state.players) p.gold += income;
+  for (const p of state.players) if (!isPracticeAlly(state, p.id)) p.gold += income;
   emit(state, { type: 'waveStart', wave, income });
 
   const t = state.tuning.waves;
@@ -128,7 +129,7 @@ function spawnGap(natural: number, intervalTicks: number, count: number): number
 
 /** Extra players beyond the first, for player-count scaling. */
 function extraPlayers(state: GameState): number {
-  return Math.max(0, state.players.length - 1);
+  return Math.max(0, teamSize(state) - 1);
 }
 
 /**
@@ -212,7 +213,7 @@ export function scaledCount(state: GameState, perLane: number): number {
  */
 export function playerHpMultiplier(state: GameState, wave: number): number {
   const ps = state.tuning.playerScaling;
-  const i = Math.max(0, state.players.length - 1);
+  const i = Math.max(0, teamSize(state) - 1);
   const at = (list: number[], fallback: number) => list[Math.min(i, list.length - 1)] ?? fallback;
   const fade = Math.max(0, 1 - (wave - 1) / ps.earlyWaves);
   const lateStart = state.tuning.waves.list.length - ps.lateWaves;
@@ -275,5 +276,6 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
   };
   initBoss(state, creep);
   state.creeps.push(creep);
+  onBossSpawned(state, creep);
   return creep;
 }

@@ -103,12 +103,16 @@ if (state.wave !== end.wave) problems.push(`wave ${state.wave}, recorded ${end.w
 if (state.heartHp !== end.heartHp) problems.push(`Heart ${state.heartHp}, recorded ${end.heartHp}`);
 // The build is checked above (a re-run of an unstamped file gets the default one), so compare the rest.
 // Reports saved before protocol 14 omit gift totals; those count as 0.
-const comparable = (r: MatchReport) =>
-  JSON.stringify({
+const comparable = (r: MatchReport) => {
+  const body: MatchReport = {
     ...r,
     build: '',
     heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h) })),
-  });
+  };
+  // Reports saved before protocol 16 omit `coop`. A re-run always has it; ignore that field alone.
+  if (!saved?.coop) delete body.coop;
+  return JSON.stringify(body);
+};
 if (saved && comparable(saved) !== comparable(report)) {
   problems.push('the report differs from the saved one');
 }

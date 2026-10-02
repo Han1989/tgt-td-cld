@@ -5,7 +5,7 @@
  * dashboard reads. When a pull request finishes a task, update both TASKS.md and
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
- * Seeded from main as of 1 Oct 2026. Production protocol is 15.
+ * Seeded from main as of 2 Oct 2026. Production protocol is 16.
  * Gate 1 is waived and treated as passed. This page only reports status.
  */
 
@@ -173,7 +173,7 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'todo',
     section: 'han',
-    note: 'Solo with the bot ally first (?spike=hook&practice), then online with one friend against the spike server.',
+    note: 'Solo practice is on main: ?practice=meteor-rain, then Practice Meteor Rain. The spike URL is retired. Then one online match with a friend on the production server.',
   },
   {
     id: 'H-04',
@@ -235,6 +235,14 @@ const items: ProgressItem[] = [
     section: 'discovery',
     note: 'Two or more living heroes who damaged the same creep within 2 seconds of the kill get a short flash in their seat colours, an edge glow, and a dual-pitch chime. No rewards. Protocol stays 14. Towers share damage.by, so a living player’s towers count until Gameplay adds a hero-only signal.',
     proof: pr(38),
+  },
+  {
+    id: 'SL-04',
+    title: 'Soft-launch hook on main',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Protocol 16. Meteor Rain is the one combo: Arrow Storm and Meteor are lane rains, and a second cast within 2 seconds fuses them into a denser shared rain. Wave 10 bosses need two lanes. Solo practice is ?practice=meteor-rain. Warden has Blood Hunger and Iron Vow. The stick overrides melee chase. Do not merge the spike branch.',
   },
   {
     id: 'D-02',
@@ -434,7 +442,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'earlier',
-    note: 'Combo ultimates, a boss shield, and a solo bot ally, behind ?spike=hook. The branch stays unmerged. Combos are rebuilt in Phase 6c.',
+    note: 'Combo ultimates, a boss shield, and a solo bot ally, behind ?spike=hook. The branch stays unmerged. Meteor Rain, the wave-10 shield and solo practice shipped on main as SL-04.',
     proof: { label: 'Branch (do not merge)', href: `${REPO}/tree/claude/loving-hawking-7fvsu7` },
   },
   {
@@ -491,7 +499,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'p6c',
-    note: 'A fused effect for every hero pair. Rebuild the hook test properly. Do not merge claude/loving-hawking-7fvsu7.',
+    note: 'A fused effect for every hero pair. Meteor Rain shipped in SL-04 as one denser shared rain. The other pairs are still later. Do not merge claude/loving-hawking-7fvsu7.',
   },
   {
     id: 'p6c-raids',
@@ -499,7 +507,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'p6c',
-    note: 'Team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly.',
+    note: 'Team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. Quick wave 10 Matriarch (and Full wave 10) already use the two-lane shield (SL-04).',
   },
   {
     id: 'p6c-gear',
@@ -689,8 +697,8 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '1 Oct 2026',
-  protocol: 15,
+  asOf: '2 Oct 2026',
+  protocol: 16,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'Gate 2',

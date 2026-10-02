@@ -146,7 +146,7 @@ export class OnlineController {
   private playOffline(): void {
     this.transport?.close();
     this.drop();
-    showSoloPick((hero, mode, difficulty, deal) => playSolo(this.view, hero, mode, difficulty, deal));
+    showSoloPick((hero, mode, difficulty, deal, practice) => playSolo(this.view, hero, mode, difficulty, deal, practice));
   }
 }
 
@@ -171,21 +171,29 @@ export function playSolo(
   mode: GameMode,
   difficulty: Difficulty,
   deal?: ModifierDeal,
+  practice = false,
 ): void {
   endSolo(view);
   const transport = new LocalTransport();
   soloTransport = transport;
   view.attach(transport);
-  const start = (h: HeroKind, m: GameMode, d: Difficulty, next: ModifierDeal | undefined = deal) => {
+  const start = (
+    h: HeroKind,
+    m: GameMode,
+    d: Difficulty,
+    next: ModifierDeal | undefined = deal,
+    nextPractice = practice,
+  ) => {
     const status = sharedSettings().get().tutorial;
-    const lesson = tutorialMatch(status);
+    const lesson = nextPractice ? null : tutorialMatch(status);
     // Pin the draw before hero / mode / difficulty, each of which starts the match.
+    transport.setPractice(nextPractice);
     if (next) transport.setDeal(next.seed, lesson ? [] : next.modifiers);
     transport.send({ t: 'difficulty', difficulty: lesson?.difficulty ?? d });
     transport.send({ t: 'mode', mode: lesson?.mode ?? m });
     transport.send({ t: 'hero', hero: h });
-    view.setLesson(shouldStartLesson(status, true));
+    view.setLesson(shouldStartLesson(status, true) && !nextPractice);
   };
   view.onChangeHero = () => showSoloPick(start);
-  start(hero, mode, difficulty, deal);
+  start(hero, mode, difficulty, deal, practice);
 }

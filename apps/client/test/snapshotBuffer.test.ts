@@ -29,6 +29,7 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
     traps: [],
     zones: [],
     events,
+    practice: null,
   };
 }
 

@@ -2,7 +2,8 @@
 // applyCommand lives in commands.ts.
 
 import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
-import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana } from './combat';
+import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana, ironVow } from './combat';
+import { applyPracticeLevels, isPracticeAlly, shieldSnap, updateCoop } from './coop';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
 import { getMap } from './map';
@@ -17,7 +18,15 @@ import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
   if (config.players.length === 0) throw new Error('A game needs at least one player');
-  if (config.players.length > MAX_PLAYERS) throw new Error(`A game holds at most ${MAX_PLAYERS} players`);
+  const practice = config.practice;
+  if (practice && config.players.length !== 1) throw new Error('Meteor Rain practice is a solo match');
+  if (practice && config.players.some((p) => p.id === practice.allyId)) {
+    throw new Error('The practice ally needs its own id');
+  }
+  const roster = practice
+    ? [...config.players, { id: practice.allyId, name: practice.allyName ?? 'Ally', hero: practice.allyHero }]
+    : config.players;
+  if (roster.length > MAX_PLAYERS) throw new Error(`A game holds at most ${MAX_PLAYERS} players`);
   const mode = config.mode ?? 'full';
   const tuning = tuningForMode(config.tuning ?? TUNING, mode);
   const state: GameState = {
@@ -47,11 +56,14 @@ export function createGame(config: GameConfig, seed: number): GameState {
     events: [],
     pendingEvents: [],
     pendingDamage: {},
+    practice: practice ? { allyId: practice.allyId, startLevel: practice.startLevel ?? tuning.hero.ultimateLevels[0] ?? 6 } : null,
+    recentUlts: [],
+    shields: [],
   };
 
   const spawn = getMap().heroSpawn;
-  const n = config.players.length;
-  config.players.forEach((p, i) => {
+  const n = roster.length;
+  roster.forEach((p, i) => {
     const heroId: EntityId = state.nextId++;
     const hero: Hero = {
       id: heroId,
@@ -73,8 +85,8 @@ export function createGame(config: GameConfig, seed: number): GameState {
       alive: true,
       respawnTick: 0,
       stunUntil: 0,
-      shieldUntil: 0,
-      shieldPct: 0,
+      guardianUntil: 0,
+      drivenUntil: 0,
       facing: -Math.PI / 2,
       hitBy: -1,
       hitTick: 0,
@@ -87,8 +99,10 @@ export function createGame(config: GameConfig, seed: number): GameState {
     hero.hp = heroMaxHp(state, hero);
     hero.mana = heroMaxMana(state, hero);
     state.heroes.push(hero);
-    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true, left: false });
+    const goldStart = isPracticeAlly(state, p.id) ? 0 : tuning.economy.startingGold;
+    state.players.push({ id: p.id, name: p.name, gold: goldStart, heroId, kills: 0, connected: true, left: false });
   });
+  if (state.practice) applyPracticeLevels(state);
   const gold = goldFactor(state);
   if (gold !== 1) for (const p of state.players) p.gold = Math.round(p.gold * gold);
   // Wave 0 (the build): the chip can name wave 1's surge before the first step. Wave 1 is before surges start.
@@ -118,6 +132,7 @@ export function step(state: GameState): void {
     state.projectiles = state.projectiles.filter((p) => !p.done);
     state.traps = state.traps.filter((t) => !t.done);
     state.zones = state.zones.filter((z) => !z.done);
+    updateCoop(state);
 
     if (state.heartHp <= 0) {
       state.phase = 'defeat';
@@ -164,6 +179,7 @@ export function snapshot(state: GameState): Snapshot {
     modifiers: state.modifiers,
     surgeLane: state.surgeLane,
     nextSurge: state.nextSurge,
+    practice: state.practice ? { allyId: state.practice.allyId, startLevel: state.practice.startLevel } : null,
     phase: state.phase,
     heartHp: state.heartHp,
     heartMaxHp: t.heart.maxHp,
@@ -181,6 +197,7 @@ export function snapshot(state: GameState): Snapshot {
     })),
     heroes: state.heroes.map((h) => {
       const s = t.hero[h.kind];
+      const vowLeft = h.alive ? (ironVow(state)?.ticksLeft ?? 0) : 0;
       return {
         id: h.id,
         owner: h.owner,
@@ -220,7 +237,8 @@ export function snapshot(state: GameState): Snapshot {
         attackRange: s.attackRange,
         facing: r2(h.facing),
         stunned: h.alive && state.tick < h.stunUntil,
-        shielded: h.alive && state.tick < h.shieldUntil,
+        shielded: vowLeft > 0,
+        shieldFor: vowLeft,
       };
     }),
     creeps: state.creeps.map((c) => ({
@@ -235,6 +253,7 @@ export function snapshot(state: GameState): Snapshot {
       armor: r2(effectiveArmor(state, c)),
       magicResist: r2(c.magicResist),
       stunned: state.tick < c.stunUntil,
+      ...(shieldSnap(state, c) ? { shield: shieldSnap(state, c) } : {}),
     })),
     towers: state.towers.map((tw) => ({
       id: tw.id,

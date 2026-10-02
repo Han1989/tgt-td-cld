@@ -78,7 +78,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 |---|---|---|---|
 | H-01 | Let friends open preview links | Vercel → project → Settings → Deployment Protection → Vercel Authentication: **Disabled** → Save. **Done 1 Oct 2026:** Han confirmed this is already Disabled on the tgt-td-cld project, so friends do not see a Vercel login page. | ☑ |
 | H-02 | Confirm the hook test server | In Render, check `tgt-td-spike` is **Live** and copy its exact address. `/health` should show `"shard":"H"`. On 30 Sep, `tgt-td-spike.onrender.com/health` returned 404. | ☐ |
-| H-03 | Try the hook test on your phone (`b-try`) | Solo with the bot ally first (`?spike=hook&practice`), then online with one friend (`?spike=hook&server=wss://<spike address>`). | ☐ |
+| H-03 | Try the hook on your phone | Solo practice is on main: open `?practice=meteor-rain` and press Practice Meteor Rain (Ranger or Arcanist). The spike URL `?spike=hook` is retired. Then one online match with a friend on the production server. | ☐ |
 | H-04 | Three music tracks (`a-music`, optional) | Done 1 Oct 2026: `lobby.mp3`, `match.mp3`, and `boss.mp3` in `apps/client/public/music/` (AI-generated via Google Gemini, by Han). See `docs/SOUND_FILES.md`. | ☑ |
 | H-05 | Test on an iPhone (`a-iphone`) | Safari has the most quirks. Run `docs/MOBILE_TESTING.md` once and fill in its Results table. | ☐ |
 | H-06 | Give the team access | GitHub write access for branches and PRs (merging stays with you). Nothing else is needed to start. | ☐ |
@@ -112,6 +112,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 | SL-01 | Soft-launch co-op presentation (client, #35): mirrored ping and same-emote burst within 1 s, gift sent/received toasts, twin-ultimate ribbon from two R casts within `R_OVERLAP_SECONDS`. Sim signals are T-06 (protocol 14): leak lane, gift totals, live `syncCast`, advisory boss lane lines. | Team | ☑ |
 | SL-02 | Soft-launch HUD hooks (client): lane clutch on a real leak (`laneName`, skip `FINALE_LEAK_CREEP_ID`), end-screen gold given and received via `heroGiftTotals`, twin ribbon prefers live `syncCast` (cast overlap stays the fallback), advisory boss lane banners from `bossLaneHint`. Protocol stays 14. | Team | ☑ |
 | SL-03 | Together-kill flash (client): two or more living heroes whose `damage` hit the same creep within 2 s of its `kill` get a short shared flash (seat colours, edge glow, dual-pitch chime). No gold or stat change. Protocol stays 14. A living player's towers share `damage.by`, so they count; a hero-only `togetherKill` event waits on Gameplay after Phase 5. | Team | ☑ |
+| SL-04 | Soft-launch hook on main (`PROTOCOL_VERSION` 16, `docs/HOOK_SPIKE.md`): Meteor Rain only (Arrow Storm + Meteor fuse into a denser shared lane rain inside 2 s; no aim overlap), global lane rains for both of those R, wave-10 two-lane shield (Full Ironhorn and Quick Matriarch), solo Practice Meteor Rain (`?practice=meteor-rain`), Warden Blood Hunger + Iron Vow, stick overrides melee chase. Do not merge `claude/loving-hawking-7fvsu7`. | Team | ☑ |
 | D-02 | Post polished build to **r/PlayMyGame** (follow sub rules; one clear link; channel tag). | Han | ☐ |
 | D-03 | Post polished build to **r/incremental_games** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
 | D-04 | Post polished build to **r/cozygames** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
@@ -156,8 +157,8 @@ Gate 1 is passed / skipped, so Phase 6 may start. The tasks below are not starte
 
 | ID | Task | Owner |
 |---|---|---|
-| p6c-combos | Combo ultimates, full version: a fused effect for every hero pair. Start from the hook test (`docs/HOOK_SPIKE.md`), rebuilt properly; don't merge the spike branch. | Team |
-| p6c-raids | Raid bosses with team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. | Team |
+| p6c-combos | Combo ultimates, full version: a fused effect for every hero pair. Meteor Rain (a denser shared lane rain) is the one pair shipped in SL-04. The other pairs are still later. Don't merge `claude/loving-hawking-7fvsu7`. | Team |
+| p6c-raids | Raid bosses with team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. The first beat is already in: Quick wave 10 Matriarch (and Full wave 10 Ironhorn) take no damage until two lanes hit within 3 s (SL-04). | Team |
 | p6c-gear | Team set gear: gear slots, Common-to-S rarity, effects that change how towers and skills behave. Set bonuses switch on when teammates wear pieces of the same set. Earned by play only at this stage. | Team |
 | p6c-tiers | Difficulty tiers: better gear unlocks harder tiers with better loot, so gear never makes co-op trivial | Team |
 | p6c-afk | AFK camp: resources build up per hour while away, capped at 12 hours, calculated on the server. Bonus for friends you played with this week. | Team |
