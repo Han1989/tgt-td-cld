@@ -186,9 +186,10 @@ const items: ProgressItem[] = [
     id: 'P2-04',
     title: 'Ultimate presentation and combo cue',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client. Ultimate presentation and a combo cue. Starts after P2-03.',
+    note: 'Client. Each combo (Meteor Rain, Stun Storm, Shockwave) has its own ribbon, colour and strikes, and a finished rain or combo shows how many creeps it killed. No aim circles.',
+    proof: { label: 'PR #70', href: `${REPO}/pull/70` },
   },
   {
     id: 'P2-05',

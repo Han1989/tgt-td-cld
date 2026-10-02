@@ -1136,6 +1136,107 @@ body.layout-tall #fuse-ribbon {
   white-space: nowrap;
 }
 
+#fuse-ribbon-effect {
+  font-size: clamp(12px, 3.4vw, 15px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  text-shadow: 0 1px 2px var(--ink), 0 0 6px #000;
+}
+
+/* Each combo has its own colour, so the three read apart before the name is read: Meteor Rain fire (the default
+   above), Stun Storm violet, Shockwave gold. The strikes and the burst in the world use the same colours. */
+#fuse-ribbon[data-combo='stunStorm'] {
+  background: linear-gradient(90deg, transparent, rgba(34, 18, 66, 0.78) 14%, rgba(34, 18, 66, 0.78) 86%, transparent);
+}
+
+#fuse-ribbon[data-combo='stunStorm']::before,
+#fuse-ribbon[data-combo='stunStorm']::after {
+  background: linear-gradient(90deg, transparent, #c9a7ff, transparent);
+}
+
+#fuse-ribbon[data-combo='stunStorm'] #fuse-ribbon-kicker {
+  color: #c9a7ff;
+}
+
+#fuse-ribbon[data-combo='stunStorm'] #fuse-ribbon-word {
+  text-shadow: 0 0 20px rgba(201, 167, 255, 0.95), 0 2px 0 var(--ink), 0 3px 12px #000;
+}
+
+#fuse-ribbon[data-combo='shockwave'] {
+  background: linear-gradient(90deg, transparent, rgba(62, 44, 6, 0.78) 14%, rgba(62, 44, 6, 0.78) 86%, transparent);
+}
+
+#fuse-ribbon[data-combo='shockwave']::before,
+#fuse-ribbon[data-combo='shockwave']::after {
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+#fuse-ribbon[data-combo='shockwave'] #fuse-ribbon-kicker {
+  color: var(--gold);
+}
+
+#fuse-ribbon[data-combo='shockwave'] #fuse-ribbon-word {
+  text-shadow: 0 0 20px rgba(255, 210, 74, 0.95), 0 2px 0 var(--ink), 0 3px 12px #000;
+}
+
+/* The kill count of a finished rain or combo: a pill under the fuse ribbon in the caster's seat colour (--c). It
+   rises and fades; under reduced motion it only fades. About 2.2 s (RAIN_COUNT_MS in hud/coopStage.ts). */
+#rain-count {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 14px 6px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 2px solid var(--c, var(--gold));
+  background: rgba(16, 12, 22, 0.82);
+  white-space: nowrap;
+}
+
+body.layout-tall #rain-count {
+  top: 56%;
+}
+
+#rain-count.on {
+  animation: rain-count 2.2s ease forwards;
+}
+
+#rain-count-name {
+  font-size: clamp(12px, 3.4vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+#rain-count-num {
+  font-family: var(--title-font);
+  font-size: clamp(22px, 6.4vw, 30px);
+  font-weight: 800;
+  color: var(--c, var(--gold));
+  text-shadow: 0 1px 0 var(--ink), 0 0 10px #000;
+}
+
+@keyframes rain-count {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.9); }
+  14% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.05); }
+  24% { transform: translateX(-50%) translateY(0) scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(1); }
+}
+
+@keyframes rain-count-calm {
+  0% { opacity: 0; }
+  14%, 72% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 #fuse-ribbon-who {
   max-width: 100%;
   font-size: clamp(14px, 4.2vw, 18px);
@@ -3714,5 +3815,9 @@ body.layout-rotate .rotate {
 
   #fuse-ribbon.on {
     animation-name: fuse-ribbon-calm;
+  }
+
+  #rain-count.on {
+    animation-name: rain-count-calm;
   }
 }

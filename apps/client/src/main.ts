@@ -1,4 +1,4 @@
-import type { Difficulty, GameMode, HeroKind } from '@tdt/protocol';
+import { COMBO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
 import './style.css';
 import { installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
@@ -41,7 +41,9 @@ async function main(): Promise<void> {
   const stress = Number(params.get('stress'));
   if (stress > 0) {
     const { StressTransport } = await import('./stress');
-    view.attach(new StressTransport(Math.min(1000, Math.floor(stress))));
+    const combo = params.get('combo');
+    const only = COMBO_KINDS.find((k) => k === combo);
+    view.attach(new StressTransport(Math.min(1000, Math.floor(stress)), only));
     ready('stress');
     return;
   }

@@ -8,6 +8,7 @@ import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import type { ViewBox } from './audio/mix';
 import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
+import { emptyTally, readTally, tallyLine, type TallyMemory } from './coop/rainKills';
 import { EmoteMenu } from './hud/emotes';
 import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
@@ -71,6 +72,7 @@ export class GameView {
 
   /** Recent pings, emotes, ultimates and creep damage, for the shared flourishes. */
   private cues: CueMemory;
+  private tally: TallyMemory = emptyTally();
 
   /** The first-match lesson is running on this solo match. */
   private lesson = false;
@@ -452,10 +454,20 @@ export class GameView {
       }
       if (cues.beat.fuse) {
         const f = cues.beat.fuse;
-        view.stage.fuse(f.kicker, f.word, f.spots.map((s) => who(s.by)));
-        renderer.fuseBurst(f.x, f.y, f.spots);
+        view.stage.fuse(f.combo, f.kicker, f.word, f.effect, f.spots.map((s) => who(s.by)));
+        renderer.fuseBurst(f.combo, f.x, f.y, f.spots);
         // The twin gong plays with the ribbon above. A fuse without one (a caster fell first) still sounds.
         if (!syncSpots) audio.game.flourish('twinCast', now);
+      }
+      // What a finished rain or combo killed: the pill, and the count floating where it was cast.
+      const tally = readTally(view.tally, events, latest, now);
+      view.tally = tally.memory;
+      for (const t of tally.beat.done) {
+        const line = tallyLine(t);
+        const first = t.by[0];
+        const color = first ? playerTint(latest, first) : COLORS.gold;
+        view.stage.rainCount(t.kind, line.name, line.count, toCss(color));
+        renderer.rainCount(t.x, t.y, `${t.kills}`, color);
       }
       if (cues.beat.clutch) {
         const c = cues.beat.clutch;
@@ -661,6 +673,7 @@ export class GameView {
     this.social.emote = -Infinity;
     this.marks.clear();
     this.cues = emptyCues();
+    this.tally = emptyTally();
     this.stage.clear();
     this.needsCentre = true;
     this.coach.dismissAir();

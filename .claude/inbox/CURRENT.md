@@ -1,6 +1,6 @@
 # Claude Code task
-Status: READY
-Updated: 2026-10-03T02:13:35+08:00
+Status: DONE
+Updated: 2026-10-03T05:38:09+08:00
 From: Claude Code Liaison (standing Playtest 2 queue after #66)
 Branch: create from latest main; open PR; do not merge spike claude/loving-hawking-7fvsu7
 
@@ -38,3 +38,6 @@ Product rule (Han 2026-10-02): ultimates are NOT aimed. Press R and Arrow Storm 
 
 ## Done when
 PR from main with combo cue + kill count presentation; tests/build green; DONE + PR URL in inbox on that branch; P2-04 marked done in tracker/progress.
+
+## Result
+PR https://github.com/Han1989/tgt-td-cld/pull/70 (client only, protocol stays 17). Combo cue (own ribbon colour, effect line, burst and strike look for Meteor Rain / Stun Storm / Shockwave) and a kill count after every rain or combo; no aim circles. P2-04 marked done in TASKS.md and progress/data.ts. Not merged.
