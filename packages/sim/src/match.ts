@@ -13,6 +13,7 @@ import {
   PROTOCOL_VERSION,
   R_OVERLAP_SECONDS,
   type Command,
+  type ComboKind,
   type CoopReport,
   type CreepKind,
   type HeroReport,
@@ -69,7 +70,7 @@ export interface Match {
   log: ReplayEntry[];
   heartAfterWave: number[];
   heroes: HeroTrack[];
-  meteorRains: number;
+  combos: Record<ComboKind, number>;
   shields: ShieldTrack[];
 }
 
@@ -97,7 +98,7 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       goldGifted: 0,
       goldReceived: 0,
     })),
-    meteorRains: 0,
+    combos: { meteorRain: 0, stunStorm: 0, shockwave: 0 },
     shields: [],
   };
 }
@@ -182,8 +183,8 @@ export function matchStep(match: Match): void {
         t.casts[e.slot]++;
         if (e.slot === 'R') t.rTicks.push(state.tick);
       }
-    } else if (e.type === 'combo' && e.combo === 'meteorRain') {
-      match.meteorRains++;
+    } else if (e.type === 'combo') {
+      match.combos[e.combo]++;
     } else if (e.type === 'shieldUp') {
       match.shields.push({
         creepId: e.creepId,
@@ -272,7 +273,7 @@ export function matchReport(match: Match): MatchReport {
 
 function coopReport(match: Match): CoopReport {
   return {
-    meteorRains: match.meteorRains,
+    combos: { ...match.combos },
     shields: match.shields.map((s) => ({
       boss: s.boss,
       wave: s.wave,

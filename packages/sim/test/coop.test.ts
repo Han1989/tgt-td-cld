@@ -1,11 +1,10 @@
-// Soft-launch hook: global lane rains, Meteor Rain (time window only), the wave-10
-// two-lane shield, and solo practice. Always on.
+// Aimed ultimates, the three combos, the wave-10 two-lane shield, and solo practice. Always on.
 
-import type { LaneId } from '@tdt/protocol';
+import { R_OVERLAP_SECONDS } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import { damageCreep } from '../src/combat';
-import { heroHitLane, hitFrom, shieldStandPoint, teamSize } from '../src/coop';
+import { comboOf, comboPartners, heroHitLane, hitFrom, shieldStandPoint, teamSize } from '../src/coop';
 import { createGame, snapshot, step } from '../src/game';
 import { getMap } from '../src/map';
 import { createPracticeAlly } from '../src/practiceAlly';
@@ -13,7 +12,7 @@ import type { GameState } from '../src/state';
 import { secondsToTicks, TUNING, type Tuning } from '../src/tuning';
 import { spawnCreep } from '../src/waves';
 import { dist } from '../src/vec';
-import { labGame, placeCreep, run, runCollect, tuningCopy } from './helpers';
+import { labGame, placeCreep, run, runCollect } from './helpers';
 
 function learnR(state: GameState, playerId: string): void {
   const hero = state.heroes.find((h) => h.owner === playerId)!;
@@ -22,104 +21,192 @@ function learnR(state: GameState, playerId: string): void {
   expect(applyCommand(state, playerId, { type: 'learn', slot: 'R' })).toBe(true);
 }
 
-describe('global rains', () => {
-  it('lands on the lane with the creeps and never in an empty corner', () => {
+describe('aimed ultimates', () => {
+  it('Arrow Storm rains on its circle for 6 pulses, hits ground and air, and leaves the rest of the map alone', () => {
     const { state } = labRain(['ranger']);
-    const pack = { x: 6, y: 10 };
-    const brute = placeCreep(state, 'brute', pack.x, pack.y, 0);
-    const corner = placeCreep(state, 'grunt', 0.4, 49, 0);
-    brute.rootUntil = 1_000_000;
-    corner.rootUntil = 1_000_000;
-    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
+    const at = { x: 13, y: 20 };
+    state.heroes[0]!.x = 13;
+    state.heroes[0]!.y = 26;
+    const inside = placeCreep(state, 'brute', at.x + 1, at.y, 1);
+    const wisp = placeCreep(state, 'wisp', at.x - 1, at.y, 1);
+    const outside = placeCreep(state, 'brute', at.x + 7, at.y, 1);
+    for (const c of [inside, wisp, outside]) c.rootUntil = 1_000_000;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: at.x, y: at.y })).toBe(true);
     const s = TUNING.hero.ranger.arrowStorm;
-    const events = runCollect(state, secondsToTicks(s.duration) + 2);
-    const impacts = events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm');
-    expect(impacts.length).toBeGreaterThan(0);
-    let nearPack = 0;
-    for (const e of impacts) {
-      if (e.type !== 'aoe') continue;
-      expect(e.radius).toBe(s.strikeRadius);
-      expect(dist(e.x, e.y, corner.x, corner.y)).toBeGreaterThan(8);
-      if (dist(e.x, e.y, pack.x, pack.y) <= 2.4) nearPack++;
-    }
-    expect(nearPack).toBeGreaterThanOrEqual(s.laneCap);
-    expect(corner.hp).toBe(corner.maxHp);
-    expect(brute.hp).toBeLessThan(brute.maxHp);
+    const events = runCollect(state, secondsToTicks(s.duration) + secondsToTicks(s.pulseInterval) + 4);
+    const pulses = events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm');
+    expect(pulses).toHaveLength(Math.round(s.duration / s.pulseInterval));
+    for (const e of pulses) expect(e).toMatchObject({ x: at.x, y: at.y, radius: s.radius });
+    expect(inside.hp).toBeLessThan(inside.maxHp);
+    expect(wisp.hp).toBeLessThan(wisp.maxHp);
+    expect(outside.hp).toBe(outside.maxHp);
   });
 
-  it('stops adding strikes on a lane and near the Heart once those caps are full', () => {
-    const tuning = tuningCopy();
-    tuning.hero.ranger.arrowStorm.laneCap = 1;
-    tuning.hero.ranger.arrowStorm.heartCap = 1;
-    tuning.hero.ranger.arrowStorm.heartRadius = 8;
-    const { state } = labRain(['ranger'], tuning);
-    const heart = getMap().heart;
-    placeCreep(state, 'brute', heart.x, heart.y).rootUntil = 1_000_000;
-    placeCreep(state, 'brute', 6, 10, 0).rootUntil = 1_000_000;
-    placeCreep(state, 'brute', 13, 10, 1).rootUntil = 1_000_000;
-    placeCreep(state, 'brute', 20, 10, 2).rootUntil = 1_000_000;
-    applyCommand(state, 'p1', { type: 'cast', slot: 'R' });
-    const events = runCollect(state, secondsToTicks(tuning.hero.ranger.arrowStorm.duration) + 2);
-    const impacts = events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm');
-    const lanes: Record<LaneId, number> = { 0: 0, 1: 0, 2: 0 };
-    let nearHeart = 0;
-    for (const e of impacts) {
-      if (e.type !== 'aoe') continue;
-      lanes[laneOf(e.x, e.y)]++;
-      if (dist(e.x, e.y, heart.x, heart.y) <= 8) nearHeart++;
-    }
-    expect(lanes[0]).toBeLessThanOrEqual(1);
-    expect(lanes[1]).toBeLessThanOrEqual(1);
-    expect(lanes[2]).toBeLessThanOrEqual(1);
-    expect(nearHeart).toBeLessThanOrEqual(1);
-    expect(impacts.length).toBeLessThanOrEqual(3);
+  it('Meteor lands after its delay on ground creeps only, damages them and stuns them', () => {
+    const { state } = labRain(['arcanist']);
+    const at = { x: 13, y: 20 };
+    state.heroes[0]!.x = 13;
+    state.heroes[0]!.y = 26;
+    const grunt = placeCreep(state, 'grunt', at.x, at.y, 1);
+    const wisp = placeCreep(state, 'wisp', at.x + 1, at.y, 1);
+    const far = placeCreep(state, 'grunt', at.x + 7, at.y, 1);
+    for (const c of [grunt, wisp, far]) c.rootUntil = 1_000_000;
+    const s = TUNING.hero.arcanist.meteor;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: at.x, y: at.y })).toBe(true);
+    run(state, secondsToTicks(s.delay) - 3);
+    expect(grunt.hp).toBe(grunt.maxHp);
+    run(state, 8);
+    expect(grunt.hp).toBeLessThan(grunt.maxHp);
+    expect(grunt.stunUntil).toBeGreaterThan(state.tick);
+    expect(wisp.hp).toBe(wisp.maxHp);
+    expect(far.hp).toBe(far.maxHp);
+  });
+
+  it('walks into range first when the point is too far', () => {
+    const { state } = labRain(['ranger']);
+    const hero = state.heroes[0]!;
+    hero.x = 13;
+    hero.y = 40;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 13, y: 20 })).toBe(true);
+    run(state, 4);
+    expect(state.zones).toHaveLength(0);
+    run(state, 60);
+    expect(state.zones.some((z) => z.kind === 'arrowStorm') || hero.skillCd.R > 0).toBe(true);
+    expect(hero.skillCd.R).toBeGreaterThan(0);
   });
 });
 
-describe('Meteor Rain', () => {
-  it('fuses the two rains inside the window even when the casters are across the map', () => {
+describe('combos', () => {
+  it('Arrow Storm + Meteor with overlapping circles fuse into Meteor Rain and both effects end', () => {
     const { state, heroes } = labRain(['ranger', 'arcanist']);
-    heroes[0]!.x = 2;
-    heroes[1]!.x = 24;
-    applyCommand(state, 'p1', { type: 'cast', slot: 'R' });
-    applyCommand(state, 'p2', { type: 'cast', slot: 'R' });
-    const events = runCollect(state, 1);
+    heroes[0]!.x = 13;
+    heroes[0]!.y = 26;
+    heroes[1]!.x = 14;
+    heroes[1]!.y = 26;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 12, y: 20 })).toBe(true);
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 15, y: 20 })).toBe(true);
+    const events = runCollect(state, 3);
     expect(events).toContainEqual(
-      expect.objectContaining({ type: 'combo', combo: 'meteorRain', radius: 0, heroes: [heroes[0]!.id, heroes[1]!.id] }),
+      expect.objectContaining({ type: 'combo', combo: 'meteorRain', heroes: [heroes[0]!.id, heroes[1]!.id] }),
     );
     expect(events).toContainEqual(
       expect.objectContaining({ type: 'syncCast', slot: 'R', heroIds: [heroes[0]!.id, heroes[1]!.id] }),
     );
     expect(state.zones.map((z) => z.kind)).toEqual(['meteorRain']);
-    expect(state.zones[0]).toMatchObject({ radius: 0 });
+    const zone = state.zones[0]!;
+    expect(zone.radius).toBe(3 + TUNING.coop.meteorRain.radiusBonus);
     const rain = runCollect(state, secondsToTicks(TUNING.coop.meteorRain.duration) + 2).filter(
       (e) => e.type === 'aoe' && e.effect === 'meteorRain',
     );
-    const solo = Math.floor(TUNING.hero.arcanist.meteor.duration / TUNING.hero.arcanist.meteor.pulseInterval);
-    expect(rain.length).toBeGreaterThan(solo);
+    expect(rain.length).toBeGreaterThanOrEqual(10);
   });
 
-  it('does not fuse, and does not sync, once the window has passed', () => {
-    const { state } = labRain(['ranger', 'arcanist']);
-    applyCommand(state, 'p1', { type: 'cast', slot: 'R' });
-    run(state, secondsToTicks(TUNING.coop.comboWindow) + 2);
-    state.zones = [];
-    applyCommand(state, 'p2', { type: 'cast', slot: 'R' });
-    const events = runCollect(state, 1);
-    expect(events.some((e) => e.type === 'combo' || e.type === 'syncCast')).toBe(false);
-    expect(state.zones.map((z) => z.kind)).toEqual(['meteor']);
-  });
-
-  it('still syncs a second rain cast inside the window', () => {
+  it('does not fuse when the circles do not overlap, but still syncs', () => {
     const { state, heroes } = labRain(['ranger', 'arcanist']);
-    applyCommand(state, 'p1', { type: 'cast', slot: 'R' });
-    run(state, secondsToTicks(1));
+    heroes[0]!.x = 5;
+    heroes[0]!.y = 24;
+    heroes[1]!.x = 21;
+    heroes[1]!.y = 24;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 5, y: 20 })).toBe(true);
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 21, y: 20 })).toBe(true);
+    const events = runCollect(state, 3);
+    expect(events.some((e) => e.type === 'combo')).toBe(false);
+    expect(events.some((e) => e.type === 'syncCast')).toBe(true);
+    expect(state.zones.map((z) => z.kind).sort()).toEqual(['arrowStorm', 'meteor']);
+  });
+
+  it('fuses up to 5 seconds apart, not after', () => {
+    const at = (gap: number) => {
+      const { state, heroes } = labRain(['ranger', 'arcanist']);
+      heroes[0]!.x = 13;
+      heroes[0]!.y = 26;
+      heroes[1]!.x = 14;
+      heroes[1]!.y = 26;
+      applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 13, y: 20 });
+      run(state, secondsToTicks(gap));
+      applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 13, y: 20 });
+      return runCollect(state, 3);
+    };
+    expect(TUNING.coop.comboWindow).toBe(R_OVERLAP_SECONDS);
+    expect(at(4.5).some((e) => e.type === 'combo')).toBe(true);
+    expect(at(5.5).some((e) => e.type === 'combo')).toBe(false);
+  });
+
+  it('Iron Vow + Arrow Storm is a Stun Storm when the Warden stands in the storm, in either order', () => {
+    for (const vowFirst of [false, true]) {
+      const { state, heroes } = labRain(['ranger', 'warden']);
+      const [ranger, warden] = heroes as [(typeof heroes)[number], (typeof heroes)[number]];
+      ranger.x = 13;
+      ranger.y = 26;
+      warden.x = 13;
+      warden.y = 20;
+      const grunt = placeCreep(state, 'brute', 14, 20, 1);
+      grunt.rootUntil = 1_000_000;
+      const storm = () => applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 13, y: 20 });
+      const vow = () => applyCommand(state, 'p2', { type: 'cast', slot: 'R' });
+      if (vowFirst) {
+        expect(vow()).toBe(true);
+        run(state, 20);
+        expect(storm()).toBe(true);
+      } else {
+        expect(storm()).toBe(true);
+        run(state, 20);
+        expect(vow()).toBe(true);
+      }
+      const events = runCollect(state, 3);
+      expect(events).toContainEqual(expect.objectContaining({ type: 'combo', combo: 'stunStorm' }));
+      expect(state.zones.map((z) => z.kind)).toEqual(['stunStorm']);
+      const zone = state.zones[0]!;
+      expect(zone.radius).toBe(TUNING.hero.ranger.arrowStorm.radius + TUNING.coop.stunStorm.radiusBonus);
+      const pulses = runCollect(state, secondsToTicks(TUNING.hero.ranger.arrowStorm.duration) + 2);
+      expect(pulses.some((e) => e.type === 'aoe' && e.effect === 'stunStorm')).toBe(true);
+    }
+  });
+
+  it('Iron Vow does not combo when the Warden stands outside the other ultimate', () => {
+    const { state, heroes } = labRain(['ranger', 'warden']);
+    heroes[0]!.x = 13;
+    heroes[0]!.y = 26;
+    heroes[1]!.x = 4;
+    heroes[1]!.y = 30;
+    applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 13, y: 20 });
+    run(state, 10);
     applyCommand(state, 'p2', { type: 'cast', slot: 'R' });
-    const events = runCollect(state, 1);
-    expect(events).toContainEqual(
-      expect.objectContaining({ type: 'syncCast', heroIds: [heroes[0]!.id, heroes[1]!.id] }),
-    );
-    expect(state.zones.map((z) => z.kind)).toEqual(['meteorRain']);
+    const events = runCollect(state, 3);
+    expect(events.some((e) => e.type === 'combo')).toBe(false);
+    expect(events.some((e) => e.type === 'syncCast')).toBe(true);
+    expect(state.zones.map((z) => z.kind)).toEqual(['arrowStorm']);
+  });
+
+  it('Meteor + Iron Vow is a Shockwave: creeps are pulled to the point, then it lands harder than the Meteor', () => {
+    const { state, heroes } = labRain(['arcanist', 'warden']);
+    const [arcanist, warden] = heroes as [(typeof heroes)[number], (typeof heroes)[number]];
+    arcanist.x = 13;
+    arcanist.y = 27;
+    warden.x = 13;
+    warden.y = 22;
+    const near = placeCreep(state, 'brute', 13, 18, 1);
+    near.rootUntil = 1_000_000;
+    near.hp = near.maxHp = 100_000;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 13, y: 22 })).toBe(true);
+    run(state, 6);
+    expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R' })).toBe(true);
+    const events = runCollect(state, 3);
+    expect(events).toContainEqual(expect.objectContaining({ type: 'combo', combo: 'shockwave' }));
+    expect(state.zones.map((z) => z.kind)).toEqual(['shockwave']);
+    const before = dist(near.x, near.y, 13, 22);
+    const hp = near.hp;
+    runCollect(state, secondsToTicks(TUNING.coop.shockwave.pullTime) + 2);
+    expect(dist(near.x, near.y, 13, 22)).toBeLessThan(before);
+    expect(hp - near.hp).toBeGreaterThan(0);
+  });
+
+  it('every pair of heroes has exactly one combo', () => {
+    expect(comboOf('arrowStorm', 'meteor')).toBe('meteorRain');
+    expect(comboOf('ironVow', 'arrowStorm')).toBe('stunStorm');
+    expect(comboOf('meteor', 'ironVow')).toBe('shockwave');
+    expect(comboOf('meteor', 'meteor')).toBeNull();
+    expect(comboPartners('warden')).toEqual(['ranger', 'arcanist']);
   });
 });
 
@@ -206,26 +293,33 @@ describe('solo practice', () => {
     expect(state.heroes[0]!.xp).toBeGreaterThan(state.tuning.hero.xpForLevel[5]!);
   });
 
-  it('the ally answers an instant R inside the window and the rains fuse', () => {
-    const state = createGame(
-      {
-        players: [{ id: 'p1', name: 'P', hero: 'ranger' }],
-        practice: { allyId: 'practice-ally', allyHero: 'arcanist' },
-      },
-      2,
-    );
-    learnR(state, 'p1');
-    learnR(state, 'practice-ally');
-    const ally = createPracticeAlly('practice-ally', 'p1');
-    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
-    let fused = false;
-    for (let i = 0; i < 40 && !fused; i++) {
-      step(state);
-      for (const cmd of ally.decide(snapshot(state))) applyCommand(state, 'practice-ally', cmd);
-      fused = state.zones.some((z) => z.kind === 'meteorRain');
+  it('the ally answers your R where you cast it, inside the window, and the two fuse', () => {
+    for (const [leader, ally, combo] of [
+      ['ranger', 'arcanist', 'meteorRain'],
+      ['ranger', 'warden', 'stunStorm'],
+      ['arcanist', 'warden', 'shockwave'],
+    ] as const) {
+      const state = createGame(
+        {
+          players: [{ id: 'p1', name: 'P', hero: leader }],
+          practice: { allyId: 'practice-ally', allyHero: ally },
+        },
+        2,
+      );
+      learnR(state, 'p1');
+      learnR(state, 'practice-ally');
+      const bot = createPracticeAlly('practice-ally', 'p1');
+      const me = state.heroes[0]!;
+      const at = { x: me.x, y: me.y - 4 };
+      expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: at.x, y: at.y })).toBe(true);
+      let fused = false;
+      for (let i = 0; i < 120 && !fused; i++) {
+        step(state);
+        for (const cmd of bot.decide(snapshot(state))) applyCommand(state, 'practice-ally', cmd);
+        fused = state.zones.some((z) => z.kind === combo);
+      }
+      expect(fused).toBe(true);
     }
-    expect(fused).toBe(true);
-    expect(state.zones.filter((z) => z.kind === 'arrowStorm' || z.kind === 'meteor').every((z) => z.done)).toBe(true);
   });
 });
 
@@ -237,12 +331,4 @@ function labRain(heroes: ('ranger' | 'arcanist' | 'warden')[], tuning: Tuning = 
     h.level = 6;
   }
   return { state, heroes: state.heroes };
-}
-
-/** Which lane a rain spot sits on. Points near the Heart count as Mid (the lanes have joined). */
-function laneOf(x: number, y: number): LaneId {
-  if (y >= 30) return 1;
-  if (x < 9.5) return 0;
-  if (x > 16.5) return 2;
-  return 1;
 }

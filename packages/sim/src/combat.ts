@@ -128,9 +128,12 @@ export function heroManaRegen(state: GameState, hero: Hero): number {
   return s.manaRegen + s.manaRegenPerLevel * (hero.level - 1) + clarityBonus(state, hero);
 }
 
-/** Whether the hero's attacks and targeted skills can hit this creep (melee heroes can't reach flyers). */
-export function heroCanHit(state: GameState, hero: Hero, creep: Creep): boolean {
-  return !state.tuning.creeps[creep.kind].flying || heroStats(state, hero).ranged;
+/**
+ * Whether the hero's attacks and targeted skills can hit this creep. Every hero can, melee included: a flyer is hit
+ * when it is within reach (attack range plus both radii), like any creep.
+ */
+export function heroCanHit(_state: GameState, _hero: Hero, _creep: Creep): boolean {
+  return true;
 }
 
 export function heroDamage(state: GameState, hero: Hero): number {

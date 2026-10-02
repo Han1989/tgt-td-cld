@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -91,19 +91,11 @@ export function laneName(lane: LaneId): (typeof LANE_NAMES)[number] {
 }
 
 /**
- * `leak.creepId` when the Heart drop is not a creep (Hard's final-wave strain).
- * That event still carries `lane`, but it is not a lane leak — see `FINALE_LEAK_LANE`.
- */
-export const FINALE_LEAK_CREEP_ID = 0;
-
-/** Lane stamped on the finale strain so the field stays a `LaneId`. Clients should not label it as a lane leak. */
-export const FINALE_LEAK_LANE: LaneId = 1;
-
-/**
  * Two ultimates this close together (either order) overlap: the match report's `rOverlaps`,
- * and one live `syncCast` when the later cast lands. No extra damage.
+ * and one live `syncCast` when the later cast lands. When their areas also overlap, they fuse into a
+ * combo (`COMBO_KINDS`). Same number as `tuning.coop.comboWindow`.
  */
-export const R_OVERLAP_SECONDS = 2;
+export const R_OVERLAP_SECONDS = 5;
 
 /**
  * Advisory lane lines for boss waves, for Client Polish banners.
@@ -160,11 +152,14 @@ export interface SurgeNotice {
 }
 
 /**
- * Meteor Rain: Ranger Arrow Storm and Arcanist Meteor are global rains. The second cast
- * inside `R_OVERLAP_SECONDS` (2 s) fuses both into one denser shared rain. No aim overlap.
- * The only soft-launch combo. Other hero pairs do not fuse.
+ * Combos: two ultimates cast within `R_OVERLAP_SECONDS` of each other whose areas overlap fuse into one stronger
+ * effect, and both originals end. An Arrow Storm and a Meteor overlap when their circles do; Iron Vow has no
+ * circle to aim, so its Warden must be standing inside the other ultimate's circle.
+ * - `meteorRain`: Arrow Storm + Meteor (a dense rain of small meteors over both circles).
+ * - `stunStorm`: Iron Vow + Arrow Storm (the storm, wider, and every volley also stuns).
+ * - `shockwave`: Meteor + Iron Vow (creeps are pulled in to the Meteor's point, then it lands harder).
  */
-export const COMBO_KINDS = ['meteorRain'] as const;
+export const COMBO_KINDS = ['meteorRain', 'stunStorm', 'shockwave'] as const;
 export type ComboKind = (typeof COMBO_KINDS)[number];
 
 /**
@@ -174,15 +169,15 @@ export type ComboKind = (typeof COMBO_KINDS)[number];
  */
 export type ShieldState = 'up' | 'left' | 'right' | 'off';
 
-/** Lingering or delayed ground effects of hero ultimates, plus Meteor Rain. */
-export const ZONE_KINDS = ['arrowStorm', 'meteor', 'meteorRain'] as const;
+/** Lingering or delayed ground effects of hero ultimates, and the three combos. Each has an aimed circle (`radius`). */
+export const ZONE_KINDS = ['arrowStorm', 'meteor', 'meteorRain', 'stunStorm', 'shockwave'] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
 /** Area effects of hero skills, for visual feedback. */
 export type AoeEffect =
   | 'cleave'
   | 'taunt'
-  /** Warden's Iron Vow: the cast burst. Ally rings use `shielded` / `shieldFor`, not this radius. */
+  /** Warden's Iron Vow: the burst around him (damage and a short stun). Ally rings use `shielded` / `shieldFor`. */
   | 'ironVow'
   | 'fireball'
   | 'frostNova'
@@ -191,7 +186,11 @@ export type AoeEffect =
   /** A Blizzard tower's pulse around itself. */
   | 'blizzard'
   /** One meteor of a Meteor Rain. */
-  | 'meteorRain';
+  | 'meteorRain'
+  /** A Stun Storm volley (the Arrow Storm's, stunning). */
+  | 'stunStorm'
+  /** A Shockwave's landing. */
+  | 'shockwave';
 
 export type DamageType = 'physical' | 'magic';
 
@@ -384,8 +383,6 @@ export type GameEvent =
   | { type: 'kill'; creepId: EntityId; kind: CreepKind; x: number; y: number; by: PlayerId | null; bounty: number }
   /**
    * A creep reached the Heart. `lane` is that creep's lane (`laneName`).
-   * Hard's final-wave strain is not a creep: `creepId` is `FINALE_LEAK_CREEP_ID` and `lane` is
-   * `FINALE_LEAK_LANE`. Clients that name the lane should skip that id.
    */
   | { type: 'leak'; creepId: EntityId; damage: number; lane: LaneId }
   | { type: 'heroDied'; heroId: EntityId }
@@ -431,9 +428,10 @@ export type GameEvent =
    */
   | { type: 'surge'; wave: number; lane: LaneId }
   /**
-   * Arrow Storm and Meteor fused into Meteor Rain. `heroes` is the two casters.
-   * Both rains end; a `meteorRain` zone replaces them (radius 0: global, no aimed circle).
-   * `x` and `y` are the Meteor caster. Impacts are later `aoe` events. No other pair fuses.
+   * Two ultimates fused into `combo`. `heroes` is the two casters. Both effects end and one zone of the combo's
+   * kind (with a `radius`) replaces them at (`x`, `y`): the middle of both circles for Meteor Rain, the storm's
+   * circle for Stun Storm, the Meteor's for Shockwave. `radius` is the area the combo covers (a Shockwave's
+   * pull radius).
    */
   | { type: 'combo'; combo: ComboKind; x: number; y: number; radius: number; heroes: EntityId[] }
   /** A wave-10 boss spawned with a two-lane shield (no damage until two lanes hit within 3 s). */
@@ -561,14 +559,14 @@ export interface MatchReport {
   /** Heart HP when each wave ended (when the next one started; the last: when the match ended). */
   heartAfterWave: number[];
   heroes: HeroReport[];
-  /** Meteor Rain fuses and each wave-10 shield. Reports from before protocol 16 omit it. */
+  /** Combos fired and each wave-10 shield. Reports from before protocol 16 omit it. */
   coop?: CoopReport;
 }
 
 /** Soft-launch hook numbers on a match report. Seconds are match time. */
 export interface CoopReport {
-  /** How many times Arrow Storm and Meteor fused. */
-  meteorRains: number;
+  /** Combos fired, by kind. */
+  combos: Record<ComboKind, number>;
   shields: {
     boss: CreepKind;
     wave: number;

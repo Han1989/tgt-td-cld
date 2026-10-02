@@ -274,9 +274,6 @@ export interface Zone {
   nextPulseTick: number;
   pulseTicks: number;
   done: boolean;
-  /** Impacts already dropped on each lane, and inside the Heart cap, for this rain. */
-  laneStrikes: [number, number, number];
-  heartStrikes: number;
 }
 
 export interface PendingSpawn {
@@ -349,10 +346,13 @@ export interface PracticeState {
   startLevel: number;
 }
 
-/** An ultimate still waiting to fuse. Only Arrow Storm and Meteor combo. */
+/** The three ultimates that combo (Arrow Storm, Meteor and Iron Vow, in pairs). */
+export type UltKind = 'arrowStorm' | 'meteor' | 'ironVow';
+
+/** An ultimate still waiting to fuse. `x`, `y`, `radius`: its circle (Iron Vow: the burst around the Warden). */
 export interface RecentUlt {
   heroId: EntityId;
-  kind: 'arrowStorm' | 'meteor';
+  kind: UltKind;
   x: number;
   y: number;
   radius: number;

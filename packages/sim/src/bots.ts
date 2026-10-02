@@ -83,7 +83,7 @@ const LOOKAHEAD = 3;
 const MIN_GENERAL_TOWERS = 3;
 
 /** Skills that only affect ground creeps (static knowledge, like a player would have). */
-const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W'], arcanist: ['R'] };
+const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: [], arcanist: ['R'] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
@@ -336,9 +336,9 @@ export function createBalanceBot(
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
       const ultReady = later && r.cooldown === 0;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
-      // Iron Vow has no area. The Warden still walks into a pack (the old stun radius) so Cleave and Taunt connect.
-      const ultRadius = r !== undefined && r.radius > 0 ? r.radius : hero.kind === 'warden' ? 3 : 0;
-      const hittable = snap.creeps.filter((c) => ranged || !tuning.creeps[c.kind].flying);
+      // Iron Vow's burst is around the Warden: he walks into a pack so the burst, Cleave and Taunt connect.
+      const ultRadius = r !== undefined ? r.radius : 0;
+      const hittable = snap.creeps;
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
       const group = ultReady
         ? densestGroup(nearPost(SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
@@ -408,18 +408,12 @@ export function createBalanceBot(
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
         if (slot === 'R' && hero.kind === 'warden') {
-          // Global buff: cast when a pack is on the Warden, a boss is close, or it is hurt.
-          const pack = near(5, false).length >= mins.R;
+          // Heals the whole team and bursts around him: cast when a pack is on the Warden, a boss is close,
+          // or he or a teammate is hurt.
+          const pack = near(s.radius, false).length >= mins.R;
           const bossNear = bosses.some((b) => dist(hero.x, hero.y, b.x, b.y) <= 8);
-          if ((pack || bossNear || hpFrac < 0.55) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
-          continue;
-        }
-        if (slot === 'R' && (hero.kind === 'ranger' || hero.kind === 'arcanist')) {
-          // Global rain: no aim point. Cast when the map has a pack or a boss; Meteor skips flyers.
-          const air = hero.kind === 'ranger';
-          const creeps = snap.creeps.filter((c) => air || !tuning.creeps[c.kind].flying);
-          const boss = creeps.some((c) => tuning.creeps[c.kind].boss);
-          if ((boss || creeps.length >= mins.R) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
+          const hurt = snap.heroes.some((h) => h.alive && h.hp / h.maxHp < (h.id === hero.id ? 0.55 : 0.45));
+          if ((pack || bossNear || hurt) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
           continue;
         }
         const ground = GROUND_ONLY[hero.kind].includes(slot);

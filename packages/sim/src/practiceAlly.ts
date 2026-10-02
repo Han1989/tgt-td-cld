@@ -1,15 +1,17 @@
-// Solo Meteor Rain practice: a second hero that learns R, follows you, and casts its own
-// instant R inside the combo window. It only reads snapshots and sends commands.
+// Solo combo practice: a second hero that learns R, follows you, and casts its own R where you cast yours (a Warden
+// walks into the circle first) inside the combo window. It only reads snapshots and sends commands.
 
-import type { Command, EntityId, PlayerId, Snapshot } from '@tdt/protocol';
+import { R_OVERLAP_SECONDS, type Command, type EntityId, type PlayerId, type Snapshot } from '@tdt/protocol';
 import { skillCommand, type Bot } from './bots';
 import { TICK_RATE } from './tuning';
 import { dist } from './vec';
 
-/** The ally casts this long after your ultimate, inside the 2 s combo window. */
+/** The ally casts this long after your ultimate, inside the combo window. */
 const ANSWER_DELAY = 0.5;
-/** It gives up on an answer this long after your cast. */
-const ANSWER_DEADLINE = 1.9;
+/** It gives up on an answer this long after your cast (a Warden may need to walk into the circle). */
+const ANSWER_DEADLINE = R_OVERLAP_SECONDS - 0.5;
+/** A Warden ally casts Iron Vow once it is this close to where you cast (inside every ultimate's circle). */
+const STAND_WITHIN = 1.5;
 const FOLLOW_OFFSET = 1.8;
 const FOLLOW_SLACK = 3.5;
 /** Re-issue a follow order at most this often (ticks). */
@@ -56,8 +58,15 @@ export function createPracticeAlly(allyId: PlayerId, leaderId: PlayerId): Bot {
 
       const r = me.skills.find((s) => s.slot === 'R');
       if (answer && (snap.tick > answer.deadline || !r || r.rank === 0 || r.cooldown > 0)) answer = null;
-      if (answer && snap.tick >= answer.notBefore && r && r.rank > 0 && r.cooldown === 0 && !r.targeted) {
-        cmds.push({ type: 'cast', slot: 'R' });
+      if (answer && snap.tick >= answer.notBefore && r && r.rank > 0 && r.cooldown === 0) {
+        if (r.targeted) {
+          cmds.push({ type: 'cast', slot: 'R', x: answer.x, y: answer.y });
+        } else if (dist(me.x, me.y, answer.x, answer.y) <= STAND_WITHIN) {
+          cmds.push({ type: 'cast', slot: 'R' });
+        } else {
+          cmds.push({ type: 'move', x: answer.x, y: answer.y });
+          return cmds;
+        }
         busyUntil = snap.tick + Math.round(ANSWER_DEADLINE * TICK_RATE);
         answer = null;
         return cmds;
