@@ -21,10 +21,9 @@ describe('snapshot deltas', () => {
           h.ranks.R = 1;
           h.mana = 1_000;
         }
-        // At the heroes' feet, so they cast right away.
-        const [a, , c] = state.heroes;
-        applyCommand(state, 'a', { type: 'cast', slot: 'R', x: a!.x, y: a!.y - 1 });
-        applyCommand(state, 'c', { type: 'cast', slot: 'R', x: c!.x, y: c!.y - 1 });
+        // Instant global rains. Same tick, so they fuse into one Meteor Rain zone.
+        applyCommand(state, 'a', { type: 'cast', slot: 'R' });
+        applyCommand(state, 'c', { type: 'cast', slot: 'R' });
       }
       if (t === 1540) expect(server.zones.length).toBeGreaterThan(0);
       // A leaver's pads open up (pad owners change).

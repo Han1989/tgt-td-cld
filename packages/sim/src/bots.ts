@@ -18,6 +18,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
+import { shieldStandPoint } from './coop';
 import { getMap, type BuildPad } from './map';
 import { tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
@@ -77,7 +78,7 @@ const LOOKAHEAD = 3;
 const MIN_GENERAL_TOWERS = 3;
 
 /** Skills that only affect ground creeps (static knowledge, like a player would have). */
-const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W', 'R'], arcanist: ['R'] };
+const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W'], arcanist: ['R'] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
@@ -289,15 +290,33 @@ export function createBalanceBot(
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
       const ultReady = later && r.cooldown === 0;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
+      // Iron Vow has no area. The Warden still walks into a pack (the old stun radius) so Cleave and Taunt connect.
+      const ultRadius = r !== undefined && r.radius > 0 ? r.radius : hero.kind === 'warden' ? 3 : 0;
       const hittable = snap.creeps.filter((c) => ranged || !tuning.creeps[c.kind].flying);
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
       const group = ultReady
-        ? densestGroup(nearPost(SEEK_RADIUS), r.radius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
+        ? densestGroup(nearPost(SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
         : undefined;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
-      // A melee expert does not walk onto a boss while hurt; it lets the boss come to the post.
-      const diveBoss = bosses[0] && !(expert && !ranged && hpFrac < 0.75) ? bosses[0] : undefined;
+      // A shielded boss takes no damage until two lanes hit it. Standing at the Heart lets it
+      // walk the map, so the tag wins over retreat. A melee expert still will not step onto an
+      // unshielded boss while hurt.
+      const shieldedBoss = bosses.find((b) => b.shield && b.shield !== 'off');
+      // Hurt casual bots otherwise sit on the Heart, and the shielded boss walks the map immune.
+      if (shieldedBoss) retreating = false;
+      const diveBoss = shieldedBoss
+        ? shieldedBoss
+        : bosses[0] && !(expert && !ranged && hpFrac < 0.75)
+          ? bosses[0]
+          : undefined;
       const target = diveBoss ?? straggler ?? group ?? closest;
+      // Wave-10 shield: stand just outside the Mid ribbon so this hit counts as a side lane
+      // while Mid-zone towers count as Mid. Once the shield drops, the usual standoff resumes.
+      const shieldSide: -1 | 1 = snap.players.length >= 3 && botIndex === 2 ? 1 : snap.players.length === 2 && botIndex === 1 ? 1 : -1;
+      const stand =
+        diveBoss && diveBoss.shield && diveBoss.shield !== 'off'
+          ? shieldStandPoint(diveBoss, shieldSide, ranged ? hero.attackRange : hero.attackRange + 1.4)
+          : null;
       const heart = getMap().heroSpawn;
       // Own lane is clear during a surge: walk over and help. A creep near the post keeps the hero home.
       // Swift creeps outrun a hero that leaves its lane. Stay on the post unless the map is quiet.
@@ -310,16 +329,18 @@ export function createBalanceBot(
           : null;
       const goal = retreating
         ? { x: heart.x, y: heart.y + 1 }
-        : target
-          ? standoff(hero, ranged, target, expert ? 0.15 : STANDOFF_MARGIN)
-          : (surgeHelp ?? post);
+        : stand
+          ? stand
+          : target
+            ? standoff(hero, ranged, target, expert ? 0.15 : STANDOFF_MARGIN)
+            : (surgeHelp ?? post);
       const moved = lastGoal === null || dist(goal.x, goal.y, lastGoal.x, lastGoal.y) > 1;
       if (dist(hero.x, hero.y, goal.x, goal.y) > 0.5 && (moved || snap.tick - lastMoveTick > 40)) {
         cmds.push({ type: 'move', x: goal.x, y: goal.y });
         lastGoal = goal;
         lastMoveTick = snap.tick;
       }
-      // The casual bot runs home without casting. The expert still casts (Last Stand, a trap, a shot) on the way.
+      // The casual bot runs home without casting. The expert still casts (Iron Vow, a trap, a shot) on the way.
       if (retreating && !expert) return cmds;
 
       const near = (range: number, ground: boolean): CreepSnap[] =>
@@ -332,6 +353,21 @@ export function createBalanceBot(
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
+        if (slot === 'R' && hero.kind === 'warden') {
+          // Global buff: cast when a pack is on the Warden, a boss is close, or it is hurt.
+          const pack = near(5, false).length >= mins.R;
+          const bossNear = bosses.some((b) => dist(hero.x, hero.y, b.x, b.y) <= 8);
+          if (pack || bossNear || hpFrac < 0.55) cmds.push({ type: 'cast', slot: 'R' });
+          continue;
+        }
+        if (slot === 'R' && (hero.kind === 'ranger' || hero.kind === 'arcanist')) {
+          // Global rain: no aim point. Cast when the map has a pack or a boss; Meteor skips flyers.
+          const air = hero.kind === 'ranger';
+          const creeps = snap.creeps.filter((c) => air || !tuning.creeps[c.kind].flying);
+          const boss = creeps.some((c) => tuning.creeps[c.kind].boss);
+          if (boss || creeps.length >= mins.R) cmds.push({ type: 'cast', slot: 'R' });
+          continue;
+        }
         const ground = GROUND_ONLY[hero.kind].includes(slot);
         const cmd = skillCommand(s, near(Math.max(s.range, s.radius), ground), hero, mins[slot]);
         if (!cmd) continue;
@@ -557,7 +593,7 @@ function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guar
 }
 
 /** A cast of `skill` that catches at least `min` of `creeps`, or null. */
-function skillCommand(skill: SkillSnap, creeps: CreepSnap[], hero: { x: number; y: number }, min: number): Command | null {
+export function skillCommand(skill: SkillSnap, creeps: CreepSnap[], hero: { x: number; y: number }, min: number): Command | null {
   if (!skill.targeted) {
     // Self-centred skills (and Multishot, whose range is its reach).
     const reach = Math.max(skill.range, skill.radius);

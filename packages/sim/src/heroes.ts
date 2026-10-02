@@ -6,6 +6,7 @@ import {
   damageCreep,
   heroCanHit,
   heroDamage,
+  heroHpRegen,
   heroManaRegen,
   heroMaxHp,
   heroMaxMana,
@@ -15,14 +16,21 @@ import {
   emit,
   spawnProjectile,
 } from './combat';
+import { hitFrom } from './coop';
 import { getMap } from './map';
 import { findPath, nearestWalkable } from './pathfinding';
-import { castAtPoint, keenEyeMultiplier, skillInfo } from './skills';
+import { bloodHungerHeal, castAtPoint, keenEyeMultiplier, skillInfo } from './skills';
 import type { Creep, GameState, Hero } from './state';
 import { secondsToTicks, TICK_RATE } from './tuning';
 import { dist, moveToward } from './vec';
 
 const REPATH_TICKS = 10;
+/**
+ * After a `move`, auto-chase stays off this many ticks. The joystick resends about every 2 ticks
+ * (100 ms); 6 ticks covers a dropped resend. `stop` clears it, so letting go engages at once.
+ * A click-to-move that arrives inside the window waits out the rest, then engages.
+ */
+export const DRIVE_HOLD_TICKS = 6;
 
 export function updateHeroes(state: GameState, creepsById: Map<number, Creep>): void {
   for (const hero of state.heroes) updateHero(state, hero, creepsById);
@@ -37,7 +45,7 @@ function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>
   // Any order (the joystick sends moves) ends the idle hero's guard; it starts again where the hero next stops.
   if (hero.order.type !== 'idle') hero.guard = null;
   const s = heroStats(state, hero);
-  hero.hp = Math.min(heroMaxHp(state, hero), hero.hp + s.hpRegen / TICK_RATE);
+  hero.hp = Math.min(heroMaxHp(state, hero), hero.hp + heroHpRegen(state, hero) / TICK_RATE);
   hero.mana = Math.min(heroMaxMana(state, hero), hero.mana + heroManaRegen(state, hero) / TICK_RATE);
   if (hero.attackCd > 0) hero.attackCd--;
   for (const slot of Object.keys(hero.skillCd) as SkillSlot[]) {
@@ -48,13 +56,19 @@ function updateHero(state: GameState, hero: Hero, creepsById: Map<number, Creep>
   const order = hero.order;
   switch (order.type) {
     case 'idle':
-      if (s.ranged) autoAttack(state, hero);
+      // A stick that just finished its step is still held: shoot in range, do not step toward a creep.
+      if (s.ranged || state.tick < hero.drivenUntil) autoAttack(state, hero);
       else autoEngage(state, hero);
       break;
     case 'move':
-      // Heroes shoot the nearest enemy in range while they walk (the path is kept).
+      // Heroes shoot the nearest enemy in range while they walk (the path is kept). No chase.
       autoAttack(state, hero);
-      if (followPath(state, hero)) hero.order = { type: 'idle' };
+      if (hero.path.length === 0) {
+        const dx = order.x - hero.x;
+        const dy = order.y - hero.y;
+        if (dx * dx + dy * dy > 1e-4) hero.facing = Math.atan2(dy, dx);
+      }
+      if (followPath(state, hero) && state.tick >= hero.drivenUntil) hero.order = { type: 'idle' };
       break;
     case 'attack': {
       const target = creepsById.get(order.targetId);
@@ -247,8 +261,9 @@ function tryAttack(state: GameState, hero: Hero, target: Creep): void {
   const mult = keenEyeMultiplier(state, hero, () => random(state));
   const damage = heroDamage(state, hero) * mult;
   if (!s.ranged) {
-    // Melee hits land at once.
-    damageCreep(state, target, damage, s.damageType, hero.owner);
+    // Melee hits land at once. Blood Hunger heals from the damage that actually landed.
+    const dealt = damageCreep(state, target, damage, s.damageType, hero.owner, false, hitFrom(state, hero));
+    bloodHungerHeal(state, hero, dealt);
     return;
   }
   spawnProjectile(state, hero, { kind: 'creep', id: target.id, x: target.x, y: target.y }, {

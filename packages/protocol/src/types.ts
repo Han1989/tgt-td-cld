@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -159,21 +159,39 @@ export interface SurgeNotice {
   lane: LaneId;
 }
 
-/** Lingering or delayed ground effects of hero ultimates. */
-export const ZONE_KINDS = ['arrowStorm', 'meteor'] as const;
+/**
+ * Meteor Rain: Ranger Arrow Storm and Arcanist Meteor are global rains. The second cast
+ * inside `R_OVERLAP_SECONDS` (2 s) fuses both into one denser shared rain. No aim overlap.
+ * The only soft-launch combo. Other hero pairs do not fuse.
+ */
+export const COMBO_KINDS = ['meteorRain'] as const;
+export type ComboKind = (typeof COMBO_KINDS)[number];
+
+/**
+ * A shielded boss (the wave-10 raid beat). `up`: no lane has tagged it in the window.
+ * `left` / `right`: a hit from that side of the boss lit one half (a second lane breaks it).
+ * `off`: broken.
+ */
+export type ShieldState = 'up' | 'left' | 'right' | 'off';
+
+/** Lingering or delayed ground effects of hero ultimates, plus Meteor Rain. */
+export const ZONE_KINDS = ['arrowStorm', 'meteor', 'meteorRain'] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
 /** Area effects of hero skills, for visual feedback. */
 export type AoeEffect =
   | 'cleave'
   | 'taunt'
-  | 'lastStand'
+  /** Warden's Iron Vow: the cast burst. Ally rings use `shielded` / `shieldFor`, not this radius. */
+  | 'ironVow'
   | 'fireball'
   | 'frostNova'
   | 'meteor'
   | 'arrowStorm'
   /** A Blizzard tower's pulse around itself. */
-  | 'blizzard';
+  | 'blizzard'
+  /** One meteor of a Meteor Rain. */
+  | 'meteorRain';
 
 export type DamageType = 'physical' | 'magic';
 
@@ -274,8 +292,17 @@ export interface HeroSnap {
   attackRange: number;
   facing: number;
   stunned: boolean;
-  /** Warden's Last Stand is active (reduced damage taken). */
+  /**
+   * A living hero covered by a Warden's Iron Vow (team armour and regeneration).
+   * True for every living hero while any vow still has time left, including the caster.
+   */
   shielded: boolean;
+  /**
+   * Ticks of Iron Vow still left on this hero (0 when none). The same remaining time
+   * for every living hero: the longest vow still running. Client rings last this long;
+   * armour is the highest active rank and does not stack (see tuning `ironVow`).
+   */
+  shieldFor: number;
 }
 
 export interface CreepSnap {
@@ -291,6 +318,8 @@ export interface CreepSnap {
   armor: number;
   magicResist: number;
   stunned: boolean;
+  /** Wave-10 boss shield. Absent on every other creep. */
+  shield?: ShieldState;
 }
 
 export interface TowerSnap {
@@ -401,6 +430,18 @@ export type GameEvent =
    * (also on the snapshot as `nextSurge`, so a reconnect still sees it).
    */
   | { type: 'surge'; wave: number; lane: LaneId }
+  /**
+   * Arrow Storm and Meteor fused into Meteor Rain. `heroes` is the two casters.
+   * Both rains end; a `meteorRain` zone replaces them (radius 0: global, no aimed circle).
+   * `x` and `y` are the Meteor caster. Impacts are later `aoe` events. No other pair fuses.
+   */
+  | { type: 'combo'; combo: ComboKind; x: number; y: number; radius: number; heroes: EntityId[] }
+  /** A wave-10 boss spawned with a two-lane shield (no damage until two lanes hit within 3 s). */
+  | { type: 'shieldUp'; creepId: EntityId; kind: CreepKind; x: number; y: number }
+  /** A hit lit one half of a shield (`side` of the boss, from `lane`). */
+  | { type: 'shieldHit'; creepId: EntityId; side: 'left' | 'right'; lane: LaneId }
+  /** A shield broke. `lanes` is the two lanes that hit within the window. */
+  | { type: 'shieldBreak'; creepId: EntityId; x: number; y: number; lanes: LaneId[] }
   | { type: 'gameOver'; result: 'victory' | 'defeat' };
 
 export interface Snapshot {
@@ -416,6 +457,11 @@ export interface Snapshot {
   surgeLane: LaneId | null;
   /** The next wave's surge, announced a wave ahead, or null. */
   nextSurge: SurgeNotice | null;
+  /**
+   * Solo Meteor Rain practice, or null. `allyId` is the bot ally (not a team-size player).
+   * Both heroes started at `startLevel` so R can be learned at once.
+   */
+  practice: { allyId: PlayerId; startLevel: number } | null;
   phase: GamePhase;
   heartHp: number;
   heartMaxHp: number;
@@ -515,6 +561,23 @@ export interface MatchReport {
   /** Heart HP when each wave ended (when the next one started; the last: when the match ended). */
   heartAfterWave: number[];
   heroes: HeroReport[];
+  /** Meteor Rain fuses and each wave-10 shield. Reports from before protocol 16 omit it. */
+  coop?: CoopReport;
+}
+
+/** Soft-launch hook numbers on a match report. Seconds are match time. */
+export interface CoopReport {
+  /** How many times Arrow Storm and Meteor fused. */
+  meteorRains: number;
+  shields: {
+    boss: CreepKind;
+    wave: number;
+    /** Seconds from spawn until the shield broke, or null if it never did. */
+    brokeAfter: number | null;
+    /** The two lanes that broke it, or empty. */
+    lanes: LaneId[];
+    end: 'killed' | 'leaked' | 'alive';
+  }[];
 }
 
 /**
@@ -542,6 +605,11 @@ export interface Replay {
   log: ReplayEntry[];
   /** How the match ended; a re-run must end the same way. */
   end: { tick: number; result: GamePhase; wave: number; heartHp: number };
+  /**
+   * Solo Meteor Rain practice. Absent on every other replay (including ones saved before protocol 16).
+   * The ally is also listed in `players`; a re-run must not count them toward team size.
+   */
+  practice?: { allyId: PlayerId; startLevel: number };
 }
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,11 @@ export class LocalTransport implements Transport {
     this.worker.postMessage({ ctl: 'deal', seed, modifiers });
   }
 
+  /** Solo Meteor Rain practice. A worker control, not a protocol message. Online rooms ignore it. */
+  setPractice(on: boolean): void {
+    this.worker.postMessage({ ctl: 'practice', on });
+  }
+
   debug(ctl: 'lose'): void {
     if (import.meta.env.MODE === 'e2e') this.worker.postMessage({ ctl });
   }

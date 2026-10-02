@@ -166,13 +166,20 @@ export interface KeenEyeStats {
   critMultiplier: number[];
 }
 
-/** Ultimate: arrows rain on an area in pulses (ground and air). */
+/**
+ * Ultimate: small arrow impacts over the whole map for a few seconds.
+ * Spots are random along the lanes (creeps and the path), never empty corners.
+ * `laneCap` / `heartCap` stop one rain from dumping every strike on one lane or the Heart.
+ */
 export interface ArrowStormStats extends CooldownSkillStats {
-  castRange: number;
-  radius: number;
   duration: number;
   pulseInterval: number;
-  damagePerPulse: number[];
+  strikeRadius: number;
+  /** Physical damage of one impact, by rank. Hits ground and air. */
+  damage: number[];
+  laneCap: number;
+  heartCap: number;
+  heartRadius: number;
 }
 
 // Warden ---------------------------------------------------------------------
@@ -189,18 +196,21 @@ export interface TauntStats extends ActiveSkillStats {
   duration: number[];
 }
 
-/** Passive: armour for allied heroes (the Warden included) within the radius. */
-export interface BulwarkAuraStats {
-  radius: number;
-  armor: number[];
+/** Passive: a share of auto-attack damage dealt returns as health. */
+export interface BloodHungerStats {
+  /** Fraction of the damage the attack actually dealt (after armour). One entry per rank. */
+  lifesteal: number[];
 }
 
-/** Ultimate: the Warden takes less damage for a while and stuns nearby ground creeps. */
-export interface LastStandStats extends CooldownSkillStats {
+/**
+ * Ultimate: for a short time every living hero gains armour and health regeneration.
+ * Global (no range). Two vows do not stack; the higher rank applies.
+ */
+export interface IronVowStats extends CooldownSkillStats {
   duration: number[];
-  damageReduction: number[];
-  stunRadius: number;
-  stun: number[];
+  armor: number[];
+  /** Extra health per second. */
+  regen: number[];
 }
 
 // Arcanist -------------------------------------------------------------------
@@ -228,13 +238,23 @@ export interface ClarityAuraStats {
   manaRegen: number[];
 }
 
-/** Ultimate: after a delay, a meteor hits ground creeps in an area and stuns them. */
+/**
+ * Ultimate: small meteors over the whole map for a few seconds (ground only).
+ * Same lane and Heart caps as Arrow Storm. A short stun, not one long one.
+ */
 export interface MeteorStats extends CooldownSkillStats {
-  castRange: number;
-  radius: number;
-  delay: number;
+  duration: number;
+  pulseInterval: number;
+  strikeRadius: number;
+  /** Magic damage of one meteor, by rank. */
   damage: number[];
+  /** Stun seconds of one meteor, by rank. */
   stun: number[];
+  laneCap: number;
+  heartCap: number;
+  heartRadius: number;
+  /** Bosses take this multiple of one meteor. Other creeps take `damage`. */
+  bossDamage: number;
 }
 
 /** Base stats shared by every hero. */
@@ -278,9 +298,8 @@ export interface RangerStats extends HeroStats {
 export interface WardenStats extends HeroStats {
   cleave: CleaveStats;
   taunt: TauntStats;
-  /** Armour for heroes and towers within `radius`. */
-  bulwarkAura: BulwarkAuraStats;
-  lastStand: LastStandStats;
+  bloodHunger: BloodHungerStats;
+  ironVow: IronVowStats;
 }
 
 export interface ArcanistStats extends HeroStats {
@@ -399,12 +418,26 @@ export interface ModifierStats {
   goldRush: { gold: number; bounty: number; count: number };
 }
 
+/**
+ * Hard's final wave only. A clear and a boss leak move the Heart by tens of HP in opposite
+ * directions, wider than the 40–80 band, and one HP scalar moves both seeds the same way.
+ * `ceiling`: Heart above this when the wave starts loses the excess (the finale leak grows to match).
+ * `floor`: creep leaks on that wave cannot take the Heart below this. Earlier waves are unchanged.
+ * Normal never reads it. It sits on the Hard scaling, not on a team-size row, so Full and Quick share it.
+ */
+export interface FinaleBrace {
+  ceiling: number;
+  floor: number;
+}
+
 export interface DifficultyScaling extends DifficultyBand {
   /**
    * Per player count (index 0 = solo), used instead of the scalars above. One multiplier cannot put a
    * solo expert and a 3-player team on the same Heart band, so Hard sets a band for each team size.
    */
   byPlayers?: DifficultyBand[];
+  /** Compresses the final wave so a clear and a leak can both land in the Heart band. Hard only. */
+  finaleBrace?: FinaleBrace;
 }
 
 export interface ModeTuning {
@@ -414,6 +447,12 @@ export interface ModeTuning {
   hero?: Partial<Pick<Tuning['hero'], 'xpForLevel'>>;
   /** Hard-only overrides for this match length, merged over `tuning.difficulty.hard`. */
   hard?: Partial<DifficultyScaling>;
+  /**
+   * Full drops the wave-10 shield (`waves: []`). Quick keeps it: that Matriarch is the two-lane beat.
+   * A Full Ironhorn that is immune until two lanes tag it either leaks for 20 or, once bots tag it
+   * at the portal, dies so early the rest of the match walks over.
+   */
+  coop?: { bossShield?: Partial<Tuning['coop']['bossShield']> };
 }
 
 export interface Tuning {
@@ -533,6 +572,39 @@ export interface Tuning {
     warden: WardenStats;
     arcanist: ArcanistStats;
   };
+  /** Soft-launch hook: Meteor Rain and the wave-10 two-lane shield. Always on. */
+  coop: CoopTuning;
+}
+
+/** Meteor Rain and the wave-10 boss shield (`coop.ts`). */
+export interface CoopTuning {
+  /**
+   * Arrow Storm and Meteor fuse when the second is cast this soon after the first.
+   * Both rains are global, so they do not need to overlap in space.
+   */
+  comboWindow: number;
+  /**
+   * The one soft-launch combo: a denser shared rain (more impacts per pulse) for `duration`.
+   * Damage follows the Meteor's rank. Same idea as the two rains: lane path, Heart cap.
+   */
+  meteorRain: {
+    duration: number;
+    pulseInterval: number;
+    /** Impacts each pulse. */
+    strikesPerPulse: number;
+    strikeRadius: number;
+    /** Magic damage per impact, by Meteor rank (1–3). */
+    damage: number[];
+    stun: number;
+    laneCap: number;
+    heartCap: number;
+    heartRadius: number;
+  };
+  /**
+   * Bosses of these wave numbers spawn shielded: no damage until hit from two different lanes
+   * within `window`. Full and Quick both use wave 10 (Ironhorn in Full, Matriarch in Quick).
+   */
+  bossShield: { waves: number[]; window: number; damageTaken: number };
 }
 
 const ALL: LaneId[] = [0, 1, 2];
@@ -605,9 +677,9 @@ export const TUNING: Tuning = {
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
     hp: [1.04, 1.43, 1.46],
-    earlyHpBonus: [0, 0.4, 1.25],
+    earlyHpBonus: [0, 0.46, 1.25],
     earlyWaves: 20,
-    lateHpBonus: [0, 0.2, 0.55],
+    lateHpBonus: [0.08, 0.24, 0.62],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
@@ -765,7 +837,7 @@ export const TUNING: Tuning = {
     },
   },
   modes: {
-    full: {},
+    full: { coop: { bossShield: { waves: [] } } },
     // Quick mode (docs/MOBILE.md §6): 15 waves, about 11 minutes. Wave k plays like Full wave 2k (bosses on
     // waves 5, 10 and 15, air waves on 8 and 13): creep HP and armour grow about twice as fast per wave, and
     // each wave pays about as much as two Full waves. A little more starting gold, and heroes need 60% of the
@@ -795,21 +867,21 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.012, 1.42, 1.6],
+        hp: [1.012, 1.43, 1.6],
         earlyHpBonus: [0, 0.25, 1.2],
         earlyWaves: 10,
-        lateHpBonus: [0, 0.3, 1.15],
+        lateHpBonus: [0, 0.26, 1.4],
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
       // Quick is shorter, so the same Full bands either walk over a 3-player team or cliff a solo seed.
-      // Measured expert hearts (gate seeds): solo 44–78, pairs 51–78 (last third 89% of the loss),
-      // three players 46–68 (37/28/35).
+      // The Hard finale brace (on difficulty.hard, shared with Full) holds the seeds a scalar could not.
       hard: {
         byPlayers: [
           { hp: 1.032, count: 1.06, lateHp: 0.16, lateCount: 0.09, bossHp: 1.02, lateBossHp: 0.04 },
           { hp: 1.048, count: 1.042, lateHp: 0.115, lateCount: 0.04, bossHp: 1.02, lateBossHp: 0.03 },
-          { hp: 1.08, count: 1.1, lateHp: 0.13, lateCount: 0.06, bossHp: 1.03, lateBossHp: 0.04 },
+          // 42–70 Heart. The final-wave strain is what puts the last third at 27% of the Heart lost.
+          { hp: 1.08, count: 1.1, lateHp: 0.09, lateCount: 0.06, bossHp: 1.03, lateBossHp: 0.04, finale: 2 },
         ],
       },
     },
@@ -832,17 +904,19 @@ export const TUNING: Tuning = {
       lateExtra: 0.193,
       magicResist: 0.12,
       finale: 2,
+      // A clean final wave on a full Heart ends at the ceiling. A dump stops at the floor, still inside 40–80.
+      finaleBrace: { ceiling: 80, floor: 48 },
       byPlayers: [
-        // Full solo expert: 41–80 after the final-wave strain (the stuck seed was 82, the floor 43).
+        // Full solo expert. Offsets the solo late bonus (0.08). The finale brace covers ranger seed 3.
         {
-          hp: 1.009, count: 1.029, lateHp: 0.043, lateCount: 0.024, bossHp: 1.026, lateBossHp: 0.02,
-          extra: 0.588, lateExtra: 0.193, magicResist: 0.12, finale: 2,
+          hp: 1.005, count: 1.029, lateHp: 0, lateCount: 0.024, bossHp: 1.026, lateBossHp: 0.02,
+          extra: 0.45, lateExtra: 0.193, magicResist: 0.12, finale: 2,
         },
-        // Full pairs: 41–80, last third 56% of the Heart lost.
+        // Full pairs. The finale brace covers Arcanist+Ranger seed 3 (a final-wave dump that a late-HP cut sends over 80).
         { hp: 1.005, count: 1, lateHp: 0.02, lateCount: 0, bossHp: 1.01, lateBossHp: 0.01, extra: 0.45 },
-        // Full three players: 49–73, loss shares 23/0/77. Ease 2 keeps the first third light.
+        // Full three players: 46–71, first third 32% of the Heart lost, last third 67%.
         {
-          hp: 1, count: 1.06, lateHp: 0.26, lateCount: 0.12, bossHp: 1.01, lateBossHp: 0.035,
+          hp: 1.06, count: 1.06, lateHp: 0.085, lateCount: 0.12, bossHp: 1.01, lateBossHp: 0.035,
           extra: 0.1, lateExtra: 0.15, magicResist: 0.04, ease: 2,
         },
       ],
@@ -857,8 +931,8 @@ export const TUNING: Tuning = {
   surges: { fromWave: 6, period: 9, share: 0.6, trioShare: 0.4, soloShare: 0.34 },
   modifierStats: {
     swift: { speed: 1.15, bounty: 1.1 },
-    ironclad: { every: 80, fromWave: 1 },
-    skyTide: { every: 9, fromWave: 1 },
+    ironclad: { every: 88, fromWave: 1 },
+    skyTide: { every: 11, fromWave: 1 },
     fog: { towerRange: 0.9, xp: 1.2 },
     goldRush: { gold: 1.1, bounty: 1.1, count: 1.06 },
   },
@@ -903,11 +977,13 @@ export const TUNING: Tuning = {
       },
       arrowStorm: {
         cooldown: [60, 55, 50],
-        castRange: 10,
-        radius: 3,
-        duration: 3,
-        pulseInterval: 0.5,
-        damagePerPulse: [25, 37, 50],
+        duration: 3.6,
+        pulseInterval: 0.3,
+        strikeRadius: 1.6,
+        damage: [22, 33, 44],
+        laneCap: 6,
+        heartCap: 4,
+        heartRadius: 4,
       },
     },
     warden: {
@@ -929,16 +1005,14 @@ export const TUNING: Tuning = {
         radius: 4.5,
         duration: [2, 2.5, 3, 3.5],
       },
-      bulwarkAura: {
-        radius: 8,
-        armor: [2, 4, 6, 8],
+      bloodHunger: {
+        lifesteal: [0.15, 0.22, 0.3, 0.38],
       },
-      lastStand: {
+      ironVow: {
         cooldown: [70, 65, 60],
         duration: [6, 7, 8],
-        damageReduction: [0.4, 0.5, 0.6],
-        stunRadius: 3,
-        stun: [1.25, 1.75, 2.25],
+        armor: [5, 8, 11],
+        regen: [5, 7, 10],
       },
     },
     arcanist: {
@@ -971,17 +1045,37 @@ export const TUNING: Tuning = {
       },
       meteor: {
         cooldown: [60, 55, 50],
-        castRange: 9,
-        radius: 3,
-        delay: 1.2,
-        damage: [200, 300, 400],
-        stun: [1, 1.5, 2],
+        duration: 3.2,
+        pulseInterval: 0.4,
+        strikeRadius: 1.6,
+        damage: [40, 58, 76],
+        stun: [0.35, 0.45, 0.55],
+        laneCap: 5,
+        heartCap: 3,
+        heartRadius: 4,
+        bossDamage: 2,
       },
     },
   },
+  coop: {
+    comboWindow: 2,
+    meteorRain: {
+      duration: 3.6,
+      pulseInterval: 0.3,
+      strikesPerPulse: 2,
+      strikeRadius: 1.5,
+      // A dense lane can take more than one Meteor (laneCap × damage). The Heart pocket stays small.
+      damage: [24, 36, 48],
+      stun: 0.3,
+      laneCap: 8,
+      heartCap: 4,
+      heartRadius: 4,
+    },
+    bossShield: { waves: [10], window: 3, damageTaken: 0 },
+  },
 };
 
-/** `tuning` with the changes of `mode` applied (Full mode changes nothing). */
+/** `tuning` with the changes of `mode` applied. Full drops the wave-10 shield; Quick keeps it. */
 export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
   const m = tuning.modes[mode];
   return {
@@ -990,6 +1084,11 @@ export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
     waves: { ...tuning.waves, ...m.waves },
     playerScaling: { ...tuning.playerScaling, ...m.playerScaling },
     hero: { ...tuning.hero, ...m.hero },
+    coop: {
+      ...tuning.coop,
+      ...m.coop,
+      bossShield: { ...tuning.coop.bossShield, ...m.coop?.bossShield },
+    },
   };
 }
 

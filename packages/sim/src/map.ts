@@ -90,6 +90,8 @@ export interface GameMap {
   heart: Vec2;
   heroSpawn: Vec2;
   safeFromY: number;
+  /** Tiles: a point this close to a lane centre line is standing on that lane. */
+  laneHalfWidth: number;
 }
 
 let cached: GameMap | null = null;
@@ -214,5 +216,6 @@ export function buildMap(data: MapData): GameMap {
     heart: { ...heart },
     heroSpawn: { ...data.heroSpawn },
     safeFromY: data.safeFromY,
+    laneHalfWidth: data.laneHalfWidth,
   };
 }

@@ -7,6 +7,7 @@ import { speedFactor } from './modifiers';
 import { getMap } from './map';
 import type { Creep, GameState, Hero, Tower } from './state';
 import { secondsToTicks, TICK_RATE } from './tuning';
+import { bracedLeakDamage } from './waves';
 import { dist, moveToward } from './vec';
 
 export function updateCreeps(state: GameState): void {
@@ -110,7 +111,7 @@ function updateRemaining(c: Creep): void {
 }
 
 function leak(state: GameState, c: Creep): void {
-  const damage = state.tuning.creeps[c.kind].leakDamage;
+  const damage = bracedLeakDamage(state, state.tuning.creeps[c.kind].leakDamage);
   c.dead = true;
   state.heartHp = Math.max(0, state.heartHp - damage);
   emit(state, { type: 'leak', creepId: c.id, damage, lane: c.lane });

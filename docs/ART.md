@@ -208,7 +208,7 @@ Keep these meanings:
 | Slow / frost | `#8fd3ff`, `#bfeaff`, Frost Nova `#9fe3ff`, Blizzard `#cff4ff` | `COLORS.slow`, ICE, `AOE_COLORS` |
 | Root / snare | `#c8a165` | `COLORS.root`, `RL.snare` (the trap ring) |
 | Stun | `#ffe066` | `COLORS.stun` |
-| Shield / Last Stand | `#ffd24a` | `COLORS.shield`, `AOE_COLORS.lastStand` |
+| Shield / Iron Vow | `#ffd24a` | `COLORS.shield`, `AOE_COLORS.ironVow` |
 | Fire (Fireball, Meteor) | `#ff8a3d`, `#ff5a1f` | `AOE_COLORS`, `ZONE_COLORS` |
 | Ranger skills (Multishot, Arrow Storm) | `#e6ff7a` | `PROJECTILE_COLORS.multishot`, `ZONE_COLORS.arrowStorm` |
 | Portals, enemy magic | `#8a4fe0`, Wisp `#b98cff` | `COLORS.portal` = `RL.portal`, `CREEP_COLORS.wisp` = `RL.wisp` (its hit sparks and death burst match its art) |

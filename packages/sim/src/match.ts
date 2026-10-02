@@ -13,7 +13,10 @@ import {
   PROTOCOL_VERSION,
   R_OVERLAP_SECONDS,
   type Command,
+  type CoopReport,
+  type CreepKind,
   type HeroReport,
+  type LaneId,
   type MatchReport,
   type PlayerId,
   type Replay,
@@ -48,6 +51,16 @@ interface HeroTrack {
   goldReceived: number;
 }
 
+interface ShieldTrack {
+  creepId: number;
+  boss: CreepKind;
+  wave: number;
+  spawnTick: number;
+  brokeTick: number | null;
+  lanes: LaneId[];
+  end: 'killed' | 'leaked' | 'alive';
+}
+
 export interface Match {
   seed: number;
   /** The host's build (git commit or 'dev'), stamped into the report and the replay. */
@@ -56,6 +69,8 @@ export interface Match {
   log: ReplayEntry[];
   heartAfterWave: number[];
   heroes: HeroTrack[];
+  meteorRains: number;
+  shields: ShieldTrack[];
 }
 
 /** `build` is the host's build (its git commit, or 'dev'): the sim only carries it into the report and replay. */
@@ -82,6 +97,8 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       goldGifted: 0,
       goldReceived: 0,
     })),
+    meteorRains: 0,
+    shields: [],
   };
 }
 
@@ -165,6 +182,27 @@ export function matchStep(match: Match): void {
         t.casts[e.slot]++;
         if (e.slot === 'R') t.rTicks.push(state.tick);
       }
+    } else if (e.type === 'combo' && e.combo === 'meteorRain') {
+      match.meteorRains++;
+    } else if (e.type === 'shieldUp') {
+      match.shields.push({
+        creepId: e.creepId,
+        boss: e.kind,
+        wave: state.wave,
+        spawnTick: state.tick,
+        brokeTick: null,
+        lanes: [],
+        end: 'alive',
+      });
+    } else if (e.type === 'shieldBreak') {
+      const shield = match.shields.find((s) => s.creepId === e.creepId);
+      if (shield) {
+        shield.brokeTick = state.tick;
+        shield.lanes = [...e.lanes];
+      }
+    } else if (e.type === 'kill' || e.type === 'leak') {
+      const shield = match.shields.find((s) => s.creepId === e.creepId && s.end === 'alive');
+      if (shield) shield.end = e.type === 'kill' ? 'killed' : 'leaked';
     } else if (e.type === 'gift') {
       const from = match.heroes[state.players.findIndex((p) => p.id === e.from)];
       const to = match.heroes[state.players.findIndex((p) => p.id === e.to)];
@@ -228,6 +266,20 @@ export function matchReport(match: Match): MatchReport {
     heartMaxHp: state.tuning.heart.maxHp,
     heartAfterWave: match.heartAfterWave.slice(),
     heroes,
+    coop: coopReport(match),
+  };
+}
+
+function coopReport(match: Match): CoopReport {
+  return {
+    meteorRains: match.meteorRains,
+    shields: match.shields.map((s) => ({
+      boss: s.boss,
+      wave: s.wave,
+      brokeAfter: s.brokeTick === null ? null : (s.brokeTick - s.spawnTick) / TICK_RATE,
+      lanes: s.lanes.slice(),
+      end: s.end,
+    })),
   };
 }
 
@@ -245,6 +297,7 @@ export function matchReplay(match: Match): Replay {
     players: state.players.map((p) => ({ id: p.id, name: p.name, hero: state.heroes.find((h) => h.id === p.heroId)!.kind })),
     log: match.log.slice(),
     end: { tick: state.tick, result: state.phase, wave: state.wave, heartHp: state.heartHp },
+    ...(state.practice ? { practice: { allyId: state.practice.allyId, startLevel: state.practice.startLevel } } : {}),
   };
 }
 
@@ -253,12 +306,18 @@ export function matchReplay(match: Match): Replay {
  * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry.
  */
 export function replayMatch(replay: Replay, tuning?: Tuning): Match {
+  const practice = replay.practice;
+  const ally = practice ? replay.players.find((p) => p.id === practice.allyId) : undefined;
+  const players = practice ? replay.players.filter((p) => p.id !== practice.allyId) : replay.players;
   const match = createMatch(
     {
-      players: replay.players,
+      players,
       mode: replay.mode,
       difficulty: replay.difficulty ?? 'normal',
       modifiers: replayModifiersProblem(replay.modifiers) ? [] : normalizeModifiers(replay.modifiers),
+      ...(practice && ally
+        ? { practice: { allyId: practice.allyId, allyHero: ally.hero, allyName: ally.name, startLevel: practice.startLevel } }
+        : {}),
       ...(tuning ? { tuning } : {}),
     },
     replay.seed,
@@ -293,6 +352,13 @@ export function replayProblem(data: unknown): string | null {
   if (!GAME_MODES.includes(r.mode as never)) return 'bad mode';
   if (r.difficulty !== undefined && !DIFFICULTIES.includes(r.difficulty as never)) return 'bad difficulty';
   if (r.modifiers !== undefined && replayModifiersProblem(r.modifiers)) return 'bad modifiers';
+  if (r.practice !== undefined) {
+    const p = r.practice;
+    if (typeof p !== 'object' || p === null || typeof p.allyId !== 'string' || typeof p.startLevel !== 'number') {
+      return 'bad practice';
+    }
+    if (!Array.isArray(r.players) || !r.players.some((player) => player?.id === p.allyId)) return 'practice ally missing';
+  }
   if (!Array.isArray(r.players) || r.players.length === 0) return 'no players';
   for (const p of r.players) {
     if (typeof p?.id !== 'string' || typeof p.name !== 'string' || !HERO_KINDS.includes(p.hero)) return 'bad player';

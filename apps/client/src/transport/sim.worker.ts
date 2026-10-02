@@ -26,7 +26,7 @@ let next = performance.now() + TICK_MS;
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; seed?: unknown; modifiers?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; on?: unknown; seed?: unknown; modifiers?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
     next = performance.now() + TICK_MS;
@@ -38,9 +38,13 @@ ctx.onmessage = (e) => {
     tuning.economy.startingGold = 5000;
     // Modes may override starting gold (Quick does); the lab gives every mode the same.
     for (const m of Object.values(tuning.modes)) if (m.economy?.startingGold !== undefined) m.economy.startingGold = 5000;
-    // `?lab&auras`: heroes start with their passive (E) learned, so auras can be tested at once.
+    // `?lab&auras`: heroes start with their passive (E) learned.
     if (data.auras === true) tuning.hero.startingSkills = ['Q', 'W', 'E'];
     host.tuning = tuning;
+    return;
+  }
+  if (data && typeof data === 'object' && data.ctl === 'practice' && typeof data.on === 'boolean') {
+    host.setPractice(data.on);
     return;
   }
   if (data && typeof data === 'object' && data.ctl === 'deal' && typeof data.seed === 'number' && Array.isArray(data.modifiers)) {

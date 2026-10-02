@@ -582,7 +582,7 @@ export const SOUNDS = {
   'warden.W': sfx(0.5, 150, 2, 1, {
     layers: [...drum(130, 0.25, 0.9, 0, { skin: 0.8 }), ...steel(760, 0.3, 0.5, 0), ...drum(130, 0.25, 0.8, 0.14, { skin: 0.8 }), ...horn(A2, 0.3, 0.6, 0.2)],
   }),
-  /** Last Stand: a great gong and a war drum. */
+  /** Iron Vow: a great gong and a war drum. */
   'warden.R': sfx(0.62, 300, 1, 1, {
     layers: [...gong(hz(D3) * 0.75, 3, 1, 0), ...drum(50, 0.9, 0.9, 0, { skin: 0.35, shell: 0.7 }), ...guzheng(D5, 1.6, 0.35, 0.12, { vib: 0.006 })],
   }, { wet: 0.3 }),

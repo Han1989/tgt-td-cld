@@ -187,6 +187,8 @@ export class Hud {
   private readonly matchFlags = $('match-flags');
   /** Last modifiers + surge text drawn into `#match-flags`, so a tick does not rebuild it. */
   private flagsKey = '';
+  /** Practice toast already shown for this match. */
+  private practiceNoted = false;
   /** The pre-wave modifier banner has been shown for this match. */
   private modifiersAnnounced = false;
   private laneRoleTimer = 0;
@@ -348,6 +350,10 @@ export class Hud {
     if (hero) this.updateHero(hero, snap.tickRate);
     this.updateMenus(snap, me, player?.gold ?? 0);
 
+    if (snap.practice && !this.practiceNoted) {
+      this.practiceNoted = true;
+      this.toast('Practice: learn R, then cast it — your ally answers');
+    }
     this.updateTeam(snap, me);
     this.updateNotice();
 
@@ -515,7 +521,15 @@ export class Hud {
 
   handleEvents(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
     for (const e of events) {
-      if (e.type === 'rejected' && e.player === me) {
+      if (e.type === 'combo' && e.combo === 'meteorRain') {
+        this.toast('Meteor Rain!');
+      } else if (e.type === 'shieldUp') {
+        this.toast('Shield — hit it from two lanes');
+      } else if (e.type === 'shieldHit') {
+        this.toast('Shield lit — another lane');
+      } else if (e.type === 'shieldBreak') {
+        this.toast('Shield down');
+      } else if (e.type === 'rejected' && e.player === me) {
         this.toast(e.reason);
       } else if (e.type === 'waveStart') {
         const waves = tuningForMode(TUNING, snap.mode).waves.list;
@@ -636,6 +650,7 @@ export class Hud {
     this.renderGifts(null);
     this.flagsKey = '';
     this.modifiersAnnounced = false;
+    this.practiceNoted = false;
     this.matchFlags.classList.add('hidden');
     this.matchFlags.replaceChildren();
   }
