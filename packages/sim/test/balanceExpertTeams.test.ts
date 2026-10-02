@@ -4,7 +4,7 @@ import type { HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createExpertBot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
-import { BALANCE_SEEDS, expectTeamCurve, HEART_TARGET, PAIRS, TEAM_OF_3 } from './helpers';
+import { BALANCE_SEEDS, expectTeamCurve, EXPERT_NORMAL_MIN, HARD_TARGET, PAIRS, TEAM_OF_3 } from './helpers';
 
 const TIMEOUT = 120_000;
 
@@ -17,23 +17,23 @@ describe('expert bot (Full mode, teams)', () => {
   const hard: Record<number, HeadlessResult[]> = { 2: [], 3: [] };
 
   it.each(pairs)(
-    'on Normal a %s + %s pair wins all 30 waves with at least 80 Heart HP (seed %i)',
+    'on Normal a %s + %s pair wins all 30 waves with at least 85 Heart HP (seed %i)',
     (a, b, seed) => {
       const result = runHeadlessMatch({ bots: bots([a, b]), heroes: [a, b], seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(80);
+      expect(result.heartHp).toBeGreaterThanOrEqual(EXPERT_NORMAL_MIN);
     },
     TIMEOUT,
   );
 
   it.each(BALANCE_SEEDS)(
-    'on Normal three experts win all 30 waves with at least 80 Heart HP (seed %i)',
+    'on Normal three experts win all 30 waves with at least 85 Heart HP (seed %i)',
     (seed) => {
       const result = runHeadlessMatch({ bots: bots(TEAM_OF_3), heroes: TEAM_OF_3, seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(80);
+      expect(result.heartHp).toBeGreaterThanOrEqual(EXPERT_NORMAL_MIN);
     },
     TIMEOUT,
   );
@@ -45,8 +45,8 @@ describe('expert bot (Full mode, teams)', () => {
       hard[2]!.push(result);
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+      expect(result.heartHp).toBeGreaterThanOrEqual(HARD_TARGET.min);
+      expect(result.heartHp).toBeLessThanOrEqual(HARD_TARGET.max);
     },
     TIMEOUT,
   );
@@ -58,8 +58,8 @@ describe('expert bot (Full mode, teams)', () => {
       hard[3]!.push(result);
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+      expect(result.heartHp).toBeGreaterThanOrEqual(HARD_TARGET.min);
+      expect(result.heartHp).toBeLessThanOrEqual(HARD_TARGET.max);
     },
     TIMEOUT,
   );
