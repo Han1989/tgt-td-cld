@@ -335,7 +335,7 @@ describe('hero commands', () => {
     });
     cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'E' } });
     await guest!.waitFor(() => rejected('Passive skill'));
-    cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'R' } });
+    cmd({ t: 'cmd', cmd: { type: 'cast', slot: 'R', x: hero.x, y: hero.y - 3 } });
     await guest!.waitFor(() => (guest!.snap?.zones.length ?? 0) > 0);
     expect(guest!.snap!.zones[0]).toMatchObject({ kind: 'meteor' });
   });

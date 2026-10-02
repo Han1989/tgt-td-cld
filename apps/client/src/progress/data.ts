@@ -707,7 +707,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '2 Oct 2026',
-  protocol: 16,
+  protocol: 17,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'Gate 2',

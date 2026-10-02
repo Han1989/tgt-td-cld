@@ -24,7 +24,7 @@ describe('progress dashboard data', () => {
   });
 
   it('seeds protocol 16, a finished polish path, and Gate 2 as next', () => {
-    expect(PROGRESS.protocol).toBe(16);
+    expect(PROGRESS.protocol).toBe(17);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -35,7 +35,7 @@ describe('progress dashboard data', () => {
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
     expect(summary.hanOpen).toBe(9);
-    expect(summary.inProgress).toBe(0);
+    expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -128,13 +128,13 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('Gate 2');
-    expect(summary).toContain('16');
+    expect(summary).toContain('17');
     expect(summary).toContain('Complete');
   });
 
   it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
-    expect(cookingNow(PROGRESS)).toEqual([]);
-    const empty = renderCooking(PROGRESS);
+    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['SL-05']);
+    const empty = renderCooking({ ...PROGRESS, items: PROGRESS.items.filter((item) => item.status !== 'in_progress') });
     expect(empty).toContain('Cooking now');
     expect(empty).toContain('Nothing is marked in progress.');
     expect(empty).toContain('Ops Dashboard');
@@ -165,7 +165,7 @@ describe('progress dashboard data', () => {
         ...PROGRESS.items,
       ],
     };
-    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9']);
+    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'SL-05']);
     const html = renderCooking(flying);
     expect(html).toContain('Z-9');
     expect(html).toContain('data-status="in_progress"');
