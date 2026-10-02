@@ -2041,6 +2041,16 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   color: #f4f8ff;
 }
 
+/* The Wisps note is one sentence of teaching. Solid, so it reads over a lane. */
+.tutorial.air {
+  background: rgba(14, 16, 24, 0.9);
+  border-color: rgba(207, 230, 255, 0.7);
+}
+
+.tutorial.air p {
+  font-size: 14px;
+}
+
 .tutorial-kicker {
   margin-bottom: 1px;
   font-size: 10px;

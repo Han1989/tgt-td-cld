@@ -69,6 +69,7 @@ export class TutorialCoach {
   /** Starts (or restarts) the lesson at Move. The early steps take the card back from the Wisps note. */
   begin(): void {
     this.air = 'off';
+    this.root.classList.remove('air');
     this.active = true;
     this.run = freshTutorial();
     this.heroKind = null;
@@ -82,6 +83,7 @@ export class TutorialCoach {
     this.run = null;
     this.air = 'off';
     this.rendered = '';
+    this.root.classList.remove('air');
     this.root.classList.add('hidden');
   }
 
@@ -167,7 +169,7 @@ export class TutorialCoach {
     if (!run) return;
     const prompt = tutorialPrompt(run.step, this.input(), this.heroKind, this.wave);
     const key = `${run.step}|${prompt.body}|${prompt.next}|${prompt.skip}`;
-    this.root.classList.remove('hidden');
+    this.root.classList.remove('hidden', 'air');
     if (key === this.rendered) return;
     this.rendered = key;
     this.kicker.textContent = prompt.kicker;
@@ -182,6 +184,7 @@ export class TutorialCoach {
     const prompt = airPrompt(hero);
     const key = `air|${prompt.body}`;
     this.root.classList.remove('hidden');
+    this.root.classList.add('air');
     if (key === this.rendered) return;
     this.rendered = key;
     this.kicker.textContent = prompt.kicker;
@@ -195,6 +198,7 @@ export class TutorialCoach {
   private hideAir(): void {
     this.air = 'off';
     this.rendered = '';
+    this.root.classList.remove('air');
     this.root.classList.add('hidden');
   }
 

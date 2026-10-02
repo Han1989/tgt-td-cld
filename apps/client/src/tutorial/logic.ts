@@ -283,8 +283,8 @@ export function airPrompt(hero: HeroKind | null): TutorialPrompt {
     kicker: 'Lesson',
     title: 'Wisps fly',
     body: ranged
-      ? 'Wisps fly over Cannon. Arrow, Frost, Arcane and Flak hit them, and so do your shots. Each one wears a wing mark.'
-      : 'Wisps fly, and your swings cannot reach them. Arrow, Frost, Arcane and Flak can. Each one wears a wing mark.',
+      ? 'Cannon cannot hit Wisps. Arrow, Frost, Arcane and Flak can, and so can your shots. Each one wears a wing mark.'
+      : 'Your swings cannot reach Wisps. Arrow, Frost, Arcane and Flak can. Each one wears a wing mark.',
     next: 'Got it',
     skip: false,
   };

@@ -134,9 +134,9 @@ describe('anti-air teaching', () => {
 
   it('tells a ranged hero their shots hit, and a Warden that swings do not', () => {
     expect(airPrompt('ranger').title).toBe('Wisps fly');
+    expect(airPrompt('ranger').body).toContain('Cannon cannot hit');
     expect(airPrompt('ranger').body).toContain('your shots');
     expect(airPrompt('ranger').body).toContain('wing mark');
-    expect(airPrompt('ranger').body).toContain('Cannon');
     expect(airPrompt('arcanist').next).toBe('Got it');
     expect(airPrompt('arcanist').skip).toBe(false);
     expect(airPrompt('warden').body).toContain('swings cannot reach');
