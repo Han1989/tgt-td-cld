@@ -23,7 +23,7 @@ import type { Transport } from './transport/transport';
 const KINDS: CreepKind[] = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'grunt', 'hatchling'];
 const PLAYER = 'local';
 /** Skill effects the scene cycles through, one every 1.5 s. */
-const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'ironVow', 'arrowStorm'];
+const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'ironVow', 'arrowStorm', 'meteorRain'];
 
 export class StressTransport implements Transport {
   private handlers: ((msg: ServerMessage) => void)[] = [];
@@ -102,7 +102,9 @@ export class StressTransport implements Transport {
         });
       }
     });
-    return { ...this.base, tick: t, creeps, projectiles, zones: this.zones(t), events: this.events(t, creeps), nextWaveIn: 600 };
+    // The hero wears an Iron Vow ring all the time, so its sprites are part of the load.
+    const heroes = this.base.heroes.map((h) => ({ ...h, shielded: true, shieldFor: 100 }));
+    return { ...this.base, tick: t, creeps, projectiles, heroes, zones: this.zones(t), events: this.events(t, creeps), nextWaveIn: 600 };
   }
 
   /**
@@ -137,17 +139,23 @@ export class StressTransport implements Transport {
     return events;
   }
 
-  /** An Arrow Storm that never ends, and a Meteor that lands every 2 s. */
+  /**
+   * An Arrow Storm that never ends, a Meteor that lands every 2 s, and a global Meteor Rain (radius 0, as the sim
+   * sends rains) that runs 3.6 s of every 6.
+   */
   private zones(t: number): ZoneSnap[] {
     const map = getMap();
     const mid = map.lanes[1]!.waypoints;
     const a = mid[Math.floor(mid.length / 2)]!;
     const b = map.lanes[0]!.waypoints[1]!;
     const start = t - (t % 40);
-    return [
+    const rainStart = t - (t % 120);
+    const zones: ZoneSnap[] = [
       { id: 900_000, kind: 'arrowStorm', x: a.x, y: a.y, radius: 3, startTick: 0, endTick: 1_000_000 },
       { id: 900_001 + start, kind: 'meteor', x: b.x, y: b.y + 4, radius: 3, startTick: start, endTick: start + 24 },
     ];
+    if (t - rainStart <= 72) zones.push({ id: 800_000 + rainStart, kind: 'meteorRain', x: a.x, y: a.y, radius: 0, startTick: rainStart, endTick: rainStart + 72 });
+    return zones;
   }
 
   send(_msg: ClientMessage): void {
