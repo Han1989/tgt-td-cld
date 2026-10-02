@@ -97,10 +97,10 @@ export interface SyncRibbon {
 }
 
 /** What the fuse ribbon says for each combo: the new rain's name, and the skills that went into it. */
-export const FUSE_COPY: Record<ComboKind, { word: string; kicker: string }> = {
-  meteorRain: { word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor' },
-  stunStorm: { word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm' },
-  shockwave: { word: 'Shockwave', kicker: 'Meteor + Iron Vow' },
+export const FUSE_COPY: Record<ComboKind, { word: string; kicker: string; effect: string }> = {
+  meteorRain: { word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor', effect: 'Denser rain · stuns' },
+  stunStorm: { word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm', effect: 'Harder arrows · stuns' },
+  shockwave: { word: 'Shockwave', kicker: 'Meteor + Iron Vow', effect: 'Pulls creeps in · harder hit' },
 };
 
 /**
@@ -115,6 +115,8 @@ export interface FuseBeat {
   spots: { heroId: number; by: PlayerId; x: number; y: number }[];
   word: string;
   kicker: string;
+  /** What the combo does, in a few words, under the name. */
+  effect: string;
 }
 
 /** A creep reached the Heart. */

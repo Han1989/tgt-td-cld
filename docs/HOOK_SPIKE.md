@@ -50,4 +50,4 @@ A replay recorded before this version will not end on the same Heart (the kits a
 
 ## What is still later
 
-Pressure plates and a weekly raid boss. These stay Phase 6c. `p6c-combos` is done for the three hero pairs; presentation of Stun Storm and Shockwave is a separate pass.
+Pressure plates and a weekly raid boss. These stay Phase 6c. `p6c-combos` is done for the three hero pairs; the presentation of Stun Storm and Shockwave (their own colours, strikes and ribbon, and a kill count after every rain) is done (P2-04, client only).

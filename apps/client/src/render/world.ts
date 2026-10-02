@@ -13,6 +13,7 @@
 
 import {
   isBossKind,
+  type ComboKind,
   type CreepKind,
   type CreepSnap,
   type GameEvent,
@@ -533,11 +534,19 @@ export class WorldRenderer {
   }
 
   /**
-   * Arrow Storm and Meteor fused (`combo`): a fire burst where the fused rain is marked and at each caster. The
+   * Two rains fused (`combo`): a burst in the combo's colour where the fused rain is marked and at each caster. The
    * DOM ribbon (`CoopStage.fuse`) and the twin ribbon are separate. Client-only.
    */
-  fuseBurst(x: number, y: number, casters: readonly { x: number; y: number }[]): void {
-    this.fx.rainFuse(x, y, casters);
+  fuseBurst(combo: ComboKind, x: number, y: number, casters: readonly { x: number; y: number }[]): void {
+    this.fx.rainFuse(combo, x, y, casters);
+  }
+
+  /**
+   * What a finished rain or combo killed: a short floating count where it was cast, in the seat colour of its
+   * first caster (gold when the snapshot no longer lists them). Always shown, also at Low quality and when calm.
+   */
+  rainCount(x: number, y: number, text: string, color: number): void {
+    this.fx.label(x, y - 1.2, text, color, 20, true);
   }
 
   /**
@@ -776,10 +785,8 @@ export class WorldRenderer {
         fx.rainImpact(effect, x, y, radius);
         break;
       case 'stunStorm':
-        fx.rainImpact('arrowStorm', x, y, radius);
-        break;
       case 'shockwave':
-        fx.rainImpact('meteor', x, y, radius);
+        fx.comboImpact(effect, x, y, radius);
         break;
       case 'blizzard': {
         fx.blizzardPulse(x, y, radius);

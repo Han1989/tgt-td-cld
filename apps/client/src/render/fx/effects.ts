@@ -8,7 +8,8 @@
 // the "essential" effects — rings, flashes and a few numbers — and drops the rest.
 
 import { Container, Particle, ParticleContainer, type Texture } from 'pixi.js';
-import { TILE_PX } from '@tdt/sim';
+import { TILE_PX, TUNING } from '@tdt/sim';
+import type { ComboKind } from '@tdt/protocol';
 import type { FxLevel } from '../quality';
 import { DISC_PX, GLYPH_PX, RING_PX, type FxAtlas, type FxFrame } from './atlas';
 import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
@@ -1091,15 +1092,51 @@ export class Effects {
   }
 
   /**
+   * One strike of a Stun Storm or a Shockwave: the Arrow Storm's or the Meteor's fall, then its own mark on top, so
+   * the combos read apart from the rains they are made of. Stun Storm: a violet ring and a few stun stars (the
+   * strike stuns). Shockwave: a gold band at the pull radius, since every impact first drags the creeps around it
+   * together. Rings and flashes are essential; the stars go under Low quality and reduced motion.
+   */
+  comboImpact(combo: 'stunStorm' | 'shockwave', x: number, y: number, radius: number): void {
+    this.rainImpact(combo === 'stunStorm' ? 'arrowStorm' : 'meteor', x, y, radius);
+    const color = ZONE_COLORS[combo];
+    if (combo === 'stunStorm') {
+      this.ring(x, y, radius * 1.15, color, 420, 0.3);
+      this.flash(x, y, radius * 0.9, color, 220, 0.6);
+    } else {
+      this.ring(x, y, TUNING.coop.shockwave.pullRadius, color, 520, 0.2, 'shock');
+      this.flash(x, y, radius, color, 260, 0.55);
+    }
+    if (!this.particles || this.calm) return;
+    this.emit({
+      frame: combo === 'stunStorm' ? 'spark' : 'dot',
+      x: x * S,
+      y: y * S,
+      count: combo === 'stunStorm' ? 4 : 5,
+      spread: radius * S * 0.5,
+      speed: [30, 90],
+      drag: 2,
+      gravity: -30,
+      life: [420, 720],
+      scale: [0.8, 0.15],
+      tint: [color, FX.goldLight],
+      layer: 'add',
+    });
+  }
+
+  /**
    * Arrow Storm and Meteor fused into Meteor Rain: a wide ring and a flash in the rain's colour where the fused
    * rain is marked (`x`, `y`: the Meteor caster) and a smaller pair at each caster in `casters`, so both halves
    * read as going in. Rings and flashes are essential and stay under reduced motion; the embers go. No shake: the
    * twin ribbon owns that.
    */
-  rainFuse(x: number, y: number, casters: readonly { x: number; y: number }[]): void {
-    const fire = ZONE_COLORS.meteorRain;
-    this.ring(x, y, 3.6, fire, 780, 0.1, 'shock');
-    this.ring(x, y, 2, AOE_COLORS.meteorRain, 560, 0.2);
+  rainFuse(combo: ComboKind, x: number, y: number, casters: readonly { x: number; y: number }[]): void {
+    const fire = ZONE_COLORS[combo];
+    // Each combo has its own colour (fire, violet, gold) and its own first ring: Stun Storm's is wide and thin, the
+    // Shockwave's is a double band, so the three read apart before the ribbon is read.
+    this.ring(x, y, 3.6, fire, 780, combo === 'shockwave' ? 0.25 : 0.1, 'shock');
+    if (combo === 'shockwave') this.ring(x, y, 5.2, FX.goldLight, 900, 0.1, 'shock');
+    this.ring(x, y, 2, AOE_COLORS[combo], 560, 0.2);
     this.flash(x, y, 2.6, fire, 640, 0.8);
     for (const c of casters) {
       this.ring(c.x, c.y, 1.7, fire, 560, 0.2);
@@ -1116,7 +1153,7 @@ export class Effects {
       gravity: -150,
       life: [600, 1000],
       scale: [0.7 * this.bitScale, 0.1],
-      tint: [FX.emberLight, fire, FX.hot],
+      tint: combo === 'meteorRain' ? [FX.emberLight, fire, FX.hot] : [FX.hot, fire, FX.goldLight],
       layer: 'add',
     });
   }

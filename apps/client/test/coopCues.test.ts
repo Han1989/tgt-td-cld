@@ -160,6 +160,7 @@ describe('coop presentation cues', () => {
       ],
       word: 'Meteor Rain',
       kicker: 'Arrow Storm + Meteor',
+      effect: FUSE_COPY.meteorRain.effect,
     });
     // The order is the event's (the earlier cast first), not the roster's.
     const swapped = feed(emptyCues(), [{ ...combo, heroes: [2, 1] }], 0);
@@ -187,6 +188,17 @@ describe('coop presentation cues', () => {
     expect(both.beat.sync?.spots).toHaveLength(2);
     expect(both.beat.twin).toBeNull();
     expect(both.beat.fuse?.spots).toHaveLength(2);
+  });
+
+  it('gives every combo its own name, skills and effect line, so the three ribbons read apart', () => {
+    for (const kind of COMBO_KINDS) {
+      const beat = feed(emptyCues(), [{ type: 'combo', combo: kind, x: 5, y: 6, radius: 0, heroes: [1, 2] }], 0).beat.fuse;
+      expect(beat).toMatchObject({ combo: kind, ...FUSE_COPY[kind] });
+    }
+    const copy = COMBO_KINDS.map((k) => FUSE_COPY[k]);
+    expect(new Set(copy.map((c) => c.word)).size).toBe(COMBO_KINDS.length);
+    expect(new Set(copy.map((c) => c.kicker)).size).toBe(COMBO_KINDS.length);
+    expect(new Set(copy.map((c) => c.effect)).size).toBe(COMBO_KINDS.length);
   });
 
   it('shows one fuse per batch, and only a combo makes one', () => {
