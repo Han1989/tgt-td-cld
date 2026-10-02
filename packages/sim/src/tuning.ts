@@ -666,9 +666,9 @@ export const TUNING: Tuning = {
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
     hp: [1.04, 1.43, 1.46],
-    earlyHpBonus: [0, 0.35, 1.0],
+    earlyHpBonus: [0, 0.3, 1.0],
     earlyWaves: 20,
-    lateHpBonus: [0.08, 0.3, 1.0],
+    lateHpBonus: [0.08, 0.35, 0.95],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
@@ -866,10 +866,9 @@ export const TUNING: Tuning = {
       // Quick is shorter, so the same Full bands either walk over a 3-player team or cliff a solo seed.
       hard: {
         byPlayers: [
-          { hp: 1.032, count: 1.06, lateHp: 0.16, lateCount: 0.09, bossHp: 1.02, lateBossHp: 0.04 },
-          { hp: 1.048, count: 1.042, lateHp: 0.115, lateCount: 0.04, bossHp: 1.02, lateBossHp: 0.03 },
-          // 42–70 Heart. The final-wave strain is what puts the last third at 27% of the Heart lost.
-          { hp: 1.08, count: 1.1, lateHp: 0.09, lateCount: 0.06, bossHp: 1.03, lateBossHp: 0.04 },
+          { hp: 1.2, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.2, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.28, count: 1.12, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
         ],
       },
     },
@@ -881,29 +880,20 @@ export const TUNING: Tuning = {
   // three in `modes.quick.hard`. Tuned for the expert bot (Decision Log).
   difficulty: {
     normal: { hp: 1, count: 1, lateHp: 0, lateCount: 0 },
+    // Hard (playtest 2): a flat multiplier from wave 1, no late ramp, no extra creeps and no boss bonus. A ramp toward the
+    // final wave made every team end at nearly 100 Heart or nearly 0 (the last boss leaking or not). A flat one drains the
+    // Heart wave by wave, so expert teams of every size land inside 40–80. Count rises only where a team has room (Quick).
     hard: {
-      hp: 1.009,
-      count: 1.029,
-      lateHp: 0.043,
-      lateCount: 0.024,
-      bossHp: 1.026,
-      lateBossHp: 0.02,
-      extra: 0.588,
-      lateExtra: 0.193,
-      magicResist: 0.12,
+      hp: 1,
+      count: 1,
+      lateHp: 0,
+      lateCount: 0,
+      bossHp: 1,
+      lateBossHp: 0,
       byPlayers: [
-        // Full solo expert. Offsets the solo late bonus (0.08).
-        {
-          hp: 1.005, count: 1.029, lateHp: 0, lateCount: 0.024, bossHp: 1.026, lateBossHp: 0.02,
-          extra: 0.45, lateExtra: 0.193, magicResist: 0.12,
-        },
-        // Full pairs.
-        { hp: 1.005, count: 1, lateHp: 0.02, lateCount: 0, bossHp: 1.01, lateBossHp: 0.01, extra: 0.45 },
-        // Full three players: 46–71, first third 32% of the Heart lost, last third 67%.
-        {
-          hp: 1.06, count: 1.06, lateHp: 0.085, lateCount: 0.12, bossHp: 1.01, lateBossHp: 0.035,
-          extra: 0.1, lateExtra: 0.15, magicResist: 0.04, ease: 2,
-        },
+        { hp: 1.17, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.12, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.25, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
       ],
     },
   },
@@ -963,7 +953,7 @@ export const TUNING: Tuning = {
       // Aimed again (as before the lane rains): 6 pulses on a circle. Stronger than the old 25 / 37 / 50, so that one
       // storm at rank 1 kills every ordinary creep of a Quick wave 8–10 pack inside it (test/ultimates.test.ts).
       arrowStorm: {
-        cooldown: [60, 55, 50],
+        cooldown: [40, 36, 32],
         castRange: 10,
         radius: 3,
         duration: 3,
@@ -982,7 +972,7 @@ export const TUNING: Tuning = {
         manaCost: [20, 25, 30, 35],
         cooldown: [6, 5.5, 5, 4.5],
         radius: 2.2,
-        damage: [24, 38, 52, 66],
+        damage: [28, 45, 62, 80],
       },
       taunt: {
         manaCost: [30, 35, 40, 45],
@@ -994,7 +984,7 @@ export const TUNING: Tuning = {
         lifesteal: [0.15, 0.22, 0.3, 0.38],
       },
       ironVow: {
-        cooldown: [70, 65, 60],
+        cooldown: [50, 46, 42],
         duration: [6, 7, 8],
         armor: [5, 8, 11],
         regen: [5, 7, 10],
@@ -1034,7 +1024,7 @@ export const TUNING: Tuning = {
       },
       // Aimed again, stronger than the old 200 / 300 / 400 (kills every ordinary creep of a Quick wave 8–10 pack at rank 1).
       meteor: {
-        cooldown: [60, 55, 50],
+        cooldown: [40, 36, 32],
         castRange: 9,
         radius: 3,
         delay: 1.2,

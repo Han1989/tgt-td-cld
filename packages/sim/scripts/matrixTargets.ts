@@ -66,7 +66,8 @@ for (const mode of ['full', 'quick']) {
     }
   }
   // Curve and parity.
-  for (const [bot, difficulty] of [['casual', 'normal'], ['expert', 'normal'], ['expert', 'hard']] as const) {
+  // (An expert on Normal loses almost nothing, so its thirds are noise: the curve is read for casual Normal and expert Hard.)
+  for (const [bot, difficulty] of [['casual', 'normal'], ['expert', 'hard']] as const) {
     const group = pick(bot, mode, difficulty);
     for (const n of [2, 3]) {
       const teams = group.filter((e) => size(e) === n);
