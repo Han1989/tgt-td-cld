@@ -6,7 +6,7 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026. Production protocol is 16.
- * Gate 1 is waived and treated as passed. This page only reports status.
+ * Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -21,8 +21,14 @@ const sections: ProgressSection[] = [
   {
     id: 'gate1',
     title: 'Gate 1 · Friends playtest',
-    blurb: 'Waived 1 Oct 2026 by Han (time). Skipped and treated as passed, so Phase 6 may proceed. The evening was not run.',
+    blurb: 'Passed 2 Oct 2026. Friends played on Android, PC, and iPhone Safari, so Phase 6 may proceed.',
     group: 'archive',
+  },
+  {
+    id: 'playtest2',
+    title: 'Playtest 2 · work orders',
+    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 (PR #57) and P2-02 (PR #63) are done. Kit, ultimates, and the retest are still open. Not the overnight auto-pull list.',
+    group: 'now',
   },
   {
     id: 'han',
@@ -51,25 +57,25 @@ const sections: ProgressSection[] = [
   {
     id: 'p6a',
     title: 'Phase 6a · Accounts and data',
-    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started.',
+    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started.',
     group: 'later',
   },
   {
     id: 'p6b',
     title: 'Phase 6b · Clans',
-    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started.',
+    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started.',
     group: 'later',
   },
   {
     id: 'p6c',
     title: 'Phase 6c · Loot and progression',
-    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started. Combos are rebuilt here; the hook-test branch is not merged.',
+    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started. Combos are rebuilt here; the hook-test branch is not merged.',
     group: 'later',
   },
   {
     id: 'p6d',
     title: 'Phase 6d · Competition',
-    blurb: 'Unblocked 1 Oct 2026 (Gate 1 waived). Not started.',
+    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started.',
     group: 'later',
   },
   {
@@ -111,8 +117,8 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'done',
     section: 'gate1',
-    note: 'Waived 1 Oct 2026 by Han (time) with Gate 1. Skipped. No Render plan change. Treated as passed so Phase 6 may proceed.',
-    proof: pr(37),
+    note: 'Passed 2 Oct 2026 with Gate 1. Friends played on Android, PC, and iPhone Safari.',
+    proof: { label: 'Passed 2 Oct 2026', href: `${REPO}/blob/main/TASKS.md` },
   },
   {
     id: 'g1-play',
@@ -120,8 +126,8 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'done',
     section: 'gate1',
-    note: 'Waived 1 Oct 2026 by Han (time). The friends session was not run. Skipped and treated as passed.',
-    proof: pr(37),
+    note: 'Passed 2 Oct 2026. Friends played on Android, PC, and iPhone Safari.',
+    proof: { label: 'Passed 2 Oct 2026', href: `${REPO}/blob/main/TASKS.md` },
   },
   {
     id: 'g1-watch',
@@ -129,8 +135,8 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'done',
     section: 'gate1',
-    note: 'Waived 1 Oct 2026 by Han (time). The friends session was not run, so there are no watch notes. Skipped and treated as passed.',
-    proof: pr(37),
+    note: 'Passed 2 Oct 2026 with the friends session on Android, PC, and iPhone Safari.',
+    proof: { label: 'Passed 2 Oct 2026', href: `${REPO}/blob/main/TASKS.md` },
   },
   {
     id: 'g1-tune',
@@ -138,8 +144,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'gate1',
-    note: 'Waived 1 Oct 2026 with the playtest. No retune from friend reports. Skipped and treated as passed.',
-    proof: pr(37),
+    note: 'Passed 2 Oct 2026 with Gate 1. Kit rework and sim balance from the session is Playtest 2 (P2-03).',
+    proof: { label: 'Passed 2 Oct 2026', href: `${REPO}/blob/main/TASKS.md` },
   },
   {
     id: 'g1-gate',
@@ -147,8 +153,50 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'done',
     section: 'gate1',
-    note: 'Treated as passed 1 Oct 2026. Han waived the unprompted play-again check (time). Phase 6 may proceed. The evening was not run.',
-    proof: pr(37),
+    note: 'Passed 2 Oct 2026. Friends on Android, PC, and iPhone Safari. Phase 6 may proceed.',
+    proof: { label: 'Passed 2 Oct 2026', href: `${REPO}/blob/main/TASKS.md` },
+  },
+  {
+    id: 'P2-01',
+    title: 'Touch controls',
+    owner: 'Team',
+    status: 'done',
+    section: 'playtest2',
+    note: 'Client polish. Touch controls and phone UX, from the 2 Oct 2026 friends session.',
+    proof: pr(57),
+  },
+  {
+    id: 'P2-02',
+    title: 'Air waves and unspent gold',
+    owner: 'Team',
+    status: 'done',
+    section: 'playtest2',
+    note: 'Client polish. Teach air waves and unspent gold: flyer readability, anti-air teaching, and a gold nudge.',
+    proof: pr(63),
+  },
+  {
+    id: 'P2-03',
+    title: 'Kit rework and sim balance',
+    owner: 'Both',
+    status: 'todo',
+    section: 'playtest2',
+    note: 'Sim work (Claude). Kit rework and balance by simulation. Han reviews the PR.',
+  },
+  {
+    id: 'P2-04',
+    title: 'Ultimate presentation and combo cue',
+    owner: 'Team',
+    status: 'todo',
+    section: 'playtest2',
+    note: 'Client. Ultimate presentation and a combo cue. Starts after P2-03.',
+  },
+  {
+    id: 'P2-05',
+    title: 'Retest',
+    owner: 'Han',
+    status: 'todo',
+    section: 'playtest2',
+    note: 'Han retests after Playtest 2 tasks P2-01 through P2-04.',
   },
   {
     id: 'H-01',
@@ -344,7 +392,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'polish',
-    note: 'README status, docs/ROADMAP.md, GAME_DESIGN §11, and AGENTS.md. As of 1 Oct 2026 Gate 1 is waived, so Phase 6 may proceed.',
+    note: 'README status, docs/ROADMAP.md, GAME_DESIGN §11, and AGENTS.md. Gate 1 passed 2 Oct 2026, so Phase 6 may proceed.',
     proof: pr(31),
   },
   {

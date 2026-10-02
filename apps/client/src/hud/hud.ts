@@ -40,6 +40,19 @@ import { pulse } from './press';
 import { matchFile, saveMatchFile } from './matchFile';
 import { skillFace } from './skillFace';
 import {
+  cheapestSpend,
+  airRelevant,
+  freshAir,
+  freshGold,
+  hitsAir,
+  kindFlies,
+  readAir,
+  readGold,
+  waveListsFlyers,
+  type AirMemory,
+  type GoldMemory,
+} from '../teach/cues';
+import {
   branchChoices,
   branchStatRows,
   buildCost,
@@ -189,6 +202,15 @@ export class Hud {
   private flagsKey = '';
   /** Practice toast already shown for this match. */
   private practiceNoted = false;
+  /** Flyer and unspent-gold teaching for this match. Reset with the match. */
+  private airMemory: AirMemory = freshAir();
+  private goldMemory: GoldMemory = freshGold();
+  /** This wave has flyers, or the next one will: the build menu says so. */
+  private airNow = false;
+  /** Flyers are already on the map, or this wave lists them (the menu's tense). */
+  private airHere = false;
+  private readonly airFlag = $('air-flag');
+  private airFlagKey = '';
   /** The pre-wave modifier banner has been shown for this match. */
   private modifiersAnnounced = false;
   private laneRoleTimer = 0;
@@ -579,19 +601,89 @@ export class Hud {
     }
   }
 
+  /**
+   * One snapshot's teaching: a flyer toast or chip, and at most a quiet gold prompt.
+   * Called once per drained snapshot (tick gaps count; repeating the same tick does not).
+   */
+  teach(
+    snap: Snapshot,
+    events: GameEvent[],
+    me: PlayerId | null,
+    opts: { lessonPending: boolean; quiet: boolean },
+  ): { flyers: boolean; myAirTowers: number } {
+    const flyers = snap.creeps.some((c) => kindFlies(c.kind));
+    const myAirTowers =
+      me === null ? 0 : snap.towers.filter((t) => t.owner === me && hitsAir(t.kind, t.branch)).length;
+    // The build menu speaks for this wave and the next one, so a Cannon on Quick wave 2 is already the wrong buy.
+    this.airHere = flyers || waveListsFlyers(snap.mode, snap.wave);
+    this.airNow = airRelevant({ mode: snap.mode, wave: snap.wave, modifiers: snap.modifiers, flyers });
+    if (me === null) {
+      this.renderAirFlag(null);
+      return { flyers, myAirTowers };
+    }
+    let builtGround = false;
+    for (const e of events) {
+      if (e.type !== 'towerBuilt' || e.owner !== me) continue;
+      const tower = snap.towers.find((t) => t.id === e.towerId);
+      if (tower && !hitsAir(tower.kind, tower.branch)) builtGround = true;
+    }
+    const air = readAir(this.airMemory, {
+      mode: snap.mode,
+      wave: snap.wave,
+      modifiers: snap.modifiers,
+      flyers,
+      builtGround,
+      haveAir: myAirTowers > 0,
+      lessonPending: opts.lessonPending,
+    });
+    this.airMemory = air.memory;
+    if (air.beat.toast) this.toast(air.beat.toast, 'air');
+    this.renderAirFlag(air.beat.chip);
+
+    const player = snap.players.find((p) => p.id === me);
+    const gold = readGold(this.goldMemory, {
+      tick: snap.tick,
+      wave: snap.wave,
+      phase: snap.phase,
+      gold: player?.gold ?? 0,
+      cheapest: cheapestSpend(me, snap.pads, snap.towers),
+      quiet: opts.quiet,
+    });
+    this.goldMemory = gold.memory;
+    if (gold.toast) this.toast(gold.toast, 'gold');
+    return { flyers, myAirTowers };
+  }
+
+  private renderAirFlag(chip: { title: string; sub: string } | null): void {
+    const key = chip ? `${chip.title}|${chip.sub}` : '';
+    if (key === this.airFlagKey) return;
+    this.airFlagKey = key;
+    this.airFlag.classList.toggle('hidden', chip === null);
+    this.airFlag.replaceChildren();
+    if (!chip) return;
+    const title = document.createElement('b');
+    title.textContent = chip.title;
+    this.airFlag.append(title);
+    if (chip.sub) {
+      const sub = document.createElement('span');
+      sub.textContent = chip.sub;
+      this.airFlag.append(sub);
+    }
+  }
+
   /** Called with every message shown (sounds: "Not enough gold"…). */
   onToast: (text: string) => void = () => {};
   /** A gift toast went up. `accent` is the other player's colour (css). */
   onGift: (accent: string) => void = () => {};
 
-  toast(text: string): void {
+  toast(text: string, kind?: 'air' | 'gold'): void {
     this.onToast(text);
     const el = document.createElement('div');
-    el.className = 'toast';
+    el.className = kind ? `toast teach ${kind}` : 'toast';
     el.textContent = text;
     this.toasts.appendChild(el);
     while (this.toasts.children.length > 4) this.toasts.firstChild?.remove();
-    setTimeout(() => el.remove(), 2200);
+    setTimeout(() => el.remove(), kind ? 3400 : 2200);
   }
 
   /** Lane named by the surge event, large enough to read on a phone before the pile arrives. */
@@ -650,6 +742,13 @@ export class Hud {
     this.flagsKey = '';
     this.modifiersAnnounced = false;
     this.practiceNoted = false;
+    this.airMemory = freshAir();
+    this.goldMemory = freshGold();
+    this.airNow = false;
+    this.airHere = false;
+    this.airFlagKey = '';
+    this.airFlag.classList.add('hidden');
+    this.airFlag.replaceChildren();
     this.matchFlags.classList.add('hidden');
     this.matchFlags.replaceChildren();
   }
@@ -904,14 +1003,21 @@ export class Hud {
         this.actions.closeMenus();
         return;
       }
-      const key = `pad:${pad.id}:${TOWER_KINDS.map((k) => gold >= buildCost(k)).join()}`;
+      const key = `pad:${pad.id}:${TOWER_KINDS.map((k) => gold >= buildCost(k)).join()}:${this.airNow ? 1 : 0}:${this.airHere ? 1 : 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.padMenu.innerHTML = '<h3>Build tower</h3>';
+        if (this.airNow) {
+          const note = document.createElement('p');
+          note.className = 'air-note';
+          note.textContent = this.airHere ? "Wisps are in the air. Cannon can't hit them." : "Wisps are coming. Cannon can't hit them.";
+          this.padMenu.appendChild(note);
+        }
         TOWER_KINDS.forEach((kind, i) => {
           const cost = buildCost(kind);
           const btn = document.createElement('button');
           btn.className = 'btn tower-option';
+          if (this.airNow && !hitsAir(kind, null)) btn.classList.add('misses-air');
           btn.disabled = gold < cost;
           btn.innerHTML = `<kbd>${i + 1}</kbd><span class="tower-name"><i class="ico" style="--ico: ${iconVar(towerIcon(kind))}"></i>${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span><span class="desc">${TOWER_BLURBS[kind]}</span>`;
           btn.addEventListener('click', () => this.actions.build(pad.id, kind));
@@ -936,7 +1042,7 @@ export class Hud {
       const affordable = [nextCost ?? Infinity, ...branchChoices(tower.kind, tower.tier, tower.branch).map((c) => c.cost)]
         .map((c) => gold >= c)
         .join();
-      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}`;
+      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold);
@@ -974,6 +1080,9 @@ export class Hud {
       ${statRows}
       <div class="row"><span>Hits</span><span>${targetsText(tower.kind, undefined, tower.branch)}</span></div>
       <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
+    if (mine && this.airNow && !hitsAir(tower.kind, tower.branch)) {
+      panel.insertAdjacentHTML('beforeend', '<p class="air-note">This tower can\'t hit Wisps.</p>');
+    }
     if (!mine) {
       panel.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
       return;

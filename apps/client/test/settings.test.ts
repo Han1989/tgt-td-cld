@@ -7,6 +7,8 @@ describe('settings', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{bad json')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ ...DEFAULT_SETTINGS, thumbs: 'twoLeft', quality: 'low' });
+    expect(parseSettings(JSON.stringify({ stickAnchor: 'left', stickFeel: 'light' }))).toMatchObject({ stickAnchor: 'left', stickFeel: 'light' });
+    expect(parseSettings(JSON.stringify({ stickAnchor: 'loose', stickFeel: 'tiny' }))).toMatchObject({ stickAnchor: 'center', stickFeel: 'normal' });
     expect(parseSettings(JSON.stringify({ thumbs: 'three', quality: 7 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ display: 'bright' })).display).toBe('bright');
     expect(parseSettings(JSON.stringify({ display: 'neon' })).display).toBe('normal');
@@ -25,6 +27,10 @@ describe('settings', () => {
     expect(parseSettings(JSON.stringify({ tutorial: 'completed' })).tutorial).toBe('completed');
     expect(parseSettings(JSON.stringify({ tutorial: 'skipped' })).tutorial).toBe('skipped');
     expect(parseSettings(JSON.stringify({ tutorial: 'later' })).tutorial).toBe('new');
+    expect(DEFAULT_SETTINGS.airLesson).toBe('new');
+    expect(parseSettings(null).airLesson).toBe('new');
+    expect(parseSettings(JSON.stringify({ airLesson: 'seen' })).airLesson).toBe('seen');
+    expect(parseSettings(JSON.stringify({ airLesson: 'later' })).airLesson).toBe('new');
   });
 });
 

@@ -34,7 +34,7 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('soft launch');
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
-    expect(summary.hanOpen).toBe(9);
+    expect(summary.hanOpen).toBe(11);
     expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(summary.done + summary.open);
 
@@ -57,14 +57,28 @@ describe('progress dashboard data', () => {
     expect(polish.every((item) => item.status === 'done')).toBe(true);
   });
 
-  it('marks Gate 1 waived, keeps Han’s list and Phase 6 open', () => {
+  it('marks Gate 1 passed on 2 Oct 2026, keeps Han’s list and Phase 6 open', () => {
     for (const id of ['g1-render', 'g1-play', 'g1-watch', 'g1-tune', 'g1-gate']) {
       const item = byId(id);
       expect(item.status).toBe('done');
-      expect(item.note.toLowerCase()).toContain('waived');
+      expect(item.note.toLowerCase()).toContain('passed');
+      expect(item.note).toContain('2 Oct 2026');
+      expect(item.note.toLowerCase()).not.toContain('waived');
     }
-    expect(byId('g1-gate').note.toLowerCase()).toContain('passed');
-    expect(byId('g1-gate').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/37');
+    expect(byId('g1-gate').proof?.label).toBe('Passed 2 Oct 2026');
+    expect(byId('g1-gate').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/blob/main/TASKS.md');
+    expect(byId('P2-01').status).toBe('done');
+    expect(byId('P2-02').status).toBe('done');
+    expect(byId('P2-01').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/57');
+    expect(byId('P2-02').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/63');
+    for (const id of ['P2-03', 'P2-04', 'P2-05']) expect(byId(id).status).toBe('todo');
+    expect(byId('P2-01').owner).toBe('Team');
+    expect(byId('P2-01').note.toLowerCase()).toContain('touch');
+    expect(byId('P2-02').note.toLowerCase()).toContain('air');
+    expect(byId('P2-03').owner).toBe('Both');
+    expect(byId('P2-03').note).toContain('Han reviews');
+    expect(byId('P2-04').note).toContain('P2-03');
+    expect(byId('P2-05').owner).toBe('Han');
     for (const id of ['H-02', 'H-06', 'D-02', 'D-06', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
       expect(byId(id).status).toBe('todo');
     }
@@ -86,6 +100,8 @@ describe('progress dashboard data', () => {
     expect(now).toContain('H-05');
     expect(now).toContain('D-02');
     expect(now).toContain('D-01');
+    expect(now).toContain('P2-01');
+    expect(now).toContain('P2-05');
     expect(now).not.toContain('g1-play');
     expect(now).not.toContain('T-00');
     expect(now).not.toContain('p6a-db');
@@ -117,6 +133,10 @@ describe('progress dashboard data', () => {
     const html = renderBoard(PROGRESS, 'all', '');
     expect(html).toContain('T-00');
     expect(html).toContain('H-01');
+    expect(html).toContain('Passed 2 Oct 2026');
+    expect(html).toContain('P2-01');
+    expect(html).toContain('P2-05');
+    expect(html.toLowerCase()).not.toContain('waived');
     expect(boardHasStatus(html, 'done')).toBe(true);
     expect(boardHasStatus(html, 'todo')).toBe(true);
     expect(html).toContain('PR #24');

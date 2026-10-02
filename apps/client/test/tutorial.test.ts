@@ -146,6 +146,7 @@ describe('tutorial steps', () => {
     const done = tutorialPrompt('done', 'touch', null, 2);
     expect(done.next).toBe('Got it');
     expect(done.skip).toBe(false);
+    expect(done.body).toContain('Wisps');
     expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('hold');
     expect(tutorialPrompt('ping', 'desktop', 'ranger', 1).body).toContain('Alt-click');
   });

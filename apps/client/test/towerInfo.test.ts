@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BRANCH_NAMES,
   branchChip,
+  branchOfferChip,
   branchChoices,
   branchStatRows,
   buildCost,
@@ -83,7 +84,14 @@ describe('tower ring helpers', () => {
   it('summarises what the next tier adds', () => {
     expect(upgradeChip('arrow', 1)).toBe('Dmg 16→36 · Spd 1.43→1.54');
     expect(upgradeChip('arrow', 3)).toBe('');
-    expect(branchChip('void')).toBe(`Void (${TUNING.branches.void.cost}): Ignores resists, % HP damage (anti-boss). Tap again`);
+    expect(branchChip('void')).toBe(`Void (${TUNING.branches.void.cost}): Ignores resists, % HP damage (anti-boss)`);
+    const offer = branchOfferChip([
+      { branch: 'sniper', name: 'Sniper', blurb: 'Long range, big crits, slow', cost: 600 },
+      { branch: 'volley', name: 'Volley', blurb: 'Hits 3 targets at once', cost: 550 },
+    ]);
+    expect(offer).toContain('Sniper (600): Long range, big crits, slow');
+    expect(offer).toContain('Volley (550): Hits 3 targets at once');
+    expect(offer).not.toContain('Tap again');
   });
 
   it('cycles the target priority', () => {

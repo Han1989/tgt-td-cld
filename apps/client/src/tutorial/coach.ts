@@ -5,6 +5,7 @@ import type { HeroKind } from '@tdt/protocol';
 import {
   absorbTutorial,
   advanceTutorial,
+  airPrompt,
   continueTutorial,
   freshTutorial,
   stepSatisfied,
@@ -31,6 +32,8 @@ export class TutorialCoach {
   onComplete: () => void = () => {};
   /** They dismissed the closing card. */
   onDismiss: () => void = () => {};
+  /** They read the Wisps note (Got it, or they built a tower that hits air). */
+  onAirSeen: () => void = () => {};
 
   private readonly root = $('tutorial');
   private readonly kicker = $('tutorial-kicker');
@@ -46,6 +49,10 @@ export class TutorialCoach {
   private heroKind: HeroKind | null = null;
   private wave = 0;
   private rendered = '';
+  /** The Wisps card is up. The early lesson owns the card while `active` is set. */
+  private air: 'off' | 'up' = 'off';
+  /** How many anti-air towers they had when the Wisps card opened. Building one more finishes it. */
+  private airTowersOnShow = 0;
 
   constructor(private readonly input: () => 'touch' | 'desktop') {
     this.skip.addEventListener('click', () => this.onSkip());
@@ -54,8 +61,15 @@ export class TutorialCoach {
     this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
 
-  /** Starts (or restarts) the lesson at Move. */
+  /** The lesson card or the Wisps card is on screen. Gold stays quiet while it is. */
+  get cardUp(): boolean {
+    return !this.root.classList.contains('hidden');
+  }
+
+  /** Starts (or restarts) the lesson at Move. The early steps take the card back from the Wisps note. */
   begin(): void {
+    this.air = 'off';
+    this.root.classList.remove('air');
     this.active = true;
     this.run = freshTutorial();
     this.heroKind = null;
@@ -67,8 +81,44 @@ export class TutorialCoach {
   stop(): void {
     this.active = false;
     this.run = null;
+    this.air = 'off';
     this.rendered = '';
+    this.root.classList.remove('air');
     this.root.classList.add('hidden');
+  }
+
+  /**
+   * The Wisps card, once per browser, the first time flyers are on the map.
+   * It waits while the early lesson still has the card, then stays up until
+   * Got it or a new anti-air tower. A new match takes it down without counting
+   * as seen (`dismissAir`).
+   */
+  offerAir(opts: { due: boolean; flyers: boolean; wave: number; airTowers: number; hero: HeroKind | null }): void {
+    if (this.active) return;
+    if (!opts.due) {
+      if (this.air === 'up') this.hideAir();
+      return;
+    }
+    if (this.air === 'up') {
+      if (opts.airTowers > this.airTowersOnShow) {
+        this.finishAir();
+        return;
+      }
+      this.renderAir(opts.hero);
+      return;
+    }
+    // Wave 0 is the opening build. A snapshot that already has Wisps there is the stress scene.
+    if (!opts.flyers || opts.wave < 1) return;
+    this.air = 'up';
+    this.airTowersOnShow = opts.airTowers;
+    this.rendered = '';
+    this.renderAir(opts.hero);
+  }
+
+  /** A new match: take the card down without marking the note seen. */
+  dismissAir(): void {
+    if (this.air !== 'up' || this.active) return;
+    this.hideAir();
   }
 
   /** One snapshot while the lesson is up. */
@@ -93,6 +143,10 @@ export class TutorialCoach {
   }
 
   private forward(): void {
+    if (this.air === 'up') {
+      this.finishAir();
+      return;
+    }
     if (!this.run) return;
     if (this.run.step === 'done') {
       this.onDismiss();
@@ -115,7 +169,7 @@ export class TutorialCoach {
     if (!run) return;
     const prompt = tutorialPrompt(run.step, this.input(), this.heroKind, this.wave);
     const key = `${run.step}|${prompt.body}|${prompt.next}|${prompt.skip}`;
-    this.root.classList.remove('hidden');
+    this.root.classList.remove('hidden', 'air');
     if (key === this.rendered) return;
     this.rendered = key;
     this.kicker.textContent = prompt.kicker;
@@ -124,5 +178,32 @@ export class TutorialCoach {
     this.skip.classList.toggle('hidden', !prompt.skip);
     this.next.classList.toggle('hidden', prompt.next === null);
     if (prompt.next) this.next.textContent = prompt.next;
+  }
+
+  private renderAir(hero: HeroKind | null): void {
+    const prompt = airPrompt(hero);
+    const key = `air|${prompt.body}`;
+    this.root.classList.remove('hidden');
+    this.root.classList.add('air');
+    if (key === this.rendered) return;
+    this.rendered = key;
+    this.kicker.textContent = prompt.kicker;
+    this.title.textContent = prompt.title;
+    this.body.textContent = prompt.body;
+    this.skip.classList.add('hidden');
+    this.next.classList.remove('hidden');
+    this.next.textContent = prompt.next ?? 'Got it';
+  }
+
+  private hideAir(): void {
+    this.air = 'off';
+    this.rendered = '';
+    this.root.classList.remove('air');
+    this.root.classList.add('hidden');
+  }
+
+  private finishAir(): void {
+    this.hideAir();
+    this.onAirSeen();
   }
 }

@@ -228,6 +228,7 @@ export class GameView {
     };
     coach.onComplete = () => settings.set({ tutorial: lessonStatus('complete') });
     coach.onDismiss = () => view.setLesson(false);
+    coach.onAirSeen = () => settings.set({ airLesson: 'seen' });
     renderer.onBounty = (x, y) => hud.flyCoin(x, y);
 
     // ---------------------------------------------------------------------
@@ -260,6 +261,7 @@ export class GameView {
         touch: !!coarse?.matches,
         landscape: orientation ? orientation.startsWith('landscape') : w > h,
         thumbs: settings.get().thumbs,
+        stickAnchor: settings.get().stickAnchor,
         mapW: map.width,
         mapH: map.height,
         safeFromY: map.safeFromY,
@@ -281,6 +283,7 @@ export class GameView {
       }
       renderer.entityScale = clamp(ENTITY_TILE_PX / Math.max(1, layout.tilePx), 1, MAX_ENTITY_SCALE);
       hud.setCompact(layout.kind === 'tall');
+      touch.setStick(settings.get().stickFeel);
       touch.setLayout(layout);
       emotes.layout();
       // A resize that keeps the layout (e.g. a browser toolbar showing) leaves open menus alone.
@@ -402,6 +405,7 @@ export class GameView {
       }
       const events = buffer.drainEvents(now);
       view.feedLesson(latest, events, now);
+      view.feedTeach(latest, events);
       renderer.playEvents(events, latest, view.me, now);
       for (const e of events) {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
@@ -557,6 +561,26 @@ export class GameView {
     this.syncLesson();
   }
 
+  /** Flyer card, air toasts and the unspent-gold nudge. Client-only; the sim is unchanged. */
+  private feedTeach(latest: Snapshot, events: Snapshot['events']): void {
+    const settings = sharedSettings().get();
+    const hero = latest.heroes.find((h) => h.owner === this.me);
+    const flyersNow = latest.creeps.some((c) => TUNING.creeps[c.kind].flying);
+    // The Wisps card is about to open, or already up: don't also nudge about gold.
+    const airCard = settings.airLesson === 'new' && flyersNow && latest.wave >= 1 && !this.lesson;
+    const shown = this.hud.teach(latest, events, this.me, {
+      lessonPending: settings.airLesson === 'new',
+      quiet: this.coach.cardUp || airCard,
+    });
+    this.coach.offerAir({
+      due: settings.airLesson === 'new',
+      flyers: shown.flyers,
+      wave: latest.wave,
+      airTowers: shown.myAirTowers,
+      hero: hero?.kind ?? null,
+    });
+  }
+
   private feedLesson(latest: Snapshot, events: Snapshot['events'], now: number): void {
     if (!this.lesson || !this.me) return;
     const hero = latest.heroes.find((h) => h.owner === this.me) ?? null;
@@ -639,6 +663,7 @@ export class GameView {
     this.cues = emptyCues();
     this.stage.clear();
     this.needsCentre = true;
+    this.coach.dismissAir();
   }
 }
 

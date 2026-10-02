@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 1 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 1 Oct: Gate 1 waived and treated as passed.
+**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 client tasks P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are open.
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -8,7 +8,7 @@
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked
 
-**Next:** Gate 1 is waived and treated as passed (1 Oct 2026). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). Immediate open work is Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
+**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). P2-01 is done (touch controls, PR #57). P2-02 is done (flyer readability, anti-air teaching, gold nudge, PR #63). Immediate open work is Playtest 2 (P2-03–P2-05), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
 
 ---
 
@@ -64,7 +64,7 @@ The last things still drawn as plain shapes (`CLAUDE.md` status). Follow the new
 - `docs/GAME_DESIGN.md` §11 "Out of scope": mark accounts, leaderboards, PvP and monetisation as planned for Phases 6–8, after Gate 1.
 - Add `AGENTS.md` pointing to `CLAUDE.md` if your tooling reads it.
 
-**Done 30 Sep 2026:** README status is Phases 1–3 done and Phase 4 polish through the tutorial (T-00–T-04). [`docs/ROADMAP.md`](docs/ROADMAP.md) is linked from `CLAUDE.md`. §11 then marked accounts, leaderboards, PvP and monetisation as Phases 6–8 after Gate 1. [`AGENTS.md`](AGENTS.md) points at `CLAUDE.md`. **Superseded 1 Oct 2026:** Gate 1 is waived and treated as passed, so Phase 6 may proceed (decision log).
+**Done 30 Sep 2026:** README status is Phases 1–3 done and Phase 4 polish through the tutorial (T-00–T-04). [`docs/ROADMAP.md`](docs/ROADMAP.md) is linked from `CLAUDE.md`. §11 then marked accounts, leaderboards, PvP and monetisation as Phases 6–8 after Gate 1. [`AGENTS.md`](AGENTS.md) points at `CLAUDE.md`. **Superseded 2 Oct 2026:** Gate 1 passed (Android, PC, iPhone Safari friends), so Phase 6 may proceed (decision log).
 
 ### T-06 · Soft-launch co-op hook signals (sim) · Team · ☑
 
@@ -90,7 +90,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 
 ## After polish · Discovery and rollout · NEW
 
-**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 was waived on 1 Oct 2026** (Han, time) and is treated as passed, so Discovery and Phase 6 are not held for a friends evening. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-02–D-06 and Gate 2 are the public soft-launch path and are still open.
+**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends), so Discovery and Phase 6 are not held for another friends evening. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-02–D-06 and Gate 2 are the public soft-launch path and are still open. Playtest 2 is the follow-up from that session: P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are still open.
 
 **Why:** current playtesters are only **2–3 friends**. That is enough for confusion and hook notes, not for whether strangers stay. Discovery is the first real-audience signal **before or alongside** store submission.
 
@@ -120,23 +120,37 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 | D-05 | **CrazyGames Basic Launch** — same work as Gate 2 `g2-launch`; schedule before or alongside store submission, not instead of finishing polish. | Han | ☐ |
 | D-06 | Review per-channel playtime / retention / repeats. **Go/no-go:** push stores, or more polish / pitch change. Friends-only signal is not enough for go. | Han | ☐ |
 
-## Gate 1 · Friends playtest · PASSED / SKIPPED · 1 Oct 2026
+## Gate 1 · Friends playtest · PASSED · 2 Oct 2026
 
-Han cancelled the friends playtest because of time. **Waived / skipped.** The evening was not run: no Render plan change, no matches, no watch notes, and no per-hero retune from friend reports. The gate is **treated as passed**, so Phase 6 and other post–Gate-1 work may proceed. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path and are still open.
+Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** Phase 6 and other post–Gate-1 work may proceed. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path and are still open. Follow-up from the session is Playtest 2: P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are still open.
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| g1-render | Switch Render to Starter for the evening (both services), back to Free afterwards. Free sleeps and can drop matches. **Waived 1 Oct 2026** with Gate 1 (Han, time). No plan change. | Han | ☑ |
-| g1-play | Play 2–3 matches with two friends. Mix phones and desktop, and include the hook test. Everyone taps **Save match report** after each match. **Waived 1 Oct 2026.** The session was not run. | Han | ☑ |
-| g1-watch | Watch, don't coach. Note where they get confused, what makes them shout or laugh, and whether they use combos. **Waived 1 Oct 2026.** The session was not run. | Han | ☑ |
-| g1-tune | Per-hero tuning from the playtest. Use the saved match reports (`npm run replay`), not bots alone. Known so far: Quick pairs are the noisiest (Arcanist + Ranger ended one bot match with 11 Heart); Ranger + Warden is the weakest pair; the Warden casts R only 3–4 times in 3-player games. The easy last third is already fixed. **Waived 1 Oct 2026** with the playtest. No retune from friend reports. | Team | ☑ |
-| g1-gate | **Gate:** at least half the players ask to play again unprompted. **Treated as passed 1 Oct 2026.** Han waived the check (time). Phase 6 may proceed. | Han | ☑ |
+| g1-render | Switch Render to Starter for the evening (both services), back to Free afterwards. Free sleeps and can drop matches. **Passed 2 Oct 2026** with Gate 1. Friends played on Android, PC, and iPhone Safari. | Han | ☑ |
+| g1-play | Play 2–3 matches with two friends. Mix phones and desktop, and include the hook test. Everyone taps **Save match report** after each match. **Passed 2 Oct 2026.** Friends played on Android, PC, and iPhone Safari. | Han | ☑ |
+| g1-watch | Watch, don't coach. Note where they get confused, what makes them shout or laugh, and whether they use combos. **Passed 2 Oct 2026** with the friends session (Android, PC, iPhone Safari). | Han | ☑ |
+| g1-tune | Per-hero tuning from the playtest. Use the saved match reports (`npm run replay`), not bots alone. Known so far: Quick pairs are the noisiest (Arcanist + Ranger ended one bot match with 11 Heart); Ranger + Warden is the weakest pair; the Warden casts R only 3–4 times in 3-player games. The easy last third is already fixed. **Passed 2 Oct 2026** with Gate 1. Kit rework and sim balance from the session is Playtest 2 (P2-03). | Team | ☑ |
+| g1-gate | **Gate:** at least half the players ask to play again unprompted. **Passed 2 Oct 2026.** Friends on Android, PC, and iPhone Safari. Phase 6 may proceed. | Han | ☑ |
 
 ---
 
-## Phase 6 and later · unblocked (Gate 1 waived 1 Oct 2026)
+## Playtest 2 · work orders
 
-Gate 1 is passed / skipped, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay.
+Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-01 and P2-02 are done. P2-03–P2-05 are still open (no balance numbers in this tracker update). They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
+
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
+| P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
+| P2-03 | Kit rework and balance by simulation (sim, Claude). Han reviews the PR. | Team + Han | ☐ |
+| P2-04 | Ultimate presentation and combo cue (client). Starts after P2-03. | Team | ☐ |
+| P2-05 | Retest. | Han | ☐ |
+
+---
+
+## Phase 6 and later · unblocked (Gate 1 passed 2 Oct 2026)
+
+Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are still open.
 
 ### Phase 6a · Foundation: accounts and data
 
