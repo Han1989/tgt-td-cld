@@ -186,9 +186,10 @@ const items: ProgressItem[] = [
     id: 'P2-04',
     title: 'Ultimate presentation and combo cue',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client. Ultimate presentation and a combo cue. Starts after P2-03.',
+    note: 'Client. Ultimate presentation and a combo cue: cast flare, blink and kick, kill-count popup, R pulse and Combo! ring, shake setting, Iron Vow heal chips, end-screen ultimates.',
+    proof: pr(73),
   },
   {
     id: 'P2-05',

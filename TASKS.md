@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 client tasks P2-01, P2-02 and P2-04 are done (PR #57, PR #63, PR #PR). P2-04 is done (PR #PR); P2-03 awaits Han's review and P2-05 is open.
+**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 client tasks P2-01, P2-02 and P2-04 are done (PR #57, PR #63, PR #73). P2-04 is done (PR #73); P2-03 awaits Han's review and P2-05 is open.
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -8,7 +8,7 @@
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked
 
-**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). P2-01 is done (touch controls, PR #57). P2-02 is done (flyer readability, anti-air teaching, gold nudge, PR #63). P2-04 is done (ultimate presentation and combo cue, PR #PR). Immediate open work is Playtest 2 (P2-03 review, P2-05 retest), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
+**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). P2-01 is done (touch controls, PR #57). P2-02 is done (flyer readability, anti-air teaching, gold nudge, PR #63). P2-04 is done (ultimate presentation and combo cue, PR #73). Immediate open work is Playtest 2 (P2-03 review, P2-05 retest), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
 
 ---
 
@@ -143,7 +143,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 | P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
 | P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude). Han reviews the PR. | Team + Han | ☐ |
-| P2-04 | Ultimate presentation and combo cue (client; `PROTOCOL_VERSION` 18, PR #PR). Every cast gets a flare, a screen blink, a kick and a sound heard everywhere; a finished rain or burst pops "Arrow Storm: 12"; R glows when ready, pulses after 20 s ready with creeps on the map, and shows a 5 s "Combo!" ring after a teammate's pairing cast (the fuse band names the combo); Screen shake Off / Normal / Strong (reduced motion turns it off) on ultimates, boss abilities and Heart hits; Iron Vow's heal rings every healed hero and shows on a teammate chip; the end screen and `report.coop` list kills per ultimate and combos per pair. Sim: two events (`ultResult`, `heal`) and report fields only, no tuning change. Real-device steps: `docs/MOBILE_TESTING.md` §10. Han reviews. | Team | ☑ |
+| P2-04 | Ultimate presentation and combo cue (client; `PROTOCOL_VERSION` 18, PR #73). Every cast gets a flare, a screen blink, a kick and a sound heard everywhere; a finished rain or burst pops "Arrow Storm: 12"; R glows when ready, pulses after 20 s ready with creeps on the map, and shows a 5 s "Combo!" ring after a teammate's pairing cast (the fuse band names the combo); Screen shake Off / Normal / Strong (reduced motion turns it off) on ultimates, boss abilities and Heart hits; Iron Vow's heal rings every healed hero and shows on a teammate chip; the end screen and `report.coop` list kills per ultimate and combos per pair. Sim: two events (`ultResult`, `heal`) and report fields only, no tuning change. Real-device steps: `docs/MOBILE_TESTING.md` §10. Han reviews. | Team | ☑ |
 | P2-05 | Retest. | Han | ☐ |
 
 ---
