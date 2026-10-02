@@ -223,7 +223,7 @@ export function tutorialPrompt(
             ? `Tap Q (${name}), then tap where it should land. You can drag the button to aim.`
             : `Press Q (${name}), then left-click where it should land.`
           : input === 'touch'
-            ? `When a creep is close, tap Q (${name}). If it says nothing in range, walk nearer and tap again.`
+            ? `When a creep is close, tap Q (${name}). Hold a skill button to read what it does. If it says nothing in range, walk nearer and tap again.`
             : `When a creep is close, press Q (${name}). If nothing is in range, walk nearer and press it again.`;
       const wait = hero !== 'arcanist' && wave < 1 ? ' Creeps arrive when the first wave starts.' : '';
       return { kicker, title: 'Cast a skill', body: aim + wait, next: null, skip: true };
@@ -234,7 +234,7 @@ export function tutorialPrompt(
         title: 'Upgrade',
         body:
           input === 'touch'
-            ? `Tap your tower, then Upgrade (${ARROW_UPGRADE} gold). The first wave pays ${WAVE_ONE_GOLD}, which covers an Arrow.`
+            ? `Tap the gold ↑ on your tower (${ARROW_UPGRADE} gold). One tap upgrades it. The first wave pays ${WAVE_ONE_GOLD}, which covers an Arrow.`
             : `Left-click your tower, then Upgrade (${ARROW_UPGRADE} gold), or press U. The first wave pays ${WAVE_ONE_GOLD}.`,
         next: null,
         skip: true,

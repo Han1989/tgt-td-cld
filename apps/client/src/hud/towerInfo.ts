@@ -157,9 +157,14 @@ const SHORT_LABELS: Record<string, string> = {
   'Max HP': 'HP',
 };
 
-/** The tower ring's chip for an armed branch button: its name, cost and what it does. */
+/** One specialisation, with its cost and what it does. Shown before the tap that buys it. */
 export function branchChip(branch: TowerBranch, tuning: Tuning = TUNING): string {
-  return `${BRANCH_NAMES[branch]} (${tuning.branches[branch].cost}): ${BRANCH_BLURBS[branch]}. Tap again`;
+  return `${BRANCH_NAMES[branch]} (${tuning.branches[branch].cost}): ${BRANCH_BLURBS[branch]}`;
+}
+
+/** Both specialisations, so the ring explains the choice before either button is tapped. */
+export function branchOfferChip(choices: readonly BranchChoice[]): string {
+  return choices.map((c) => `${c.name} (${c.cost}): ${c.blurb}`).join(' · ');
 }
 
 /**

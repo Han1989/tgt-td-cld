@@ -4,7 +4,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { box, centre, Finger, lessonCard, overlaps, sent, startSolo, waitForReady, type Box } from './helpers';
 
-const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn'];
+const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn', '#skill-info'];
 
 async function overlayBoxes(page: Page): Promise<Box[]> {
   return Promise.all(OVERLAY.map((s) => box(page, s)));
@@ -209,7 +209,54 @@ test.describe('portrait phone layout', () => {
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(false);
   });
 
-  test('tower ring at tier 3: two specialisation buttons, clear of the controls; first tap explains, second buys', async ({ page }) => {
+  test('one tap on the gold tag upgrades a tower', async ({ page }) => {
+    await startSolo(page);
+    const [padId] = await myPadsBottomFirst(page);
+    await tapPad(page, padId!);
+    const arrow = page.locator('.radial-btn[data-tower="arrow"]');
+    await arrow.tap();
+    await arrow.tap();
+    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId)).toBe(1);
+    const tag = page.locator('.upgrade-tag');
+    await expect(tag).toBeVisible();
+    await expect(tag).toContainText('↑');
+    await tag.tap();
+    await expect.poll(() => sent(page, 'upgrade')).toEqual([{ type: 'upgrade', towerId: expect.any(Number) }]);
+    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId)).toBe(2);
+    // The tower body still opens the ring; the tag is not a second confirm.
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+  });
+
+  test('skill descriptions open from a hold and from the Skills button', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const q = centre(await box(page, '.tskill[data-slot="Q"] .tskill-btn'));
+    const joy = await box(page, '#joystick');
+    await finger.down(q.x, q.y);
+    await page.waitForTimeout(520);
+    await finger.up();
+    const sheet = page.locator('#skill-sheet');
+    await expect(sheet).toBeVisible();
+    await expect(sheet).toContainText('Multishot');
+    await expect(sheet).toContainText('Fire an arrow at each of the nearest creeps.');
+    await expect(sheet.locator('.skill-sheet-row')).toHaveCount(4);
+    expect(await sent(page, 'cast')).toHaveLength(0);
+    const sheetBox = await box(page, '#skill-sheet');
+    expect(sheetBox.bottom).toBeLessThan(joy.top);
+    await sheet.locator('.btn', { hasText: 'Close' }).tap();
+    await expect(sheet).toBeHidden();
+
+    await page.locator('#skill-info').tap();
+    await expect(sheet).toBeVisible();
+    await expect(sheet).toContainText('Keen Eye');
+    // A tap on the map closes the card and does not cast.
+    const layout = await page.evaluate(() => window.__tdt.layout());
+    await page.touchscreen.tap((layout.map.left + layout.map.right) / 2, layout.topBarBottom + 12);
+    await expect(sheet).toBeHidden();
+    expect(await sent(page, 'cast')).toHaveLength(0);
+  });
+
+  test('tower ring at tier 3: two specialisation buttons, clear of the controls; one tap buys', async ({ page }) => {
     await startSolo(page);
     const controls = await overlayBoxes(page);
     const vp = page.viewportSize()!;
@@ -227,11 +274,21 @@ test.describe('portrait phone layout', () => {
       await expect.poll(tier).toBe(t);
     }
 
+    // The Spec tag opens the choice and does not spend. One tap on a branch buys it.
+    const layout = await page.evaluate(() => window.__tdt.layout());
+    await page.touchscreen.tap((layout.map.left + layout.map.right) / 2, layout.topBarBottom + 12);
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+    const spec = page.locator('.upgrade-tag');
+    await expect(spec).toHaveText('Spec');
+    await spec.tap();
+    await expect.poll(tier).toBe(3);
+
     // Tier 3: Sniper and Volley replace Upgrade.
     await expect(page.locator('.radial-btn[data-action="upgrade"]')).toHaveCount(0);
     const branches = page.locator('.radial-btn[data-action="branch"]');
     await expect(branches).toHaveCount(2);
-    await expect(page.locator('#radial-chip')).toContainText('pick a specialisation');
+    await expect(page.locator('#radial-chip')).toContainText('Sniper');
+    await expect(page.locator('#radial-chip')).toContainText('Volley');
     const rects = await Promise.all((await page.locator('#radial .radial-btn').all()).map((l) => l.boundingBox()));
     const boxes = rects.map((b) => ({ left: b!.x, top: b!.y, right: b!.x + b!.width, bottom: b!.y + b!.height }));
     expect(boxes).toHaveLength(4);
@@ -242,18 +299,20 @@ test.describe('portrait phone layout', () => {
       for (const o of boxes.slice(i + 1)) expect(overlaps(r, o)).toBe(false);
     }
 
-    // First tap: armed, the chip says what it does, nothing is sent. Second tap buys it.
-    const sniper = page.locator('.radial-btn[data-branch="sniper"]');
-    await sniper.tap();
-    await expect(sniper).toHaveClass(/armed/);
+    // The chip already says what both specialisations do. One tap buys; there is no confirm tap.
     await expect(page.locator('#radial-chip')).toContainText('Sniper');
-    expect((await sent(page, 'upgrade')).filter((c) => c.branch)).toHaveLength(0);
+    await expect(page.locator('#radial-chip')).toContainText('Volley');
+    await expect(page.locator('#radial-chip')).not.toContainText('Tap again');
+    const sniper = page.locator('.radial-btn[data-branch="sniper"]');
     await sniper.tap();
     await expect.poll(() => sent(page, 'upgrade').then((c) => c.filter((x) => x.branch))).toEqual([
       { type: 'upgrade', towerId: expect.any(Number), branch: 'sniper' },
     ]);
     await expect.poll(tier).toBe(4);
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.branch, padId)).toBe('sniper');
+
+    // The ↑ tag is gone once the tower is branched.
+    await expect(page.locator('.upgrade-tag')).toHaveCount(0);
 
     // Tier 4 is the last: the ring shows Max tier and the chip names the branch.
     await expect(page.locator('.radial-btn[data-action="branch"]')).toHaveCount(0);

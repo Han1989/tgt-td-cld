@@ -17,8 +17,14 @@ export const TAP_SLOP = 10;
 export const SNAP_PX = 44;
 /** Candidates whose distances differ by less than this (px) are a tie: show the picker. */
 export const TIE_PX = 6;
-/** Joystick dead zone (px of knob travel) and how far ahead of the hero a move goes (tiles). */
-export const STICK_DEAD = 8;
+/**
+ * Joystick feel (px of finger travel from the base centre).
+ * `STICK_DEAD` is the wobble that does not walk. `STICK_FULL` is a full push: the base is larger
+ * than this, so the thumb does not have to reach the rim. `STICK_AHEAD` is how far ahead of the
+ * hero a full push aims (tiles).
+ */
+export const STICK_DEAD = 5;
+export const STICK_FULL = 22;
 export const STICK_AHEAD = 2.5;
 /** Resend the move at least this often while the stick is held, or sooner when it turns this much. */
 export const STICK_RESEND_MS = 100;
@@ -58,9 +64,33 @@ export function stickVector(c: Pt, p: Pt, r: number): StickVec {
 export function stickMoveTarget(hero: Pt, v: StickVec, r: number, ahead = STICK_AHEAD): Pt | null {
   const len = Math.hypot(v.dx, v.dy);
   if (len < STICK_DEAD || len === 0) return null;
+  // A short drag is already a full lead. The base radius is only the grab area.
+  const full = Math.min(Math.max(1, r), STICK_FULL);
+  const push = Math.min(1, (len - STICK_DEAD) / Math.max(1, full - STICK_DEAD));
+  const reach = ahead * (0.65 + 0.35 * push);
   // Screen and world axes point the same way (the map is never rotated).
-  const reach = ahead * Math.max(0.4, Math.min(1, len / r));
   return { x: hero.x + (v.dx / len) * reach, y: hero.y + (v.dy / len) * reach };
+}
+
+/**
+ * Where to draw the knob. Finger travel is amplified so a push that has already reached full
+ * speed looks like a full push, and the knob still stays inside the base.
+ */
+export function stickKnobOffset(v: StickVec, radius: number, full = STICK_FULL): Pt {
+  const len = Math.hypot(v.dx, v.dy);
+  if (len === 0 || radius <= 0) return { x: 0, y: 0 };
+  const shown = Math.min(radius, (len / Math.max(1, full)) * radius * 0.92);
+  return { x: (v.dx / len) * shown, y: (v.dy / len) * shown };
+}
+
+/**
+ * One-tap upgrade tag on a tower (screen px). The box sits on the top of the pad and ends
+ * above the centre, so a tap on the tower body still opens the ring.
+ */
+export function upgradeTagRect(center: Pt, padHalf: number, height = 34): { left: number; top: number; width: number; height: number } {
+  const width = Math.max(48, padHalf * 2);
+  const bottom = center.y - 6;
+  return { left: center.x - width / 2, top: bottom - height, width, height };
 }
 
 /** True when a held stick should send a new move: it turned enough, or the last move is stale. */

@@ -22,10 +22,11 @@ import { getMap, TILE_PX, towerRangeScale, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
+import { skillSheetRows } from '../hud/skillSheet';
 import {
   BRANCH_BLURBS,
-  branchChip,
   branchChoices,
+  branchOfferChip,
   buildCost,
   nextPriority,
   towerName,
@@ -53,8 +54,10 @@ import {
   resolveTap,
   shouldResendMove,
   smartCast,
+  stickKnobOffset,
   stickMoveTarget,
   stickVector,
+  upgradeTagRect,
   type Candidate,
   type Pt,
   type Scored,
@@ -66,8 +69,11 @@ const BUILD_RING_R = 72;
 const BUILD_BTN = 58;
 const TOWER_RING_R = 64;
 const TOWER_BTN = 60;
-/** Height reserved above a ring for its info chip (px). */
+/** Height reserved above a ring for its info chip (px). A branch choice wraps, so it is taller. */
 const CHIP_H = 30;
+const BRANCH_CHIP_H = 58;
+/** Hold a skill button this long (ms), without dragging, to open its description. A short tap still casts. */
+const SKILL_INFO_MS = 380;
 const SLOTS = ['Q', 'W', 'E', 'R'] as const;
 
 export interface TouchActions {
@@ -115,13 +121,17 @@ export class TouchControls {
   private readonly chip: HTMLElement;
   private readonly picker: HTMLElement;
   private readonly skills = new Map<SkillSlot, SkillEl>();
+  private readonly skillInfo: HTMLButtonElement;
+  private readonly sheet: HTMLElement;
+  private readonly tags: HTMLElement;
+  private readonly tagButtons = new Map<number, HTMLButtonElement>();
 
   /** The joystick finger and its knob offset. */
   private stick: { id: number; vec: StickVec } | null = null;
   private lastMoveDir: number | null = null;
   private lastMoveAt = 0;
-  /** A finger on a skill button: a tap (smart cast) or, once dragged, a manual aim. */
-  private press: { slot: SkillSlot; id: number; start: Pt; drag: boolean; button: HTMLButtonElement } | null = null;
+  /** A finger on a skill button: a tap (smart cast), a drag aim, or a hold that opened the description. */
+  private press: { slot: SkillSlot; id: number; start: Pt; at: number; drag: boolean; info: boolean; button: HTMLButtonElement } | null = null;
   /** A finger on the map: a tap unless it moves, or a ping once it has been held still. */
   private mapTouch: { id: number; start: Pt; drag: boolean; at: number; pinged: boolean; dismiss: boolean } | null = null;
   /** Grows under a still finger until the ping fires. */
@@ -131,8 +141,6 @@ export class TouchControls {
 
   private menu: Menu = null;
   private menuKey = '';
-  /** Tower ring at tier 3: the branch button tapped once (the second tap buys it). */
-  private branchPick: TowerBranch | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -155,6 +163,22 @@ export class TouchControls {
     this.knob = div('joy-knob', this.joy);
     this.respawn = div('t-respawn hidden', this.overlay);
     for (const slot of SLOTS) this.skills.set(slot, this.createSkill(slot));
+    this.skillInfo = document.createElement('button');
+    this.skillInfo.type = 'button';
+    this.skillInfo.id = 'skill-info';
+    this.skillInfo.className = 'skill-info';
+    this.skillInfo.textContent = 'Skills';
+    this.skillInfo.setAttribute('aria-label', 'Skill descriptions');
+    this.skillInfo.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.skillInfo.addEventListener('click', () => this.openSkillSheet(null));
+    this.overlay.appendChild(this.skillInfo);
+    this.sheet = div('skill-sheet hidden', hud);
+    this.sheet.id = 'skill-sheet';
+    this.sheet.setAttribute('role', 'dialog');
+    this.sheet.setAttribute('aria-label', 'Skills');
+    this.sheet.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.tags = div('upgrade-tags', hud);
+    this.tags.id = 'upgrade-tags';
     this.radial = div('radial hidden', hud);
     this.radial.id = 'radial';
     this.chip = div('radial-chip hidden', hud);
@@ -189,14 +213,18 @@ export class TouchControls {
     this.overlay.classList.toggle('hidden', !c);
     if (!c) {
       this.releaseStick(false);
+      this.tags.classList.add('hidden');
+      this.closeSkillSheet();
       return;
     }
+    this.tags.classList.remove('hidden');
     const put = (el: HTMLElement, x: number, y: number, size: number) => {
       el.style.left = `${Math.round(x - size / 2)}px`;
       el.style.top = `${Math.round(y - size / 2)}px`;
       el.style.width = el.style.height = `${size}px`;
     };
     put(this.joy, c.joystick.x, c.joystick.y, c.joystick.r * 2);
+    put(this.skillInfo, c.skillInfo.x, c.skillInfo.y, c.skillInfo.r * 2);
     for (const slot of SLOTS) {
       const circle = c.skills[slot];
       put(this.skills.get(slot)!.wrap, circle.x, circle.y, circle.r * 2);
@@ -228,6 +256,8 @@ export class TouchControls {
     this.driveStick(hero, now);
     this.updateHold(now);
     this.updatePing(now);
+    this.updateSkillInfo(now);
+    this.updateUpgradeTags(snap);
     this.updateMenu(snap);
   }
 
@@ -251,7 +281,8 @@ export class TouchControls {
     const radius = r.width / 2;
     const v = stickVector({ x: r.left + radius, y: r.top + radius }, { x: e.clientX, y: e.clientY }, radius);
     this.stick.vec = v;
-    this.knob.style.transform = `translate(${v.dx}px, ${v.dy}px)`;
+    const knob = stickKnobOffset(v, radius);
+    this.knob.style.transform = `translate(${knob.x}px, ${knob.y}px)`;
     // Steer at once rather than on the next frame: the move leaves now and the hero is drawn walking
     // from the next frame (own-hero prediction).
     this.driveStick(this.myHero(this.actions.latest()), performance.now());
@@ -371,8 +402,8 @@ export class TouchControls {
       el.cost.classList.toggle('hidden', f.cost === '');
       el.pips.innerHTML = Array.from({ length: skill.maxRank }, (_, i) => `<i class="${i < skill.rank ? 'on' : ''}"></i>`).join('');
       const text = HERO_INFO[hero.kind].skills[skill.slot];
-      el.btn.setAttribute('aria-label', `${text.name} (${skill.slot})`);
-      el.btn.title = `${text.name} — ${text.desc}`;
+      // No title tooltip: a phone does not hover, and a long-press opens the sheet instead.
+      el.btn.setAttribute('aria-label', `${text.name} (${skill.slot}). ${text.desc}. Hold to read.`);
     }
     this.respawn.classList.toggle('hidden', hero.alive);
     if (!hero.alive) this.respawn.textContent = `Respawning in ${Math.ceil(hero.respawnIn / tickRate)}s`;
@@ -407,12 +438,12 @@ export class TouchControls {
     e.stopPropagation();
     if (this.press) return;
     button.setPointerCapture?.(e.pointerId);
-    this.press = { slot, id: e.pointerId, start: { x: e.clientX, y: e.clientY }, drag: false, button };
+    this.press = { slot, id: e.pointerId, start: { x: e.clientX, y: e.clientY }, at: performance.now(), drag: false, info: false, button };
   }
 
   private onSkillMove(e: PointerEvent): void {
     const p = this.press;
-    if (!p || e.pointerId !== p.id) return;
+    if (!p || e.pointerId !== p.id || p.info) return;
     const now = { x: e.clientX, y: e.clientY };
     if (!p.drag && isDrag(p.start, now)) {
       p.drag = true;
@@ -440,8 +471,15 @@ export class TouchControls {
     const aim = this.ui.aim;
     this.ui.aim = null;
     p.button.classList.remove('cancel');
-    if (!released) return;
-    if (!p.drag) return this.smartCastSlot(p.slot, p.button);
+    if (!released || p.info) return;
+    if (!p.drag) {
+      // The sheet is for reading. A tap on a skill while it is open switches the row and does not cast.
+      if (!this.sheet.classList.contains('hidden')) {
+        this.openSkillSheet(p.slot);
+        return;
+      }
+      return this.smartCastSlot(p.slot, p.button);
+    }
     if (!aim || aim.cancel) return;
     const ok = this.castable(p.slot, p.button);
     if (!ok) return;
@@ -527,10 +565,156 @@ export class TouchControls {
     this.actions.send({ type: 'ping', x: w.x / TILE_PX, y: w.y / TILE_PX });
   }
 
+  /** A still hold on a skill opens the description sheet and does not cast. */
+  private updateSkillInfo(now: number): void {
+    const p = this.press;
+    if (!p || p.drag || p.info) return;
+    if (now - p.at < SKILL_INFO_MS) return;
+    p.info = true;
+    this.ui.aim = null;
+    p.button.classList.remove('cancel');
+    this.openSkillSheet(p.slot);
+  }
+
+  /** The description sheet: every skill, readable at phone size. `slot` scrolls that row into view. */
+  private openSkillSheet(slot: SkillSlot | null): void {
+    const hero = this.myHero(this.actions.latest());
+    if (!hero) return;
+    const snap = this.actions.latest();
+    const rows = skillSheetRows(hero.kind, hero.skills, snap?.tickRate ?? 20);
+    const info = HERO_INFO[hero.kind];
+    this.sheet.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'skill-sheet-head';
+    const title = document.createElement('h2');
+    title.textContent = `${info.name} skills`;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn';
+    close.textContent = 'Close';
+    close.addEventListener('click', () => this.closeSkillSheet());
+    head.append(title, close);
+    this.sheet.appendChild(head);
+    const list = document.createElement('div');
+    list.className = 'skill-sheet-list';
+    let focus: HTMLElement | null = null;
+    for (const row of rows) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'skill-sheet-row';
+      el.dataset.slot = row.slot;
+      if (row.slot === slot) el.classList.add('on');
+      el.innerHTML = `<span class="slot">${row.slot}</span><span class="name">${row.name}</span><span class="desc">${row.desc}</span><span class="meta">${row.meta}</span>`;
+      el.addEventListener('click', () => this.openSkillSheet(row.slot));
+      list.appendChild(el);
+      if (row.slot === slot) focus = el;
+    }
+    this.sheet.appendChild(list);
+    const hint = document.createElement('p');
+    hint.className = 'skill-sheet-hint';
+    hint.textContent = 'Hold a skill button to open this card. Close it, then tap a skill to cast or drag it to aim.';
+    this.sheet.appendChild(hint);
+    this.sheet.classList.remove('hidden');
+    const top = this.layout?.kind === 'tall' ? this.layout.topBarBottom : 8;
+    this.sheet.style.top = `${Math.round(top + 8)}px`;
+    if (focus) list.scrollTop = Math.max(0, focus.offsetTop - 8);
+  }
+
+  private closeSkillSheet(): void {
+    this.sheet.classList.add('hidden');
+    this.sheet.innerHTML = '';
+  }
+
+  /**
+   * One-tap upgrade tags on your towers. The tag shows the cost (the affordance) and one tap
+   * buys the next tier. The tower body still opens the ring, for priority and sell.
+   */
+  private updateUpgradeTags(snap: Snapshot | undefined): void {
+    if (!this.active || !snap) {
+      this.tags.innerHTML = '';
+      this.tagButtons.clear();
+      return;
+    }
+    const me = this.actions.me();
+    const gold = snap.players.find((p) => p.id === me)?.gold ?? 0;
+    const map = getMap();
+    const half = (map.padSize / 2) * this.camera.zoom * TILE_PX;
+    const seen = new Set<number>();
+    const controls = this.layout?.controls;
+    for (const tower of snap.towers) {
+      if (tower.owner !== me) continue;
+      const next = upgradeCost(tower.kind, tower.tier);
+      const choices = branchChoices(tower.kind, tower.tier, tower.branch);
+      if (next === null && choices.length === 0) continue;
+      seen.add(tower.id);
+      let btn = this.tagButtons.get(tower.id);
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'upgrade-tag';
+        btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+        this.tags.appendChild(btn);
+        this.tagButtons.set(tower.id, btn);
+      }
+      const label = choices.length > 0 ? 'Spec' : `↑ ${next}`;
+      const aria =
+        choices.length > 0
+          ? `${TOWER_NAMES[tower.kind]}: choose a specialisation`
+          : `Upgrade ${TOWER_NAMES[tower.kind]} for ${next} gold`;
+      if (btn.textContent !== label) btn.textContent = label;
+      if (btn.getAttribute('aria-label') !== aria) btn.setAttribute('aria-label', aria);
+      btn.classList.toggle('poor', next !== null && gold < next);
+      btn.classList.toggle('spec', choices.length > 0);
+      const at = this.toScreen(tower.x, tower.y);
+      const box = upgradeTagRect(at, half);
+      btn.style.left = `${Math.round(box.left)}px`;
+      btn.style.top = `${Math.round(box.top)}px`;
+      btn.style.width = `${Math.round(box.width)}px`;
+      btn.style.height = `${Math.round(box.height)}px`;
+      const covered =
+        !!controls &&
+        controls.rects.some((r) => box.left < r.right && r.left < box.left + box.width && box.top < r.bottom && r.top < box.top + box.height);
+      btn.classList.toggle('hidden', covered);
+      const towerId = tower.id;
+      btn.onclick = () => this.tapUpgradeTag(towerId, btn!);
+    }
+    for (const [id, btn] of this.tagButtons) {
+      if (seen.has(id)) continue;
+      btn.remove();
+      this.tagButtons.delete(id);
+    }
+  }
+
+  /** One tap on the tag: buy the next tier, or open the specialisation choice. */
+  private tapUpgradeTag(towerId: number, button: HTMLButtonElement): void {
+    const snap = this.actions.latest();
+    const tower = snap?.towers.find((t) => t.id === towerId);
+    if (!snap || !tower || tower.owner !== this.actions.me()) return;
+    const choices = branchChoices(tower.kind, tower.tier, tower.branch);
+    if (choices.length > 0) {
+      this.openTower(tower.id);
+      return;
+    }
+    const next = upgradeCost(tower.kind, tower.tier);
+    if (next === null) return;
+    const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+    if (gold < next) {
+      this.shake(button);
+      this.actions.toast('Not enough gold');
+      this.openTower(tower.id);
+      return;
+    }
+    this.actions.send({ type: 'upgrade', towerId: tower.id });
+  }
+
   /** A tap selects: your pad → build menu, your tower → ring, an enemy → focus target. It never moves the hero. */
   tap(p: Pt): void {
     const c = this.layout?.controls;
     if (c && inOverlay(p, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
+    if (!this.sheet.classList.contains('hidden')) {
+      this.closeSkillSheet();
+      return;
+    }
     if (this.menu || !this.picker.classList.contains('hidden') || this.ui.emoteOpen) {
       // Tap anywhere else closes the open menu (the build ring, the picker, or quick chat).
       this.actions.clearSelection();
@@ -662,12 +846,12 @@ export class TouchControls {
   closeMenus(): void {
     this.menu = null;
     this.menuKey = '';
-    this.branchPick = null;
     this.ui.preview = null;
     this.sellHold = null;
     this.radial.classList.add('hidden');
     this.radial.innerHTML = '';
     this.chip.classList.add('hidden');
+    this.chip.classList.remove('wrap');
     this.closePicker();
   }
 
@@ -684,6 +868,7 @@ export class TouchControls {
     let anchor: { x: number; y: number };
     let extent: number;
     let chip = '';
+    let chipH = CHIP_H;
     if (m.type === 'build') {
       const pad = map.pads[m.padId];
       if (!pad || this.ui.selectedPadId !== m.padId || snap.towers.some((t) => t.padId === m.padId)) return this.actions.clearSelection();
@@ -704,29 +889,30 @@ export class TouchControls {
       extent = TOWER_RING_R + TOWER_BTN / 2;
       const next = upgradeCost(tower.kind, tower.tier);
       const choices = branchChoices(tower.kind, tower.tier, tower.branch);
-      if (choices.length === 0) this.branchPick = null;
       const affordable = [next ?? Infinity, ...choices.map((c) => c.cost)].map((c) => gold >= c).join();
-      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${this.branchPick}:${affordable}`;
+      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${affordable}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerRing(tower, gold);
       }
-      if (this.branchPick) chip = branchChip(this.branchPick);
-      else if (choices.length > 0) chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: pick a specialisation`;
-      else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
+      if (choices.length > 0) {
+        chip = branchOfferChip(choices);
+        chipH = BRANCH_CHIP_H;
+      } else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
       else
         chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier, TUNING, 2, towerRangeScale(snap.modifiers, TUNING)) || 'max tier'}`;
     }
-    const at = placeRadial(this.toScreen(anchor.x, anchor.y), extent, CHIP_H, this.bounds());
+    const at = placeRadial(this.toScreen(anchor.x, anchor.y), extent, chipH, this.bounds());
     this.radial.style.left = `${Math.round(at.x)}px`;
     this.radial.style.top = `${Math.round(at.y)}px`;
     this.radial.classList.remove('hidden');
     if (this.chip.textContent !== chip) this.chip.textContent = chip;
+    this.chip.classList.toggle('wrap', chipH > CHIP_H);
     this.chip.classList.remove('hidden');
     // Centred over the ring, but never off screen.
     const half = this.chip.offsetWidth / 2;
     this.chip.style.left = `${Math.round(clamp(at.x, half + 4, this.camera.viewW - half - 4))}px`;
-    this.chip.style.top = `${Math.round(at.y - extent - CHIP_H / 2 - 2)}px`;
+    this.chip.style.top = `${Math.round(at.y - extent - chipH / 2 - 2)}px`;
   }
 
   private renderBuild(padId: number, gold: number): void {
@@ -740,7 +926,7 @@ export class TouchControls {
       b.dataset.tower = kind;
       b.classList.toggle('poor', gold < cost);
       b.classList.toggle('armed', armed);
-      b.addEventListener('click', () => this.pickTower(padId, kind, b));
+      this.onRadialTap(b, () => this.pickTower(padId, kind, b));
     });
   }
 
@@ -781,8 +967,7 @@ export class TouchControls {
         b.dataset.action = 'branch';
         b.dataset.branch = c.branch;
         b.classList.toggle('poor', gold < c.cost);
-        b.classList.toggle('armed', this.branchPick === c.branch);
-        b.addEventListener('click', () => this.pickBranch(tower.id, c.branch, c.cost, b));
+        this.onRadialTap(b, () => this.pickBranch(tower.id, c.branch, c.cost, b));
       });
     } else {
       const upgrade = this.ringButton(
@@ -795,8 +980,10 @@ export class TouchControls {
       upgrade.dataset.action = 'upgrade';
       upgrade.disabled = next === null;
       upgrade.classList.toggle('poor', next !== null && gold < next);
-      upgrade.addEventListener('click', () => {
-        if (next !== null && gold < next) {
+      this.onRadialTap(upgrade, () => {
+        if (next === null) return;
+        const goldNow = this.actions.latest()?.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+        if (goldNow < next) {
           this.shake(upgrade);
           return this.actions.toast('Not enough gold');
         }
@@ -806,7 +993,7 @@ export class TouchControls {
 
     const priority = this.ringButton(prio!, TOWER_BTN, `${ico('target')}<span class="cap">Target</span><span class="name">${PRIORITY_NAMES[tower.priority]}</span>`);
     priority.dataset.action = 'priority';
-    priority.addEventListener('click', () => this.actions.send({ type: 'setPriority', towerId: tower.id, priority: nextPriority(tower.priority) }));
+    this.onRadialTap(priority, () => this.actions.send({ type: 'setPriority', towerId: tower.id, priority: nextPriority(tower.priority) }));
 
     const refund = Math.floor(tower.spent * TUNING.economy.sellRefund);
     const sellBtn = this.ringButton(sell!, TOWER_BTN, `<span class="hold"></span>${ico('sell')}<span class="cap">Sell</span><span class="cost">${refund}</span>`);
@@ -828,22 +1015,40 @@ export class TouchControls {
     sellBtn.addEventListener('pointercancel', release);
   }
 
-  /** First tap on a branch shows what it does (chip); the second buys it. The choice is final. */
+  /** One tap buys the specialisation. The chip already says what each one does. The choice is final. */
   private pickBranch(towerId: number, branch: TowerBranch, cost: number, button: HTMLElement): void {
-    if (this.branchPick !== branch) {
-      this.branchPick = branch;
-      this.menuKey = '';
-      return;
-    }
     const gold = this.actions.latest()?.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
     if (gold < cost) {
       this.shake(button);
       this.actions.toast('Not enough gold');
       return;
     }
-    this.branchPick = null;
-    this.menuKey = '';
     this.actions.send({ type: 'upgrade', towerId, branch });
+  }
+
+  /**
+   * One tap on a radial button, even if the ring moves a few pixels under the finger (the camera
+   * follows the hero on a short phone). A drag does not fire.
+   */
+  private onRadialTap(button: HTMLButtonElement, action: () => void): void {
+    let start: Pt | null = null;
+    let id = -1;
+    button.addEventListener('pointerdown', (e) => {
+      if (button.disabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      id = e.pointerId;
+      start = { x: e.clientX, y: e.clientY };
+      button.setPointerCapture?.(e.pointerId);
+    });
+    const end = (e: PointerEvent, fire: boolean) => {
+      if (e.pointerId !== id || !start) return;
+      const tap = fire && !isDrag(start, { x: e.clientX, y: e.clientY });
+      start = null;
+      if (tap) action();
+    };
+    button.addEventListener('pointerup', (e) => end(e, true));
+    button.addEventListener('pointercancel', (e) => end(e, false));
   }
 
   private updateHold(now: number): void {

@@ -77,8 +77,9 @@
 | Tap a skill | **Smart cast.** Instant skills fire; targeted skills hit the densest enemy group in range; self-buffs cast on the hero. |
 | Press and drag a skill | Manual aim, with range and area shown. Release to cast; drag back onto the button to cancel. |
 | Nothing in range | The button shakes and no mana is spent. |
+| Read a skill | **Hold** a skill button, or tap **Skills**, to open a card with every skill's name and description. A short tap still casts. |
 | Build | Tap a pad in **your zone** to open the radial build menu (5 towers with costs, greyed out if unaffordable). The first tap on a tower previews its range; the second tap builds it. |
-| Tower actions | Tap your own tower to open a **radial ring around it:** **Upgrade** (with cost), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A small chip above the ring shows what the next tier adds, e.g. "Dmg 24→36". At tier 3, Upgrade becomes **two branch buttons** (`REPLAYABILITY.md` §1): the first tap shows what the branch does in the chip, the second buys it. |
+| Tower actions | Your tower shows a gold **↑ cost** tag. **One tap on the tag upgrades it.** Tap the tower body to open a **radial ring:** **Upgrade** (one tap, with cost), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A chip above the ring shows what the next tier adds, e.g. "Dmg 24→36". At tier 3 the tag says **Spec** and opens the ring: **two branch buttons**, each named with its cost, and the chip says what both do. **One tap buys** the branch. |
 | Target enemy | Tap an enemy to set the focus target. |
 | Close menus | Tap anywhere else. **The joystick keeps working while a menu or ring is open.** |
 

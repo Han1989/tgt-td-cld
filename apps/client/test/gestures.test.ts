@@ -17,8 +17,12 @@ import {
   smartCast,
   STICK_DEAD,
   STICK_RESEND_MS,
+  STICK_AHEAD,
+  STICK_FULL,
+  stickKnobOffset,
   stickMoveTarget,
   stickVector,
+  upgradeTagRect,
   type Candidate,
   type CastTarget,
 } from '../src/touch/gestures';
@@ -60,6 +64,27 @@ describe('joystick', () => {
     expect(t.y).toBeLessThan(HERO.y);
     const diag = stickMoveTarget(HERO, { dx: 30, dy: 30, mag: 0.85 }, 50)!;
     expect(diag.x - HERO.x).toBeCloseTo(diag.y - HERO.y);
+  });
+
+  it('reaches a full push well inside the base, and draws the knob ahead of the finger', () => {
+    const full = stickMoveTarget(HERO, { dx: STICK_FULL, dy: 0, mag: 0.4 }, 50)!;
+    const rim = stickMoveTarget(HERO, { dx: 50, dy: 0, mag: 1 }, 50)!;
+    expect(full.x - HERO.x).toBeCloseTo(STICK_AHEAD);
+    expect(rim.x - HERO.x).toBeCloseTo(full.x - HERO.x);
+    const nudge = stickMoveTarget(HERO, { dx: STICK_DEAD + 2, dy: 0, mag: 0.1 }, 50)!;
+    expect(nudge.x - HERO.x).toBeGreaterThan(STICK_AHEAD * 0.6);
+    const knob = stickKnobOffset({ dx: STICK_FULL, dy: 0, mag: 0.4 }, 50);
+    expect(knob.x).toBeGreaterThan(STICK_FULL);
+    expect(knob.x).toBeLessThanOrEqual(50);
+    expect(stickKnobOffset({ dx: 80, dy: 0, mag: 1 }, 50).x).toBeLessThanOrEqual(50);
+  });
+
+  it('keeps the upgrade tag above the tower centre and at least 44 px wide', () => {
+    const tag = upgradeTagRect({ x: 200, y: 400 }, 24);
+    expect(tag.width).toBeGreaterThanOrEqual(44);
+    expect(tag.top + tag.height).toBeLessThan(400);
+    expect(tag.left).toBeLessThan(200);
+    expect(tag.left + tag.width).toBeGreaterThan(200);
   });
 
   it('resends the move when the stick turns or the last move is stale, not on every frame', () => {

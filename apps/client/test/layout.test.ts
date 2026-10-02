@@ -77,7 +77,7 @@ describe('computeLayout: phones held upright', () => {
           expect(r.right).toBeLessThanOrEqual(w);
           expect(r.bottom).toBeLessThanOrEqual(h - insets.bottom);
         }
-        const circles = [c.joystick, ...Object.values(c.skills)];
+        const circles = [c.joystick, c.skillInfo, ...Object.values(c.skills)];
         for (let i = 0; i < circles.length; i++) {
           for (let j = i + 1; j < circles.length; j++) {
             const a = circles[i]!;
@@ -130,6 +130,7 @@ describe('computeLayout: phones held upright', () => {
     expect(left.joystick.x).toBeGreaterThan(206);
     expect(left.joystick.x).toBeCloseTo(412 - right.joystick.x);
     expect(left.skills.R.x).toBeCloseTo(412 - right.skills.R.x);
+    expect(left.skillInfo.x).toBeCloseTo(412 - right.skillInfo.x);
   });
 });
 
