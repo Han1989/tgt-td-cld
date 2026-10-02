@@ -2,47 +2,47 @@
 
 This is the hook that ships on **main**. The throwaway spike (`claude/loving-hawking-7fvsu7`, `?spike=hook`) is design history only. Do not merge that branch.
 
-Protocol is **16**. The Decision Log row is 2026-10-02 in `docs/GAME_DESIGN.md` §13. Tracker row: `TASKS.md` SL-04.
+Protocol is **17**. The Decision Log rows are 2026-10-02 in `docs/GAME_DESIGN.md` §13 (the kit rework of Playtest 2). Tracker: `TASKS.md` SL-04 and SL-05.
 
 ## What a match does
 
 Always on. No spike flag.
 
-1. **Meteor Rain (the only combo).** Ranger Arrow Storm and Arcanist Meteor are instant global rains. Cast the second within 2 seconds (`coop.comboWindow`, the same window as `R_OVERLAP_SECONDS`) and both rains end. One denser shared rain replaces them (more impacts per pulse, magic, the Meteor's rank). The casters do not need to aim at the same place. Warden Iron Vow does not fuse with either. `syncCast` still fires for any two living ultimates in that window and still adds no damage. Client polish can shake harder on `syncCast` (honour reduced motion); the event is unchanged.
+1. **Ultimates are aimed circles again** (as before the lane rains, and stronger). Arrow Storm (Ranger R): tap, aim, 6 pulses on a radius-3 circle over 3 s, ground and air, 50 / 70 / 90 physical per pulse, cast range 10. Meteor (Arcanist R): lands after 1.2 s on a radius-3 circle, ground only, 300 / 400 / 500 magic and a 1 / 1.5 / 2 s stun, cast range 9. Cooldowns are 40 / 36 / 32 s (Iron Vow 50 / 46 / 42 s), still no mana. A rank-1 cast kills every ordinary creep of a Quick wave 8–10 pack inside its circle (Brutes and bosses excepted). Bosses take `combat.ultimateBossFactor` (0.75) of any ultimate's or combo's damage, so one ultimate takes at most about 8% of a boss. `test/ultimates.test.ts` checks both.
 
-2. **Lane rains.** Each impact is a small circle on a lane waypoint, weighted toward creeps on the path. Empty corners are not in the pool. A lane and the tiles near the Heart stop receiving strikes once their caps are full, so three players do not erase an early wave. Impacts are `aoe` events (`arrowStorm`, `meteor`, `meteorRain`) at the spot, with the strike radius. The zone on the snapshot has radius 0 (no aimed warning circle). `x` and `y` on the zone and on the `combo` event are the caster.
+2. **Three combos, one per hero pair.** Two ultimates cast within **5 s** (`coop.comboWindow`, `R_OVERLAP_SECONDS`) whose areas overlap fuse into one stronger effect; both originals end.
+   - **Meteor Rain** (Arrow Storm + Meteor): the two circles overlap (centres no further apart than both radii). 20 small meteors over 3.5 s across both circles, magic, 200 / 260 / 320 by the Meteor's rank, 0.4 s stun.
+   - **Stun Storm** (Iron Vow + Arrow Storm): the Warden stands inside the storm's circle when the second of the two is cast (either order). The storm, 0.5 tiles wider, and every volley also stuns 0.45 s.
+   - **Shockwave** (Meteor + Iron Vow): the Warden stands inside the Meteor's circle. Creeps within 6.5 tiles are pulled to the Meteor's point for 0.9 s, then it lands for 1.5 × the Meteor's damage and a 1.5 / 2 / 2.5 s stun.
+   Iron Vow's heal, armour and burst still happen when it fuses. `syncCast` still fires for any two living ultimates in the window and adds no damage. The casual and expert bots answer a teammate's ultimate (a zone still on the ground, or a Warden's vow just cast) so combos happen in the matrix; the novice does not.
 
-3. **Wave-10 shield (Quick only).** `coop.bossShield.waves` is `[10]`. Full sets that list to empty (`modes.full.coop`), so Full wave 10 Ironhorn is a normal boss. Quick wave 10 Matriarch takes no damage until two different lanes hit it within 3 seconds. The hit that breaks the shield lands in full. A tower counts as its pad's zone (West / Mid / East). A hero inside a lane ribbon counts as that lane. Beside Mid, outside the ribbon, the hit counts as the nearer side lane, so a Warden standing in melee of a Mid-lane boss can tag West or East. The balance bot walks to that side while the shield is up, instead of sitting on the Heart.
+3. **Wave-10 shield (Quick only).** `coop.bossShield.waves` is `[10]`; Full sets the list to empty. Quick wave 10 Matriarch takes no damage until two different lanes hit it within 3 s (a tower counts as its pad's zone, a hero by the lane ribbon he stands in, beside Mid the nearer side lane). The hit that breaks the shield lands in full. The balance bots walk to a side while it is up.
 
-4. **Solo practice.** The solo pick has **Practice Meteor Rain**, and `?practice=meteor-rain` opens that pick with the button focused. It does not start the match by itself. Ranger and Arcanist are enabled; Warden has no partner, so the button stays off. The match adds an ally (`practice-ally`) at level 6 who learns R and casts it about half a second after yours. The ally does not count for pads, creep strength, surge share, income or call-early gold. Kills pay you. Online rooms never add an ally. The worker control is `{ ctl: 'practice', on: true }`, the same kind of message as pause. The first-match lesson is skipped for that match only.
+4. **Solo practice.** The solo pick has **Practice**, and `?practice=meteor-rain` opens that pick with the button focused. All three heroes are enabled: the ally is the Arcanist for a Ranger, the Ranger for an Arcanist or a Warden. It levels with you, answers your ultimate where you cast it (a Warden ally walks into the circle first) 0.5 s later, does not count for pads, creep strength, surge share, income or call-early gold, and its kills pay you. Online rooms never add an ally.
 
-5. **Warden.** E Blood Hunger: a share of auto-attack damage dealt returns as health. Cleave does not. R Iron Vow: while it lasts, every living hero gains armour and health regeneration (highest rank, they do not stack). Towers are not armoured. The gold `shielded` ring is that vow. `shieldFor` is how many ticks are left (0 when it is off), the same number on every living hero.
+5. **Warden.** Melee, but basic attacks and Cleave hit flying creeps within reach, and Taunt pulls flyers off the Heart to hover over him for its duration. E Blood Hunger heals a share of the damage dealt by auto-attacks **and Cleave**. R Iron Vow: at once, every living hero anywhere heals 40 / 50 / 60% of max HP; a burst of radius 3.5 around the Warden deals 100 / 150 / 200 physical (ground and air) and stuns 0.75 / 1 / 1.25 s; for 6 / 7 / 8 s every living hero also gains +5 / 8 / 11 armour and +5 / 7 / 10 HP/s (highest rank, no stack). The gold `shielded` ring is that vow; `shieldFor` is the ticks left.
 
 6. **Stick.** While you are steering, a melee hero does not walk itself toward a creep. Attacks still land on anything already in reach. Releasing the stick lets it step in again.
 
-7. **Hard final brace.** Normal matches are unchanged. On Hard, a Heart above 80 loses the excess when the final wave starts (the finale leak, no creep). Creep leaks on that wave cannot take the Heart below 48. Earlier waves are not braced. Full and Quick share the numbers (`finaleBrace`).
+7. **No Hard finale deduction.** Hard used to take Heart HP when the final wave started (a leak no creep caused, with a brace above it). Both are gone. Hard is a flat creep multiplier from wave 1 (`difficulty.hard.byPlayers`, `modes.quick.hard.byPlayers`).
 
-## Wire (protocol 16)
+## Wire (protocol 17)
 
 | Piece | What it is |
 |---|---|
-| `ZONE_KINDS` | adds `meteorRain` |
-| `AoeEffect` | adds `meteorRain` and `ironVow`; `lastStand` is gone |
-| `combo` | `{ combo: 'meteorRain', x, y, radius: 0, heroes }` |
-| `shieldUp` / `shieldHit` / `shieldBreak` | boss id, side or lanes |
-| `aoe` | one event per rain impact, at that spot |
-| `CreepSnap.shield` | `'up' \| 'left' \| 'right' \| 'off'`, omitted only when the creep never had a shield |
-| `Snapshot.practice` | `{ allyId, startLevel }` or null |
-| `HeroSnap.shielded` | true on every living hero while any Iron Vow remains |
-| `HeroSnap.shieldFor` | ticks left, always a number (0 clears the delta) |
-| `MatchReport.coop` | meteor rains and shield outcomes |
-| `Replay.practice` | the ally, also listed in `players` |
-| `syncCast` | unchanged; no extra damage |
+| `ZONE_KINDS` | `arrowStorm`, `meteor`, `meteorRain`, `stunStorm`, `shockwave`; every zone has an aimed `radius` again |
+| `COMBO_KINDS` | `meteorRain`, `stunStorm`, `shockwave` |
+| `AoeEffect` | adds `stunStorm`, `shockwave`; `ironVow` is the burst (with its radius) |
+| `combo` | `{ combo, x, y, radius, heroes }`; (x, y) is the middle of the fused zone, `radius` its area (a Shockwave's pull radius) |
+| `R_OVERLAP_SECONDS` | 5 (was 2) |
+| `MatchReport.coop` | `combos` by kind (was `meteorRains`) and the shield outcomes |
+| removed | `FINALE_LEAK_CREEP_ID`, `FINALE_LEAK_LANE` |
+| unchanged | `shieldUp` / `shieldHit` / `shieldBreak`, `CreepSnap.shield`, `Snapshot.practice`, `HeroSnap.shielded` / `shieldFor`, `syncCast`, `Replay.practice` |
 
-No new client commands. Practice is not a protocol message.
+Casting Arrow Storm or Meteor is a point cast again (`cast` with `x`, `y`); Iron Vow is instant.
 
-A replay recorded before this version, on a wave-10 match, will not end on the same Heart: the shield changes the fight.
+A replay recorded before this version will not end on the same Heart (the kits and numbers changed); `npm run counterfactual` re-runs the two Playtest 2 matches on the current rules.
 
 ## What is still later
 
-Stun Storm, Shockwave and any third pair. More raid mechanics (pressure plates, a weekly boss). Those stay Phase 6c. This hook does not mark `p6c-combos` or `p6c-raids` done.
+Pressure plates and a weekly raid boss. These stay Phase 6c. `p6c-combos` is done for the three hero pairs; presentation of Stun Storm and Shockwave is a separate pass.
