@@ -298,8 +298,17 @@ export function createBalanceBot(
         ? densestGroup(nearPost(SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
         : undefined;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
-      // A melee expert does not walk onto a boss while hurt; it lets the boss come to the post.
-      const diveBoss = bosses[0] && !(expert && !ranged && hpFrac < 0.75) ? bosses[0] : undefined;
+      // A shielded boss takes no damage until two lanes hit it. Standing at the Heart lets it
+      // walk the map, so the tag wins over retreat. A melee expert still will not step onto an
+      // unshielded boss while hurt.
+      const shieldedBoss = bosses.find((b) => b.shield && b.shield !== 'off');
+      // Hurt casual bots otherwise sit on the Heart, and the shielded boss walks the map immune.
+      if (shieldedBoss) retreating = false;
+      const diveBoss = shieldedBoss
+        ? shieldedBoss
+        : bosses[0] && !(expert && !ranged && hpFrac < 0.75)
+          ? bosses[0]
+          : undefined;
       const target = diveBoss ?? straggler ?? group ?? closest;
       // Wave-10 shield: stand just outside the Mid ribbon so this hit counts as a side lane
       // while Mid-zone towers count as Mid. Once the shield drops, the usual standoff resumes.

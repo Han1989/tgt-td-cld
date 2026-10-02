@@ -24,19 +24,22 @@ function bossWaves(list: typeof TUNING.waves.list): number[] {
 }
 
 describe('match modes', () => {
-  it('defaults to Full mode on Normal: 30 waves and the top-level tuning', () => {
+  it('defaults to Full mode on Normal: 30 waves, with the wave-10 shield off', () => {
     const state = game();
     expect(state.mode).toBe('full');
     expect(state.difficulty).toBe('normal');
-    expect(state.tuning).toEqual(TUNING);
+    expect(state.tuning).toEqual(tuningForMode(TUNING, 'full'));
+    expect(state.tuning.coop.bossShield.waves).toEqual([]);
     const snap = snapshot(state);
     expect(snap.mode).toBe('full');
     expect(snap.difficulty).toBe('normal');
     expect(snap.totalWaves).toBe(30);
   });
 
-  it('Full mode changes nothing', () => {
-    expect(tuningForMode(TUNING, 'full')).toEqual(TUNING);
+  it('Full mode drops the wave-10 shield and keeps every other number', () => {
+    const full = tuningForMode(TUNING, 'full');
+    expect(full.coop.bossShield.waves).toEqual([]);
+    expect({ ...full, coop: TUNING.coop }).toEqual(TUNING);
   });
 
   it('Quick mode has 15 waves with bosses on waves 5, 10 and 15', () => {
@@ -54,8 +57,9 @@ describe('match modes', () => {
     const full = game('full');
     const quick = game('quick');
     const ratio = creepMaxHp(quick, 'grunt', 15) / creepMaxHp(full, 'grunt', 30);
-    expect(ratio).toBeGreaterThan(0.95);
-    expect(ratio).toBeLessThan(1.1);
+    // Full's solo late bonus makes wave 30 a little tougher than Quick wave 15.
+    expect(ratio).toBeGreaterThan(0.9);
+    expect(ratio).toBeLessThan(1.05);
     // And its last wave is as big as Full mode's last wave.
     const count = (groups: typeof TUNING.waves.list[number]) => groups.reduce((n, g) => n + g.perLane * g.lanes.length, 0);
     expect(count(QUICK.waves.list[14]!)).toBe(count(TUNING.waves.list[29]!));

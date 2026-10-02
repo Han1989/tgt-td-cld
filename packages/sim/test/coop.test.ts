@@ -126,6 +126,7 @@ describe('Meteor Rain', () => {
 describe('wave-10 shield', () => {
   it('takes no damage from one lane, then the second lane breaks it and lands', () => {
     const state = labGame();
+    state.tuning.coop.bossShield.waves = [10];
     const boss = spawnCreep(state, 'ironhorn', 1, 10);
     expect(snapshot(state).creeps.find((c) => c.id === boss.id)?.shield).toBe('up');
     const hp = boss.hp;
@@ -140,6 +141,7 @@ describe('wave-10 shield', () => {
 
   it('forgets the first lane after the window', () => {
     const state = labGame();
+    state.tuning.coop.bossShield.waves = [10];
     const boss = spawnCreep(state, 'ironhorn', 1, 10);
     damageCreep(state, boss, 40, 'physical', 'p1', false, { x: 6, lane: 0 });
     const hp = boss.hp;
@@ -163,12 +165,12 @@ describe('wave-10 shield', () => {
     expect(heroHitLane(stand!.x, stand!.y)).toBe(0);
   });
 
-  it('shields Full wave 10 and Quick wave 10, not Quick wave 5 or Full wave 20', () => {
+  it('shields Quick wave 10 only: not Quick wave 5, and not Full wave 10 or 20', () => {
     const full = labGame();
-    expect(spawnCreep(full, 'ironhorn', 1, 10).id).toBeGreaterThan(0);
-    expect(full.shields).toHaveLength(1);
-    expect(spawnCreep(full, 'matriarch', 1, 20).id).toBeGreaterThan(0);
-    expect(full.shields).toHaveLength(1);
+    spawnCreep(full, 'ironhorn', 1, 10);
+    expect(full.shields).toHaveLength(0);
+    spawnCreep(full, 'matriarch', 1, 20);
+    expect(full.shields).toHaveLength(0);
 
     const quick = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], mode: 'quick' }, 3);
     spawnCreep(quick, 'ironhorn', 1, 5);

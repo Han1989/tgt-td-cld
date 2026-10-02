@@ -242,7 +242,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Protocol 16. Meteor Rain is the one combo: Arrow Storm and Meteor are lane rains, and a second cast within 2 seconds fuses them into a denser shared rain. Wave 10 bosses need two lanes. Solo practice is ?practice=meteor-rain. Warden has Blood Hunger and Iron Vow. The stick overrides melee chase. Do not merge the spike branch.',
+    note: 'Protocol 16. Meteor Rain is the one combo: Arrow Storm and Meteor are lane rains, and a second cast within 2 seconds fuses them into a denser shared rain. Quick wave 10 Matriarch needs two lanes; Full wave 10 does not. Solo practice is ?practice=meteor-rain. Warden has Blood Hunger and Iron Vow. The stick overrides melee chase. Do not merge the spike branch.',
+    proof: pr(45),
   },
   {
     id: 'D-02',
@@ -507,7 +508,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'p6c',
-    note: 'Team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. Quick wave 10 Matriarch (and Full wave 10) already use the two-lane shield (SL-04).',
+    note: 'Team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. Quick wave 10 Matriarch already uses the two-lane shield (SL-04). Full wave 10 does not.',
   },
   {
     id: 'p6c-gear',

@@ -423,6 +423,7 @@ function pulseZone(state: GameState, zone: Zone): void {
       laneCap: s.laneCap,
       heartCap: s.heartCap,
       heartRadius: s.heartRadius,
+      bossDamage: s.bossDamage,
     });
   }
 }

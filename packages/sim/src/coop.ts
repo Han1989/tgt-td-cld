@@ -1,11 +1,13 @@
 // Soft-launch hook (always on, not a spike flag):
 // 1. Meteor Rain — Ranger Arrow Storm and Arcanist Meteor are global lane rains. Cast the
 //    second inside the combo window and they fuse into one denser shared rain.
-// 2. Wave-10 two-lane shield — that wave's boss takes no damage until two lanes hit it within the window.
+// 2. Quick wave-10 two-lane shield — that boss takes no damage until two lanes hit it within the window.
+//    Full overrides the wave list to empty.
 // 3. Solo practice — an ally hero that does not count as a player (`practice` on GameConfig).
 
 import type { CreepKind, HeroKind, LaneId, PlayerId, ShieldState } from '@tdt/protocol';
-import { creepsInRadius, damageCreep, emit, heroMaxHp, heroMaxMana, newId, random, stunCreep } from './combat';
+import { creepsInRadius, damageCreep, emit, heroMaxHp, heroMaxMana, newId, stunCreep } from './combat';
+import { mix32 } from './modifiers';
 import { getMap, laneDistance, PAD_ZONES } from './map';
 import type { BossShield, Creep, GameState, Hero, HitFrom, RecentUlt, Zone } from './state';
 import { secondsToTicks } from './tuning';
@@ -180,7 +182,18 @@ export function rainStrike(
   state: GameState,
   zone: Zone,
   effect: 'arrowStorm' | 'meteor' | 'meteorRain',
-  opts: { damage: number; radius: number; air: boolean; stunTicks: number; magic: boolean; laneCap: number; heartCap: number; heartRadius: number },
+  opts: {
+    damage: number;
+    radius: number;
+    air: boolean;
+    stunTicks: number;
+    magic: boolean;
+    laneCap: number;
+    heartCap: number;
+    heartRadius: number;
+    /** Extra multiplier against bosses. Regular creeps keep `damage`. */
+    bossDamage?: number;
+  },
 ): void {
   const spot = pickRainSpot(state, zone, opts.air, opts.laneCap, opts.heartCap, opts.heartRadius);
   if (!spot) return;
@@ -189,7 +202,8 @@ export function rainStrike(
   emit(state, { type: 'aoe', effect, x: spot.x, y: spot.y, radius: opts.radius });
   for (const c of creepsInRadius(state, spot.x, spot.y, opts.radius, opts.air)) {
     if (opts.stunTicks > 0) stunCreep(state, c, opts.stunTicks);
-    damageCreep(state, c, opts.damage, opts.magic ? 'magic' : 'physical', zone.owner, false, from);
+    const boss = opts.bossDamage !== undefined && state.tuning.creeps[c.kind].boss;
+    damageCreep(state, c, boss ? opts.damage * opts.bossDamage! : opts.damage, opts.magic ? 'magic' : 'physical', zone.owner, false, from);
   }
 }
 
@@ -271,7 +285,9 @@ function pickRainSpot(
   if (open.length === 0) return null;
   let total = 0;
   for (const c of open) total += c.w;
-  let roll = random(state) * total;
+  // Not the match RNG: a rain must not move later creep offsets.
+  const fired = zone.laneStrikes[0] + zone.laneStrikes[1] + zone.laneStrikes[2];
+  let roll = (mix32(zone.id, fired + 1) / 4294967296) * total;
   let picked = open[open.length - 1]!;
   for (const c of open) {
     roll -= c.w;
