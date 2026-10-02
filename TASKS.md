@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 client tasks P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are open.
+**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 client tasks P2-01 and P2-02 are done (PR #57, PR #63), and so is P2-04 (combo cue and kill count). P2-03 and P2-05 are open.
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -136,14 +136,14 @@ Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** 
 
 ## Playtest 2 · work orders
 
-Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-01 and P2-02 are done. P2-03–P2-05 are still open (no balance numbers in this tracker update). They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
+Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-01, P2-02 and P2-04 are done. P2-03 and P2-05 are still open (no balance numbers in this tracker update). They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
 | P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude). Han reviews the PR. | Team + Han | ☐ |
-| P2-04 | Ultimate presentation and combo cue (client). Starts after P2-03. | Team | ☐ |
+| P2-04 | Ultimate presentation and combo cue (client, PR pending). Each combo has its own ribbon, strikes and colour, and a finished rain or combo shows its kill count. No aim circles. | Team | ☑ |
 | P2-05 | Retest. | Han | ☐ |
 
 ---
