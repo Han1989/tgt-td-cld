@@ -310,7 +310,7 @@ export class GameView {
         app.renderer.resolution = res;
         app.renderer.resize(window.innerWidth, window.innerHeight);
       }
-      const level = fxLevel(q, settings.get().shake);
+      const level = fxLevel(q, settings.get().shake, prefersReducedMotion());
       renderer.setFxLevel(level);
       renderer.setDisplay(settings.get().display);
       hud.particles = level.particles;
@@ -319,6 +319,8 @@ export class GameView {
       monitor.reset();
       applyQuality();
     });
+    // Turning "reduce motion" on or off in the OS while a match runs changes the effects at once.
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', applyQuality);
     applyQuality();
 
     // ---------------------------------------------------------------------

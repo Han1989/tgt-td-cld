@@ -32,6 +32,7 @@ import type { UiState } from '../uiState';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
+import { vowLook } from './fx/vow';
 import {
   AOE_COLORS,
   COLORS,
@@ -92,6 +93,10 @@ const RECOIL_MS = 140;
 const RECOIL_PX = 4;
 /** A new tower pops in over this long. */
 const POP_MS = 260;
+/** Iron Vow ring radii beyond a hero's body radius (px): the glow, the thin ring, the dashed ring. */
+const VOW_GLOW = 22;
+const VOW_INNER = 9;
+const VOW_OUTER = 17;
 /** A pulse with no projectile (Blizzard) swells the whole tower this long, by up to this much. */
 const PULSE_MS = 220;
 const PULSE_SCALE = 0.12;
@@ -156,6 +161,11 @@ interface HeroSprite extends EntitySprite {
   facing: Graphics;
   mana: Sprite;
   aura: Sprite;
+  vow: VowSprites;
+  /** When the current Iron Vow reached this hero (ms), or -1 when it is not covered. */
+  vowOnAt: number;
+  /** The ring is showing, so it needs updating (and one last time when it goes). */
+  vowShown: boolean;
   kind: HeroKind;
   look: string;
   auraOn: boolean;
@@ -195,6 +205,20 @@ interface ZoneSprite {
   inner: Sprite;
   head: Sprite | null;
   tail: Sprite | null;
+}
+
+/** Marks where a global rain was cast, for as long as it runs: a rune ring on the ground and a faint column of light. */
+interface RainSprite {
+  root: Container;
+  ring: Sprite;
+  column: Sprite;
+}
+
+/** An ally's Iron Vow ring, under the hero: a glow, a thin ring and a dashed ring that turns (fx/vow.ts). */
+interface VowSprites {
+  glow: Sprite;
+  inner: Sprite;
+  outer: Sprite;
 }
 
 interface HeartSprite {
@@ -247,6 +271,7 @@ export class WorldRenderer {
   private readonly heartLayer = new Container();
   private readonly trapLayer = new Container();
   private readonly zoneLayer = new Container();
+  private readonly rains = new Map<number, RainSprite>();
   private readonly groundFxLayer = new Container();
   private readonly towerLayer = new Container();
   private readonly groundLayer = new Container();
@@ -453,6 +478,7 @@ export class WorldRenderer {
     this.syncProjectiles(projectiles, heroes, dt);
     this.syncTraps(latest);
     this.syncZones(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
+    this.syncRains(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
     this.lastDt = dt;
     this.updateHeart(now);
     this.updatePortals(now, dt);
@@ -717,13 +743,10 @@ export class WorldRenderer {
         fx.frostNova(x, y, radius);
         break;
       case 'meteor':
-        fx.meteor(x, y, radius);
-        break;
       case 'arrowStorm':
-        fx.arrowStormPulse(x, y, radius);
-        break;
       case 'meteorRain':
-        fx.meteor(x, y, radius);
+        // Global rains: every strike is its own event, and something falls onto it.
+        fx.rainImpact(effect, x, y, radius);
         break;
       case 'blizzard': {
         fx.blizzardPulse(x, y, radius);
@@ -1351,6 +1374,10 @@ export class WorldRenderer {
         this.heroes.set(h.id, s);
       }
       if (!h.alive) {
+        // A dead hero wears no Iron Vow ring (and blooms it again if it respawns while the vow still lasts).
+        s.vow.glow.alpha = s.vow.inner.alpha = s.vow.outer.alpha = 0;
+        s.vowOnAt = -1;
+        s.vowShown = false;
         // Death reaction: the rig falls over and fades, then the hero is hidden until it respawns. It
         // starts when the snapshots show it dead (its heroDied event is due a snapshot later).
         if (s.lastHp > 0 && now - s.diedAt > DEATH.hero.ms) s.diedAt = now;
@@ -1398,15 +1425,26 @@ export class WorldRenderer {
         s.mana.position.set(-w / 2, y + 5);
         s.mana.setSize(Math.max(0.01, (w * h.mana) / Math.max(1, h.maxMana)), 2);
       }
-      const statusKey = `${h.stunned ? 'st' : ''}${h.shielded ? 'sh' : ''}`;
+      const statusKey = h.stunned ? 'st' : '';
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
-        if (h.shielded) {
-          s.status.circle(0, 0, r + 8).fill({ color: COLORS.shield, alpha: 0.18 });
-          s.status.circle(0, 0, r + 8).stroke({ width: 3, color: COLORS.shield, alpha: 0.9 });
-        }
         if (h.stunned) s.status.star(0, -S * 0.9, 5, 7, 3).fill(COLORS.stun);
+      }
+      // Iron Vow: a living ally wears the ring for as long as the snapshot says the vow lasts (shieldFor).
+      const vowOn = h.shielded && h.shieldFor > 0;
+      if (vowOn && s.vowOnAt < 0) s.vowOnAt = now;
+      else if (!vowOn) s.vowOnAt = -1;
+      if (vowOn || s.vowShown) {
+        const v = vowLook(vowOn ? h.shieldFor : 0, vowOn ? now - s.vowOnAt : 0, now, this.fx.calm);
+        s.vow.glow.alpha = v.glow;
+        s.vow.inner.alpha = v.inner;
+        s.vow.outer.alpha = v.outer;
+        s.vow.outer.rotation = v.spin;
+        s.vow.glow.scale.set(((r + VOW_GLOW) / 32) * v.scale);
+        s.vow.inner.scale.set(((r + VOW_INNER) / RING_PX) * v.scale);
+        s.vow.outer.scale.set(((r + VOW_OUTER) / 28) * v.scale);
+        s.vowShown = vowOn;
       }
       // Learned passives: a slowly turning ring (Blood Hunger, Clarity). Iron Vow uses the shield ring.
       const auraOn = h.kind !== 'ranger' && (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) > 0;
@@ -1418,7 +1456,7 @@ export class WorldRenderer {
         s.aura.rotation = (now / 1800) * (h.kind === 'warden' ? 1 : -1);
         if (h.kind === 'arcanist' && this.fx.particles && chance(3, dtMs) > 0) this.fx.mote(h.x, h.y, AOE_COLORS.frostNova, 0.7, 35, 0.3);
       }
-      if (h.shielded && this.fx.particles && chance(6, dtMs) > 0) this.fx.mote(h.x, h.y, COLORS.shield, 0.6, 60, 0.35);
+      if (h.shielded && this.fx.particles && !this.fx.calm && chance(6, dtMs) > 0) this.fx.mote(h.x, h.y, COLORS.shield, 0.6, 60, 0.35);
     }
     for (const [id, s] of this.heroes) if (!seen.has(id)) s.root.visible = false;
   }
@@ -1443,11 +1481,15 @@ export class WorldRenderer {
     aura.tint = h.kind === 'warden' ? FX.wardenAura : FX.arcanistAura;
     aura.alpha = 0;
     sprite.root.addChildAt(aura, 0);
+    const vow = this.makeVow(r);
+    sprite.root.addChildAt(vow.outer, 0);
+    sprite.root.addChildAt(vow.inner, 0);
+    sprite.root.addChildAt(vow.glow, 0);
     sprite.root.addChild(facing);
     const mana = new Sprite(Texture.WHITE);
     mana.tint = COLORS.mana;
     sprite.root.addChild(mana);
-    return { ...sprite, facing, mana, aura, kind: h.kind, look, auraOn: false, art: rig, lastHp: h.hp, diedAt: -Infinity };
+    return { ...sprite, facing, mana, aura, vow, vowOnAt: -1, vowShown: false, kind: h.kind, look, auraOn: false, art: rig, lastHp: h.hp, diedAt: -Infinity };
   }
 
   private syncProjectiles(projectiles: { id: number; style: string; x: number; y: number }[], heroes: HeroSnap[], dtMs: number): void {
@@ -1685,6 +1727,85 @@ export class WorldRenderer {
         this.zones.delete(id);
       }
     }
+  }
+
+  /**
+   * Global rains (radius 0: Arrow Storm, Meteor, Meteor Rain) have no circle: every strike is an `aoe` event. While
+   * one runs, from its start tick to its end tick, a faint rune ring and a column of light mark where it was cast
+   * (the zone's x, y), and faint streaks fall across the screen so the strikes stand out against it.
+   */
+  private syncRains(snap: Snapshot, tick: number, now: number, dtMs: number): void {
+    const seen = new Set<number>();
+    const calm = this.fx.calm;
+    // The sky streaks fall over the map only, not over the margins a wide window leaves around it.
+    const v = this.viewBounds();
+    const sky = {
+      left: Math.max(v.left, 0),
+      top: Math.max(v.top, 0),
+      right: Math.min(v.right, this.map.width * S),
+      bottom: Math.min(v.bottom, this.map.height * S),
+    };
+    const skyShown = sky.right > sky.left && sky.bottom > sky.top;
+    for (const z of snap.zones) {
+      if (z.radius > 0.05) continue;
+      seen.add(z.id);
+      let s = this.rains.get(z.id);
+      if (!s) {
+        s = this.makeRain(z);
+        this.rains.set(z.id, s);
+      }
+      // In over 0.2 s, out over the last 0.4 s.
+      const fade = Math.max(0, Math.min(1, (tick - z.startTick) / 4, (z.endTick - tick) / 8));
+      s.ring.alpha = 0.6 * fade;
+      s.ring.rotation = calm ? 0 : now / 1400;
+      s.column.alpha = (calm ? 0.14 : 0.24) * fade;
+      if (skyShown) this.fx.rainSky(z.kind, sky, dtMs);
+    }
+    for (const [id, s] of this.rains) {
+      if (!seen.has(id)) {
+        s.root.destroy({ children: true });
+        this.rains.delete(id);
+      }
+    }
+  }
+
+  private makeRain(z: ZoneSnap): RainSprite {
+    const color = ZONE_COLORS[z.kind];
+    const root = new Container();
+    root.position.set(z.x * S, z.y * S);
+    const column = new Sprite(this.atlas.frames.glow);
+    column.anchor.set(0.5, 1);
+    column.tint = color;
+    column.blendMode = 'add';
+    column.scale.set((1.2 * S) / 64, (7 * S) / 64);
+    column.alpha = 0;
+    const ring = new Sprite(this.atlas.frames.dashRing);
+    ring.anchor.set(0.5);
+    ring.tint = color;
+    ring.scale.set((0.9 * S) / 28);
+    ring.alpha = 0;
+    root.addChild(column, ring);
+    this.zoneLayer.addChild(root);
+    return { root, ring, column };
+  }
+
+  /** The three sprites of an Iron Vow ring for a hero of body radius `r` (px); the ring sits under the body. */
+  private makeVow(r: number): VowSprites {
+    const glow = new Sprite(this.atlas.frames.glow);
+    glow.anchor.set(0.5);
+    glow.tint = FX.goldDeep;
+    glow.blendMode = 'add';
+    glow.scale.set((r + VOW_GLOW) / 32);
+    const inner = new Sprite(this.atlas.frames.ring);
+    inner.anchor.set(0.5);
+    inner.tint = FX.goldLight;
+    inner.scale.set((r + VOW_INNER) / RING_PX);
+    const outer = new Sprite(this.atlas.frames.dashRing);
+    outer.anchor.set(0.5);
+    outer.tint = FX.gold;
+    outer.scale.set((r + VOW_OUTER) / 28);
+    glow.alpha = inner.alpha = outer.alpha = 0;
+    return { glow, inner, outer };
   }
 
   private makeZone(z: ZoneSnap): ZoneSprite {

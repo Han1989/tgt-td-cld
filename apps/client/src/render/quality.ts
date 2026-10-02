@@ -63,11 +63,19 @@ export interface FxLevel {
   shake: boolean;
   /** Floating damage numbers alive at once. */
   maxNumbers: number;
+  /**
+   * The device asks for reduced motion (`prefers-reduced-motion`). The Iron Vow ring and the rain effects
+   * keep their rings and flashes but drop what moves: streaks, turning, blinking and shake.
+   */
+  calm: boolean;
 }
 
-/** Effects for a quality level and the player's "Screen shake" setting. */
-export function fxLevel(quality: 'high' | 'low', shakeSetting: boolean): FxLevel {
+/**
+ * Effects for a quality level, the player's "Screen shake" setting and whether the device asks for
+ * reduced motion.
+ */
+export function fxLevel(quality: 'high' | 'low', shakeSetting: boolean, calm = false): FxLevel {
   return quality === 'low'
-    ? { particles: false, shake: false, maxNumbers: 10 }
-    : { particles: true, shake: shakeSetting, maxNumbers: 36 };
+    ? { particles: false, shake: false, maxNumbers: 10, calm }
+    : { particles: true, shake: shakeSetting, maxNumbers: 36, calm };
 }
