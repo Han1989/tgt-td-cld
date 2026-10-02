@@ -67,8 +67,11 @@ describe('progress dashboard data', () => {
     }
     expect(byId('g1-gate').proof?.label).toBe('Passed 2 Oct 2026');
     expect(byId('g1-gate').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/blob/main/TASKS.md');
-    const playtest2 = ['P2-01', 'P2-02', 'P2-03', 'P2-04', 'P2-05'];
-    for (const id of playtest2) expect(byId(id).status).toBe('todo');
+    expect(byId('P2-01').status).toBe('done');
+    expect(byId('P2-02').status).toBe('done');
+    expect(byId('P2-01').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/57');
+    expect(byId('P2-02').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/63');
+    for (const id of ['P2-03', 'P2-04', 'P2-05']) expect(byId(id).status).toBe('todo');
     expect(byId('P2-01').owner).toBe('Team');
     expect(byId('P2-01').note.toLowerCase()).toContain('touch');
     expect(byId('P2-02').note.toLowerCase()).toContain('air');

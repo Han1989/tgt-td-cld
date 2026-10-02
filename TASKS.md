@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 work orders are open.
+**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 client tasks P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are open.
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -8,7 +8,7 @@
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked
 
-**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). Immediate open work is Playtest 2 (P2-01–P2-05), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
+**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). P2-01 is done (touch controls, PR #57). P2-02 is done (flyer readability, anti-air teaching, gold nudge, PR #63). Immediate open work is Playtest 2 (P2-03–P2-05), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
 
 ---
 
@@ -90,7 +90,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 
 ## After polish · Discovery and rollout · NEW
 
-**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends), so Discovery and Phase 6 are not held for another friends evening. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-02–D-06 and Gate 2 are the public soft-launch path and are still open. Playtest 2 (P2-01–P2-05) is the follow-up from that session.
+**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends), so Discovery and Phase 6 are not held for another friends evening. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-02–D-06 and Gate 2 are the public soft-launch path and are still open. Playtest 2 is the follow-up from that session: P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are still open.
 
 **Why:** current playtesters are only **2–3 friends**. That is enough for confusion and hook notes, not for whether strangers stay. Discovery is the first real-audience signal **before or alongside** store submission.
 
@@ -121,7 +121,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 
 ## Gate 1 · Friends playtest · PASSED · 2 Oct 2026
 
-Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** Phase 6 and other post–Gate-1 work may proceed. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path and are still open. Follow-up from the session is Playtest 2 (P2-01–P2-05).
+Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** Phase 6 and other post–Gate-1 work may proceed. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path and are still open. Follow-up from the session is Playtest 2: P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are still open.
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
@@ -133,14 +133,14 @@ Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** 
 
 ---
 
-## Playtest 2 · work orders · open
+## Playtest 2 · work orders
 
-Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). These are stubs: no balance numbers, protocol, or client changes in this tracker update. They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
+Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-01 and P2-02 are done. P2-03–P2-05 are still open (no balance numbers in this tracker update). They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| P2-01 | Touch controls (client). Client Polish. | Team | ☐ |
-| P2-02 | Air waves and unspent gold teaching (client). Client Polish. | Team | ☐ |
+| P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
+| P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude). Han reviews the PR. | Team + Han | ☐ |
 | P2-04 | Ultimate presentation and combo cue (client). Starts after P2-03. | Team | ☐ |
 | P2-05 | Retest. | Han | ☐ |
@@ -149,7 +149,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). Thes
 
 ## Phase 6 and later · unblocked (Gate 1 passed 2 Oct 2026)
 
-Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 (P2-01–P2-05) is the open follow-up from the friends session.
+Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 and P2-02 are done (PR #57, PR #63). P2-03–P2-05 are still open.
 
 ### Phase 6a · Foundation: accounts and data
 
