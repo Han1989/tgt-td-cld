@@ -698,6 +698,18 @@ button {
   text-align: left;
 }
 
+.popup .air-note {
+  margin: 0 0 8px;
+  color: var(--moon);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.popup .tower-option.misses-air {
+  box-shadow: inset 0 0 0 2px rgba(185, 140, 255, 0.95);
+}
+
 .popup .tower-option .desc {
   grid-column: 1 / -1;
   color: var(--muted);
@@ -840,6 +852,28 @@ button {
   100% {
     opacity: 0;
   }
+}
+
+/* Teaching lines (flyers, idle gold). Not the red rejection toast. */
+.toast.teach {
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 8px 14px;
+  font-size: 15px;
+  line-height: 1.3;
+  text-align: center;
+  animation-duration: 3.4s;
+}
+
+.toast.teach.air {
+  background: linear-gradient(180deg, rgba(46, 28, 78, 0.96), rgba(16, 10, 28, 0.96));
+  border-color: rgba(207, 230, 255, 0.75);
+  color: var(--moon);
+}
+
+.toast.teach.gold {
+  background: linear-gradient(180deg, rgba(62, 48, 16, 0.96), rgba(16, 12, 8, 0.96));
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 /* Gift theater: a gold figure with the other player's colour on the rim. */
@@ -1278,6 +1312,51 @@ body.layout-tall #lane-roles {
 /* The lesson card sits in this band. Drop the chips under it while it is open. */
 body.layout-tall:has(#tutorial:not(.hidden)) .match-flags {
   top: calc(var(--map-top, 48px) + 112px);
+}
+
+/* "Air" while Wisps are on the map. Sits with the modifier chips, under them when both show. */
+.air-flag {
+  position: absolute;
+  top: calc(var(--map-top, 48px) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 10px 4px;
+  border-radius: 8px;
+  background: rgba(28, 16, 48, 0.92);
+  border: 1px solid rgba(185, 140, 255, 0.85);
+  box-shadow: 0 0 0 1px var(--ink);
+  pointer-events: none;
+  text-align: center;
+}
+
+.air-flag b {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--moon);
+}
+
+.air-flag span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f4f0ff;
+}
+
+body:has(#match-flags:not(.hidden)) .air-flag {
+  top: calc(var(--map-top, 48px) + 52px);
+}
+
+body.layout-tall:has(#tutorial:not(.hidden)) .air-flag {
+  top: calc(var(--map-top, 48px) + 118px);
+}
+
+body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air-flag {
+  top: calc(var(--map-top, 48px) + 164px);
 }
 
 .mod-chip,
@@ -1962,6 +2041,16 @@ body.layout-tall:has(#tutorial:not(.hidden)) .match-flags {
   color: #f4f8ff;
 }
 
+/* The Wisps note is one sentence of teaching. Solid, so it reads over a lane. */
+.tutorial.air {
+  background: rgba(14, 16, 24, 0.9);
+  border-color: rgba(207, 230, 255, 0.7);
+}
+
+.tutorial.air p {
+  font-size: 14px;
+}
+
 .tutorial-kicker {
   margin-bottom: 1px;
   font-size: 10px;
@@ -2508,6 +2597,10 @@ body.layout-tall .toasts {
   transform: translate(-50%, -100%);
   width: max-content;
   max-width: calc(100% - 24px);
+}
+
+body.layout-tall .toast.teach {
+  font-size: 16px;
 }
 
 body.layout-tall .notice {

@@ -55,7 +55,7 @@ export class SettingsPanel {
     this.volumes[1]!.input.addEventListener('change', previewSfx);
     $('settings-tutorial').addEventListener('click', () => {
       this.close();
-      store.set({ tutorial: lessonStatus('replay') });
+      store.set({ tutorial: lessonStatus('replay'), airLesson: 'new' });
       onReplay();
     });
     // Tap anywhere else closes it.

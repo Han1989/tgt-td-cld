@@ -9,6 +9,13 @@ import { HERO_INFO } from '../heroInfo';
 /** `new` runs the lesson on the next solo match. The other two do not. */
 export type TutorialStatus = 'new' | 'completed' | 'skipped';
 
+/** `new` shows the Wisps card the next time flyers are on the map. `seen` does not. */
+export type AirLesson = 'new' | 'seen';
+
+export function parseAirLesson(value: unknown): AirLesson {
+  return value === 'seen' ? 'seen' : 'new';
+}
+
 export const TUTORIAL_STEPS = ['move', 'build', 'cast', 'upgrade', 'ping', 'emote'] as const;
 export type TutorialStepId = (typeof TUTORIAL_STEPS)[number];
 
@@ -184,7 +191,7 @@ export function tutorialPrompt(
     return {
       kicker: 'Lesson',
       title: "You're ready",
-      body: 'You can move, build, cast, upgrade and ping. This Quick match keeps going. Replay the lesson any time from Settings.',
+      body: 'You can move, build, cast, upgrade and ping. This Quick match keeps going. The first time Wisps appear, one note explains them. Replay the lesson any time from Settings.',
       next: 'Got it',
       skip: false,
     };
@@ -262,4 +269,23 @@ export function tutorialPrompt(
         skip: true,
       };
   }
+}
+
+/**
+ * The Wisps note. It is not one of `TUTORIAL_STEPS`: those finish in the opening,
+ * and the first flyers are later (Quick wave 3, Full wave 5). The card shows once,
+ * the first time flyers are on the map, including after the early lesson is done
+ * or skipped, until the player taps Got it or builds a tower that hits air.
+ */
+export function airPrompt(hero: HeroKind | null): TutorialPrompt {
+  const ranged = hero ? TUNING.hero[hero].ranged : true;
+  return {
+    kicker: 'Lesson',
+    title: 'Wisps fly',
+    body: ranged
+      ? 'Cannon cannot hit Wisps. Arrow, Frost, Arcane and Flak can, and so can your shots. Each one wears a wing mark.'
+      : 'Your swings cannot reach Wisps. Arrow, Frost, Arcane and Flak can. Each one wears a wing mark.',
+    next: 'Got it',
+    skip: false,
+  };
 }

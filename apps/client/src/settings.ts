@@ -4,7 +4,7 @@
 import type { StickAnchor, ThumbLayout } from './layout';
 import type { StickFeelName } from './touch/gestures';
 import type { Display } from './render/art/tokens';
-import type { TutorialStatus } from './tutorial/logic';
+import { parseAirLesson, type AirLesson, type TutorialStatus } from './tutorial/logic';
 
 export type Quality = 'auto' | 'high' | 'low';
 
@@ -29,6 +29,11 @@ export interface Settings {
    * do not. Replay sets it back to `new`.
    */
   tutorial: TutorialStatus;
+  /**
+   * The Wisps note. `new` shows it the next time flyers are on the map (any match).
+   * `seen` does not. Replay tutorial sets it back to `new`.
+   */
+  airLesson: AirLesson;
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
@@ -72,6 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sfx: 0.8,
   muted: false,
   tutorial: 'new',
+  airLesson: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -95,6 +101,7 @@ export function parseSettings(raw: string | null): Settings {
     out.sfx = volume(v.sfx) ?? out.sfx;
     if (typeof v.muted === 'boolean') out.muted = v.muted;
     if (v.tutorial === 'new' || v.tutorial === 'completed' || v.tutorial === 'skipped') out.tutorial = v.tutorial;
+    out.airLesson = parseAirLesson(v.airLesson);
   } catch {
     // Corrupt value: defaults.
   }
