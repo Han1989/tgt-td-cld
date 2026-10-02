@@ -666,9 +666,9 @@ export const TUNING: Tuning = {
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
     hp: [1.04, 1.43, 1.46],
-    earlyHpBonus: [0, 0.46, 1.25],
+    earlyHpBonus: [0, 0.35, 1.0],
     earlyWaves: 20,
-    lateHpBonus: [0.08, 0.24, 0.62],
+    lateHpBonus: [0.08, 0.3, 1.0],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
@@ -856,10 +856,10 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.012, 1.43, 1.6],
-        earlyHpBonus: [0, 0.25, 1.2],
+        hp: [1.012, 1.5, 1.6],
+        earlyHpBonus: [0, 0.25, 0.8],
         earlyWaves: 10,
-        lateHpBonus: [0, 0.26, 1.4],
+        lateHpBonus: [0, 0.26, 1.6],
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
@@ -931,10 +931,10 @@ export const TUNING: Tuning = {
     respawnPerLevel: 2,
     autoEngage: { range: 2.5, leash: 4, memory: 1 },
     ranger: {
-      hp: 320, hpPerLevel: 40, hpRegen: 1.5,
+      hp: 360, hpPerLevel: 45, hpRegen: 2.5,
       mana: 140, manaPerLevel: 25, manaRegen: 2.5, manaRegenPerLevel: 0.5,
-      armor: 2, armorPerLevel: 0.5, magicResist: 0.1,
-      damage: 20, damagePerLevel: 3, damageType: 'physical',
+      armor: 4, armorPerLevel: 0.5, magicResist: 0.1,
+      damage: 24, damagePerLevel: 3.5, damageType: 'physical',
       attackCooldown: 0.9, attackRange: 5.6, ranged: true, projectileSpeed: 16,
       speed: 4.6, radius: 0.4, acquireRange: 6.6,
       multishot: {
@@ -972,9 +972,9 @@ export const TUNING: Tuning = {
       },
     },
     warden: {
-      hp: 420, hpPerLevel: 60, hpRegen: 2.2,
+      hp: 620, hpPerLevel: 50, hpRegen: 3,
       mana: 110, manaPerLevel: 26, manaRegen: 2.1, manaRegenPerLevel: 0.4,
-      armor: 4, armorPerLevel: 0.7, magicResist: 0.1,
+      armor: 6, armorPerLevel: 0.8, magicResist: 0.1,
       damage: 24, damagePerLevel: 3.6, damageType: 'physical',
       attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
       speed: 4.3, radius: 0.5, acquireRange: 5.5,
@@ -982,7 +982,7 @@ export const TUNING: Tuning = {
         manaCost: [20, 25, 30, 35],
         cooldown: [6, 5.5, 5, 4.5],
         radius: 2.2,
-        damage: [52, 85, 117, 150],
+        damage: [24, 38, 52, 66],
       },
       taunt: {
         manaCost: [30, 35, 40, 45],
@@ -1005,10 +1005,10 @@ export const TUNING: Tuning = {
       },
     },
     arcanist: {
-      hp: 280, hpPerLevel: 35, hpRegen: 1.2,
+      hp: 320, hpPerLevel: 42, hpRegen: 2,
       mana: 260, manaPerLevel: 34, manaRegen: 4.4, manaRegenPerLevel: 0.6,
-      armor: 1, armorPerLevel: 0.4, magicResist: 0.2,
-      damage: 18, damagePerLevel: 2.5, damageType: 'magic',
+      armor: 3, armorPerLevel: 0.4, magicResist: 0.2,
+      damage: 24, damagePerLevel: 3.5, damageType: 'magic',
       attackCooldown: 1, attackRange: 5.1, ranged: true, projectileSpeed: 12,
       speed: 4.5, radius: 0.4, acquireRange: 6.1,
       fireball: {

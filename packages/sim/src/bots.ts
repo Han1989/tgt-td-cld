@@ -7,6 +7,7 @@ import {
   type Command,
   type CreepKind,
   type CreepSnap,
+  type HeroSnap,
   type HeroKind,
   type LaneId,
   type PlayerId,
@@ -313,8 +314,8 @@ export function createBalanceBot(
       const hpFrac = hero.hp / hero.maxHp;
       const ranged = tuning.hero[hero.kind].ranged;
       // Casual: 30% / 60%. Expert leaves earlier and comes back healthier, melee sooner than ranged.
-      const retreatLow = expert ? (ranged ? 0.54 : 0.65) : 0.3;
-      const retreatHigh = expert ? (ranged ? 0.85 : 0.9) : 0.6;
+      const retreatLow = expert ? (ranged ? 0.54 : 0.65) : ranged ? 0.3 : 0.4;
+      const retreatHigh = expert ? (ranged ? 0.85 : 0.9) : ranged ? 0.6 : 0.7;
       // A novice never retreats: it lets its hero die.
       if (hpFrac < retreatLow && !novice) retreating = true;
       if (hpFrac > retreatHigh) retreating = false;
@@ -406,6 +407,14 @@ export function createBalanceBot(
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
+        // A player answers a teammate's ultimate (inside the combo window) so the two fuse.
+        if (slot === 'R' && !novice) {
+          const aim = comboAim(snap, hero, s.range);
+          if (aim) {
+            cmds.push(hero.kind === 'warden' ? { type: 'cast', slot: 'R' } : { type: 'cast', slot: 'R', x: aim.x, y: aim.y });
+            continue;
+          }
+        }
         if (slot === 'R' && hero.kind === 'warden') {
           // Heals the whole team and bursts around him: cast when a pack is on the Warden, a boss is close,
           // or he or a teammate is hurt.
@@ -638,6 +647,30 @@ function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guar
     return { guard, forward: guard };
   }
   return { guard: lanePoint(i, GUARD_DISTANCE), forward: lanePoint(i, FORWARD_DISTANCE) };
+}
+
+/**
+ * Where this hero's ultimate would fuse with a teammate's that is still on the ground or just cast (a combo, see
+ * `docs/GAME_DESIGN.md` §13): a Ranger answers a Meteor (or a Warden's vow) and an Arcanist an Arrow Storm (or a vow),
+ * at its circle; a Warden stands in a storm's circle to answer it. Null when nothing is waiting for an answer.
+ */
+function comboAim(snap: Snapshot, hero: HeroSnap, reach: number): Vec2 | null {
+  const window = 4 * snap.tickRate;
+  const near = (p: Vec2) => dist(hero.x, hero.y, p.x, p.y) <= reach + 1;
+  if (hero.kind === 'warden') {
+    const zone = snap.zones.find((z) => z.kind === 'arrowStorm' && dist(hero.x, hero.y, z.x, z.y) <= z.radius);
+    return zone ? { x: zone.x, y: zone.y } : null;
+  }
+  const partner = hero.kind === 'ranger' ? 'meteor' : 'arrowStorm';
+  const zone = snap.zones.find((z) => z.kind === partner && near(z));
+  if (zone) return { x: zone.x, y: zone.y };
+  // A Warden whose vow went off in the last few seconds: aim where he stands (he must be inside the circle).
+  for (const h of snap.heroes) {
+    if (h.kind !== 'warden' || !h.alive || h.owner === hero.owner) continue;
+    const r = h.skills.find((sk) => sk.slot === 'R');
+    if (r && r.rank > 0 && r.cooldown > 0 && r.cooldownTotal - r.cooldown <= window && near(h)) return { x: h.x, y: h.y };
+  }
+  return null;
 }
 
 /** A cast of `skill` that catches at least `min` of `creeps`, or null. */

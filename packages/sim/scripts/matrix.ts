@@ -8,6 +8,7 @@
 //   fly    Heart HP lost to flyers per match, and on each lane (West / Mid / East)
 //   dead   hero deaths per match, and the Warden's
 //   R      ultimates cast per match; kills and damage per cast; combos per match; ultimates' share of all damage
+// `--team ranger,warden` runs only that team (hero order = lane order).
 // `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
 // arrays and numbers replace), so a number can be tried without editing tuning.ts.
 // Matches run in parallel (one process per core). Slow: the full matrix is about 2500 matches.
@@ -115,10 +116,16 @@ const flag = (name: string): string | undefined => {
 const seedCount = Number(flag('--seeds') ?? 30);
 const jobs = Number(flag('--jobs') ?? Math.max(1, cpus().length));
 const jsonOut = flag('--json');
-const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && args[i - 1] !== '--tuning' && args[i - 1] !== '--json');
+const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && args[i - 1] !== '--tuning' && args[i - 1] !== '--json' && args[i - 1] !== '--team');
 const pick = <T extends string>(all: T[]): T[] => (words.some((w) => (all as string[]).includes(w)) ? all.filter((x) => words.includes(x)) : all);
 const sizeWords = words.filter((w) => ['solo', 'pairs', 'trio'].includes(w));
-const teams = TEAMS.filter((t) => sizeWords.length === 0 || sizeWords.includes(t.length === 1 ? 'solo' : t.length === 2 ? 'pairs' : 'trio'));
+const teamArg = flag('--team');
+const teams = TEAMS.filter(
+  (t) =>
+    teamArg
+      ? teamArg.split(',').join('+') === t.join('+')
+      : sizeWords.length === 0 || sizeWords.includes(t.length === 1 ? 'solo' : t.length === 2 ? 'pairs' : 'trio'),
+);
 
 const rows: Row[] = [];
 for (const mode of pick(MODES)) {
