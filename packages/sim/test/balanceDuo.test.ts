@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBalanceBot, createIdleBot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
-import { BALANCE_SEEDS, expectTeamCurve, HEART_TARGET, PAIRS, heartGate, CASUAL_SHARE } from './helpers';
+import { BALANCE_SEEDS, expectTeamCurve, HEART_TARGET, PAIRS, heartGate } from './helpers';
 const TIMEOUT = 120_000;
 
 describe('headless balance run (2 players)', () => {
