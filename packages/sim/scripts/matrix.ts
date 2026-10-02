@@ -120,12 +120,9 @@ const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && a
 const pick = <T extends string>(all: T[]): T[] => (words.some((w) => (all as string[]).includes(w)) ? all.filter((x) => words.includes(x)) : all);
 const sizeWords = words.filter((w) => ['solo', 'pairs', 'trio'].includes(w));
 const teamArg = flag('--team');
-const teams = TEAMS.filter(
-  (t) =>
-    teamArg
-      ? teamArg.split(',').join('+') === t.join('+')
-      : sizeWords.length === 0 || sizeWords.includes(t.length === 1 ? 'solo' : t.length === 2 ? 'pairs' : 'trio'),
-);
+const teams: HeroKind[][] = teamArg
+  ? [teamArg.split(',') as HeroKind[]]
+  : TEAMS.filter((t) => sizeWords.length === 0 || sizeWords.includes(t.length === 1 ? 'solo' : t.length === 2 ? 'pairs' : 'trio'));
 
 const rows: Row[] = [];
 for (const mode of pick(MODES)) {
