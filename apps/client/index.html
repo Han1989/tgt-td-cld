@@ -209,7 +209,7 @@
           <div id="settings-quality" class="choices row"></div>
           <h3>Screen shake</h3>
           <div id="settings-shake" class="choices row"></div>
-          <p class="settings-note">Low graphics turns off particles and screen shake.</p>
+          <p class="settings-note">Shakes on ultimates, boss abilities and Heart hits. Low graphics and your device's reduced-motion setting turn it off.</p>
         </section>
         <section>
           <h3>Display</h3>
@@ -236,6 +236,9 @@
       <div id="air-flag" class="air-flag hidden" role="status" aria-live="polite"></div>
       <div id="banner" class="banner hidden"></div>
       <div id="coop-glow" aria-hidden="true"></div>
+      <div id="ult-flash" aria-hidden="true"></div>
+      <div id="ult-pops" role="status" aria-live="polite"></div>
+      <ul id="mates" class="mates hidden" aria-label="Teammates"></ul>
       <div id="coop-burst" class="hidden" aria-hidden="true">
         <div class="coop-rings"><i class="coop-ring a"></i><i class="coop-ring b"></i></div>
         <b id="coop-burst-word"></b>
@@ -266,6 +269,7 @@
           <h1 id="end-title">Victory</h1>
           <p id="end-text"></p>
           <ul id="end-gifts" class="end-gifts hidden"></ul>
+          <ul id="end-ults" class="end-gifts end-ults hidden"></ul>
           <div id="end-feedback" class="end-feedback hidden">
             <div class="end-q">How was this match?</div>
             <div id="end-ratings" class="end-ratings" role="group" aria-label="Rate this match from 1 to 5">

@@ -12,6 +12,7 @@ import {
   MODIFIERS,
   PROTOCOL_VERSION,
   R_OVERLAP_SECONDS,
+  ULTIMATE_TAGS,
   type Command,
   type ComboKind,
   type CoopReport,
@@ -71,6 +72,8 @@ export interface Match {
   heartAfterWave: number[];
   heroes: HeroTrack[];
   combos: Record<ComboKind, number>;
+  /** Combos by the pair of players whose ultimates fused (seat order inside a pair). */
+  comboPairs: { players: [PlayerId, PlayerId]; combos: Record<ComboKind, number> }[];
   shields: ShieldTrack[];
 }
 
@@ -99,6 +102,7 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       goldReceived: 0,
     })),
     combos: { meteorRain: 0, stunStorm: 0, shockwave: 0 },
+    comboPairs: [],
     shields: [],
   };
 }
@@ -185,6 +189,7 @@ export function matchStep(match: Match): void {
       }
     } else if (e.type === 'combo') {
       match.combos[e.combo]++;
+      noteComboPair(match, e.heroes, e.combo);
     } else if (e.type === 'shieldUp') {
       match.shields.push({
         creepId: e.creepId,
@@ -219,6 +224,23 @@ export function matchStep(match: Match): void {
       }
     }
   });
+}
+
+/** Counts a combo toward the pair of players whose heroes cast the two ultimates. */
+function noteComboPair(match: Match, heroIds: readonly number[], combo: ComboKind): void {
+  const seats = match.state.players;
+  const owners = heroIds
+    .map((id) => seats.findIndex((p) => p.heroId === id))
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b);
+  if (owners.length !== 2) return;
+  const players: [PlayerId, PlayerId] = [seats[owners[0]!]!.id, seats[owners[1]!]!.id];
+  let pair = match.comboPairs.find((p) => p.players[0] === players[0] && p.players[1] === players[1]);
+  if (!pair) {
+    pair = { players, combos: { meteorRain: 0, stunStorm: 0, shockwave: 0 } };
+    match.comboPairs.push(pair);
+  }
+  pair.combos[combo]++;
 }
 
 /** The match report (complete once the match is over). */
@@ -272,8 +294,18 @@ export function matchReport(match: Match): MatchReport {
 }
 
 function coopReport(match: Match): CoopReport {
+  const ultimates = {} as NonNullable<CoopReport['ultimates']>;
+  for (const tag of ULTIMATE_TAGS) {
+    const u = match.state.ultStats.by[tag];
+    ultimates[tag] = { casts: u.casts, kills: u.kills };
+  }
+  const seat = (id: PlayerId) => match.state.players.findIndex((p) => p.id === id);
   return {
     combos: { ...match.combos },
+    ultimates,
+    comboPairs: match.comboPairs
+      .map((p) => ({ players: [...p.players] as [PlayerId, PlayerId], combos: { ...p.combos } }))
+      .sort((a, b) => seat(a.players[0]) - seat(b.players[0]) || seat(a.players[1]) - seat(b.players[1])),
     shields: match.shields.map((s) => ({
       boss: s.boss,
       wave: s.wave,

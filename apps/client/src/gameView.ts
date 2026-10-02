@@ -19,6 +19,7 @@ import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
+import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
@@ -71,6 +72,9 @@ export class GameView {
 
   /** Recent pings, emotes, ultimates and creep damage, for the shared flourishes. */
   private cues: CueMemory;
+
+  /** The R button's clocks: ready for 20 s of a wave, and the 5 s "Combo!" window. */
+  private ultCues: UltCueMemory = emptyUltCues();
 
   /** The first-match lesson is running on this solo match. */
   private lesson = false;
@@ -411,6 +415,11 @@ export class GameView {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
       hud.handleEvents(events, latest, view.me);
+      hud.feedUltimates(events, latest, view.me);
+      const ult = readUltCues(view.ultCues, latest, events, view.me);
+      view.ultCues = ult.memory;
+      hud.setUltCues(ult.cues);
+      touch.setUltCues(ult.cues);
       marks.sync(events, latest, now);
       const cues = readCues(view.cues, events, latest, now);
       view.cues = cues.memory;
@@ -661,6 +670,7 @@ export class GameView {
     this.social.emote = -Infinity;
     this.marks.clear();
     this.cues = emptyCues();
+    this.ultCues = emptyUltCues();
     this.stage.clear();
     this.needsCentre = true;
     this.coach.dismissAir();

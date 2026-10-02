@@ -120,11 +120,13 @@ export class StressTransport implements Transport {
     // Both heroes wear an Iron Vow ring all the time, so its sprites are part of the load. The Arcanist stands on
     // the Mid lane, where the fused rain is marked.
     const spot = midSpot();
+    // Their ultimates are learned and ready (the R button's pulse and "Combo!" ring).
     const heroes = this.base.heroes.map((h) => ({
       ...h,
       ...(h.owner === ALLY ? { x: spot.x, y: spot.y } : {}),
       shielded: true,
       shieldFor: 100,
+      skills: h.skills.map((s) => (s.slot === 'R' ? { ...s, rank: 1, cooldown: 0, learnable: false } : s)),
     }));
     return { ...this.base, tick: t, creeps, projectiles, heroes, zones: this.zones(t), events: this.events(t, creeps, heroes), nextWaveIn: 600 };
   }
@@ -163,6 +165,19 @@ export class StressTransport implements Transport {
         { type: 'syncCast', heroIds: [ranger.id, arcanist.id].sort((a, b) => a - b), slot: 'R' },
         { type: 'combo', combo: 'meteorRain', x: arcanist.x, y: arcanist.y, radius: 0, heroes: [ranger.id, arcanist.id] },
       );
+    }
+    if (ranger && arcanist) {
+      const k = t % 240;
+      // The ally casts alone first: your R shows the "Combo!" ring until the fuse.
+      if (k === 20) events.push({ type: 'cast', heroId: arcanist.id, slot: 'R', x: arcanist.x, y: arcanist.y });
+      // The fuse ends the Arrow Storm, and Iron Vow's heal reaches both heroes.
+      if (k === FUSE_TICK + 1) events.push({ type: 'ultResult', ult: 'arrowStorm', by: PLAYER, kills: 4 });
+      if (k === FUSE_TICK + 2) {
+        events.push({ type: 'heal', heroId: ranger.id, amount: 150 }, { type: 'heal', heroId: arcanist.id, amount: 90 });
+      }
+      // Rains end: yours, then the ally's.
+      if (k === 150) events.push({ type: 'ultResult', ult: 'meteorRain', by: PLAYER, kills: 12 });
+      if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
     }
     // The hero attacks once a second (its rig's attack animation).
     const hero = this.base.heroes[0];

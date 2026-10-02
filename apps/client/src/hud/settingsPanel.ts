@@ -1,19 +1,24 @@
 // Settings popup (the ⚙ in the top bar): sound (mute, music and effects volume, docs/ART.md §13),
-// touch controls layout (docs/MOBILE.md §5), graphics quality (§7), screen shake, display (Normal /
+// touch controls layout (docs/MOBILE.md §5), graphics quality (§7), screen shake (Off / Normal / Strong), display (Normal /
 // Bright, docs/ART.md §2) and installing the app (Android prompt / iPhone sheet). The lobby's
 // speaker button mutes too.
 
 import type { StickAnchor, ThumbLayout } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import type { Display } from '../render/art/tokens';
-import { DISPLAY_NAMES, QUALITY_NAMES, STICK_ANCHOR_NAMES, STICK_FEEL_NAMES, THUMB_NAMES, type Quality, type SettingsStore } from '../settings';
+import {
+  DISPLAY_NAMES,
+  QUALITY_NAMES,
+  SHAKE_NAMES,
+  STICK_ANCHOR_NAMES,
+  STICK_FEEL_NAMES,
+  THUMB_NAMES,
+  type Quality,
+  type SettingsStore,
+  type ShakeSetting,
+} from '../settings';
 import type { StickFeelName } from '../touch/gestures';
 import { lessonStatus } from '../tutorial/logic';
-
-const SHAKE_CHOICES: ['on' | 'off', string][] = [
-  ['on', 'On'],
-  ['off', 'Off'],
-];
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -110,7 +115,7 @@ export class SettingsPanel {
     this.choices(this.stick, Object.entries(STICK_ANCHOR_NAMES) as [StickAnchor, string][], s.stickAnchor, (v) => this.store.set({ stickAnchor: v }));
     this.choices(this.feel, Object.entries(STICK_FEEL_NAMES) as [StickFeelName, string][], s.stickFeel, (v) => this.store.set({ stickFeel: v }));
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
-    this.choices(this.shake, SHAKE_CHOICES, s.shake ? 'on' : 'off', (v) => this.store.set({ shake: v === 'on' }));
+    this.choices(this.shake, Object.entries(SHAKE_NAMES) as [ShakeSetting, string][], s.shake, (v) => this.store.set({ shake: v }));
     this.choices(this.display, Object.entries(DISPLAY_NAMES) as [Display, string][], s.display, (v) => this.store.set({ display: v }));
     const android = canInstall();
     const ios = isIos() && !isStandalone();

@@ -155,7 +155,7 @@ export class Effects {
   readonly add: Layer;
   readonly text: Layer;
   readonly shake = new Shake();
-  level: FxLevel = { particles: true, shake: true, maxNumbers: 36, calm: false };
+  level: FxLevel = { particles: true, shake: true, shakeScale: 1, maxNumbers: 36, calm: false };
   /** Camera zoom, so numbers keep their size on screen. */
   zoom = 1;
   /** Entity scale (phones draw entities larger); small bits follow it. */
@@ -215,11 +215,12 @@ export class Effects {
     this.shake.reset();
   }
 
-  /** Adds screen shake (0..1), if shake is on. */
+  /** Adds screen shake (0..1) times the setting's strength (Strong kicks harder), if shake is on. */
   bump(amount: number): void {
     if (!this.level.shake) return;
-    this.shake.add(amount);
-    this.shakeAdded += amount;
+    const scaled = amount * this.level.shakeScale;
+    this.shake.add(scaled);
+    this.shakeAdded += scaled;
   }
 
   /** Screen offset (px) of the shake this frame. */
@@ -705,7 +706,6 @@ export class Effects {
     this.ring(x, y, radius, AOE_COLORS.ironVow, 500, 0.15, 'shock');
     this.ring(x, y, radius * 0.8, FX.hot, 350, 0.1);
     this.flash(x, y, 1.2, FX.goldLight, 400, 0.8);
-    if (!this.calm) this.bump(0.35);
     if (!this.particles || this.calm) return;
     this.emit({
       frame: 'spark',
@@ -732,6 +732,30 @@ export class Effects {
       life: [500, 900],
       scale: [0.6, 0.1],
       tint: [FX.gold, FX.goldLight],
+      layer: 'add',
+    });
+  }
+
+  /**
+   * An ultimate (R) is cast, anyone's: two rings and two flashes at the hero, in the ultimate's colour, and a column
+   * of sparks. Rings and flashes are essential and stay at Low and under reduced motion; the sparks go.
+   */
+  ultimateCast(x: number, y: number, color: number): void {
+    this.ring(x, y, 2.6, color, 560, 0.2, 'shock');
+    this.ring(x, y, 1.6, FX.hot, 400, 0.1);
+    this.flash(x, y, 2, color, 460, 0.85);
+    this.flash(x, y, 0.9, FX.hot, 280, 0.95);
+    if (!this.particles || this.calm) return;
+    this.emit({
+      frame: 'spark',
+      x: x * S,
+      y: y * S,
+      count: 22,
+      speed: [120, 280],
+      drag: 3,
+      life: [300, 560],
+      scale: [0.9, 0.1],
+      tint: [color, FX.hot, FX.goldLight],
       layer: 'add',
     });
   }
