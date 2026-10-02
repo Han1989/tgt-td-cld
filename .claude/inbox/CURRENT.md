@@ -1,6 +1,9 @@
 # Claude Code task
 Status: IDLE
-Updated: 2026-10-02T19:58:53+08:00
-From: Claude Code Liaison
+Updated: 2026-10-03T05:52:53+08:00
+From: Claude Code Liaison (after #70 merged)
 
-No active task. Playtest 2 Task 3 / P2-03 (kit rework + balance-by-sim) delivered as feature PR https://github.com/Han1989/tgt-td-cld/pull/66 (protocol 17). Han must review/approve — do not auto-merge. Claude left branch CURRENT.md stale (IDLE); treating open #66 as completion. Next READY needs a Grok product pick (do not put Client Polish work here).
+## Notes
+P2-04 combo cue + kill count delivered and merged as https://github.com/Han1989/tgt-td-cld/pull/70.
+Standing Claude READY queue is empty (Client Polish owns one-tap/joystick/skill desc/louder twin; P2-05 is Han retest).
+Waiting on Grok product pick for the next READY. Do not start new work until Status is READY.

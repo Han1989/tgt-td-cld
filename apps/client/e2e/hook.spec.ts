@@ -3,7 +3,7 @@
 // and Meteor fuse (two R casts, a syncCast and the combo) every 12 s, so these check what a player gets: a ring that
 // reaches clear of the hero and stays bright, the rain's name and both casters in their seat colours, a band that stays
 // on screen and never covers the controls, and that reduced motion fades the band instead of unrolling it. Runs on the
-// iPhone, Pixel and desktop projects.
+// iPhone, Pixel and desktop projects. P2-04 adds the Stun Storm and Shockwave ribbons and the kill count after a rain.
 
 import { expect, test, type Page } from '@playwright/test';
 import { box, overlaps, waitForReady, type Box } from './helpers';
@@ -22,6 +22,10 @@ interface Seen {
   earlyWidth: number;
   kicker: string;
   word: string;
+  combo: string;
+  effect: string;
+  /** The kicker's colour: each combo has its own. */
+  kickerColor: string;
   who: { text: string; color: string }[];
   box: Box;
   animation: string;
@@ -55,6 +59,9 @@ function nextFuse(page: Page): Promise<Seen> {
               earlyWidth,
               kicker: document.getElementById('fuse-ribbon-kicker')!.textContent ?? '',
               word: word.textContent ?? '',
+              combo: el.dataset.combo ?? '',
+              effect: document.getElementById('fuse-ribbon-effect')!.textContent ?? '',
+              kickerColor: getComputedStyle(document.getElementById('fuse-ribbon-kicker')!).color,
               who: [...el.querySelectorAll('#fuse-ribbon-who b')].map((b) => ({ text: b.textContent ?? '', color: getComputedStyle(b).color })),
               box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
               animation: getComputedStyle(el).animationName,
@@ -67,6 +74,88 @@ function nextFuse(page: Page): Promise<Seen> {
         watch.observe(el, { attributes: true, attributeFilter: ['class'] });
       }),
   );
+}
+
+interface Count {
+  rain: string;
+  name: string;
+  num: string;
+  numColor: string;
+  box: Box;
+  animation: string;
+}
+
+/** Resolves with the next kill-count pill the moment it appears, settled (0.7 s into its animation). */
+function nextCount(page: Page): Promise<Count> {
+  return page.evaluate(
+    () =>
+      new Promise<Count>((resolve) => {
+        const el = document.getElementById('rain-count')!;
+        let was = el.classList.contains('on');
+        const watch = new MutationObserver(() => {
+          const on = el.classList.contains('on');
+          if (on && !was) {
+            watch.disconnect();
+            const animations = el.getAnimations();
+            for (const a of animations) a.pause();
+            for (const a of animations) a.currentTime = 700;
+            const r = el.getBoundingClientRect();
+            const num = document.getElementById('rain-count-num')!;
+            resolve({
+              rain: el.dataset.rain ?? '',
+              name: document.getElementById('rain-count-name')!.textContent ?? '',
+              num: num.textContent ?? '',
+              numColor: getComputedStyle(num).color,
+              box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+              animation: getComputedStyle(el).animationName,
+            });
+          }
+          was = on;
+        });
+        watch.observe(el, { attributes: true, attributeFilter: ['class'] });
+      }),
+  );
+}
+
+/** The ribbon's kicker colour for each combo: fire, violet, gold. */
+const COMBOS = [
+  { kind: 'meteorRain', word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor', color: 'rgb(255, 162, 74)' },
+  { kind: 'stunStorm', word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm', color: 'rgb(201, 167, 255)' },
+  { kind: 'shockwave', word: 'Shockwave', kicker: 'Meteor + Iron Vow', color: 'rgb(255, 210, 74)' },
+] as const;
+
+// One test per combo: each waits for a 12 s fuse and then a 3.6 s rain, and a slow machine needs more than the default.
+for (const c of COMBOS) {
+  test(`${c.word} shows its own ribbon, and its kill count after the rain`, async ({ page }) => {
+    test.setTimeout(150_000);
+    const vp = page.viewportSize()!;
+    await page.goto(`/?stress=12&combo=${c.kind}`);
+    await waitForReady(page, 'stress');
+    const layout = await page.evaluate(() => window.__tdt.layout());
+    const fuse = await nextFuse(page);
+    expect(fuse.combo).toBe(c.kind);
+    expect(fuse.word).toBe(c.word);
+    expect(fuse.kicker).toBe(c.kicker);
+    expect(fuse.effect.length).toBeGreaterThan(5);
+    expect(fuse.wordLines).toBe(1);
+    // Its own colour, so the three read apart before the name is read.
+    expect(fuse.kickerColor).toBe(c.color);
+
+    // The rain runs 3.6 s, kills creeps under its strikes, and then says how many.
+    const count = await nextCount(page);
+    expect(count.rain).toBe(c.kind);
+    expect(count.name).toBe(c.word);
+    expect(count.num).toMatch(/^[1-9]\d* down$/);
+    expect(count.numColor).not.toBe('');
+    // On screen, and clear of the controls.
+    expect(count.box.left).toBeGreaterThanOrEqual(-0.5);
+    expect(count.box.right).toBeLessThanOrEqual(vp.width + 0.5);
+    if (layout.kind === 'tall') {
+      const top = await box(page, '#topbar');
+      expect(count.box.top).toBeGreaterThan(top.bottom);
+      for (const sel of CONTROLS) expect(overlaps(count.box, await box(page, sel)), `${sel} is under the count`).toBe(false);
+    }
+  });
 }
 
 test('a fuse names Meteor Rain and both casters, and the band stays on screen clear of the controls', async ({ page }) => {
@@ -114,6 +203,10 @@ test.describe('reduced motion', () => {
     const seen = await nextFuse(page);
     expect(seen.word).toBe('Meteor Rain');
     expect(seen.animation).toBe('fuse-ribbon-calm');
+    // The kill count stays, and fades too.
+    const count = await nextCount(page);
+    expect(count.num).toMatch(/ down$/);
+    expect(count.animation).toBe('rain-count-calm');
     // It never scales: as wide the moment it appears as once it has settled.
     expect(Math.abs(seen.earlyWidth - (seen.box.right - seen.box.left))).toBeLessThan(1);
   });

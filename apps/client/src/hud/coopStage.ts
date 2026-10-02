@@ -9,6 +9,8 @@ const CLUTCH_MS = 1700;
 const TOGETHER_MS = 700;
 /** The fuse ribbon: long enough to read the new rain's name and both names on a phone. Matches the CSS animation. */
 const FUSE_MS = 2000;
+/** The kill count of a finished rain or combo: a beat longer than a glance, shorter than the fuse ribbon. */
+const RAIN_COUNT_MS = 2200;
 
 export interface StageWho {
   name: string;
@@ -33,11 +35,16 @@ export class CoopStage {
   private readonly fuseKicker: HTMLElement;
   private readonly fuseWord: HTMLElement;
   private readonly fuseWho: HTMLElement;
+  private readonly fuseEffect: HTMLElement;
+  private readonly countEl: HTMLElement;
+  private readonly countName: HTMLElement;
+  private readonly countNum: HTMLElement;
   private burstTimer = 0;
   private edgeTimer = 0;
   private clutchTimer = 0;
   private togetherTimer = 0;
   private fuseTimer = 0;
+  private countTimer = 0;
 
   constructor(doc: Document = document) {
     this.burst = doc.getElementById('coop-burst')!;
@@ -56,6 +63,10 @@ export class CoopStage {
     this.fuseKicker = doc.getElementById('fuse-ribbon-kicker')!;
     this.fuseWord = doc.getElementById('fuse-ribbon-word')!;
     this.fuseWho = doc.getElementById('fuse-ribbon-who')!;
+    this.fuseEffect = doc.getElementById('fuse-ribbon-effect')!;
+    this.countEl = doc.getElementById('rain-count')!;
+    this.countName = doc.getElementById('rain-count-name')!;
+    this.countNum = doc.getElementById('rain-count-num')!;
   }
 
   /** A phone-readable pair of rings and a short word, in the two players' colours. */
@@ -100,15 +111,29 @@ export class CoopStage {
    * casters below in their seat colours (none when the snapshot no longer lists them). The burst and the twin
    * ribbon in the world are the renderer's.
    */
-  fuse(kicker: string, word: string, whos: readonly StageWho[]): void {
+  fuse(combo: string, kicker: string, word: string, effect: string, whos: readonly StageWho[]): void {
+    this.fuseEl.dataset.combo = combo;
     this.fuseKicker.textContent = kicker;
     this.fuseWord.textContent = word;
+    this.fuseEffect.textContent = effect;
     this.fuseWho.replaceChildren();
     whos.forEach((w, i) => {
       if (i > 0) this.fuseWho.append(document.createTextNode('  ·  '));
       this.fuseWho.append(nameEl(w));
     });
     this.kick(this.fuseEl, 'on', FUSE_MS, (id) => (this.fuseTimer = id), this.fuseTimer, true);
+  }
+
+  /**
+   * What a finished rain or combo killed, in the colour of the player who cast it: "Meteor Rain" over "14 down".
+   * A pill under the fuse ribbon, so a combo's name and its count never cover each other.
+   */
+  rainCount(kind: string, name: string, count: string, color: string): void {
+    this.countEl.dataset.rain = kind;
+    this.countEl.style.setProperty('--c', color);
+    this.countName.textContent = name;
+    this.countNum.textContent = count;
+    this.kick(this.countEl, 'on', RAIN_COUNT_MS, (id) => (this.countTimer = id), this.countTimer, true);
   }
 
   /**
@@ -128,6 +153,9 @@ export class CoopStage {
     window.clearTimeout(this.clutchTimer);
     window.clearTimeout(this.togetherTimer);
     window.clearTimeout(this.fuseTimer);
+    window.clearTimeout(this.countTimer);
+    this.countEl.classList.add('hidden');
+    this.countEl.classList.remove('on');
     this.fuseEl.classList.add('hidden');
     this.fuseEl.classList.remove('on');
     this.burst.classList.add('hidden');

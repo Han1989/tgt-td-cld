@@ -7,7 +7,9 @@
 
 import {
   TOWER_KINDS,
+  COMBO_KINDS,
   type AoeEffect,
+  type ComboKind,
   type ClientMessage,
   type CreepKind,
   type CreepSnap,
@@ -39,7 +41,11 @@ export class StressTransport implements Transport {
   private lastFps = performance.now();
   private raf = 0;
 
-  constructor(private readonly count: number) {
+  /** `only`: every fuse is this combo (`?combo=stunStorm`); else they cycle Meteor Rain, Stun Storm, Shockwave. */
+  constructor(
+    private readonly count: number,
+    private readonly only?: ComboKind,
+  ) {
     const tuning: Tuning = structuredClone(TUNING);
     tuning.economy.startingGold = 1_000_000;
     const state = createGame(
@@ -163,7 +169,7 @@ export class StressTransport implements Transport {
         { type: 'cast', heroId: ranger.id, slot: 'R', x: ranger.x, y: ranger.y },
         { type: 'cast', heroId: arcanist.id, slot: 'R', x: arcanist.x, y: arcanist.y },
         { type: 'syncCast', heroIds: [ranger.id, arcanist.id].sort((a, b) => a - b), slot: 'R' },
-        { type: 'combo', combo: 'meteorRain', x: arcanist.x, y: arcanist.y, radius: 0, heroes: [ranger.id, arcanist.id] },
+        { type: 'combo', combo: this.comboAt(t), x: arcanist.x, y: arcanist.y, radius: 0, heroes: [ranger.id, arcanist.id] },
       );
     }
     if (ranger && arcanist) {
@@ -179,11 +185,32 @@ export class StressTransport implements Transport {
       if (k === 150) events.push({ type: 'ultResult', ult: 'meteorRain', by: PLAYER, kills: 12 });
       if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
     }
+    // While the fused rain runs, a strike every 0.3 s and the creep under it dies (the kill count's feed).
+    const since = this.rainSince(t);
+    if (since >= 0 && since <= 72 && since % 6 === 0) {
+      const c = pick(5);
+      if (c) {
+        events.push(
+          { type: 'aoe', effect: this.comboAt(t), x: c.x, y: c.y, radius: 1.8 },
+          { type: 'kill', creepId: c.id, kind: c.kind, x: c.x, y: c.y, by: PLAYER, bounty: 4 },
+        );
+      }
+    }
     // The hero attacks once a second (its rig's attack animation).
     const hero = this.base.heroes[0];
     const c = pick(4);
     if (hero && c && t % 20 === 0) events.push({ type: 'heroAttack', heroId: hero.id, x: c.x, y: c.y });
     return events;
+  }
+
+  /** Ticks since the running fused rain started (it starts every 120 ticks on a fuse tick), or -1 before the first. */
+  private rainSince(t: number): number {
+    return t < FUSE_TICK ? -1 : (t - FUSE_TICK) % 120;
+  }
+
+  /** The combo of the fused rain running at tick `t`: one per 12 s, cycling unless the scene was asked for one. */
+  private comboAt(t: number): ComboKind {
+    return this.only ?? COMBO_KINDS[Math.floor(Math.max(0, t - FUSE_TICK) / 240) % COMBO_KINDS.length]!;
   }
 
   /**
@@ -201,7 +228,7 @@ export class StressTransport implements Transport {
       { id: 900_000, kind: 'arrowStorm', x: a.x, y: a.y, radius: 3, startTick: 0, endTick: 1_000_000 },
       { id: 900_001 + start, kind: 'meteor', x: b.x, y: b.y + 4, radius: 3, startTick: start, endTick: start + 24 },
     ];
-    if (t - rainStart <= 72) zones.push({ id: 800_000 + rainStart, kind: 'meteorRain', x: a.x, y: a.y, radius: 0, startTick: rainStart, endTick: rainStart + 72 });
+    if (t - rainStart <= 72) zones.push({ id: 800_000 + rainStart, kind: this.comboAt(rainStart), x: a.x, y: a.y, radius: 0, startTick: rainStart, endTick: rainStart + 72 });
     return zones;
   }
 

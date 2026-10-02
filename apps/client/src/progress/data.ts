@@ -188,7 +188,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'playtest2',
-    note: 'Client. Ultimate presentation and a combo cue: cast flare, blink and kick, kill-count popup, R pulse and Combo! ring, shake setting, Iron Vow heal chips, end-screen ultimates.',
+    note: 'Client. Ultimate presentation and a combo cue (protocol 18): cast flare, blink and kick, kill-count popup, R pulse and Combo! ring, shake setting, Iron Vow heal chips, end-screen ultimates. Each combo keeps its own ribbon, colour and strikes, and the client rain-kill tally.',
     proof: pr(73),
   },
   {
@@ -298,9 +298,10 @@ const items: ProgressItem[] = [
     id: 'SL-05',
     title: 'Kit rework and balance by simulation (Playtest 2)',
     owner: 'Team',
-    status: 'in_progress',
+    status: 'done',
     section: 'discovery',
-    note: 'Protocol 17. Arrow Storm and Meteor are instant lane rains again (no aiming, no caps) and much stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave) with no overlap check, no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Waiting for Han’s review.',
+    note: 'Protocol 17. Arrow Storm and Meteor are instant lane rains again (no aiming, no caps) and much stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave) with no overlap check, no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Merged after Han’s review.',
+    proof: pr(66),
   },
   {
     id: 'D-02',
@@ -557,7 +558,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'p6c',
-    note: 'A fused effect for every hero pair: Meteor Rain, Stun Storm and Shockwave are in the sim (SL-05, waiting for review). Presentation of the two new ones is a separate pass. Do not merge claude/loving-hawking-7fvsu7.',
+    note: 'A fused effect for every hero pair: Meteor Rain, Stun Storm and Shockwave are in the sim (SL-05, PR #66). Presentation of the two new ones is a separate pass. Do not merge claude/loving-hawking-7fvsu7.',
   },
   {
     id: 'p6c-raids',

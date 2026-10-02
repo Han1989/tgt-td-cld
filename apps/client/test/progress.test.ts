@@ -35,7 +35,7 @@ describe('progress dashboard data', () => {
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
     expect(summary.hanOpen).toBe(11);
-    expect(summary.inProgress).toBe(1);
+    expect(summary.inProgress).toBe(0);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -47,6 +47,7 @@ describe('progress dashboard data', () => {
       'T-05': 31,
       'D-01': 25,
       'H-04': 42,
+      'SL-05': 66,
     };
     for (const [id, pull] of Object.entries(proofs)) {
       const item = byId(id);
@@ -80,6 +81,7 @@ describe('progress dashboard data', () => {
     expect(byId('P2-03').owner).toBe('Both');
     expect(byId('P2-03').note).toContain('Han reviews');
     expect(byId('P2-04').note.toLowerCase()).toContain('ultimate');
+    expect(byId('P2-04').note.toLowerCase()).toContain('combo');
     expect(byId('P2-05').owner).toBe('Han');
     for (const id of ['H-02', 'H-06', 'D-02', 'D-06', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
       expect(byId(id).status).toBe('todo');
@@ -155,7 +157,7 @@ describe('progress dashboard data', () => {
   });
 
   it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
-    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['SL-05']);
+    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual([]);
     const empty = renderCooking({ ...PROGRESS, items: PROGRESS.items.filter((item) => item.status !== 'in_progress') });
     expect(empty).toContain('Cooking now');
     expect(empty).toContain('Nothing is marked in progress.');
@@ -187,7 +189,7 @@ describe('progress dashboard data', () => {
         ...PROGRESS.items,
       ],
     };
-    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'SL-05']);
+    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9']);
     const html = renderCooking(flying);
     expect(html).toContain('Z-9');
     expect(html).toContain('data-status="in_progress"');
