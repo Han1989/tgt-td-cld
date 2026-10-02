@@ -1,5 +1,5 @@
 // Ultimate presentation (protocol 18) on every layout: the kill-count popup, the cast flash and shake, the R button's pulse
-// and "Combo!" ring, Iron Vow's heal on the teammate chip, and reduced motion. The stress scene (`?stress=12`) sends what
+// and "Combo!" ring, Iron Vow's heal on the teammate chip, and reduced motion. The stress scene (`?stress=12&pace=3`: three ticks a beat, so a slow CI runner's clock keeps up) sends what
 // the sim sends: every 12 s the ally casts alone (tick 20), the two fuse (tick 80), a heal reaches both heroes (82),
 // yours and the ally's rains end (150, 190). Runs on the iPhone, Pixel and desktop projects; the 412 × 839 test fixes the
 // viewport the layout is designed for.
@@ -16,7 +16,7 @@ const CONTROLS = [
 ];
 
 async function open(page: Page): Promise<'tall' | 'wide'> {
-  await page.goto('/?stress=12');
+  await page.goto('/?stress=12&pace=3');
   await waitForReady(page, 'stress');
   const kind = (await page.evaluate(() => window.__tdt.layout())).kind;
   return kind === 'tall' ? 'tall' : 'wide';
@@ -75,7 +75,7 @@ test('a finished rain pops its name and kill count, readable and clear of the co
 });
 
 test('every cast blinks the screen in the ultimate’s colour and kicks it', async ({ page }) => {
-  await page.goto('/?stress=12');
+  await page.goto('/?stress=12&pace=3');
   await waitForReady(page, 'stress');
   const flashed = await page.evaluate(
     () =>

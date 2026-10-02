@@ -45,6 +45,8 @@ export class StressTransport implements Transport {
   constructor(
     private readonly count: number,
     private readonly only?: ComboKind,
+    /** Ticks per timer beat (`?pace=3`): a slow machine's timer keeps the scene's clock moving, for the browser tests. */
+    private readonly pace = 1,
   ) {
     const tuning: Tuning = structuredClone(TUNING);
     tuning.economy.startingGold = 1_000_000;
@@ -80,7 +82,14 @@ export class StressTransport implements Transport {
     this.raf = requestAnimationFrame(frame);
 
     setTimeout(() => this.emit({ t: 'welcome', playerId: PLAYER }), 0);
-    this.timer = setInterval(() => this.emit({ t: 'snapshot', snap: this.frame() }), 1000 / TICK_RATE);
+    this.timer = setInterval(() => {
+      // With a pace above 1 the ticks in between are made too, and their events ride on the snapshot sent.
+      const skipped: GameEvent[] = [];
+      for (let i = 1; i < this.pace; i++) skipped.push(...this.frame().events);
+      const snap = this.frame();
+      if (skipped.length > 0) snap.events = [...skipped, ...snap.events];
+      this.emit({ t: 'snapshot', snap });
+    }, 1000 / TICK_RATE);
   }
 
   /** One synthetic snapshot: creeps spread along the three lanes, looping, and projectiles from towers to them. */
