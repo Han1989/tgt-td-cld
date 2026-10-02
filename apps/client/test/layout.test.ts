@@ -23,6 +23,7 @@ function input(w: number, h: number, over: Partial<LayoutInput> = {}): LayoutInp
     touch: true,
     landscape: w > h,
     thumbs: 'one',
+    stickAnchor: 'center',
     mapW: map.width,
     mapH: map.height,
     safeFromY: map.safeFromY,
@@ -121,6 +122,31 @@ describe('computeLayout: phones held upright', () => {
 
   it('shows the rotate screen on a phone held sideways', () => {
     expect(computeLayout(input(839, 412, { landscape: true })).kind).toBe('rotate');
+  });
+
+  it('moves the one-thumb cluster left or right without leaving the screen or covering gameplay', () => {
+    const mid = computeLayout(input(390, 844, { insets: { top: 47, right: 0, bottom: 34, left: 0 } })).controls!;
+    for (const stickAnchor of ['left', 'right'] as const) {
+      const l = computeLayout(input(390, 844, { insets: { top: 47, right: 0, bottom: 34, left: 0 }, stickAnchor }));
+      const c = l.controls!;
+      for (const r of c.rects) {
+        expect(r.left).toBeGreaterThanOrEqual(0);
+        expect(r.right).toBeLessThanOrEqual(390);
+      }
+      const circles = [c.joystick, c.skillInfo, ...Object.values(c.skills)];
+      for (let i = 0; i < circles.length; i++) {
+        for (let j = i + 1; j < circles.length; j++) {
+          const a = circles[i]!;
+          const b = circles[j]!;
+          expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(a.r + b.r);
+        }
+      }
+      expect(l.gameplayBottom - l.followRange).toBeLessThanOrEqual(c.top + 1e-9);
+    }
+    const left = computeLayout(input(390, 844, { stickAnchor: 'left' })).controls!;
+    const right = computeLayout(input(390, 844, { stickAnchor: 'right' })).controls!;
+    expect(left.joystick.x).toBeLessThan(mid.joystick.x - 40);
+    expect(right.joystick.x).toBeGreaterThan(mid.joystick.x + 40);
   });
 
   it('mirrors the two-thumb layout for left-handed players', () => {

@@ -26,6 +26,17 @@ export const TIE_PX = 6;
 export const STICK_DEAD = 5;
 export const STICK_FULL = 22;
 export const STICK_AHEAD = 2.5;
+/**
+ * Stick feel presets (⚙ → Stick feel). `dead` is the wobble that does not walk; `full` is the
+ * finger travel that already means full speed. Normal is the default. The base stays 50 px.
+ */
+export const STICK_FEELS = {
+  light: { dead: 4, full: 16 },
+  normal: { dead: STICK_DEAD, full: STICK_FULL },
+  firm: { dead: 10, full: 36 },
+} as const;
+export type StickFeelName = keyof typeof STICK_FEELS;
+export type StickFeel = (typeof STICK_FEELS)[StickFeelName];
 /** Resend the move at least this often while the stick is held, or sooner when it turns this much. */
 export const STICK_RESEND_MS = 100;
 export const STICK_TURN_RAD = 0.25;
@@ -61,12 +72,12 @@ export function stickVector(c: Pt, p: Pt, r: number): StickVec {
 }
 
 /** Where to send the hero for a stick vector (tile units), or null inside the dead zone. */
-export function stickMoveTarget(hero: Pt, v: StickVec, r: number, ahead = STICK_AHEAD): Pt | null {
+export function stickMoveTarget(hero: Pt, v: StickVec, r: number, ahead = STICK_AHEAD, feel: StickFeel = STICK_FEELS.normal): Pt | null {
   const len = Math.hypot(v.dx, v.dy);
-  if (len < STICK_DEAD || len === 0) return null;
+  if (len < feel.dead || len === 0) return null;
   // A short drag is already a full lead. The base radius is only the grab area.
-  const full = Math.min(Math.max(1, r), STICK_FULL);
-  const push = Math.min(1, (len - STICK_DEAD) / Math.max(1, full - STICK_DEAD));
+  const full = Math.min(Math.max(1, r), feel.full);
+  const push = Math.min(1, (len - feel.dead) / Math.max(1, full - feel.dead));
   const reach = ahead * (0.65 + 0.35 * push);
   // Screen and world axes point the same way (the map is never rotated).
   return { x: hero.x + (v.dx / len) * reach, y: hero.y + (v.dy / len) * reach };
@@ -76,7 +87,7 @@ export function stickMoveTarget(hero: Pt, v: StickVec, r: number, ahead = STICK_
  * Where to draw the knob. Finger travel is amplified so a push that has already reached full
  * speed looks like a full push, and the knob still stays inside the base.
  */
-export function stickKnobOffset(v: StickVec, radius: number, full = STICK_FULL): Pt {
+export function stickKnobOffset(v: StickVec, radius: number, full: number = STICK_FULL): Pt {
   const len = Math.hypot(v.dx, v.dy);
   if (len === 0 || radius <= 0) return { x: 0, y: 0 };
   const shown = Math.min(radius, (len / Math.max(1, full)) * radius * 0.92);
@@ -85,7 +96,8 @@ export function stickKnobOffset(v: StickVec, radius: number, full = STICK_FULL):
 
 /**
  * One-tap upgrade tag on a tower (screen px). The box sits on the top of the pad and ends
- * above the centre, so a tap on the tower body still opens the ring.
+ * above the centre, so a tap on the tower body still opens the ring. The tag is not a browser
+ * click target: the phone's touch slop would otherwise steal the body tap.
  */
 export function upgradeTagRect(center: Pt, padHalf: number, height = 34): { left: number; top: number; width: number; height: number } {
   const width = Math.max(48, padHalf * 2);

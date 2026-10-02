@@ -37,6 +37,8 @@ export const EDGE_GAP = 8;
 export const LEARN_ALLOWANCE = 4;
 
 export type ThumbLayout = 'one' | 'two' | 'twoLeft';
+/** Where the one-thumb cluster sits. Two-thumb layouts already pick a side. */
+export type StickAnchor = 'left' | 'center' | 'right';
 export type LayoutKind = 'tall' | 'wide' | 'rotate';
 export type ControlSlot = 'Q' | 'W' | 'E' | 'R';
 
@@ -70,6 +72,8 @@ export interface LayoutInput {
   /** The device is held sideways (from the screen orientation, not the viewport). */
   landscape: boolean;
   thumbs: ThumbLayout;
+  /** One-thumb cluster: left, center or right. Ignored for two-thumb layouts. */
+  stickAnchor: StickAnchor;
   /** Map size in tiles and the first safe-zone row. */
   mapW: number;
   mapH: number;
@@ -258,11 +262,23 @@ function placeSkillInfo(joystick: Circle, skills: Record<ControlSlot, Circle>, a
   return { x, y: top.y - top.r - 8 - r, r };
 }
 
+/** Joystick x so the one-thumb cluster (stick plus the skill arc) stays on screen. */
+function oneThumbX(w: number, insets: Insets, anchor: StickAnchor): number {
+  const probe = oneThumb(0, 0);
+  const circles = [probe.joystick, ...Object.values(probe.skills)];
+  const minLeft = Math.min(...circles.map((c) => c.x - c.r));
+  const maxRight = Math.max(...circles.map((c) => c.x + c.r));
+  const lo = insets.left + EDGE_GAP - minLeft;
+  const hi = w - insets.right - EDGE_GAP - maxRight;
+  const cx = anchor === 'left' ? lo : anchor === 'right' ? hi : w / 2;
+  return Math.min(hi, Math.max(lo, cx));
+}
+
 function tallControls(input: LayoutInput): Controls {
   const { w, h, insets, thumbs } = input;
   const bottom = h - Math.max(EDGE_GAP, insets.bottom);
   const area = { left: insets.left, right: w - insets.right };
-  if (thumbs === 'one') return finish(oneThumb(w / 2, bottom), area);
+  if (thumbs === 'one') return finish(oneThumb(oneThumbX(w, insets, input.stickAnchor), bottom), area);
   const left = insets.left + EDGE_GAP;
   const right = w - insets.right - EDGE_GAP;
   const mirror = thumbs === 'twoLeft';
@@ -277,7 +293,7 @@ function wideControls(input: LayoutInput, margin: number): Controls {
   const bottom = h - Math.max(EDGE_GAP * 2, insets.bottom);
   const parts = (() => {
     // One thumb: the whole cluster in the right margin.
-    if (thumbs === 'one') return oneThumb(w - margin / 2, bottom);
+    if (thumbs === 'one') return oneThumb(input.stickAnchor === 'left' ? margin / 2 : w - margin / 2, bottom);
     const mirror = thumbs === 'twoLeft';
     const stickX = mirror ? w - margin / 2 : margin / 2;
     const pivotX = mirror ? insets.left + 48 : w - insets.right - 48;

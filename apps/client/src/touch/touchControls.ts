@@ -1,7 +1,8 @@
-// Touch controls (docs/MOBILE.md §5): a fixed joystick and Q/W/E/R buttons drawn
-// over the map, tap-to-select on the map with snapping and a tie picker, a radial
-// build menu around pads and a radial ring around your towers. The rules are
-// pure functions in `gestures.ts`; this file wires them to pointer events and DOM.
+// Touch controls (docs/MOBILE.md §5): a joystick and Q/W/E/R buttons drawn over the
+// map, tap-to-select on the map with
+// snapping and a tie picker, a radial build menu around pads and a radial ring
+// around your towers. The rules are pure functions in `gestures.ts`; this file
+// wires them to pointer events and DOM.
 //
 // Mouse input on the canvas stays with the desktop `Controls`; this class handles
 // touch and pen on the canvas, and any pointer on its own buttons.
@@ -54,10 +55,13 @@ import {
   resolveTap,
   shouldResendMove,
   smartCast,
+  STICK_FEELS,
   stickKnobOffset,
   stickMoveTarget,
   stickVector,
   upgradeTagRect,
+  type StickFeel,
+  type StickFeelName,
   type Candidate,
   type Pt,
   type Scored,
@@ -125,9 +129,12 @@ export class TouchControls {
   private readonly sheet: HTMLElement;
   private readonly tags: HTMLElement;
   private readonly tagButtons = new Map<number, HTMLButtonElement>();
+  /** Upgrade tags that a precise tap (not the browser's touch slop) can hit. */
+  private tagHits: { id: number; left: number; top: number; width: number; height: number; button: HTMLButtonElement }[] = [];
 
   /** The joystick finger and its knob offset. */
   private stick: { id: number; vec: StickVec } | null = null;
+  private stickFeel: StickFeel = STICK_FEELS.normal;
   private lastMoveDir: number | null = null;
   private lastMoveAt = 0;
   /** A finger on a skill button: a tap (smart cast), a drag aim, or a hold that opened the description. */
@@ -207,6 +214,11 @@ export class TouchControls {
   // Layout
   // -------------------------------------------------------------------------
 
+  /** How far the thumb travels before full speed, from ⚙ → Stick feel. */
+  setStick(feel: StickFeelName): void {
+    this.stickFeel = STICK_FEELS[feel];
+  }
+
   setLayout(layout: Layout): void {
     this.layout = layout;
     const c = layout.controls;
@@ -223,15 +235,23 @@ export class TouchControls {
       el.style.top = `${Math.round(y - size / 2)}px`;
       el.style.width = el.style.height = `${size}px`;
     };
-    put(this.joy, c.joystick.x, c.joystick.y, c.joystick.r * 2);
+    this.putJoy(c.joystick.x, c.joystick.y);
     put(this.skillInfo, c.skillInfo.x, c.skillInfo.y, c.skillInfo.r * 2);
     for (const slot of SLOTS) {
       const circle = c.skills[slot];
       put(this.skills.get(slot)!.wrap, circle.x, circle.y, circle.r * 2);
     }
-    this.respawn.style.left = `${Math.round(c.joystick.x)}px`;
     this.respawn.style.top = `${Math.round(c.top - 24)}px`;
     this.menuKey = '';
+  }
+
+  private putJoy(x: number, y: number): void {
+    const r = this.layout?.controls?.joystick.r ?? 50;
+    const size = r * 2;
+    this.joy.style.left = `${Math.round(x - size / 2)}px`;
+    this.joy.style.top = `${Math.round(y - size / 2)}px`;
+    this.joy.style.width = this.joy.style.height = `${size}px`;
+    this.respawn.style.left = `${Math.round(x)}px`;
   }
 
   /** A skill of my hero fired: its button flashes (Phase 4b feedback). */
@@ -281,7 +301,7 @@ export class TouchControls {
     const radius = r.width / 2;
     const v = stickVector({ x: r.left + radius, y: r.top + radius }, { x: e.clientX, y: e.clientY }, radius);
     this.stick.vec = v;
-    const knob = stickKnobOffset(v, radius);
+    const knob = stickKnobOffset(v, radius, this.stickFeel.full);
     this.knob.style.transform = `translate(${knob.x}px, ${knob.y}px)`;
     // Steer at once rather than on the next frame: the move leaves now and the hero is drawn walking
     // from the next frame (own-hero prediction).
@@ -313,7 +333,7 @@ export class TouchControls {
     const s = this.stick;
     if (!s) return false;
     const r = this.joy.getBoundingClientRect().width / 2 || 50;
-    return stickMoveTarget({ x: 0, y: 0 }, s.vec, r) !== null;
+    return stickMoveTarget({ x: 0, y: 0 }, s.vec, r, undefined, this.stickFeel) !== null;
   }
 
   /** A point cast stops the hero's walk in the sim: while steering, resend the move on the next frame. */
@@ -328,7 +348,7 @@ export class TouchControls {
     const r = this.joy.getBoundingClientRect().width / 2 || 50;
     // Aim from where the hero is drawn (ahead of the snapshots while it walks), so the prediction and
     // the server head for the same point.
-    const target = stickMoveTarget(this.actions.heroAt() ?? hero, s.vec, r);
+    const target = stickMoveTarget(this.actions.heroAt() ?? hero, s.vec, r, undefined, this.stickFeel);
     if (!target) return;
     const dir = Math.atan2(s.vec.dy, s.vec.dx);
     if (!shouldResendMove(this.lastMoveDir, dir, this.lastMoveAt, now)) return;
@@ -630,6 +650,7 @@ export class TouchControls {
    * buys the next tier. The tower body still opens the ring, for priority and sell.
    */
   private updateUpgradeTags(snap: Snapshot | undefined): void {
+    this.tagHits = [];
     if (!this.active || !snap) {
       this.tags.innerHTML = '';
       this.tagButtons.clear();
@@ -652,7 +673,6 @@ export class TouchControls {
         btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'upgrade-tag';
-        btn.addEventListener('pointerdown', (e) => e.stopPropagation());
         this.tags.appendChild(btn);
         this.tagButtons.set(tower.id, btn);
       }
@@ -675,14 +695,24 @@ export class TouchControls {
         !!controls &&
         controls.rects.some((r) => box.left < r.right && r.left < box.left + box.width && box.top < r.bottom && r.top < box.top + box.height);
       btn.classList.toggle('hidden', covered);
-      const towerId = tower.id;
-      btn.onclick = () => this.tapUpgradeTag(towerId, btn!);
+      if (!covered) this.tagHits.push({ id: tower.id, ...box, button: btn });
     }
     for (const [id, btn] of this.tagButtons) {
       if (seen.has(id)) continue;
       btn.remove();
       this.tagButtons.delete(id);
     }
+  }
+
+  /** True when `p` is inside an upgrade tag. That tap buys, and does not also select the tower. */
+  private hitUpgradeTag(p: Pt): boolean {
+    for (let i = this.tagHits.length - 1; i >= 0; i--) {
+      const t = this.tagHits[i]!;
+      if (p.x < t.left || p.x > t.left + t.width || p.y < t.top || p.y > t.top + t.height) continue;
+      this.tapUpgradeTag(t.id, t.button);
+      return true;
+    }
+    return false;
   }
 
   /** One tap on the tag: buy the next tier, or open the specialisation choice. */
@@ -711,6 +741,8 @@ export class TouchControls {
   tap(p: Pt): void {
     const c = this.layout?.controls;
     if (c && inOverlay(p, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
+    // The gold tag is hit by its own box, not by the browser snapping a nearby touch onto a button.
+    if (this.hitUpgradeTag(p)) return;
     if (!this.sheet.classList.contains('hidden')) {
       this.closeSkillSheet();
       return;

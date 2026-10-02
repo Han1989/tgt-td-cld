@@ -18,6 +18,7 @@ import {
   STICK_DEAD,
   STICK_RESEND_MS,
   STICK_AHEAD,
+  STICK_FEELS,
   STICK_FULL,
   stickKnobOffset,
   stickMoveTarget,
@@ -77,6 +78,17 @@ describe('joystick', () => {
     expect(knob.x).toBeGreaterThan(STICK_FULL);
     expect(knob.x).toBeLessThanOrEqual(50);
     expect(stickKnobOffset({ dx: 80, dy: 0, mag: 1 }, 50).x).toBeLessThanOrEqual(50);
+  });
+
+  it('Light is full speed from a shorter drag than Firm', () => {
+    const light = stickMoveTarget(HERO, { dx: STICK_FEELS.light.full, dy: 0, mag: 0.3 }, 50, STICK_AHEAD, STICK_FEELS.light)!;
+    const firmShort = stickMoveTarget(HERO, { dx: STICK_FEELS.light.full, dy: 0, mag: 0.3 }, 50, STICK_AHEAD, STICK_FEELS.firm);
+    const firmFull = stickMoveTarget(HERO, { dx: STICK_FEELS.firm.full, dy: 0, mag: 0.7 }, 50, STICK_AHEAD, STICK_FEELS.firm)!;
+    expect(light.x - HERO.x).toBeCloseTo(STICK_AHEAD);
+    expect(firmShort).not.toBeNull();
+    expect(firmShort!.x - HERO.x).toBeLessThan(STICK_AHEAD);
+    expect(firmFull.x - HERO.x).toBeCloseTo(STICK_AHEAD);
+    expect(stickMoveTarget(HERO, { dx: STICK_FEELS.firm.dead - 1, dy: 0, mag: 0.1 }, 50, STICK_AHEAD, STICK_FEELS.firm)).toBeNull();
   });
 
   it('keeps the upgrade tag above the tower centre and at least 44 px wide', () => {

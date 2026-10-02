@@ -2821,9 +2821,15 @@ body.touch .touch-overlay:not(.hidden) {
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.01em;
-  pointer-events: auto;
+  /* #hud button sets pointer-events: auto, which would let touch slop steal tower-body taps. */
+  pointer-events: none;
   touch-action: manipulation;
   text-shadow: 0 1px 2px var(--ink);
+}
+
+/* Beats `#hud button { pointer-events: auto }`, so a nearby finger does not snap onto the tag. */
+#hud .upgrade-tag {
+  pointer-events: none;
 }
 
 .upgrade-tag.poor {

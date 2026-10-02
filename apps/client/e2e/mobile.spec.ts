@@ -10,6 +10,12 @@ async function overlayBoxes(page: Page): Promise<Box[]> {
   return Promise.all(OVERLAY.map((s) => box(page, s)));
 }
 
+/** Taps the centre of an element. Used for the upgrade tag, which is not a browser click target. */
+async function tapCentre(page: Page, selector: string): Promise<void> {
+  const b = await box(page, selector);
+  await page.touchscreen.tap((b.left + b.right) / 2, (b.top + b.bottom) / 2);
+}
+
 /** Taps the centre of a pad (by map pad id). */
 async function tapPad(page: Page, padId: number): Promise<void> {
   const p = await page.evaluate((id) => {
@@ -220,11 +226,32 @@ test.describe('portrait phone layout', () => {
     const tag = page.locator('.upgrade-tag');
     await expect(tag).toBeVisible();
     await expect(tag).toContainText('↑');
-    await tag.tap();
+    // The tag is not a browser button (touch slop would steal the tower tap). The game hit-tests its box.
+    await tapCentre(page, '.upgrade-tag');
     await expect.poll(() => sent(page, 'upgrade')).toEqual([{ type: 'upgrade', towerId: expect.any(Number) }]);
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId)).toBe(2);
     // The tower body still opens the ring; the tag is not a second confirm.
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+  });
+
+  test('joystick settings move the cluster and keep a short push', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const before = centre(await box(page, '#joystick'));
+    await page.locator('#settings-btn').tap();
+    await expect(page.locator('#settings-stick button[data-value="left"]')).toBeVisible();
+    await expect(page.locator('#settings-feel button[data-value="light"]')).toBeVisible();
+    await page.locator('#settings-stick button[data-value="left"]').tap();
+    await page.locator('#settings-feel button[data-value="light"]').tap();
+    await page.locator('#settings-btn').tap();
+    await expect(page.locator('#settings')).toBeHidden();
+    const joy = centre(await box(page, '#joystick'));
+    const vp = page.viewportSize()!;
+    expect(joy.x).toBeLessThan(before.x - 40);
+    expect(joy.x).toBeLessThan(vp.width / 2);
+    const movesBefore = (await sent(page, 'move')).length;
+    await finger.drag(joy, { x: joy.x, y: joy.y - 24 }, 250);
+    expect((await sent(page, 'move')).length).toBeGreaterThan(movesBefore);
   });
 
   test('skill descriptions open from a hold and from the Skills button', async ({ page }) => {
@@ -249,9 +276,11 @@ test.describe('portrait phone layout', () => {
     await page.locator('#skill-info').tap();
     await expect(sheet).toBeVisible();
     await expect(sheet).toContainText('Keen Eye');
-    // A tap on the map closes the card and does not cast.
+    // A tap on the map, below the card, closes it and does not cast.
+    const open = await box(page, '#skill-sheet');
     const layout = await page.evaluate(() => window.__tdt.layout());
-    await page.touchscreen.tap((layout.map.left + layout.map.right) / 2, layout.topBarBottom + 12);
+    const y = Math.min(open.bottom + 20, layout.controls!.top - 16);
+    await page.touchscreen.tap((layout.map.left + layout.map.right) / 2, y);
     await expect(sheet).toBeHidden();
     expect(await sent(page, 'cast')).toHaveLength(0);
   });
@@ -280,7 +309,7 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
     const spec = page.locator('.upgrade-tag');
     await expect(spec).toHaveText('Spec');
-    await spec.tap();
+    await tapCentre(page, '.upgrade-tag');
     await expect.poll(tier).toBe(3);
 
     // Tier 3: Sniper and Volley replace Upgrade.

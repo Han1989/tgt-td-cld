@@ -1,7 +1,8 @@
 // Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake;
 // Display: docs/ART.md §2; sound: docs/ART.md §13; the first-match lesson: tutorial/logic.ts).
 
-import type { ThumbLayout } from './layout';
+import type { StickAnchor, ThumbLayout } from './layout';
+import type { StickFeelName } from './touch/gestures';
 import type { Display } from './render/art/tokens';
 import type { TutorialStatus } from './tutorial/logic';
 
@@ -9,6 +10,10 @@ export type Quality = 'auto' | 'high' | 'low';
 
 export interface Settings {
   thumbs: ThumbLayout;
+  /** One-thumb cluster: left, center or right. The skill buttons move with it. */
+  stickAnchor: StickAnchor;
+  /** How far the thumb must travel before the hero is at full speed. */
+  stickFeel: StickFeelName;
   quality: Quality;
   /** Screen shake on big impacts (Graphics → Low turns it off regardless). */
   shake: boolean;
@@ -32,6 +37,18 @@ export const THUMB_NAMES: Record<ThumbLayout, string> = {
   twoLeft: 'Two thumbs, left-handed',
 };
 
+export const STICK_ANCHOR_NAMES: Record<StickAnchor, string> = {
+  left: 'Left',
+  center: 'Center',
+  right: 'Right',
+};
+
+export const STICK_FEEL_NAMES: Record<StickFeelName, string> = {
+  light: 'Light',
+  normal: 'Normal',
+  firm: 'Firm',
+};
+
 export const DISPLAY_NAMES: Record<Display, string> = {
   normal: 'Normal',
   bright: 'Bright',
@@ -46,6 +63,8 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 const KEY = 'tdt.settings';
 export const DEFAULT_SETTINGS: Settings = {
   thumbs: 'one',
+  stickAnchor: 'center',
+  stickFeel: 'normal',
   quality: 'auto',
   shake: true,
   display: 'normal',
@@ -67,6 +86,8 @@ export function parseSettings(raw: string | null): Settings {
   try {
     const v = JSON.parse(raw) as Partial<Record<keyof Settings, unknown>>;
     if (v.thumbs === 'one' || v.thumbs === 'two' || v.thumbs === 'twoLeft') out.thumbs = v.thumbs;
+    if (v.stickAnchor === 'left' || v.stickAnchor === 'center' || v.stickAnchor === 'right') out.stickAnchor = v.stickAnchor;
+    if (v.stickFeel === 'light' || v.stickFeel === 'normal' || v.stickFeel === 'firm') out.stickFeel = v.stickFeel;
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;
     if (typeof v.shake === 'boolean') out.shake = v.shake;
     if (v.display === 'normal' || v.display === 'bright') out.display = v.display;

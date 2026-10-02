@@ -199,7 +199,7 @@ export function tutorialPrompt(
         title: 'Move',
         body:
           input === 'touch'
-            ? 'Drag the joystick. Your hero walks that way and keeps shooting.'
+            ? 'Drag the joystick. A short push already walks at full speed, and your hero keeps shooting.'
             : 'Right-click the ground, or hold the arrow keys. Your hero walks and keeps shooting.',
         next: null,
         skip: true,
