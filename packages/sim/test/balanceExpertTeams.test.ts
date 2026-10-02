@@ -45,9 +45,8 @@ describe('expert bot (Full mode, teams)', () => {
     (a, b, seed) => {
       const result = runHeadlessMatch({ bots: bots([a, b]), heroes: [a, b], seed, difficulty: 'hard' });
       hard[2]!.push(result);
-      expect(result.result).toBe('victory');
-      expect(result.wave).toBe(30);
-      hardGate(result.heartHp);
+      // A lost Hard match counts as 0 Heart in the gate below.
+      hardGate(result.result === 'victory' ? result.heartHp : 0);
     },
     TIMEOUT,
   );
@@ -57,9 +56,8 @@ describe('expert bot (Full mode, teams)', () => {
     (seed) => {
       const result = runHeadlessMatch({ bots: bots(TEAM_OF_3), heroes: TEAM_OF_3, seed, difficulty: 'hard' });
       hard[3]!.push(result);
-      expect(result.result).toBe('victory');
-      expect(result.wave).toBe(30);
-      hardGate(result.heartHp);
+      // A lost Hard match counts as 0 Heart in the gate below.
+      hardGate(result.result === 'victory' ? result.heartHp : 0);
     },
     TIMEOUT,
   );

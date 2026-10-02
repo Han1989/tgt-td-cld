@@ -868,7 +868,7 @@ export const TUNING: Tuning = {
         byPlayers: [
           { hp: 1.2, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
           { hp: 1.22, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.33, count: 1.12, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.3, count: 1.12, lateHp: 0.2, lateCount: 0.05, bossHp: 1, lateBossHp: 0 },
         ],
       },
     },
@@ -880,9 +880,9 @@ export const TUNING: Tuning = {
   // three in `modes.quick.hard`. Tuned for the expert bot (Decision Log).
   difficulty: {
     normal: { hp: 1, count: 1, lateHp: 0, lateCount: 0 },
-    // Hard (playtest 2): a flat multiplier from wave 1, no late ramp, no extra creeps and no boss bonus. A ramp toward the
-    // final wave made every team end at nearly 100 Heart or nearly 0 (the last boss leaking or not). A flat one drains the
-    // Heart wave by wave, so expert teams of every size land inside 40–80. Count rises only where a team has room (Quick).
+    // Hard (playtest 2): a flat multiplier from wave 1 with, for teams of three only, a small ramp (`lateHp`). A big ramp
+    // toward the final wave (the old bands) made every team end at nearly 100 Heart or nearly 0 (the last boss leaking or
+    // not); a flat one drains the Heart wave by wave. No boss bonus, no extra creeps, no finale deduction.
     hard: {
       hp: 1,
       count: 1,
@@ -893,7 +893,7 @@ export const TUNING: Tuning = {
       byPlayers: [
         { hp: 1.17, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
         { hp: 1.14, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-        { hp: 1.25, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.17, count: 1.06, lateHp: 0.35, lateCount: 0.08, bossHp: 1, lateBossHp: 0 },
       ],
     },
   },

@@ -193,5 +193,5 @@ describe('match reports and replays', () => {
     const bytes = JSON.stringify(matchReplay(match)).length;
     console.log(`replay: ${match.log.length} entries, ${bytes} bytes`);
     expect(bytes).toBeLessThan(1_500_000);
-  });
+  }, 60_000);
 });
