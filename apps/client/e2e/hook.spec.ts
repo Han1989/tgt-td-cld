@@ -117,16 +117,18 @@ function nextCount(page: Page): Promise<Count> {
   );
 }
 
+/** The ribbon's kicker colour for each combo: fire, violet, gold. */
 const COMBOS = [
-  { kind: 'meteorRain', word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor' },
-  { kind: 'stunStorm', word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm' },
-  { kind: 'shockwave', word: 'Shockwave', kicker: 'Meteor + Iron Vow' },
+  { kind: 'meteorRain', word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor', color: 'rgb(255, 162, 74)' },
+  { kind: 'stunStorm', word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm', color: 'rgb(201, 167, 255)' },
+  { kind: 'shockwave', word: 'Shockwave', kicker: 'Meteor + Iron Vow', color: 'rgb(255, 210, 74)' },
 ] as const;
 
-test('each combo shows its own ribbon, and its kill count after the rain', async ({ page }) => {
-  const colors = new Set<string>();
-  const vp = page.viewportSize()!;
-  for (const c of COMBOS) {
+// One test per combo: each waits for a 12 s fuse and then a 3.6 s rain, and a slow machine needs more than the default.
+for (const c of COMBOS) {
+  test(`${c.word} shows its own ribbon, and its kill count after the rain`, async ({ page }) => {
+    test.setTimeout(150_000);
+    const vp = page.viewportSize()!;
     await page.goto(`/?stress=12&combo=${c.kind}`);
     await waitForReady(page, 'stress');
     const layout = await page.evaluate(() => window.__tdt.layout());
@@ -136,15 +138,16 @@ test('each combo shows its own ribbon, and its kill count after the rain', async
     expect(fuse.kicker).toBe(c.kicker);
     expect(fuse.effect.length).toBeGreaterThan(5);
     expect(fuse.wordLines).toBe(1);
-    colors.add(fuse.kickerColor);
+    // Its own colour, so the three read apart before the name is read.
+    expect(fuse.kickerColor).toBe(c.color);
 
     // The rain runs 3.6 s, kills creeps under its strikes, and then says how many.
     const count = await nextCount(page);
     expect(count.rain).toBe(c.kind);
     expect(count.name).toBe(c.word);
     expect(count.num).toMatch(/^[1-9]\d* down$/);
-    // In the caster's seat colour, on screen, clear of the controls.
     expect(count.numColor).not.toBe('');
+    // On screen, and clear of the controls.
     expect(count.box.left).toBeGreaterThanOrEqual(-0.5);
     expect(count.box.right).toBeLessThanOrEqual(vp.width + 0.5);
     if (layout.kind === 'tall') {
@@ -152,10 +155,8 @@ test('each combo shows its own ribbon, and its kill count after the rain', async
       expect(count.box.top).toBeGreaterThan(top.bottom);
       for (const sel of CONTROLS) expect(overlaps(count.box, await box(page, sel)), `${sel} is under the count`).toBe(false);
     }
-  }
-  // Meteor Rain, Stun Storm and Shockwave read apart: three ribbon colours.
-  expect(colors.size).toBe(3);
-});
+  });
+}
 
 test('a fuse names Meteor Rain and both casters, and the band stays on screen clear of the controls', async ({ page }) => {
   await page.goto('/?stress=12');
