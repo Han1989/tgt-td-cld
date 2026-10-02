@@ -27,7 +27,7 @@ const sections: ProgressSection[] = [
   {
     id: 'playtest2',
     title: 'Playtest 2 · work orders',
-    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 (PR #57) and P2-02 (PR #63) are done. Kit, ultimates, and the retest are still open. Not the overnight auto-pull list.',
+    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 to P2-04 are done (PR #57, #63, #66, #70). The cast-together prompt, ultimate shake and heal feedback (P2-04b) and the retest are still open. Not the overnight auto-pull list.',
     group: 'now',
   },
   {
@@ -178,9 +178,10 @@ const items: ProgressItem[] = [
     id: 'P2-03',
     title: 'Kit rework and sim balance',
     owner: 'Both',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Sim work (Claude). Kit rework and balance by simulation. Han reviews the PR.',
+    note: 'Sim work (Claude). Kit rework and balance by simulation, merged as 05a3fc0 after Han’s review. The same work as SL-05.',
+    proof: pr(66),
   },
   {
     id: 'P2-04',
@@ -192,12 +193,20 @@ const items: ProgressItem[] = [
     proof: { label: 'PR #70', href: `${REPO}/pull/70` },
   },
   {
+    id: 'P2-04b',
+    title: 'Cast-together prompt, ultimate shake and heal feedback',
+    owner: 'Team',
+    status: 'todo',
+    section: 'playtest2',
+    note: 'Client. The part of Task 4 that PR #70 left out. The P2-05 retest waits for it. Not assigned to Claude Code; the chief of staff assigns it.',
+  },
+  {
     id: 'P2-05',
     title: 'Retest',
     owner: 'Han',
     status: 'todo',
     section: 'playtest2',
-    note: 'Han retests after Playtest 2 tasks P2-01 through P2-04.',
+    note: 'Han retests after Playtest 2 tasks P2-01 through P2-04b.',
   },
   {
     id: 'H-01',
@@ -273,7 +282,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Lane clutch names the leaking lane and skips the Hard finale strain. The end screen shows gold given and received. The twin ribbon prefers syncCast. Boss waves add advisory lane banners. Protocol stays 14.',
+    note: 'Lane clutch names the leaking lane. The end screen shows gold given and received. The twin ribbon prefers syncCast. Boss waves add advisory lane banners. Protocol stays 14.',
     proof: pr(36),
   },
   {
