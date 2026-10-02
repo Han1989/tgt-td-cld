@@ -4,6 +4,25 @@
 /** Trauma lost per second. */
 const DECAY_PER_S = 1.8;
 
+/**
+ * Trauma a twin ultimate adds: a live `syncCast`, or the cast-overlap ribbon when that event is missing.
+ * About 5 px at the peak (9 px × 0.75²), gone in ~0.4 s. The ribbon used to add 0.2: under half a pixel.
+ */
+export const SYNC_CAST_TRAUMA = 0.75;
+
+/** The device asks for less motion (the OS "reduce motion" switch). False where the browser cannot say. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Trauma for segment `segment` of a twin-ultimate ribbon chain. The chain kicks once (its first segment), and
+ * not at all under reduced motion: the ribbon, the edge glow and the sound still show the moment.
+ */
+export function twinShake(segment: number, reducedMotion: boolean): number {
+  return segment === 0 && !reducedMotion ? SYNC_CAST_TRAUMA : 0;
+}
+
 export class Shake {
   trauma = 0;
 
