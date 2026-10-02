@@ -418,12 +418,26 @@ export interface ModifierStats {
   goldRush: { gold: number; bounty: number; count: number };
 }
 
+/**
+ * Hard's final wave only. A clear and a boss leak move the Heart by tens of HP in opposite
+ * directions, wider than the 40–80 band, and one HP scalar moves both seeds the same way.
+ * `ceiling`: Heart above this when the wave starts loses the excess (the finale leak grows to match).
+ * `floor`: creep leaks on that wave cannot take the Heart below this. Earlier waves are unchanged.
+ * Normal never reads it. It sits on the Hard scaling, not on a team-size row, so Full and Quick share it.
+ */
+export interface FinaleBrace {
+  ceiling: number;
+  floor: number;
+}
+
 export interface DifficultyScaling extends DifficultyBand {
   /**
    * Per player count (index 0 = solo), used instead of the scalars above. One multiplier cannot put a
    * solo expert and a 3-player team on the same Heart band, so Hard sets a band for each team size.
    */
   byPlayers?: DifficultyBand[];
+  /** Compresses the final wave so a clear and a leak can both land in the Heart band. Hard only. */
+  finaleBrace?: FinaleBrace;
 }
 
 export interface ModeTuning {
@@ -861,8 +875,7 @@ export const TUNING: Tuning = {
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
       // Quick is shorter, so the same Full bands either walk over a 3-player team or cliff a solo seed.
-      // Measured expert hearts (gate seeds) after the rain ultimates: most solos and the 3-player
-      // team sit in 40–80; a few solo and pair seeds still cliff (see the Decision Log).
+      // The Hard finale brace (on difficulty.hard, shared with Full) holds the seeds a scalar could not.
       hard: {
         byPlayers: [
           { hp: 1.032, count: 1.06, lateHp: 0.16, lateCount: 0.09, bossHp: 1.02, lateBossHp: 0.04 },
@@ -891,14 +904,15 @@ export const TUNING: Tuning = {
       lateExtra: 0.193,
       magicResist: 0.12,
       finale: 2,
+      // A clean final wave on a full Heart ends at the ceiling. A dump stops at the floor, still inside 40–80.
+      finaleBrace: { ceiling: 80, floor: 48 },
       byPlayers: [
-        // Full solo expert: 41–80 after the final-wave strain (the stuck seed was 82, the floor 43).
+        // Full solo expert. Offsets the solo late bonus (0.08). The finale brace covers ranger seed 3.
         {
-          // Offsets the solo late bonus (0.08). Most Full Hard solos land in 40–80; ranger seed 3 is still low.
           hp: 1.005, count: 1.029, lateHp: 0, lateCount: 0.024, bossHp: 1.026, lateBossHp: 0.02,
           extra: 0.45, lateExtra: 0.193, magicResist: 0.12, finale: 2,
         },
-        // Full pairs: four seeds 40–80. Arcanist+Ranger seed 3 still cliffs (Heart 32; easing the late add erases the leak and lands over 80).
+        // Full pairs. The finale brace covers Arcanist+Ranger seed 3 (a final-wave dump that a late-HP cut sends over 80).
         { hp: 1.005, count: 1, lateHp: 0.02, lateCount: 0, bossHp: 1.01, lateBossHp: 0.01, extra: 0.45 },
         // Full three players: 46–71, first third 32% of the Heart lost, last third 67%.
         {

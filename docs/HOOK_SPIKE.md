@@ -20,6 +20,8 @@ Always on. No spike flag.
 
 6. **Stick.** While you are steering, a melee hero does not walk itself toward a creep. Attacks still land on anything already in reach. Releasing the stick lets it step in again.
 
+7. **Hard final brace.** Normal matches are unchanged. On Hard, a Heart above 80 loses the excess when the final wave starts (the finale leak, no creep). Creep leaks on that wave cannot take the Heart below 48. Earlier waves are not braced. Full and Quick share the numbers (`finaleBrace`).
+
 ## Wire (protocol 16)
 
 | Piece | What it is |
