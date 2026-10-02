@@ -90,6 +90,7 @@ Everything below is on `main` unless marked otherwise. The whole build so far to
 - **Friends match 1** (3 players, Quick, Ranger / Warden / Arcanist): waves 1–10 felt hard and 11–15 easy, the Arcanist ran out of mana, and they expected ultimates to combine. The first two are fixed in PR #21. Combos exist only on the hook test branch.
 - **First sound pass:** friends found the lobby too soft and "spacey", and battles robotic. PR #23 replaced it with the current theme.
 - **Han's solo match** (Quick, Ranger, seed 680952457, build `1fa2887`): 99 of 100 Heart, where the balance bot gets 46 on the same seed. He branched 3 towers (bot: 0), died once (bot: 6), cast Q/W/R 50/24/7 times (bot: 26/11/4) and called 7 waves early (bot: 0). Normal is tuned for beginners; this is why Hard difficulty is next. Han has the match file.
+- **Gate 1 (2 Oct 2026):** friends played on Android, PC, and iPhone Safari. The gate passed. Follow-up work orders are Playtest 2 in `TASKS.md`.
 
 ---
 
@@ -104,15 +105,16 @@ The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish ite
    - **T-03** First five minutes (tutorial; after pings)
    - **T-04** Projectile and trap art
    - **T-05** Docs clean-up
-2. **Gate 1 was waived on 1 Oct 2026** (Han, time) and is treated as passed. The friends playtest was not run: no Render plan change, no matches, and no per-hero retune from friend reports (g1-render, g1-play, g1-watch, g1-tune, g1-gate). Friends-only play was never the store go/no-go.
-3. **Han's list:** H-01 is done (Vercel Authentication Disabled on tgt-td-cld, Han confirmed 1 Oct 2026). H-04 is done (lobby, match, and boss music, PR #42). H-02, H-03, H-05, and H-06 stay open: the hook-test server, trying the hook test, the iPhone checklist, and GitHub access.
-4. **Phase 6 may proceed** (accounts, clans, loot, leaderboards). Those tasks are not started. Per-hero tuning from a friends session was waived with Gate 1.
-5. **Discovery and rollout** (plan in `TASKS.md`) is the public soft-launch path and is still open. Before or alongside store submission, put the polished build in front of **strangers** and measure response:
+2. **Gate 1 passed on 2 Oct 2026.** Friends played on Android, PC, and iPhone Safari (g1-render, g1-play, g1-watch, g1-tune, g1-gate). Friends-only play was never the store go/no-go.
+3. **Playtest 2** is open (`TASKS.md`, P2-01–P2-05): touch controls (client, Client Polish), air waves and unspent gold teaching (client, Client Polish), kit rework and balance by simulation (sim, Claude; Han reviews the PR), ultimate presentation and a combo cue (client, after the kit rework), then a retest (Han).
+4. **Han's list:** H-01 is done (Vercel Authentication Disabled on tgt-td-cld, Han confirmed 1 Oct 2026). H-04 is done (lobby, match, and boss music, PR #42). H-02, H-03, H-05, and H-06 stay open: the hook-test server, trying the hook test, the iPhone checklist, and GitHub access.
+5. **Phase 6 may proceed** (accounts, clans, loot, leaderboards). Those tasks are not started. Kit rework and sim balance from the friends session is Playtest 2 (P2-03).
+6. **Discovery and rollout** (plan in `TASKS.md`) is the public soft-launch path and is still open. Before or alongside store submission, put the polished build in front of **strangers** and measure response:
    - Reddit: **r/PlayMyGame**, **r/incremental_games**, **r/cozygames**
    - **CrazyGames Basic Launch** (Gate 2)
    - Per channel, track **average playtime**, **retention** (at least D1 / D7), and **repeat visits**
    - Decide store push vs more polish from that data — friends alone are not the audience test
-6. **Modes for that build:** lead the store-facing surface with **1p and 2p**; keep **3p co-op** as the flagship community mode.
+7. **Modes for that build:** lead the store-facing surface with **1p and 2p**; keep **3p co-op** as the flagship community mode.
 
 ---
 
@@ -182,7 +184,7 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 
 - **CI is on.** T-00: `.github/workflows/ci.yml` on pull requests and `main`. `main` requires the `ci` check.
 - **README status.** Updated in T-05: Phases 1–3 done, Phase 4 polish through the tutorial.
-- **`docs/GAME_DESIGN.md` §11.** Updated in T-05, then on 1 Oct 2026: Gate 1 is waived and treated as passed, so Phase 6 may proceed. Monetisation still waits for Gate 2 (`docs/ROADMAP.md`).
+- **`docs/GAME_DESIGN.md` §11.** Updated in T-05, then on 2 Oct 2026: Gate 1 passed (Android, PC, iPhone Safari friends), so Phase 6 may proceed. Monetisation still waits for Gate 2 (`docs/ROADMAP.md`).
 - **Claude-specific names.** `CLAUDE.md` and the `claude/…` branch names come from how the game was built. Keep `CLAUDE.md` as the guide. `AGENTS.md` points at it (T-05). Use your own branch prefix. The hook-test branch `claude/loving-hawking-7fvsu7` stays unmerged.
 - **One tracker.** Han's original checklist lives in his claude.ai account and nobody else can tick it. `TASKS.md` is the tracker. `apps/client/src/progress/data.ts` mirrors it for `/?progress`. Do not add a third list.
 - **Balance cliffs.** Solo and pairs break with small changes (see the balance notes in `CLAUDE.md` → Conventions). Ranger + Warden is the weakest pair.
