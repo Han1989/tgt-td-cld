@@ -570,7 +570,7 @@ export class Hud {
         this.surgeToast(surgeToastCopy(e));
         pulse(this.matchFlags, [{ filter: 'brightness(1.8)' }, { filter: 'none' }], 420);
       } else if (e.type === 'leak') {
-        // The Heart stat still pulses. The lane name is the clutch cue (it skips the finale strain).
+        // The Heart stat still pulses. The lane name is the clutch cue.
         pulse(this.heartStat, HIT_PULSE, 380);
       } else if (e.type === 'cast' && snap.heroes.some((h) => h.id === e.heroId && h.owner === me)) {
         const b = this.skillButtons.get(e.slot);
