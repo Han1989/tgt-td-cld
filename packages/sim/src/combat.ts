@@ -178,6 +178,22 @@ export function damageCreep(
   return dealt;
 }
 
+/** `damageCreep` for a hero ultimate or combo, counted in `state.ultStats` for the balance matrix. */
+export function ultimateDamage(
+  state: GameState,
+  creep: Creep,
+  amount: number,
+  type: DamageType,
+  source: PlayerId | null,
+  from?: HitFrom | null,
+): number {
+  const alive = !creep.dead;
+  const dealt = damageCreep(state, creep, amount, type, source, false, from);
+  state.ultStats.damage += dealt;
+  if (alive && creep.dead) state.ultStats.kills++;
+  return dealt;
+}
+
 function killCreep(state: GameState, creep: Creep, source: PlayerId | null): void {
   creep.dead = true;
   creep.hp = 0;

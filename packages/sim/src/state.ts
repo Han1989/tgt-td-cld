@@ -333,6 +333,14 @@ export interface GameState {
   recentUlts: RecentUlt[];
   /** Wave-10 bosses that spawned with a shield (kept until the creep is gone). */
   shields: BossShield[];
+  /** What hero ultimates and combos did, for the balance matrix. Not in snapshots or reports. */
+  ultStats: UltStats;
+}
+
+/** Damage dealt and creeps killed by hero ultimates (and combos) over the match. */
+export interface UltStats {
+  damage: number;
+  kills: number;
 }
 
 /** Solo practice: the bot ally and the level both heroes started at. */

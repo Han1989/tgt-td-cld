@@ -59,6 +59,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     practice: practice ? { allyId: practice.allyId, startLevel: practice.startLevel ?? tuning.hero.ultimateLevels[0] ?? 6 } : null,
     recentUlts: [],
     shields: [],
+    ultStats: { damage: 0, kills: 0 },
   };
 
   const spawn = getMap().heroSpawn;

@@ -6,7 +6,7 @@
 // 3. Solo practice — an ally hero that does not count as a player (`practice` on GameConfig).
 
 import type { CreepKind, HeroKind, LaneId, PlayerId, ShieldState } from '@tdt/protocol';
-import { creepsInRadius, damageCreep, emit, heroMaxHp, heroMaxMana, newId, stunCreep } from './combat';
+import { creepsInRadius, emit, heroMaxHp, heroMaxMana, newId, stunCreep, ultimateDamage } from './combat';
 import { mix32 } from './modifiers';
 import { getMap, laneDistance, PAD_ZONES } from './map';
 import type { BossShield, Creep, GameState, Hero, HitFrom, RecentUlt, Zone } from './state';
@@ -203,7 +203,7 @@ export function rainStrike(
   for (const c of creepsInRadius(state, spot.x, spot.y, opts.radius, opts.air)) {
     if (opts.stunTicks > 0) stunCreep(state, c, opts.stunTicks);
     const boss = opts.bossDamage !== undefined && state.tuning.creeps[c.kind].boss;
-    damageCreep(state, c, boss ? opts.damage * opts.bossDamage! : opts.damage, opts.magic ? 'magic' : 'physical', zone.owner, false, from);
+    ultimateDamage(state, c, boss ? opts.damage * opts.bossDamage! : opts.damage, opts.magic ? 'magic' : 'physical', zone.owner, from);
   }
 }
 
