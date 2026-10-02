@@ -522,13 +522,14 @@ export class WorldRenderer {
   }
 
   /**
-   * Twin ultimates: a Runelight ribbon between the two cast origins, in each player's colour, and a kick of
-   * screen shake of `shake` trauma (`twinShake`: none after the first segment of a chain, or under reduced motion).
+   * Twin ultimates: a Runelight ribbon between the two cast origins, in each player's colour, and a heavy
+   * screen kick of `shake` trauma (`twinShake`: none after the first segment of a chain, or under reduced motion).
+   * The kick uses the twin channel, not the ordinary bump, so a single Meteor thump stays small.
    * Client-only. The caller decides when the overlap window hit.
    */
   twinRibbon(a: { x: number; y: number }, b: { x: number; y: number }, colorA: number, colorB: number, shake: number): void {
     this.fx.ribbon(a.x, a.y, b.x, b.y, colorA, colorB);
-    if (shake > 0) this.fx.bump(shake);
+    if (shake > 0) this.fx.bumpHeavy(shake);
   }
 
   /**

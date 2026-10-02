@@ -14,7 +14,7 @@ import { DISC_PX, GLYPH_PX, RING_PX, type FxAtlas, type FxFrame } from './atlas'
 import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
 import { flight, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
-import { Shake } from './shake';
+import { SHAKE_MAX_PX, Shake, twinShakeMaxPx } from './shake';
 import { AOE_COLORS, COLORS, FX, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
 
 const S = TILE_PX;
@@ -215,20 +215,31 @@ export class Effects {
     this.shake.reset();
   }
 
-  /** Adds screen shake (0..1), if shake is on. */
+  /** Adds ordinary screen shake (0..1), if shake is on. Single-R thumps, bosses, the Heart. */
   bump(amount: number): void {
     if (!this.level.shake) return;
     this.shake.add(amount);
     this.shakeAdded += amount;
   }
 
-  /** Screen offset (px) of the shake this frame. */
+  /**
+   * Twin / syncCast kick. Same 0..1 scale as `bump`, drawn on the heavy channel
+   * (`SYNC_CAST_MAX_PX`). Reduced motion (`FxLevel.calm`) and Graphics → Low add nothing.
+   */
+  bumpHeavy(amount: number): void {
+    if (!this.level.shake || this.level.calm || amount <= 0) return;
+    this.shake.addHeavy(amount);
+    this.shakeAdded += amount;
+  }
+
+  /** Screen offset (px) of the shake this frame. Calm drops the twin channel to zero. */
   shakeOffset(now: number, dtMs: number): { x: number; y: number } {
     if (!this.level.shake) {
       this.shake.reset();
       return { x: 0, y: 0 };
     }
-    return this.shake.offset(now, Math.min(dtMs, 100), 9);
+    if (this.level.calm) this.shake.clearHeavy();
+    return this.shake.offset(now, Math.min(dtMs, 100), SHAKE_MAX_PX, twinShakeMaxPx(this.level.calm));
   }
 
   // -------------------------------------------------------------------------

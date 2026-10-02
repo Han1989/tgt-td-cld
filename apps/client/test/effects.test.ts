@@ -4,7 +4,19 @@ import { Counter } from '../src/hud/counter';
 import { HitTracker } from '../src/render/fx/hits';
 import { bitAlpha, bitScale, newBit, stepBit } from '../src/render/fx/motion';
 import { damageText, GLYPHS, layoutGlyphs } from '../src/render/fx/numbers';
-import { prefersReducedMotion, Shake, SYNC_CAST_TRAUMA, twinShake } from '../src/render/fx/shake';
+import {
+  prefersReducedMotion,
+  Shake,
+  shakeEnvelope,
+  SHAKE_MAX_PX,
+  SHAKE_POWER,
+  SYNC_CAST_DECAY_PER_S,
+  SYNC_CAST_MAX_PX,
+  SYNC_CAST_POWER,
+  SYNC_CAST_TRAUMA,
+  twinShake,
+  twinShakeMaxPx,
+} from '../src/render/fx/shake';
 import { mixColor } from '../src/render/palette';
 import { fxLevel } from '../src/render/quality';
 import { parseSettings } from '../src/settings';
@@ -164,40 +176,81 @@ describe('screen shake', () => {
 describe('twin-ultimate shake', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  /** The largest offset (px) a kick of this trauma reaches at the game's 9 px max, over any start time in 400 ms. */
-  const peakPx = (trauma: number) => {
+  /**
+   * Largest |offset| (px) over start times. `dt` 0 so trauma does not decay during the scan:
+   * this is the oscillator's reach at the full envelope, not a single unlucky phase.
+   */
+  const peakPx = (kick: (s: Shake) => void, heavyMax: number, windowMs = 2000) => {
     let max = 0;
-    for (let t = 0; t < 400; t += 1) {
+    for (let t = 0; t < windowMs; t += 1) {
       const s = new Shake();
-      s.add(trauma);
-      const o = s.offset(t, 0, 9);
+      kick(s);
+      const o = s.offset(t, 0, SHAKE_MAX_PX, heavyMax);
       max = Math.max(max, Math.abs(o.x), Math.abs(o.y));
     }
     return max;
   };
 
-  it('is a clearly stronger kick than the 0.2 the ribbon used to add, and stays inside the max', () => {
-    expect(SYNC_CAST_TRAUMA).toBeGreaterThan(0.2);
-    expect(peakPx(0.2)).toBeLessThan(0.5);
-    expect(peakPx(SYNC_CAST_TRAUMA)).toBeGreaterThanOrEqual(3);
-    expect(peakPx(SYNC_CAST_TRAUMA)).toBeGreaterThan(peakPx(0.2) * 5);
-    expect(peakPx(SYNC_CAST_TRAUMA)).toBeLessThanOrEqual(9);
+  const ordinaryPeak = (trauma: number) => peakPx((s) => s.add(trauma), 0, 400);
+
+  const twinPeak = () => peakPx((s) => s.addHeavy(SYNC_CAST_TRAUMA), SYNC_CAST_MAX_PX);
+
+  it('keeps a single-R thump on the small channel (Meteor 0.3, Meteor Rain strike 0.14)', () => {
+    expect(SHAKE_MAX_PX).toBe(9);
+    expect(SHAKE_POWER).toBe(2);
+    // #48's twin, if it were still on this channel: 9 × 0.75² ≈ 5 px. It is not.
+    expect(shakeEnvelope(0.75, SHAKE_MAX_PX, SHAKE_POWER)).toBeCloseTo(5.06, 1);
+    expect(shakeEnvelope(0.3, SHAKE_MAX_PX, SHAKE_POWER)).toBeLessThan(1);
+    expect(ordinaryPeak(0.3)).toBeLessThan(1.2);
+    expect(ordinaryPeak(0.14)).toBeLessThan(0.4);
+    expect(ordinaryPeak(0.2)).toBeLessThan(0.5);
   });
 
-  it('settles: the screen is dead still within half a second, whenever the kick started', () => {
+  it('is a much louder kick than the #48 5 px / 0.4 s twin, and stays inside its own cap', () => {
+    const oldEnvelope = shakeEnvelope(0.75, 9, 2);
+    const envelope = shakeEnvelope(SYNC_CAST_TRAUMA, SYNC_CAST_MAX_PX, SYNC_CAST_POWER);
+    expect(oldEnvelope).toBeCloseTo(5.06, 1);
+    expect(envelope).toBeGreaterThanOrEqual(16);
+    expect(envelope).toBeGreaterThan(oldEnvelope * 3);
+    expect(twinPeak()).toBeGreaterThanOrEqual(12);
+    expect(twinPeak()).toBeLessThanOrEqual(SYNC_CAST_MAX_PX);
+    expect(twinPeak()).toBeGreaterThan(ordinaryPeak(0.75) * 2);
+  });
+
+  it('stays a visible slam past half a second, then is dead still within about 1.2 s', () => {
+    expect(SYNC_CAST_DECAY_PER_S).toBeLessThan(1.2);
     for (const start of [0, 137, 2500, 98765]) {
       const s = new Shake();
-      s.add(SYNC_CAST_TRAUMA);
+      s.addHeavy(SYNC_CAST_TRAUMA);
       let still = -1;
-      for (let t = 0; t <= 600; t += 16) {
-        const o = s.offset(start + t, 16, 9);
+      let aliveAt400 = false;
+      for (let t = 0; t <= 1600; t += 16) {
+        const o = s.offset(start + t, 16, SHAKE_MAX_PX, SYNC_CAST_MAX_PX);
+        if (t === 400) aliveAt400 = s.heavy > 0.4;
         if (o.x === 0 && o.y === 0) {
           still = t;
           break;
         }
       }
-      expect(still).toBeGreaterThan(0);
-      expect(still).toBeLessThanOrEqual(500);
+      expect(aliveAt400).toBe(true);
+      expect(still).toBeGreaterThan(700);
+      expect(still).toBeLessThanOrEqual(1400);
+    }
+    // Envelope (before the oscillator) is still several pixels at 400 ms. The #48 kick was under 1 px by then.
+    const traumaAt400 = Math.max(0, SYNC_CAST_TRAUMA - (SYNC_CAST_DECAY_PER_S * 400) / 1000);
+    expect(shakeEnvelope(traumaAt400, SYNC_CAST_MAX_PX, SYNC_CAST_POWER)).toBeGreaterThan(8);
+  });
+
+  it('does not let a stacked ordinary bump push the twin past its cap', () => {
+    const s = new Shake();
+    s.add(1);
+    s.addHeavy(1);
+    for (let t = 0; t < 500; t += 1) {
+      const o = s.offset(t, 0, SHAKE_MAX_PX, SYNC_CAST_MAX_PX);
+      expect(Math.abs(o.x)).toBeLessThanOrEqual(SYNC_CAST_MAX_PX);
+      expect(Math.abs(o.y)).toBeLessThanOrEqual(SYNC_CAST_MAX_PX);
+      s.trauma = 1;
+      s.heavy = 1;
     }
   });
 
@@ -207,6 +260,15 @@ describe('twin-ultimate shake', () => {
     expect(twinShake(2, false)).toBe(0);
     expect(twinShake(0, true)).toBe(0);
     expect(twinShake(1, true)).toBe(0);
+    expect(twinShakeMaxPx(false)).toBe(SYNC_CAST_MAX_PX);
+    expect(twinShakeMaxPx(true)).toBe(0);
+    // A leftover heavy kick is hidden when the frame passes a zero cap (FxLevel.calm).
+    const s = new Shake();
+    s.addHeavy(SYNC_CAST_TRAUMA);
+    expect(s.offset(200, 0, SHAKE_MAX_PX, twinShakeMaxPx(true))).toEqual({ x: 0, y: 0 });
+    s.clearHeavy();
+    s.addHeavy(twinShake(0, true));
+    expect(s.heavy).toBe(0);
   });
 
   it('asks the reduced-motion media query, and says no where the browser has no matchMedia', () => {
