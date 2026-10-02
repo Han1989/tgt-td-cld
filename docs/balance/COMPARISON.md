@@ -1,0 +1,92 @@
+# Before and after: aimed circles (PR #66's first cut) and lane rains (Han's review)
+
+Mean Heart HP and win rate over 30 seeds, one row per bot, mode, difficulty and team (R = Ranger, W = Warden, A = Arcanist).
+The left column is `aimed-circles-final.txt` (the PR before the review), the right one `final.txt`. Heart is 0 for a lost match.
+The first cut's own baseline (main before any change) is `baseline.txt`.
+
+| Bot · mode · difficulty | Team | PR #66 aimed circles: win% / Heart | Lane rains: win% / Heart |
+|---|---|---|---|
+| novice · full · normal | R | 100% / 70.0 | 100% / 74.7 |
+| novice · full · normal | W | 100% / 86.7 | 100% / 89.7 |
+| novice · full · normal | A | 100% / 85.0 | 100% / 85.7 |
+| novice · full · normal | R+W | 100% / 75.8 | 100% / 74.7 |
+| novice · full · normal | W+A | 100% / 83.9 | 100% / 84.6 |
+| novice · full · normal | A+R | 97% / 58.7 | 100% / 78.3 |
+| novice · full · normal | R+W+A | 100% / 80.1 | 100% / 79.0 |
+| casual · full · normal | R | 100% / 80.7 | 100% / 81.8 |
+| casual · full · normal | W | 100% / 75.5 | 100% / 75.5 |
+| casual · full · normal | A | 100% / 83.0 | 100% / 82.6 |
+| casual · full · normal | R+W | 100% / 88.1 | 97% / 74.0 |
+| casual · full · normal | W+A | 100% / 93.8 | 100% / 85.8 |
+| casual · full · normal | A+R | 100% / 80.2 | 100% / 77.8 |
+| casual · full · normal | R+W+A | 100% / 79.6 | 100% / 82.9 |
+| expert · full · normal | R | 100% / 94.7 | 100% / 95.0 |
+| expert · full · normal | W | 100% / 90.5 | 100% / 90.5 |
+| expert · full · normal | A | 100% / 99.6 | 100% / 99.9 |
+| expert · full · normal | R+W | 100% / 97.9 | 100% / 96.0 |
+| expert · full · normal | W+A | 100% / 99.8 | 100% / 98.8 |
+| expert · full · normal | A+R | 100% / 99.1 | 100% / 99.7 |
+| expert · full · normal | R+W+A | 100% / 97.5 | 100% / 98.4 |
+| novice · full · hard | R | 0% / 0.0 | 27% / 3.5 |
+| novice · full · hard | W | 100% / 37.9 | 100% / 48.8 |
+| novice · full · hard | A | 57% / 10.5 | 100% / 40.0 |
+| novice · full · hard | R+W | 53% / 20.1 | 20% / 3.4 |
+| novice · full · hard | W+A | 77% / 36.5 | 67% / 29.4 |
+| novice · full · hard | A+R | 23% / 4.2 | 33% / 6.0 |
+| novice · full · hard | R+W+A | 0% / 0.0 | 3% / 0.2 |
+| casual · full · hard | R | 0% / 0.0 | 3% / 0.1 |
+| casual · full · hard | W | 13% / 2.6 | 10% / 4.2 |
+| casual · full · hard | A | 3% / 1.0 | 27% / 3.1 |
+| casual · full · hard | R+W | 17% / 5.6 | 0% / 0.0 |
+| casual · full · hard | W+A | 90% / 55.2 | 3% / 0.5 |
+| casual · full · hard | A+R | 0% / 0.0 | 17% / 2.3 |
+| casual · full · hard | R+W+A | 0% / 0.0 | 0% / 0.0 |
+| expert · full · hard | R | 100% / 50.6 | 100% / 67.8 |
+| expert · full · hard | W | 100% / 52.6 | 93% / 44.5 |
+| expert · full · hard | A | 100% / 78.9 | 100% / 89.2 |
+| expert · full · hard | R+W | 93% / 65.0 | 90% / 58.2 |
+| expert · full · hard | W+A | 100% / 86.2 | 100% / 84.2 |
+| expert · full · hard | A+R | 97% / 59.3 | 100% / 89.3 |
+| expert · full · hard | R+W+A | 93% / 63.9 | 100% / 75.8 |
+| novice · quick · normal | R | 73% / 17.7 | 90% / 28.1 |
+| novice · quick · normal | W | 100% / 49.7 | 100% / 52.6 |
+| novice · quick · normal | A | 100% / 37.7 | 100% / 50.1 |
+| novice · quick · normal | R+W | 100% / 38.5 | 100% / 41.0 |
+| novice · quick · normal | W+A | 100% / 48.6 | 100% / 49.3 |
+| novice · quick · normal | A+R | 100% / 38.2 | 100% / 43.8 |
+| novice · quick · normal | R+W+A | 100% / 52.3 | 100% / 46.8 |
+| casual · quick · normal | R | 100% / 78.0 | 100% / 73.1 |
+| casual · quick · normal | W | 100% / 77.5 | 100% / 77.5 |
+| casual · quick · normal | A | 100% / 78.5 | 100% / 80.8 |
+| casual · quick · normal | R+W | 100% / 73.0 | 100% / 77.4 |
+| casual · quick · normal | W+A | 100% / 79.3 | 100% / 81.2 |
+| casual · quick · normal | A+R | 100% / 76.8 | 100% / 80.7 |
+| casual · quick · normal | R+W+A | 100% / 80.7 | 100% / 69.9 |
+| expert · quick · normal | R | 100% / 91.7 | 100% / 92.0 |
+| expert · quick · normal | W | 100% / 94.3 | 100% / 94.3 |
+| expert · quick · normal | A | 100% / 98.6 | 100% / 99.1 |
+| expert · quick · normal | R+W | 100% / 92.3 | 100% / 93.3 |
+| expert · quick · normal | W+A | 100% / 98.9 | 100% / 98.8 |
+| expert · quick · normal | A+R | 100% / 99.2 | 100% / 99.2 |
+| expert · quick · normal | R+W+A | 100% / 99.9 | 100% / 100.0 |
+| novice · quick · hard | R | 0% / 0.0 | 0% / 0.0 |
+| novice · quick · hard | W | 17% / 1.4 | 23% / 2.7 |
+| novice · quick · hard | A | 0% / 0.0 | 0% / 0.0 |
+| novice · quick · hard | R+W | 0% / 0.0 | 0% / 0.0 |
+| novice · quick · hard | W+A | 10% / 0.6 | 0% / 0.0 |
+| novice · quick · hard | A+R | 0% / 0.0 | 0% / 0.0 |
+| novice · quick · hard | R+W+A | 0% / 0.0 | 0% / 0.0 |
+| casual · quick · hard | R | 30% / 2.4 | 87% / 29.3 |
+| casual · quick · hard | W | 60% / 14.1 | 60% / 14.1 |
+| casual · quick · hard | A | 30% / 4.1 | 93% / 29.5 |
+| casual · quick · hard | R+W | 0% / 0.0 | 0% / 0.0 |
+| casual · quick · hard | W+A | 3% / 1.2 | 10% / 2.2 |
+| casual · quick · hard | A+R | 0% / 0.0 | 0% / 0.0 |
+| casual · quick · hard | R+W+A | 0% / 0.0 | 0% / 0.0 |
+| expert · quick · hard | R | 100% / 55.4 | 100% / 68.3 |
+| expert · quick · hard | W | 100% / 60.1 | 100% / 60.1 |
+| expert · quick · hard | A | 100% / 63.1 | 100% / 83.1 |
+| expert · quick · hard | R+W | 97% / 56.3 | 93% / 47.6 |
+| expert · quick · hard | W+A | 100% / 77.5 | 100% / 80.4 |
+| expert · quick · hard | A+R | 70% / 43.3 | 100% / 74.6 |
+| expert · quick · hard | R+W+A | 97% / 55.7 | 93% / 54.8 |

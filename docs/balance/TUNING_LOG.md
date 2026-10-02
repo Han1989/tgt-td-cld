@@ -1,5 +1,7 @@
 # Playtest 2 tuning log
 
+Two rounds. Round 1 (the sections below, up to "Round 2") built the aimed-circle kit; Han's review of PR #66 replaced it with instant lane rains (round 2, at the end). `final.txt` and `final-targets.txt` are round 2; round 1's are `aimed-circles-final*.txt`, and `COMPARISON.md` puts the two side by side.
+
 Every number below was tried on the balance matrix (`npm run balance:matrix`; the bots play whole matches headlessly).
 Quick probes used 8–12 seeds and one team size; every full matrix (the tables in `baseline.txt` and `final.txt`) is 30 seeds.
 One change at a time where the matrix allowed it. `--tuning '<json>'` tries a number without editing `tuning.ts`.
@@ -38,3 +40,37 @@ One change at a time where the matrix allowed it. `--tuning '<json>'` tries a nu
 - Pair late bonuses 0.4–0.5 (cliffs, see 9).
 - Hard `lateHp` / `lateCount` ramps and boss HP (bimodal, see 12).
 - Ranged-hero attack range +0.5 (A+R 78, not needed once armour was raised).
+
+
+# Round 2: instant lane rains (Han's review of PR #66)
+
+Han: no aiming. Arrow Storm and Meteor are instant casts again, rain on all three lanes in every team size, strikes land on creeps (never on empty road) and hit flyers, no per-lane or near-Heart cap, Meteor stuns on every impact; combos fuse any two ultimates within 5 s with no overlap check; targets: casual bots in Quick average at least 10 kills per Arrow Storm and 8 per Meteor, ultimates are 8–15% of a team's damage, a boss still loses at most about 8% to one ultimate. Raise cooldowns if needed; toughen late waves rather than weaken the rains. Probes were 6–20 seeds and one or two team sizes (`--tuning`); the tables are 30.
+
+## Runs
+
+| Run | What it was | What it showed |
+|---|---|---|
+| r2-a | Rains first cut: Arrow Storm 65 / 80 / 95 per strike, Meteor 100 / 125 / 150, cooldown 40 / 36 / 32, round-1 scaling | Quick casual solo 70–86, pairs 85–92, trio 96: teams far too easy; ultimates 17–30% of damage; 21 kills per Arrow Storm solo, 8 in a trio (fused casts counted as casts). |
+| r2-b | Damage up (80 / 92 / 105, 140 / 150 / 155) so rank 1 kills the weak creeps in a trio too; fused casts no longer count as casts | `test/ultimates.test.ts` passes for 1, 2 and 3 players on waves 8–10; boss share ≤ 8% except the wave-5 Ironhorn. |
+| r2-c | Cooldowns 40 → 55 → 60 → 75 s | Ultimate share 17–30% → 11–14% (Quick) at 60 s; 75 s brings Full under 15% as well. |
+| r2-d | Team scaling retuned for the rains (Quick, then Full), bots hold a rain for a teammate | Casual Normal 70–86 in every team; combos 3–10 a match in Full. |
+| r2-e | Hard retuned (flat multipliers), novice ultimate chance, per-team novice gate | `final.txt`, `final-targets.txt`. |
+
+## Changes, in the order they were made
+
+1. **Lane rains with no caps** (`coop.ts` `pulseRain`): every pulse, per lane, strikes on the creeps (greedy cover: the creep whose spot covers the most creeps not yet struck, until every creep of the lane has been hit once). Main's random spot choice with a lane cap of 6 and a Heart cap of 4 made 6 strikes per lane per rain. Arrow Storm 22 / 33 / 44 → 80 / 92 / 105 per strike; Meteor 40 / 58 / 76 (boss ×2) → 140 / 150 / 155 magic with a stun on every impact (0.9 / 1 / 1.1 s), now hitting flyers. The boss factor 0.75 stays: rank 3 Arrow Storm was 8.6% of the wave-10 Matriarch at 115 and the rank-2 Meteor 8.7% at 170, which is why ranks 2 and 3 add so little damage.
+2. **Cooldowns** 60 / 55 / 50 → 75 / 68 / 62 s (Iron Vow unchanged at 50 / 46 / 42). At 40 s a casual solo cast every 40–60 s and the rains were 17–30% of a team's damage; at 55 s, 12–20%; at 70–75 s, 9–14%. Kills per cast stay about 22 (Arrow Storm) and 23 (Meteor) in Quick.
+3. **Combos without overlap** (`onUltCast`): any two ultimates inside 5 s fuse. Meteor Rain 10 pulses of 160 / 190 / 220 (the first try, 120 / 145 / 170, did 1.29× the two apart; the target is 1.5×; now 1.65×). Stun Storm: Arrow Storm × 1.5 with a 0.6 s stun on every creep (1.67× the Storm and the vow's burst apart). Shockwave: the Meteor × 1.4, every impact pulls the creeps of its lane within 3.5 tiles 2 tiles together first (1.4× the Meteor and the burst apart, more on creeps that are not already stacked). Three ultimates: the strongest pair (`coop.comboOrder`) fires once.
+4. **Bots**: cast a rain when 12 creeps are out (3 is not enough, 12 gave 22 kills per cast), hold it up to 25 s for a teammate whose ultimate is about to come back (4 s: 1 combo a match in pairs, 12 s: 1.1, 25 s: 1.4–2.2), answer a teammate's ultimate in the last 4 s of the window. Combos per match, Quick pairs 0.5–1.3 → 1.1–1.8, trio 3.0; Full pairs 4.5–5, trio 10.
+5. **Team scaling** (the late waves, as Han asked): Quick pairs unchanged at 1.5, trio 1.6 → 1.65 with late 1.6 → 1.9, pairs late 0.26 → 0.33. Quick trio at 1.9 / 1.6 gave 68 with a Warden dying 4.2 times; 1.7 / 1.9 → 62.8; 1.65 / 1.9 → 70 and 2.6 deaths. Full pairs hp 1.43 → 1.5, early bonus 0.3 → 0.2, late 0.35 → 0.5; trio hp 1.46 → 1.52, early 1.0 → 0.9, late 0.95 → 1.2. Cliffs again: Full pair late 0.6 sent the ranged pair to 63–67, 0.8 to 21–39; early 0.05–0.1 made the whole match one cliff in the last third (parity 17).
+6. **Hard** (flat multipliers, the rains made Hard 5–10 Heart easier): Full solo 1.17 → 1.18, pairs 1.14 → 1.18; Quick pairs 1.22 → 1.28 with a 0.12 late bonus, trio late 0.2 → 0.3. 1.27 / 1.3 (Full solo, pairs) was a cliff (Ranger 77 → 17, pairs 0–27).
+7. **Novice**: ultimate chance 0.5 → 0.75 and forget time 90 → 60 s (Quick solo Ranger 73% → 90% over 30 seeds: it used 1.7 rains a match, now 3.6).
+8. **Practice ally** casts its R 0.5 s after yours (no aim, no walking into a circle).
+
+## What was tried and dropped
+
+- Cooldown 40 / 55 / 60 s (shares 17–30%, 12–20%, 11–17%).
+- Pair late bonuses 0.6 and 0.8 and early bonuses of 0.05–0.1 in Full (cliffs and a bimodal last third).
+- Waiting for a teammate 4 s or 12 s (1.0–1.1 combos a match in Quick pairs; 25 s gave 1.4–2.2).
+- Hard 1.27 / 1.3 for Full solo and pairs.
+- Boss damage cuts beyond `ultimateBossFactor` (kept at 0.75 as asked).

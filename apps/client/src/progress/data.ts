@@ -299,7 +299,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'in_progress',
     section: 'discovery',
-    note: 'Protocol 17. Arrow Storm and Meteor are aimed circles again and stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave), no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Waiting for Han’s review.',
+    note: 'Protocol 17. Arrow Storm and Meteor are instant lane rains again (no aiming, no caps) and much stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave) with no overlap check, no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Waiting for Han’s review.',
   },
   {
     id: 'D-02',
