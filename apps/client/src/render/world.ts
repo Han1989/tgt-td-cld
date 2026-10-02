@@ -397,6 +397,24 @@ export class WorldRenderer {
     };
   }
 
+  /**
+   * The Iron Vow rings drawn right now (browser tests): how many, the shortest reach of an outer ring past its hero's
+   * body and the faintest outer ring, on screen (px; 0..1). Reach stays about 13 px whatever the zoom: the entity scale
+   * grows the ring as the map shrinks, which is what keeps it readable on a phone.
+   */
+  vowStats(): { rings: number; reach: number; alpha: number } {
+    let rings = 0;
+    let reach = Infinity;
+    let alpha = 1;
+    for (const s of this.heroes.values()) {
+      if (!s.root.visible || s.vow.outer.alpha <= 0) continue;
+      rings++;
+      reach = Math.min(reach, (s.vow.outer.scale.x * 28 - TUNING.hero[s.kind].radius * S) * this.entityScale * this.camera.zoom);
+      alpha = Math.min(alpha, s.vow.outer.alpha);
+    }
+    return rings ? { rings, reach, alpha } : { rings: 0, reach: 0, alpha: 0 };
+  }
+
   /** Effects allowed by the current quality and settings. */
   setFxLevel(level: FxLevel): void {
     const had = this.fx.level.particles;
@@ -511,6 +529,14 @@ export class WorldRenderer {
   twinRibbon(a: { x: number; y: number }, b: { x: number; y: number }, colorA: number, colorB: number, shake: number): void {
     this.fx.ribbon(a.x, a.y, b.x, b.y, colorA, colorB);
     if (shake > 0) this.fx.bump(shake);
+  }
+
+  /**
+   * Arrow Storm and Meteor fused (`combo`): a fire burst where the fused rain is marked and at each caster. The
+   * DOM ribbon (`CoopStage.fuse`) and the twin ribbon are separate. Client-only.
+   */
+  fuseBurst(x: number, y: number, casters: readonly { x: number; y: number }[]): void {
+    this.fx.rainFuse(x, y, casters);
   }
 
   /**

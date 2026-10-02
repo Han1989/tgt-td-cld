@@ -1,12 +1,14 @@
 // Full-screen co-op flourishes: a shared ping/emote silhouette, a soft
-// edge glow in two player colours, and a short together-kill word.
-// DOM only. The world ribbon and the kill flash are the renderer.
+// edge glow in two player colours, a short together-kill word, and the fuse ribbon.
+// DOM only. The world ribbon, the kill flash and the fuse burst are the renderer.
 
 const BURST_MS = 1200;
 const EDGE_MS = 900;
 const CLUTCH_MS = 1700;
 /** Together-kill word and edge glow. One glance, then gone. */
 const TOGETHER_MS = 700;
+/** The fuse ribbon: long enough to read the new rain's name and both names on a phone. Matches the CSS animation. */
+const FUSE_MS = 2000;
 
 export interface StageWho {
   name: string;
@@ -27,10 +29,15 @@ export class CoopStage {
   private readonly clutchLine: HTMLElement;
   private readonly togetherEl: HTMLElement;
   private readonly togetherWho: HTMLElement;
+  private readonly fuseEl: HTMLElement;
+  private readonly fuseKicker: HTMLElement;
+  private readonly fuseWord: HTMLElement;
+  private readonly fuseWho: HTMLElement;
   private burstTimer = 0;
   private edgeTimer = 0;
   private clutchTimer = 0;
   private togetherTimer = 0;
+  private fuseTimer = 0;
 
   constructor(doc: Document = document) {
     this.burst = doc.getElementById('coop-burst')!;
@@ -45,6 +52,10 @@ export class CoopStage {
     this.clutchLine = doc.getElementById('lane-clutch-line')!;
     this.togetherEl = doc.getElementById('together-kill')!;
     this.togetherWho = doc.getElementById('together-kill-who')!;
+    this.fuseEl = doc.getElementById('fuse-ribbon')!;
+    this.fuseKicker = doc.getElementById('fuse-ribbon-kicker')!;
+    this.fuseWord = doc.getElementById('fuse-ribbon-word')!;
+    this.fuseWho = doc.getElementById('fuse-ribbon-who')!;
   }
 
   /** A phone-readable pair of rings and a short word, in the two players' colours. */
@@ -85,6 +96,22 @@ export class CoopStage {
   }
 
   /**
+   * Phone-readable fuse: a fire band with the fused rain's name large, the skills that went into it above and the
+   * casters below in their seat colours (none when the snapshot no longer lists them). The burst and the twin
+   * ribbon in the world are the renderer's.
+   */
+  fuse(kicker: string, word: string, whos: readonly StageWho[]): void {
+    this.fuseKicker.textContent = kicker;
+    this.fuseWord.textContent = word;
+    this.fuseWho.replaceChildren();
+    whos.forEach((w, i) => {
+      if (i > 0) this.fuseWho.append(document.createTextNode('  ·  '));
+      this.fuseWho.append(nameEl(w));
+    });
+    this.kick(this.fuseEl, 'on', FUSE_MS, (id) => (this.fuseTimer = id), this.fuseTimer, true);
+  }
+
+  /**
    * Phone-readable Heart-save: the lane name large, with a ping ring.
    * The Heart stat pulse is separate and stays where it was.
    */
@@ -100,6 +127,9 @@ export class CoopStage {
     window.clearTimeout(this.edgeTimer);
     window.clearTimeout(this.clutchTimer);
     window.clearTimeout(this.togetherTimer);
+    window.clearTimeout(this.fuseTimer);
+    this.fuseEl.classList.add('hidden');
+    this.fuseEl.classList.remove('on');
     this.burst.classList.add('hidden');
     this.burst.classList.remove('on');
     this.glow.classList.remove('on', 'brief');

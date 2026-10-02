@@ -446,6 +446,13 @@ export class GameView {
         view.stage.edge(toCss(playerTint(latest, first.by)), toCss(playerTint(latest, last.by)));
         audio.game.flourish('twinCast', now);
       }
+      if (cues.beat.fuse) {
+        const f = cues.beat.fuse;
+        view.stage.fuse(f.kicker, f.word, f.spots.map((s) => who(s.by)));
+        renderer.fuseBurst(f.x, f.y, f.spots);
+        // The twin gong plays with the ribbon above. A fuse without one (a caster fell first) still sounds.
+        if (!syncSpots) audio.game.flourish('twinCast', now);
+      }
       if (cues.beat.clutch) {
         const c = cues.beat.clutch;
         view.stage.clutch(c.title, c.name, c.line);
@@ -517,6 +524,7 @@ export class GameView {
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
+        vow: () => renderer.vowStats(),
         audio: () => ({
           state: audio.engine.state,
           scene: audio.music.scene,

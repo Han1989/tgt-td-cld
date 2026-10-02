@@ -1,6 +1,6 @@
 # Real-device checklist (Phase 4a)
 
-> For Han. `docs/MOBILE.md` §8–9 (§8 below, the sound check, is Phase 4b): Phase 4a is done when this checklist passes on **one iPhone** (iPhone 12 or newer, iOS 17+, Safari) and **one Android phone** (2021 or newer, current Chrome), plus one online match with a phone and a desktop player together, and one full 3-player room (the most a match holds, one player per lane). The automated browser tests (`npm run test:e2e`) cover the same flows in emulation; this list covers what emulation can't show: real fingers, real screens, notches, home indicators, backgrounding and real GPUs.
+> For Han. `docs/MOBILE.md` §8–9 (§8 and §9 below, the sound check and the rain and vow check, are Phase 4b): Phase 4a is done when this checklist passes on **one iPhone** (iPhone 12 or newer, iOS 17+, Safari) and **one Android phone** (2021 or newer, current Chrome), plus one online match with a phone and a desktop player together, and one full 3-player room (the most a match holds, one player per lane). The automated browser tests (`npm run test:e2e`) cover the same flows in emulation; this list covers what emulation can't show: real fingers, real screens, notches, home indicators, backgrounding and real GPUs.
 
 ## Before you start
 
@@ -114,10 +114,32 @@ Everything you hear is made in code unless recorded files were added (docs/SOUND
 - [ ] 8.10 **Every sound once:** open `…/?showcase`, scroll to **Sounds** and tap through every sound and the music scenes on the phone's speaker; with **×4** on, tap a few to hear four takes in a row (each a little different). Note any that sound wrong there (too thin, too boomy, inaudible, out of tune with the music).
 - [ ] 8.11 **Recorded files** (only once files were added, docs/SOUND_FILES.md): `?showcase` → Sounds lists them (effects marked **file**, the music line says `lobby.mp3`…). In the lobby and a match, each music file plays for its scene and **loops without a gap or a click** (listen across the loop point, where the file starts again); it's about as loud as the code-made music was, and no file is much louder than another. A replaced effect sounds about as loud as the others. Then turn on airplane mode and reload (installed app): music heard before still plays; music never heard falls back to the code-made music. On a slow connection the code-made music plays until the file has arrived, then crossfades to it.
 
+## 9. Iron Vow and the rains (Phase 4b)
+
+The Warden's **Iron Vow**, the Ranger's **Arrow Storm**, the Arcanist's **Meteor** and the two together, **Meteor Rain**. Do this on **both phones**, first in normal motion (§9.1–9.6), then with the phone's reduced-motion setting on (§9.7–9.8). It all needs R, which unlocks at level 6:
+
+- **Ranger and Arcanist:** the solo pick's **Practice Meteor Rain** button (or open `…/?practice=meteor-rain`, which opens the pick with it focused) starts a match with an ally at level 6. Tap **+** on R to learn it, then tap R. Pick the Ranger once and the Arcanist once. The ally casts its own R about half a second after yours. Practice is solo only.
+- **Warden:** there is no practice partner, so play a **Quick** match with the Warden until it is level 6 (about the middle of the match), tap **+** on R and cast it. Or do §9.1 in a room of 3 with a Warden in it, so you can watch the rings on your teammates too.
+
+Each rain strike is one small circle on a lane, and a rain lasts a few seconds. A rain has no big aimed circle: a faint rune ring and a column of light mark where it was cast, and faint streaks fall across the map.
+
+- [ ] 9.1 **Iron Vow ring (normal motion):** cast Iron Vow (6–8 s, by rank). Every living hero wears a **gold ring** under its feet: a soft glow, a thin ring and a dashed ring that turns slowly. It **blooms** in when the vow lands (a quick swell to its size), stays steady while the vow lasts, **blinks** over the last 1.5 s, then dims out in the last third of a second. Say whether the ring is easy to see on the phone at arm's length, on the forest floor and on the lane, and whether the blink gives you enough warning that the armour is about to end. A hero that dies loses its ring at once. With several players in a room, every phone shows the ring on every living hero for the same time.
+- [ ] 9.2 **Arrow Storm (Ranger R):** tap R. Lime arrows fall all over the map. Each strike lands with a short streak of arrows falling onto a ring, a flash, a few sparks and a puff of dust. There is no big aimed circle and the screen does not shake. Nothing covers the joystick or the skill buttons.
+- [ ] 9.3 **Meteor (Arcanist R):** tap R. Each meteor falls as an orange streak with a white-hot head onto its ring, with a flash, embers, a burn mark that fades and a small thump of the screen (smaller than a boss's). Several meteors in a row do not hold the screen shaking, and the phone doesn't stutter.
+- [ ] 9.4 **Meteor Rain (Ranger + Arcanist inside 2 s):** in practice, tap R and wait for the ally. A **fire band** crosses the middle of the screen for about two seconds: **ARROW STORM + METEOR** over **METEOR RAIN**, with your name and the ally's under it in your colours. At the same moment an amber flash and ring spread from the Arcanist (where the fused rain is marked) and from each caster, the ribbon between the two heroes and the glow along the screen edges play, and you hear the gong. There is no separate **Meteor Rain!** toast any more. The band never covers the joystick or the skill buttons. If a creep leaks at the same moment, the **Heart save** word sits above the band, not under it. Then the rain falls denser than either did alone: two small amber strikes at a time. Say whether the band is big enough to read on the phone without taking your eyes off the lanes for long.
+- [ ] 9.5 **Told apart:** Arrow Storm strikes are lime, Meteor strikes are orange-red, Meteor Rain strikes are amber. In one Meteor Rain you can see the amber strikes land on creeps and tell them from the tower shots.
+- [ ] 9.6 **Late in a Quick match:** with many towers firing and creeps dying, a rain and an Iron Vow ring are still easy to read, and the frame rate holds. If it slows, try ⚙ → Graphics → **Low** and say whether the rings, flashes and the band are still there (they are: they are the effects that show gameplay) while the embers and streaks go.
+- [ ] 9.7 **Reduced motion:** turn the phone's setting on and reload the game. **iPhone:** Settings → Accessibility → Motion → **Reduce Motion**. **Android:** Settings → Accessibility → **Remove animations** (Pixel: under Color and motion). **Desktop:** Windows Settings → Accessibility → Visual effects → Animation effects off, macOS System Settings → Accessibility → Display → **Reduce motion**, or Chrome devtools → Rendering → Emulate **prefers-reduced-motion**. Then repeat 9.1–9.4:
+  - [ ] The Iron Vow ring appears at once, does not turn and does not blink: it is steady until the vow ends, then it fades. Heroes still get their ring and the cast shockwave, with no screen kick.
+  - [ ] Rain strikes have no falling streaks and nothing falls across the map. Each strike still shows its ring, flash and burn mark, and the screen does not shake.
+  - [ ] The Meteor Rain band fades in and out and does not unroll. The amber rings and flashes at the casters stay, with no embers. The twin-ultimate screen shake is off too (it already was under reduced motion).
+  - [ ] Other effects (hits, deaths, tower shots, the other skills) still move as they always did. Only the Iron Vow ring, the rains and the fuse band read the setting so far. Say if anything else should calm down.
+- [ ] 9.8 **Switching mid-match (optional):** in a solo match, switch to the phone's Settings, flip the reduced-motion setting and come back (solo pauses while you are away, §4.1). Without reloading, the next vow ring or rain follows the new setting. If your browser only passes the change on after a reload, say so.
+
 ## Results
 
-| Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Notes |
-|---|---|---|---|---|---|---|
-| iPhone … | iOS … Safari | | | | | |
-| Android … | Android … Chrome | | | | | |
-| Desktop (online test) | … | | | | | |
+| Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |
+|---|---|---|---|---|---|---|---|
+| iPhone … | iOS … Safari | | | | | | |
+| Android … | Android … Chrome | | | | | | |
+| Desktop (online test) | … | | | | | | |

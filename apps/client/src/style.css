@@ -1035,6 +1035,100 @@ body.layout-tall #together-kill {
   top: calc(var(--topbar-bottom, 44px) + 8px);
 }
 
+/* Meteor Rain fuse: a fire band across the middle of the screen, the fused rain's name large, the two skills
+   above it and the casters below in seat colours. About 2 s (FUSE_MS in hud/coopStage.ts). The burst at the
+   caster is in the world (Effects.rainFuse). Under reduced motion it fades and does not unroll. */
+#fuse-ribbon {
+  position: absolute;
+  left: 50%;
+  /* Below the Heart-save word (28-34%) and the wave banner (22%), which a rain is often cast over. */
+  top: 50%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: min(100%, 760px);
+  padding: 6px 12px 8px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(90deg, transparent, rgba(58, 14, 6, 0.72) 14%, rgba(58, 14, 6, 0.72) 86%, transparent);
+}
+
+body.layout-tall #fuse-ribbon {
+  top: 46%;
+}
+
+#fuse-ribbon::before,
+#fuse-ribbon::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ember), transparent);
+}
+
+#fuse-ribbon::before {
+  top: 0;
+}
+
+#fuse-ribbon::after {
+  bottom: 0;
+}
+
+#fuse-ribbon.on {
+  animation: fuse-ribbon 2s ease forwards;
+}
+
+#fuse-ribbon-kicker {
+  font-size: clamp(12px, 3.4vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ember);
+  text-shadow: 0 1px 2px var(--ink), 0 0 8px #000;
+}
+
+#fuse-ribbon-word {
+  font-family: var(--title-font);
+  font-size: clamp(36px, 11vw, 60px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: #fff1d6;
+  text-shadow: 0 0 20px rgba(255, 106, 40, 0.95), 0 2px 0 var(--ink), 0 3px 12px #000;
+  white-space: nowrap;
+}
+
+#fuse-ribbon-who {
+  max-width: 100%;
+  font-size: clamp(14px, 4.2vw, 18px);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: 0 1px 2px var(--ink), 0 0 6px #000;
+}
+
+#fuse-ribbon-who:empty {
+  display: none;
+}
+
+@keyframes fuse-ribbon {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.5); }
+  14% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.03); }
+  24% { transform: translate(-50%, -50%) scaleX(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1); }
+}
+
+@keyframes fuse-ribbon-calm {
+  0% { opacity: 0; }
+  14%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Heart-save: the lane name, large enough for a phone clip, with a ping ring.
    The Heart stat pulse is separate. */
 #lane-clutch {
@@ -3347,5 +3441,9 @@ body.layout-rotate .rotate {
   .tskill.ult.ready::before {
     animation: none;
     opacity: 1;
+  }
+
+  #fuse-ribbon.on {
+    animation-name: fuse-ribbon-calm;
   }
 }

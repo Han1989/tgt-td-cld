@@ -32,10 +32,12 @@ interface Hook {
   auraRings(): { drawn: number; covering: number };
   /** Where your hero was drawn each frame since `heroTrace(true)` (tiles; `t` = performance.now()). */
   heroTrace(start?: boolean): { t: number; x: number; y: number }[];
-  fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number };
+  fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number; calm: boolean };
   /** Coins launched to the gold counter so far. */
   coins(): number;
   art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };
+  /** The Iron Vow rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
+  vow(): { rings: number; reach: number; alpha: number };
   /** Sound (docs/ART.md §13): the context's state, the music scene, notes queued, effects played / skipped. */
   audio(): {
     state: string;
