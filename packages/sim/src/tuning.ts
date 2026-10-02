@@ -664,7 +664,7 @@ export const TUNING: Tuning = {
   },
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
-    hp: [1.04, 1.5, 1.46],
+    hp: [1.04, 1.5, 1.52],
     earlyHpBonus: [0, 0.2, 0.9],
     earlyWaves: 20,
     lateHpBonus: [0.08, 0.5, 1.2],
@@ -855,7 +855,7 @@ export const TUNING: Tuning = {
         ],
       },
       playerScaling: {
-        hp: [1.012, 1.5, 1.7],
+        hp: [1.012, 1.5, 1.65],
         earlyHpBonus: [0, 0.25, 0.8],
         earlyWaves: 10,
         lateHpBonus: [0, 0.33, 1.9],
@@ -866,8 +866,8 @@ export const TUNING: Tuning = {
       hard: {
         byPlayers: [
           { hp: 1.2, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.28, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.3, count: 1.12, lateHp: 0.2, lateCount: 0.05, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.28, count: 1.1, lateHp: 0.12, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.3, count: 1.12, lateHp: 0.3, lateCount: 0.05, bossHp: 1, lateBossHp: 0 },
         ],
       },
     },

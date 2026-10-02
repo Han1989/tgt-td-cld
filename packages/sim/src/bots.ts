@@ -34,7 +34,8 @@ export interface Bot {
 /**
  * Casual is the balance bot the Normal gates use. Expert spends gold on fewer, branched towers. Novice plays like
  * the first-time players of playtest 2 (`docs/GAME_DESIGN.md` §13): half the towers early, gold left unspent, no
- * Flak until flyers have leaked, half of its ultimates cast, no retreat and no early calls.
+ * Flak until flyers have leaked, a quarter of its ready ultimates forgotten for a minute (Arrow Storm and Meteor are one press, so a new
+ * player uses them), no retreat, no early calls, and it does not answer a teammate's ultimate.
  */
 export type BotStyle = 'casual' | 'expert' | 'novice';
 
@@ -402,7 +403,7 @@ export function createBalanceBot(
       // Like a player: ultimate, Q and W each go off on a group whenever they are ready and affordable.
       const mins = expert ? EXPERT_MIN_TARGETS : MIN_TARGETS;
       let mana = hero.mana;
-      /** A novice casts a ready ultimate only about half the time; otherwise it forgets it for a while. */
+      /** A novice casts a ready ultimate about three times in four; otherwise it forgets it for a minute. */
       const novicePass = (): boolean => {
         if (!novice) return false;
         if (snap.tick < ultForgottenUntil) return true;

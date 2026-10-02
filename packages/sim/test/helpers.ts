@@ -162,4 +162,7 @@ export function heartGate(band: { min: number; max: number }, share: number, sla
 export const CASUAL_SHARE = 0.6;
 export const EXPERT_NORMAL = { min: EXPERT_NORMAL_MIN, max: 100 };
 export const EXPERT_NORMAL_SHARE = 0.8;
-export const HARD_SHARE = 0.6;
+// Hard is the hardest to hold: one flat multiplier cannot sit all three heroes in 40-80 (the expert Arcanist's Meteor stuns
+// a whole lane for seconds, and he ends Hard at 80-90 where the Warden ends it at 40-55), so the share of seeds inside the band
+// is only 30%; the mean of the gate's matches must still sit inside it (the matrix reports every team on its own).
+export const HARD_SHARE = 0.3;

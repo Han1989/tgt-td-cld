@@ -25,18 +25,18 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
       Q: { name: 'Multishot', desc: 'Fire an arrow at each of the nearest creeps.' },
       W: { name: 'Snare Trap', desc: 'Place a trap that roots and damages ground creeps.' },
       E: { name: 'Keen Eye', desc: 'Passive: attacks can critically strike.' },
-      R: { name: 'Arrow Storm', desc: 'Arrows fall across the lanes for a few seconds. Hits flyers.' },
+      R: { name: 'Arrow Storm', desc: 'Arrows fall on every lane for a few seconds. Hits flyers.' },
     },
   },
   warden: {
     name: 'Warden',
     role: 'Melee tank',
-    blurb: 'Melee frontliner. Taunts creeps off the lane, heals from attacks, and shields the team.',
+    blurb: 'Melee frontliner. Taunts creeps and flyers onto him, heals from his hits, and heals and shields the team.',
     skills: {
-      Q: { name: 'Cleave', desc: 'Strike every ground creep around you.' },
-      W: { name: 'Taunt', desc: 'Nearby creeps must attack you and forget their lane.' },
-      E: { name: 'Blood Hunger', desc: 'Passive: your attacks heal you for a share of the damage dealt.' },
-      R: { name: 'Iron Vow', desc: 'For a short time, every living ally gains armour and health regeneration.' },
+      Q: { name: 'Cleave', desc: 'Strike every creep around you, flyers too.' },
+      W: { name: 'Taunt', desc: 'Nearby creeps, flyers too, turn on you and forget their lane.' },
+      E: { name: 'Blood Hunger', desc: 'Passive: your attacks and Cleave heal you for a share of the damage dealt.' },
+      R: { name: 'Iron Vow', desc: 'Heals every living ally at once and armours them for a few seconds; a burst around you hurts and stuns.' },
     },
   },
   arcanist: {
@@ -47,7 +47,7 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
       Q: { name: 'Fireball', desc: 'Hurl a fireball that explodes on ground and air creeps.' },
       W: { name: 'Frost Nova', desc: 'Freeze an area: magic damage and a strong slow.' },
       E: { name: 'Clarity Aura', desc: 'Passive: you and nearby heroes regenerate mana faster.' },
-      R: { name: 'Meteor', desc: 'Meteors fall across the lanes for a few seconds and briefly stun what they hit.' },
+      R: { name: 'Meteor', desc: 'Meteors fall on every lane for a few seconds. Every impact stuns. Hits flyers.' },
     },
   },
 };
@@ -58,6 +58,6 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
  */
 export const SMART_CAST: Record<HeroKind, Partial<Record<SkillSlot, SmartCastRule>>> = {
   ranger: { Q: { air: true }, W: { air: false }, R: { air: true, self: true } },
-  warden: { Q: { air: false }, W: { air: false }, R: { air: false, self: true } },
-  arcanist: { Q: { air: true }, W: { air: true }, R: { air: false, self: true } },
+  warden: { Q: { air: true }, W: { air: true }, R: { air: true, self: true } },
+  arcanist: { Q: { air: true }, W: { air: true }, R: { air: true, self: true } },
 };
