@@ -79,7 +79,7 @@
         </section>
 
         <section id="lobby-solo" class="hidden">
-          <p id="tutorial-solo-note" class="tutorial-solo-note hidden">This first match is a short lesson: Quick, Normal. It teaches moving, building, a skill, upgrading and pings. You can skip it in the match.</p>
+          <p id="tutorial-solo-note" class="tutorial-solo-note hidden">This first match is a short lesson: Quick, Normal. It teaches moving, building, a skill, upgrading and pings. The first time Wisps appear, one more note explains them. You can skip the lesson in the match.</p>
           <div class="field">
             <span>Pick your hero</span>
             <div id="lobby-heroes-solo" class="hero-picks"></div>
@@ -219,7 +219,7 @@
         <section>
           <h3>Lesson</h3>
           <button id="settings-tutorial" class="btn" type="button">Replay tutorial</button>
-          <p class="settings-note">Starts a solo Quick match on Normal. Leaves an online room.</p>
+          <p class="settings-note">Starts a solo Quick match on Normal, and shows the Wisps note again the next time they appear. Leaves an online room.</p>
         </section>
         <section id="settings-app" class="hidden">
           <h3>App</h3>
@@ -233,6 +233,7 @@
 
       <div id="toasts" class="toasts"></div>
       <div id="match-flags" class="match-flags hidden"></div>
+      <div id="air-flag" class="air-flag hidden" role="status" aria-live="polite"></div>
       <div id="banner" class="banner hidden"></div>
       <div id="coop-glow" aria-hidden="true"></div>
       <div id="coop-burst" class="hidden" aria-hidden="true">

@@ -27,6 +27,10 @@ describe('settings', () => {
     expect(parseSettings(JSON.stringify({ tutorial: 'completed' })).tutorial).toBe('completed');
     expect(parseSettings(JSON.stringify({ tutorial: 'skipped' })).tutorial).toBe('skipped');
     expect(parseSettings(JSON.stringify({ tutorial: 'later' })).tutorial).toBe('new');
+    expect(DEFAULT_SETTINGS.airLesson).toBe('new');
+    expect(parseSettings(null).airLesson).toBe('new');
+    expect(parseSettings(JSON.stringify({ airLesson: 'seen' })).airLesson).toBe('seen');
+    expect(parseSettings(JSON.stringify({ airLesson: 'later' })).airLesson).toBe('new');
   });
 });
 

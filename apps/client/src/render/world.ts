@@ -27,6 +27,7 @@ import {
 import { getMap, padAtTile, TILE_PX, towerRangeScale, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
+import { flyerDrawScale } from '../teach/cues';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
@@ -1122,7 +1123,8 @@ export class WorldRenderer {
       if (!onScreen) continue;
       visible++;
       s.root.position.set(c.x * S, c.y * S);
-      s.root.scale.set(this.entityScale);
+      // Flyers are drawn larger than their radius so the wing badge reads on a phone. The bar scales with them.
+      s.root.scale.set(this.entityScale * flyerDrawScale(TUNING.creeps[c.kind].flying));
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
@@ -1206,7 +1208,7 @@ export class WorldRenderer {
       s = this.takeCreep(kind);
       s.art!.reset(live.art.facing);
       s.root.position.set(x * S, y * S);
-      s.root.scale.set(this.entityScale);
+      s.root.scale.set(this.entityScale * flyerDrawScale(TUNING.creeps[kind].flying));
       (TUNING.creeps[kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
     }
     if (this.dying.length >= MAX_DYING) {
