@@ -24,7 +24,7 @@ import {
   matchReplay,
   matchReport,
   matchStep,
-  meteorRainPartner,
+  practicePartner,
   normalizeModifiers,
   snapshot,
   type Bot,
@@ -70,7 +70,7 @@ export class SimHost {
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
-    const partner = this.practice ? meteorRainPartner(this.hero) : null;
+    const partner = this.practice ? practicePartner(this.hero) : null;
     this.ally = partner ? createPracticeAlly(PRACTICE_ALLY_ID, LOCAL_PLAYER_ID) : null;
     this.match = createMatch(
       {

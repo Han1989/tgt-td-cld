@@ -7,7 +7,6 @@ import { speedFactor } from './modifiers';
 import { getMap } from './map';
 import type { Creep, GameState, Hero, Tower } from './state';
 import { secondsToTicks, TICK_RATE } from './tuning';
-import { bracedLeakDamage } from './waves';
 import { dist, moveToward } from './vec';
 
 export function updateCreeps(state: GameState): void {
@@ -35,6 +34,13 @@ function updateCreep(state: GameState, c: Creep): void {
   const step = rooted ? 0 : ((s.speed * speedFactor(state)) / TICK_RATE) * slowMult;
 
   if (s.flying) {
+    // A taunted flyer turns from the Heart and hovers over the Warden until the taunt ends.
+    const taunter = state.tick < c.tauntUntil ? state.heroes.find((h) => h.id === c.targetId && h.alive) : undefined;
+    if (taunter) {
+      if (dist(c.x, c.y, taunter.x, taunter.y) > 0.3) moveToward(c, taunter.x, taunter.y, step);
+      c.remaining = dist(c.x, c.y, heart.x, heart.y);
+      return;
+    }
     moveToward(c, heart.x, heart.y, step);
     c.remaining = dist(c.x, c.y, heart.x, heart.y);
     if (c.remaining <= t.heart.radius) leak(state, c);
@@ -111,7 +117,7 @@ function updateRemaining(c: Creep): void {
 }
 
 function leak(state: GameState, c: Creep): void {
-  const damage = bracedLeakDamage(state, state.tuning.creeps[c.kind].leakDamage);
+  const damage = state.tuning.creeps[c.kind].leakDamage;
   c.dead = true;
   state.heartHp = Math.max(0, state.heartHp - damage);
   emit(state, { type: 'leak', creepId: c.id, damage, lane: c.lane });

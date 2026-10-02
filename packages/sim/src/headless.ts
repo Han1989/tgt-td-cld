@@ -1,12 +1,13 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { Difficulty, GameMode, GamePhase, HeroKind, Modifier } from '@tdt/protocol';
+import type { CreepKind, Difficulty, GameMode, GamePhase, HeroKind, Modifier } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
 import { heroManaRegen, heroMaxMana } from './combat';
 import { skillInfo } from './skills';
+import type { UltStats } from './state';
 import { secondsToTicks, TICK_RATE, TUNING, type Tuning } from './tuning';
 
 export interface HeadlessResult {
@@ -34,6 +35,20 @@ export interface HeadlessResult {
   casts: { Q: number; W: number; R: number };
   /** How each hero used its mana and its ultimate. */
   heroes: HeroMatchStats[];
+  /** Heart HP lost to flying creeps (Wisps) that reached it, and the part of it on each lane (West, Mid, East). */
+  flyerHeartLost: number;
+  flyerHeartLostByLane: number[];
+  /** Hero deaths of each hero, in the order of `heroes`. */
+  heroDeaths: number[];
+  /** Damage dealt to creeps by everything (towers, heroes, ultimates), and by ultimates and combos alone. */
+  totalDamage: number;
+  ultDamage: number;
+  /** Creeps killed by ultimates and combos. */
+  ultKills: number;
+  /** Casts, damage and kills of each ultimate and combo. */
+  ultBy: UltStats['by'];
+  /** Combos that fired (`combo` events). */
+  combos: number;
 }
 
 export interface HeroMatchStats {
@@ -85,6 +100,12 @@ export function runHeadlessMatch(opts: {
   let bossLeaks = 0;
   let deaths = 0;
   let earlyCalls = 0;
+  let flyerHeartLost = 0;
+  const flyerByLane = [0, 0, 0];
+  let totalDamage = 0;
+  let combos = 0;
+  const heroDeaths = state.heroes.map(() => 0);
+  const kindById = new Map<number, string>();
   const casts = { Q: 0, W: 0, R: 0 };
   const usage = state.heroes.map(() => ({ ultCasts: 0, alive: 0, lowMana: 0, withUlt: 0, ultUnaffordable: 0, offCd: 0, learned: -1 }));
   while (state.phase !== 'victory' && state.phase !== 'defeat' && state.tick < maxTicks) {
@@ -96,11 +117,25 @@ export function runHeadlessMatch(opts: {
         for (const cmd of bot.decide(snap)) applyCommand(state, bot.playerId, cmd);
       }
     }
+    for (const c of state.creeps) kindById.set(c.id, c.kind);
     step(state);
     for (const c of state.creeps) if (state.tuning.creeps[c.kind].boss) bossIds.add(c.id);
     for (const e of state.events) {
       if (e.type === 'leak' && bossIds.has(e.creepId)) bossLeaks++;
-      if (e.type === 'heroDied') deaths++;
+      if (e.type === 'leak') {
+        const kind = kindById.get(e.creepId);
+        if (kind && state.tuning.creeps[kind as CreepKind].flying) {
+          flyerHeartLost += e.damage;
+          flyerByLane[e.lane]! += e.damage;
+        }
+      }
+      if (e.type === 'damage') for (let i = 1; i < e.hits.length; i += 2) totalDamage += e.hits[i]!;
+      if (e.type === 'combo') combos++;
+      if (e.type === 'heroDied') {
+        deaths++;
+        const i = state.heroes.findIndex((h) => h.id === e.heroId);
+        if (i >= 0) heroDeaths[i]!++;
+      }
       if (e.type === 'callEarly') earlyCalls++;
       if (e.type === 'cast' && e.slot !== 'E') casts[e.slot]++;
       if (e.type === 'cast' && e.slot === 'R') {
@@ -131,6 +166,14 @@ export function runHeadlessMatch(opts: {
     branches: state.towers.filter((t) => t.branch !== null).length,
     heroLevels: state.heroes.map((h) => h.level),
     gold: state.players.map((p) => p.gold),
+    flyerHeartLost,
+    flyerHeartLostByLane: flyerByLane,
+    heroDeaths,
+    totalDamage,
+    ultDamage: state.ultStats.damage,
+    ultKills: state.ultStats.kills,
+    ultBy: state.ultStats.by,
+    combos,
     bossLeaks,
     deaths,
     earlyCalls,

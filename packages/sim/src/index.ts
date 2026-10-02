@@ -27,7 +27,7 @@ export type { GameMap, MapData, PadData, PadZone, BuildPad, Lane, TileType } fro
 export { padLayout } from './pads';
 export { findPath, nearestWalkable } from './pathfinding';
 export type { GameConfig, GameState, PlayerConfig } from './state';
-export { createBalanceBot, createExpertBot, createIdleBot } from './bots';
+export { createBalanceBot, createExpertBot, createIdleBot, createNoviceBot } from './bots';
 export type { BotStyle } from './bots';
 export type { Bot } from './bots';
 export { runHeadlessMatch, runManaDrill, drillRanks } from './headless';
@@ -46,5 +46,5 @@ export {
   R_OVERLAP_SECONDS,
 } from './match';
 export type { Match, Presence } from './match';
-export { heroHitLane, meteorRainPartner, shieldStandPoint } from './coop';
+export { comboOf, comboPartners, heroHitLane, practicePartner, shieldStandPoint } from './coop';
 export { createPracticeAlly } from './practiceAlly';

@@ -10,7 +10,7 @@ import { getMap } from './map';
 import { padLayout } from './pads';
 import { seedRng } from './rng';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
-import type { GameConfig, GameState, Hero } from './state';
+import { emptyUltStats, type GameConfig, type GameState, type Hero } from './state';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
 import { normalizeModifiers, planSurgeLanes, scaledTowerRange, surgeNotice, goldFactor } from './modifiers';
 import { secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
@@ -58,7 +58,9 @@ export function createGame(config: GameConfig, seed: number): GameState {
     pendingDamage: {},
     practice: practice ? { allyId: practice.allyId, startLevel: practice.startLevel ?? tuning.hero.ultimateLevels[0] ?? 6 } : null,
     recentUlts: [],
+    firedCombo: null,
     shields: [],
+    ultStats: emptyUltStats(),
   };
 
   const spawn = getMap().heroSpawn;

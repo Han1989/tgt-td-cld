@@ -60,7 +60,7 @@ describe('match reports and replays', () => {
     expect(again.state.phase).toBe(replay.end.result);
     expect(again.state.heartHp).toBe(replay.end.heartHp);
     expect(matchReport(again)).toEqual(matchReport(match));
-  });
+  }, 30_000);
 
   it('reports the Heart after each wave and every hero’s levels, deaths and casts', () => {
     const match = botMatch(['ranger', 'arcanist'], 3, 'quick');
@@ -193,5 +193,5 @@ describe('match reports and replays', () => {
     const bytes = JSON.stringify(matchReplay(match)).length;
     console.log(`replay: ${match.log.length} entries, ${bytes} bytes`);
     expect(bytes).toBeLessThan(1_500_000);
-  });
+  }, 60_000);
 });

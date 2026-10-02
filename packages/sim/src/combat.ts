@@ -5,7 +5,7 @@ import { bountyCredit, hitFrom, isPracticeAlly, shieldedDamage } from './coop';
 import { getMap } from './map';
 import { bountyFactor, xpFactor } from './modifiers';
 import { nextRandom } from './rng';
-import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower } from './state';
+import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower, UltTag } from './state';
 import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
 import { dist } from './vec';
 
@@ -128,9 +128,12 @@ export function heroManaRegen(state: GameState, hero: Hero): number {
   return s.manaRegen + s.manaRegenPerLevel * (hero.level - 1) + clarityBonus(state, hero);
 }
 
-/** Whether the hero's attacks and targeted skills can hit this creep (melee heroes can't reach flyers). */
-export function heroCanHit(state: GameState, hero: Hero, creep: Creep): boolean {
-  return !state.tuning.creeps[creep.kind].flying || heroStats(state, hero).ranged;
+/**
+ * Whether the hero's attacks and targeted skills can hit this creep. Every hero can, melee included: a flyer is hit
+ * when it is within reach (attack range plus both radii), like any creep.
+ */
+export function heroCanHit(_state: GameState, _hero: Hero, _creep: Creep): boolean {
+  return true;
 }
 
 export function heroDamage(state: GameState, hero: Hero): number {
@@ -175,6 +178,29 @@ export function damageCreep(
   }
   creep.hp -= amount * mult;
   if (creep.hp <= 0) killCreep(state, creep, source);
+  return dealt;
+}
+
+/** `damageCreep` for a hero ultimate or combo (`tag`), counted in `state.ultStats` for the balance matrix. */
+export function ultimateDamage(
+  state: GameState,
+  creep: Creep,
+  amount: number,
+  type: DamageType,
+  source: PlayerId | null,
+  from: HitFrom | null | undefined,
+  tag: UltTag,
+): number {
+  const alive = !creep.dead;
+  if (state.tuning.creeps[creep.kind].boss) amount *= state.tuning.combat.ultimateBossFactor;
+  const dealt = damageCreep(state, creep, amount, type, source, false, from);
+  const stats = state.ultStats;
+  stats.damage += dealt;
+  stats.by[tag].damage += dealt;
+  if (alive && creep.dead) {
+    stats.kills++;
+    stats.by[tag].kills++;
+  }
   return dealt;
 }
 

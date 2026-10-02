@@ -1,24 +1,26 @@
 // Soft-launch hook (always on, not a spike flag):
-// 1. Meteor Rain — Ranger Arrow Storm and Arcanist Meteor are global lane rains. Cast the
-//    second inside the combo window and they fuse into one denser shared rain.
+// 1. Combos — Arrow Storm and Meteor are instant rains over all three lanes. Two ultimates cast inside the combo
+//    window fuse, wherever the heroes stand, into one stronger rain: Meteor Rain, Stun Storm or Shockwave.
 // 2. Quick wave-10 two-lane shield — that boss takes no damage until two lanes hit it within the window.
 //    Full overrides the wave list to empty.
 // 3. Solo practice — an ally hero that does not count as a player (`practice` on GameConfig).
 
-import type { CreepKind, HeroKind, LaneId, PlayerId, ShieldState } from '@tdt/protocol';
-import { creepsInRadius, damageCreep, emit, heroMaxHp, heroMaxMana, newId, stunCreep } from './combat';
-import { mix32 } from './modifiers';
+import {
+  HERO_KINDS,
+  type AoeEffect,
+  type ComboKind,
+  type DamageType,
+  type CreepKind,
+  type HeroKind,
+  type LaneId,
+  type PlayerId,
+  type ShieldState,
+} from '@tdt/protocol';
+import { creepsInRadius, emit, heroMaxHp, heroMaxMana, newId, stunCreep, ultimateDamage } from './combat';
 import { getMap, laneDistance, PAD_ZONES } from './map';
-import type { BossShield, Creep, GameState, Hero, HitFrom, RecentUlt, Zone } from './state';
+import type { BossShield, Creep, GameState, Hero, HitFrom, RecentUlt, UltKind, UltTag, Zone } from './state';
 import { secondsToTicks } from './tuning';
 import { dist } from './vec';
-
-/** The other half of Meteor Rain, or null for the Warden (no combo with this pair). */
-export function meteorRainPartner(kind: HeroKind): HeroKind | null {
-  if (kind === 'ranger') return 'arcanist';
-  if (kind === 'arcanist') return 'ranger';
-  return null;
-}
 
 export function isPracticeAlly(state: GameState, playerId: PlayerId): boolean {
   return state.practice !== null && state.practice.allyId === playerId;
@@ -96,58 +98,10 @@ export function shieldStandPoint(
 }
 
 // ---------------------------------------------------------------------------
-// Meteor Rain
+// Lane rains and combos
 // ---------------------------------------------------------------------------
 
-/**
- * A hero just cast Arrow Storm or Meteor. Both are global rains, so the other half
- * only has to still be falling inside the combo window: both zones end and Meteor Rain
- * (a denser shared rain) replaces them. No spatial overlap.
- */
-export function onUltCast(state: GameState, hero: Hero, kind: 'arrowStorm' | 'meteor', zone: Zone): void {
-  const window = secondsToTicks(state.tuning.coop.comboWindow);
-  const me: RecentUlt = {
-    heroId: hero.id,
-    kind,
-    x: zone.x,
-    y: zone.y,
-    radius: zone.radius,
-    tick: state.tick,
-    zoneId: zone.id,
-    fused: false,
-  };
-  const partner = state.recentUlts.find(
-    (u) =>
-      !u.fused &&
-      u.heroId !== hero.id &&
-      u.kind !== kind &&
-      state.tick - u.tick <= window &&
-      state.zones.some((z) => z.id === u.zoneId && !z.done),
-  );
-  state.recentUlts.push(me);
-  if (!partner) return;
-  partner.fused = true;
-  me.fused = true;
-  for (const u of [partner, me]) {
-    const z = state.zones.find((zz) => zz.id === u.zoneId);
-    if (z) z.done = true;
-  }
-  const meteor = partner.kind === 'meteor' ? partner : me;
-  const src = state.heroes.find((h) => h.id === meteor.heroId) ?? hero;
-  const t = state.tuning.coop.meteorRain;
-  const pulse = Math.max(1, secondsToTicks(t.pulseInterval));
-  const fused = addZone(state, 'meteorRain', src, secondsToTicks(t.duration), pulse, pulse);
-  fused.rank = src.ranks.R;
-  emit(state, {
-    type: 'combo',
-    combo: 'meteorRain',
-    x: fused.x,
-    y: fused.y,
-    radius: 0,
-    heroes: [partner.heroId, me.heroId],
-  });
-}
-
+/** A lane rain's timer. It has no circle: its strikes land on the creeps of all three lanes (`rainPulse`). */
 export function addZone(
   state: GameState,
   kind: Zone['kind'],
@@ -162,7 +116,6 @@ export function addZone(
     owner: src.owner,
     x: src.x,
     y: src.y,
-    // Global rains have no aimed circle. Impacts are `aoe` events.
     radius: 0,
     rank: src.ranks.R,
     startTick: state.tick,
@@ -170,135 +123,244 @@ export function addZone(
     nextPulseTick: state.tick + firstPulse,
     pulseTicks,
     done: false,
-    laneStrikes: [0, 0, 0],
-    heartStrikes: 0,
   };
   state.zones.push(zone);
   return zone;
 }
 
-/** One global-rain impact (Arrow Storm, Meteor, or Meteor Rain). */
-export function rainStrike(
-  state: GameState,
-  zone: Zone,
-  effect: 'arrowStorm' | 'meteor' | 'meteorRain',
-  opts: {
-    damage: number;
-    radius: number;
-    air: boolean;
-    stunTicks: number;
-    magic: boolean;
-    laneCap: number;
-    heartCap: number;
-    heartRadius: number;
-    /** Extra multiplier against bosses. Regular creeps keep `damage`. */
-    bossDamage?: number;
-  },
-): void {
-  const spot = pickRainSpot(state, zone, opts.air, opts.laneCap, opts.heartCap, opts.heartRadius);
-  if (!spot) return;
-  const owner = state.heroes.find((h) => h.owner === zone.owner);
-  const from = owner ? hitFrom(state, owner) : { x: spot.x, lane: spot.lane };
-  emit(state, { type: 'aoe', effect, x: spot.x, y: spot.y, radius: opts.radius });
-  for (const c of creepsInRadius(state, spot.x, spot.y, opts.radius, opts.air)) {
-    if (opts.stunTicks > 0) stunCreep(state, c, opts.stunTicks);
-    const boss = opts.bossDamage !== undefined && state.tuning.creeps[c.kind].boss;
-    damageCreep(state, c, boss ? opts.damage * opts.bossDamage! : opts.damage, opts.magic ? 'magic' : 'physical', zone.owner, false, from);
+/** Arrow Storm or Meteor: starts the rain. */
+export function startRain(state: GameState, hero: Hero, kind: 'arrowStorm' | 'meteor'): Zone {
+  const t = kind === 'arrowStorm' ? state.tuning.hero.ranger.arrowStorm : state.tuning.hero.arcanist.meteor;
+  const pulse = Math.max(1, secondsToTicks(t.pulseInterval));
+  return addZone(state, kind, hero, secondsToTicks(t.duration), pulse, pulse);
+}
+
+const COMBOS: { a: UltKind; b: UltKind; combo: ComboKind }[] = [
+  { a: 'arrowStorm', b: 'meteor', combo: 'meteorRain' },
+  { a: 'ironVow', b: 'arrowStorm', combo: 'stunStorm' },
+  { a: 'meteor', b: 'ironVow', combo: 'shockwave' },
+];
+
+/** The combo two ultimate kinds make, or null (the same kind twice never does). */
+export function comboOf(a: UltKind, b: UltKind): ComboKind | null {
+  return COMBOS.find((c) => (c.a === a && c.b === b) || (c.a === b && c.b === a))?.combo ?? null;
+}
+
+/** The two heroes of a pair of ultimates, as kinds: who can combo with whom. */
+export function comboPartners(kind: HeroKind): HeroKind[] {
+  return HERO_KINDS.filter((k) => k !== kind);
+}
+
+/** The ally solo practice gives `kind`: Ranger and Arcanist make Meteor Rain, the Warden makes a Stun Storm with the Ranger. */
+export function practicePartner(kind: HeroKind): HeroKind {
+  return kind === 'ranger' ? 'arcanist' : kind === 'arcanist' ? 'ranger' : 'ranger';
+}
+
+/** Where a hit by `owner`'s zones comes from, for the wave-10 shield (the owner's hero). */
+function ownerFrom(state: GameState, owner: PlayerId): HitFrom | null {
+  const hero = state.heroes.find((h) => h.owner === owner);
+  return hero ? hitFrom(state, hero) : null;
+}
+
+/** How strong a combo is: its place in `coop.comboOrder` (the strongest first). */
+function comboStrength(state: GameState, combo: ComboKind): number {
+  return state.tuning.coop.comboOrder.length - state.tuning.coop.comboOrder.indexOf(combo);
+}
+
+/**
+ * A hero just cast an ultimate: Arrow Storm or Meteor (`zone`, its rain) or Iron Vow (no zone). If another hero's
+ * ultimate that pairs with it (`comboOf`) was cast inside the combo window, they fuse, wherever the heroes stand:
+ * both rains end and one combo rain takes their place. Three ultimates inside the window fire only the strongest
+ * pair (`coop.comboOrder`), once: a third cast that makes a stronger pair swaps the combo, the one left over casts
+ * apart; one that does not makes no second combo.
+ */
+export function onUltCast(state: GameState, hero: Hero, kind: UltKind, zone: Zone | null): void {
+  const window = secondsToTicks(state.tuning.coop.comboWindow);
+  state.ultStats.by[kind].casts++;
+  const fired = state.firedCombo !== null && state.tick - state.firedCombo.tick <= window ? state.firedCombo : null;
+  const me: RecentUlt = { heroId: hero.id, kind, tick: state.tick, zoneId: zone?.id ?? -1 };
+  // The best partner for this cast: another hero's ultimate inside the window that pairs with it.
+  let partner: RecentUlt | null = null;
+  let best = 0;
+  for (const u of state.recentUlts) {
+    if (u.heroId === hero.id || state.tick - u.tick > window) continue;
+    const combo = comboOf(u.kind, kind);
+    if (combo === null || comboStrength(state, combo) <= best) continue;
+    partner = u;
+    best = comboStrength(state, combo);
   }
-}
-
-/** A Meteor Rain pulse. Returns false for Arrow Storm and Meteor (skills.ts pulses those). */
-export function pulseMeteorRain(state: GameState, zone: Zone): boolean {
-  if (zone.kind !== 'meteorRain') return false;
-  const t = state.tuning.coop.meteorRain;
-  const i = Math.max(0, zone.rank - 1);
-  for (let n = 0; n < t.strikesPerPulse; n++) {
-    rainStrike(state, zone, 'meteorRain', {
-      damage: t.damage[i] ?? 0,
-      radius: t.strikeRadius,
-      air: false,
-      stunTicks: secondsToTicks(t.stun),
-      magic: true,
-      laneCap: t.laneCap,
-      heartCap: t.heartCap,
-      heartRadius: t.heartRadius,
-    });
-  }
-  return true;
-}
-
-interface Spot {
-  x: number;
-  y: number;
-  lane: LaneId;
-}
-
-let laneSpots: Spot[] | null = null;
-
-/** Points along every lane, about 2 tiles apart. Corners off the path are not included. */
-function lanePathSpots(): Spot[] {
-  if (laneSpots) return laneSpots;
-  const out: Spot[] = [];
-  for (const lane of getMap().lanes) {
-    const wps = lane.waypoints;
-    for (let i = 0; i < wps.length - 1; i++) {
-      const a = wps[i]!;
-      const b = wps[i + 1]!;
-      const len = dist(a.x, a.y, b.x, b.y);
-      const steps = Math.max(1, Math.round(len / 2));
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps;
-        out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, lane: lane.id });
+  state.recentUlts.push(me);
+  if (!partner || (fired && comboStrength(state, fired.combo) >= best)) return;
+  const combo = comboOf(partner.kind, kind)!;
+  // Casts that fuse count as the combo's, so a rain's kills per cast are those of rains that ran on their own.
+  state.ultStats.by[partner.kind].casts--;
+  state.ultStats.by[kind].casts--;
+  // A stronger pair replaces the combo already fired; the ultimate it leaves out casts apart again.
+  if (fired) {
+    const old = state.zones.find((z) => z.id === fired.zoneId);
+    if (old) old.done = true;
+    for (let i = 0; i < 2; i++) {
+      const left = state.recentUlts.find((u) => u.heroId === fired.heroIds[i] && u.kind === fired.kinds[i]);
+      if (!left || left.heroId === partner.heroId || left.heroId === hero.id) continue;
+      const src = state.heroes.find((h) => h.id === left.heroId);
+      if (src && src.alive && (left.kind === 'arrowStorm' || left.kind === 'meteor')) {
+        left.zoneId = startRain(state, src, left.kind).id;
       }
     }
   }
-  laneSpots = out;
-  return out;
+  for (const u of [partner, me]) {
+    const z = state.zones.find((zz) => zz.id === u.zoneId);
+    if (z) z.done = true;
+    u.zoneId = -1;
+  }
+  const heroOf = (u: RecentUlt) => state.heroes.find((h) => h.id === u.heroId) ?? hero;
+  // The rain's owner: the Meteor for Meteor Rain and Shockwave, the Arrow Storm for Stun Storm.
+  const lead = combo === 'stunStorm' ? (partner.kind === 'arrowStorm' ? partner : me) : partner.kind === 'meteor' ? partner : me;
+  const t = state.tuning;
+  const timing =
+    combo === 'meteorRain' ? t.coop.meteorRain : combo === 'stunStorm' ? t.hero.ranger.arrowStorm : t.hero.arcanist.meteor;
+  const pulse = Math.max(1, secondsToTicks(timing.pulseInterval));
+  const duration = secondsToTicks(timing.duration);
+  const rain = addZone(state, combo, heroOf(lead), duration, pulse, pulse);
+  state.firedCombo = {
+    combo,
+    zoneId: rain.id,
+    tick: state.tick,
+    kinds: [partner.kind, kind],
+    heroIds: [partner.heroId, hero.id],
+  };
+  state.ultStats.by[combo].casts++;
+  emit(state, { type: 'combo', combo, x: rain.x, y: rain.y, radius: 0, heroes: [partner.heroId, hero.id] });
 }
 
-function pickRainSpot(
-  state: GameState,
-  zone: Zone,
-  air: boolean,
-  laneCap: number,
-  heartCap: number,
-  heartRadius: number,
-): Spot | null {
-  const heart = getMap().heart;
-  const open: { spot: Spot; w: number; heart: boolean }[] = [];
-  for (const spot of lanePathSpots()) {
-    const nearHeart = dist(spot.x, spot.y, heart.x, heart.y) <= heartRadius;
-    if (nearHeart && zone.heartStrikes >= heartCap) continue;
-    if (zone.laneStrikes[spot.lane] >= laneCap) continue;
-    let creeps = 0;
-    for (const c of state.creeps) {
-      if (c.dead) continue;
-      if (!air && state.tuning.creeps[c.kind].flying) continue;
-      if (dist(c.x, c.y, spot.x, spot.y) <= 2.4) creeps++;
+/** What one strike of a rain does. */
+interface Strike {
+  tag: UltTag;
+  effect: AoeEffect;
+  radius: number;
+  damage: number;
+  type: DamageType;
+  stunTicks: number;
+  /** Creeps (ground only) this far from the impact are pulled `distance` tiles toward it before it lands. */
+  pull?: { radius: number; distance: number };
+}
+
+/** What a zone's strikes do, by its kind and rank. */
+function strikeOf(state: GameState, zone: Zone): Strike {
+  const i = Math.max(0, zone.rank - 1);
+  const h = state.tuning.hero;
+  const t = state.tuning.coop;
+  switch (zone.kind) {
+    case 'arrowStorm': {
+      const s = h.ranger.arrowStorm;
+      return {
+        tag: 'arrowStorm',
+        effect: 'arrowStorm',
+        radius: s.strikeRadius,
+        damage: s.damage[i] ?? 0,
+        type: 'physical',
+        stunTicks: 0,
+      };
     }
-    // A pack on the path takes almost every strike until its lane or Heart cap.
-    // Empty path tiles keep a little weight so a quiet lane is not a dead zone.
-    const w = 0.05 + creeps * creeps * 40;
-    open.push({ spot, w, heart: nearHeart });
-  }
-  // Caps are hard: once every lane and the Heart pocket are full, the rest of the rain misses.
-  if (open.length === 0) return null;
-  let total = 0;
-  for (const c of open) total += c.w;
-  // Not the match RNG: a rain must not move later creep offsets.
-  const fired = zone.laneStrikes[0] + zone.laneStrikes[1] + zone.laneStrikes[2];
-  let roll = (mix32(zone.id, fired + 1) / 4294967296) * total;
-  let picked = open[open.length - 1]!;
-  for (const c of open) {
-    roll -= c.w;
-    if (roll <= 0) {
-      picked = c;
-      break;
+    case 'meteor': {
+      const s = h.arcanist.meteor;
+      return {
+        tag: 'meteor',
+        effect: 'meteor',
+        radius: s.strikeRadius,
+        damage: s.damage[i] ?? 0,
+        type: 'magic',
+        stunTicks: secondsToTicks(s.stun[i] ?? 0),
+      };
+    }
+    case 'meteorRain': {
+      const s = t.meteorRain;
+      return {
+        tag: 'meteorRain',
+        effect: 'meteorRain',
+        radius: s.strikeRadius,
+        damage: s.damage[i] ?? 0,
+        type: 'magic',
+        stunTicks: secondsToTicks(s.stun),
+      };
+    }
+    case 'stunStorm': {
+      const s = h.ranger.arrowStorm;
+      return {
+        tag: 'stunStorm',
+        effect: 'stunStorm',
+        radius: s.strikeRadius,
+        damage: (s.damage[i] ?? 0) * t.stunStorm.damageMult,
+        type: 'physical',
+        stunTicks: secondsToTicks(t.stunStorm.stun),
+      };
+    }
+    case 'shockwave': {
+      const s = h.arcanist.meteor;
+      return {
+        tag: 'shockwave',
+        effect: 'shockwave',
+        radius: s.strikeRadius,
+        damage: (s.damage[i] ?? 0) * t.shockwave.damageMult,
+        type: 'magic',
+        stunTicks: secondsToTicks(t.shockwave.stun[i] ?? 0),
+        pull: { radius: t.shockwave.pullRadius, distance: t.shockwave.pullDistance },
+      };
     }
   }
-  zone.laneStrikes[picked.spot.lane]++;
-  if (picked.heart) zone.heartStrikes++;
-  return picked.spot;
+}
+
+/**
+ * One pulse of a lane rain: on every lane, strikes land on the creeps (never on an empty road), each on the spot that
+ * covers the most creeps not yet struck this pulse, until every creep of the lane has been hit (no cap, no
+ * Heart pocket). Ground and air alike; a creep takes one hit per pulse.
+ */
+export function pulseRain(state: GameState, zone: Zone): void {
+  const strike = strikeOf(state, zone);
+  const from = ownerFrom(state, zone.owner);
+  const reach = strike.pull ? strike.pull.radius : strike.radius;
+  const hit = new Set<number>();
+  for (const lane of [0, 1, 2] as LaneId[]) {
+    let open = state.creeps.filter((c) => !c.dead && c.lane === lane);
+    while (open.length > 0) {
+      // The creep whose spot covers the most of the others (ties: the first, so the lane's front is hit first).
+      let centre = open[0]!;
+      let most = -1;
+      for (const c of open) {
+        let count = 0;
+        for (const o of open) if (dist(c.x, c.y, o.x, o.y) <= reach + state.tuning.creeps[o.kind].radius) count++;
+        if (count > most) {
+          most = count;
+          centre = c;
+        }
+      }
+      const { x, y } = centre;
+      emit(state, { type: 'aoe', effect: strike.effect, x, y, radius: strike.radius });
+      if (strike.pull) pullCreeps(state, x, y, lane, strike.pull);
+      for (const c of creepsInRadius(state, x, y, strike.radius, true)) {
+        if (hit.has(c.id)) continue;
+        hit.add(c.id);
+        if (strike.stunTicks > 0) stunCreep(state, c, strike.stunTicks);
+        ultimateDamage(state, c, strike.damage, strike.type, zone.owner, from, strike.tag);
+      }
+      hit.add(centre.id);
+      open = open.filter((c) => !c.dead && !hit.has(c.id));
+    }
+  }
+}
+
+/** The Shockwave's pull: the ground creeps of `lane` within `radius` of (x, y) step `distance` tiles toward it. */
+function pullCreeps(state: GameState, x: number, y: number, lane: LaneId, pull: { radius: number; distance: number }): void {
+  for (const c of creepsInRadius(state, x, y, pull.radius, false)) {
+    if (c.lane !== lane) continue;
+    const stats = state.tuning.creeps[c.kind];
+    const d = dist(c.x, c.y, x, y);
+    const keep = 0.3;
+    if (d <= keep) continue;
+    const move = Math.min(pull.distance * (stats.boss ? 0.5 : 1), d - keep);
+    c.x += ((x - c.x) / d) * move;
+    c.y += ((y - c.y) / d) * move;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -371,7 +433,8 @@ export function applyPracticeLevels(state: GameState): void {
 /** Forget old ultimates, drop shields of dead bosses, let a lit half fade, and keep the ally levelled with you. */
 export function updateCoop(state: GameState): void {
   const window = secondsToTicks(state.tuning.coop.comboWindow);
-  state.recentUlts = state.recentUlts.filter((u) => state.tick - u.tick <= window && !u.fused);
+  state.recentUlts = state.recentUlts.filter((u) => state.tick - u.tick <= window);
+  if (state.firedCombo && state.tick - state.firedCombo.tick > window) state.firedCombo = null;
   const alive = new Set(state.creeps.map((c) => c.id));
   state.shields = state.shields.filter((s) => alive.has(s.creepId));
   const shieldWindow = secondsToTicks(state.tuning.coop.bossShield.window);

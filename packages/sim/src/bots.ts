@@ -7,6 +7,7 @@ import {
   type Command,
   type CreepKind,
   type CreepSnap,
+  type HeroSnap,
   type HeroKind,
   type LaneId,
   type PlayerId,
@@ -19,6 +20,7 @@ import {
   type TowerSnap,
 } from '@tdt/protocol';
 import { shieldStandPoint } from './coop';
+import { mix32 } from './modifiers';
 import { getMap, type BuildPad } from './map';
 import { tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
@@ -29,8 +31,13 @@ export interface Bot {
   decide(snap: Snapshot): Command[];
 }
 
-/** Casual is the balance bot the Normal gates use. Expert spends gold on fewer, branched towers. */
-export type BotStyle = 'casual' | 'expert';
+/**
+ * Casual is the balance bot the Normal gates use. Expert spends gold on fewer, branched towers. Novice plays like
+ * the first-time players of playtest 2 (`docs/GAME_DESIGN.md` §13): half the towers early, gold left unspent, no
+ * Flak until flyers have leaked, a quarter of its ready ultimates forgotten for a minute (Arrow Storm and Meteor are one press, so a new
+ * player uses them), no retreat, no early calls, and it does not answer a teammate's ultimate.
+ */
+export type BotStyle = 'casual' | 'expert' | 'novice';
 
 /** Never issues a command. Used to prove that an idle player loses. */
 export function createIdleBot(playerId: PlayerId): Bot {
@@ -78,7 +85,12 @@ const LOOKAHEAD = 3;
 const MIN_GENERAL_TOWERS = 3;
 
 /** Skills that only affect ground creeps (static knowledge, like a player would have). */
-const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: ['Q', 'W'], arcanist: ['R'] };
+/** A rain is cast once this many creeps are on the lanes (the expert waits for a few more of them to be out). */
+const RAIN_CREEPS = 12;
+const EXPERT_RAIN_CREEPS = 12;
+/** Answering a teammate's ultimate needs at least this many creeps out. */
+const ANSWER_MIN_CREEPS = 6;
+const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: [], arcanist: [] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
@@ -100,6 +112,19 @@ const SEEK_RADIUS = 16;
 const STRAGGLERS = 5;
 /** A ranged hero stops this much inside its attack range of the creep it walks to (its reach adds its own radius). */
 const STANDOFF_MARGIN = 0.6;
+
+/**
+ * Novice: through this wave it spends only `NOVICE_EARLY_SPEND` of everything it has earned on towers and upgrades (match 1:
+ * 3–6 towers each at wave 5 against the casual bot's 9–11, and about a third of the gold unspent). Wave 5 is the end of
+ * Quick's first third; a Full match gets the same five slow waves, not ten.
+ */
+const NOVICE_EARLY_WAVES = 5;
+const NOVICE_EARLY_SPEND = 0.5;
+/** Novice: flyers that must have reached the Heart before it builds any Flak (or branches for air). */
+const NOVICE_FLYER_LEAKS = 2;
+/** Novice: the chance it casts a ready ultimate at a target; if it does not, it forgets it for this long. */
+const NOVICE_ULT_CHANCE = 0.75;
+const NOVICE_ULT_FORGET_SECONDS = 60;
 
 /** Expert casts on a single creep; the casual bot waits for a group. */
 const EXPERT_MIN_TARGETS: Record<SkillSlot, number> = { Q: 1, W: 1, E: 0, R: 1 };
@@ -125,6 +150,11 @@ const EXPERT_EARLY_HEART = 80;
  * player only, so the bonus is not paid twice), casts Q, W and R on a single creep, and walks off sooner
  * when it is hurt.
  */
+/** A first-time player: see `BotStyle`. */
+export function createNoviceBot(playerId: PlayerId, baseTuning: Tuning = TUNING, botIndex = 0): Bot {
+  return createBalanceBot(playerId, baseTuning, botIndex, 'novice');
+}
+
 export function createExpertBot(playerId: PlayerId, baseTuning: Tuning = TUNING, botIndex = 0): Bot {
   return createBalanceBot(playerId, baseTuning, botIndex, 'expert');
 }
@@ -157,6 +187,12 @@ export function createBalanceBot(
   let clearSince = -1;
   /** Wave number this bot already gifted for, so a surge announcement pays once. */
   let surgeGifted = -1;
+  const novice = style === 'novice';
+  /** Novice: flying creeps seen near the Heart last decision, and how many have since vanished (leaked). */
+  let nearHeartFlyers = new Set<number>();
+  let flyerLeaks = 0;
+  /** Novice: the tick before which it has forgotten about its ultimate. */
+  let ultForgottenUntil = -1;
 
   return {
     playerId,
@@ -183,13 +219,27 @@ export function createBalanceBot(
       const kinds = mine.map((t) => t.kind);
       const team = new Set(snap.towers.map((t) => t.kind));
       const needs = waveNeeds(tuning, snap.wave);
+      if (novice) {
+        const heartPos = getMap().heart;
+        const now = new Set(
+          snap.creeps.filter((c) => tuning.creeps[c.kind].flying && dist(c.x, c.y, heartPos.x, heartPos.y) <= 4).map((c) => c.id),
+        );
+        const stillThere = new Set(snap.creeps.map((c) => c.id));
+        for (const id of nearHeartFlyers) if (!stillThere.has(id)) flyerLeaks++;
+        nearHeartFlyers = now;
+        if (flyerLeaks < NOVICE_FLYER_LEAKS) needs.air = false;
+        // Spending: half of what it has earned through the first waves, everything after.
+        const earned = gold + mine.reduce((n, t) => n + t.spent, 0);
+        const spent = earned - gold;
+        if (snap.wave <= NOVICE_EARLY_WAVES) gold = Math.max(0, Math.min(gold, NOVICE_EARLY_SPEND * earned - spent));
+      }
       const free = pads.filter((p) => usable.has(p.id) && !taken.has(p.id));
       const bosses = snap.creeps.filter((c) => tuning.creeps[c.kind].boss);
       // A surge announced a wave ahead (or already walking): the thin lane gets the next pad.
       const focusLane = snap.nextSurge?.lane ?? snap.surgeLane;
       // The expert's pad plan is already tight. Pulling a pad onto the surge lane, gifting, or
       // walking over moved Hard gate seeds out of 40–80 Heart. The casual bot does all three.
-      if (focusLane != null && style !== 'expert') biasSurgePad(free, mine, focusLane);
+      if (focusLane != null && style === 'casual') biasSurgePad(free, mine, focusLane);
       if (style === 'expert') {
         gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses);
       } else {
@@ -223,12 +273,13 @@ export function createBalanceBot(
             snap.wave,
             padRank,
             snap.towers.flatMap((t) => (t.branch ? [t.branch] : [])),
+            novice && flyerLeaks < NOVICE_FLYER_LEAKS,
           );
         }
 
         // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
         // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
-        if (free.length === 0 && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
+        if (!novice && free.length === 0 && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
           const to = neediestTeammate(snap, playerId, tuning);
           if (to) {
             const amount = Math.floor(gold);
@@ -238,7 +289,7 @@ export function createBalanceBot(
         }
       }
 
-      if (style !== 'expert') surgeGifted = giftForSurge(cmds, snap, playerId, gold, surgeGifted);
+      if (style === 'casual') surgeGifted = giftForSurge(cmds, snap, playerId, gold, surgeGifted);
 
       // The first player calls for the team: the bonus is paid to everyone, and a second call the same
       // tick would pay it again.
@@ -269,9 +320,10 @@ export function createBalanceBot(
       const hpFrac = hero.hp / hero.maxHp;
       const ranged = tuning.hero[hero.kind].ranged;
       // Casual: 30% / 60%. Expert leaves earlier and comes back healthier, melee sooner than ranged.
-      const retreatLow = expert ? (ranged ? 0.54 : 0.65) : 0.3;
-      const retreatHigh = expert ? (ranged ? 0.85 : 0.9) : 0.6;
-      if (hpFrac < retreatLow) retreating = true;
+      const retreatLow = expert ? (ranged ? 0.54 : 0.65) : ranged ? 0.3 : 0.4;
+      const retreatHigh = expert ? (ranged ? 0.85 : 0.9) : ranged ? 0.6 : 0.7;
+      // A novice never retreats: it lets its hero die.
+      if (hpFrac < retreatLow && !novice) retreating = true;
       if (hpFrac > retreatHigh) retreating = false;
       if (expert) {
         let packed = 0;
@@ -290,11 +342,12 @@ export function createBalanceBot(
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
       const ultReady = later && r.cooldown === 0;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
-      // Iron Vow has no area. The Warden still walks into a pack (the old stun radius) so Cleave and Taunt connect.
-      const ultRadius = r !== undefined && r.radius > 0 ? r.radius : hero.kind === 'warden' ? 3 : 0;
-      const hittable = snap.creeps.filter((c) => ranged || !tuning.creeps[c.kind].flying);
+      // Iron Vow's burst is around the Warden: he walks into a pack so the burst, Cleave and Taunt connect.
+      const ultRadius = r !== undefined ? r.radius : 0;
+      const hittable = snap.creeps;
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
-      const group = ultReady
+      // Arrow Storm and Meteor rain on every lane wherever the hero stands: only the Warden's burst needs a pack.
+      const group = ultReady && hero.kind === 'warden'
         ? densestGroup(nearPost(SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
         : undefined;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
@@ -350,22 +403,38 @@ export function createBalanceBot(
       // Like a player: ultimate, Q and W each go off on a group whenever they are ready and affordable.
       const mins = expert ? EXPERT_MIN_TARGETS : MIN_TARGETS;
       let mana = hero.mana;
+      /** A novice casts a ready ultimate about three times in four; otherwise it forgets it for a minute. */
+      const novicePass = (): boolean => {
+        if (!novice) return false;
+        if (snap.tick < ultForgottenUntil) return true;
+        if (mix32(snap.tick, botIndex * 7 + 1) / 4294967296 < NOVICE_ULT_CHANCE) return false;
+        ultForgottenUntil = snap.tick + NOVICE_ULT_FORGET_SECONDS * snap.tickRate;
+        return true;
+      };
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
-        if (slot === 'R' && hero.kind === 'warden') {
-          // Global buff: cast when a pack is on the Warden, a boss is close, or it is hurt.
-          const pack = near(5, false).length >= mins.R;
-          const bossNear = bosses.some((b) => dist(hero.x, hero.y, b.x, b.y) <= 8);
-          if (pack || bossNear || hpFrac < 0.55) cmds.push({ type: 'cast', slot: 'R' });
+        // A player answers a teammate's ultimate (inside the combo window) so the two fuse.
+        if (slot === 'R' && !novice && snap.creeps.length >= ANSWER_MIN_CREEPS && teammateUltimateJustCast(snap, hero)) {
+          cmds.push({ type: 'cast', slot: 'R' });
           continue;
         }
-        if (slot === 'R' && (hero.kind === 'ranger' || hero.kind === 'arcanist')) {
-          // Global rain: no aim point. Cast when the map has a pack or a boss; Meteor skips flyers.
-          const air = hero.kind === 'ranger';
-          const creeps = snap.creeps.filter((c) => air || !tuning.creeps[c.kind].flying);
-          const boss = creeps.some((c) => tuning.creeps[c.kind].boss);
-          if (boss || creeps.length >= mins.R) cmds.push({ type: 'cast', slot: 'R' });
+        if (slot === 'R' && hero.kind === 'warden') {
+          // Heals the whole team and bursts around him: cast when a pack is on the Warden, a boss is close,
+          // or he or a teammate is hurt.
+          const pack = near(s.radius, false).length >= mins.R;
+          const bossNear = bosses.some((b) => dist(hero.x, hero.y, b.x, b.y) <= 8);
+          const hurt = snap.heroes.some((h) => h.alive && h.hp / h.maxHp < (h.id === hero.id ? 0.55 : 0.45));
+          if ((pack || bossNear || hurt) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
+          continue;
+        }
+        if (slot === 'R') {
+          // A rain: cast it when the lanes are full of creeps, wherever the hero is.
+          const minCreeps = expert ? EXPERT_RAIN_CREEPS : RAIN_CREEPS;
+          // A player holds it a few seconds for a teammate whose ultimate is about to be ready: together they combo.
+          if (snap.creeps.length >= minCreeps && !teammateUltimateSoon(snap, hero) && !novicePass()) {
+            cmds.push({ type: 'cast', slot: 'R' });
+          }
           continue;
         }
         const ground = GROUND_ONLY[hero.kind].includes(slot);
@@ -592,6 +661,36 @@ function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guar
   return { guard: lanePoint(i, GUARD_DISTANCE), forward: lanePoint(i, FORWARD_DISTANCE) };
 }
 
+/** A rain waits at most this long (seconds) for a teammate's ultimate that is coming off cooldown. */
+const COMBO_WAIT_SECONDS = 25;
+
+/** Whether a living teammate of another hero kind has its ultimate coming off cooldown within `COMBO_WAIT_SECONDS`. */
+function teammateUltimateSoon(snap: Snapshot, hero: HeroSnap): boolean {
+  for (const h of snap.heroes) {
+    if (h.owner === hero.owner || !h.alive || h.kind === hero.kind) continue;
+    const r = h.skills.find((sk) => sk.slot === 'R');
+    if (r && r.rank > 0 && r.cooldown > 0 && r.cooldown <= COMBO_WAIT_SECONDS * snap.tickRate && r.cooldownTotal - r.cooldown > 5 * snap.tickRate) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether a teammate's ultimate went off a moment ago, inside the combo window, and is still waiting for an answer:
+ * casting this hero's own now fuses the two into a combo (see `docs/GAME_DESIGN.md` §13). Every pair of the three
+ * ultimates is a combo, so any teammate's R counts; the cast is answered for about the first 4 s of the window.
+ */
+function teammateUltimateJustCast(snap: Snapshot, hero: HeroSnap): boolean {
+  const window = 4 * snap.tickRate;
+  for (const h of snap.heroes) {
+    if (h.owner === hero.owner || !h.alive || h.kind === hero.kind) continue;
+    const r = h.skills.find((sk) => sk.slot === 'R');
+    if (r && r.rank > 0 && r.cooldown > 0 && r.cooldownTotal - r.cooldown <= window) return true;
+  }
+  return false;
+}
+
 /** A cast of `skill` that catches at least `min` of `creeps`, or null. */
 export function skillCommand(skill: SkillSnap, creeps: CreepSnap[], hero: { x: number; y: number }, min: number): Command | null {
   if (!skill.targeted) {
@@ -771,12 +870,14 @@ function spendUpgrades(
   wave: number,
   padRank: Map<number, number>,
   teamBranches: TowerBranch[],
+  ignoreAir = false,
 ): number {
   const first = (t: TowerSnap) => (needs.stone && t.kind === 'arcane' && t.tier < tuning.towers.arcane.tiers.length ? 0 : 1);
   const order = [...mine].sort(
     (a, b) => first(a) - first(b) || a.tier - b.tier || padRank.get(a.padId)! - padRank.get(b.padId)!,
   );
   const branchNeed = branchNeeds(tuning, wave);
+  if (ignoreAir) branchNeed.air = false;
   for (const t of order) {
     if (t.branch) continue;
     const next = tuning.towers[t.kind].tiers[t.tier];

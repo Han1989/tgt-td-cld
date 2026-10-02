@@ -775,6 +775,12 @@ export class WorldRenderer {
         // Global rains: every strike is its own event, and something falls onto it.
         fx.rainImpact(effect, x, y, radius);
         break;
+      case 'stunStorm':
+        fx.rainImpact('arrowStorm', x, y, radius);
+        break;
+      case 'shockwave':
+        fx.rainImpact('meteor', x, y, radius);
+        break;
       case 'blizzard': {
         fx.blizzardPulse(x, y, radius);
         // An all-round blast with no projectile: the whole tower swells for a moment instead of recoiling.
@@ -1787,7 +1793,7 @@ export class WorldRenderer {
       s.ring.alpha = 0.6 * fade;
       s.ring.rotation = calm ? 0 : now / 1400;
       s.column.alpha = (calm ? 0.14 : 0.24) * fade;
-      if (skyShown) this.fx.rainSky(z.kind, sky, dtMs);
+      if (skyShown) this.fx.rainSky(z.kind === 'stunStorm' ? 'arrowStorm' : z.kind === 'shockwave' ? 'meteor' : z.kind, sky, dtMs);
     }
     for (const [id, s] of this.rains) {
       if (!seen.has(id)) {

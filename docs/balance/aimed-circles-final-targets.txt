@@ -1,0 +1,71 @@
+PASS  novice full normal solo: win rate >= 80%  100% of 90
+PASS  novice full normal pairs: win rate >= 80%  99% of 90
+PASS  novice full normal three: win rate >= 80%  100% of 30
+FAIL  casual full normal ranger: every seed wins with 50-90 Heart  5 of 30 outside; 59..96
+FAIL  casual full normal warden: every seed wins with 50-90 Heart  3 of 30 outside; 54..99
+FAIL  casual full normal arcanist: every seed wins with 50-90 Heart  4 of 30 outside; 67..94
+FAIL  casual full normal ranger+warden: every seed wins with 50-90 Heart  13 of 30 outside; 67..100
+FAIL  casual full normal warden+arcanist: every seed wins with 50-90 Heart  24 of 30 outside; 73..100
+FAIL  casual full normal arcanist+ranger: every seed wins with 50-90 Heart  14 of 30 outside; 41..100
+FAIL  casual full normal ranger+warden+arcanist: every seed wins with 50-90 Heart  10 of 30 outside; 47..100
+FAIL  expert full normal ranger: every seed >= 85 Heart  2 of 30 outside; 83..100
+FAIL  expert full normal warden: every seed >= 85 Heart  2 of 30 outside; 81..97
+PASS  expert full normal arcanist: every seed >= 85 Heart  0 of 30 outside; 95..100
+PASS  expert full normal ranger+warden: every seed >= 85 Heart  0 of 30 outside; 92..100
+PASS  expert full normal warden+arcanist: every seed >= 85 Heart  0 of 30 outside; 98..100
+PASS  expert full normal arcanist+ranger: every seed >= 85 Heart  0 of 30 outside; 93..100
+PASS  expert full normal ranger+warden+arcanist: every seed >= 85 Heart  0 of 30 outside; 87..100
+FAIL  expert full hard ranger: every seed wins with 40-80 Heart  9 of 30 outside; 13..78
+FAIL  expert full hard warden: every seed wins with 40-80 Heart  4 of 30 outside; 2..76
+FAIL  expert full hard arcanist: every seed wins with 40-80 Heart  17 of 30 outside; 50..98
+FAIL  expert full hard ranger+warden: every seed wins with 40-80 Heart  18 of 30 outside; 0..96
+FAIL  expert full hard warden+arcanist: every seed wins with 40-80 Heart  22 of 30 outside; 59..99
+FAIL  expert full hard arcanist+ranger: every seed wins with 40-80 Heart  19 of 30 outside; 0..100
+FAIL  expert full hard ranger+warden+arcanist: every seed wins with 40-80 Heart  13 of 30 outside; 0..89
+PASS  casual full normal pairs: curve (first <= 45%, last >= 25%)  41%/21%/38%
+PASS  casual full normal three: curve (first <= 45%, last >= 25%)  16%/7%/77%
+PASS  casual full normal solo parity (spread <= 10)  80.7 / 75.5 / 83.0
+FAIL  casual full normal pair parity (spread <= 12)  88.1 / 93.8 / 80.2
+PASS  expert full hard pairs: curve (first <= 45%, last >= 25%)  15%/7%/78%
+PASS  expert full hard three: curve (first <= 45%, last >= 25%)  31%/6%/63%
+PASS  novice quick normal solo: win rate >= 80%  91% of 90
+PASS  novice quick normal pairs: win rate >= 80%  100% of 90
+PASS  novice quick normal three: win rate >= 80%  100% of 30
+FAIL  casual quick normal ranger: every seed wins with 50-90 Heart  1 of 30 outside; 53..91
+FAIL  casual quick normal warden: every seed wins with 50-90 Heart  2 of 30 outside; 59..92
+FAIL  casual quick normal arcanist: every seed wins with 50-90 Heart  1 of 30 outside; 59..93
+FAIL  casual quick normal ranger+warden: every seed wins with 50-90 Heart  8 of 30 outside; 38..100
+FAIL  casual quick normal warden+arcanist: every seed wins with 50-90 Heart  8 of 30 outside; 33..100
+FAIL  casual quick normal arcanist+ranger: every seed wins with 50-90 Heart  5 of 30 outside; 48..97
+FAIL  casual quick normal ranger+warden+arcanist: every seed wins with 50-90 Heart  16 of 30 outside; 46..100
+PASS  expert quick normal ranger: every seed >= 85 Heart  0 of 30 outside; 85..100
+FAIL  expert quick normal warden: every seed >= 85 Heart  4 of 30 outside; 80..100
+PASS  expert quick normal arcanist: every seed >= 85 Heart  0 of 30 outside; 90..100
+FAIL  expert quick normal ranger+warden: every seed >= 85 Heart  4 of 30 outside; 59..100
+PASS  expert quick normal warden+arcanist: every seed >= 85 Heart  0 of 30 outside; 88..100
+PASS  expert quick normal arcanist+ranger: every seed >= 85 Heart  0 of 30 outside; 87..100
+PASS  expert quick normal ranger+warden+arcanist: every seed >= 85 Heart  0 of 30 outside; 98..100
+FAIL  expert quick hard ranger: every seed wins with 40-80 Heart  7 of 30 outside; 23..82
+FAIL  expert quick hard warden: every seed wins with 40-80 Heart  4 of 30 outside; 32..81
+FAIL  expert quick hard arcanist: every seed wins with 40-80 Heart  2 of 30 outside; 31..90
+FAIL  expert quick hard ranger+warden: every seed wins with 40-80 Heart  11 of 30 outside; 0..92
+FAIL  expert quick hard warden+arcanist: every seed wins with 40-80 Heart  19 of 30 outside; 19..99
+FAIL  expert quick hard arcanist+ranger: every seed wins with 40-80 Heart  20 of 30 outside; 0..95
+FAIL  expert quick hard ranger+warden+arcanist: every seed wins with 40-80 Heart  10 of 30 outside; 0..86
+PASS  casual quick normal pairs: curve (first <= 45%, last >= 25%)  9%/38%/52%
+PASS  casual quick normal three: curve (first <= 45%, last >= 25%)  3%/10%/87%
+PASS  casual quick normal solo parity (spread <= 10)  78.0 / 77.5 / 78.5
+PASS  casual quick normal pair parity (spread <= 12)  73.0 / 79.3 / 76.8
+PASS  expert quick hard pairs: curve (first <= 45%, last >= 25%)  13%/25%/62%
+PASS  expert quick hard three: curve (first <= 45%, last >= 25%)  27%/33%/40%
+PASS  casual quick normal warden: Warden deaths <= 3  1.7
+PASS  casual quick normal ranger+warden: Warden deaths <= 3  2.7
+PASS  casual quick normal warden+arcanist: Warden deaths <= 3  2.2
+PASS  casual quick normal ranger+warden+arcanist: Warden deaths <= 3  2.6
+PASS  casual quick normal three: Warden's lane flyer loss <= the others'  0.4 vs 0.1
+FAIL  casual full normal teams: ultimates are 8-15% of damage  3.0%
+FAIL  casual quick normal teams: ultimates are 8-15% of damage  2.4%
+FAIL  expert full normal teams: ultimates are 8-15% of damage  2.6%
+FAIL  expert quick normal teams: ultimates are 8-15% of damage  2.2%
+
+37 targets missed.

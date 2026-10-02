@@ -1,5 +1,6 @@
 import type {
   AoeEffect,
+  ComboKind,
   CreepKind,
   DamageType,
   EntityId,
@@ -274,9 +275,6 @@ export interface Zone {
   nextPulseTick: number;
   pulseTicks: number;
   done: boolean;
-  /** Impacts already dropped on each lane, and inside the Heart cap, for this rain. */
-  laneStrikes: [number, number, number];
-  heartStrikes: number;
 }
 
 export interface PendingSpawn {
@@ -331,8 +329,30 @@ export interface GameState {
   practice: PracticeState | null;
   /** Arrow Storm and Meteor casts still inside the combo window. */
   recentUlts: RecentUlt[];
+  /** The combo fired inside the window, or null. A third ultimate can only upgrade it, never fire a second one. */
+  firedCombo: FiredCombo | null;
   /** Wave-10 bosses that spawned with a shield (kept until the creep is gone). */
   shields: BossShield[];
+  /** What hero ultimates and combos did, for the balance matrix. Not in snapshots or reports. */
+  ultStats: UltStats;
+}
+
+/** What an ultimate or a combo is counted as in `UltStats`. */
+export type UltTag = UltKind | ComboKind;
+
+/** Damage dealt and creeps killed by hero ultimates (and combos) over the match, in all and per tag (with the casts). */
+export interface UltStats {
+  damage: number;
+  kills: number;
+  by: Record<UltTag, { casts: number; damage: number; kills: number }>;
+}
+
+export function emptyUltStats(): UltStats {
+  const by = {} as UltStats['by'];
+  for (const tag of ['arrowStorm', 'meteor', 'ironVow', 'meteorRain', 'stunStorm', 'shockwave'] as const) {
+    by[tag] = { casts: 0, damage: 0, kills: 0 };
+  }
+  return { damage: 0, kills: 0, by };
 }
 
 /** Solo practice: the bot ally and the level both heroes started at. */
@@ -341,16 +361,24 @@ export interface PracticeState {
   startLevel: number;
 }
 
-/** An ultimate still waiting to fuse. Only Arrow Storm and Meteor combo. */
+/** The three ultimates that combo (Arrow Storm, Meteor and Iron Vow, in pairs). */
+export type UltKind = 'arrowStorm' | 'meteor' | 'ironVow';
+
+/** An ultimate cast still inside the combo window. `zoneId` is its rain (-1: Iron Vow has none, or it fused). */
 export interface RecentUlt {
   heroId: EntityId;
-  kind: 'arrowStorm' | 'meteor';
-  x: number;
-  y: number;
-  radius: number;
+  kind: UltKind;
   tick: number;
   zoneId: EntityId;
-  fused: boolean;
+}
+
+/** The combo that fired inside the window: its zone, and the two ultimates (and heroes) that made it. */
+export interface FiredCombo {
+  combo: ComboKind;
+  zoneId: EntityId;
+  tick: number;
+  kinds: [UltKind, UltKind];
+  heroIds: [EntityId, EntityId];
 }
 
 /** A wave-10 boss shield. */

@@ -4,7 +4,7 @@
 import { CREEP_KINDS, HERO_KINDS, type CreepKind, type GameEvent, type HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
-import { armorMultiplier, damageTower, grantXp, heroArmor, heroManaRegen } from '../src/combat';
+import { armorMultiplier, damageTower, grantXp, heroArmor, heroManaRegen, heroMaxHp } from '../src/combat';
 import { snapshot } from '../src/game';
 import { DRIVE_HOLD_TICKS } from '../src/heroes';
 import { getMap } from '../src/map';
@@ -213,35 +213,31 @@ describe('Ranger', () => {
     expect(state.rng).toBe(rng);
   });
 
-  it('Arrow Storm rains along the lanes, hits flyers there, and misses a corner', () => {
+  it('Arrow Storm is instant, rains on the lanes, hits flyers there, and costs no mana', () => {
     const { state, heroes } = lab(['ranger']);
     const hero = heroes[0]!;
     hero.ranks.R = 1;
     const lane = { x: 13, y: 12 };
     const brute = placeCreep(state, 'brute', lane.x, lane.y);
     const wisp = placeCreep(state, 'wisp', lane.x, lane.y + 0.3);
-    const corner = placeCreep(state, 'grunt', 0.4, 49);
-    for (const c of [brute, wisp, corner]) c.rootUntil = 1_000_000;
+    for (const c of [brute, wisp]) c.rootUntil = 1_000_000;
     const mana = hero.mana;
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: lane.x, y: lane.y })).toBe(false);
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     run(state, 1);
-    expect(snapshot(state).zones[0]).toMatchObject({ kind: 'arrowStorm', radius: 0, x: hero.x, y: hero.y });
+    expect(snapshot(state).zones[0]).toMatchObject({ kind: 'arrowStorm', radius: 0 });
     expect(hero.mana).toBeGreaterThanOrEqual(mana);
     const s = TUNING.hero.ranger.arrowStorm;
-    const pulses = Math.floor(s.duration / s.pulseInterval);
     const events = runCollect(state, secondsToTicks(s.duration) + 2);
     const impacts = events.filter((e) => e.type === 'aoe' && e.effect === 'arrowStorm');
-    expect(impacts).toHaveLength(pulses);
+    // Both creeps share one strike (they are within its radius) each of the pulses.
+    expect(impacts).toHaveLength(Math.round(s.duration / s.pulseInterval));
     expect(brute.hp).toBeLessThan(brute.maxHp);
     expect(wisp.hp).toBeLessThan(wisp.maxHp);
-    expect(corner.hp).toBe(corner.maxHp);
     expect(state.zones).toHaveLength(0);
     expect(hero.skillCd.R).toBeGreaterThan(0);
   });
-});
 
-describe('hero attacks', () => {
   it('each auto-attack emits a heroAttack event at its target, once per cooldown (melee and ranged)', () => {
     for (const kind of ['warden', 'ranger'] as const) {
       const { state, heroes } = lab([kind]);
@@ -426,7 +422,7 @@ describe('hero reach and melee auto-engage', () => {
 });
 
 describe('Warden', () => {
-  it('is melee: hits land at once and flying creeps cannot be attacked', () => {
+  it('is melee: hits land at once, and flyers within reach can be attacked', () => {
     const { state, heroes } = lab(['warden']);
     const hero = heroes[0]!;
     hero.attackCd = 0;
@@ -436,10 +432,24 @@ describe('Warden', () => {
     expect(state.projectiles).toHaveLength(0);
     expect(grunt.maxHp - grunt.hp).toBeCloseTo(TUNING.hero.warden.damage * armorMultiplier(TUNING, grunt.armor));
     const wisp = placeCreep(state, 'wisp', hero.x + 1, hero.y);
-    expect(applyCommand(state, 'p1', { type: 'attack', targetId: wisp.id })).toBe(false);
+    expect(applyCommand(state, 'p1', { type: 'attack', targetId: wisp.id })).toBe(true);
+    hero.attackCd = 0;
+    run(state, 1);
+    expect(wisp.hp).toBeLessThan(wisp.maxHp);
+    expect(state.projectiles).toHaveLength(0);
   });
 
-  it('Cleave hits ground creeps around the Warden, not flyers or far creeps', () => {
+  it('an idle Warden hits a Wisp that flies into reach', () => {
+    const { state, heroes } = lab(['warden']);
+    const hero = heroes[0]!;
+    hero.attackCd = 0;
+    const wisp = placeCreep(state, 'wisp', hero.x + 1, hero.y);
+    wisp.rootUntil = 1_000_000;
+    run(state, 2);
+    expect(wisp.hp).toBeLessThan(wisp.maxHp);
+  });
+
+  it('Cleave hits ground creeps and flyers around the Warden, not far ones', () => {
     const { state, heroes } = lab(['warden']);
     const hero = heroes[0]!;
     const near = placeCreep(state, 'grunt', hero.x + 1.5, hero.y);
@@ -449,7 +459,7 @@ describe('Warden', () => {
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
     const dmg = TUNING.hero.warden.cleave.damage[0]! * armorMultiplier(TUNING, near.armor);
     expect(near.maxHp - near.hp).toBeCloseTo(dmg);
-    expect(wisp.hp).toBe(wisp.maxHp);
+    expect(wisp.hp).toBeLessThan(wisp.maxHp);
     expect(far.hp).toBe(far.maxHp);
     expect(hero.mana).toBe(mana - TUNING.hero.warden.cleave.manaCost[0]!);
     expect(state.pendingEvents).toContainEqual(expect.objectContaining({ type: 'aoe', effect: 'cleave' }));
@@ -488,7 +498,29 @@ describe('Warden', () => {
     expect(grunt.mode).toBe('return');
   });
 
-  it('Blood Hunger heals a share of auto-attack damage and Cleave does not', () => {
+  it('Taunt pulls flyers off the Heart to hover over the Warden until it ends', () => {
+    const { state, heroes } = lab(['warden']);
+    const warden = heroes[0]!;
+    warden.x = 13;
+    warden.y = 20;
+    const wisp = placeCreep(state, 'wisp', 13, 16, 1);
+    const far = placeCreep(state, 'wisp', 20, 16, 1);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'W' })).toBe(true);
+    const ticks = secondsToTicks(TUNING.hero.warden.taunt.duration[0]!);
+    expect(wisp.tauntUntil).toBe(state.tick + ticks);
+    expect(far.tauntUntil).toBe(0);
+    warden.stunUntil = 1_000_000;
+    run(state, 40);
+    expect(Math.hypot(wisp.x - warden.x, wisp.y - warden.y)).toBeLessThan(0.5);
+    expect(wisp.y).toBeGreaterThan(16);
+    // The taunt over, it flies for the Heart again.
+    run(state, ticks);
+    const y = wisp.y;
+    run(state, 20);
+    expect(wisp.y).toBeGreaterThan(y);
+  });
+
+  it('Blood Hunger heals a share of auto-attack damage and of Cleave', () => {
     const { state, heroes } = lab(['warden']);
     const hero = heroes[0]!;
     hero.ranks.E = 1;
@@ -504,8 +536,47 @@ describe('Warden', () => {
 
     hero.hp = 180;
     const at = hero.hp;
+    const g2 = placeCreep(state, 'grunt', hero.x + 1, hero.y);
+    const cleaveDealt = TUNING.hero.warden.cleave.damage[0]! * armorMultiplier(TUNING, g2.armor);
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
-    expect(hero.hp).toBe(at);
+    expect(hero.hp - at).toBeGreaterThanOrEqual(cleaveDealt * TUNING.hero.warden.bloodHunger.lifesteal[0]! - 1e-6);
+  });
+
+  it('Iron Vow heals every living hero at once, wherever they are, by a large share of their max HP', () => {
+    const { state, heroes } = lab(['warden', 'ranger', 'arcanist']);
+    const [warden, ranger, arcanist] = heroes as [Hero, Hero, Hero];
+    warden.ranks.R = 1;
+    ranger.x = warden.x + 30;
+    ranger.hp = 10;
+    arcanist.hp = 20;
+    arcanist.alive = false;
+    warden.hp = 50;
+    const s = TUNING.hero.warden.ironVow;
+    expect(s.heal[0]!).toBeGreaterThanOrEqual(0.35);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
+    expect(ranger.hp).toBeCloseTo(10 + s.heal[0]! * heroMaxHp(state, ranger));
+    expect(warden.hp).toBeCloseTo(50 + s.heal[0]! * heroMaxHp(state, warden));
+    expect(arcanist.hp).toBe(20);
+  });
+
+  it('Iron Vow bursts around the Warden: damage and a short stun on ground and air, nothing beyond', () => {
+    const { state, heroes } = lab(['warden']);
+    const warden = heroes[0]!;
+    warden.ranks.R = 1;
+    const s = TUNING.hero.warden.ironVow;
+    const grunt = placeCreep(state, 'grunt', warden.x + 1, warden.y);
+    grunt.hp = grunt.maxHp = 1000;
+    const wisp = placeCreep(state, 'wisp', warden.x - 1, warden.y);
+    const far = placeCreep(state, 'grunt', warden.x + s.burstRadius + 2, warden.y);
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
+    expect(grunt.stunUntil).toBe(state.tick + secondsToTicks(s.burstStun[0]!));
+    expect(wisp.stunUntil).toBeGreaterThan(state.tick);
+    expect(grunt.maxHp - grunt.hp).toBeCloseTo(s.burstDamage[0]! * armorMultiplier(TUNING, grunt.armor));
+    expect(far.hp).toBe(far.maxHp);
+    expect(far.stunUntil).toBe(0);
+    expect(state.pendingEvents).toContainEqual(
+      expect.objectContaining({ type: 'aoe', effect: 'ironVow', radius: s.burstRadius }),
+    );
   });
 
   it('Iron Vow armours and regenerates every living hero for the whole duration', () => {
@@ -524,9 +595,6 @@ describe('Warden', () => {
     const snap = snapshot(state);
     expect(snap.heroes.map((h) => h.shielded)).toEqual([true, true]);
     expect(snap.heroes.map((h) => h.shieldFor)).toEqual([ticks, ticks]);
-    const grunt = placeCreep(state, 'grunt', warden.x + 1, warden.y);
-    expect(grunt.stunUntil).toBe(0);
-
     warden.hp = 100;
     ranger.hp = 100;
     run(state, 1);
@@ -622,16 +690,17 @@ describe('Arcanist', () => {
     expect(heroManaRegen(state, warden)).toBe(TUNING.hero.warden.manaRegen);
   });
 
-  it('Meteor rains along the lanes, stuns ground creeps, and misses flyers', () => {
+  it('Meteor is instant, hits ground and air on the lanes, and every impact stuns', () => {
     const tuning = tuningCopy();
-    tuning.creeps.brute.hp = 2000;
+    tuning.creeps.brute.hp = 5000;
     const { state, heroes } = lab(['arcanist'], tuning);
     const hero = heroes[0]!;
     hero.ranks.R = 1;
     const brute = placeCreep(state, 'brute', 13, 12);
     const wisp = placeCreep(state, 'wisp', 13, 12.3);
-    const corner = placeCreep(state, 'grunt', 0.4, 49);
-    for (const c of [brute, wisp, corner]) c.rootUntil = 1_000_000;
+    wisp.hp = wisp.maxHp = 5000;
+    for (const c of [brute, wisp]) c.rootUntil = 1_000_000;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R', x: 13, y: 12 })).toBe(false);
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     const s = tuning.hero.arcanist.meteor;
     run(state, 1);
@@ -639,11 +708,10 @@ describe('Arcanist', () => {
     expect(brute.hp).toBe(brute.maxHp);
     const events = runCollect(state, secondsToTicks(s.duration) + 2);
     const impacts = events.filter((e) => e.type === 'aoe' && e.effect === 'meteor');
-    expect(impacts).toHaveLength(Math.floor(s.duration / s.pulseInterval));
+    expect(impacts).toHaveLength(Math.round(s.duration / s.pulseInterval));
     expect(brute.hp).toBeLessThan(brute.maxHp);
     expect(brute.stunUntil).toBeGreaterThan(0);
-    expect(wisp.hp).toBe(wisp.maxHp);
-    expect(corner.hp).toBe(corner.maxHp);
+    expect(wisp.hp).toBeLessThan(wisp.maxHp);
     expect(state.zones).toHaveLength(0);
   });
 });

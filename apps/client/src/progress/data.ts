@@ -294,6 +294,14 @@ const items: ProgressItem[] = [
     proof: pr(45),
   },
   {
+    id: 'SL-05',
+    title: 'Kit rework and balance by simulation (Playtest 2)',
+    owner: 'Team',
+    status: 'in_progress',
+    section: 'discovery',
+    note: 'Protocol 17. Arrow Storm and Meteor are instant lane rains again (no aiming, no caps) and much stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave) with no overlap check, no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Waiting for Han’s review.',
+  },
+  {
     id: 'D-02',
     title: 'Post to r/PlayMyGame',
     owner: 'Han',
@@ -548,7 +556,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'p6c',
-    note: 'A fused effect for every hero pair. Meteor Rain shipped in SL-04 as one denser shared rain. The other pairs are still later. Do not merge claude/loving-hawking-7fvsu7.',
+    note: 'A fused effect for every hero pair: Meteor Rain, Stun Storm and Shockwave are in the sim (SL-05, waiting for review). Presentation of the two new ones is a separate pass. Do not merge claude/loving-hawking-7fvsu7.',
   },
   {
     id: 'p6c-raids',
@@ -747,7 +755,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '2 Oct 2026',
-  protocol: 16,
+  protocol: 17,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'Gate 2',

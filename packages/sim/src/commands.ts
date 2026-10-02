@@ -52,9 +52,6 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       if (!hero.alive) return reject('Hero is dead');
       const target = state.creeps.find((c) => c.id === command.targetId && !c.dead);
       if (!target) return reject('Invalid target');
-      if (state.tuning.creeps[target.kind].flying && !state.tuning.hero[hero.kind].ranged) {
-        return reject('Cannot attack flying units');
-      }
       hero.order = { type: 'attack', targetId: target.id };
       hero.path = [];
       hero.repathTick = 0;

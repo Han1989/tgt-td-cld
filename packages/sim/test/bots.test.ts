@@ -200,3 +200,39 @@ describe('balance bot', () => {
     expect(goalY(1, 20, true)).toBeCloseTo(goalY(1, 20, false));
   });
 });
+
+describe('balance bot ultimates', () => {
+  /** A two-player lab (Ranger and Arcanist, R learned and a full mana pool) with `creeps` grunts rooted on the lanes. */
+  function rainLab(creeps: number) {
+    const state = labGame(TUNING, 2, ['ranger', 'arcanist']);
+    for (const h of state.heroes) {
+      h.level = 6;
+      h.ranks.R = 1;
+      h.attackCd = 1_000_000;
+    }
+    for (let i = 0; i < creeps; i++) {
+      const lane = (i % 3) as 0 | 1 | 2;
+      const p = getMap().lanes[lane]!.waypoints[0]!;
+      placeCreep(state, 'grunt', p.x, p.y + 3 + Math.floor(i / 3), lane).rootUntil = 1_000_000;
+    }
+    return state;
+  }
+  const casts = (cmds: ReturnType<ReturnType<typeof createBalanceBot>['decide']>) =>
+    cmds.filter((c) => c.type === 'cast' && c.slot === 'R');
+
+  it('rains when the lanes are full of creeps, with no aim point, and not on a near-empty map', () => {
+    expect(casts(createBalanceBot('p1', undefined, 0).decide(snapshot(rainLab(3))))).toEqual([]);
+    expect(casts(createBalanceBot('p1', undefined, 0).decide(snapshot(rainLab(15))))).toEqual([{ type: 'cast', slot: 'R' }]);
+  });
+
+  it('answers a teammate’s ultimate inside the combo window even with few creeps out, so the two fuse', () => {
+    const state = rainLab(8);
+    state.heroes[0]!.skillCd.R = 400;
+    state.heroes[0]!.ranks.R = 1;
+    // The Ranger cast 1 s ago: its cooldown is just under its total.
+    const ranger = state.heroes[0]!;
+    ranger.skillCd.R = 75 * 20 - 20;
+    const cmds = createBalanceBot('p2', undefined, 1).decide(snapshot(state));
+    expect(casts(cmds)).toEqual([{ type: 'cast', slot: 'R' }]);
+  });
+});

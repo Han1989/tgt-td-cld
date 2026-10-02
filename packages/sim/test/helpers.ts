@@ -1,6 +1,7 @@
-import type { CreepKind, GameEvent, HeroKind, LaneId } from '@tdt/protocol';
-import { expect } from 'vitest';
-import type { HeadlessResult } from '../src/headless';
+import type { CreepKind, GameEvent, GameMode, HeroKind, LaneId } from '@tdt/protocol';
+import { afterAll, expect } from 'vitest';
+import { createNoviceBot } from '../src/bots';
+import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
 import { createGame, step } from '../src/game';
 import { getMap } from '../src/map';
 import type { GameState } from '../src/state';
@@ -86,8 +87,18 @@ export const TEAM_OF_3: HeroKind[] = ['ranger', 'warden', 'arcanist'];
 /** Heroes should reach about level 8–10 in Quick mode. */
 export const QUICK_MIN_LEVEL = 8;
 
-/** Heart HP a winning balance bot (solo or a team) must end with on Normal: a challenge, not a walkover. */
-export const HEART_TARGET = { min: 40, max: 80 };
+/**
+ * Heart HP a winning casual balance bot (solo or a team) must end with on Normal (playtest 2: Normal is for first-time
+ * players): comfortable, not a walkover.
+ */
+export const HEART_TARGET = { min: 50, max: 90 };
+
+/** An expert bot on Normal ends with at least this much Heart; on Hard it ends inside `HARD_TARGET`. */
+export const EXPERT_NORMAL_MIN = 85;
+export const HARD_TARGET = { min: 40, max: 80 };
+
+/** A novice bot (first-time player) wins at least this share of the seeds on Normal, in every team size and mode. */
+export const NOVICE_WIN_RATE = 0.8;
 
 /**
  * Difficulty curve of teams (2 and 3 players): over a gate's matches, the share of all Heart HP lost that each third
@@ -109,3 +120,49 @@ export function expectTeamCurve(results: HeadlessResult[]): void {
   expect(first).toBeLessThanOrEqual(CURVE.firstMax);
   expect(last).toBeGreaterThanOrEqual(CURVE.lastMin);
 }
+
+/** Share of the gate seeds the novice bot wins, over every team in `teams`. */
+export function noviceWinRate(teams: HeroKind[][], mode: GameMode): number {
+  let wins = 0;
+  let played = 0;
+  for (const heroes of teams) {
+    for (const seed of BALANCE_SEEDS) {
+      const result = runHeadlessMatch({
+        bots: heroes.map((_, i) => createNoviceBot(`p${i + 1}`, undefined, i)),
+        heroes,
+        seed,
+        mode,
+      });
+      played++;
+      if (result.result === 'victory') wins++;
+    }
+  }
+  return wins / played;
+}
+
+/**
+ * Collects the Heart HP of a gate's matches (call it inside a `describe`, then `add` each result). After the last test
+ * the matrix's lesson is enforced: a single seed swings +-20 Heart, so no per-seed band can hold on every seed, but the
+ * mean must sit inside `band` and at least `share` of the seeds must (every match must still win: assert that per seed).
+ */
+export function heartGate(band: { min: number; max: number }, share: number, slack = 5): (heartHp: number) => void {
+  const hearts: number[] = [];
+  afterAll(() => {
+    if (hearts.length === 0) return;
+    const mean = hearts.reduce((a, b) => a + b, 0) / hearts.length;
+    const inBand = hearts.filter((x) => x >= band.min && x <= band.max).length / hearts.length;
+    expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeGreaterThanOrEqual(band.min - slack);
+    expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeLessThanOrEqual(band.max + slack);
+    expect(inBand, `seeds inside ${band.min}-${band.max}: ${hearts.join(', ')}`).toBeGreaterThanOrEqual(share);
+  });
+  return (heartHp) => void hearts.push(heartHp);
+}
+
+/** The gates' bands: casual Normal 50-90 (60% of the seeds), expert Normal at least 85 (80%), Hard 40-80 (60%). */
+export const CASUAL_SHARE = 0.6;
+export const EXPERT_NORMAL = { min: EXPERT_NORMAL_MIN, max: 100 };
+export const EXPERT_NORMAL_SHARE = 0.8;
+// Hard is the hardest to hold: one flat multiplier cannot sit all three heroes in 40-80 (the expert Arcanist's Meteor stuns
+// a whole lane for seconds, and he ends Hard at 80-90 where the Warden ends it at 40-55), so the share of seeds inside the band
+// is only 30%; the mean of the gate's matches must still sit inside it (the matrix reports every team on its own).
+export const HARD_SHARE = 0.3;

@@ -15,8 +15,10 @@ import {
   heroStats,
   newId,
   spawnProjectile,
+  stunCreep,
+  ultimateDamage,
 } from './combat';
-import { addZone, hitFrom, onUltCast, pulseMeteorRain, rainStrike } from './coop';
+import { hitFrom, onUltCast, pulseRain, startRain } from './coop';
 import type { GameState, Hero, Zone } from './state';
 import { secondsToTicks, TICK_RATE, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
 import { dist } from './vec';
@@ -103,7 +105,7 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
         Q: { range: 0, radius: w.cleave.radius },
         W: { range: 0, radius: w.taunt.radius },
         E: { range: 0, radius: 0 },
-        R: { range: 0, radius: 0 },
+        R: { range: 0, radius: w.ironVow.burstRadius },
       }[slot];
     }
     case 'arcanist': {
@@ -176,10 +178,10 @@ export function castInstant(state: GameState, hero: Hero, slot: SkillSlot): stri
       result = ironVow(state, hero);
       break;
     case 'ranger.R':
-      result = startRain(state, hero, 'arrowStorm');
+      result = rain(state, hero, 'arrowStorm');
       break;
     case 'arcanist.R':
-      result = startRain(state, hero, 'meteor');
+      result = rain(state, hero, 'meteor');
       break;
     default:
       return 'Pick a target point';
@@ -217,8 +219,6 @@ export function castAtPoint(state: GameState, hero: Hero, slot: SkillSlot, x: nu
   }
   pay(state, hero, slot);
   emit(state, { type: 'cast', heroId: hero.id, slot, x, y });
-  // Point casts resolve inside step(), after the tick has already advanced.
-  if (slot === 'R') noteUltimate(state, hero, state.tick);
 }
 
 /**
@@ -298,27 +298,38 @@ export function keenEyeMultiplier(state: GameState, hero: Hero, roll: () => numb
 
 function cleave(state: GameState, hero: Hero): string | null {
   const s = state.tuning.hero.warden.cleave;
-  const targets = creepsInRadius(state, hero.x, hero.y, s.radius, false);
+  // Flyers within reach are hit too (the Warden's swing is as wide as it looks).
+  const targets = creepsInRadius(state, hero.x, hero.y, s.radius, true);
   if (targets.length === 0) return 'No targets in range';
   pay(state, hero, 'Q');
   const damage = s.damage[rankIndex(state, hero, 'Q')] ?? 0;
   emit(state, { type: 'aoe', effect: 'cleave', x: hero.x, y: hero.y, radius: s.radius });
   const from = hitFrom(state, hero);
-  for (const c of targets) damageCreep(state, c, damage, 'physical', hero.owner, false, from);
+  let dealt = 0;
+  for (const c of targets) dealt += damageCreep(state, c, damage, 'physical', hero.owner, false, from);
+  bloodHungerHeal(state, hero, dealt);
   return null;
 }
 
-/** Taunt: nearby ground creeps that can attack must chase the Warden, ignoring their leash. */
+/**
+ * Taunt: nearby ground creeps that can attack must chase the Warden, ignoring their leash; flyers within the radius
+ * turn from the Heart and hover over him for as long (creeps.ts).
+ */
 function taunt(state: GameState, hero: Hero): string | null {
   const s = state.tuning.hero.warden.taunt;
-  const targets = creepsInRadius(state, hero.x, hero.y, s.radius, false).filter(
-    (c) => state.tuning.creeps[c.kind].damage > 0,
+  const targets = creepsInRadius(state, hero.x, hero.y, s.radius, true).filter(
+    (c) => state.tuning.creeps[c.kind].flying || state.tuning.creeps[c.kind].damage > 0,
   );
   if (targets.length === 0) return 'No targets in range';
   pay(state, hero, 'W');
   const ticks = secondsToTicks(s.duration[rankIndex(state, hero, 'W')] ?? 0);
   emit(state, { type: 'aoe', effect: 'taunt', x: hero.x, y: hero.y, radius: s.radius });
   for (const c of targets) {
+    if (state.tuning.creeps[c.kind].flying) {
+      c.targetId = hero.id;
+      c.tauntUntil = Math.max(c.tauntUntil, state.tick + controlTicks(state, c, ticks));
+      continue;
+    }
     if (c.mode === 'lane') {
       c.anchorX = c.x;
       c.anchorY = c.y;
@@ -330,23 +341,26 @@ function taunt(state: GameState, hero: Hero): string | null {
   return null;
 }
 
-/** Arrow Storm or Meteor: a global lane rain. No aim point. */
-function startRain(state: GameState, hero: Hero, kind: 'arrowStorm' | 'meteor'): string | null {
-  const t = kind === 'arrowStorm' ? state.tuning.hero.ranger.arrowStorm : state.tuning.hero.arcanist.meteor;
-  pay(state, hero, 'R');
-  const pulse = Math.max(1, secondsToTicks(t.pulseInterval));
-  const zone = addZone(state, kind, hero, secondsToTicks(t.duration), pulse, pulse);
-  onUltCast(state, hero, kind, zone);
-  return null;
-}
-
-/** Iron Vow: every living hero gains armour and regeneration until the duration ends. No stun. */
+/**
+ * Iron Vow: every living hero, anywhere, heals a share of their max HP at once, and gains armour and regeneration
+ * until the duration ends. A burst around the Warden damages and briefly stuns the creeps there (flyers too).
+ */
 function ironVow(state: GameState, hero: Hero): string | null {
   const s = state.tuning.hero.warden.ironVow;
   const i = rankIndex(state, hero, 'R');
   pay(state, hero, 'R');
   hero.guardianUntil = state.tick + secondsToTicks(s.duration[i] ?? 0);
-  emit(state, { type: 'aoe', effect: 'ironVow', x: hero.x, y: hero.y, radius: 0 });
+  for (const h of state.heroes) {
+    if (h.alive) h.hp = Math.min(heroMaxHp(state, h), h.hp + heroMaxHp(state, h) * (s.heal[i] ?? 0));
+  }
+  emit(state, { type: 'aoe', effect: 'ironVow', x: hero.x, y: hero.y, radius: s.burstRadius });
+  const from = hitFrom(state, hero);
+  const stun = secondsToTicks(s.burstStun[i] ?? 0);
+  for (const c of creepsInRadius(state, hero.x, hero.y, s.burstRadius, true)) {
+    stunCreep(state, c, stun);
+    ultimateDamage(state, c, s.burstDamage[i] ?? 0, 'physical', hero.owner, from, 'ironVow');
+  }
+  onUltCast(state, hero, 'ironVow', null);
   return null;
 }
 
@@ -382,8 +396,15 @@ function frostNova(state: GameState, hero: Hero, x: number, y: number): void {
 }
 
 // ---------------------------------------------------------------------------
-// Zones (global rains)
+// Zones (Arrow Storm, Meteor and the combos)
 // ---------------------------------------------------------------------------
+
+/** Arrow Storm or Meteor: a rain over all three lanes, no aim point. Strikes land on the creeps, ground and air. */
+function rain(state: GameState, hero: Hero, kind: 'arrowStorm' | 'meteor'): string | null {
+  pay(state, hero, 'R');
+  onUltCast(state, hero, kind, startRain(state, hero, kind));
+  return null;
+}
 
 export function updateZones(state: GameState): void {
   for (const zone of state.zones) {
@@ -397,33 +418,5 @@ export function updateZones(state: GameState): void {
 }
 
 function pulseZone(state: GameState, zone: Zone): void {
-  if (pulseMeteorRain(state, zone)) return;
-  const i = Math.max(0, zone.rank - 1);
-  // Each impact emits its own `aoe` at the spot it lands. The zone itself has no circle.
-  if (zone.kind === 'arrowStorm') {
-    const s = state.tuning.hero.ranger.arrowStorm;
-    rainStrike(state, zone, 'arrowStorm', {
-      damage: s.damage[i] ?? 0,
-      radius: s.strikeRadius,
-      air: true,
-      stunTicks: 0,
-      magic: false,
-      laneCap: s.laneCap,
-      heartCap: s.heartCap,
-      heartRadius: s.heartRadius,
-    });
-  } else if (zone.kind === 'meteor') {
-    const s = state.tuning.hero.arcanist.meteor;
-    rainStrike(state, zone, 'meteor', {
-      damage: s.damage[i] ?? 0,
-      radius: s.strikeRadius,
-      air: false,
-      stunTicks: secondsToTicks(s.stun[i] ?? 0),
-      magic: true,
-      laneCap: s.laneCap,
-      heartCap: s.heartCap,
-      heartRadius: s.heartRadius,
-      bossDamage: s.bossDamage,
-    });
-  }
+  pulseRain(state, zone);
 }

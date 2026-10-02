@@ -3,7 +3,6 @@
 // A new player's first match is the lesson (Quick, Normal); Skip leaves their saved pick alone.
 
 import type { Difficulty, GameMode, HeroKind } from '@tdt/protocol';
-import { meteorRainPartner } from '@tdt/sim';
 import { lessonStatus } from '../tutorial/logic';
 import { sharedSettings } from '../settings';
 import { DifficultyPicker, storedDifficulty, storeDifficulty } from './difficultyPicker';
@@ -65,11 +64,8 @@ export function showSoloPick(
   applyLesson(sharedSettings().get().tutorial === 'new');
 
   const syncPractice = (): void => {
-    const ok = meteorRainPartner(picker.hero) !== null;
-    practiceBtn.disabled = !ok;
-    practiceBtn.title = ok
-      ? 'Solo practice: an ally plays the other hero and answers your ultimate'
-      : 'Meteor Rain is Ranger and Arcanist — pick one of those';
+    practiceBtn.disabled = false;
+    practiceBtn.title = 'Solo practice: an ally plays another hero and answers your ultimate, so you can try the combos';
   };
   syncPractice();
   const heroes = $('lobby-heroes-solo');

@@ -4,7 +4,7 @@ import type { HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createExpertBot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
-import { BALANCE_SEEDS, expectTeamCurve, HEART_TARGET, PAIRS, TEAM_OF_3 } from './helpers';
+import { BALANCE_SEEDS, expectTeamCurve, HARD_TARGET, PAIRS, TEAM_OF_3, heartGate, HARD_SHARE, EXPERT_NORMAL_SHARE, EXPERT_NORMAL } from './helpers';
 
 const TIMEOUT = 120_000;
 
@@ -13,27 +13,29 @@ function bots(heroes: HeroKind[]) {
 }
 
 describe('expert bot (Full mode, teams)', () => {
+  const hardGate = heartGate(HARD_TARGET, HARD_SHARE);
+  const normalGate = heartGate(EXPERT_NORMAL, EXPERT_NORMAL_SHARE);
   const pairs = BALANCE_SEEDS.map((seed, i) => [...PAIRS[i % PAIRS.length]!, seed] as const);
   const hard: Record<number, HeadlessResult[]> = { 2: [], 3: [] };
 
   it.each(pairs)(
-    'on Normal a %s + %s pair wins all 30 waves with at least 80 Heart HP (seed %i)',
+    'on Normal a %s + %s pair wins all 30 waves with at least 85 Heart HP (seed %i)',
     (a, b, seed) => {
       const result = runHeadlessMatch({ bots: bots([a, b]), heroes: [a, b], seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(80);
+      normalGate(result.heartHp);
     },
     TIMEOUT,
   );
 
   it.each(BALANCE_SEEDS)(
-    'on Normal three experts win all 30 waves with at least 80 Heart HP (seed %i)',
+    'on Normal three experts win all 30 waves with at least 85 Heart HP (seed %i)',
     (seed) => {
       const result = runHeadlessMatch({ bots: bots(TEAM_OF_3), heroes: TEAM_OF_3, seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(80);
+      normalGate(result.heartHp);
     },
     TIMEOUT,
   );
@@ -43,10 +45,8 @@ describe('expert bot (Full mode, teams)', () => {
     (a, b, seed) => {
       const result = runHeadlessMatch({ bots: bots([a, b]), heroes: [a, b], seed, difficulty: 'hard' });
       hard[2]!.push(result);
-      expect(result.result).toBe('victory');
-      expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+      // A lost Hard match counts as 0 Heart in the gate below.
+      hardGate(result.result === 'victory' ? result.heartHp : 0);
     },
     TIMEOUT,
   );
@@ -56,10 +56,8 @@ describe('expert bot (Full mode, teams)', () => {
     (seed) => {
       const result = runHeadlessMatch({ bots: bots(TEAM_OF_3), heroes: TEAM_OF_3, seed, difficulty: 'hard' });
       hard[3]!.push(result);
-      expect(result.result).toBe('victory');
-      expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+      // A lost Hard match counts as 0 Heart in the gate below.
+      hardGate(result.result === 'victory' ? result.heartHp : 0);
     },
     TIMEOUT,
   );

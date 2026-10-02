@@ -1,23 +1,21 @@
-// Solo Meteor Rain practice: a second hero that learns R, follows you, and casts its own
-// instant R inside the combo window. It only reads snapshots and sends commands.
+// Solo combo practice: a second hero that learns R, follows you, and casts its own R a moment after yours, inside the
+// combo window. It only reads snapshots and sends commands.
 
-import type { Command, EntityId, PlayerId, Snapshot } from '@tdt/protocol';
+import { R_OVERLAP_SECONDS, type Command, type EntityId, type PlayerId, type Snapshot } from '@tdt/protocol';
 import { skillCommand, type Bot } from './bots';
 import { TICK_RATE } from './tuning';
 import { dist } from './vec';
 
-/** The ally casts this long after your ultimate, inside the 2 s combo window. */
+/** The ally casts this long after your ultimate, inside the combo window. */
 const ANSWER_DELAY = 0.5;
-/** It gives up on an answer this long after your cast. */
-const ANSWER_DEADLINE = 1.9;
+/** It gives up on an answer this long after your cast (its R may still be coming back from a cooldown or mana). */
+const ANSWER_DEADLINE = R_OVERLAP_SECONDS - 0.5;
 const FOLLOW_OFFSET = 1.8;
 const FOLLOW_SLACK = 3.5;
 /** Re-issue a follow order at most this often (ticks). */
 const FOLLOW_EVERY = 10;
 
 interface Answer {
-  x: number;
-  y: number;
   notBefore: number;
   deadline: number;
 }
@@ -40,8 +38,6 @@ export function createPracticeAlly(allyId: PlayerId, leaderId: PlayerId): Bot {
       for (const e of snap.events) {
         if (e.type !== 'cast' || e.slot !== 'R' || e.heroId !== leaderHeroId) continue;
         answer = {
-          x: e.x,
-          y: e.y,
           notBefore: snap.tick + Math.round(ANSWER_DELAY * TICK_RATE),
           deadline: snap.tick + Math.round(ANSWER_DEADLINE * TICK_RATE),
         };
@@ -56,7 +52,7 @@ export function createPracticeAlly(allyId: PlayerId, leaderId: PlayerId): Bot {
 
       const r = me.skills.find((s) => s.slot === 'R');
       if (answer && (snap.tick > answer.deadline || !r || r.rank === 0 || r.cooldown > 0)) answer = null;
-      if (answer && snap.tick >= answer.notBefore && r && r.rank > 0 && r.cooldown === 0 && !r.targeted) {
+      if (answer && snap.tick >= answer.notBefore && r && r.rank > 0 && r.cooldown === 0) {
         cmds.push({ type: 'cast', slot: 'R' });
         busyUntil = snap.tick + Math.round(ANSWER_DEADLINE * TICK_RATE);
         answer = null;
