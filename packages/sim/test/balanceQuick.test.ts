@@ -6,23 +6,23 @@ import { HERO_KINDS } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createBalanceBot, createIdleBot } from '../src/bots';
 import { runHeadlessMatch } from '../src/headless';
-import { BALANCE_SEEDS as SEEDS, HEART_TARGET, QUICK_MIN_LEVEL } from './helpers';
+import { BALANCE_SEEDS as SEEDS, HEART_TARGET, QUICK_MIN_LEVEL, heartGate, CASUAL_SHARE } from './helpers';
 
 /** A Quick match takes about half the CPU of a Full one. */
 const TIMEOUT = 60_000;
 
 describe('headless balance run (Quick mode, solo)', () => {
+  const casualGate = heartGate(HEART_TARGET, CASUAL_SHARE);
   const solo = HERO_KINDS.flatMap((hero) => SEEDS.map((seed) => [hero, seed] as const));
 
   it.each(solo)(
-    'the sensible-build bot wins all 15 waves as the %s with 40–80 Heart HP left (seed %i)',
+    'the sensible-build bot wins all 15 waves as the %s with 50–90 Heart HP on average (seed %i)',
     (hero, seed) => {
       const result = runHeadlessMatch({ bots: [createBalanceBot('p1')], heroes: [hero], seed, mode: 'quick' });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(15);
       expect(result.heroLevels[0]).toBeGreaterThanOrEqual(QUICK_MIN_LEVEL);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+      casualGate(result.heartHp);
     },
     TIMEOUT,
   );

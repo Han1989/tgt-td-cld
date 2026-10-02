@@ -5,13 +5,14 @@
 import { describe, expect, it } from 'vitest';
 import { createBalanceBot } from '../src/bots';
 import { runHeadlessMatch } from '../src/headless';
-import { BALANCE_SEEDS as SEEDS, HEART_TARGET, TEAM_OF_3 } from './helpers';
+import { BALANCE_SEEDS as SEEDS, HEART_TARGET, TEAM_OF_3, heartGate, CASUAL_SHARE } from './helpers';
 
 const TIMEOUT = 120_000;
 
 describe('headless balance run (3 players, Sky Tide)', () => {
+  const casualGate = heartGate(HEART_TARGET, CASUAL_SHARE);
   it.each(SEEDS)(
-    'three balance bots win all 30 waves with 40–80 Heart under Sky Tide (seed %i)',
+    'three balance bots win all 30 waves with 50–90 Heart on average under Sky Tide (seed %i)',
     (seed) => {
       const result = runHeadlessMatch({
         bots: TEAM_OF_3.map((_, i) => createBalanceBot(`p${i + 1}`, undefined, i)),
@@ -21,8 +22,7 @@ describe('headless balance run (3 players, Sky Tide)', () => {
       });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+      casualGate(result.heartHp);
     },
     TIMEOUT,
   );

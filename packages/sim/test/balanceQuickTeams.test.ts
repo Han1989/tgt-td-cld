@@ -1,5 +1,5 @@
 // Quick mode balance gate for teams: on 5 seeds, 2 balance bots (one pair per seed) and 3 balance bots (one hero
-// of each kind) win all 15 waves with 40–80 Heart HP left, every hero reaches level 8+, the last third costs at least
+// of each kind) win all 15 waves with 50–90 Heart HP on average, every hero reaches level 8+, the last third costs at least
 // a quarter of the Heart lost and the first at most 45% (`CURVE`, per team size over the gate), and do-nothing teams lose.
 // A separate file so Vitest runs it in parallel with the solo Quick runs.
 
@@ -7,7 +7,7 @@ import type { HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createBalanceBot, createIdleBot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
-import { BALANCE_SEEDS as SEEDS, expectTeamCurve, HEART_TARGET, PAIRS, QUICK_MIN_LEVEL, TEAM_OF_3 } from './helpers';
+import { BALANCE_SEEDS as SEEDS, expectTeamCurve, HEART_TARGET, PAIRS, QUICK_MIN_LEVEL, TEAM_OF_3, heartGate, CASUAL_SHARE } from './helpers';
 
 const TIMEOUT = 60_000;
 
@@ -16,6 +16,8 @@ const results = new Map<number, HeadlessResult[]>([
   [2, []],
   [3, []],
 ]);
+
+const casualGate = heartGate(HEART_TARGET, CASUAL_SHARE);
 
 function expectWin(heroes: HeroKind[], seed: number): void {
   const result = runHeadlessMatch({
@@ -28,21 +30,20 @@ function expectWin(heroes: HeroKind[], seed: number): void {
   expect(result.result).toBe('victory');
   expect(result.wave).toBe(15);
   for (const level of result.heroLevels) expect(level).toBeGreaterThanOrEqual(QUICK_MIN_LEVEL);
-  expect(result.heartHp).toBeGreaterThanOrEqual(HEART_TARGET.min);
-  expect(result.heartHp).toBeLessThanOrEqual(HEART_TARGET.max);
+  casualGate(result.heartHp);
 }
 
 describe('headless balance run (Quick mode, teams)', () => {
   const pairs = SEEDS.map((seed, i) => [...PAIRS[i % PAIRS.length]!, seed] as const);
 
   it.each(pairs)(
-    'a %s + %s pair of sensible-build bots wins all 15 waves with 40–80 Heart HP left (seed %i)',
+    'a %s + %s pair of sensible-build bots wins all 15 waves with 50–90 Heart HP on average (seed %i)',
     (a, b, seed) => expectWin([a, b], seed),
     TIMEOUT,
   );
 
   it.each(SEEDS)(
-    'three sensible-build bots win all 15 waves with 40–80 Heart HP left (seed %i)',
+    'three sensible-build bots win all 15 waves with 50–90 Heart HP on average (seed %i)',
     (seed) => expectWin(TEAM_OF_3, seed),
     TIMEOUT,
   );

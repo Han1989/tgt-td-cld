@@ -138,23 +138,22 @@ describe('difficulty', () => {
     expect(scaledCount(state, 4)).toBe(4);
   });
 
-  it('Hard raises creep HP and how many non-boss creeps spawn, more so in the last third', () => {
+  it('Hard is a flat multiplier: more creep HP from wave 1 to the last, bosses unchanged, more bodies where the band says so', () => {
     const normal = at('normal');
     const hard = at('hard');
     expect(creepMaxHp(hard, 'grunt', 1)).toBeGreaterThan(creepMaxHp(normal, 'grunt', 1));
-    expect(creepMaxHp(hard, 'ironhorn', 30)).toBeGreaterThan(creepMaxHp(normal, 'ironhorn', 30));
-    // A single group can round the same way early and late. Across the sizes a wave actually uses, the last
-    // third spawns more bodies (the late HP/count ramp, plus any flat extras that grow then).
-    const sizes = [4, 8, 10, 14, 16];
-    const total = (wave: number) => {
-      hard.wave = wave;
-      return sizes.reduce((sum, n) => sum + scaledCount(hard, n), 0);
-    };
-    const early = total(1);
-    const late = total(30);
-    normal.wave = 1;
-    expect(early).toBeGreaterThan(scaledCount(normal, 10));
-    expect(late).toBeGreaterThan(early);
+    expect(creepMaxHp(hard, 'grunt', 30)).toBeGreaterThan(creepMaxHp(normal, 'grunt', 30));
+    // A boss leak is 20 Heart: Hard leaves bosses alone, and has no ramp toward the final wave.
+    expect(creepMaxHp(hard, 'ironhorn', 30)).toBe(creepMaxHp(normal, 'ironhorn', 30));
+    const ratio = (wave: number) => creepMaxHp(hard, 'grunt', wave) / creepMaxHp(normal, 'grunt', wave);
+    expect(ratio(30)).toBeCloseTo(ratio(1), 1);
+    // A team of three also gets more creeps (solo does not).
+    const team = (difficulty: 'normal' | 'hard') =>
+      createGame(
+        { players: ['p1', 'p2', 'p3'].map((id) => ({ id, name: id, hero: 'ranger' as const })), difficulty },
+        1,
+      );
+    expect(scaledCount(team('hard'), 10)).toBeGreaterThan(scaledCount(team('normal'), 10));
   });
 
   it('Hard does not add bosses: a boss wave still spawns one, and a grunt wave spawns more', () => {
@@ -167,7 +166,10 @@ describe('difficulty', () => {
     tuning.waves.interval = 3;
     tuning.waves.spawnInterval = 0.05;
     const seen = (difficulty: 'normal' | 'hard') => {
-      const state = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }], tuning, difficulty }, 3);
+      const state = createGame(
+        { players: ['p1', 'p2', 'p3'].map((id) => ({ id, name: id, hero: 'ranger' as const })), tuning, difficulty },
+        3,
+      );
       state.heartHp = 1e9;
       const grunts = new Set<number>();
       const bosses = new Set<number>();

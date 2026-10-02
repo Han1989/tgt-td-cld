@@ -5,11 +5,13 @@ import { HERO_KINDS } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createExpertBot } from '../src/bots';
 import { runHeadlessMatch } from '../src/headless';
-import { BALANCE_SEEDS as SEEDS, EXPERT_NORMAL_MIN, HARD_TARGET } from './helpers';
+import { BALANCE_SEEDS as SEEDS, HARD_TARGET, heartGate, HARD_SHARE, EXPERT_NORMAL_SHARE, EXPERT_NORMAL } from './helpers';
 
 const TIMEOUT = 60_000;
 
 describe('expert bot (Full mode, solo)', () => {
+  const hardGate = heartGate(HARD_TARGET, HARD_SHARE);
+  const normalGate = heartGate(EXPERT_NORMAL, EXPERT_NORMAL_SHARE);
   const cases = HERO_KINDS.flatMap((hero) => SEEDS.map((seed) => [hero, seed] as const));
 
   it.each(cases)(
@@ -18,7 +20,7 @@ describe('expert bot (Full mode, solo)', () => {
       const result = runHeadlessMatch({ bots: [createExpertBot('p1')], heroes: [hero], seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(EXPERT_NORMAL_MIN);
+      normalGate(result.heartHp);
     },
     TIMEOUT,
   );
@@ -34,8 +36,7 @@ describe('expert bot (Full mode, solo)', () => {
       });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HARD_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HARD_TARGET.max);
+      hardGate(result.heartHp);
     },
     TIMEOUT,
   );

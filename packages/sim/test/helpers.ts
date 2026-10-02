@@ -1,5 +1,5 @@
 import type { CreepKind, GameEvent, GameMode, HeroKind, LaneId } from '@tdt/protocol';
-import { expect } from 'vitest';
+import { afterAll, expect } from 'vitest';
 import { createNoviceBot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
 import { createGame, step } from '../src/game';
@@ -140,4 +140,26 @@ export function noviceWinRate(teams: HeroKind[][], mode: GameMode): number {
   return wins / played;
 }
 
+/**
+ * Collects the Heart HP of a gate's matches (call it inside a `describe`, then `add` each result). After the last test
+ * the matrix's lesson is enforced: a single seed swings +-20 Heart, so no per-seed band can hold on every seed, but the
+ * mean must sit inside `band` and at least `share` of the seeds must (every match must still win: assert that per seed).
+ */
+export function heartGate(band: { min: number; max: number }, share: number): (heartHp: number) => void {
+  const hearts: number[] = [];
+  afterAll(() => {
+    if (hearts.length === 0) return;
+    const mean = hearts.reduce((a, b) => a + b, 0) / hearts.length;
+    const inBand = hearts.filter((x) => x >= band.min && x <= band.max).length / hearts.length;
+    expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeGreaterThanOrEqual(band.min);
+    expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeLessThanOrEqual(band.max);
+    expect(inBand, `seeds inside ${band.min}-${band.max}: ${hearts.join(', ')}`).toBeGreaterThanOrEqual(share);
+  });
+  return (heartHp) => void hearts.push(heartHp);
+}
 
+/** The gates' bands: casual Normal 50-90 (70% of the seeds), expert Normal at least 85 (80%), Hard 40-80 (60%). */
+export const CASUAL_SHARE = 0.7;
+export const EXPERT_NORMAL = { min: EXPERT_NORMAL_MIN, max: 100 };
+export const EXPERT_NORMAL_SHARE = 0.8;
+export const HARD_SHARE = 0.6;

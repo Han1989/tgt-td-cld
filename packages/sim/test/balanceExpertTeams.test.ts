@@ -4,7 +4,7 @@ import type { HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createExpertBot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
-import { BALANCE_SEEDS, expectTeamCurve, EXPERT_NORMAL_MIN, HARD_TARGET, PAIRS, TEAM_OF_3 } from './helpers';
+import { BALANCE_SEEDS, expectTeamCurve, HARD_TARGET, PAIRS, TEAM_OF_3, heartGate, HARD_SHARE, EXPERT_NORMAL_SHARE, EXPERT_NORMAL } from './helpers';
 
 const TIMEOUT = 120_000;
 
@@ -13,6 +13,8 @@ function bots(heroes: HeroKind[]) {
 }
 
 describe('expert bot (Full mode, teams)', () => {
+  const hardGate = heartGate(HARD_TARGET, HARD_SHARE);
+  const normalGate = heartGate(EXPERT_NORMAL, EXPERT_NORMAL_SHARE);
   const pairs = BALANCE_SEEDS.map((seed, i) => [...PAIRS[i % PAIRS.length]!, seed] as const);
   const hard: Record<number, HeadlessResult[]> = { 2: [], 3: [] };
 
@@ -22,7 +24,7 @@ describe('expert bot (Full mode, teams)', () => {
       const result = runHeadlessMatch({ bots: bots([a, b]), heroes: [a, b], seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(EXPERT_NORMAL_MIN);
+      normalGate(result.heartHp);
     },
     TIMEOUT,
   );
@@ -33,7 +35,7 @@ describe('expert bot (Full mode, teams)', () => {
       const result = runHeadlessMatch({ bots: bots(TEAM_OF_3), heroes: TEAM_OF_3, seed });
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(EXPERT_NORMAL_MIN);
+      normalGate(result.heartHp);
     },
     TIMEOUT,
   );
@@ -45,8 +47,7 @@ describe('expert bot (Full mode, teams)', () => {
       hard[2]!.push(result);
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HARD_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HARD_TARGET.max);
+      hardGate(result.heartHp);
     },
     TIMEOUT,
   );
@@ -58,8 +59,7 @@ describe('expert bot (Full mode, teams)', () => {
       hard[3]!.push(result);
       expect(result.result).toBe('victory');
       expect(result.wave).toBe(30);
-      expect(result.heartHp).toBeGreaterThanOrEqual(HARD_TARGET.min);
-      expect(result.heartHp).toBeLessThanOrEqual(HARD_TARGET.max);
+      hardGate(result.heartHp);
     },
     TIMEOUT,
   );

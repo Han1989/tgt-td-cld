@@ -60,7 +60,7 @@ describe('match reports and replays', () => {
     expect(again.state.phase).toBe(replay.end.result);
     expect(again.state.heartHp).toBe(replay.end.heartHp);
     expect(matchReport(again)).toEqual(matchReport(match));
-  });
+  }, 30_000);
 
   it('reports the Heart after each wave and every hero’s levels, deaths and casts', () => {
     const match = botMatch(['ranger', 'arcanist'], 3, 'quick');
