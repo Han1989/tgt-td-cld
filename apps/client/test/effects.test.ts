@@ -281,6 +281,13 @@ describe('effect levels', () => {
     expect(fxLevel('low', true).maxNumbers).toBeLessThan(fxLevel('high', true).maxNumbers);
   });
 
+  it('carries the reduced-motion flag through every quality (off unless the device asks)', () => {
+    expect(fxLevel('high', true).calm).toBe(false);
+    expect(fxLevel('low', true).calm).toBe(false);
+    expect(fxLevel('high', true, true).calm).toBe(true);
+    expect(fxLevel('low', false, true).calm).toBe(true);
+  });
+
   it('keeps the screen shake setting (on by default)', () => {
     expect(parseSettings(null).shake).toBe(true);
     expect(parseSettings(JSON.stringify({ shake: false })).shake).toBe(false);

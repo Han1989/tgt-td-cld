@@ -215,6 +215,8 @@ Keep these meanings:
 | Player-side magic, wave starts | `#7ffcd8` | `FX.rune` = `RL.rune` |
 | Tower shots (muzzle flash, trail) | the tower's glow token: Arrow `rune`, Cannon `ember`, Frost `frost`, Arcane `arcane`, Flak `flare`; branches with their own glow override it (Void `voidGlow`, Prism `crystal`, Glacier `ice`, Hailstorm `snow`, Sniper / Skyguard `moon`, Mortar fire, Shrapnel ember light) | `SHOT_COLORS`, `BRANCH_SHOT_COLORS`, `shotColor(kind, branch)` |
 | Blizzard pulse | `#cff4ff` shockwave, frost-light inner ring, flakes whirled out | `fx.blizzardPulse` (the tower swells too, §7) |
+| Rain strikes (Arrow Storm, Meteor, Meteor Rain) | a volley of arrows `#e6ff7a`, a comet `#ff8a3d` with a white-hot head, a smaller quicker one for Meteor Rain `#ffb13d`, falling onto the strike; a ring at the strike radius, a flash, embers and a burn mark; faint sky streaks while a rain runs | `fx.rainImpact`, `fx.rainSky`; flights, thumps and the sky in `render/fx/rain.ts`. Streaks are short (60 to 120 ms): the sim says a strike landed, not that one is coming. Reduced motion keeps only the ring, flash and burn mark |
+| Iron Vow ring (every living ally) | `#ffd24a` dashed ring that turns, `FX.goldLight` thin ring, `FX.goldDeep` glow, under the body | `vowLook` in `render/fx/vow.ts`, three sprites per hero in `world.ts`: blooms in, blinks over its last 1.5 s, dims out over the last 0.3 s. Reduced motion: steady, no bloom, turn or blink |
 | The Heart; its blaze under 30% | `#ff3a60`; `#ff5a4a` | `COLORS.heart` = `RL.heart`, `FX.heartBlaze` |
 | Zones by seat | `#4f9dff`, `#ff9f43`, `#b56cff`, `#3ddc84` | `PLAYER_COLORS` |
 

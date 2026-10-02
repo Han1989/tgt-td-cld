@@ -13,6 +13,7 @@ import type { FxLevel } from '../quality';
 import { DISC_PX, GLYPH_PX, RING_PX, type FxAtlas, type FxFrame } from './atlas';
 import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
+import { flight, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
 import { Shake } from './shake';
 import { AOE_COLORS, COLORS, FX, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
 
@@ -154,7 +155,7 @@ export class Effects {
   readonly add: Layer;
   readonly text: Layer;
   readonly shake = new Shake();
-  level: FxLevel = { particles: true, shake: true, maxNumbers: 36 };
+  level: FxLevel = { particles: true, shake: true, maxNumbers: 36, calm: false };
   /** Camera zoom, so numbers keep their size on screen. */
   zoom = 1;
   /** Entity scale (phones draw entities larger); small bits follow it. */
@@ -181,6 +182,11 @@ export class Effects {
 
   get particles(): boolean {
     return this.level.particles;
+  }
+
+  /** The device asks for reduced motion: effects keep their rings and flashes, not what moves. */
+  get calm(): boolean {
+    return this.level.calm;
   }
 
   /** Live particles, for the stress test. */
@@ -699,8 +705,8 @@ export class Effects {
     this.ring(x, y, radius, AOE_COLORS.ironVow, 500, 0.15, 'shock');
     this.ring(x, y, radius * 0.8, FX.hot, 350, 0.1);
     this.flash(x, y, 1.2, FX.goldLight, 400, 0.8);
-    this.bump(0.35);
-    if (!this.particles) return;
+    if (!this.calm) this.bump(0.35);
+    if (!this.particles || this.calm) return;
     this.emit({
       frame: 'spark',
       x: x * S,
@@ -869,76 +875,219 @@ export class Effects {
     }
   }
 
-  /** Arrow Storm pulse: little dust kicks where the volley lands. */
-  arrowStormPulse(x: number, y: number, radius: number): void {
+  /**
+   * One strike of a global rain: Arrow Storm, Meteor or Meteor Rain (protocol 16). The `aoe` event says where it
+   * landed and how wide it struck; something falls onto that spot from above, then the ground answers. The ring and
+   * flash are essential, so a strike still reads at Low quality. The streaks, debris and thump go with particles
+   * and shake, and reduced motion (`calm`) keeps only the ring, the flash and the burn mark.
+   */
+  rainImpact(kind: RainKind, x: number, y: number, radius: number): void {
+    const plan = rainPlan(kind, radius, this.calm);
+    const px = x * S;
+    const py = y * S;
+    // Phones draw entities larger (up to 1.6x); the streaks follow, so they still read at small tile sizes.
+    const k = this.bitScale;
+    if (kind === 'arrowStorm') {
+      this.ring(x, y, radius, ZONE_COLORS.arrowStorm, 340, 0.35);
+      this.ring(x, y, radius * 1.1, ZONE_COLORS.arrowStorm, 300, 0.5, 'shock');
+      this.flash(x, y, radius * 0.7, FX.spark, 140, 0.55);
+      for (const s of plan.streaks) {
+        const f = flight(px, py, s);
+        // A faint long glow behind each arrow, so the fall reads as a line and not a speck.
+        this.emit({
+          frame: 'spark',
+          x: f.x,
+          y: f.y,
+          speed: [f.speed, f.speed],
+          angle: [f.angle, f.angle],
+          life: [s.life, s.life],
+          scale: [0.9 * k, 0.6 * k],
+          stretch: 2.4,
+          align: true,
+          alpha: [0.55, 0.2],
+          hold: 0.75,
+          tint: ZONE_COLORS.arrowStorm,
+          layer: 'add',
+        });
+        this.emit({
+          frame: 'arrow',
+          x: f.x,
+          y: f.y,
+          speed: [f.speed, f.speed],
+          angle: [f.angle, f.angle],
+          life: [s.life, s.life],
+          scale: [1.5 * k, 1.2 * k],
+          align: true,
+          alpha: [1, 0.6],
+          hold: 0.75,
+          tint: ZONE_COLORS.arrowStorm,
+          layer: 'add',
+        });
+        // A spark where it lands.
+        this.emit({
+          frame: 'spark',
+          x: px + s.landX,
+          y: py + s.landY,
+          count: 2,
+          speed: [60, 140],
+          life: [140, 240],
+          scale: [0.7, 0.2],
+          stretch: 1.4,
+          align: true,
+          drag: 3,
+          tint: FX.spark,
+          layer: 'add',
+        });
+      }
+      if (!this.particles || this.calm) return;
+      this.emit({
+        frame: 'smoke',
+        x: px,
+        y: py,
+        count: 5,
+        spread: radius * S * 0.8,
+        speed: [10, 30],
+        life: [300, 500],
+        scale: [0.35, 0.8],
+        alpha: [0.35, 0],
+        tint: FX.dust,
+      });
+      return;
+    }
+    const meteor = kind === 'meteor';
+    if (meteor) {
+      this.flash(x, y, radius, FX.hot, 170, 0.85);
+      this.flash(x, y, radius * 1.1, AOE_COLORS.meteor, 420, 0.5);
+      this.ring(x, y, radius * 1.1, FX.emberLight, 380, 0.3);
+    } else {
+      this.flash(x, y, radius * 0.9, FX.goldLight, 130, 0.8);
+      this.ring(x, y, radius, ZONE_COLORS.meteorRain, 300, 0.3);
+    }
+    this.bump(plan.shake);
+    for (const s of plan.streaks) {
+      const f = flight(px, py, s);
+      // The whole path stays lit for a moment after the head lands, so where it came from still reads.
+      const len = Math.hypot(s.fromX, s.fromY);
+      const width = 32 * 0.45 * k;
+      this.emit({
+        frame: 'spark',
+        x: px + s.landX + s.fromX / 2,
+        y: py + s.landY + s.fromY / 2,
+        life: [260, 260],
+        scale: [0.45 * k, 0.3 * k],
+        stretch: len / width,
+        rotation: f.angle,
+        alpha: [0.6, 0],
+        hold: 0.15,
+        tint: meteor ? FX.emberLight : ZONE_COLORS.meteorRain,
+        layer: 'add',
+      });
+      // A long bright tail and a hot head, flying the same way.
+      this.emit({
+        frame: 'spark',
+        x: f.x,
+        y: f.y,
+        speed: [f.speed, f.speed],
+        angle: [f.angle, f.angle],
+        life: [s.life, s.life],
+        scale: meteor ? [1.3 * k, 0.9 * k] : [1 * k, 0.7 * k],
+        stretch: meteor ? 3.4 : 3,
+        align: true,
+        alpha: [1, 0.8],
+        hold: 0.85,
+        tint: meteor ? FX.fire : ZONE_COLORS.meteorRain,
+        layer: 'add',
+      });
+      this.emit({
+        frame: 'glow',
+        x: f.x,
+        y: f.y,
+        speed: [f.speed, f.speed],
+        angle: [f.angle, f.angle],
+        life: [s.life, s.life],
+        scale: meteor ? [0.6 * k, 0.45 * k] : [0.45 * k, 0.33 * k],
+        alpha: [1, 0.9],
+        hold: 0.85,
+        tint: FX.hot,
+        layer: 'add',
+      });
+    }
     if (!this.particles) return;
+    this.scorch(x, y, radius * (meteor ? 0.8 : 0.5), meteor ? 2400 : 1200);
+    if (this.calm) return;
     this.emit({
-      frame: 'smoke',
-      x: x * S,
-      y: y * S,
-      count: 6,
-      spread: radius * S * 0.9,
-      speed: [10, 30],
-      life: [300, 500],
-      scale: [0.35, 0.8],
-      alpha: [0.35, 0],
-      tint: FX.dust,
+      frame: 'dot',
+      x: px,
+      y: py,
+      count: meteor ? 12 : 6,
+      spread: radius * S * 0.4,
+      speed: [80, 240],
+      drag: 2.5,
+      gravity: -40,
+      life: [320, 700],
+      scale: [1, 0.15],
+      jitter: 0.3,
+      tint: meteor ? [FX.gold, FX.fire, FX.fireDeep] : [FX.goldLight, FX.goldDeep],
+      layer: 'add',
     });
-  }
-
-  /** Meteor impact: a white-hot flash, two shockwaves, debris, fire, smoke, a scorch and a big shake. */
-  meteor(x: number, y: number, radius: number): void {
-    this.flash(x, y, radius * 1.2, FX.hot, 200, 0.9);
-    this.flash(x, y, radius, AOE_COLORS.meteor, 600, 0.6);
-    this.ring(x, y, radius * 1.3, FX.emberLight, 500, 0.1, 'shock');
-    this.ring(x, y, radius * 2, AOE_COLORS.meteor, 700, 0.3, 'shock');
-    this.bump(0.8);
-    if (!this.particles) return;
-    this.scorch(x, y, radius * 0.9, 3000);
+    if (!meteor) return;
     this.emit({
       frame: 'square',
-      x: x * S,
-      y: y * S,
-      count: 28,
+      x: px,
+      y: py,
+      count: 8,
       spread: radius * S * 0.3,
-      speed: [150, 380],
+      speed: [120, 300],
       drag: 2.5,
       gravity: 260,
-      life: [450, 900],
-      scale: [1.2, 0.3],
+      life: [400, 800],
+      scale: [1.1, 0.3],
       jitter: 0.4,
       spin: 10,
       tint: [FX.soot, FX.debris, FX.fire],
       hold: 0.4,
     });
     this.emit({
-      frame: 'dot',
-      x: x * S,
-      y: y * S,
-      count: 26,
-      spread: radius * S * 0.5,
-      speed: [80, 240],
-      drag: 2.5,
-      gravity: -50,
-      life: [400, 900],
-      scale: [1.1, 0.15],
-      jitter: 0.3,
-      tint: [FX.gold, FX.fire, FX.fireDeep],
-      layer: 'add',
-    });
-    this.emit({
       frame: 'smoke',
-      x: x * S,
-      y: y * S,
-      count: 10,
-      spread: radius * S * 0.6,
+      x: px,
+      y: py,
+      count: 3,
+      spread: radius * S * 0.5,
       speed: [20, 60],
       gravity: -30,
-      life: [900, 1500],
-      scale: [1.2, 2.6],
-      alpha: [0.45, 0],
+      life: [700, 1200],
+      scale: [1, 2.2],
+      alpha: [0.4, 0],
       tint: [FX.soot, FX.smoke, FX.debrisDark],
     });
+  }
+
+  /**
+   * A running global rain, once a frame: faint streaks falling all over the visible world (px), so the whole
+   * screen reads as raining and the strikes stand out against it. Nothing at Low quality or when calm.
+   */
+  rainSky(kind: RainKind, view: { left: number; top: number; right: number; bottom: number }, dtMs: number): void {
+    if (!this.particles) return;
+    const n = chance(skyRate(kind, this.calm), dtMs);
+    if (n === 0) return;
+    for (const s of skyStreaks(kind, view, n)) {
+      const f = flight(0, 0, s);
+      this.emit({
+        frame: kind === 'arrowStorm' ? 'arrow' : 'spark',
+        x: f.x,
+        y: f.y,
+        speed: [f.speed, f.speed],
+        angle: [f.angle, f.angle],
+        life: [s.life, s.life],
+        scale: kind === 'arrowStorm' ? [1.1 * this.bitScale, 0.9 * this.bitScale] : [0.9 * this.bitScale, 0.65 * this.bitScale],
+        stretch: kind === 'arrowStorm' ? 1 : 3,
+        align: true,
+        alpha: [0.5, 0.12],
+        hold: 0.5,
+        tint: ZONE_COLORS[kind],
+        layer: 'add',
+      });
+    }
   }
 
   /** A dark burn mark on the ground that fades. */
