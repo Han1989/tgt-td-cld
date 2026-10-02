@@ -1090,6 +1090,37 @@ export class Effects {
     }
   }
 
+  /**
+   * Arrow Storm and Meteor fused into Meteor Rain: a wide ring and a flash in the rain's colour where the fused
+   * rain is marked (`x`, `y`: the Meteor caster) and a smaller pair at each caster in `casters`, so both halves
+   * read as going in. Rings and flashes are essential and stay under reduced motion; the embers go. No shake: the
+   * twin ribbon owns that.
+   */
+  rainFuse(x: number, y: number, casters: readonly { x: number; y: number }[]): void {
+    const fire = ZONE_COLORS.meteorRain;
+    this.ring(x, y, 3.6, fire, 780, 0.1, 'shock');
+    this.ring(x, y, 2, AOE_COLORS.meteorRain, 560, 0.2);
+    this.flash(x, y, 2.6, fire, 640, 0.8);
+    for (const c of casters) {
+      this.ring(c.x, c.y, 1.7, fire, 560, 0.2);
+      this.flash(c.x, c.y, 1.5, fire, 460, 0.6);
+    }
+    if (!this.particles || this.calm) return;
+    this.emit({
+      frame: 'dot',
+      x: x * S,
+      y: y * S,
+      count: 18,
+      spread: S * 1.2,
+      speed: [20, 60],
+      gravity: -150,
+      life: [600, 1000],
+      scale: [0.7 * this.bitScale, 0.1],
+      tint: [FX.emberLight, fire, FX.hot],
+      layer: 'add',
+    });
+  }
+
   /** A dark burn mark on the ground that fades. */
   scorch(x: number, y: number, radius: number, life: number): void {
     this.emit({

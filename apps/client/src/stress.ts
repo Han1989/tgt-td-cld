@@ -22,6 +22,10 @@ import type { Transport } from './transport/transport';
 
 const KINDS: CreepKind[] = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'grunt', 'hatchling'];
 const PLAYER = 'local';
+/** The second caster: an Arcanist who fuses its Meteor with your Arrow Storm every 12 s. */
+const ALLY = 'ally';
+/** The tick (of every 240) the fuse lands on. A global rain starts on it, and the 80-tick leak does not. */
+const FUSE_TICK = 80;
 /** Skill effects the scene cycles through, one every 1.5 s. */
 const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'ironVow', 'arrowStorm', 'meteorRain'];
 
@@ -38,8 +42,19 @@ export class StressTransport implements Transport {
   constructor(private readonly count: number) {
     const tuning: Tuning = structuredClone(TUNING);
     tuning.economy.startingGold = 1_000_000;
-    const state = createGame({ players: [{ id: PLAYER, name: 'Stress', hero: 'ranger' }], tuning }, 1);
-    state.pads.forEach((p, i) => applyCommand(state, PLAYER, { type: 'build', padId: p.id, tower: TOWER_KINDS[i % TOWER_KINDS.length]! }));
+    const state = createGame(
+      {
+        players: [
+          { id: PLAYER, name: 'Stress', hero: 'ranger' },
+          { id: ALLY, name: 'Ally', hero: 'arcanist' },
+        ],
+        tuning,
+      },
+      1,
+    );
+    state.pads.forEach((p, i) =>
+      applyCommand(state, p.owner ?? PLAYER, { type: 'build', padId: p.id, tower: TOWER_KINDS[i % TOWER_KINDS.length]! }),
+    );
     this.base = snapshot(state);
 
     this.fpsEl = document.createElement('div');
@@ -102,16 +117,24 @@ export class StressTransport implements Transport {
         });
       }
     });
-    // The hero wears an Iron Vow ring all the time, so its sprites are part of the load.
-    const heroes = this.base.heroes.map((h) => ({ ...h, shielded: true, shieldFor: 100 }));
-    return { ...this.base, tick: t, creeps, projectiles, heroes, zones: this.zones(t), events: this.events(t, creeps), nextWaveIn: 600 };
+    // Both heroes wear an Iron Vow ring all the time, so its sprites are part of the load. The Arcanist stands on
+    // the Mid lane, where the fused rain is marked.
+    const spot = midSpot();
+    const heroes = this.base.heroes.map((h) => ({
+      ...h,
+      ...(h.owner === ALLY ? { x: spot.x, y: spot.y } : {}),
+      shielded: true,
+      shieldFor: 100,
+    }));
+    return { ...this.base, tick: t, creeps, projectiles, heroes, zones: this.zones(t), events: this.events(t, creeps, heroes), nextWaveIn: 600 };
   }
 
   /**
    * Synthetic events: your damage to every creep (each loses 1 HP a tick), 4 kills a second (yours,
-   * with bounty), a splash every other tick, crits, skills, leaks.
+   * with bounty), a splash every other tick, crits, skills, leaks, and every 12 s the two ultimates and the
+   * fuse (the same four events the sim sends for Meteor Rain, on the tick a global rain starts).
    */
-  private events(t: number, creeps: CreepSnap[]): GameEvent[] {
+  private events(t: number, creeps: CreepSnap[], heroes: Snapshot['heroes']): GameEvent[] {
     const events: GameEvent[] = [{ type: 'damage', by: PLAYER, hits: creeps.flatMap((c) => [c.id, 1]) }];
     const pick = (k: number) => creeps[(t * 7 + k * 13) % Math.max(1, creeps.length)];
     if (t % 5 === 0) {
@@ -132,6 +155,15 @@ export class StressTransport implements Transport {
       if (c) events.push({ type: 'aoe', effect, x: c.x, y: c.y, radius: effect === 'meteor' ? 3 : 2.5 });
     }
     if (t % 80 === 40) events.push({ type: 'leak', creepId: 1, damage: 1, lane: 1 });
+    const [ranger, arcanist] = heroes;
+    if (ranger && arcanist && t % 240 === FUSE_TICK) {
+      events.push(
+        { type: 'cast', heroId: ranger.id, slot: 'R', x: ranger.x, y: ranger.y },
+        { type: 'cast', heroId: arcanist.id, slot: 'R', x: arcanist.x, y: arcanist.y },
+        { type: 'syncCast', heroIds: [ranger.id, arcanist.id].sort((a, b) => a - b), slot: 'R' },
+        { type: 'combo', combo: 'meteorRain', x: arcanist.x, y: arcanist.y, radius: 0, heroes: [ranger.id, arcanist.id] },
+      );
+    }
     // The hero attacks once a second (its rig's attack animation).
     const hero = this.base.heroes[0];
     const c = pick(4);
@@ -145,11 +177,11 @@ export class StressTransport implements Transport {
    */
   private zones(t: number): ZoneSnap[] {
     const map = getMap();
-    const mid = map.lanes[1]!.waypoints;
-    const a = mid[Math.floor(mid.length / 2)]!;
+    const a = midSpot();
     const b = map.lanes[0]!.waypoints[1]!;
     const start = t - (t % 40);
-    const rainStart = t - (t % 120);
+    // Every 6 s; the fuse (every other one) lands on a start.
+    const rainStart = t - ((t + 120 - FUSE_TICK) % 120);
     const zones: ZoneSnap[] = [
       { id: 900_000, kind: 'arrowStorm', x: a.x, y: a.y, radius: 3, startTick: 0, endTick: 1_000_000 },
       { id: 900_001 + start, kind: 'meteor', x: b.x, y: b.y + 4, radius: 3, startTick: start, endTick: start + 24 },
@@ -179,6 +211,12 @@ export class StressTransport implements Transport {
   private emit(msg: ServerMessage): void {
     for (const h of this.handlers) h(msg);
   }
+}
+
+/** A point on the Mid lane 38% of the way down from its portal: the Arcanist stands there and the rains are marked on it. */
+function midSpot(): { x: number; y: number } {
+  const lane = getMap().lanes[1]!;
+  return pointAlong(lane.waypoints, lane.remainingFrom, lane.remainingFrom[0]! * 0.62);
 }
 
 /** The point `remaining` tiles before the end of a waypoint path. */

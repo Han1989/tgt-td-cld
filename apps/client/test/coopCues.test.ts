@@ -2,6 +2,7 @@ import {
   BOSS_KINDS,
   BOSS_LANE_HINTS,
   BOSS_WAVES,
+  COMBO_KINDS,
   FINALE_LEAK_CREEP_ID,
   FINALE_LEAK_LANE,
   LANE_NAMES,
@@ -13,6 +14,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import {
   CLUTCH_GAP_MS,
+  FUSE_COPY,
   bossLaneRoles,
   emptyCues,
   giftLine,
@@ -136,6 +138,70 @@ describe('coop presentation cues', () => {
     ], 0);
     expect(missing.beat.sync).toBeNull();
     expect(missing.beat.twin).not.toBeNull();
+  });
+
+  it('has ribbon copy for every combo the protocol defines, short enough for one phone line', () => {
+    for (const kind of COMBO_KINDS) {
+      expect(FUSE_COPY[kind].kicker.length).toBeGreaterThan(0);
+      // The word is one line (no wrapping) at 36 px on a 360 px-wide phone.
+      expect(FUSE_COPY[kind].word.length).toBeGreaterThan(0);
+      expect(FUSE_COPY[kind].word.length).toBeLessThanOrEqual(14);
+    }
+  });
+
+  it('turns a combo into a fuse beat with the casters in the event order, and the rain marked at the Meteor caster', () => {
+    const combo: GameEvent = { type: 'combo', combo: 'meteorRain', x: 20, y: 18, radius: 0, heroes: [1, 2] };
+    const fused = feed(emptyCues(), [combo], 0);
+    expect(fused.beat.fuse).toEqual({
+      combo: 'meteorRain',
+      x: 20,
+      y: 18,
+      spots: [
+        { heroId: 1, by: 'p1', x: 6, y: 20 },
+        { heroId: 2, by: 'p2', x: 20, y: 18 },
+      ],
+      word: 'Meteor Rain',
+      kicker: 'Arrow Storm + Meteor',
+    });
+    // The order is the event's (the earlier cast first), not the roster's.
+    const swapped = feed(emptyCues(), [{ ...combo, heroes: [2, 1] }], 0);
+    expect(swapped.beat.fuse?.spots.map((s) => s.heroId)).toEqual([2, 1]);
+  });
+
+  it('shows the fuse without a syncCast or a second living caster, and leaves the twin cues alone', () => {
+    // No syncCast and no R casts in the batch: the fuse still shows, and nothing else does.
+    const alone = feed(emptyCues(), [{ type: 'combo', combo: 'meteorRain', x: 5, y: 6, radius: 0, heroes: [1, 2] }], 0);
+    expect(alone.beat.fuse).not.toBeNull();
+    expect(alone.beat.sync).toBeNull();
+    expect(alone.beat.twin).toBeNull();
+    // A caster the snapshot no longer lists is left out; the ribbon stays and names who it can.
+    const gone = feed(emptyCues(), [{ type: 'combo', combo: 'meteorRain', x: 5, y: 6, radius: 0, heroes: [1, 9] }], 0);
+    expect(gone.beat.fuse?.spots.map((s) => s.by)).toEqual(['p1']);
+    const none = feed(emptyCues(), [{ type: 'combo', combo: 'meteorRain', x: 5, y: 6, radius: 0, heroes: [8, 9] }], 0);
+    expect(none.beat.fuse).toMatchObject({ x: 5, y: 6, spots: [], word: 'Meteor Rain' });
+    // With the twin events in the same batch, both beats show: the ribbon is the twins', the band is the fuse's.
+    const both = feed(emptyCues(), [
+      { type: 'cast', heroId: 1, slot: 'R', x: 1, y: 1 },
+      { type: 'cast', heroId: 2, slot: 'R', x: 9, y: 9 },
+      { type: 'syncCast', heroIds: [1, 2], slot: 'R' },
+      { type: 'combo', combo: 'meteorRain', x: 20, y: 18, radius: 0, heroes: [1, 2] },
+    ], 0);
+    expect(both.beat.sync?.spots).toHaveLength(2);
+    expect(both.beat.twin).toBeNull();
+    expect(both.beat.fuse?.spots).toHaveLength(2);
+  });
+
+  it('shows one fuse per batch, and only a combo makes one', () => {
+    const combo: GameEvent = { type: 'combo', combo: 'meteorRain', x: 20, y: 18, radius: 0, heroes: [1, 2] };
+    const twice = feed(emptyCues(), [combo, { ...combo, x: 1, y: 1 }], 0);
+    expect(twice.beat.fuse).toMatchObject({ x: 20, y: 18 });
+    const other = feed(emptyCues(), [
+      { type: 'cast', heroId: 1, slot: 'R', x: 1, y: 1 },
+      { type: 'aoe', effect: 'meteorRain', x: 3, y: 4, radius: 2 },
+    ], 0);
+    expect(other.beat.fuse).toBeNull();
+    // A fuse is not remembered: the next batch starts clean.
+    expect(feed(twice.memory, [], 100).beat.fuse).toBeNull();
   });
 
   it('names a leaking lane and skips the Hard finale strain', () => {

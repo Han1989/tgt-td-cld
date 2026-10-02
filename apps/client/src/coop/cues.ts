@@ -9,6 +9,8 @@
 // Lane clutch: a real leak (not the Hard finale strain) names its lane.
 // Together-kill: two or more living heroes' `damage` hits land on the creep a
 // `kill` names, inside a short window ending at that kill. Celebration only.
+// Fuse: the protocol 16 `combo` event (Arrow Storm + Meteor became Meteor Rain). It
+// stands on its own: the twin ribbon needs two living casters, the combo does not.
 
 import {
   BOSS_WAVES,
@@ -18,6 +20,7 @@ import {
   laneName,
   R_OVERLAP_SECONDS,
   type BossKind,
+  type ComboKind,
   type CreepKind,
   type Emote,
   type GameEvent,
@@ -94,6 +97,25 @@ export interface SyncRibbon {
   spots: { heroId: number; by: PlayerId; x: number; y: number }[];
 }
 
+/** What the fuse ribbon says for each combo: the new rain's name, and the skills that went into it. */
+export const FUSE_COPY: Record<ComboKind, { word: string; kicker: string }> = {
+  meteorRain: { word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor' },
+};
+
+/**
+ * Two rains fused (`combo`). `x`, `y` is where the fused rain is marked (the Meteor caster). `spots` are the casters
+ * the snapshot knows, in the event's order (the earlier cast first); a caster missing from it is left out, and the
+ * ribbon still shows.
+ */
+export interface FuseBeat {
+  combo: ComboKind;
+  x: number;
+  y: number;
+  spots: { heroId: number; by: PlayerId; x: number; y: number }[];
+  word: string;
+  kicker: string;
+}
+
 /** A creep reached the Heart. The Hard finale strain is not one of these. */
 export interface LaneClutch {
   /** Lane that dealt the most damage in this batch (lowest id breaks a tie). */
@@ -126,6 +148,8 @@ export interface CueBeat {
   /** Cast-overlap fallback. Null when a live `syncCast` supplied the ribbon. */
   twin: { a: Stamp<CastSpot>; b: Stamp<CastSpot> } | null;
   sync: SyncRibbon | null;
+  /** Arrow Storm and Meteor fused. Independent of `sync` and `twin`: it also shows when a caster fell first. */
+  fuse: FuseBeat | null;
   clutch: LaneClutch | null;
   together: TogetherKill | null;
 }
@@ -230,7 +254,7 @@ export function readCues(
     contrib: prev.contrib.filter((h) => now - h.at <= TOGETHER_KILL_MS),
     togetherAt: prev.togetherAt,
   };
-  const beat: CueBeat = { ping: null, emote: null, twin: null, sync: null, clutch: null, together: null };
+  const beat: CueBeat = { ping: null, emote: null, twin: null, sync: null, fuse: null, clutch: null, together: null };
   const leaking = new Map<LaneId, number>();
   for (const e of events) {
     if (e.type === 'ping') {
@@ -250,6 +274,8 @@ export function readCues(
     } else if (e.type === 'syncCast' && e.slot === 'R') {
       const next = syncRibbon(e.heroIds, snap);
       if (next) beat.sync = next;
+    } else if (e.type === 'combo') {
+      if (!beat.fuse) beat.fuse = fuseBeat(e, snap);
     } else if (e.type === 'leak' && e.creepId !== FINALE_LEAK_CREEP_ID) {
       leaking.set(e.lane, (leaking.get(e.lane) ?? 0) + e.damage);
     } else if (e.type === 'damage' && e.by && heroAlive(snap, e.by)) {
@@ -326,6 +352,16 @@ function syncRibbon(heroIds: readonly number[], snap: Snapshot): SyncRibbon | nu
   }
   if (spots.length < 2) return null;
   return { spots };
+}
+
+/** The ribbon for a `combo`: where it is marked, and which of its casters are on the snapshot. */
+function fuseBeat(e: Extract<GameEvent, { type: 'combo' }>, snap: Snapshot): FuseBeat {
+  const spots: FuseBeat['spots'] = [];
+  for (const heroId of e.heroes) {
+    const hero = snap.heroes.find((h) => h.id === heroId);
+    if (hero) spots.push({ heroId, by: hero.owner, x: hero.x, y: hero.y });
+  }
+  return { combo: e.combo, x: e.x, y: e.y, spots, ...FUSE_COPY[e.combo] };
 }
 
 function takeClutch(

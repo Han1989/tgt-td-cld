@@ -521,9 +521,8 @@ export class Hud {
 
   handleEvents(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
     for (const e of events) {
-      if (e.type === 'combo' && e.combo === 'meteorRain') {
-        this.toast('Meteor Rain!');
-      } else if (e.type === 'shieldUp') {
+      // A `combo` (Meteor Rain) has no toast: the fuse ribbon (CoopStage.fuse) is its beat.
+      if (e.type === 'shieldUp') {
         this.toast('Shield — hit it from two lanes');
       } else if (e.type === 'shieldHit') {
         this.toast('Shield lit — another lane');
