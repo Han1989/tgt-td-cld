@@ -143,7 +143,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 | P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
 | P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude). Han reviews the PR. | Team + Han | ☐ |
-| P2-04 | Ultimate presentation and combo cue (client, PR pending). Each combo has its own ribbon, strikes and colour, and a finished rain or combo shows its kill count. No aim circles. | Team | ☑ |
+| P2-04 | Ultimate presentation and combo cue (client, PR #70). Each combo has its own ribbon, strikes and colour, and a finished rain or combo shows its kill count. No aim circles. | Team | ☑ |
 | P2-05 | Retest. | Han | ☐ |
 
 ---
