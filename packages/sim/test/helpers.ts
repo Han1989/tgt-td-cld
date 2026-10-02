@@ -1,6 +1,7 @@
-import type { CreepKind, GameEvent, HeroKind, LaneId } from '@tdt/protocol';
+import type { CreepKind, GameEvent, GameMode, HeroKind, LaneId } from '@tdt/protocol';
 import { expect } from 'vitest';
-import type { HeadlessResult } from '../src/headless';
+import { createNoviceBot } from '../src/bots';
+import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
 import { createGame, step } from '../src/game';
 import { getMap } from '../src/map';
 import type { GameState } from '../src/state';
@@ -86,8 +87,18 @@ export const TEAM_OF_3: HeroKind[] = ['ranger', 'warden', 'arcanist'];
 /** Heroes should reach about level 8–10 in Quick mode. */
 export const QUICK_MIN_LEVEL = 8;
 
-/** Heart HP a winning balance bot (solo or a team) must end with on Normal: a challenge, not a walkover. */
-export const HEART_TARGET = { min: 40, max: 80 };
+/**
+ * Heart HP a winning casual balance bot (solo or a team) must end with on Normal (playtest 2: Normal is for first-time
+ * players): comfortable, not a walkover.
+ */
+export const HEART_TARGET = { min: 50, max: 90 };
+
+/** An expert bot on Normal ends with at least this much Heart; on Hard it ends inside `HARD_TARGET`. */
+export const EXPERT_NORMAL_MIN = 85;
+export const HARD_TARGET = { min: 40, max: 80 };
+
+/** A novice bot (first-time player) wins at least this share of the seeds on Normal, in every team size and mode. */
+export const NOVICE_WIN_RATE = 0.8;
 
 /**
  * Difficulty curve of teams (2 and 3 players): over a gate's matches, the share of all Heart HP lost that each third
@@ -109,3 +120,24 @@ export function expectTeamCurve(results: HeadlessResult[]): void {
   expect(first).toBeLessThanOrEqual(CURVE.firstMax);
   expect(last).toBeGreaterThanOrEqual(CURVE.lastMin);
 }
+
+/** Share of the gate seeds the novice bot wins, over every team in `teams`. */
+export function noviceWinRate(teams: HeroKind[][], mode: GameMode): number {
+  let wins = 0;
+  let played = 0;
+  for (const heroes of teams) {
+    for (const seed of BALANCE_SEEDS) {
+      const result = runHeadlessMatch({
+        bots: heroes.map((_, i) => createNoviceBot(`p${i + 1}`, undefined, i)),
+        heroes,
+        seed,
+        mode,
+      });
+      played++;
+      if (result.result === 'victory') wins++;
+    }
+  }
+  return wins / played;
+}
+
+

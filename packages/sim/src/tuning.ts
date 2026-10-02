@@ -479,6 +479,11 @@ export interface Tuning {
     xpShareRadius: number;
     /** Bosses are stunned / taunted for this fraction of the duration. */
     bossControlFactor: number;
+    /**
+     * Bosses take this share of a hero ultimate's (or a combo's) damage: ultimates clear packs, towers kill bosses.
+     * One ultimate then takes at most about 8% of a boss's HP (test/ultimates.test.ts).
+     */
+    ultimateBossFactor: number;
   };
   creepAi: {
     aggroRange: number;
@@ -667,7 +672,7 @@ export const TUNING: Tuning = {
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
-  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5 },
+  combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5, ultimateBossFactor: 0.75 },
   creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10, towerAttackLimit: 10 },
   pads: { extraPerLaneZone: [0, 0, 1] },
   bosses: {

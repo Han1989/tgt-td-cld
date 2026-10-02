@@ -121,12 +121,16 @@ export const AOE_COLORS: Record<AoeEffect, number> = {
   arrowStorm: 0xe6ff7a,
   blizzard: 0xcff4ff,
   meteorRain: 0xff5a1f,
+  stunStorm: 0xc9a7ff,
+  shockwave: 0xffd24a,
 };
 
 export const ZONE_COLORS: Record<ZoneKind, number> = {
   arrowStorm: 0xe6ff7a,
   meteor: 0xff5a1f,
   meteorRain: 0xffb13d,
+  stunStorm: 0xc9a7ff,
+  shockwave: 0xffd24a,
 };
 
 export const TOWER_COLORS: Record<TowerKind, number> = {

@@ -6,16 +6,15 @@
 // Twin ribbon: prefer a live `syncCast` (hero ids, in order). If that event is
 // missing, or its heroes are not on the snapshot, fall back to two R `cast`
 // events inside `R_OVERLAP_SECONDS` — the same window as HeroReport.rOverlaps.
-// Lane clutch: a real leak (not the Hard finale strain) names its lane.
+// Lane clutch: a creep leak names its lane.
 // Together-kill: two or more living heroes' `damage` hits land on the creep a
 // `kill` names, inside a short window ending at that kill. Celebration only.
-// Fuse: the protocol 16 `combo` event (Arrow Storm + Meteor became Meteor Rain). It
+// Fuse: the `combo` event (Meteor Rain, Stun Storm or Shockwave). It
 // stands on its own: the twin ribbon needs two living casters, the combo does not.
 
 import {
   BOSS_WAVES,
   bossLaneHint,
-  FINALE_LEAK_CREEP_ID,
   heroGiftTotals,
   laneName,
   R_OVERLAP_SECONDS,
@@ -100,6 +99,8 @@ export interface SyncRibbon {
 /** What the fuse ribbon says for each combo: the new rain's name, and the skills that went into it. */
 export const FUSE_COPY: Record<ComboKind, { word: string; kicker: string }> = {
   meteorRain: { word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor' },
+  stunStorm: { word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm' },
+  shockwave: { word: 'Shockwave', kicker: 'Meteor + Iron Vow' },
 };
 
 /**
@@ -116,7 +117,7 @@ export interface FuseBeat {
   kicker: string;
 }
 
-/** A creep reached the Heart. The Hard finale strain is not one of these. */
+/** A creep reached the Heart. */
 export interface LaneClutch {
   /** Lane that dealt the most damage in this batch (lowest id breaks a tie). */
   lane: LaneId;
@@ -276,7 +277,7 @@ export function readCues(
       if (next) beat.sync = next;
     } else if (e.type === 'combo') {
       if (!beat.fuse) beat.fuse = fuseBeat(e, snap);
-    } else if (e.type === 'leak' && e.creepId !== FINALE_LEAK_CREEP_ID) {
+    } else if (e.type === 'leak') {
       leaking.set(e.lane, (leaking.get(e.lane) ?? 0) + e.damage);
     } else if (e.type === 'damage' && e.by && heroAlive(snap, e.by)) {
       // `by` is the player, shared by their hero, towers and traps. A dead hero's

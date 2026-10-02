@@ -46,5 +46,5 @@ export {
   R_OVERLAP_SECONDS,
 } from './match';
 export type { Match, Presence } from './match';
-export { comboOf, comboPartners, heroHitLane, shieldStandPoint } from './coop';
+export { comboOf, comboPartners, heroHitLane, practicePartner, shieldStandPoint } from './coop';
 export { createPracticeAlly } from './practiceAlly';

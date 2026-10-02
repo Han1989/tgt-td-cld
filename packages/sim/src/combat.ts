@@ -191,6 +191,7 @@ export function ultimateDamage(
   from?: HitFrom | null,
 ): number {
   const alive = !creep.dead;
+  if (state.tuning.creeps[creep.kind].boss) amount *= state.tuning.combat.ultimateBossFactor;
   const dealt = damageCreep(state, creep, amount, type, source, false, from);
   state.ultStats.damage += dealt;
   if (alive && creep.dead) state.ultStats.kills++;

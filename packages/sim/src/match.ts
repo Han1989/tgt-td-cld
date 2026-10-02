@@ -306,7 +306,15 @@ export function matchReplay(match: Match): Replay {
  * Re-runs a replay with the simulation: every logged input at its tick, then steps until the match ends (or
  * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry.
  */
-export function replayMatch(replay: Replay, tuning?: Tuning): Match {
+export function replayMatch(
+  replay: Replay,
+  tuning?: Tuning,
+  /**
+   * Counterfactual re-runs only: sees every logged command before it is applied and returns the command to apply
+   * instead, or null to drop it (an ultimate recorded before aiming came back has no point to cast at).
+   */
+  rewrite?: (command: Command, playerIndex: number, match: Match) => Command | null,
+): Match {
   const practice = replay.practice;
   const ally = practice ? replay.players.find((p) => p.id === practice.allyId) : undefined;
   const players = practice ? replay.players.filter((p) => p.id !== practice.allyId) : replay.players;
@@ -334,7 +342,8 @@ export function replayMatch(replay: Replay, tuning?: Tuning): Match {
     } else {
       const cmd = decodeReplayCommand([what, ...args]);
       if (!cmd) throw new Error(`Malformed command in the replay log at tick ${tick}: ${JSON.stringify([what, ...args])}`);
-      matchCommand(match, player.id, cmd);
+      const applied = rewrite ? rewrite(cmd, index, match) : cmd;
+      if (applied) matchCommand(match, player.id, applied);
     }
   }
   const limit = Math.max(replay.end.tick, state.tick);

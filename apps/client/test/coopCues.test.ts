@@ -3,8 +3,6 @@ import {
   BOSS_LANE_HINTS,
   BOSS_WAVES,
   COMBO_KINDS,
-  FINALE_LEAK_CREEP_ID,
-  FINALE_LEAK_LANE,
   LANE_NAMES,
   R_OVERLAP_SECONDS,
   bossLaneHint,
@@ -204,12 +202,7 @@ describe('coop presentation cues', () => {
     expect(feed(twice.memory, [], 100).beat.fuse).toBeNull();
   });
 
-  it('names a leaking lane and skips the Hard finale strain', () => {
-    const finale = feed(emptyCues(), [
-      { type: 'leak', creepId: FINALE_LEAK_CREEP_ID, damage: 2, lane: FINALE_LEAK_LANE },
-    ], 0);
-    expect(finale.beat.clutch).toBeNull();
-
+  it('names a leaking lane', () => {
     const west = feed(emptyCues(), [{ type: 'leak', creepId: 4, damage: 3, lane: 0 }], 1000);
     expect(west.beat.clutch).toMatchObject({
       lane: 0,
@@ -229,7 +222,6 @@ describe('coop presentation cues', () => {
     const both = feed(emptyCues(), [
       { type: 'leak', creepId: 4, damage: 1, lane: 0 },
       { type: 'leak', creepId: 8, damage: 6, lane: 2 },
-      { type: 'leak', creepId: FINALE_LEAK_CREEP_ID, damage: 2, lane: FINALE_LEAK_LANE },
     ], 0);
     expect(both.beat.clutch).toMatchObject({
       lane: 2,

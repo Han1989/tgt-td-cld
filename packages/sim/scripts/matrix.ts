@@ -8,6 +8,8 @@
 //   fly    Heart HP lost to flyers per match, and on each lane (West / Mid / East)
 //   dead   hero deaths per match, and the Warden's
 //   R      ultimates cast per match; kills and damage per cast; combos per match; ultimates' share of all damage
+// `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
+// arrays and numbers replace), so a number can be tried without editing tuning.ts.
 // Matches run in parallel (one process per core). Slow: the full matrix is about 2500 matches.
 
 import { spawn } from 'node:child_process';
@@ -20,8 +22,10 @@ import {
   createExpertBot,
   createNoviceBot,
   runHeadlessMatch,
+  TUNING,
   type Bot,
   type HeadlessResult,
+  type Tuning,
 } from '../src';
 
 type BotName = 'novice' | 'casual' | 'expert';
@@ -59,10 +63,23 @@ interface Match {
   towers: number;
 }
 
+function merge(base: unknown, patch: unknown): unknown {
+  if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) return patch;
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(patch)) out[k] = merge(out[k], v);
+  return out;
+}
+
+const patchArg = (() => {
+  const i = process.argv.indexOf('--tuning');
+  return i >= 0 ? process.argv[i + 1] : undefined;
+})();
+const tuning: Tuning | undefined = patchArg ? (merge(TUNING, JSON.parse(patchArg)) as Tuning) : undefined;
+
 function make(bot: BotName, id: string, i: number): Bot {
-  if (bot === 'novice') return createNoviceBot(id, undefined, i);
-  if (bot === 'expert') return createExpertBot(id, undefined, i);
-  return createBalanceBot(id, undefined, i);
+  if (bot === 'novice') return createNoviceBot(id, tuning, i);
+  if (bot === 'expert') return createExpertBot(id, tuning, i);
+  return createBalanceBot(id, tuning, i);
 }
 
 function playMatch(row: Row, seed: number): Match {
@@ -72,6 +89,7 @@ function playMatch(row: Row, seed: number): Match {
     seed,
     mode: row.mode,
     difficulty: row.difficulty,
+    ...(tuning ? { tuning } : {}),
   });
   return {
     won: r.result === 'victory',
@@ -97,7 +115,7 @@ const flag = (name: string): string | undefined => {
 const seedCount = Number(flag('--seeds') ?? 30);
 const jobs = Number(flag('--jobs') ?? Math.max(1, cpus().length));
 const jsonOut = flag('--json');
-const words = args.filter((a) => !a.startsWith('--') && !/^\d+$/.test(a));
+const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && args[i - 1] !== '--tuning' && args[i - 1] !== '--json');
 const pick = <T extends string>(all: T[]): T[] => (words.some((w) => (all as string[]).includes(w)) ? all.filter((x) => words.includes(x)) : all);
 const sizeWords = words.filter((w) => ['solo', 'pairs', 'trio'].includes(w));
 const teams = TEAMS.filter((t) => sizeWords.length === 0 || sizeWords.includes(t.length === 1 ? 'solo' : t.length === 2 ? 'pairs' : 'trio'));

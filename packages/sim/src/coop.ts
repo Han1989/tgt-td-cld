@@ -145,6 +145,11 @@ export function comboPartners(kind: HeroKind): HeroKind[] {
   return HERO_KINDS.filter((k) => k !== kind);
 }
 
+/** The ally solo practice gives `kind`: Ranger and Arcanist make Meteor Rain, the Warden makes a Stun Storm with the Ranger. */
+export function practicePartner(kind: HeroKind): HeroKind {
+  return kind === 'ranger' ? 'arcanist' : kind === 'arcanist' ? 'ranger' : 'ranger';
+}
+
 /**
  * Whether the areas of two ultimates overlap. Arrow Storm and Meteor: their circles do (centres no further apart than
  * the two radii together). Iron Vow has no circle to aim: its Warden must be standing inside the other's circle.

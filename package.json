@@ -20,7 +20,9 @@
     "map": "tsx packages/sim/scripts/map.ts",
     "mana": "tsx packages/sim/scripts/mana.ts",
     "replay": "tsx packages/sim/scripts/replay.ts",
-    "balance:matrix": "tsx packages/sim/scripts/matrix.ts"
+    "balance:matrix": "tsx packages/sim/scripts/matrix.ts",
+    "balance:matrix:targets": "tsx packages/sim/scripts/matrixTargets.ts",
+    "counterfactual": "tsx packages/sim/scripts/counterfactual.ts"
   },
   "engines": {
     "node": ">=22.12"
