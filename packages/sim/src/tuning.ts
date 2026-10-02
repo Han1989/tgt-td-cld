@@ -867,8 +867,8 @@ export const TUNING: Tuning = {
       hard: {
         byPlayers: [
           { hp: 1.2, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.2, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.28, count: 1.12, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.22, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.33, count: 1.12, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
         ],
       },
     },
@@ -892,7 +892,7 @@ export const TUNING: Tuning = {
       lateBossHp: 0,
       byPlayers: [
         { hp: 1.17, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-        { hp: 1.12, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.14, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
         { hp: 1.25, count: 1.1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
       ],
     },
