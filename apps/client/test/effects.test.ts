@@ -1,10 +1,10 @@
 import type { GameEvent } from '@tdt/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Counter } from '../src/hud/counter';
 import { HitTracker } from '../src/render/fx/hits';
 import { bitAlpha, bitScale, newBit, stepBit } from '../src/render/fx/motion';
 import { damageText, GLYPHS, layoutGlyphs } from '../src/render/fx/numbers';
-import { Shake } from '../src/render/fx/shake';
+import { prefersReducedMotion, Shake, SYNC_CAST_TRAUMA, twinShake } from '../src/render/fx/shake';
 import { mixColor } from '../src/render/palette';
 import { fxLevel } from '../src/render/quality';
 import { parseSettings } from '../src/settings';
@@ -158,6 +158,68 @@ describe('screen shake', () => {
       return max;
     };
     expect(peak(0.5)).toBeLessThan(peak(1) * 0.3);
+  });
+});
+
+describe('twin-ultimate shake', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** The largest offset (px) a kick of this trauma reaches at the game's 9 px max, over any start time in 400 ms. */
+  const peakPx = (trauma: number) => {
+    let max = 0;
+    for (let t = 0; t < 400; t += 1) {
+      const s = new Shake();
+      s.add(trauma);
+      const o = s.offset(t, 0, 9);
+      max = Math.max(max, Math.abs(o.x), Math.abs(o.y));
+    }
+    return max;
+  };
+
+  it('is a clearly stronger kick than the 0.2 the ribbon used to add, and stays inside the max', () => {
+    expect(SYNC_CAST_TRAUMA).toBeGreaterThan(0.2);
+    expect(peakPx(0.2)).toBeLessThan(0.5);
+    expect(peakPx(SYNC_CAST_TRAUMA)).toBeGreaterThanOrEqual(3);
+    expect(peakPx(SYNC_CAST_TRAUMA)).toBeGreaterThan(peakPx(0.2) * 5);
+    expect(peakPx(SYNC_CAST_TRAUMA)).toBeLessThanOrEqual(9);
+  });
+
+  it('settles: the screen is dead still within half a second, whenever the kick started', () => {
+    for (const start of [0, 137, 2500, 98765]) {
+      const s = new Shake();
+      s.add(SYNC_CAST_TRAUMA);
+      let still = -1;
+      for (let t = 0; t <= 600; t += 16) {
+        const o = s.offset(start + t, 16, 9);
+        if (o.x === 0 && o.y === 0) {
+          still = t;
+          break;
+        }
+      }
+      expect(still).toBeGreaterThan(0);
+      expect(still).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it('kicks once per ribbon chain, and not at all when the device asks for reduced motion', () => {
+    expect(twinShake(0, false)).toBe(SYNC_CAST_TRAUMA);
+    expect(twinShake(1, false)).toBe(0);
+    expect(twinShake(2, false)).toBe(0);
+    expect(twinShake(0, true)).toBe(0);
+    expect(twinShake(1, true)).toBe(0);
+  });
+
+  it('asks the reduced-motion media query, and says no where the browser has no matchMedia', () => {
+    expect(prefersReducedMotion()).toBe(false);
+    const asked: string[] = [];
+    vi.stubGlobal('matchMedia', (query: string) => {
+      asked.push(query);
+      return { matches: true };
+    });
+    expect(prefersReducedMotion()).toBe(true);
+    expect(asked).toEqual(['(prefers-reduced-motion: reduce)']);
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    expect(prefersReducedMotion()).toBe(false);
   });
 });
 

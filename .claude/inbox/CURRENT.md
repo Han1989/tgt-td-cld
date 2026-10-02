@@ -1,8 +1,9 @@
 # Claude Code task
-Status: READY
-Updated: 2026-10-02T09:48:01+08:00
+Status: DONE
+Updated: 2026-10-02T10:19:26+08:00
 From: Grok Bot via Claude Code Liaison
 Branch: create from latest main; open PR; do not merge spike claude/loving-hawking-7fvsu7
+PR: https://github.com/Han1989/tgt-td-cld/pull/48
 ## Goal
 Client-only: stronger screen shake when `syncCast` fires (twin R within R_OVERLAP_SECONDS). Make the co-op twin-ultimate moment feel punchy on phone and desktop.
 ## Constraints (balance Heart 40–80, PROTOCOL, no spend)
@@ -22,3 +23,10 @@ Client-only: stronger screen shake when `syncCast` fires (twin R within R_OVERLA
 - Search client for `syncCast`, screen shake, reduced motion / `prefers-reduced-motion`.
 ## Done when
 PR opened from main with the shake polish; tests/build green; DONE + PR URL in inbox on that branch.
+## Result
+PR: https://github.com/Han1989/tgt-td-cld/pull/48 (branch `claude/syncast-shake-na1cer`, cut from main `fe47dd8`; open, not merged)
+- Twin ribbon shake: 0.2 → 0.75 trauma (about 5 px at the peak, still after about 0.4 s), once per ribbon chain. Live `syncCast` and the cast-overlap fallback share the one path.
+- Reduced motion (`prefers-reduced-motion: reduce`): the kick is skipped. Ribbon, edge glow, toasts and sound are unchanged.
+- Client only: no sim, protocol or tuning change (`PROTOCOL_VERSION` stays 15). #45 and the spike branch are untouched.
+- Checked locally: `npm test` (853 pass, balance gates unchanged) and `npm run build`. Browser tests: 56 pass; the 300-creep perf test fails in the sandbox and fails the same on plain main (software GL at ~2 FPS), so the required `ci` check on the PR is the arbiter. It was still running when this was written; Claude Code is watching it.
+- Still needs a person: feel the kick on a phone and a desktop in a 2-player room (see the PR's test plan).
