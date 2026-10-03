@@ -97,7 +97,10 @@ declare global {
  * `window.__tdt` exists. `goto` resolves on `load`, before the async start-up (Pixi, the art bake) is done,
  * and `expect.poll` gives up at once if its callback throws, so touch `window.__tdt` only after this.
  */
-export async function waitForReady(page: Page, screen?: 'showcase' | 'progress' | 'stress' | 'solo' | 'online'): Promise<void> {
+export async function waitForReady(
+  page: Page,
+  screen?: 'showcase' | 'progress' | 'privacy' | 'stress' | 'solo' | 'online',
+): Promise<void> {
   await expect(page.locator('html')).toHaveAttribute('data-ready', screen ?? /.+/);
 }
 

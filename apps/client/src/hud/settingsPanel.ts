@@ -1,8 +1,10 @@
 // Settings popup (the ⚙ in the top bar): sound (mute, music and effects volume, docs/ART.md §13),
 // touch controls layout (docs/MOBILE.md §5), graphics quality (§7), screen shake (Off / Normal / Strong), display (Normal /
-// Bright, docs/ART.md §2) and installing the app (Android prompt / iPhone sheet). The lobby's
-// speaker button mutes too.
+// Bright, docs/ART.md §2), play data on / off (docs/ANALYTICS.md; its own key, analytics/preference.ts) and installing
+// the app (Android prompt / iPhone sheet). The lobby's speaker button mutes too.
 
+import { setAnalyticsChoice } from '../analytics/install';
+import { ANALYTICS_KEY, browserSignals, playDataStatus, readAnalyticsChoice, type AnalyticsChoice } from '../analytics/preference';
 import type { StickAnchor, ThumbLayout } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import type { Display } from '../render/art/tokens';
@@ -20,6 +22,8 @@ import {
 import type { StickFeelName } from '../touch/gestures';
 import { lessonStatus } from '../tutorial/logic';
 
+const PLAY_DATA_NAMES: Record<AnalyticsChoice, string> = { on: 'On', off: 'Off' };
+
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`Missing #${id}`);
@@ -34,6 +38,8 @@ export class SettingsPanel {
   private readonly quality = $('settings-quality');
   private readonly shake = $('settings-shake');
   private readonly display = $('settings-display');
+  private readonly analytics = $('settings-analytics');
+  private readonly analyticsState = $('settings-analytics-state');
   private readonly app = $('settings-app');
   private readonly install = $('install-btn');
   private readonly iosInstall = $('ios-install-btn');
@@ -84,6 +90,10 @@ export class SettingsPanel {
     $('ios-install-close').addEventListener('click', () => this.iosSheet.classList.add('hidden'));
     onInstallChange(() => this.render());
     store.onChange(() => this.render());
+    // The privacy page (another tab) can change play data too.
+    window.addEventListener('storage', (e) => {
+      if (e.key === ANALYTICS_KEY || e.key === null) this.render();
+    });
     this.render();
   }
 
@@ -117,6 +127,13 @@ export class SettingsPanel {
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
     this.choices(this.shake, Object.entries(SHAKE_NAMES) as [ShakeSetting, string][], s.shake, (v) => this.store.set({ shake: v }));
     this.choices(this.display, Object.entries(DISPLAY_NAMES) as [Display, string][], s.display, (v) => this.store.set({ display: v }));
+    const playData = playDataStatus(readAnalyticsChoice(), browserSignals());
+    const pickData = (v: AnalyticsChoice) => {
+      setAnalyticsChoice(v);
+      this.render();
+    };
+    this.choices(this.analytics, Object.entries(PLAY_DATA_NAMES) as [AnalyticsChoice, string][], playData.on ? 'on' : 'off', pickData);
+    this.analyticsState.textContent = playData.line;
     const android = canInstall();
     const ios = isIos() && !isStandalone();
     this.install.classList.toggle('hidden', !android);

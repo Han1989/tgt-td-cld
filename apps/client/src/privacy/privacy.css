@@ -1,0 +1,208 @@
+/* privacy.html: a plain reading page in the Runelight UI colours (style.css :root, docs/ART.md §12).
+   Its own small sheet: the game's style.css is for the HUD and would load far more than this needs. */
+
+:root {
+  --bg: #0b0f14;
+  --ink: #100c16;
+  --panel: linear-gradient(180deg, rgba(33, 52, 45, 0.95), rgba(15, 13, 23, 0.95));
+  --panel-edge: rgba(207, 230, 255, 0.16);
+  --stone: linear-gradient(180deg, #4f5369, #2e3140);
+  --stone-hover: linear-gradient(180deg, #5d627b, #363a4c);
+  --stone-rim: inset 1px 1px 0 rgba(207, 230, 255, 0.28), inset 0 -2px 0 rgba(0, 0, 8, 0.35);
+  --text: #e9eef6;
+  --muted: #97a8a8;
+  --gold: #ffd24a;
+  --accent: #7ffcd8;
+  --title-font: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text);
+  background: radial-gradient(ellipse at 50% 0%, #1d3229, #0e1915 45%, var(--bg) 85%) no-repeat var(--bg);
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+}
+
+.privacy {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 20px 22px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 16px;
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.2), 0 0 0 1px var(--ink), 0 16px 40px rgba(0, 0, 8, 0.6);
+}
+
+h1,
+h2 {
+  font-family: var(--title-font);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #eef6ff;
+}
+
+h1 {
+  margin: 4px 0 0;
+  font-size: 30px;
+}
+
+h2 {
+  margin: 26px 0 6px;
+  font-size: 20px;
+}
+
+p,
+ul,
+dl {
+  margin: 8px 0;
+}
+
+ul {
+  padding-left: 22px;
+}
+
+li + li {
+  margin-top: 4px;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+a:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+strong {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(8, 6, 12, 0.75);
+  border: 1px solid var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.updated,
+.back {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.back {
+  margin: 0;
+}
+
+.back:last-child {
+  margin-top: 24px;
+}
+
+.data dt {
+  margin-top: 12px;
+  font-weight: 700;
+}
+
+.data dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.switch {
+  margin: 10px 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(8, 6, 12, 0.55);
+  border: 1px solid var(--ink);
+}
+
+.switch-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--stone);
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: var(--stone-rim);
+  padding: 8px 16px;
+  min-height: 44px;
+  min-width: 72px;
+  cursor: pointer;
+  text-shadow: 0 1px 1px rgba(0, 0, 8, 0.6);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--stone-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.active {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: linear-gradient(180deg, #33544c, #1c2a2a);
+  box-shadow: var(--stone-rim), 0 0 10px rgba(127, 252, 216, 0.3);
+}
+
+.btn.small {
+  min-height: 36px;
+  min-width: 0;
+  padding: 4px 12px;
+  font-size: 14px;
+  margin-left: 6px;
+}
+
+.state {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.visitor code {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.placeholder {
+  padding: 1px 6px;
+  border-radius: 5px;
+  color: #1a1206;
+  background: var(--gold);
+  font-weight: 700;
+}
+
+.hidden {
+  display: none !important;
+}

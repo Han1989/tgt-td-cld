@@ -27,6 +27,7 @@ import {
 } from '@tdt/protocol';
 import { getMap, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/sim';
 import { currentAnalytics } from '../analytics/install';
+import { analyticsOn } from '../analytics/preference';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { modifierChipEl } from '../lobby/modifierDom';
@@ -427,10 +428,13 @@ export class Hud {
     }
   }
 
-  /** Shows the rating when a server is configured, and reports the outcome either way it can. */
+  /**
+   * Shows the rating when a server is configured and play data is on (Settings → Play data), and reports
+   * the outcome (the client drops it when play data is off).
+   */
   private openFeedback(snap: Snapshot): void {
     const client = currentAnalytics();
-    this.endFeedback.classList.toggle('hidden', client === null);
+    this.endFeedback.classList.toggle('hidden', client === null || !analyticsOn());
     if (!client) return;
     try {
       client.matchEnd({

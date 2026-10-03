@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { swSource } from './src/platform/swSource.ts';
+
+/** The site's pages: the game, and the static privacy notice (docs/ANALYTICS.md), which loads none of the game. */
+const PAGES = ['index.html', 'privacy.html'];
 
 /**
  * Generates `sw.js` at build time (docs/MOBILE.md §7; the source is `src/platform/swSource.ts`): it
@@ -21,9 +25,15 @@ function serviceWorker(): Plugin {
     generateBundle(_options, bundle) {
       const publicFiles = listFiles(publicDir).map((f) => `/${f}`);
       const built = Object.keys(bundle)
-        .filter((f) => !f.endsWith('.map') && f !== 'index.html' && f !== 'sw.js')
+        .filter((f) => !f.endsWith('.map') && f !== 'sw.js')
         .map((f) => `/${f}`);
-      const files = ['/index.html', ...built, ...publicFiles.filter((f) => f !== '/sw.js')].sort();
+      // The HTML pages are emitted after this hook, so they are listed by name.
+      const pages = PAGES.map((page) => `/${page}`);
+      const files = [
+        ...pages,
+        ...built.filter((f) => !pages.includes(f)),
+        ...publicFiles.filter((f) => f !== '/sw.js'),
+      ].sort();
       // Sound files change the version too (their hashes), so a new upload reaches players who have the app installed.
       const version = createHash('sha256')
         .update(files.join('\n'))
@@ -165,5 +175,10 @@ export default defineConfig({
     target: 'es2022',
     // PixiJS is large; keep it in its own chunk.
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      input: Object.fromEntries(
+        PAGES.map((page) => [page.replace(/\.html$/, ''), fileURLToPath(new URL(`./${page}`, import.meta.url))]),
+      ),
+    },
   },
 });
