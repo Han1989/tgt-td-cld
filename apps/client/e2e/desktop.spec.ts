@@ -59,28 +59,62 @@ test('mouse and keyboard: right-click moves, left-click a pad and press 1 to bui
 test('Alt-click pings, and a ping sits on the edge of the screen when you look away', async ({ page }) => {
   await startSolo(page);
   const at = await toScreen(page, 2, 3);
+
+  // A ping lives 4.5 s of page time, so both placements are read in the page, counted in frames from the
+  // moment the ping appears, not after a chain of round trips that a slow runner stretches past its life.
+  // Look away at the far corner at the highest zoom: a wheel zoom stops at 2× and stays near the cursor,
+  // so it does not reliably push a nearby ping off the map; the camera does.
+  const placements = page.evaluate(async () => {
+    const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+    const read = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      const origin = el.parentElement!.getBoundingClientRect();
+      return {
+        off: el.classList.contains('off'),
+        live: el.isConnected,
+        x: origin.left + parseFloat(el.style.left),
+        y: origin.top + parseFloat(el.style.top),
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+      };
+    };
+    let el: HTMLElement | null = null;
+    for (let i = 0; i < 600 && !el; i++) {
+      await frame();
+      el = document.querySelector<HTMLElement>('#pings .ping');
+    }
+    if (!el) return null;
+    // The frame that added the ping placed it; read it on the next one.
+    await frame();
+    const onMap = read(el);
+    const cam = window.__tdt.camera;
+    cam.zoom = 2;
+    cam.centerOn(window.__tdt.map.width * 32 - 16, window.__tdt.map.height * 32 - 16);
+    await frame();
+    await frame();
+    return { onMap, away: read(el) };
+  });
   await page.keyboard.down('Alt');
   await page.mouse.click(at.x, at.y, { button: 'left' });
   await page.keyboard.up('Alt');
   await expect.poll(() => sent(page, 'ping').then((p) => p.length)).toBe(1);
   expect(await sent(page, 'move')).toHaveLength(0);
-  await expect(page.locator('#pings .ping')).toBeVisible();
-  await expect(page.locator('#pings .ping.off')).toHaveCount(0);
 
-  // Look at the far corner at the highest zoom. A wheel zoom stops at 2× and stays near the cursor,
-  // so it does not reliably push a nearby ping off the map; the camera does.
-  await page.evaluate(() => {
-    const cam = window.__tdt.camera;
-    cam.zoom = 2;
-    cam.centerOn(window.__tdt.map.width * 32 - 16, window.__tdt.map.height * 32 - 16);
-  });
-  await expect(page.locator('#pings .ping.off')).toBeVisible();
+  const seen = await placements;
+  expect(seen, 'a ping marker appeared').not.toBeNull();
+  const { onMap, away } = seen!;
+  expect(onMap).toMatchObject({ off: false, live: true });
+  expect(Math.abs(onMap.x - at.x)).toBeLessThan(1);
+  expect(Math.abs(onMap.y - at.y)).toBeLessThan(1);
+  expect(away).toMatchObject({ off: true, live: true });
   const vp = page.viewportSize()!;
-  const mark = await box(page, '#pings .ping');
-  expect(mark.left).toBeGreaterThanOrEqual(0);
-  expect(mark.right).toBeLessThanOrEqual(vp.width + 1);
-  expect(mark.top).toBeGreaterThanOrEqual(0);
-  expect(mark.bottom).toBeLessThanOrEqual(vp.height + 1);
+  expect(away.right).toBeGreaterThan(away.left);
+  expect(away.left).toBeGreaterThanOrEqual(0);
+  expect(away.right).toBeLessThanOrEqual(vp.width + 1);
+  expect(away.top).toBeGreaterThanOrEqual(0);
+  expect(away.bottom).toBeLessThanOrEqual(vp.height + 1);
 });
 
 test('C opens quick chat: six phrases, no text field', async ({ page }) => {
