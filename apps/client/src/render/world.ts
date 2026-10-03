@@ -546,14 +546,6 @@ export class WorldRenderer {
   }
 
   /**
-   * What a finished rain or combo killed: a short floating count where it was cast, in the seat colour of its
-   * first caster (gold when the snapshot no longer lists them). Always shown, also at Low quality and when calm.
-   */
-  rainCount(x: number, y: number, text: string, color: number): void {
-    this.fx.label(x, y - 1.2, text, color, 20, true);
-  }
-
-  /**
    * Together-kill: a short burst at the corpse, one ring and flash per seat colour,
    * plus a gold core. Essential, so it still reads at Low. About 0.6 s.
    */

@@ -32,7 +32,7 @@ export default defineConfig({
   projects: [
     {
       name: 'iphone',
-      testMatch: /(mobile|lobby|hook)\.spec\.ts/,
+      testMatch: /(mobile|lobby|hook|ultimates)\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
     {

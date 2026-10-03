@@ -1,8 +1,8 @@
 // Ultimate presentation (protocol 18) on both layouts: the kill-count popup, the cast flash and shake, the R button's pulse
 // and "Combo!" ring, Iron Vow's heal on the teammate chip, and reduced motion. The stress scene (`?stress=12&pace=3`: three ticks a beat, so a slow CI runner's clock keeps up) sends what
 // the sim sends: every 12 s the ally casts alone (tick 20), the two fuse (tick 80), a heal reaches both heroes (82),
-// yours and the ally's rains end (150, 190). Runs on the Pixel (tall) and desktop (wide) projects only, to keep the CI browser job under its 30 minutes;
-// the 412 × 839 test fixes the viewport the layout is designed for.
+// yours and the ally's rains end (150, 190). Runs on the iPhone and Pixel (tall) and desktop (wide) projects; the 412 × 839 test fixes the viewport the
+// layout is designed for.
 
 import { expect, test, type Page } from '@playwright/test';
 import { box, overlaps, waitForReady } from './helpers';

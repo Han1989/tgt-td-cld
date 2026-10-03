@@ -8,7 +8,6 @@ import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import type { ViewBox } from './audio/mix';
 import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
-import { emptyTally, readTally, tallyLine, type TallyMemory } from './coop/rainKills';
 import { EmoteMenu } from './hud/emotes';
 import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
@@ -73,7 +72,6 @@ export class GameView {
 
   /** Recent pings, emotes, ultimates and creep damage, for the shared flourishes. */
   private cues: CueMemory;
-  private tally: TallyMemory = emptyTally();
 
   /** The R button's clocks: ready for 20 s of a wave, and the 5 s "Combo!" window. */
   private ultCues: UltCueMemory = emptyUltCues();
@@ -468,16 +466,6 @@ export class GameView {
         // The twin gong plays with the ribbon above. A fuse without one (a caster fell first) still sounds.
         if (!syncSpots) audio.game.flourish('twinCast', now);
       }
-      // What a finished rain or combo killed: the pill, and the count floating where it was cast.
-      const tally = readTally(view.tally, events, latest, now);
-      view.tally = tally.memory;
-      for (const t of tally.beat.done) {
-        const line = tallyLine(t);
-        const first = t.by[0];
-        const color = first ? playerTint(latest, first) : COLORS.gold;
-        view.stage.rainCount(t.kind, line.name, line.count, toCss(color));
-        renderer.rainCount(t.x, t.y, `${t.kills}`, color);
-      }
       if (cues.beat.clutch) {
         const c = cues.beat.clutch;
         view.stage.clutch(c.title, c.name, c.line);
@@ -683,7 +671,6 @@ export class GameView {
     this.marks.clear();
     this.cues = emptyCues();
     this.ultCues = emptyUltCues();
-    this.tally = emptyTally();
     this.stage.clear();
     this.needsCentre = true;
     this.coach.dismissAir();

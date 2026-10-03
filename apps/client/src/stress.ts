@@ -194,7 +194,7 @@ export class StressTransport implements Transport {
       if (k === 150) events.push({ type: 'ultResult', ult: 'meteorRain', by: PLAYER, kills: 12 });
       if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
     }
-    // While the fused rain runs, a strike every 0.3 s and the creep under it dies (the kill count's feed).
+    // While the fused rain runs, a strike every 0.3 s and the creep under it dies.
     const since = this.rainSince(t);
     if (since >= 0 && since <= 72 && since % 6 === 0) {
       const c = pick(5);
