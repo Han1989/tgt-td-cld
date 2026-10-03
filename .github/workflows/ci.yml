@@ -1,5 +1,6 @@
 # T-00: check every pull request to main and every push to main.
-# The branch-protection required check is the job named `ci` (job id and check name).
+# The branch-protection required check is the job named `ci` (job id and check name). It is an aggregator:
+# it needs every other job, so the e2e jobs below can be split or renamed without touching branch protection.
 
 name: CI
 
@@ -25,17 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          check-latest: true
-          cache: npm
-
-      - name: Require Node 22.12 or newer
-        run: node -e 'const [maj,min]=process.versions.node.split(".").map(Number); if (maj<22 || (maj===22 && min<12)) { console.error("Node " + process.version + " is below 22.12"); process.exit(1); } console.log(process.version)'
-
-      - name: Install dependencies
-        run: npm ci
+      - uses: ./.github/actions/setup
 
       - name: Test
         run: npm test
@@ -43,17 +34,18 @@ jobs:
       - name: Build
         run: npm run build
 
-  e2e:
-    name: e2e
+  # Browser tests run when the client, the shared packages, or the workflow change.
+  changes:
+    name: changes
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.changes.outputs.run }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Browser tests are several minutes (the stress project runs alone at the end).
-      # Run them when the client, the shared packages, or this workflow change.
       - name: Decide whether browser tests apply
         id: changes
         env:
@@ -71,73 +63,121 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          files="$(git diff --name-only "${BASE_SHA}" HEAD -- apps/client packages .github/workflows/ci.yml)"
+          files="$(git diff --name-only "${BASE_SHA}" HEAD -- apps/client packages .github)"
           if [ -n "$files" ]; then
             echo "Browser tests apply:"
             printf '%s\n' "$files"
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No changes under apps/client, packages, or .github/workflows/ci.yml; skipping browser tests."
+            echo "No changes under apps/client, packages, or .github; skipping browser tests."
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@v4
-        if: steps.changes.outputs.run == 'true'
+  # One job per Playwright project, the larger ones sharded, each on its own runner with the project's usual
+  # two workers. Playwright splits a project's tests evenly by count across its shards.
+  e2e:
+    name: e2e (${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { project: iphone, shard: 1, shards: 2 }
+          - { project: iphone, shard: 2, shards: 2 }
+          - { project: pixel, shard: 1, shards: 3 }
+          - { project: pixel, shard: 2, shards: 3 }
+          - { project: pixel, shard: 3, shards: 3 }
+          - { project: desktop, shard: 1, shards: 1 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
         with:
-          node-version: '22'
-          check-latest: true
-          cache: npm
+          playwright: 'true'
 
-      - name: Require Node 22.12 or newer
-        if: steps.changes.outputs.run == 'true'
-        run: node -e 'const [maj,min]=process.versions.node.split(".").map(Number); if (maj<22 || (maj===22 && min<12)) { console.error("Node " + process.version + " is below 22.12"); process.exit(1); } console.log(process.version)'
-
-      - name: Install dependencies
-        if: steps.changes.outputs.run == 'true'
-        run: npm ci
-
-      - name: Resolve Playwright version
-        id: playwright
-        if: steps.changes.outputs.run == 'true'
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        if: steps.changes.outputs.run == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
-
-      - name: Install Playwright Chromium
-        if: steps.changes.outputs.run == 'true'
-        run: npx playwright install --with-deps chromium
+      - name: Build the e2e client
+        run: npm run build:e2e -w @tdt/client
 
       - name: Browser tests
-        if: steps.changes.outputs.run == 'true'
-        run: npm run test:e2e
+        working-directory: apps/client
+        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
 
-  # Required status check. Passes only when `test` succeeded and `e2e` succeeded
-  # or was skipped (docs-only pushes skip the browser steps and this job still succeeds).
+      - name: Keep traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ matrix.project }}-${{ matrix.shard }}-of-${{ matrix.shards }}
+          path: apps/client/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # The 300-creep stress test measures CPU time per frame, so it gets a runner to itself. `--no-deps` skips the
+  # `perf` project's dependencies, which only exist to make a local `npm run test:e2e` run it last and alone.
+  e2e-perf:
+    name: e2e (perf)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+        with:
+          playwright: 'true'
+
+      - name: Build the e2e client
+        run: npm run build:e2e -w @tdt/client
+
+      - name: Stress test (300 creeps, median of 3 windows)
+        working-directory: apps/client
+        run: npx playwright test --project=perf --no-deps
+
+      - name: Keep traces of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-perf
+          path: apps/client/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Required status check. Passes only when `test` succeeded and the browser tests succeeded when they apply
+  # (docs-only changes skip them and this job still succeeds).
   ci:
     name: ci
-    needs: [test, e2e]
+    needs: [test, changes, e2e, e2e-perf]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require test success and e2e success or skip
+      - name: Require test success and e2e success when browser tests apply
         env:
           TEST_RESULT: ${{ needs.test.result }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          E2E_WANTED: ${{ needs.changes.outputs.e2e }}
           E2E_RESULT: ${{ needs.e2e.result }}
+          PERF_RESULT: ${{ needs.e2e-perf.result }}
         run: |
           set -euo pipefail
-          echo "test=${TEST_RESULT}"
-          echo "e2e=${E2E_RESULT}"
+          echo "test=${TEST_RESULT} changes=${CHANGES_RESULT} e2e wanted=${E2E_WANTED} e2e=${E2E_RESULT} perf=${PERF_RESULT}"
           if [ "${TEST_RESULT}" != "success" ]; then
             echo "test must succeed (got ${TEST_RESULT})."
             exit 1
           fi
-          if [ "${E2E_RESULT}" != "success" ] && [ "${E2E_RESULT}" != "skipped" ]; then
-            echo "e2e must succeed or be skipped (got ${E2E_RESULT})."
+          if [ "${CHANGES_RESULT}" != "success" ]; then
+            echo "changes must succeed (got ${CHANGES_RESULT})."
+            exit 1
+          fi
+          if [ "${E2E_WANTED}" = "true" ]; then
+            if [ "${E2E_RESULT}" != "success" ] || [ "${PERF_RESULT}" != "success" ]; then
+              echo "Browser tests apply: e2e and e2e-perf must succeed (got ${E2E_RESULT} and ${PERF_RESULT})."
+              exit 1
+            fi
+          elif [ "${E2E_RESULT}" != "skipped" ] || [ "${PERF_RESULT}" != "skipped" ]; then
+            echo "Browser tests do not apply, so e2e and e2e-perf must be skipped (got ${E2E_RESULT} and ${PERF_RESULT})."
             exit 1
           fi

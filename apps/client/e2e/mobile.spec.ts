@@ -25,6 +25,41 @@ async function tapPad(page: Page, padId: number): Promise<void> {
   await page.touchscreen.tap(p.x, p.y);
 }
 
+/**
+ * Waits for at least `count` creeps within `offset` tiles of your hero's Q range (negative: inside it), and with
+ * `still`, for the hero standing still between two snapshots. The limit is `seconds` of game time, not wall time:
+ * a slow runner simulates fewer ticks per second, which stretches the wait but cannot shorten what the creeps get.
+ * Returns your hero's position at that snapshot.
+ */
+async function waitForCreepsNearHero(
+  page: Page,
+  { count, offset, still, seconds }: { count: number; offset: number; still: boolean; seconds: number },
+): Promise<{ x: number; y: number }> {
+  await page.evaluate(() => delete (window as { __creepWait?: unknown }).__creepWait);
+  const handle = await page.waitForFunction(
+    ({ count, offset, still, seconds }) => {
+      const w = window as { __creepWait?: { start: number; last: { tick: number; x: number; y: number } | null } };
+      const snap = window.__tdt.latest();
+      const hero = snap?.heroes.find((h) => h.owner === window.__tdt.me());
+      if (!snap || !hero) return false;
+      const wait = (w.__creepWait ??= { start: snap.tick, last: null });
+      const prev = wait.last;
+      if (!prev || prev.tick !== snap.tick) wait.last = { tick: snap.tick, x: hero.x, y: hero.y };
+      const stood = !!prev && prev.tick !== snap.tick && prev.x === hero.x && prev.y === hero.y;
+      const reach = hero.skills.find((s) => s.slot === 'Q')!.range + offset;
+      const near = snap.creeps.filter((c) => Math.hypot(c.x - hero.x, c.y - hero.y) <= reach).length;
+      if (near >= count && (stood || !still)) return { ok: true, x: hero.x, y: hero.y, near };
+      const ticks = snap.tick - wait.start;
+      return ticks > seconds * snap.tickRate ? { ok: false, x: hero.x, y: hero.y, near } : false;
+    },
+    { count, offset, still, seconds },
+    { polling: 'raf', timeout: 0 },
+  );
+  const r = (await handle.jsonValue()) as { ok: boolean; x: number; y: number; near: number };
+  expect(r.ok, `${count} creeps within Q range ${offset >= 0 ? '+' : ''}${offset} of the hero in ${seconds} s of game time (saw ${r.near})`).toBe(true);
+  return { x: r.x, y: r.y };
+}
+
 /** Your pads in this match, lowest on screen first (closest to the controls). */
 async function myPadsBottomFirst(page: Page): Promise<number[]> {
   return page.evaluate(() => {
@@ -364,43 +399,43 @@ test.describe('portrait phone layout', () => {
     await expect(qBtn).toHaveClass(/shake/);
     expect(await sent(page, 'cast')).toHaveLength(0);
 
-    // Bring creeps: call the first wave and walk up the Mid lane.
+    // Bring creeps: call the first wave and walk up the Mid lane until one is near, then let go (the hero stops).
     await page.locator('#call-early').tap();
     const joy = centre(await box(page, '#joystick'));
     await finger.drag(joy, { x: joy.x, y: joy.y - 45 }, 0, false);
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const snap = window.__tdt.latest()!;
-            const hero = snap.heroes[0]!;
-            const range = hero.skills.find((s) => s.slot === 'Q')!.range;
-            return snap.creeps.some((c) => Math.hypot(c.x - hero.x, c.y - hero.y) < range - 1);
-          }),
-        { timeout: 45_000 },
-      )
-      .toBe(true);
+    await waitForCreepsNearHero(page, { count: 1, offset: 2, still: false, seconds: 40 });
     await finger.up();
 
+    // Creeps attack a hero within their aggro range and stay on it until they die, so two of them within
+    // Q range − 2 is a state that lasts, not a Runner passing by. Each Ranger attack hits one creep, so a kill
+    // landing just before the tap still leaves one in reach.
+    const q = centre(await box(page, '.tskill[data-slot="Q"] .tskill-btn'));
+    const hero = await waitForCreepsNearHero(page, { count: 2, offset: -2, still: true, seconds: 40 });
+
     // Smart cast: a tap fires Multishot at the creeps in reach.
-    await qBtn.tap();
+    await finger.down(q.x, q.y);
+    await finger.up();
     await expect.poll(() => sent(page, 'cast')).toEqual([{ type: 'cast', slot: 'Q' }]);
 
-    // Drag to aim, then back onto the button: cancelled, nothing cast.
+    // Drag to aim, then back onto the button: the aim shows a cancel while held, and the release casts nothing.
+    const wBtn = page.locator('.tskill[data-slot="W"] .tskill-btn');
     const w = centre(await box(page, '.tskill[data-slot="W"] .tskill-btn'));
     await finger.down(w.x, w.y);
     for (const dy of [-20, -40, -60, -30, -10, 0]) await finger.move(w.x, w.y + dy);
+    await expect(wBtn).toHaveClass(/\bcancel\b/);
     await finger.up();
-    await page.waitForTimeout(200);
+    // The release handler clears the cancel mark before it would cast, so once the mark is gone the release is done.
+    await expect(wBtn).not.toHaveClass(/\bcancel\b/);
+    await expect(page.locator('#skill-sheet')).toBeHidden();
     expect(await sent(page, 'cast')).toHaveLength(1);
 
-    // Drag to aim and release: the trap goes where the drag points (up the lane from the hero).
-    const heroY = await page.evaluate(() => window.__tdt.latest()!.heroes[0]!.y);
+    // Drag to aim and release: the trap goes where the drag points, straight up the lane from the standing hero.
     await finger.drag(w, { x: w.x, y: w.y - 70 });
     await expect.poll(() => sent(page, 'cast').then((c) => c.length)).toBe(2);
     const cast = (await sent(page, 'cast'))[1]!;
     expect(cast).toMatchObject({ type: 'cast', slot: 'W' });
-    expect(cast.y as number).toBeLessThan(heroY - 2);
+    expect(cast.x as number).toBeCloseTo(hero.x, 1);
+    expect(cast.y as number).toBeLessThan(hero.y - 2);
   });
 
   test('a long-press on the map pings; a quick tap does not', async ({ page }) => {
