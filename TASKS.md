@@ -82,7 +82,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 | H-04 | Three music tracks (`a-music`, optional) | Done 1 Oct 2026: `lobby.mp3`, `match.mp3`, and `boss.mp3` in `apps/client/public/music/` (AI-generated via Google Gemini, by Han). See `docs/SOUND_FILES.md`. | ☑ |
 | H-05 | Test on an iPhone (`a-iphone`) | Safari has the most quirks. Run `docs/MOBILE_TESTING.md` once and fill in its Results table. | ☐ |
 | H-06 | Give the team access | GitHub write access for branches and PRs (merging stays with you). Nothing else is needed to start. | ☐ |
-| H-07 | Privacy contact email | **Before D-02.** Replace the yellow `[PRIVACY EMAIL — …]` placeholder in `apps/client/privacy.html` (`data-placeholder="privacy-email"`) with the address players write to for a copy or deletion of their play data (D-07, `docs/ANALYTICS.md` → Copy and deletion requests). Also check the server's `events.jsonl` trim (`docs/ANALYTICS.md` → Retention). | ☐ |
+| H-07 | Privacy contact email | **Before D-02.** Replace the yellow `[PRIVACY EMAIL — …]` placeholder in `apps/client/privacy.html` (`data-placeholder="privacy-email"`) with the address players write to for a copy or deletion of their play data (D-07, `docs/ANALYTICS.md` → Copy and deletion requests). The server already prunes `events.jsonl` to 30 days at startup and daily (PR #75, `docs/ANALYTICS.md` → Retention). | ☐ |
 
 ---
 

@@ -265,7 +265,7 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'todo',
     section: 'han',
-    note: 'Before the Reddit posts: replace the marked placeholder on privacy.html with the address players write to for a copy or deletion of their play data (D-07). Also check the server’s events.jsonl trim (docs/ANALYTICS.md).',
+    note: 'Before the Reddit posts: replace the marked placeholder on privacy.html with the address players write to for a copy or deletion of their play data (D-07). The server already prunes events.jsonl to 30 days (PR #75).',
   },
   {
     id: 'D-01',

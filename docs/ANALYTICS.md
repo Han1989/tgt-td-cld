@@ -39,7 +39,7 @@ The client posts to `POST /analytics/event` on the same host as `VITE_SERVER_URL
 | A Render Disk mount, e.g. `/var/data` | `events.jsonl` in that directory. This is what survives a deploy. On Render: **Disks** → add a disk → mount path `/var/data` → set `ANALYTICS_DIR=/var/data`. The process user must be able to write there. |
 | `memory` | RAM only. Lost when the process stops. |
 
-Memory and the dashboard keep 30 days (and at most 20,000 events). The file is rewritten to that window when it passes 2 MB; until then older lines stay in it, unread (see [Retention, honestly](#privacy-and-the-play-data-switch)). If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
+The file keeps 30 days (and at most the newest 20,000 events). The server drops older events and rewrites the file at startup and then every 24 hours of uptime, whatever the file size and whether or not anything was recorded that day. A deploy or restart also runs the startup prune. Between those, the file is also rewritten whenever an append pushes it past 2 MB. So nothing stays on disk for more than 30 days plus one day. Memory follows the same rule (see [Retention](#privacy-and-the-play-data-switch)). If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
 
 There is no database and no paid add-on required. Without a disk, do not read D1/D7 after a restart — the cohort was wiped.
 
@@ -118,15 +118,11 @@ The page says what each event holds. When `AnalyticsBody` (`session.ts`) gains a
 **Copy and deletion requests.** There are no accounts, so the visitor id is the only key. For a copy, send the player their lines: `grep '"visitor":"<id>"' events.jsonl` in the Render Shell. To delete one visitor's events by hand:
 
 1. Render → the game server → **Shell**. In `ANALYTICS_DIR`, keep every line without the id: `grep -v '"visitor":"<id>"' events.jsonl > events.tmp && mv events.tmp events.jsonl`.
-2. Restart the service when nobody is playing (a restart drains rooms for up to 300 s). The server holds events in memory and would write the deleted lines back at its next compaction until it reloads the file.
+2. Restart the service when nobody is playing (a restart drains rooms for up to 300 s). The server holds events in memory and would write the deleted lines back at its next compaction or daily prune until it reloads the file.
 
 Without a disk (`ANALYTICS_DIR` unset or `memory`) a restart clears everything anyway. Reply to the player within 30 days. Ratings' notes are only in `events.jsonl`, never on the dashboard.
 
-**Retention, honestly.** The dashboard and memory keep 30 days. The file on disk is only rewritten when it passes 2 MB, so on a quiet server older lines can stay in `events.jsonl` past 30 days, unread. Until the server trims the file on its own (a separate server change), trim it by hand from the Render Shell, in `ANALYTICS_DIR`, when nobody is playing (no restart needed: memory never holds the old lines):
-
-```
-node -e 'const fs=require("fs"),f="events.jsonl",cut=Date.now()-30*864e5;fs.writeFileSync(f+".tmp",fs.readFileSync(f,"utf8").split("\n").filter(l=>{try{return JSON.parse(l).at>=cut}catch{return false}}).map(l=>l+"\n").join(""));fs.renameSync(f+".tmp",f)'
-```
+**Retention.** Memory, the dashboard and `events.jsonl` all keep 30 days. The server prunes older events and rewrites the file at startup and every 24 hours of uptime, whatever the file size, so no line stays on disk for more than 30 days plus one day (see Storage above). Nothing needs trimming by hand; the 30 days on the privacy page is what the server does.
 
 ## Limits
 
