@@ -39,7 +39,7 @@ const sections: ProgressSection[] = [
   {
     id: 'discovery',
     title: 'Discovery and rollout',
-    blurb: 'Public soft-launch path. Measurement is in. Posts (D-02–D-06) and the go/no-go are Han, and still open.',
+    blurb: 'Public soft-launch path. Measurement and the privacy notice (D-07) are in. Posts (D-02–D-06) and the go/no-go are Han, and still open; the privacy email (H-07) comes first.',
     group: 'now',
   },
   {
@@ -260,6 +260,14 @@ const items: ProgressItem[] = [
     note: 'Write access for branches and pull requests. Merging stays with Han.',
   },
   {
+    id: 'H-07',
+    title: 'Privacy contact email',
+    owner: 'Han',
+    status: 'todo',
+    section: 'han',
+    note: 'Before the Reddit posts: replace the marked placeholder on privacy.html with the address players write to for a copy or deletion of their play data (D-07). Also check the server’s events.jsonl trim (docs/ANALYTICS.md).',
+  },
+  {
     id: 'D-01',
     title: 'Channel analytics',
     owner: 'Team',
@@ -312,6 +320,15 @@ const items: ProgressItem[] = [
     section: 'discovery',
     note: 'Protocol 17. Arrow Storm and Meteor are instant lane rains again (no aiming, no caps) and much stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave) with no overlap check, no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Merged after Han’s review.',
     proof: pr(66),
+  },
+  {
+    id: 'D-07',
+    title: 'Privacy notice before strangers play',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only, no protocol change. A plain-language page at /privacy.html (what is collected and why, no accounts or third-party trackers, 30 days, deletion by email), linked from the lobby, the rating control and Settings; the note box asks for no personal details; Settings → Play data turns analytics off for this browser (off by default with Global Privacy Control or Do Not Track). The email is H-07.',
+    proof: pr(74),
   },
   {
     id: 'D-02',

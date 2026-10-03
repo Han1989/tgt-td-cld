@@ -59,6 +59,8 @@ async function main(): Promise<void> {
   if (!serverUrl || params.get('practice') === 'meteor-rain') {
     // No game server configured: local solo mode, after a hero, mode and difficulty pick.
     // Analytics needs the server (docs/ANALYTICS.md); this path sends nothing.
+    // Browser tests (`?analytics`, e2e builds only) post to this page's own origin to watch every event.
+    if (import.meta.env.MODE === 'e2e' && params.has('analytics')) installAnalytics(location.origin);
     const practiceEntry = params.get('practice') === 'meteor-rain';
     const solo = (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal, practice: boolean) =>
       playSolo(view, hero, mode, difficulty, deal, practice);

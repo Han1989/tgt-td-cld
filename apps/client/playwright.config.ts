@@ -32,17 +32,17 @@ export default defineConfig({
   projects: [
     {
       name: 'iphone',
-      testMatch: /(mobile|lobby|hook|ultimates)\.spec\.ts/,
+      testMatch: /(mobile|lobby|hook|ultimates|privacy)\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
     {
       name: 'pixel',
-      testMatch: /(mobile|platform|art|lobby|hook|ultimates)\.spec\.ts/,
+      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
     {
       name: 'desktop',
-      testMatch: /(desktop|lobby|hook|ultimates)\.spec\.ts/,
+      testMatch: /(desktop|lobby|hook|ultimates|privacy)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } },
     },
     {

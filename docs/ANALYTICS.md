@@ -4,6 +4,8 @@ One page on the game server so Han can judge **roll out vs pivot**: are stranger
 
 Local solo with no `VITE_SERVER_URL` sends nothing. The Vercel build (online lobby, including **Play solo offline**) does, because that build knows the server.
 
+Players can read what is sent at **`/privacy.html`** and turn it off for their browser (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). Before the Reddit posts, put the privacy contact email on that page (`TASKS.md` H-07).
+
 ## Open the dashboard
 
 ```
@@ -37,7 +39,7 @@ The client posts to `POST /analytics/event` on the same host as `VITE_SERVER_URL
 | A Render Disk mount, e.g. `/var/data` | `events.jsonl` in that directory. This is what survives a deploy. On Render: **Disks** → add a disk → mount path `/var/data` → set `ANALYTICS_DIR=/var/data`. The process user must be able to write there. |
 | `memory` | RAM only. Lost when the process stops. |
 
-The file keeps 30 days (and at most 20,000 events). Older lines are dropped. If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
+Memory and the dashboard keep 30 days (and at most 20,000 events). The file is rewritten to that window when it passes 2 MB; until then older lines stay in it, unread (see [Retention, honestly](#privacy-and-the-play-data-switch)). If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
 
 There is no database and no paid add-on required. Without a disk, do not read D1/D7 after a restart — the cohort was wiped.
 
@@ -94,9 +96,37 @@ A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an acco
 | `match_end` | The Heart survives or falls: result, Heart HP, mode, wave, player count |
 | `feedback` | One tap of 1–5 on the end screen, plus the optional note |
 
-The end-screen control is hidden when there is no server URL. Tapping it never blocks **Play again**. If the post fails, the match is unchanged.
+Every event carries the visitor id, the session id, the channel and the platform, and nothing else beyond the fields above (the server rejects unknown fields). The end-screen control is hidden when there is no server URL or play data is off. Under the note box it says **"Don't include personal details."** with a link to the privacy page. Tapping a rating never blocks **Play again**. If the post fails, the match is unchanged.
 
 Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do not start a session.
+
+## Privacy and the play-data switch
+
+**The page.** `apps/client/privacy.html` is a static page (a second Vite entry; it loads none of the game) at `https://<vercel-app>/privacy.html`. It is plain text that reads the same without JavaScript: what is sent and why, no accounts, no ads, no third-party trackers, no cookies, kept 30 days, the hosts (Vercel, Render in Singapore), the GDPR and PDPA basis, how to turn it off, and how to ask for a copy or deletion. A small script (`src/privacy/page.ts`) adds the switch and shows this browser's visitor id with a Copy button, so a player can quote it in a deletion request. The service worker serves it as itself, not as the game.
+
+**Links.** The lobby card's last line ("No accounts · anonymous play data · Privacy"), the line under the rating's note box, and ⚙ Settings → Play data. All open in a new tab, so the lobby or the end screen stays.
+
+**The switch.** ⚙ Settings → **Play data: On / Off**, and the same switch on the privacy page. It is saved for this browser under its own key, `tdt.analytics` (`on` / `off`), not in `tdt.settings`, so a game tab saving its settings cannot put back an old choice. The client reads it before **every** post (`allowed` in `session.ts`), so Off holds from the next event in every open tab:
+
+- Off: nothing is sent: no heartbeat, no `session_end`, no `match_end`, no rating. The rating control is not shown. The session in progress just stops; the server closes it after its 90-second idle window.
+- On again: the next tick starts a new session (`session_start`), with the same visitor id.
+- Off from the start: no visitor id is made and the acquisition channel is not saved.
+- With no choice made, it is **on**, unless the browser sends **Global Privacy Control** or **Do Not Track**; then it starts off and the player can still turn it on. A player's own choice always wins.
+
+The page says what each event holds. When `AnalyticsBody` (`session.ts`) gains a field, add it to the page; `test/analytics.test.ts` fails until the field list there is updated too.
+
+**Copy and deletion requests.** There are no accounts, so the visitor id is the only key. For a copy, send the player their lines: `grep '"visitor":"<id>"' events.jsonl` in the Render Shell. To delete one visitor's events by hand:
+
+1. Render → the game server → **Shell**. In `ANALYTICS_DIR`, keep every line without the id: `grep -v '"visitor":"<id>"' events.jsonl > events.tmp && mv events.tmp events.jsonl`.
+2. Restart the service when nobody is playing (a restart drains rooms for up to 300 s). The server holds events in memory and would write the deleted lines back at its next compaction until it reloads the file.
+
+Without a disk (`ANALYTICS_DIR` unset or `memory`) a restart clears everything anyway. Reply to the player within 30 days. Ratings' notes are only in `events.jsonl`, never on the dashboard.
+
+**Retention, honestly.** The dashboard and memory keep 30 days. The file on disk is only rewritten when it passes 2 MB, so on a quiet server older lines can stay in `events.jsonl` past 30 days, unread. Until the server trims the file on its own (a separate server change), trim it by hand from the Render Shell, in `ANALYTICS_DIR`, when nobody is playing (no restart needed: memory never holds the old lines):
+
+```
+node -e 'const fs=require("fs"),f="events.jsonl",cut=Date.now()-30*864e5;fs.writeFileSync(f+".tmp",fs.readFileSync(f,"utf8").split("\n").filter(l=>{try{return JSON.parse(l).at>=cut}catch{return false}}).map(l=>l+"\n").join(""));fs.renameSync(f+".tmp",f)'
+```
 
 ## Limits
 

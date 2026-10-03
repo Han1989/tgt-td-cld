@@ -472,9 +472,11 @@ describe('service worker', () => {
       open: async (name: string) => cacheApi(name),
       keys: async () => [...stores.keys()],
       delete: async (name: string) => stores.delete(name),
-      match: async (req: { url: string }) => {
+      match: async (req: { url: string } | string) => {
+        // The worker asks for the shell's pages by path ('/index.html').
+        const url = typeof req === 'string' ? `https://td.test${req}` : req.url;
         for (const s of stores.values()) {
-          const hit = [...s.values()].find((h) => h.url.split('?')[0] === req.url.split('?')[0]);
+          const hit = [...s.values()].find((h) => h.url.split('?')[0] === url.split('?')[0]);
           if (hit) return res(hit.url, hit.body);
         }
         return undefined;
@@ -485,9 +487,9 @@ describe('service worker', () => {
       return res(req.url, `net:${req.url}`);
     };
     new Function('self', 'caches', 'fetch', swSource('v1', shell))(self, caches, fetch);
-    const get = async (path: string) => {
+    const get = async (path: string, mode = 'cors') => {
       let responded: Promise<{ body: string }> | undefined;
-      listeners.fetch!({ request: { method: 'GET', url: `https://td.test${path}`, mode: 'cors' }, respondWith: (p: Promise<{ body: string }>) => (responded = p) });
+      listeners.fetch!({ request: { method: 'GET', url: `https://td.test${path}`, mode }, respondWith: (p: Promise<{ body: string }>) => (responded = p) });
       const r = await responded!;
       await new Promise((ok) => setTimeout(ok, 0));
       return r.body;
@@ -518,6 +520,20 @@ describe('service worker', () => {
     w.listeners.activate!({ waitUntil: (p: Promise<unknown>) => (activated = p) });
     await activated;
     expect([...w.stores.keys()].sort()).toEqual([MEDIA_CACHE, 'tdt-v1']);
+  });
+
+  it('opens the privacy page as itself, and the game for any other page load', async () => {
+    const w = worker(['/index.html', '/privacy.html', '/assets/a.js']);
+    let installed: Promise<unknown> | undefined;
+    w.listeners.install!({ waitUntil: (p: Promise<unknown>) => (installed = p) });
+    await installed;
+    expect(await w.get('/privacy.html', 'navigate')).toBe('/privacy.html');
+    expect(await w.get('/privacy.html#choices', 'navigate')).toBe('/privacy.html');
+    expect(await w.get('/?src=reddit-playmygame', 'navigate')).toBe('/index.html');
+    expect(await w.get('/room/ABCDE', 'navigate')).toBe('/index.html');
+    // An HTML path that is not in the shell still gets the game.
+    expect(await w.get('/other.html', 'navigate')).toBe('/index.html');
+    expect(w.net).toEqual([]);
   });
 });
 

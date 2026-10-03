@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHANNELS, channelFromSearch, resolveChannel } from '../src/analytics/channel';
 import { detectPlatform } from '../src/analytics/platform';
+import { analyticsAllowed, parseAnalyticsChoice, playDataStatus, readPrivacySignals } from '../src/analytics/preference';
 import { analyticsEndpoint, cleanComment, CLIENT_IDLE_MS, createAnalyticsClient, HEARTBEAT_MS, type AnalyticsBody } from '../src/analytics/session';
 
 const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
@@ -57,17 +59,22 @@ describe('platform', () => {
 });
 
 describe('analytics session', () => {
-  function client() {
+  function client(allowed?: () => boolean) {
     const posts: { body: AnalyticsBody; beacon: boolean }[] = [];
     let n = 0;
+    let visitors = 0;
     const api = createAnalyticsClient({
-      visitor: 'visitor-0001',
+      visitor: () => {
+        visitors++;
+        return 'visitor-0001';
+      },
       channel: 'direct',
       platform: 'web',
       newSessionId: () => `session-${String(++n).padStart(4, '0')}`,
       post: (body, beacon) => posts.push({ body, beacon }),
+      allowed,
     });
-    return { api, posts };
+    return { api, posts, visitors: () => visitors };
   }
 
   it('builds the event URL from the websocket server', () => {
@@ -124,5 +131,162 @@ describe('analytics session', () => {
     expect(posts[2]!.body.comment).toBeUndefined();
     expect(posts[3]!.body).toMatchObject({ result: 'victory', heartHp: 12, players: 1 });
     expect(cleanComment('  a \u0000 b  ')).toBe('a b');
+  });
+
+  it('sends nothing at all while play data is off, and makes no visitor id', () => {
+    const { api, posts, visitors } = client(() => false);
+    api.start(0);
+    api.tick(true, HEARTBEAT_MS);
+    api.matchEnd({ result: 'victory', heartHp: 40, heartMax: 100, mode: 'full', wave: 30, players: 1 });
+    api.feedback(4, 'nice');
+    api.end(HEARTBEAT_MS * 2);
+    api.tick(true, HEARTBEAT_MS * 2 + CLIENT_IDLE_MS);
+    expect(posts).toEqual([]);
+    expect(visitors()).toBe(0);
+  });
+
+  it('stops mid-session when play data is turned off, and starts a new session when it is turned back on', () => {
+    let on = true;
+    const { api, posts } = client(() => on);
+    api.start(0);
+    api.tick(true, HEARTBEAT_MS);
+    on = false;
+    // Every event is dropped from here, even ones already under way (no session_end either).
+    api.feedback(5, 'after off');
+    api.matchEnd({ result: 'defeat', heartHp: 0, heartMax: 100, mode: 'quick', wave: 6, players: 2 });
+    api.tick(true, HEARTBEAT_MS * 2);
+    api.end(HEARTBEAT_MS * 3);
+    expect(posts.map((post) => post.body.t)).toEqual(['session_start', 'session_heartbeat']);
+    on = true;
+    // A hidden page waits until it is on screen.
+    api.tick(false, HEARTBEAT_MS * 4);
+    expect(posts).toHaveLength(2);
+    api.tick(true, HEARTBEAT_MS * 4 + 10);
+    expect(posts.at(-1)!.body).toMatchObject({ t: 'session_start', session: 'session-0002', visitor: 'visitor-0001' });
+    api.feedback(3, '');
+    expect(posts.at(-1)!.body).toMatchObject({ t: 'feedback', session: 'session-0002', rating: 3 });
+  });
+
+  it('turned on later in a page that loaded with play data off, starts its first session then', () => {
+    let on = false;
+    const { api, posts, visitors } = client(() => on);
+    api.start(0);
+    api.tick(true, 10);
+    expect(posts).toEqual([]);
+    on = true;
+    api.tick(true, 20);
+    expect(posts.map((post) => post.body.t)).toEqual(['session_start']);
+    expect(visitors()).toBe(1);
+  });
+
+  it('treats a switch that throws as off', () => {
+    const { api, posts } = client(() => {
+      throw new Error('storage blocked');
+    });
+    api.start(0);
+    api.tick(true, HEARTBEAT_MS);
+    expect(posts).toEqual([]);
+  });
+});
+
+describe('play-data switch', () => {
+  const none = { gpc: false, dnt: false };
+
+  it('is on unless the player turned it off or the browser asks not to be tracked', () => {
+    expect(analyticsAllowed(null, none)).toBe(true);
+    expect(analyticsAllowed('off', none)).toBe(false);
+    expect(analyticsAllowed(null, { gpc: true, dnt: false })).toBe(false);
+    expect(analyticsAllowed(null, { gpc: false, dnt: true })).toBe(false);
+    // The player's own choice wins over the browser's signal.
+    expect(analyticsAllowed('on', { gpc: true, dnt: true })).toBe(true);
+    expect(analyticsAllowed('off', none)).toBe(false);
+  });
+
+  it('reads only on / off from storage, and GPC / DNT from the navigator', () => {
+    expect(parseAnalyticsChoice('on')).toBe('on');
+    expect(parseAnalyticsChoice('off')).toBe('off');
+    expect(parseAnalyticsChoice('OFF')).toBeNull();
+    expect(parseAnalyticsChoice(null)).toBeNull();
+    expect(readPrivacySignals({})).toEqual(none);
+    expect(readPrivacySignals({ globalPrivacyControl: true })).toEqual({ gpc: true, dnt: false });
+    expect(readPrivacySignals({ globalPrivacyControl: 'true' })).toEqual(none);
+    expect(readPrivacySignals({ doNotTrack: '1' })).toEqual({ gpc: false, dnt: true });
+    expect(readPrivacySignals({ doNotTrack: '0' })).toEqual(none);
+    expect(readPrivacySignals({ doNotTrack: 'unspecified' })).toEqual(none);
+    expect(readPrivacySignals({}, { doNotTrack: '1' })).toEqual({ gpc: false, dnt: true });
+  });
+
+  it('says why it is off', () => {
+    expect(playDataStatus(null, none)).toEqual({ on: true, line: 'On: this browser sends anonymous play data.' });
+    expect(playDataStatus('off', none)).toEqual({ on: false, line: 'Off: this browser sends nothing.' });
+    expect(playDataStatus(null, { gpc: true, dnt: false }).line).toContain('asks sites not to track');
+    expect(playDataStatus('on', { gpc: true, dnt: false }).on).toBe(true);
+  });
+});
+
+describe('privacy page and links', () => {
+  const page = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
+  const game = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const text = page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+  it('says what is collected, that there are no accounts or trackers, 30 days, and how to ask for deletion', () => {
+    for (const phrase of [
+      'No accounts',
+      'no third-party trackers',
+      'sets no cookies',
+      '30 days',
+      'visitor id',
+      'tdt.visitor',
+      'Visits and playtime',
+      'Where the visit came from',
+      'Platform',
+      'Match results',
+      '1–5 rating',
+      '140 characters',
+      "don't put personal details in a note",
+      'Global Privacy Control',
+      'Ask for a copy, or for deletion',
+      'Singapore',
+      'GDPR',
+      'PDPA',
+    ]) {
+      expect(text, phrase).toContain(phrase);
+    }
+  });
+
+  it('marks the contact email as a placeholder until Han adds it', () => {
+    expect(page).toContain('data-placeholder="privacy-email"');
+    expect(page).not.toMatch(/mailto:/);
+  });
+
+  it('describes every field the client can send', () => {
+    // A new field in AnalyticsBody needs a line on the privacy page (and this list).
+    const session = readFileSync(new URL('../src/analytics/session.ts', import.meta.url), 'utf8');
+    const body = /export interface AnalyticsBody \{([^}]*)\}/.exec(session)![1]!;
+    const fields = [...body.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
+    expect(fields).toEqual([
+      't',
+      'visitor',
+      'session',
+      'channel',
+      'platform',
+      'rating',
+      'comment',
+      'result',
+      'heartHp',
+      'heartMax',
+      'mode',
+      'wave',
+      'players',
+    ]);
+  });
+
+  it('is linked from the lobby, the rating control and Settings, in a new tab', () => {
+    for (const id of ['lobby-privacy', 'end-privacy']) {
+      expect(game).toMatch(new RegExp(`<a id="${id}" href="/privacy.html" target="_blank" rel="noopener">Privacy</a>`));
+    }
+    expect(game).toMatch(/id="settings-analytics"/);
+    expect(game).toMatch(/aria-describedby="end-comment-hint"/);
+    expect(game).toMatch(/id="end-comment-hint"[^>]*>Don't include personal details\./);
   });
 });

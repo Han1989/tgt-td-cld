@@ -34,7 +34,7 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('soft launch');
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
-    expect(summary.hanOpen).toBe(10);
+    expect(summary.hanOpen).toBe(11);
     expect(summary.inProgress).toBe(0);
     expect(summary.total).toBe(summary.done + summary.open);
 
@@ -46,6 +46,7 @@ describe('progress dashboard data', () => {
       'T-04': 26,
       'T-05': 31,
       'D-01': 25,
+      'D-07': 74,
       'H-04': 42,
       'SL-05': 66,
       'P2-03': 66,
