@@ -8,6 +8,7 @@ A browser co-op tower defense for 1–3 players (one per lane): build towers, co
 - **Working in this repo (commands, layout, rules):** [`CLAUDE.md`](CLAUDE.md)
 - **Deploying (Render game server + Vercel client):** [`docs/DEPLOY.md`](docs/DEPLOY.md)
 - **Rollout analytics (one dashboard, channel tags):** [`docs/ANALYTICS.md`](docs/ANALYTICS.md)
+- **Press kit (link preview, screenshots, clip, tagged links, first load on a phone):** [`docs/PRESS.md`](docs/PRESS.md)
 - **Adding recorded music and sound effects (no code needed):** [`docs/SOUND_FILES.md`](docs/SOUND_FILES.md)
 
 **Status:** Phases 1–3 are done (solo, online co-op for 1–3 players, and content). Phase 4a (portrait Spire, touch controls, PWA, Quick mode) and the Phase 4b polish list through T-04 are done: Runelight art and sound, Hard difficulty, team pings, and a first-match tutorial. Real-device checks and the optional app-store wrap are still open. Gate 1 (friends playtest) passed on 2 Oct 2026 (Android, PC, iPhone Safari), so Phase 6 may proceed and is not started. Playtest 2 work orders are open. Discovery D-02–D-06 and Gate 2 are the public soft-launch path. See the roadmap.

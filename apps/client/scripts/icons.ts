@@ -2,7 +2,7 @@
 // game. Three lanes run down to the Heart. Run with `npx tsx apps/client/scripts/icons.ts`.
 
 import { writeFileSync } from 'node:fs';
-import { deflateSync } from 'node:zlib';
+import { encodePng } from './png';
 
 type Rgb = [number, number, number];
 
@@ -52,9 +52,8 @@ function paint(u: number, v: number, inset: number, rounded: boolean): Rgb {
 
 function png(size: number, inset: number, rounded: boolean): Buffer {
   const ss = 3; // supersampling for smooth edges
-  const raw = Buffer.alloc((size * 4 + 1) * size);
+  const data = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
-    raw[py * (size * 4 + 1)] = 0;
     for (let px = 0; px < size; px++) {
       let r = 0;
       let g = 0;
@@ -67,41 +66,14 @@ function png(size: number, inset: number, rounded: boolean): Buffer {
           b += c[2];
         }
       }
-      const o = py * (size * 4 + 1) + 1 + px * 4;
-      raw[o] = Math.round(r / ss / ss);
-      raw[o + 1] = Math.round(g / ss / ss);
-      raw[o + 2] = Math.round(b / ss / ss);
-      raw[o + 3] = 255;
+      const o = (py * size + px) * 4;
+      data[o] = Math.round(r / ss / ss);
+      data[o + 1] = Math.round(g / ss / ss);
+      data[o + 2] = Math.round(b / ss / ss);
+      data[o + 3] = 255;
     }
   }
-  const chunk = (type: string, data: Buffer) => {
-    const len = Buffer.alloc(4);
-    len.writeUInt32BE(data.length);
-    const td = Buffer.concat([Buffer.from(type), data]);
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(td));
-    return Buffer.concat([len, td, crc]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', ihdr),
-    chunk('IDAT', deflateSync(raw, { level: 9 })),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
-function crc32(buf: Buffer): number {
-  let c = 0xffffffff;
-  for (const byte of buf) {
-    c ^= byte;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  }
-  return (c ^ 0xffffffff) >>> 0;
+  return encodePng({ width: size, height: size, channels: 4, data });
 }
 
 const out = new URL('../public/icons/', import.meta.url);
