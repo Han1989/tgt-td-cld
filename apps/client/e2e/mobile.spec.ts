@@ -407,7 +407,8 @@ test.describe('portrait phone layout', () => {
     await finger.up();
 
     // Creeps attack a hero within their aggro range and stay on it until they die, so two of them within
-    // Q range − 2 is a state that lasts, not a Runner passing by. A creep dies to one shot at most, so one is left.
+    // Q range − 2 is a state that lasts, not a Runner passing by. Each Ranger attack hits one creep, so a kill
+    // landing just before the tap still leaves one in reach.
     const q = centre(await box(page, '.tskill[data-slot="Q"] .tskill-btn'));
     const hero = await waitForCreepsNearHero(page, { count: 2, offset: -2, still: true, seconds: 40 });
 
