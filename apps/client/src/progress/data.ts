@@ -39,7 +39,7 @@ const sections: ProgressSection[] = [
   {
     id: 'discovery',
     title: 'Discovery and rollout',
-    blurb: 'Public soft-launch path. Measurement and the privacy notice (D-07) are in. Posts (D-02–D-06) and the go/no-go are Han, and still open; the privacy email (H-07) comes first.',
+    blurb: 'Public soft-launch path. Measurement, the privacy notice (D-07), the link preview and the press kit are in. Posts (D-02–D-06) and the go/no-go are Han, and still open; the privacy email (H-07) comes first.',
     group: 'now',
   },
   {
@@ -329,6 +329,15 @@ const items: ProgressItem[] = [
     section: 'discovery',
     note: 'Client only, no protocol change. A plain-language page at /privacy.html (what is collected and why, no accounts or third-party trackers, 30 days, deletion by email), linked from the lobby, the rating control and Settings; the note box asks for no personal details; Settings → Play data turns analytics off for this browser (off by default with Global Privacy Control or Do Not Track). The email is H-07.',
     proof: pr(74),
+  },
+  {
+    id: 'D-08',
+    title: 'Link preview and first load',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only, protocol stays 18. A shared link shows a card drawn from the game’s own art and README’s pitch; tagged links keep the card and their ?src=. A boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7. Press kit: docs/PRESS.md.',
+    proof: pr(77),
   },
   {
     id: 'D-02',

@@ -17,6 +17,24 @@ test('the manifest describes an installable, full-screen, portrait app', async (
   expect(viewport).toContain('width=device-width');
 });
 
+test('a tagged link keeps its ?src= and serves the same link-preview card (docs/PRESS.md)', async ({ page, request }) => {
+  for (const path of ['/?src=reddit-playmygame', '/?lobby&src=reddit-playmygame']) {
+    await page.goto(path);
+    await waitForReady(page);
+    expect(new URL(page.url()).searchParams.get('src')).toBe('reddit-playmygame');
+    const content = (key: string) => page.locator(`meta[property="${key}"], meta[name="${key}"]`).getAttribute('content');
+    expect(await content('og:title')).toBe('Tower Defense Together');
+    expect(await content('og:description')).toMatch(/^A browser co-op tower defense for 1–3 players/);
+    expect(await content('og:image')).toBe('https://tgt-td-cld.vercel.app/og-card.png');
+    expect(await content('og:url')).toBe('https://tgt-td-cld.vercel.app/');
+    expect(await content('twitter:card')).toBe('summary_large_image');
+    expect(await page.locator('link[rel="canonical"]').getAttribute('href')).toBe('https://tgt-td-cld.vercel.app/');
+  }
+  const card = await request.get('/og-card.png');
+  expect(card.ok()).toBe(true);
+  expect(card.headers()['content-type']).toBe('image/png');
+});
+
 test('the service worker caches the app shell, so solo starts offline', async ({ page, context }) => {
   await page.goto('/');
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));

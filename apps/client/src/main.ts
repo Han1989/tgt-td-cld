@@ -12,9 +12,13 @@ import { installIcons } from './render/art/icons';
  * The first screen is up and interactive (the game view, with `window.__tdt` in e2e builds, exists by then):
  * `<html data-ready="…">` for browser tests to wait on, and a `tdt:ready` performance mark for cold-start timing.
  */
-function ready(screen: 'showcase' | 'progress' | 'stress' | 'solo' | 'online'): void {
+function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 'online'): void {
   performance.mark('tdt:ready', { detail: screen });
   document.documentElement.dataset.ready = screen;
+  // The boot splash (index.html) stops taking taps at once and fades out.
+  const boot = document.getElementById('boot');
+  boot?.classList.add('done');
+  setTimeout(() => boot?.remove(), 400);
 }
 
 async function main(): Promise<void> {
@@ -27,6 +31,13 @@ async function main(): Promise<void> {
     const { runShowcase } = await import('./showcase');
     await runShowcase();
     ready('showcase');
+    return;
+  }
+  // ?ogcard (dev server only): the link-preview card that `npm run og` screenshots (docs/ART.md §14).
+  if (import.meta.env.DEV && params.has('ogcard')) {
+    const { runOgCard } = await import('./ogCard');
+    await runOgCard();
+    ready('ogcard');
     return;
   }
   // ?progress: roadmap dashboard (docs/PROGRESS.md). Static, no match, no analytics session.
@@ -77,4 +88,8 @@ async function main(): Promise<void> {
   ready('online');
 }
 
-void main();
+main().catch((err: unknown) => {
+  const note = document.getElementById('boot-note');
+  if (note) note.textContent = 'The game could not start. Refresh to try again.';
+  throw err;
+});

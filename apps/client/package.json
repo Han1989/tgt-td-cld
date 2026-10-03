@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test:e2e": "npm run build:e2e && playwright test",
     "icons": "tsx scripts/icons.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p e2e/tsconfig.json"
+    "og": "tsx scripts/ogImage.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p e2e/tsconfig.json",
+    "first-load": "tsx scripts/firstLoad.ts"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",
