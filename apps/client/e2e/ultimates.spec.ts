@@ -75,40 +75,59 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
   expect(flashed).toBe('ult-flash');
   await expect.poll(() => page.evaluate(() => window.__tdt.fx().shaken), { timeout: 20_000 }).toBeGreaterThan(0);
 
-  // A teammate's cast: the Combo! ring on R, draining, until the fuse.
-  await expect(r).toHaveClass(/combo/, { timeout: 40_000 });
-  const tag = r.locator('.combo-tag');
-  await expect(tag).toBeVisible();
-  await expect(tag).toHaveText('Combo!');
-  const left0 = Number(await r.evaluate((el) => (el as HTMLElement).style.getPropertyValue('--left')));
-  expect(left0).toBeGreaterThan(0.5);
-  await expect.poll(() => r.evaluate((el) => Number((el as HTMLElement).style.getPropertyValue('--left')))).toBeLessThan(left0);
+  // A teammate's cast: the Combo! ring on R, draining, until the fuse. Read in the page the moment it opens: on a
+  // slow runner a poll can come after the ring has closed.
+  const ringSel = rButton(layout);
+  const ring = await page.evaluate(
+    (sel) =>
+      new Promise<{ tag: string; tagShown: boolean; left: number; box: { left: number; right: number } }>((resolve) => {
+        const el = document.querySelector<HTMLElement>(sel)!;
+        const look = () => {
+          if (!el.classList.contains('combo')) return false;
+          const tag = el.querySelector<HTMLElement>('.combo-tag')!;
+          const r = el.querySelector<HTMLElement>('.combo-ring')!.getBoundingClientRect();
+          resolve({
+            tag: tag.textContent ?? '',
+            tagShown: getComputedStyle(tag).display !== 'none',
+            left: Number(el.style.getPropertyValue('--left')),
+            box: { left: r.left, right: r.right },
+          });
+          return true;
+        };
+        if (!look()) new MutationObserver((_, obs) => look() && obs.disconnect()).observe(el, { attributes: true, attributeFilter: ['class'] });
+      }),
+    ringSel,
+  );
+  expect(ring.tag).toBe('Combo!');
+  expect(ring.tagShown).toBe(true);
+  expect(ring.left).toBeGreaterThan(0.5);
+  // It drains (the width stays at its last value once the ring closes).
+  await expect.poll(() => r.evaluate((el) => Number((el as HTMLElement).style.getPropertyValue('--left'))), { timeout: 40_000 }).toBeLessThan(ring.left);
   if (layout === 'tall') {
-    const ring = await box(page, `${rButton(layout)} .combo-ring`);
-    expect(ring.left).toBeGreaterThanOrEqual(0);
-    expect(ring.right).toBeLessThanOrEqual(vp.width);
+    expect(ring.box.left).toBeGreaterThanOrEqual(0);
+    expect(ring.box.right).toBeLessThanOrEqual(vp.width);
     // The ring is a clear 5 px stroke around a 56 px button.
-    expect(ring.right - ring.left).toBeGreaterThan(60);
+    expect(ring.box.right - ring.box.left).toBeGreaterThan(60);
   }
-  await expect(r).not.toHaveClass(/combo/, { timeout: 20_000 });
+  await expect(r).not.toHaveClass(/combo/, { timeout: 40_000 });
 
-  // Iron Vow's heal: the teammate's chip rings with a green number.
+  // Iron Vow's heal: the teammate's chip rings with a green number. Read in the page the moment the number appears
+  // (it and the ring last 1.3 s).
   const chip = page.locator('#mates .mate');
   await expect(chip).toHaveCount(1);
   const heal = await page.evaluate(
     () =>
-      new Promise<string>((resolve) => {
+      new Promise<{ text: string; healed: boolean }>((resolve) => {
         const root = document.getElementById('mates')!;
         const look = () => {
           const n = root.querySelector('.heal-num');
-          if (n) resolve(n.textContent ?? '');
+          if (n) resolve({ text: n.textContent ?? '', healed: !!n.closest('.mate')?.classList.contains('healed') });
           return !!n;
         };
         if (!look()) new MutationObserver((_, obs) => look() && obs.disconnect()).observe(root, { childList: true, subtree: true });
       }),
   );
-  expect(heal).toBe('+90');
-  await expect(chip).toHaveClass(/healed/);
+  expect(heal).toEqual({ text: '+90', healed: true });
   if (layout === 'tall') {
     await expect(chip).toBeVisible();
     const b = await box(page, '#mates .mate');
