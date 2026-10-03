@@ -351,15 +351,20 @@ function ironVow(state: GameState, hero: Hero): string | null {
   pay(state, hero, 'R');
   hero.guardianUntil = state.tick + secondsToTicks(s.duration[i] ?? 0);
   for (const h of state.heroes) {
-    if (h.alive) h.hp = Math.min(heroMaxHp(state, h), h.hp + heroMaxHp(state, h) * (s.heal[i] ?? 0));
+    if (!h.alive) continue;
+    const before = h.hp;
+    h.hp = Math.min(heroMaxHp(state, h), h.hp + heroMaxHp(state, h) * (s.heal[i] ?? 0));
+    emit(state, { type: 'heal', heroId: h.id, amount: Math.round(h.hp - before) });
   }
   emit(state, { type: 'aoe', effect: 'ironVow', x: hero.x, y: hero.y, radius: s.burstRadius });
   const from = hitFrom(state, hero);
   const stun = secondsToTicks(s.burstStun[i] ?? 0);
+  const killsBefore = state.ultStats.kills;
   for (const c of creepsInRadius(state, hero.x, hero.y, s.burstRadius, true)) {
     stunCreep(state, c, stun);
     ultimateDamage(state, c, s.burstDamage[i] ?? 0, 'physical', hero.owner, from, 'ironVow');
   }
+  emit(state, { type: 'ultResult', ult: 'ironVow', by: hero.owner, kills: state.ultStats.kills - killsBefore });
   onUltCast(state, hero, 'ironVow', null);
   return null;
 }

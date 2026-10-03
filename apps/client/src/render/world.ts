@@ -34,6 +34,7 @@ import type { UiState } from '../uiState';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
+import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
 import { vowLook } from './fx/vow';
 import {
   AOE_COLORS,
@@ -312,6 +313,8 @@ export class WorldRenderer {
   private readonly heart: HeartSprite;
   private texts: TextFx[] = [];
   private heartHitAt = -Infinity;
+  /** Last time a Heart hit kicked the screen. */
+  private heartShakeAt = -Infinity;
   private portalFlareAt = -Infinity;
   private portalFlareBoss = false;
   /** Lane whose portal is flaring for a surge announced a wave ahead. Null flares every portal. */
@@ -518,6 +521,7 @@ export class WorldRenderer {
     this.hits.reset();
     this.lastHitTick = -1;
     this.heartHitAt = -Infinity;
+    this.heartShakeAt = -Infinity;
     this.heartShown = -1;
     for (const t of this.texts) t.obj.destroy();
     this.texts = [];
@@ -539,14 +543,6 @@ export class WorldRenderer {
    */
   fuseBurst(combo: ComboKind, x: number, y: number, casters: readonly { x: number; y: number }[]): void {
     this.fx.rainFuse(combo, x, y, casters);
-  }
-
-  /**
-   * What a finished rain or combo killed: a short floating count where it was cast, in the seat colour of its
-   * first caster (gold when the snapshot no longer lists them). Always shown, also at Low quality and when calm.
-   */
-  rainCount(x: number, y: number, text: string, color: number): void {
-    this.fx.label(x, y - 1.2, text, color, 20, true);
   }
 
   /**
@@ -595,7 +591,11 @@ export class WorldRenderer {
           this.heartHitAt = now;
           fx.label(this.map.heart.x, this.map.heart.y - 1.5, `-${e.damage}`, COLORS.bad, 18, true);
           fx.flash(this.map.heart.x, this.map.heart.y, 2.2, COLORS.bad, 380, 0.6);
-          fx.bump(0.12);
+          // A pack of leaks is one thud, not a rumble.
+          if (now - this.heartShakeAt >= HEART_SHAKE_GAP_MS) {
+            this.heartShakeAt = now;
+            fx.bump(heartShake(e.damage));
+          }
           break;
         }
         case 'splash':
@@ -604,15 +604,17 @@ export class WorldRenderer {
         case 'stomp':
           fx.ring(e.x, e.y, e.radius, CREEP_COLORS.ironhorn, 500, 0.2, 'shock');
           fx.dustRing(e.x, e.y, e.radius, FX.dust, 14);
-          fx.bump(0.3);
+          fx.bump(SHAKE_AT.stomp);
           break;
         case 'hatch':
           fx.ring(e.x, e.y, 1.6, CREEP_COLORS.matriarch, 400);
           fx.shards(e.x, e.y, [FX.shell, FX.shellDark, CREEP_COLORS.matriarch], 12, 150);
+          fx.bump(SHAKE_AT.hatch);
           break;
         case 'hideShift':
           fx.ring(e.x, e.y, 1.8, HIDE_COLORS[e.hide], 500, 0.3, 'shock');
           fx.shards(e.x, e.y, [HIDE_COLORS[e.hide], FX.hot], 14, 200);
+          fx.bump(SHAKE_AT.hideShift);
           this.floatText(e.hide === 'stone' ? 'Stone hide' : 'Ether hide', e.x, e.y - 1.4, HIDE_COLORS[e.hide], now);
           break;
         case 'trapTriggered':
@@ -663,6 +665,18 @@ export class WorldRenderer {
           this.cast(e.heroId, e.slot, e.x, e.y);
           this.heroes.get(e.heroId)?.art?.cast(now, e.slot);
           break;
+        case 'heal': {
+          // Iron Vow reached this hero, wherever they stand: a green number and a ring over them.
+          const hero = this.heroes.get(e.heroId);
+          if (!hero) break;
+          const hx = hero.root.x / S;
+          const hy = hero.root.y / S;
+          fx.ring(hx, hy, 1.5, COLORS.good, 520, 0.2, 'shock');
+          fx.ring(hx, hy, 0.9, FX.moonLight, 360, 0.3);
+          fx.sparkle(hx, hy, COLORS.good, 8, 0.5);
+          if (e.amount > 0) fx.label(hx, hy - 0.9, `+${e.amount}`, COLORS.good, 18, true);
+          break;
+        }
         case 'towerBuilt': {
           const t = this.towerPos(e.towerId, latest);
           if (!t) break;
@@ -862,8 +876,9 @@ export class WorldRenderer {
         fx.dustRing(x, y, 0.6, FX.dust, 6);
         break;
       case 'ranger.R':
-        // The rain is global. Each impact is its own `aoe`; the cast is only a flare on the hero.
-        fx.castFlare(hx, hy, ZONE_COLORS.arrowStorm);
+        // The rain is global. Each impact is its own `aoe`; the cast is a big flare on the hero and a kick.
+        fx.ultimateCast(hx, hy, ZONE_COLORS.arrowStorm);
+        fx.bump(SHAKE_AT.arrowStorm);
         break;
       case 'arcanist.Q':
         fx.castFlare(hx, hy, AOE_COLORS.fireball);
@@ -872,7 +887,13 @@ export class WorldRenderer {
         fx.castFlare(hx, hy, AOE_COLORS.frostNova);
         break;
       case 'arcanist.R':
-        fx.castFlare(hx, hy, AOE_COLORS.meteor);
+        fx.ultimateCast(hx, hy, AOE_COLORS.meteor);
+        fx.bump(SHAKE_AT.meteor);
+        break;
+      case 'warden.R':
+        // The vow's own burst is the `aoe`; the cast adds the flare and the kick.
+        fx.ultimateCast(hx, hy, AOE_COLORS.ironVow);
+        fx.bump(SHAKE_AT.ironVow);
         break;
       default:
         break;

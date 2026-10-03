@@ -111,6 +111,12 @@ const comparable = (r: MatchReport) => {
   };
   // Reports saved before protocol 16 omit `coop`. A re-run always has it; ignore that field alone.
   if (!saved?.coop) delete body.coop;
+  // Reports saved before protocol 18 omit the per-ultimate kills and the combo pairs; ignore those alone.
+  if (saved?.coop && !saved.coop.ultimates && body.coop) {
+    body.coop = { ...body.coop };
+    delete body.coop.ultimates;
+    delete body.coop.comboPairs;
+  }
   return JSON.stringify(body);
 };
 if (saved && comparable(saved) !== comparable(report)) {

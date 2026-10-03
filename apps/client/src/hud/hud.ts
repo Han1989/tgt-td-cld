@@ -4,6 +4,7 @@
 // wave and boss banners, and pulses when the Heart is hit or a skill fires.
 
 import {
+  HERO_ULTIMATE,
   isBossKind,
   laneName,
   TARGET_PRIORITIES,
@@ -32,11 +33,15 @@ import { modifierChipEl } from '../lobby/modifierDom';
 import { matchFlagFace, modifierBannerCopy, surgeToastCopy } from '../lobby/modifierFace';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
+import { comboPairLines, ultimateLines } from '../coop/ultReport';
+import { healLines, NO_ULT_CUES, ultPops, type UltCues } from '../ult/cues';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
 import { Counter } from './counter';
 import { pulse } from './press';
+import { addUltCueParts, applyUltCues } from './ultFace';
+import { UltHud } from './ultHud';
 import { matchFile, saveMatchFile } from './matchFile';
 import { skillFace } from './skillFace';
 import {
@@ -74,6 +79,11 @@ const HIT_PULSE: Keyframe[] = [
   { transform: 'translateX(4px)' },
   { transform: 'translateX(-2px)' },
   { transform: 'none', backgroundColor: 'transparent' },
+];
+/** Iron Vow healed this hero: a green glow behind the bar. */
+const HEAL_PULSE: Keyframe[] = [
+  { boxShadow: '0 0 0 0 rgba(76, 217, 100, 0.9)' },
+  { boxShadow: '0 0 0 10px rgba(76, 217, 100, 0)' },
 ];
 const FIRED_PULSE: Keyframe[] = [
   { boxShadow: '0 0 0 0 rgba(255, 255, 255, 0.9)', transform: 'scale(0.92)' },
@@ -216,6 +226,10 @@ export class Hud {
   private laneRoleTimer = 0;
   private readonly endGifts = $('end-gifts');
   private giftKey = '';
+  private readonly endUlts = $('end-ults');
+  private ultKey = '';
+  /** Kill-count popups, the cast flash and the teammate chips. */
+  private readonly ults = new UltHud();
   private readonly endScreen = $('end-screen');
   private readonly endEmblem = $('end-emblem');
   private readonly endTitle = $('end-title');
@@ -377,6 +391,7 @@ export class Hud {
       this.toast('Practice: learn R, then cast it — your ally answers');
     }
     this.updateTeam(snap, me);
+    this.ults.sync(snap, me);
     this.updateNotice();
 
     const over = snap.phase === 'victory' || snap.phase === 'defeat';
@@ -385,6 +400,7 @@ export class Hud {
       if (this.outcomeSent) this.resetFeedback();
       this.outcomeSent = false;
       this.renderGifts(null);
+      this.renderUlts(null);
     } else {
       const online = this.room !== null;
       const isHost = online && this.room!.hostId === me;
@@ -403,6 +419,7 @@ export class Hud {
         : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. Kills: ${player?.kills ?? 0}.`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
       this.renderGifts(this.report?.report ?? null);
+      this.renderUlts(this.report?.report ?? null);
       if (!this.outcomeSent) {
         this.outcomeSent = true;
         this.openFeedback(snap);
@@ -539,6 +556,33 @@ export class Hud {
     li.append(who, lvl, bar, money);
     this.teamList.appendChild(li);
     return { lvl, fill, gold, gifts };
+  }
+
+  /**
+   * Ultimates in this batch of events: a flash for every cast (anyone's), a kill-count popup for every rain or burst
+   * that ended, and Iron Vow's heal on the teammate chips (and your own panel).
+   */
+  feedUltimates(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
+    for (const e of events) {
+      if (e.type !== 'cast' || e.slot !== 'R') continue;
+      const hero = snap.heroes.find((h) => h.id === e.heroId);
+      if (hero) this.ults.castFlash(HERO_ULTIMATE[hero.kind]);
+    }
+    for (const pop of ultPops(events)) this.ults.pop(pop, snap, me);
+    for (const line of healLines(events, snap)) {
+      this.ults.heal(line, me);
+      if (line.owner === me) pulse(this.heroPanel, HEAL_PULSE, 600);
+      else {
+        const row = this.teamRows.get(line.owner);
+        if (row) pulse(row.fill, HEAL_PULSE, 600);
+      }
+    }
+  }
+
+  /** The R button's pulse and "Combo!" ring. */
+  setUltCues(cues: UltCues): void {
+    const r = this.skillButtons.get('R');
+    if (r) applyUltCues(r.root, cues);
   }
 
   handleEvents(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
@@ -739,6 +783,9 @@ export class Hud {
     this.coins.clear();
     this.hideLaneRoles();
     this.renderGifts(null);
+    this.renderUlts(null);
+    this.ults.clear();
+    this.setUltCues(NO_ULT_CUES);
     this.flagsKey = '';
     this.modifiersAnnounced = false;
     this.practiceNoted = false;
@@ -836,6 +883,42 @@ export class Hud {
       this.endGifts.appendChild(li);
     }
     this.endGifts.classList.remove('hidden');
+  }
+
+  /** Kills per ultimate and combo, and combos per pair of players (a report from before protocol 18 lists none). */
+  private renderUlts(report: MatchReport | null): void {
+    const ults = report ? ultimateLines(report) : [];
+    const pairs = report ? comboPairLines(report) : [];
+    const key = JSON.stringify([ults.map((l) => l.text), pairs.map((l) => l.text)]);
+    if (key === this.ultKey) return;
+    this.ultKey = key;
+    this.endUlts.replaceChildren();
+    if (ults.length === 0 && pairs.length === 0) {
+      this.endUlts.classList.add('hidden');
+      return;
+    }
+    const head = (text: string) => {
+      const li = document.createElement('li');
+      li.className = 'end-gifts-head';
+      li.textContent = text;
+      this.endUlts.appendChild(li);
+    };
+    const line = (text: string, tag?: string) => {
+      const li = document.createElement('li');
+      li.className = 'end-ult-line';
+      if (tag) li.dataset.ult = tag;
+      li.textContent = text;
+      this.endUlts.appendChild(li);
+    };
+    if (ults.length > 0) {
+      head('Ultimates');
+      for (const l of ults) line(l.text, l.tag);
+    }
+    if (pairs.length > 0) {
+      head('Combos by pair');
+      for (const l of pairs) line(l.text);
+    }
+    this.endUlts.classList.remove('hidden');
   }
 
   private showBanner(text: string, sub: string, boss: boolean, kind: '' | 'mods' = ''): void {
@@ -960,6 +1043,7 @@ export class Hud {
     root.addEventListener('click', () => this.actions.pressSkill(slot));
     learn.addEventListener('click', () => this.actions.learn(slot));
     for (const el of [root, learn]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    if (slot === 'R') addUltCueParts(root);
     const b: SkillButton = {
       root,
       learn,

@@ -10,6 +10,31 @@ const DECAY_PER_S = 1.8;
  */
 export const SYNC_CAST_TRAUMA = 0.75;
 
+/**
+ * How hard each moment kicks the screen at Normal (trauma 0..1; the offset grows with its square, so 0.5 is about
+ * 2 px on a phone and 1 about 9). Strong multiplies it (`STRONG_SHAKE`); Off and reduced motion drop it.
+ */
+export const SHAKE_AT = {
+  /** An ultimate cast, anyone's: the Meteor kicks hardest, Arrow Storm is a lighter rain. */
+  arrowStorm: 0.5,
+  meteor: 0.65,
+  ironVow: 0.65,
+  /** Two ultimates fused: on top of the cast's own kick. */
+  combo: 0.8,
+  /** Boss abilities: Ironhorn's stomp, the Matriarch's hatch and Shardback's shifting hide. */
+  stomp: 0.55,
+  hatch: 0.35,
+  hideShift: 0.35,
+} as const;
+
+/** The Heart took a leak of `damage`: a kick of 0.4 for a 1 HP leak, more for a boss's 20 (never past 1). */
+export function heartShake(damage: number): number {
+  return Math.min(1, 0.4 + Math.max(0, damage) * 0.03);
+}
+
+/** Heart hits kick the screen at most this often (ms): a pack of leaks is one thud, not a rumble. */
+export const HEART_SHAKE_GAP_MS = 250;
+
 /** The device asks for less motion (the OS "reduce motion" switch). False where the browser cannot say. */
 export function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
