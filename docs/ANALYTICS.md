@@ -37,7 +37,7 @@ The client posts to `POST /analytics/event` on the same host as `VITE_SERVER_URL
 | A Render Disk mount, e.g. `/var/data` | `events.jsonl` in that directory. This is what survives a deploy. On Render: **Disks** → add a disk → mount path `/var/data` → set `ANALYTICS_DIR=/var/data`. The process user must be able to write there. |
 | `memory` | RAM only. Lost when the process stops. |
 
-The file keeps 30 days (and at most 20,000 events). Older lines are dropped. If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
+The file keeps 30 days (and at most the newest 20,000 events). The server drops older events and rewrites the file at startup and then every 24 hours of uptime, whatever the file size and whether or not anything was recorded that day. A deploy or restart also runs the startup prune. Between those, the file is also rewritten whenever an append pushes it past 2 MB. So nothing stays on disk for more than 30 days plus one day. Memory follows the same rule. If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
 
 There is no database and no paid add-on required. Without a disk, do not read D1/D7 after a restart — the cohort was wiped.
 

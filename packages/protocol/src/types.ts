@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -160,6 +160,35 @@ export interface SurgeNotice {
  */
 export const COMBO_KINDS = ['meteorRain', 'stunStorm', 'shockwave'] as const;
 export type ComboKind = (typeof COMBO_KINDS)[number];
+
+/** The three hero ultimates (Arrow Storm, Meteor, Iron Vow), and with the combos every named effect an R can make. */
+export const ULTIMATE_KINDS = ['arrowStorm', 'meteor', 'ironVow'] as const;
+export type UltimateKind = (typeof ULTIMATE_KINDS)[number];
+export type UltimateTag = UltimateKind | ComboKind;
+export const ULTIMATE_TAGS: readonly UltimateTag[] = [...ULTIMATE_KINDS, ...COMBO_KINDS];
+
+/** The two ultimates each combo fuses (any two different ultimates fuse into exactly one combo). */
+export const COMBO_PARTS: Record<ComboKind, readonly [UltimateKind, UltimateKind]> = {
+  meteorRain: ['arrowStorm', 'meteor'],
+  stunStorm: ['ironVow', 'arrowStorm'],
+  shockwave: ['meteor', 'ironVow'],
+};
+
+/** The combo two ultimates make cast close together, or null (the same ultimate twice makes none). */
+export function comboOfUltimates(a: UltimateKind, b: UltimateKind): ComboKind | null {
+  for (const combo of COMBO_KINDS) {
+    const [x, y] = COMBO_PARTS[combo];
+    if ((x === a && y === b) || (x === b && y === a)) return combo;
+  }
+  return null;
+}
+
+/** The ultimate a hero kind's R casts. */
+export const HERO_ULTIMATE: Record<HeroKind, UltimateKind> = {
+  ranger: 'arrowStorm',
+  arcanist: 'meteor',
+  warden: 'ironVow',
+};
 
 /**
  * A shielded boss (the wave-10 raid beat). `up`: no lane has tagged it in the window.
@@ -431,6 +460,18 @@ export type GameEvent =
    * kind replaces them (a zone of `radius` 0; its strikes are `aoe` events). `x`, `y`: the lead caster.
    */
   | { type: 'combo'; combo: ComboKind; x: number; y: number; radius: number; heroes: EntityId[] }
+  /**
+   * An ultimate's effect is over: a lane rain ended (its time ran out, or it fused into a combo) or Iron Vow's burst
+   * landed. `ult` is the rain's kind (a combo's rain carries the combo's name), `by` its owner, `kills` the creeps
+   * that rain (or burst) killed, all of them, wherever they stood. Emitted once per rain. Client Polish: the
+   * kill-count popup ("Arrow Storm: 12").
+   */
+  | { type: 'ultResult'; ult: UltimateTag; by: PlayerId; kills: number }
+  /**
+   * Iron Vow healed a hero: `amount` HP actually gained (0 when the hero was already at full health). One per
+   * living hero when the vow is cast, wherever they stand.
+   */
+  | { type: 'heal'; heroId: EntityId; amount: number }
   /** A wave-10 boss spawned with a two-lane shield (no damage until two lanes hit within 3 s). */
   | { type: 'shieldUp'; creepId: EntityId; kind: CreepKind; x: number; y: number }
   /** A hit lit one half of a shield (`side` of the boss, from `lane`). */
@@ -564,6 +605,17 @@ export interface MatchReport {
 export interface CoopReport {
   /** Combos fired, by kind. */
   combos: Record<ComboKind, number>;
+  /**
+   * Casts and kills of every ultimate and combo over the match. A combo's rain counts under the combo's name, and the
+   * two ultimates that fused into it are not counted again as casts (their kills before the fuse stay theirs). Kills
+   * are every creep the rain or burst killed. Reports from before protocol 18 omit it.
+   */
+  ultimates?: Record<UltimateTag, { casts: number; kills: number }>;
+  /**
+   * Combos fired by each pair of players (seat order inside a pair, pairs in seat order of their first player), by
+   * kind. Only pairs that fused at least one. Reports from before protocol 18 omit it.
+   */
+  comboPairs?: { players: [PlayerId, PlayerId]; combos: Record<ComboKind, number> }[];
   shields: {
     boss: CreepKind;
     wave: number;

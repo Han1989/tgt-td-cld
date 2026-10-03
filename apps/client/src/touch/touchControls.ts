@@ -24,6 +24,8 @@ import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
 import { skillSheetRows } from '../hud/skillSheet';
+import { addUltCueParts, applyUltCues } from '../hud/ultFace';
+import type { UltCues } from '../ult/cues';
 import {
   BRANCH_BLURBS,
   branchChoices,
@@ -260,6 +262,12 @@ export class TouchControls {
     if (el && this.active) pulse(el.btn, FIRED_PULSE, 320);
   }
 
+  /** The R button's pulse (ready for 20 s of a wave) and "Combo!" ring (a teammate's ultimate fuses with yours). */
+  setUltCues(cues: UltCues): void {
+    const el = this.skills.get('R');
+    if (el) applyUltCues(el.wrap, cues);
+  }
+
   /** The touch overlay is showing (phones, touch tablets). */
   get active(): boolean {
     return !!this.layout?.controls;
@@ -376,6 +384,7 @@ export class TouchControls {
     const cost = document.createElement('span');
     cost.className = 'cost';
     wrap.append(btn, learn, cost);
+    if (slot === 'R') addUltCueParts(wrap);
     this.overlay.appendChild(wrap);
 
     learn.addEventListener('pointerdown', (e) => e.stopPropagation());

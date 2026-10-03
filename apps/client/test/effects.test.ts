@@ -4,9 +4,9 @@ import { Counter } from '../src/hud/counter';
 import { HitTracker } from '../src/render/fx/hits';
 import { bitAlpha, bitScale, newBit, stepBit } from '../src/render/fx/motion';
 import { damageText, GLYPHS, layoutGlyphs } from '../src/render/fx/numbers';
-import { prefersReducedMotion, Shake, SYNC_CAST_TRAUMA, twinShake } from '../src/render/fx/shake';
+import { heartShake, prefersReducedMotion, SHAKE_AT, Shake, SYNC_CAST_TRAUMA, twinShake } from '../src/render/fx/shake';
 import { mixColor } from '../src/render/palette';
-import { fxLevel } from '../src/render/quality';
+import { fxLevel, shakeScale, STRONG_SHAKE } from '../src/render/quality';
 import { parseSettings } from '../src/settings';
 
 describe('particle motion', () => {
@@ -161,6 +161,26 @@ describe('screen shake', () => {
   });
 });
 
+describe('what shakes the screen', () => {
+  const px = (trauma: number) => trauma * trauma * 9;
+
+  it('every ultimate cast kicks the screen enough to feel on a phone (about 2 px or more)', () => {
+    for (const k of ['arrowStorm', 'meteor', 'ironVow'] as const) expect(px(SHAKE_AT[k])).toBeGreaterThanOrEqual(2);
+    expect(SHAKE_AT.combo).toBeGreaterThan(SHAKE_AT.arrowStorm);
+  });
+
+  it('boss abilities kick too', () => {
+    for (const k of ['stomp', 'hatch', 'hideShift'] as const) expect(px(SHAKE_AT[k])).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a Heart hit kicks more for a bigger leak, and never past full', () => {
+    expect(px(heartShake(1))).toBeGreaterThanOrEqual(1);
+    expect(heartShake(20)).toBeGreaterThan(heartShake(1));
+    expect(heartShake(1000)).toBe(1);
+    expect(heartShake(-5)).toBe(heartShake(0));
+  });
+});
+
 describe('twin-ultimate shake', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -275,23 +295,37 @@ describe('smooth counter', () => {
 
 describe('effect levels', () => {
   it('Low drops particles and shake; High follows the shake setting', () => {
-    expect(fxLevel('low', true)).toMatchObject({ particles: false, shake: false });
-    expect(fxLevel('high', true)).toMatchObject({ particles: true, shake: true });
-    expect(fxLevel('high', false)).toMatchObject({ particles: true, shake: false });
-    expect(fxLevel('low', true).maxNumbers).toBeLessThan(fxLevel('high', true).maxNumbers);
+    expect(fxLevel('low', 'normal')).toMatchObject({ particles: false, shake: false, shakeScale: 0 });
+    expect(fxLevel('high', 'normal')).toMatchObject({ particles: true, shake: true, shakeScale: 1 });
+    expect(fxLevel('high', 'strong')).toMatchObject({ particles: true, shake: true, shakeScale: STRONG_SHAKE });
+    expect(fxLevel('high', 'off')).toMatchObject({ particles: true, shake: false, shakeScale: 0 });
+    expect(fxLevel('low', 'normal').maxNumbers).toBeLessThan(fxLevel('high', 'normal').maxNumbers);
+  });
+
+  it('Strong kicks harder than Normal, Off and reduced motion turn the shake off', () => {
+    expect(STRONG_SHAKE).toBeGreaterThan(1);
+    expect(shakeScale('strong', false, false)).toBeGreaterThan(shakeScale('normal', false, false));
+    expect(shakeScale('off', false, false)).toBe(0);
+    // Reduced motion wins over every setting, Strong included.
+    for (const setting of ['off', 'normal', 'strong'] as const) {
+      expect(shakeScale(setting, false, true)).toBe(0);
+      expect(fxLevel('high', setting, true).shake).toBe(false);
+    }
   });
 
   it('carries the reduced-motion flag through every quality (off unless the device asks)', () => {
-    expect(fxLevel('high', true).calm).toBe(false);
-    expect(fxLevel('low', true).calm).toBe(false);
-    expect(fxLevel('high', true, true).calm).toBe(true);
-    expect(fxLevel('low', false, true).calm).toBe(true);
+    expect(fxLevel('high', 'normal').calm).toBe(false);
+    expect(fxLevel('low', 'normal').calm).toBe(false);
+    expect(fxLevel('high', 'normal', true).calm).toBe(true);
+    expect(fxLevel('low', 'off', true).calm).toBe(true);
   });
 
-  it('keeps the screen shake setting (on by default)', () => {
-    expect(parseSettings(null).shake).toBe(true);
-    expect(parseSettings(JSON.stringify({ shake: false })).shake).toBe(false);
-    expect(parseSettings(JSON.stringify({ shake: 'no' })).shake).toBe(true);
+  it('keeps the screen shake setting (Normal by default; the old on / off switch carries over)', () => {
+    expect(parseSettings(null).shake).toBe('normal');
+    for (const v of ['off', 'normal', 'strong']) expect(parseSettings(JSON.stringify({ shake: v })).shake).toBe(v);
+    expect(parseSettings(JSON.stringify({ shake: true })).shake).toBe('normal');
+    expect(parseSettings(JSON.stringify({ shake: false })).shake).toBe('off');
+    expect(parseSettings(JSON.stringify({ shake: 'no' })).shake).toBe('normal');
   });
 
   it('mixes colours channel by channel', () => {
