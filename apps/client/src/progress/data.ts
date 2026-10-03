@@ -319,10 +319,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'discovery',
     note: 'Client only, protocol stays 17. A shared link shows a card drawn from the game’s own art and README’s pitch; tagged links keep the card and their ?src=. A boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7. Press kit: docs/PRESS.md.',
-    proof: {
-      label: 'Branch, PR to be opened',
-      href: `${REPO}/tree/cursor/link-preview-first-load-1287`,
-    },
+    proof: pr(77),
   },
   {
     id: 'D-02',
