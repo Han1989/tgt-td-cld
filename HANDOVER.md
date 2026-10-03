@@ -106,7 +106,7 @@ The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish ite
    - **T-04** Projectile and trap art
    - **T-05** Docs clean-up
 2. **Gate 1 passed on 2 Oct 2026.** Friends played on Android, PC, and iPhone Safari (g1-render, g1-play, g1-watch, g1-tune, g1-gate). Friends-only play was never the store go/no-go.
-3. **Playtest 2** is open (`TASKS.md`, P2-01–P2-05): touch controls (client, Client Polish), air waves and unspent gold teaching (client, Client Polish), kit rework and balance by simulation (sim, Claude; Han reviews the PR), ultimate presentation and a combo cue (client, after the kit rework), then a retest (Han).
+3. **Playtest 2** is open (`TASKS.md`, P2-01–P2-05 and P2-04b). P2-01 to P2-04b are done: touch controls (client, PR #57), air waves and unspent gold teaching (client, PR #63), kit rework and balance by simulation (sim, PR #66), the combo cue and kill count (client, PR #70), and P2-04b, the cast-together prompt, ultimate shake and heal feedback (client, PR #73, built by Claude Code). Still open: the P2-05 retest (Han).
 4. **Han's list:** H-01 is done (Vercel Authentication Disabled on tgt-td-cld, Han confirmed 1 Oct 2026). H-04 is done (lobby, match, and boss music, PR #42). H-02, H-03, H-05, and H-06 stay open: the hook-test server, trying the hook test, the iPhone checklist, and GitHub access.
 5. **Phase 6 may proceed** (accounts, clans, loot, leaderboards). Those tasks are not started. Kit rework and sim balance from the friends session is Playtest 2 (P2-03).
 6. **Discovery and rollout** (plan in `TASKS.md`) is the public soft-launch path and is still open. Before or alongside store submission, put the polished build in front of **strangers** and measure response:
