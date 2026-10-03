@@ -16,6 +16,7 @@ interface Hook {
   lose: () => void;
   latest(): {
     tick: number;
+    tickRate: number;
     totalWaves: number;
     phase: string;
     modifiers: string[];
@@ -32,7 +33,7 @@ interface Hook {
   auraRings(): { drawn: number; covering: number };
   /** Where your hero was drawn each frame since `heroTrace(true)` (tiles; `t` = performance.now()). */
   heroTrace(start?: boolean): { t: number; x: number; y: number }[];
-  fx(): { live: number; shaken: number; particles: boolean; shake: boolean; maxNumbers: number; calm: boolean };
+  fx(): { live: number; shaken: number; particles: boolean; shake: boolean; shakeScale: number; maxNumbers: number; calm: boolean };
   /** Coins launched to the gold counter so far. */
   coins(): number;
   art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };

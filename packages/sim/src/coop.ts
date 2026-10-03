@@ -122,6 +122,7 @@ export function addZone(
     endTick: state.tick + duration,
     nextPulseTick: state.tick + firstPulse,
     pulseTicks,
+    kills: 0,
     done: false,
   };
   state.zones.push(zone);
@@ -320,6 +321,7 @@ export function pulseRain(state: GameState, zone: Zone): void {
   const from = ownerFrom(state, zone.owner);
   const reach = strike.pull ? strike.pull.radius : strike.radius;
   const hit = new Set<number>();
+  const killsBefore = state.ultStats.kills;
   for (const lane of [0, 1, 2] as LaneId[]) {
     let open = state.creeps.filter((c) => !c.dead && c.lane === lane);
     while (open.length > 0) {
@@ -347,6 +349,7 @@ export function pulseRain(state: GameState, zone: Zone): void {
       open = open.filter((c) => !c.dead && !hit.has(c.id));
     }
   }
+  zone.kills += state.ultStats.kills - killsBefore;
 }
 
 /** The Shockwave's pull: the ground creeps of `lane` within `radius` of (x, y) step `distance` tiles toward it. */

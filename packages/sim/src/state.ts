@@ -274,6 +274,8 @@ export interface Zone {
   /** Next tick that deals damage; pulses repeat every `pulseTicks` until `endTick`. */
   nextPulseTick: number;
   pulseTicks: number;
+  /** Creeps this rain has killed so far; reported in an `ultResult` when it ends. */
+  kills: number;
   done: boolean;
 }
 

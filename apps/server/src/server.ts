@@ -94,6 +94,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
 
   const analyticsStore = new AnalyticsStore(config.analyticsDir);
   analyticsStore.open();
+  analyticsStore.startPruning();
   const analyticsHttp = createAnalyticsHttp({
     store: analyticsStore,
     dashboardKey: config.analyticsDashboardKey,
@@ -353,6 +354,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
     stopped = true;
     if (tickTimer) clearTimeout(tickTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    analyticsStore.stopPruning();
     for (const room of rooms.values()) room.closeAll(CLOSE_SERVICE_RESTART, 'Server restarting');
     rooms.clear();
     for (const conn of conns) conn.ws.close(CLOSE_SERVICE_RESTART, 'Server restarting');

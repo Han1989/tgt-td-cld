@@ -7,6 +7,8 @@ import type { Display } from './render/art/tokens';
 import { parseAirLesson, type AirLesson, type TutorialStatus } from './tutorial/logic';
 
 export type Quality = 'auto' | 'high' | 'low';
+/** Screen shake: off, the normal kick, or a stronger one (ultimates, boss abilities and Heart hits). */
+export type ShakeSetting = 'off' | 'normal' | 'strong';
 
 export interface Settings {
   thumbs: ThumbLayout;
@@ -15,8 +17,11 @@ export interface Settings {
   /** How far the thumb must travel before the hero is at full speed. */
   stickFeel: StickFeelName;
   quality: Quality;
-  /** Screen shake on big impacts (Graphics → Low turns it off regardless). */
-  shake: boolean;
+  /**
+   * Screen shake on ultimates, boss abilities and Heart hits. Graphics → Low and the device's reduced-motion
+   * setting turn it off regardless. Settings saved before the three-way switch hold a boolean (true: Normal).
+   */
+  shake: ShakeSetting;
   /** Normal, or Bright (lifts the ground and shadows for outdoor play). */
   display: Display;
   /** Music and effects volume, 0–1 (the sliders, in steps of 5%). */
@@ -59,6 +64,12 @@ export const DISPLAY_NAMES: Record<Display, string> = {
   bright: 'Bright',
 };
 
+export const SHAKE_NAMES: Record<ShakeSetting, string> = {
+  off: 'Off',
+  normal: 'Normal',
+  strong: 'Strong',
+};
+
 export const QUALITY_NAMES: Record<Quality, string> = {
   auto: 'Auto',
   high: 'High',
@@ -71,7 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stickAnchor: 'center',
   stickFeel: 'normal',
   quality: 'auto',
-  shake: true,
+  shake: 'normal',
   display: 'normal',
   music: 0.5,
   sfx: 0.8,
@@ -95,7 +106,8 @@ export function parseSettings(raw: string | null): Settings {
     if (v.stickAnchor === 'left' || v.stickAnchor === 'center' || v.stickAnchor === 'right') out.stickAnchor = v.stickAnchor;
     if (v.stickFeel === 'light' || v.stickFeel === 'normal' || v.stickFeel === 'firm') out.stickFeel = v.stickFeel;
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;
-    if (typeof v.shake === 'boolean') out.shake = v.shake;
+    if (v.shake === 'off' || v.shake === 'normal' || v.shake === 'strong') out.shake = v.shake;
+    else if (typeof v.shake === 'boolean') out.shake = v.shake ? 'normal' : 'off';
     if (v.display === 'normal' || v.display === 'bright') out.display = v.display;
     out.music = volume(v.music) ?? out.music;
     out.sfx = volume(v.sfx) ?? out.sfx;

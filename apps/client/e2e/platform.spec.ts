@@ -101,7 +101,7 @@ test('the ready signal comes once the first screen and the debug hook exist, wit
 test('effects run without errors: particles, shake and coins flying to the gold counter', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: 'normal' })));
   // The stress scene streams kills (yours), splashes, crits, skills and leaks.
   await page.goto('/?stress=60');
   await waitForReady(page, 'stress');
@@ -126,17 +126,37 @@ test('a wave starts with a banner, and buttons react to presses', async ({ page 
   await expect(page.locator('#banner .sub')).toContainText('gold');
 });
 
-test('Graphics → Low turns off particles and shake; Screen shake has its own switch', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
+test('Screen shake is Off / Normal / Strong, Normal by default', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high' })));
+  await startSolo(page);
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: true, shakeScale: 1 });
+  await page.locator('#settings-btn').tap();
+  await expect(page.locator('#settings-shake .btn')).toHaveText(['Off', 'Normal', 'Strong']);
+  await expect(page.locator('#settings-shake .btn.active')).toHaveText('Normal');
+  await page.locator('#settings-shake .btn[data-value="off"]').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: false, shakeScale: 0 });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).shake)).toBe('off');
+  await page.locator('#settings-shake .btn[data-value="strong"]').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx().shakeScale)).toBeGreaterThan(1);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).shake)).toBe('strong');
+});
+
+// Straight to Low, before the first wave: a fight would keep damage numbers (which Low allows) alive and `live` above 0.
+test('Graphics → Low turns off particles and shake', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high' })));
   await startSolo(page);
   await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: true });
   await page.locator('#settings-btn').tap();
-  await page.locator('#settings-shake .btn[data-value="off"]').tap();
-  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: false });
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).shake)).toBe(false);
-  await page.locator('#settings-shake .btn[data-value="on"]').tap();
   await page.locator('#settings-quality .btn[data-value="low"]').tap();
   await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: false, shake: false, live: 0 });
+});
+
+test('the old on / off shake setting carries over', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: false })));
+  await startSolo(page);
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ shake: false, shakeScale: 0 });
+  await page.locator('#settings-btn').tap();
+  await expect(page.locator('#settings-shake .btn.active')).toHaveText('Off');
 });
 
 // ---------------------------------------------------------------------------

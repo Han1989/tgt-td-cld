@@ -45,6 +45,8 @@ export class StressTransport implements Transport {
   constructor(
     private readonly count: number,
     private readonly only?: ComboKind,
+    /** Ticks per timer beat (`?pace=3`): a slow machine's timer keeps the scene's clock moving, for the browser tests. */
+    private readonly pace = 1,
   ) {
     const tuning: Tuning = structuredClone(TUNING);
     tuning.economy.startingGold = 1_000_000;
@@ -80,7 +82,14 @@ export class StressTransport implements Transport {
     this.raf = requestAnimationFrame(frame);
 
     setTimeout(() => this.emit({ t: 'welcome', playerId: PLAYER }), 0);
-    this.timer = setInterval(() => this.emit({ t: 'snapshot', snap: this.frame() }), 1000 / TICK_RATE);
+    this.timer = setInterval(() => {
+      // With a pace above 1 the ticks in between are made too, and their events ride on the snapshot sent.
+      const skipped: GameEvent[] = [];
+      for (let i = 1; i < this.pace; i++) skipped.push(...this.frame().events);
+      const snap = this.frame();
+      if (skipped.length > 0) snap.events = [...skipped, ...snap.events];
+      this.emit({ t: 'snapshot', snap });
+    }, 1000 / TICK_RATE);
   }
 
   /** One synthetic snapshot: creeps spread along the three lanes, looping, and projectiles from towers to them. */
@@ -126,11 +135,13 @@ export class StressTransport implements Transport {
     // Both heroes wear an Iron Vow ring all the time, so its sprites are part of the load. The Arcanist stands on
     // the Mid lane, where the fused rain is marked.
     const spot = midSpot();
+    // Their ultimates are learned and ready (the R button's pulse and "Combo!" ring).
     const heroes = this.base.heroes.map((h) => ({
       ...h,
       ...(h.owner === ALLY ? { x: spot.x, y: spot.y } : {}),
       shielded: true,
       shieldFor: 100,
+      skills: h.skills.map((s) => (s.slot === 'R' ? { ...s, rank: 1, cooldown: 0, learnable: false } : s)),
     }));
     return { ...this.base, tick: t, creeps, projectiles, heroes, zones: this.zones(t), events: this.events(t, creeps, heroes), nextWaveIn: 600 };
   }
@@ -170,7 +181,20 @@ export class StressTransport implements Transport {
         { type: 'combo', combo: this.comboAt(t), x: arcanist.x, y: arcanist.y, radius: 0, heroes: [ranger.id, arcanist.id] },
       );
     }
-    // While the fused rain runs, a strike every 0.3 s and the creep under it dies (the kill count's feed).
+    if (ranger && arcanist) {
+      const k = t % 240;
+      // The ally casts alone first: your R shows the "Combo!" ring until the fuse.
+      if (k === 20) events.push({ type: 'cast', heroId: arcanist.id, slot: 'R', x: arcanist.x, y: arcanist.y });
+      // The fuse ends the Arrow Storm, and Iron Vow's heal reaches both heroes.
+      if (k === FUSE_TICK + 1) events.push({ type: 'ultResult', ult: 'arrowStorm', by: PLAYER, kills: 4 });
+      if (k === FUSE_TICK + 2) {
+        events.push({ type: 'heal', heroId: ranger.id, amount: 150 }, { type: 'heal', heroId: arcanist.id, amount: 90 });
+      }
+      // Rains end: yours, then the ally's.
+      if (k === 150) events.push({ type: 'ultResult', ult: 'meteorRain', by: PLAYER, kills: 12 });
+      if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
+    }
+    // While the fused rain runs, a strike every 0.3 s and the creep under it dies.
     const since = this.rainSince(t);
     if (since >= 0 && since <= 72 && since % 6 === 0) {
       const c = pick(5);

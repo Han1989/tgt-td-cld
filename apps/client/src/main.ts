@@ -54,7 +54,8 @@ async function main(): Promise<void> {
     const { StressTransport } = await import('./stress');
     const combo = params.get('combo');
     const only = COMBO_KINDS.find((k) => k === combo);
-    view.attach(new StressTransport(Math.min(1000, Math.floor(stress)), only));
+    const pace = Math.min(6, Math.max(1, Math.floor(Number(params.get('pace')) || 1)));
+    view.attach(new StressTransport(Math.min(1000, Math.floor(stress)), only, pace));
     ready('stress');
     return;
   }

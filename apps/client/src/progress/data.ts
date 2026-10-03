@@ -27,7 +27,7 @@ const sections: ProgressSection[] = [
   {
     id: 'playtest2',
     title: 'Playtest 2 · work orders',
-    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 to P2-04 are done (PR #57, #63, #66, #70). The cast-together prompt, ultimate shake and heal feedback (P2-04b) and the retest are still open. Not the overnight auto-pull list.',
+    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 to P2-04b are done (PR #57, #63, #66, #70, #73). The retest (P2-05) is still open. Not the overnight auto-pull list.',
     group: 'now',
   },
   {
@@ -196,9 +196,10 @@ const items: ProgressItem[] = [
     id: 'P2-04b',
     title: 'Cast-together prompt, ultimate shake and heal feedback',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client. The part of Task 4 that PR #70 left out. The P2-05 retest waits for it. Not assigned to Claude Code; the chief of staff assigns it.',
+    note: 'Client. The part of Task 4 that PR #70 left out: a flare, blink, kick and sound on every cast, one exact kill count per ultimate, the R pulse and Combo! ring, a Screen shake setting (Off, Normal, Strong), Iron Vow heal on every hero and teammate chip, and kills per ultimate and combos per pair on the end screen (protocol 18). The P2-05 retest waited for it. Built by Claude Code.',
+    proof: pr(73),
   },
   {
     id: 'P2-05',
@@ -313,12 +314,12 @@ const items: ProgressItem[] = [
     proof: pr(66),
   },
   {
-    id: 'D-07',
+    id: 'D-08',
     title: 'Link preview and first load',
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Client only, protocol stays 17. A shared link shows a card drawn from the game’s own art and README’s pitch; tagged links keep the card and their ?src=. A boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7. Press kit: docs/PRESS.md.',
+    note: 'Client only, protocol stays 18. A shared link shows a card drawn from the game’s own art and README’s pitch; tagged links keep the card and their ?src=. A boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7. Press kit: docs/PRESS.md.',
     proof: pr(77),
   },
   {

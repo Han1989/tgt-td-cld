@@ -1180,63 +1180,6 @@ body.layout-tall #fuse-ribbon {
   text-shadow: 0 0 20px rgba(255, 210, 74, 0.95), 0 2px 0 var(--ink), 0 3px 12px #000;
 }
 
-/* The kill count of a finished rain or combo: a pill under the fuse ribbon in the caster's seat colour (--c). It
-   rises and fades; under reduced motion it only fades. About 2.2 s (RAIN_COUNT_MS in hud/coopStage.ts). */
-#rain-count {
-  position: absolute;
-  left: 50%;
-  top: 60%;
-  z-index: 5;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 5px 14px 6px;
-  pointer-events: none;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  border: 2px solid var(--c, var(--gold));
-  background: rgba(16, 12, 22, 0.82);
-  white-space: nowrap;
-}
-
-body.layout-tall #rain-count {
-  top: 56%;
-}
-
-#rain-count.on {
-  animation: rain-count 2.2s ease forwards;
-}
-
-#rain-count-name {
-  font-size: clamp(12px, 3.4vw, 15px);
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-
-#rain-count-num {
-  font-family: var(--title-font);
-  font-size: clamp(22px, 6.4vw, 30px);
-  font-weight: 800;
-  color: var(--c, var(--gold));
-  text-shadow: 0 1px 0 var(--ink), 0 0 10px #000;
-}
-
-@keyframes rain-count {
-  0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.9); }
-  14% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.05); }
-  24% { transform: translateX(-50%) translateY(0) scale(1); }
-  72% { opacity: 1; }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(1); }
-}
-
-@keyframes rain-count-calm {
-  0% { opacity: 0; }
-  14%, 72% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
 #fuse-ribbon-who {
   max-width: 100%;
   font-size: clamp(14px, 4.2vw, 18px);
@@ -3832,7 +3775,343 @@ body.layout-rotate .rotate {
     animation-name: fuse-ribbon-calm;
   }
 
-  #rain-count.on {
-    animation-name: rain-count-calm;
+}
+
+/* Ultimate presentation (hud/ultHud.ts, hud/ultFace.ts, ult/cues.ts) ------------------------------------------
+   A blink of the ultimate's colour on every cast, a kill-count popup when a rain or burst ends, a chip for every
+   teammate (health, and Iron Vow's heal), and the R button's pulse and "Combo!" ring. */
+
+#ult-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 70px 24px var(--c, var(--gold)), inset 0 0 220px 40px var(--c, var(--gold));
+}
+
+#ult-flash.on {
+  animation: ult-flash 0.52s ease-out forwards;
+}
+
+@keyframes ult-flash {
+  0% { opacity: 0; }
+  14% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+/* Between the Heart-save word (28-34%) and the fuse band (46%): one line each, three at most. */
+#ult-pops {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+body.layout-wide #ult-pops {
+  top: 30%;
+}
+
+.ult-pop {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+  padding: 3px 14px 4px;
+  font-family: var(--title-font);
+  font-size: clamp(20px, 6vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  white-space: nowrap;
+  color: var(--text);
+  background: rgba(10, 8, 16, 0.72);
+  border: 2px solid var(--c, var(--gold));
+  border-radius: 999px;
+  box-shadow: 0 0 14px -2px var(--c, var(--gold)), 0 2px 8px rgba(0, 0, 8, 0.6);
+  text-shadow: 0 1px 0 var(--ink);
+  animation: ult-pop 2.2s ease forwards;
+}
+
+.ult-pop .name {
+  color: var(--c, var(--gold));
+}
+
+.ult-pop b {
+  font-size: 1.25em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.ult-pop .who {
+  font-style: normal;
+  font-size: 0.62em;
+  letter-spacing: 0.02em;
+}
+
+@keyframes ult-pop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.8); }
+  10% { opacity: 1; transform: translateY(0) scale(1.08); }
+  18% { transform: scale(1); }
+  76% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Teammate chips: under the top bar at the left, over the empty corner of the map (the first pads start two tiles lower).
+   Tall layout only: the wide layout lists teammates in the team panel. */
+.mates {
+  display: none;
+  position: absolute;
+  left: 6px;
+  top: calc(var(--topbar-bottom, 44px) + 4px);
+  z-index: 3;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+
+body.layout-tall .mates {
+  display: flex;
+}
+
+.mate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 1px 5px 1px 1px;
+  background: rgba(10, 8, 16, 0.66);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.mate-ico {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ico) center / 82% no-repeat, radial-gradient(circle at 35% 30%, #3b4152, #120f19);
+  border: 2px solid var(--seat, var(--rune));
+}
+
+.mate-bar {
+  width: 34px;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.mate-bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--hp);
+}
+
+.mate.dead {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+/* Iron Vow reached them: a green ring from the portrait and a "+N" rising beside the chip. */
+.mate.healed::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--hp), 0 0 12px 2px var(--hp);
+  animation: mate-heal 1.2s ease-out forwards;
+}
+
+@keyframes mate-heal {
+  0% { opacity: 1; transform: scale(0.9); }
+  100% { opacity: 0; transform: scale(1.5, 1.9); }
+}
+
+.mate .heal-num {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--hp);
+  text-shadow: 0 1px 0 var(--ink), 0 0 6px #000;
+  white-space: nowrap;
+  animation: heal-num 1.3s ease-out forwards;
+}
+
+@keyframes heal-num {
+  0% { opacity: 0; transform: translateY(-70%) scale(0.8); }
+  15% { opacity: 1; transform: translateY(-50%) scale(1.1); }
+  100% { opacity: 0; transform: translateY(0%); }
+}
+
+/* The R button. Ready glows (above). After 20 s of a wave it pulses, harder and bigger. A teammate's ultimate that fuses
+   with yours opens a 5 s ring, draining; its "Combo!" tag sits on the button's top edge. */
+.tskill.ult .combo-ring,
+.skill.ult .combo-ring {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.tskill.ult .combo-ring {
+  inset: -7px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ember) calc(var(--left, 0) * 360deg), rgba(0, 0, 0, 0.45) 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px));
+  filter: drop-shadow(0 0 6px rgba(255, 106, 40, 0.95));
+}
+
+.skill.ult .combo-ring {
+  left: 0;
+  bottom: 0;
+  height: 5px;
+  width: calc(var(--left, 0) * 100%);
+  background: var(--ember);
+  box-shadow: 0 0 8px 1px var(--ember);
+}
+
+.combo-tag {
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  z-index: 2;
+  display: none;
+  padding: 1px 7px 2px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--ember);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--ink), 0 0 10px rgba(255, 106, 40, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.skill.ult .combo-tag {
+  top: 2px;
+  left: auto;
+  right: 4px;
+  transform: none;
+}
+
+.tskill.ult.combo .combo-ring,
+.skill.ult.combo .combo-ring {
+  opacity: 1;
+}
+
+.tskill.ult.combo .combo-tag,
+.skill.ult.combo .combo-tag {
+  display: block;
+  animation: combo-tag 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes combo-tag {
+  from { transform: translateX(-50%) scale(1); }
+  to { transform: translateX(-50%) scale(1.12); }
+}
+
+.skill.ult.combo .combo-tag {
+  animation-name: combo-tag-desk;
+}
+
+@keyframes combo-tag-desk {
+  from { transform: scale(1); }
+  to { transform: scale(1.12); }
+}
+
+.tskill.ult.nudge::before {
+  inset: -4px;
+  box-shadow: 0 0 18px 8px rgba(255, 210, 74, 0.95);
+  animation: ult-nudge 0.8s ease-in-out infinite alternate;
+}
+
+.skill.ult.nudge::after {
+  box-shadow: inset 0 0 22px 5px rgba(255, 210, 74, 0.95);
+  animation: ult-nudge-desk 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes ult-nudge {
+  from { opacity: 0.4; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1.14); }
+}
+
+@keyframes ult-nudge-desk {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+/* End screen: kills per ultimate and combos by pair, in the gifts box's style. */
+.end-ults li.end-ult-line {
+  justify-content: flex-start;
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still blinks, but fainter; nothing grows or moves. */
+  #ult-flash.on {
+    animation-name: ult-flash-calm;
+  }
+
+  .ult-pop {
+    animation-name: ult-pop-calm;
+  }
+
+  .mate .heal-num {
+    animation-name: heal-num-calm;
+  }
+
+  .mate.healed::before {
+    animation-name: mate-heal-calm;
+  }
+
+  .tskill.ult.combo .combo-tag,
+  .skill.ult.combo .combo-tag,
+  .tskill.ult.nudge::before,
+  .skill.ult.nudge::after {
+    animation: none;
+  }
+
+  .tskill.ult.nudge::before,
+  .skill.ult.nudge::after {
+    opacity: 1;
+  }
+
+  @keyframes ult-flash-calm {
+    0% { opacity: 0; }
+    14% { opacity: 0.25; }
+    100% { opacity: 0; }
+  }
+
+  @keyframes ult-pop-calm {
+    0% { opacity: 0; }
+    10% { opacity: 1; }
+    76% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  @keyframes heal-num-calm {
+    0% { opacity: 0; transform: translateY(-50%); }
+    15% { opacity: 1; transform: translateY(-50%); }
+    100% { opacity: 0; transform: translateY(-50%); }
+  }
+
+  @keyframes mate-heal-calm {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
   }
 }

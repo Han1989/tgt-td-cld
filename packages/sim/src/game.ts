@@ -133,6 +133,10 @@ export function step(state: GameState): void {
     state.towers = state.towers.filter((t) => !t.dead);
     state.projectiles = state.projectiles.filter((p) => !p.done);
     state.traps = state.traps.filter((t) => !t.done);
+    // A rain that is over (its time ran out, or it fused into a combo) says how many creeps it killed.
+    for (const z of state.zones) {
+      if (z.done) emit(state, { type: 'ultResult', ult: z.kind, by: z.owner, kills: z.kills });
+    }
     state.zones = state.zones.filter((z) => !z.done);
     updateCoop(state);
 

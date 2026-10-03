@@ -1,0 +1,43 @@
+name: Set up Node and dependencies
+description: Node 22.12 or newer, npm ci, and optionally Playwright Chromium (browsers cached by Playwright version).
+
+inputs:
+  playwright:
+    description: Also install Playwright Chromium for the browser tests.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        check-latest: true
+        cache: npm
+
+    - name: Require Node 22.12 or newer
+      shell: bash
+      run: node -e 'const [maj,min]=process.versions.node.split(".").map(Number); if (maj<22 || (maj===22 && min<12)) { console.error("Node " + process.version + " is below 22.12"); process.exit(1); } console.log(process.version)'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Resolve Playwright version
+      id: playwright
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright browsers
+      if: inputs.playwright == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+    - name: Install Playwright Chromium
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: npx playwright install --with-deps chromium

@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 tasks P2-01 to P2-04 are done (PR #57, PR #63, PR #66, PR #70). P2-04b (cast-together prompt, ultimate shake and heal feedback) and P2-05 (the retest, which waits for P2-04b) are open.
+**As of 2 Oct 2026.** Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Playtest 2 tasks P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 (the retest) is open.
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -8,7 +8,7 @@
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked
 
-**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). P2-01 is done (touch controls, PR #57). P2-02 is done (flyer readability, anti-air teaching, gold nudge, PR #63). P2-03 is done (kit rework and sim balance, PR #66). P2-04 is done (combo cue and kill count, PR #70). Immediate open work is Playtest 2 (P2-04b, then the P2-05 retest), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
+**Next:** Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). H-01 is done (Vercel Authentication Disabled, Han confirmed 1 Oct 2026). H-04 is done (music files, PR #42). P2-01 is done (touch controls, PR #57). P2-02 is done (flyer readability, anti-air teaching, gold nudge, PR #63). P2-03 is done (kit rework and sim balance, PR #66). P2-04 is done (combo cue and kill count, PR #70). P2-04b is done (cast-together prompt, ultimate shake and heal feedback, PR #73). Immediate open work is Playtest 2 (the P2-05 retest), Han's list (H-02, H-03, H-05, H-06), Discovery posts D-02–D-06, and Gate 2 (the public soft launch). Phase 6 may proceed and is not started.
 
 ---
 
@@ -20,7 +20,7 @@
 
 Tests have only ever run inside build sessions. The team workflow and the required `ci` check are on `main` (PR #24).
 
-- **Team:** ☑ `.github/workflows/ci.yml` for pull requests and pushes to `main`: Node 22.12+, `npm ci`, `npm test`, `npm run build`. A second job runs `npm run test:e2e` (Playwright Chromium) when `apps/client/**`, `packages/**`, or `.github/workflows/ci.yml` change. npm and the Playwright browsers are cached. The e2e job takes several minutes; the stress test still runs alone at the end.
+- **Team:** ☑ `.github/workflows/ci.yml` for pull requests and pushes to `main`: Node 22.12+, `npm ci`, `npm test`, `npm run build`. Browser tests (Playwright Chromium) run when `apps/client/**`, `packages/**`, or `.github/**` change, in parallel jobs: one per project (iPhone in 2 shards, Pixel in 3, Desktop in 1) and the 300-creep stress test alone in `e2e (perf)` (median of three windows). `ci` aggregates them and is the only required check. npm and the Playwright browsers are cached.
 - **Han:** protect `main` in the repo settings: require a pull request, require the CI checks to pass, block force pushes. **Done 30 Sep 2026:** `main` requires PR + status check `ci`, force pushes blocked, admins enforced; repo `allow_auto_merge` on.
 - **Done when:** a PR shows green checks, and a PR with a deliberately failing test can't be merged. **Done 30 Sep 2026:** `ci` is on `main` (PR #24) and is the required status check.
 
@@ -90,7 +90,7 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 
 ## After polish · Discovery and rollout · NEW
 
-**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends), so Discovery and Phase 6 are not held for another friends evening. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-02–D-06 and Gate 2 are the public soft-launch path and are still open; D-07 (link preview, first load, press kit) is done, so posts have a card and a measured first load. Playtest 2 is the follow-up from that session: P2-01 to P2-04 are done (PR #57, PR #63, PR #66, PR #70). P2-04b and P2-05 are still open.
+**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends), so Discovery and Phase 6 are not held for another friends evening. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-02–D-06 and Gate 2 are the public soft-launch path and are still open; D-08 (link preview, first load, press kit) is done, so posts have a card and a measured first load. Playtest 2 is the follow-up from that session: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
 
 **Why:** current playtesters are only **2–3 friends**. That is enough for confusion and hook notes, not for whether strangers stay. Discovery is the first real-audience signal **before or alongside** store submission.
 
@@ -114,7 +114,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 | SL-03 | Together-kill flash (client): two or more living heroes whose `damage` hit the same creep within 2 s of its `kill` get a short shared flash (seat colours, edge glow, dual-pitch chime). No gold or stat change. Protocol stays 14. A living player's towers share `damage.by`, so they count; a hero-only `togetherKill` event waits on Gameplay after Phase 5. | Team | ☑ |
 | SL-04 | Soft-launch hook on main (`PROTOCOL_VERSION` 16, `docs/HOOK_SPIKE.md`): Meteor Rain only (Arrow Storm + Meteor fuse into a denser shared lane rain inside 2 s; no aim overlap), global lane rains for both of those R, Quick wave-10 Matriarch two-lane shield (Full wave 10 is a normal Ironhorn), solo Practice Meteor Rain (`?practice=meteor-rain`), Warden Blood Hunger + Iron Vow, stick overrides melee chase. Do not merge `claude/loving-hawking-7fvsu7`. | Team | ☑ |
 | SL-05 | Kit rework and balance by simulation (Playtest 2, `PROTOCOL_VERSION` 17, `docs/HOOK_SPIKE.md`, `docs/balance/`): Arrow Storm and Meteor instant lane rains again (no aiming, no caps, strikes on creeps, flyers hit, Meteor stuns every impact) and much stronger, the Warden hits flyers (Cleave and Taunt too) and Blood Hunger heals from Cleave, Iron Vow heals every living hero and bursts, three combos in a 5 s window with no overlap check (Meteor Rain, Stun Storm, Shockwave; three ultimates fire the strongest pair once), Hard finale deduction removed, novice bot (every hero solo ≥ 80%) and `npm run balance:matrix`, new balance targets. Merged after Han's review (PR #66). | Team | ☑ |
-| D-07 | **Link preview and first load** (client only, protocol stays 17): Open Graph / Twitter tags with README's pitch, a 1200 × 630 card from the game's own art (`npm run og -w @tdt/client`), tagged links keep the card and their `?src=`, a boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7 (`npm run first-load -w @tdt/client`), press kit in [`docs/PRESS.md`](docs/PRESS.md). PR #77. | Team | ☑ |
+| D-08 | **Link preview and first load** (client only, protocol stays 18): Open Graph / Twitter tags with README's pitch, a 1200 × 630 card from the game's own art (`npm run og -w @tdt/client`), tagged links keep the card and their `?src=`, a boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7 (`npm run first-load -w @tdt/client`), press kit in [`docs/PRESS.md`](docs/PRESS.md). PR #77. | Team | ☑ |
 | D-02 | Post polished build to **r/PlayMyGame** (follow sub rules; one clear link; channel tag). | Han | ☐ |
 | D-03 | Post polished build to **r/incremental_games** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
 | D-04 | Post polished build to **r/cozygames** (only if the pitch fits; follow sub rules; channel tag). | Han | ☐ |
@@ -123,7 +123,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 
 ## Gate 1 · Friends playtest · PASSED · 2 Oct 2026
 
-Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** Phase 6 and other post–Gate-1 work may proceed. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path and are still open. Follow-up from the session is Playtest 2: P2-01 to P2-04 are done (PR #57, PR #63, PR #66, PR #70). P2-04b and P2-05 are still open.
+Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** Phase 6 and other post–Gate-1 work may proceed. Discovery D-02–D-06 and Gate 2 stay the public soft-launch path and are still open. Follow-up from the session is Playtest 2: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
@@ -137,7 +137,7 @@ Friends played on **2 Oct 2026** on Android, PC, and iPhone Safari. **Passed.** 
 
 ## Playtest 2 · work orders
 
-Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-01 to P2-04 are done. P2-04b and P2-05 are still open; the P2-05 retest waits for P2-04b. They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
+Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-01 to P2-04b are done. P2-05 is still open. They are not the overnight auto-pull list (that list is **Now**, above, and those rows are done).
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
@@ -145,14 +145,14 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 | P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude; PR #66, merged as 05a3fc0 after Han's review). The same work as SL-05. | Team + Han | ☑ |
 | P2-04 | Ultimate presentation and combo cue (client, PR #70). Each combo has its own ribbon, strikes and colour, and a finished rain or combo shows its kill count. No aim circles. | Team | ☑ |
-| P2-04b | Cast-together prompt, ultimate shake and heal feedback (client): the part of Task 4 that PR #70 left out. P2-05 waits for it. Not assigned to Claude Code; the chief of staff assigns it. | Team | ☐ |
-| P2-05 | Retest. Waits for P2-04b. | Han | ☐ |
+| P2-04b | Cast-together prompt, ultimate shake and heal feedback (client, PR #73, `PROTOCOL_VERSION` 18): the part of Task 4 that PR #70 left out. Every cast gets a flare, a screen blink, a kick and a sound heard everywhere; a finished rain or burst pops one exact kill count ("Arrow Storm: 12", from the `ultResult` event); R glows when ready, pulses after 20 s ready with creeps on the map, and shows a 5 s "Combo!" ring after a teammate's pairing cast; Screen shake Off / Normal / Strong (reduced motion turns it off) on ultimates, boss abilities and Heart hits; Iron Vow's heal rings every healed hero and shows on a teammate chip; the end screen and `report.coop` list kills per ultimate and combos per pair. Sim: two events (`ultResult`, `heal`) and report fields only, no tuning change. Real-device steps: `docs/MOBILE_TESTING.md` §10. Built by Claude Code. | Team | ☑ |
+| P2-05 | Retest. P2-04b is done, so it can start. | Han | ☐ |
 
 ---
 
 ## Phase 6 and later · unblocked (Gate 1 passed 2 Oct 2026)
 
-Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04 are done (PR #57, PR #63, PR #66, PR #70). P2-04b and P2-05 are still open.
+Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
 
 ### Phase 6a · Foundation: accounts and data
 
