@@ -7,7 +7,9 @@
 // The stress test measures CPU time per frame, so it runs alone: its `perf` project
 // depends on the others, which makes Playwright start it only after every other test
 // has finished (on a 4-core machine two browser workers would otherwise skew it). If
-// another project fails, Playwright skips it: fix that failure first.
+// another project fails, Playwright skips it: fix that failure first. CI runs each
+// project (sharded) in its own job and the stress test in a job of its own with
+// `--project=perf --no-deps` (.github/workflows/ci.yml).
 
 import { defineConfig, devices } from '@playwright/test';
 
