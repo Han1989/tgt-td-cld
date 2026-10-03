@@ -73,8 +73,12 @@ describe('progress dashboard data', () => {
     expect(byId('P2-02').status).toBe('done');
     expect(byId('P2-01').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/57');
     expect(byId('P2-02').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/63');
-    for (const id of ['P2-04b', 'P2-05']) expect(byId(id).status).toBe('todo');
+    expect(byId('P2-04b').status).toBe('done');
+    expect(byId('P2-04b').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/73');
+    expect(byId('P2-05').status).toBe('todo');
+    expect(byId('P2-03').status).toBe('done');
     expect(byId('P2-04').status).toBe('done');
+    expect(byId('P2-04').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/70');
     expect(byId('P2-01').owner).toBe('Team');
     expect(byId('P2-01').note.toLowerCase()).toContain('touch');
     expect(byId('P2-02').note.toLowerCase()).toContain('air');
@@ -82,7 +86,8 @@ describe('progress dashboard data', () => {
     expect(byId('P2-03').note).toContain('05a3fc0');
     expect(byId('P2-04b').owner).toBe('Team');
     expect(byId('P2-04b').title.toLowerCase()).toContain('cast-together');
-    expect(byId('P2-04b').note).toContain('Not assigned to Claude Code');
+    expect(byId('P2-04b').note).toContain('Built by Claude Code');
+    expect(byId('P2-04b').note).not.toContain('Not assigned');
     expect(byId('P2-05').note).toContain('P2-04b');
     expect(byId('P2-04').note.toLowerCase()).toContain('combo');
     expect(byId('P2-05').owner).toBe('Han');

@@ -8,7 +8,6 @@ import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import type { ViewBox } from './audio/mix';
 import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
-import { emptyTally, readTally, tallyLine, type TallyMemory } from './coop/rainKills';
 import { EmoteMenu } from './hud/emotes';
 import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
@@ -20,6 +19,7 @@ import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
+import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
@@ -72,7 +72,9 @@ export class GameView {
 
   /** Recent pings, emotes, ultimates and creep damage, for the shared flourishes. */
   private cues: CueMemory;
-  private tally: TallyMemory = emptyTally();
+
+  /** The R button's clocks: ready for 20 s of a wave, and the 5 s "Combo!" window. */
+  private ultCues: UltCueMemory = emptyUltCues();
 
   /** The first-match lesson is running on this solo match. */
   private lesson = false;
@@ -413,6 +415,11 @@ export class GameView {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
       hud.handleEvents(events, latest, view.me);
+      hud.feedUltimates(events, latest, view.me);
+      const ult = readUltCues(view.ultCues, latest, events, view.me);
+      view.ultCues = ult.memory;
+      hud.setUltCues(ult.cues);
+      touch.setUltCues(ult.cues);
       marks.sync(events, latest, now);
       const cues = readCues(view.cues, events, latest, now);
       view.cues = cues.memory;
@@ -458,16 +465,6 @@ export class GameView {
         renderer.fuseBurst(f.combo, f.x, f.y, f.spots);
         // The twin gong plays with the ribbon above. A fuse without one (a caster fell first) still sounds.
         if (!syncSpots) audio.game.flourish('twinCast', now);
-      }
-      // What a finished rain or combo killed: the pill, and the count floating where it was cast.
-      const tally = readTally(view.tally, events, latest, now);
-      view.tally = tally.memory;
-      for (const t of tally.beat.done) {
-        const line = tallyLine(t);
-        const first = t.by[0];
-        const color = first ? playerTint(latest, first) : COLORS.gold;
-        view.stage.rainCount(t.kind, line.name, line.count, toCss(color));
-        renderer.rainCount(t.x, t.y, `${t.kills}`, color);
       }
       if (cues.beat.clutch) {
         const c = cues.beat.clutch;
@@ -673,7 +670,7 @@ export class GameView {
     this.social.emote = -Infinity;
     this.marks.clear();
     this.cues = emptyCues();
-    this.tally = emptyTally();
+    this.ultCues = emptyUltCues();
     this.stage.clear();
     this.needsCentre = true;
     this.coach.dismissAir();

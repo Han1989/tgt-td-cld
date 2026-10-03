@@ -567,7 +567,7 @@ export const SOUNDS = {
     layers: [knock(420, 0.08, 1), knock(300, 0.1, 0.9, 0.08), { wave: 'pluck', freq: 105, glide: 1.25, glideTime: 0.25, decay: 0.35, gain: 0.5, at: 0.1, pluck: { bright: 0.4, damp: 0.7 } }],
   }),
   /** Arrow Storm: a volley loosed by a line of archers, then the sky full of arrows. */
-  'ranger.R': sfx(0.55, 300, 1, 1, {
+  'ranger.R': sfx(0.55, 300, 2, 2, {
     layers: [
       ...[0, 0.03, 0.07, 0.1, 0.15, 0.19, 0.24].flatMap((t, i) => twang([A2, C3, D3, A2, G3 - 12, D3, C3][i]!, 0.75 - i * 0.05, t)),
       whoosh(700, 2800, 0.9, 1, 0.2, 0.3, 1.1),
@@ -583,7 +583,7 @@ export const SOUNDS = {
     layers: [...drum(130, 0.25, 0.9, 0, { skin: 0.8 }), ...steel(760, 0.3, 0.5, 0), ...drum(130, 0.25, 0.8, 0.14, { skin: 0.8 }), ...horn(A2, 0.3, 0.6, 0.2)],
   }),
   /** Iron Vow: a great gong and a war drum. */
-  'warden.R': sfx(0.62, 300, 1, 1, {
+  'warden.R': sfx(0.62, 300, 2, 2, {
     layers: [...gong(hz(D3) * 0.75, 3, 1, 0), ...drum(50, 0.9, 0.9, 0, { skin: 0.35, shell: 0.7 }), ...guzheng(D5, 1.6, 0.35, 0.12, { vib: 0.006 })],
   }, { wet: 0.3 }),
   /** Fireball: a rushing fwoom and the crackle of flame. */
@@ -599,7 +599,7 @@ export const SOUNDS = {
     layers: [bell(A5, 0.6, 1), bell(D6, 0.5, 0.7, 0.03), bell(A6, 0.45, 0.5, 0.06), bell(G5, 0.5, 0.5, 0.09), sparkle(0.45, 0.45)],
   }, TUNE),
   /** Meteor: a roar climbing to the sky over a gong swelling in. */
-  'arcanist.R': sfx(0.58, 300, 1, 1, {
+  'arcanist.R': sfx(0.58, 300, 2, 2, {
     layers: [
       whoosh(250, 1600, 1.0, 1, 0, 0.5, 1.4),
       ...gong(hz(A2) * 1.5, 1.6, 0.8, 0, 1.03, 0.7),

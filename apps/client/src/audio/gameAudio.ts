@@ -159,7 +159,9 @@ export class GameAudio {
         }
         case 'cast': {
           const h = this.hero(e.heroId);
-          if (h && e.slot !== 'E') this.play(`${h.kind}.${e.slot}`, now, h, h.owner === me);
+          if (!h || e.slot === 'E') break;
+          // An ultimate is heard everywhere, whoever casts it and wherever they stand: nobody should miss one.
+          this.play(`${h.kind}.${e.slot}`, now, e.slot === 'R' ? null : h, h.owner === me);
           break;
         }
         case 'aoe':

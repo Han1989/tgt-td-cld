@@ -3,7 +3,7 @@
 // for the rest of the session if the frame rate stays low. Pure, so it is tested.
 // Effects follow the quality too (fxLevel): Low drops particles and screen shake.
 
-import type { Quality } from '../settings';
+import type { Quality, ShakeSetting } from '../settings';
 
 /** Never render above this device pixel ratio. */
 export const MAX_DPR = 2;
@@ -59,8 +59,10 @@ export function effectiveQuality(setting: Quality, autoDegraded: boolean): 'high
 export interface FxLevel {
   /** Sparks, debris, pops, trails, rain, motes, shimmer, coins. */
   particles: boolean;
-  /** Screen shake (also needs the "Screen shake" setting). */
+  /** Screen shake (also needs the "Screen shake" setting, and is off under reduced motion). */
   shake: boolean;
+  /** How hard the shake kicks: 0 off, 1 Normal, `STRONG_SHAKE` for Strong. */
+  shakeScale: number;
   /** Floating damage numbers alive at once. */
   maxNumbers: number;
   /**
@@ -70,12 +72,22 @@ export interface FxLevel {
   calm: boolean;
 }
 
+/** Shake strength of the Strong setting, against 1 for Normal. */
+export const STRONG_SHAKE = 1.6;
+
+/** The shake strength a setting gives; reduced motion and Graphics → Low turn it off whatever the setting. */
+export function shakeScale(setting: ShakeSetting, low: boolean, calm: boolean): number {
+  if (low || calm || setting === 'off') return 0;
+  return setting === 'strong' ? STRONG_SHAKE : 1;
+}
+
 /**
  * Effects for a quality level, the player's "Screen shake" setting and whether the device asks for
- * reduced motion.
+ * reduced motion (which turns the shake off, not just down).
  */
-export function fxLevel(quality: 'high' | 'low', shakeSetting: boolean, calm = false): FxLevel {
+export function fxLevel(quality: 'high' | 'low', shakeSetting: ShakeSetting, calm = false): FxLevel {
+  const scale = shakeScale(shakeSetting, quality === 'low', calm);
   return quality === 'low'
-    ? { particles: false, shake: false, maxNumbers: 10, calm }
-    : { particles: true, shake: shakeSetting, maxNumbers: 36, calm };
+    ? { particles: false, shake: false, shakeScale: scale, maxNumbers: 10, calm }
+    : { particles: true, shake: scale > 0, shakeScale: scale, maxNumbers: 36, calm };
 }
