@@ -39,7 +39,7 @@ const sections: ProgressSection[] = [
   {
     id: 'discovery',
     title: 'Discovery and rollout',
-    blurb: 'Public soft-launch path. Measurement is in. Posts (D-02–D-06) and the go/no-go are Han, and still open.',
+    blurb: 'Public soft-launch path. Measurement, the link preview and the press kit are in. Posts (D-02–D-06) and the go/no-go are Han, and still open.',
     group: 'now',
   },
   {
@@ -311,6 +311,18 @@ const items: ProgressItem[] = [
     section: 'discovery',
     note: 'Protocol 17. Arrow Storm and Meteor are instant lane rains again (no aiming, no caps) and much stronger, the Warden hits flyers and Iron Vow heals the team, three combos (Meteor Rain, Stun Storm, Shockwave) with no overlap check, no Hard finale deduction. Balanced with a novice bot and npm run balance:matrix. Merged after Han’s review.',
     proof: pr(66),
+  },
+  {
+    id: 'D-07',
+    title: 'Link preview and first load',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only, protocol stays 17. A shared link shows a card drawn from the game’s own art and README’s pitch; tagged links keep the card and their ?src=. A boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7. Press kit: docs/PRESS.md.',
+    proof: {
+      label: 'Branch, PR to be opened',
+      href: `${REPO}/tree/cursor/link-preview-first-load-1287`,
+    },
   },
   {
     id: 'D-02',
