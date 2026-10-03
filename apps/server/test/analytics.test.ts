@@ -1,11 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseAnalyticsEvent } from '../src/analytics/parse';
 import { renderDashboard } from '../src/analytics/page';
-import { IDLE_MS, MAX_SESSION_MS, summarize, type StoredEvent } from '../src/analytics/summary';
-import { AnalyticsStore, resolveAnalyticsDir } from '../src/analytics/store';
+import { IDLE_MS, MAX_SESSION_MS, RETAIN_MS, summarize, type StoredEvent } from '../src/analytics/summary';
+import { AnalyticsStore, PRUNE_EVERY_MS, resolveAnalyticsDir } from '../src/analytics/store';
 import type { GameServer } from '../src/server';
 import { ORIGIN, startServer } from './helpers';
 
@@ -199,6 +199,57 @@ describe('AnalyticsStore', () => {
     next.open();
     expect(next.all()).toHaveLength(2);
     expect(next.all()[1]).toMatchObject({ t: 'feedback', comment: 'again' });
+  });
+
+  it('drops events older than 30 days from a small file on startup', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'tdt-analytics-'));
+    dirs.push(dir);
+    const file = path.join(dir, 'events.jsonl');
+    const now = Date.now();
+    const old: StoredEvent = { ...base, t: 'session_start', at: now - RETAIN_MS - 60_000 };
+    const fresh: StoredEvent = { ...base, t: 'session_start', at: now - 60_000 };
+    await writeFile(file, `${JSON.stringify(old)}\n${JSON.stringify(fresh)}\n`, 'utf8');
+    const store = new AnalyticsStore(dir);
+    store.open();
+    await store.flush();
+    expect(store.all()).toEqual([fresh]);
+    expect(await readFile(file, 'utf8')).toBe(`${JSON.stringify(fresh)}\n`);
+  });
+
+  it('drops expired events from the file once a day, even with no new events', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const dir = await mkdtemp(path.join(tmpdir(), 'tdt-analytics-'));
+    dirs.push(dir);
+    const file = path.join(dir, 'events.jsonl');
+    const start = Date.now();
+    let clock = start;
+    const store = new AnalyticsStore(dir);
+    try {
+      store.open();
+      store.startPruning(PRUNE_EVERY_MS, () => clock);
+      store.record({ ...base, t: 'session_start' }, start);
+      store.record({ ...base, t: 'session_start' }, start + 2 * PRUNE_EVERY_MS);
+      await store.flush();
+      expect((await readFile(file, 'utf8')).trim().split('\n')).toHaveLength(2);
+
+      // Quiet days: nothing is recorded, the file stays tiny, the first event expires.
+      clock = start + RETAIN_MS + PRUNE_EVERY_MS / 2;
+      await vi.advanceTimersByTimeAsync(PRUNE_EVERY_MS);
+      await store.flush();
+      const lines = (await readFile(file, 'utf8')).trim().split('\n');
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0]!)).toMatchObject({ at: start + 2 * PRUNE_EVERY_MS });
+      expect(store.all()).toHaveLength(1);
+
+      clock = start + RETAIN_MS + 3 * PRUNE_EVERY_MS;
+      await vi.advanceTimersByTimeAsync(PRUNE_EVERY_MS);
+      await store.flush();
+      expect(await readFile(file, 'utf8')).toBe('');
+      expect(store.all()).toHaveLength(0);
+    } finally {
+      store.stopPruning();
+      vi.useRealTimers();
+    }
   });
 
   it('stays in memory when the directory cannot be created', async () => {
