@@ -34,4 +34,4 @@ jobs:
         working-directory: apps/client
         env:
           DIAG_LABEL: gh-${{ matrix.n }}
-        run: npx playwright test --project=perf --no-deps diag --repeat-each=2 2>&1 | tee diag.log; grep '^DIAG' diag.log || true
+        run: npx playwright test --project=perf --no-deps diag --repeat-each=2 --workers=1 2>&1 | tee diag.log; grep '^DIAG' diag.log || true
