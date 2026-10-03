@@ -30,8 +30,96 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <style>
+      /* Boot splash: inline so it paints before any script runs; main.ts fades it when the first
+         screen is ready. The lobby's look (style.css .lobby / .logo), copied: style.css isn't parsed yet. */
+      html {
+        background: #0b0f14;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 18% 22%, rgba(127, 252, 216, 0.5) 0 1.5px, transparent 3px),
+          radial-gradient(circle at 82% 34%, rgba(255, 162, 74, 0.45) 0 1.5px, transparent 3px),
+          radial-gradient(circle at 70% 78%, rgba(127, 252, 216, 0.4) 0 1.5px, transparent 3px),
+          radial-gradient(circle at 28% 84%, rgba(255, 162, 74, 0.35) 0 1.5px, transparent 3px),
+          radial-gradient(ellipse at 50% 18%, rgba(160, 200, 255, 0.16), transparent 55%),
+          radial-gradient(ellipse at 50% 40%, #2a473b, #12221b 60%, #05070a);
+        font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+        text-align: center;
+        transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+      }
+      #boot.done {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .boot-logo {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: #eef6ff;
+        text-shadow: 0 2px 0 #100c16;
+      }
+      .boot-logo span {
+        color: #7ffcd8;
+        text-shadow: 0 0 14px rgba(127, 252, 216, 0.55), 0 2px 0 #100c16;
+      }
+      .boot-runes {
+        display: flex;
+        gap: 14px;
+      }
+      .boot-runes i {
+        width: 8px;
+        height: 8px;
+        transform: rotate(45deg);
+        background: #7ffcd8;
+        box-shadow: 0 0 0 1.5px #100c16, 0 0 10px rgba(127, 252, 216, 0.7);
+        opacity: 0.25;
+        animation: boot-rune 1.2s ease-in-out infinite;
+      }
+      .boot-runes i:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .boot-runes i:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes boot-rune {
+        50% {
+          opacity: 1;
+        }
+      }
+      .boot-note {
+        margin: 0;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
+        color: #97a8a8;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot {
+          transition: none;
+        }
+        .boot-runes i {
+          animation: none;
+          opacity: 0.7;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="boot-logo">Tower Defense <span>Together</span></div>
+      <div class="boot-runes" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p id="boot-note" class="boot-note">Loading…</p>
+    </div>
     <div id="game"></div>
 
     <div id="lobby" class="lobby hidden">
@@ -60,7 +148,9 @@
             <input id="lobby-code" maxlength="5" placeholder="CODE" autocapitalize="characters" spellcheck="false" />
             <button id="lobby-join" class="btn" type="button">Join room</button>
           </div>
-          <button id="lobby-offline" class="btn" type="button">Play solo offline</button>
+          <div class="solo-dock">
+            <button id="lobby-offline" class="btn" type="button">Play solo offline</button>
+          </div>
         </section>
 
         <section id="lobby-room" class="hidden">

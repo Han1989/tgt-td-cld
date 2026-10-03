@@ -15,6 +15,10 @@ import { installIcons } from './render/art/icons';
 function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 'online'): void {
   performance.mark('tdt:ready', { detail: screen });
   document.documentElement.dataset.ready = screen;
+  // The boot splash (index.html) stops taking taps at once and fades out.
+  const boot = document.getElementById('boot');
+  boot?.classList.add('done');
+  setTimeout(() => boot?.remove(), 400);
 }
 
 async function main(): Promise<void> {
@@ -81,4 +85,8 @@ async function main(): Promise<void> {
   ready('online');
 }
 
-void main();
+main().catch((err: unknown) => {
+  const note = document.getElementById('boot-note');
+  if (note) note.textContent = 'The game could not start. Refresh to try again.';
+  throw err;
+});
