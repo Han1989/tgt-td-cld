@@ -108,7 +108,7 @@ test('a wave starts with a banner, and buttons react to presses', async ({ page 
   await expect(page.locator('#banner .sub')).toContainText('gold');
 });
 
-test('Graphics → Low turns off particles and shake; Screen shake is Off / Normal / Strong (Normal by default)', async ({ page }) => {
+test('Screen shake is Off / Normal / Strong, Normal by default', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high' })));
   await startSolo(page);
   await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: true, shakeScale: 1 });
@@ -121,6 +121,14 @@ test('Graphics → Low turns off particles and shake; Screen shake is Off / Norm
   await page.locator('#settings-shake .btn[data-value="strong"]').tap();
   await expect.poll(() => page.evaluate(() => window.__tdt.fx().shakeScale)).toBeGreaterThan(1);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).shake)).toBe('strong');
+});
+
+// Straight to Low, before the first wave: a fight would keep damage numbers (which Low allows) alive and `live` above 0.
+test('Graphics → Low turns off particles and shake', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high' })));
+  await startSolo(page);
+  await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: true, shake: true });
+  await page.locator('#settings-btn').tap();
   await page.locator('#settings-quality .btn[data-value="low"]').tap();
   await expect.poll(() => page.evaluate(() => window.__tdt.fx())).toMatchObject({ particles: false, shake: false, live: 0 });
 });
