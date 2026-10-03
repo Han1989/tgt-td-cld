@@ -24,7 +24,7 @@ export const SLOW_4G = { latencyMs: 562.5, downKbps: 1474.56, upKbps: 675, cpu: 
 
 interface Run {
   firstPaint: number;
-  splashPaint: number;
+  fcp: number;
   ready: number;
   usable: number;
   kb: number;
@@ -63,6 +63,8 @@ try {
   for (let i = 0; i < runs; i++) {
     // A fresh context per run: empty HTTP cache, no storage, and service workers blocked.
     const context = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block' });
+    // Measurement visits are not players: keep them out of the rollout dashboard (docs/ANALYTICS.md).
+    await context.route('**/analytics/event', (route) => route.abort());
     const page = await context.newPage();
     const cdp = await context.newCDPSession(page);
     await cdp.send('Network.enable');
@@ -75,32 +77,45 @@ try {
     });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
     await page.goto(url, { waitUntil: 'commit', timeout: 120_000 });
-    const usable = await page.waitForFunction(
+    await page.waitForFunction(
       () => {
-        if (!document.documentElement.dataset.ready) return 0;
         const home = document.getElementById('lobby-home');
         const button = document.getElementById('lobby-offline') as HTMLButtonElement | null;
-        if (!home || !button || home.offsetParent === null || button.disabled) return 0;
-        const b = button.getBoundingClientRect();
-        if (b.bottom > innerHeight || b.top < 0) return 0;
-        return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === button ? performance.now() : 0;
+        return !!document.documentElement.dataset.ready && !!home && home.offsetParent !== null && !!button && !button.disabled;
       },
       undefined,
       { polling: 'raf', timeout: 120_000 },
     );
-    const at = (await usable.jsonValue()) as number;
+    // A build that leaves Play solo below the fold is never usable without a scroll: say so, don't hang.
+    const at = await page
+      .waitForFunction(
+        () => {
+          const button = document.getElementById('lobby-offline')!;
+          const b = button.getBoundingClientRect();
+          if (b.bottom > innerHeight || b.top < 0) return 0;
+          return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === button ? performance.now() : 0;
+        },
+        undefined,
+        { polling: 'raf', timeout: 15_000 },
+      )
+      .then((handle) => handle.jsonValue() as Promise<number>)
+      .catch(() => NaN);
+    if (Number.isNaN(at)) {
+      const top = await page.evaluate(() => Math.round(document.getElementById('lobby-offline')!.getBoundingClientRect().top));
+      console.log(`run ${i + 1}: Play solo is not on screen (its top is at ${top} px of ${devices['Pixel 7'].viewport.height})`);
+    }
     // No named helpers in here: tsx would wrap them in a `__name` call the page doesn't have.
     const timing = await page.evaluate(() => {
-      const [firstPaint, splashPaint, ready] = ['first-paint', 'first-contentful-paint', 'tdt:ready'].map(
+      const [firstPaint, fcp, ready] = ['first-paint', 'first-contentful-paint', 'tdt:ready'].map(
         (name) => performance.getEntriesByName(name)[0]?.startTime ?? NaN,
       );
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
       const bytes = performance.getEntriesByType('resource').reduce((s, r) => s + (r as PerformanceResourceTiming).transferSize, nav?.transferSize ?? 0);
-      return { firstPaint: firstPaint!, splashPaint: splashPaint!, ready: ready!, bytes };
+      return { firstPaint: firstPaint!, fcp: fcp!, ready: ready!, bytes };
     });
-    results.push({ firstPaint: timing.firstPaint, splashPaint: timing.splashPaint, ready: timing.ready, usable: at, kb: timing.bytes / 1024 });
+    results.push({ firstPaint: timing.firstPaint, fcp: timing.fcp, ready: timing.ready, usable: at, kb: timing.bytes / 1024 });
     console.log(
-      `run ${i + 1}: splash painted ${ms(timing.splashPaint)}, ready ${ms(timing.ready)}, usable ${ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB`,
+      `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB`,
     );
     await context.close();
   }
@@ -114,16 +129,18 @@ function ms(v: number): string {
 }
 
 function stats(values: number[]): string {
-  const s = [...values].sort((a, b) => a - b);
+  const s = values.filter((v) => !Number.isNaN(v)).sort((a, b) => a - b);
+  const missing = values.length - s.length;
+  if (s.length === 0) return `never (${missing} of ${values.length} runs)`;
   const mid = s.length % 2 ? s[(s.length - 1) / 2]! : (s[s.length / 2 - 1]! + s[s.length / 2]!) / 2;
-  return `median ${ms(mid)}, range ${ms(s[0]!)}–${ms(s[s.length - 1]!)}`;
+  return `median ${ms(mid)}, range ${ms(s[0]!)}–${ms(s[s.length - 1]!)}` + (missing ? `; never in ${missing} of ${values.length} runs` : '');
 }
 
 console.log(
   `\n${url} · Pixel 7 · ${profile.latencyMs} ms latency, ${profile.downKbps} kbps down, ${profile.upKbps} kbps up, ` +
     `CPU ${profile.cpu}× slower · cold cache, no service worker · ${runs} runs`,
 );
-console.log(`splash first paint (FCP): ${stats(results.map((r) => r.splashPaint))}`);
+console.log(`first contentful paint:   ${stats(results.map((r) => r.fcp))}`);
 console.log(`tdt:ready:                ${stats(results.map((r) => r.ready))}`);
 console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
 console.log(`transferred:              ${(results.reduce((s, r) => s + r.kb, 0) / results.length).toFixed(0)} KB per load`);
