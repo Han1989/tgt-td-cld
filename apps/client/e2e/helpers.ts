@@ -16,6 +16,7 @@ interface Hook {
   lose: () => void;
   latest(): {
     tick: number;
+    tickRate: number;
     totalWaves: number;
     phase: string;
     modifiers: string[];
