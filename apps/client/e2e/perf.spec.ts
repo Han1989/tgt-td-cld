@@ -3,24 +3,36 @@
 // scene hits every creep every tick and streams kills, splashes and skills) and
 // the sound on (music and effects, docs/ART.md §13).
 //
-// Asserted everywhere, from a DevTools CPU profile: the JavaScript per frame (our
-// frame update and Pixi building the draw calls) plus the fixed-rate work (snapshots,
-// the stress scene's fake host) fits in one second at 30 FPS. The frame rate itself (≥ 30 FPS)
-// is asserted only with a hardware GPU: on a software rasteriser (SwiftShader, as in
-// CI containers) even a blank full-screen WebGL canvas can't reach 30 FPS at phone
-// pixel ratios, so there it is only reported. Real phones are checked by hand with
-// `?stress=300` (docs/MOBILE_TESTING.md).
+// Asserted everywhere: the JavaScript per frame (our frame update and Pixi building the
+// draw calls) is at most 33.3 ms, and with the fixed-rate work (snapshots, the stress
+// scene's fake host) one second at 30 FPS needs at most 1000 ms of CPU. The frame rate
+// itself (≥ 30 FPS) is asserted only with a hardware GPU: on a software rasteriser
+// (SwiftShader, as in CI containers) even a blank full-screen WebGL canvas can't reach
+// 30 FPS at phone pixel ratios, so there it is only reported. Real phones are checked by
+// hand with `?stress=300` (docs/MOBILE_TESTING.md).
 //
-// The numbers are the median of three back-to-back 5 s windows on the same scene. On
-// SwiftShader a window holds only about ten frames, so one slow frame or GC pause moves
-// a single window's mean by several ms; the budget itself is unchanged.
+// How it is measured (docs/GAME_DESIGN.md §13, 2026-10-03):
+// - Per frame: the page times every frame itself (`window.__tdt.frameCosts()`, e2e builds
+//   only: from the first ticker listener to the last, so the GPU's drawing, which comes
+//   after, doesn't count). The test
+//   discards the first WARMUP_FRAMES under throttling (they run about 20% slower; the page is
+//   still warming up) and asserts the mean of the next FRAMES frames: a fixed number of frames
+//   whatever the frame rate, more than the ~80-frame cycle of the scene's slower stretches.
+//   No profiler runs meanwhile (it adds about 25% to every frame).
+// - Fixed-rate work: a DevTools CPU profile over PROFILE_FRAMES frames; JavaScript outside
+//   Pixi's ticker, divided by the profile's own duration.
+// The test used to divide the ticker's JavaScript in a 5 s CPU profile by the frames
+// counted in a 5 s requestAnimationFrame window. The profile ran 1.3–3.7 s longer (the
+// DevTools round trips), so it held 17–50% more frames than it was divided by, the most on
+// the slowest runners, and one frame more or less in a ~10-frame window moved it 10%.
 
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { waitForReady } from './helpers';
 
 const BUDGET_MS = 1000 / 30;
-const RUNS = 3;
-const WINDOW_MS = 5000;
+const WARMUP_FRAMES = 60;
+const FRAMES = 90;
+const PROFILE_FRAMES = 15;
 
 interface ProfileNode {
   id: number;
@@ -28,36 +40,40 @@ interface ProfileNode {
   children?: number[];
 }
 
-interface Sample {
+interface Frames {
+  /** The page's own cost of each of the last `n` frames (ms). */
+  costs: number[];
   fps: number;
-  /** JavaScript per frame: anything under Pixi's ticker (our frame update and the render). */
-  perFrameMs: number;
-  /** Fixed-rate JavaScript per second: snapshots, the stress scene's fake host, timers. */
-  fixedPerSecMs: number;
-  /** CPU time one second of play at 30 FPS needs, which must fit in the second. */
-  at30: number;
 }
 
-/** One profiled window: frame rate from requestAnimationFrame, JavaScript time from a DevTools CPU profile. */
-async function measure(page: Page, cdp: CDPSession): Promise<Sample> {
-  await cdp.send('Profiler.start');
-  const fps = await page.evaluate(
-    (windowMs) =>
-      new Promise<number>((resolve) => {
-        let frames = 0;
-        const start = performance.now();
+/** Waits for `n` animation frames and returns the cost of each and the frame rate. */
+function frames(page: Page, n: number): Promise<Frames> {
+  return page.evaluate(
+    (n) =>
+      new Promise<Frames>((resolve) => {
+        let count = 0;
+        let first = 0;
         const tick = (now: number) => {
-          frames++;
-          if (now - start >= windowMs) resolve((frames * 1000) / (now - start));
+          if (count === 0) first = now;
+          if (++count > n) resolve({ costs: window.__tdt.frameCosts().slice(-n), fps: (n * 1000) / (now - first) });
           else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       }),
-    WINDOW_MS,
+    n,
   );
+}
+
+/** Fixed-rate JavaScript per second (outside Pixi's ticker), from a CPU profile over `n` frames. */
+async function fixedPerSecond(page: Page, cdp: CDPSession, n: number): Promise<number> {
+  await cdp.send('Profiler.enable');
+  await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
+  await cdp.send('Profiler.start');
+  await frames(page, n);
   const { profile } = (await cdp.send('Profiler.stop')) as unknown as {
-    profile: { nodes: ProfileNode[]; samples: number[]; timeDeltas: number[] };
+    profile: { nodes: ProfileNode[]; samples: number[]; timeDeltas: number[]; startTime: number; endTime: number };
   };
+  await cdp.send('Profiler.disable');
 
   // Native time and GPU waits show up as "(program)" and don't count.
   const byId = new Map(profile.nodes.map((n) => [n.id, n]));
@@ -69,29 +85,19 @@ async function measure(page: Page, cdp: CDPSession): Promise<Sample> {
     }
     return false;
   };
-  let frameUs = 0;
   let fixedUs = 0;
   profile.samples.forEach((id, i) => {
     const name = byId.get(id)?.callFrame.functionName;
     if (name === '(program)' || name === '(idle)' || name === '(root)') return;
-    const us = profile.timeDeltas[i + 1] ?? 0;
-    if (underTicker(id)) frameUs += us;
-    else fixedUs += us;
+    if (!underTicker(id)) fixedUs += profile.timeDeltas[i + 1] ?? 0;
   });
-  const seconds = WINDOW_MS / 1000;
-  const frames = Math.max(1, Math.round(fps * seconds));
-  const perFrameMs = frameUs / 1000 / frames;
-  const fixedPerSecMs = fixedUs / 1000 / seconds;
-  return { fps, perFrameMs, fixedPerSecMs, at30: fixedPerSecMs + 30 * perFrameMs };
+  return (fixedUs / (profile.endTime - profile.startTime)) * 1000;
 }
 
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)]!;
-}
+const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 
 test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   // High quality (Auto could drop to Low mid-measurement): particles, trails, numbers and shake all on.
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
   await page.goto('/?stress=300');
@@ -108,30 +114,29 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  await page.waitForTimeout(2000);
 
-  await cdp.send('Profiler.enable');
-  await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
-  const samples: Sample[] = [];
-  for (let i = 0; i < RUNS; i++) samples.push(await measure(page, cdp));
+  const warm = await frames(page, WARMUP_FRAMES);
+  const measured = await frames(page, FRAMES);
+  const fixedPerSecMs = await fixedPerSecond(page, cdp, PROFILE_FRAMES);
   const visible = await page.evaluate(() => window.__tdt.visibleCreeps());
   const fx = await page.evaluate(() => window.__tdt.fx());
   const sound = await page.evaluate(() => window.__tdt.audio());
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
-  const fps = median(samples.map((s) => s.fps));
-  const perFrameMs = median(samples.map((s) => s.perFrameMs));
-  const fixedPerSecMs = median(samples.map((s) => s.fixedPerSecMs));
-  const at30 = median(samples.map((s) => s.at30));
+  const perFrameMs = mean(measured.costs);
+  const at30 = fixedPerSecMs + 30 * perFrameMs;
+  const fps = measured.fps;
   const software = /swiftshader|llvmpipe|software/i.test(gpu);
-  const runs = samples.map((s) => `${s.perFrameMs.toFixed(1)} ms at ${s.fps.toFixed(1)} FPS`).join(', ');
+  const thirds = [0, 1, 2].map((i) => mean(measured.costs.slice((i * FRAMES) / 3, ((i + 1) * FRAMES) / 3)).toFixed(1));
   const report =
-    `median of ${RUNS}: ${fps.toFixed(1)} FPS measured; JavaScript ${perFrameMs.toFixed(1)} ms per frame + ${fixedPerSecMs.toFixed(0)} ms/s fixed ` +
-    `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS (runs: ${runs}); ${visible} creeps drawn; ${fx.live} effect particles live; ` +
+    `${fps.toFixed(1)} FPS measured; JavaScript ${perFrameMs.toFixed(1)} ms per frame (mean of ${measured.costs.length} frames, ` +
+    `thirds ${thirds.join(' / ')}; warm-up ${mean(warm.costs).toFixed(1)} over ${warm.costs.length}) + ${fixedPerSecMs.toFixed(0)} ms/s fixed ` +
+    `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; ${fx.live} effect particles live; ` +
     `sound ${sound.state}: ${sound.played} effects played, ${sound.skipped} skipped, ${sound.notes} music notes; GPU: ${gpu}`;
   test.info().annotations.push({ type: 'stress', description: report });
   console.log(`Stress scene (300 creeps, 4× CPU throttling): ${report}`);
 
+  expect(measured.costs).toHaveLength(FRAMES);
   expect(visible).toBe(300);
   expect(fx.particles).toBe(true);
   expect(fx.live).toBeGreaterThan(50);

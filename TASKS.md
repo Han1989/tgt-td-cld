@@ -20,7 +20,7 @@
 
 Tests have only ever run inside build sessions. The team workflow and the required `ci` check are on `main` (PR #24).
 
-- **Team:** ☑ `.github/workflows/ci.yml` for pull requests and pushes to `main`: Node 22.12+, `npm ci`, `npm test`, `npm run build`. Browser tests (Playwright Chromium) run when `apps/client/**`, `packages/**`, or `.github/**` change, in parallel jobs: one per project (iPhone in 2 shards, Pixel in 3, Desktop in 1) and the 300-creep stress test alone in `e2e (perf)` (median of three windows). `ci` aggregates them and is the only required check. npm and the Playwright browsers are cached.
+- **Team:** ☑ `.github/workflows/ci.yml` for pull requests and pushes to `main`: Node 22.12+, `npm ci`, `npm test`, `npm run build`. Browser tests (Playwright Chromium) run when `apps/client/**`, `packages/**`, or `.github/**` change, in parallel jobs: one per project (iPhone in 2 shards, Pixel in 3, Desktop in 1) and the 300-creep stress test alone in `e2e (perf)` (the page's own frame timer: the mean of 90 frames after 60 warm-up frames; 9–18 ms on GitHub's runners against the 33.3 ms budget). `ci` aggregates them and is the only required check. npm and the Playwright browsers are cached.
 - **Han:** protect `main` in the repo settings: require a pull request, require the CI checks to pass, block force pushes. **Done 30 Sep 2026:** `main` requires PR + status check `ci`, force pushes blocked, admins enforced; repo `allow_auto_merge` on.
 - **Done when:** a PR shows green checks, and a PR with a deliberately failing test can't be merged. **Done 30 Sep 2026:** `ci` is on `main` (PR #24) and is the required status check.
 
