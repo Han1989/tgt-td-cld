@@ -29,9 +29,14 @@ jobs:
       - name: Current stress test (as CI runs it)
         working-directory: apps/client
         continue-on-error: true
-        run: npx playwright test --project=perf --no-deps e2e/perf.spec.ts
+        run: npx playwright test --project=perf --no-deps e2e/perf.spec.ts 2>&1 | tee cur.log
       - name: Diagnostic windows
         working-directory: apps/client
         env:
           DIAG_LABEL: gh-${{ matrix.n }}
-        run: npx playwright test --project=perf --no-deps diag --repeat-each=2 --workers=1 2>&1 | tee diag.log; grep '^DIAG' diag.log || true
+          DIAG_UNPROFILED: '6'
+        run: npx playwright test --project=perf --no-deps diag --repeat-each=2 --workers=1 > diag.log 2>&1 || true
+      - name: Digest
+        if: always()
+        working-directory: apps/client
+        run: python3 ../../.github/perf-diag-digest.py cur.log diag.log
