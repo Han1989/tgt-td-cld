@@ -28,6 +28,8 @@ const FILE_NAME = 'events.jsonl';
 /** Rewrite the file once it passes this, keeping only what is still in memory. */
 const COMPACT_AT = 2_000_000;
 const MAX_EVENTS = 20_000;
+/** Drop events past RETAIN_MS and rewrite the file this often, whether or not anything was recorded. */
+export const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
 
 export interface AnalyticsLocation {
   /** Null when events stay in memory. */
@@ -51,6 +53,7 @@ export class AnalyticsStore {
   /** Lines waiting for the single writer. Kept separate so a compact cannot duplicate them. */
   private pending: StoredEvent[] = [];
   private writeChain: Promise<void> = Promise.resolve();
+  private pruneTimer: NodeJS.Timeout | null = null;
   persistent = false;
   diskError: string | null = null;
 
@@ -58,7 +61,7 @@ export class AnalyticsStore {
     this.location = resolveAnalyticsDir(configuredDir);
   }
 
-  /** Loads an existing file. Safe to call once at startup; never throws. */
+  /** Loads an existing file and rewrites it without expired lines. Safe to call once at startup; never throws. */
   open(): void {
     if (!this.location.dir) return;
     try {
@@ -81,8 +84,8 @@ export class AnalyticsStore {
           // A torn last line from a crash is skipped.
         }
       }
-      this.trim(now);
       this.persistent = true;
+      this.prune(now);
     } catch (err) {
       this.persistent = false;
       this.file = null;
@@ -97,6 +100,25 @@ export class AnalyticsStore {
     if (!this.file || !this.persistent) return;
     this.pending.push(stored);
     this.enqueue(() => this.flushPending());
+  }
+
+  /** Drops events older than RETAIN_MS from memory and rewrites the file from memory, whatever its size. */
+  prune(now = Date.now()): void {
+    this.trim(now);
+    if (!this.file || !this.persistent) return;
+    this.enqueue(() => this.compact());
+  }
+
+  /** Prunes every `everyMs` until `stopPruning`. The timer does not keep the process alive. */
+  startPruning(everyMs = PRUNE_EVERY_MS, clock: () => number = Date.now): void {
+    this.stopPruning();
+    this.pruneTimer = setInterval(() => this.prune(clock()), everyMs);
+    this.pruneTimer.unref();
+  }
+
+  stopPruning(): void {
+    if (this.pruneTimer) clearInterval(this.pruneTimer);
+    this.pruneTimer = null;
   }
 
   all(): readonly StoredEvent[] {
