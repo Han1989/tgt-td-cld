@@ -12,6 +12,8 @@
 //   replaces the old copy.
 // - The link-preview card (`/og-card.png`, docs/PRESS.md) is not precached either: only link
 //   crawlers fetch it, so a player would download it on every deploy for nothing.
+// - A page load gets index.html (the game), except another page of the shell (privacy.html), which
+//   gets itself.
 // - It only serves same-origin GET requests; the game server's WebSocket never goes through it.
 
 /** Files in the shell that are not precached: recorded sound files (cached on first play instead). */
@@ -81,8 +83,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (req.mode === 'navigate') {
-    // App shell first (fast start, offline solo); the network if it is not cached yet.
-    event.respondWith(caches.match('/index.html').then((hit) => hit || fetch(req)));
+    // App shell first (fast start, offline solo); the network if it is not cached yet. Another page of
+    // the shell (privacy.html) is served as itself, not as the game.
+    const page = /\\.html$/.test(url.pathname) && SHELL.includes(url.pathname) ? url.pathname : '/index.html';
+    event.respondWith(caches.match(page).then((hit) => hit || fetch(req)));
     return;
   }
   event.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req)));

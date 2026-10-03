@@ -3,9 +3,9 @@
 
 import { channelFromSearch, type Channel } from './channel';
 import { detectPlatform, type Platform } from './platform';
+import { ANALYTICS_KEY, analyticsOn, VISITOR_KEY, writeAnalyticsChoice, type AnalyticsChoice } from './preference';
 import { analyticsEndpoint, createAnalyticsClient, type AnalyticsClient } from './session';
 
-const VISITOR_KEY = 'tdt.visitor';
 const CHANNEL_KEY = 'tdt.channel';
 
 let current: AnalyticsClient | null = null;
@@ -68,10 +68,29 @@ function post(url: string, body: unknown, beacon: boolean): void {
   }).catch(() => {});
 }
 
+/** The page is on screen (for ticks). */
+function visible(): boolean {
+  return document.visibilityState === 'visible';
+}
+
+/**
+ * The play-data switch (Settings → Play data): saves the choice for this browser and applies it now
+ * (off: nothing more is sent; on: a new session starts).
+ */
+export function setAnalyticsChoice(choice: AnalyticsChoice): void {
+  writeAnalyticsChoice(choice);
+  try {
+    current?.tick(visible(), Date.now());
+  } catch {
+    // Applied at the next tick instead.
+  }
+}
+
 /**
  * Starts one session for this page. No-op when the build has no game server
  * (`VITE_SERVER_URL` empty): local solo then keeps no analytics. Showcase and
- * stress pages should not call this.
+ * stress pages should not call this. While the player has play data off
+ * (preference.ts) nothing is sent and no visitor id is made.
  */
 export function installAnalytics(serverUrl: string): void {
   try {
@@ -79,13 +98,18 @@ export function installAnalytics(serverUrl: string): void {
     if (!endpoint) return;
     const store = safeStorage('localStorage');
     const choice = channelFromSearch(location.search, document.referrer, store.getItem(CHANNEL_KEY));
-    if (choice.save) store.setItem(CHANNEL_KEY, choice.channel);
-    else if (choice.clear) store.removeItem(CHANNEL_KEY);
-    let visitor = store.getItem(VISITOR_KEY);
-    if (!visitor || !/^[A-Za-z0-9_-]{8,64}$/.test(visitor)) {
-      visitor = randomId();
-      store.setItem(VISITOR_KEY, visitor);
+    if (analyticsOn()) {
+      if (choice.save) store.setItem(CHANNEL_KEY, choice.channel);
+      else if (choice.clear) store.removeItem(CHANNEL_KEY);
     }
+    const visitor = () => {
+      let id = store.getItem(VISITOR_KEY);
+      if (!id || !/^[A-Za-z0-9_-]{8,64}$/.test(id)) {
+        id = randomId();
+        store.setItem(VISITOR_KEY, id);
+      }
+      return id;
+    };
     const channel: Channel = choice.channel;
     const platform: Platform = detectPlatform({
       userAgent: navigator.userAgent,
@@ -98,13 +122,18 @@ export function installAnalytics(serverUrl: string): void {
       platform,
       newSessionId: randomId,
       post: (body, beacon) => post(endpoint, body, beacon),
+      allowed: analyticsOn,
     });
     client.start(Date.now());
     window.setInterval(() => {
-      client.tick(document.visibilityState === 'visible', Date.now());
+      client.tick(visible(), Date.now());
     }, 25_000);
     document.addEventListener('visibilitychange', () => {
-      client.tick(document.visibilityState === 'visible', Date.now());
+      client.tick(visible(), Date.now());
+    });
+    // The switch on the privacy page (another tab) applies here at once.
+    window.addEventListener('storage', (e) => {
+      if (e.key === ANALYTICS_KEY || e.key === null) client.tick(visible(), Date.now());
     });
     // pagehide also fires when a phone switches apps. A later heartbeat reopens the
     // same session; the idle window is what starts a new one.

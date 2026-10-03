@@ -216,6 +216,7 @@
 
         <p id="lobby-error" class="lobby-error"></p>
         <button id="lobby-refresh" class="btn big lobby-refresh hidden">Refresh</button>
+        <p class="lobby-foot">No accounts · anonymous play data · <a id="lobby-privacy" href="/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
       </div>
     </div>
     <div id="hud">
@@ -325,6 +326,11 @@
           <p class="settings-note">Bright lifts the ground and shadows for playing outdoors.</p>
         </section>
         <section>
+          <h3>Play data</h3>
+          <div id="settings-analytics" class="choices row"></div>
+          <p class="settings-note"><span id="settings-analytics-state"></span> It is playtime, platform, match results and ratings, kept 30 days. No accounts, no trackers. <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+        </section>
+        <section>
           <h3>Lesson</h3>
           <button id="settings-tutorial" class="btn" type="button">Replay tutorial</button>
           <p class="settings-note">Starts a solo Quick match on Normal, and shows the Wisps note again the next time they appear. Leaves an online room.</p>
@@ -388,7 +394,8 @@
               <button type="button" class="end-rate" data-rating="4" aria-label="4">4</button>
               <button type="button" class="end-rate" data-rating="5" aria-label="5, great">5</button>
             </div>
-            <input id="end-comment" class="end-comment" maxlength="140" placeholder="Optional note" autocomplete="off" enterkeyhint="done" />
+            <input id="end-comment" class="end-comment" maxlength="140" placeholder="Optional note" aria-label="Optional note, up to 140 characters" aria-describedby="end-comment-hint" autocomplete="off" enterkeyhint="done" />
+            <p id="end-comment-hint" class="end-comment-hint">Don't include personal details. · <a id="end-privacy" href="/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
             <div id="end-feedback-thanks" class="end-thanks hidden">Thanks — that helps.</div>
           </div>
           <div class="end-actions">

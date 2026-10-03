@@ -163,6 +163,15 @@ Nobody should be able to miss an ultimate or a combo. Do this on **both phones**
 - [ ] 10.7 **End screen:** after a match with ultimates, the end screen lists **Ultimates** (each with its casts and kills, e.g. "Arrow Storm · 3 casts · 41 kills", and combos as "Meteor Rain · 2 combos · 80 kills") and, in a team, **Combos by pair** ("Ann + Cy · 2 combos: Meteor Rain ×2"). A match with none lists none. **Save match report** still saves, and the saved file's `report.coop` has `ultimates` and `comboPairs`.
 - [ ] 10.8 **Reduced motion:** repeat 10.1–10.4 and 10.6 with the setting on: the blink is fainter, popups and numbers fade without moving, rings stay still, the R pulse and the COMBO! tag do not animate (they are steady), and nothing shakes.
 
+## 11. Privacy notice and Play data (Discovery, D-07)
+
+On the production build (it has the game server), on a phone and in the installed app if you have it:
+
+- [ ] 11.1 The lobby card's last line says **No accounts · anonymous play data · Privacy**. Tap **Privacy**: the privacy page opens in a new tab or sheet, reads well at phone size (no sideways scrolling), and the lobby is still there when you come back. **← Back to the game** opens the game.
+- [ ] 11.2 On the privacy page the yellow email placeholder is gone (H-07) and the address works. Under **Ask for a copy, or for deletion**, **Your browser's id** shows a long id after you have played once; **Copy** copies it.
+- [ ] 11.3 End a match: under the rating's note box it says **Don't include personal details. · Privacy**, and the link opens the privacy page. Rating still works and never blocks **Play again**.
+- [ ] 11.4 ⚙ → **Play data** → **Off**: the line says *Off: this browser sends nothing.* Finish another match: no rating control is offered. On the privacy page (open it again) the switch also shows **Off**. Turn it **On** there, back in the game ⚙ shows **On**. On `/analytics` (Han) a new session appears only after it is on again.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

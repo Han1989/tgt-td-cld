@@ -197,6 +197,8 @@ describe('AnalyticsStore', () => {
     await writeFile(file, `${await readFile(file, 'utf8')}{"at":\n`, 'utf8');
     const next = new AnalyticsStore(dir);
     next.open();
+    // open() queues a prune that rewrites the file; let it finish before afterEach removes the directory.
+    await next.flush();
     expect(next.all()).toHaveLength(2);
     expect(next.all()[1]).toMatchObject({ t: 'feedback', comment: 'again' });
   });

@@ -1,4 +1,7 @@
 // Session clock and the bodies posted to /analytics/event. No DOM, no throwing.
+// `allowed` (the player's play-data switch, preference.ts) is read before every post: while it is
+// off nothing is sent, and the session in progress stops where it is (no session_end; the server
+// closes it after its idle window). Turned back on, the next tick starts a new session.
 
 import type { Channel } from './channel';
 import type { Platform } from './platform';
@@ -69,19 +72,34 @@ export function cleanComment(raw: string): string {
 }
 
 export function createAnalyticsClient(opts: {
-  visitor: string;
+  /** The visitor id; asked for at the first session start, so a browser that never sends gets none. */
+  visitor: () => string;
   channel: Channel;
   platform: Platform;
   newSessionId: () => string;
   post: (body: AnalyticsBody, beacon: boolean) => void;
+  /** Read before every post. False: nothing is sent. Default: always allowed. */
+  allowed?: () => boolean;
 }): AnalyticsClient {
+  let visitor = '';
   let session = '';
+  /** `start` was called: ticks may open sessions from now on. */
+  let opened = false;
   let started = false;
   let endSent = false;
   let hiddenAt: number | null = null;
   let lastPost = 0;
 
+  function allowed(): boolean {
+    try {
+      return opts.allowed?.() ?? true;
+    } catch {
+      return false;
+    }
+  }
+
   function send(body: AnalyticsBody, beacon: boolean): void {
+    if (!allowed()) return;
     try {
       opts.post(body, beacon);
     } catch {
@@ -90,10 +108,16 @@ export function createAnalyticsClient(opts: {
   }
 
   function base(t: SessionEventType): AnalyticsBody {
-    return { t, visitor: opts.visitor, session, channel: opts.channel, platform: opts.platform };
+    return { t, visitor, session, channel: opts.channel, platform: opts.platform };
   }
 
   function begin(now: number): void {
+    if (!allowed()) return;
+    try {
+      if (!visitor) visitor = opts.visitor();
+    } catch {
+      return;
+    }
     session = opts.newSessionId();
     started = true;
     endSent = false;
@@ -104,10 +128,21 @@ export function createAnalyticsClient(opts: {
 
   return {
     start(now) {
+      opened = true;
       begin(now);
     },
     tick(visible, now) {
-      if (!started) return;
+      if (!opened) return;
+      if (!allowed()) {
+        // Switched off: this session stops here. Switched back on, the next visible tick starts a new one.
+        started = false;
+        hiddenAt = null;
+        return;
+      }
+      if (!started) {
+        if (visible) begin(now);
+        return;
+      }
       if (!visible) {
         if (hiddenAt === null) hiddenAt = now;
         return;

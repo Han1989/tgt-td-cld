@@ -239,9 +239,10 @@ test.describe('portrait phone layout', () => {
     // A short tap on Sell does nothing; holding it 0.5 s sells.
     const sell = page.locator('.radial-btn[data-action="sell"]');
     await sell.tap();
+    // The hint toast lives 2.2 s: check it first, before the wait and a round trip can outlast it on a slow runner.
+    await expect(page.locator('.toast', { hasText: 'Hold Sell' })).toBeVisible();
     await page.waitForTimeout(700);
     expect(await sent(page, 'sell')).toHaveLength(0);
-    await expect(page.locator('.toast', { hasText: 'Hold Sell' })).toBeVisible();
     const s = centre(await box(page, '.radial-btn[data-action="sell"]'));
     await finger.down(s.x, s.y);
     await page.waitForTimeout(750);

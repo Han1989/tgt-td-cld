@@ -1859,6 +1859,41 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   color: var(--gold);
 }
 
+/* Under the note box: no personal details, and the privacy page (privacy.html). */
+.end-comment-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.end-comment-hint a,
+.lobby-foot a,
+.settings .settings-note a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+/* The lobby card's last line: the privacy page, in a new tab so the lobby stays. */
+.lobby-foot {
+  margin: -4px 0 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Small text links with a finger-sized hit area that does not move the layout. */
+.lobby-foot a,
+.end-comment-hint a {
+  position: relative;
+}
+
+.lobby-foot a::after,
+.end-comment-hint a::after {
+  content: '';
+  position: absolute;
+  inset: -10px -8px;
+}
+
 
 /* Lobby ------------------------------------------------------------------ */
 
