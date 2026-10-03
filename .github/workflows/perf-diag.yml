@@ -1,0 +1,37 @@
+# TEMPORARY (removed before the PR is ready): repeated stress-test measurements on GitHub runners.
+name: perf-diag
+
+on:
+  push:
+    branches: [claude/beautiful-meitner-nzzs6e]
+
+permissions:
+  contents: read
+
+jobs:
+  perf:
+    name: perf-diag ${{ matrix.n }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          playwright: 'true'
+      - name: Build the e2e client
+        run: npm run build:e2e -w @tdt/client
+      - name: Runner
+        run: nproc; lscpu | grep -E 'Model name|^CPU\(s\)'; free -m
+      - name: Current stress test (as CI runs it)
+        working-directory: apps/client
+        continue-on-error: true
+        run: npx playwright test --project=perf --no-deps e2e/perf.spec.ts
+      - name: Diagnostic windows
+        working-directory: apps/client
+        env:
+          DIAG_LABEL: gh-${{ matrix.n }}
+        run: npx playwright test --project=perf --no-deps diag --repeat-each=2 2>&1 | tee diag.log; grep '^DIAG' diag.log || true
