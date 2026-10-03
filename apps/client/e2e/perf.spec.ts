@@ -13,10 +13,12 @@
 //
 // How it is measured (docs/GAME_DESIGN.md §13, 2026-10-03):
 // - Per frame: the page times every frame itself (`window.__tdt.frameCosts()`, e2e builds
-//   only: from the first ticker listener to the last, so GPU waits don't count). The test
-//   discards the first WARMUP_FRAMES under throttling (the JIT is still settling: they run
-//   about 15% slower) and asserts the mean of the next FRAMES frames, a fixed number of
-//   frames whatever the frame rate. No profiler runs meanwhile (it adds about 25%).
+//   only: from the first ticker listener to the last, so the GPU's drawing, which comes
+//   after, doesn't count). The test
+//   discards the first WARMUP_FRAMES under throttling (they run about 20% slower; the page is
+//   still warming up) and asserts the mean of the next FRAMES frames: a fixed number of frames
+//   whatever the frame rate, more than the ~80-frame cycle of the scene's slower stretches.
+//   No profiler runs meanwhile (it adds about 25% to every frame).
 // - Fixed-rate work: a DevTools CPU profile over PROFILE_FRAMES frames; JavaScript outside
 //   Pixi's ticker, divided by the profile's own duration.
 // The test used to divide the ticker's JavaScript in a 5 s CPU profile by the frames

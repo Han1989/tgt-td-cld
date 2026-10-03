@@ -132,7 +132,7 @@ jobs:
       - name: Build the e2e client
         run: npm run build:e2e -w @tdt/client
 
-      - name: Stress test (300 creeps, median of 3 windows)
+      - name: Stress test (300 creeps, mean of 90 frames after 60 warm-up frames)
         working-directory: apps/client
         run: npx playwright test --project=perf --no-deps
 
