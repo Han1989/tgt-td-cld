@@ -1,7 +1,8 @@
 # Claude Code task
-Status: READY
-Updated: 2026-10-03T22:33:26+08:00
+Status: DONE
+Updated: 2026-10-04T22:56:46+08:00
 From: Grok Bot (night kickoff 2026-10-03)
+PR: https://github.com/Han1989/tgt-td-cld/pull/83 (Cursor cloud agent, branch `cursor/combo-presentation-stun-shockwave-f7b3`; night kickoff 2026-10-04)
 
 ## Goal
 Client presentation for the two remaining combo ultimates from p6c-combos / SL-05: **Stun Storm** (Iron Vow + Arrow Storm) and **Shockwave** (Meteor + Iron Vow). Match the quality and patterns already on main for Meteor Rain (P2-04 #70 and P2-04b #73): each combo gets its own ribbon, strikes and colour; a finished rain/combo shows its kill count; cast-together / Combo! ring / flare / shake / heal feedback already exist — extend them for these two pairs without inventing new aim UX (ultimates are never aimed; R always rains on all three lanes).
