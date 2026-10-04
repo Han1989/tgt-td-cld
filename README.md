@@ -30,7 +30,7 @@ Hold the Heart for 30 waves. Creeps come down three lanes from the portals at th
 
 - **Right-click:** move, or attack a creep. **A** + left-click: attack-move.
 - **Q:** Multishot. **W:** Snare Trap, then left-click where to place it. Spend skill points with the **+** buttons.
-- **Left-click a build pad** to build (Arrow, Cannon, Frost), or press **B** then **1–3**. Left-click your own tower to sell it for 70% of its cost.
+- **Left-click a build pad** to build (Arrow, Cannon, Frost), or press **B** then **1–3**. Left-click your own tower to upgrade it (**U**), repair it when damaged (**F**) or sell it for 70% of its cost.
 - **Camera:** screen edges, arrow keys, middle-mouse drag, mouse wheel to zoom, **Space** to centre on your hero.
 - **Call early** starts the next wave now and pays bonus gold.
 - **Online:** give gold to a teammate with the **Give** buttons in the team panel (top left).

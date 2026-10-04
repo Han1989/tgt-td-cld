@@ -270,6 +270,52 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
   });
 
+  test('a damaged tower: the hint says so once, one tap on Repair brings it to full HP for the cost shown', async ({ page }) => {
+    await startSolo(page);
+    const [padId] = await myPadsBottomFirst(page);
+    await tapPad(page, padId!);
+    const arrow = page.locator('.radial-btn[data-tower="arrow"]');
+    await arrow.tap();
+    await arrow.tap();
+    const tower = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), padId);
+    await expect.poll(async () => (await tower())?.tier).toBe(1);
+
+    // Full HP: the ring has no Repair button.
+    await tapPad(page, padId!);
+    await expect(page.locator('#radial[data-menu="tower"] .radial-btn').first()).toBeVisible();
+    await expect(page.locator('.radial-btn[data-action="repair"]')).toHaveCount(0);
+
+    // Under half HP: the one-time line, and Repair appears in the open ring with its price.
+    await page.evaluate(() => window.__tdt.damageTowers());
+    await expect.poll(async () => { const t = await tower(); return t && t.hp < t.maxHp; }).toBe(true);
+    await expect(page.locator('.toast.teach.repair')).toContainText('Repair');
+    const repair = page.locator('.radial-btn[data-action="repair"]');
+    await expect(repair).toBeVisible();
+    await expect(repair.locator('.cost')).not.toHaveText('');
+    // The Repair button stays clear of the joystick and the skills.
+    const r = await box(page, '.radial-btn[data-action="repair"]');
+    for (const o of await overlayBoxes(page)) expect(overlaps(r, o)).toBe(false);
+
+    const shown = Number(await repair.locator('.cost').textContent());
+    const gold = await page.evaluate(() => window.__tdt.latest()!.players[0]!.gold);
+    expect(shown).toBeGreaterThan(0);
+    await repair.tap();
+    await expect.poll(() => sent(page, 'repair')).toEqual([{ type: 'repair', towerId: expect.any(Number) }]);
+    await expect.poll(async () => { const t = await tower(); return t && t.hp === t.maxHp; }).toBe(true);
+    expect(await page.evaluate(() => window.__tdt.latest()!.players[0]!.gold)).toBe(gold - shown);
+    // Full again: the button goes, the ring stays.
+    await expect(repair).toHaveCount(0);
+    await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeVisible();
+
+    // The line was once (remembered in the settings): damaged again, it does not come back.
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings') ?? '{}').repairHint)).toBe('seen');
+    await expect(page.locator('.toast.teach.repair')).toHaveCount(0, { timeout: 6000 });
+    await page.evaluate(() => window.__tdt.damageTowers());
+    await expect(page.locator('.radial-btn[data-action="repair"]')).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(page.locator('.toast.teach.repair')).toHaveCount(0);
+  });
+
   test('joystick settings move the cluster and keep a short push', async ({ page }) => {
     await startSolo(page);
     const finger = await Finger.on(page);

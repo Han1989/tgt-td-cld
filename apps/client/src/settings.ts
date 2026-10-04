@@ -4,7 +4,7 @@
 import type { StickAnchor, ThumbLayout } from './layout';
 import type { StickFeelName } from './touch/gestures';
 import type { Display } from './render/art/tokens';
-import { parseAirLesson, type AirLesson, type TutorialStatus } from './tutorial/logic';
+import { parseAirLesson, parseRepairHint, type AirLesson, type RepairHint, type TutorialStatus } from './tutorial/logic';
 
 export type Quality = 'auto' | 'high' | 'low';
 /** Screen shake: off, the normal kick, or a stronger one (ultimates, boss abilities and Heart hits). */
@@ -39,6 +39,11 @@ export interface Settings {
    * `seen` does not. Replay tutorial sets it back to `new`.
    */
   airLesson: AirLesson;
+  /**
+   * The repair line. `new` shows it the first time one of your towers drops under half HP (any match).
+   * `seen` does not. Replay tutorial sets it back to `new`.
+   */
+  repairHint: RepairHint;
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
@@ -89,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
   muted: false,
   tutorial: 'new',
   airLesson: 'new',
+  repairHint: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -114,6 +120,7 @@ export function parseSettings(raw: string | null): Settings {
     if (typeof v.muted === 'boolean') out.muted = v.muted;
     if (v.tutorial === 'new' || v.tutorial === 'completed' || v.tutorial === 'skipped') out.tutorial = v.tutorial;
     out.airLesson = parseAirLesson(v.airLesson);
+    out.repairHint = parseRepairHint(v.repairHint);
   } catch {
     // Corrupt value: defaults.
   }

@@ -60,6 +60,10 @@ ctx.onmessage = (e) => {
     host.debugLose();
     return;
   }
+  if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'damageTowers') {
+    host.debugDamageTowers();
+    return;
+  }
   host.receive(e.data);
 };
 

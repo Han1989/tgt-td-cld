@@ -1,6 +1,6 @@
 export { createGame, step, snapshot } from './game';
 export { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
-export { TUNING, TICK_RATE, secondsToTicks, towerTier, towerStats, branchTier, tuningForMode } from './tuning';
+export { TUNING, TICK_RATE, secondsToTicks, towerTier, towerStats, branchTier, repairCost, tuningForMode } from './tuning';
 export type { SurgeTuning, ModifierStats } from './tuning';
 export { modifierDraw, modifierRolls, normalizeModifiers, planSurgeLanes, surgeCounts, towerRangeScale } from './modifiers';
 export type {

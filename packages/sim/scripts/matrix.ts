@@ -9,6 +9,7 @@
 //   dead   hero deaths per match, and the Warden's
 //   R      ultimates cast per match; kills per Arrow Storm and per Meteor; damage per cast; combos per match and their
 //          share of all damage; ultimates' (combos included) share of all damage
+//   repair tower repairs per match and the gold they cost (novice: always 0); towers destroyed by creeps per match
 // `--team ranger,warden` runs only that team (hero order = lane order).
 // `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
 // arrays and numbers replace), so a number can be tried without editing tuning.ts.
@@ -64,6 +65,9 @@ interface Match {
   damage: number;
   combos: number;
   towers: number;
+  repairs: number;
+  repairGold: number;
+  destroyed: number;
 }
 
 function merge(base: unknown, patch: unknown): unknown {
@@ -108,6 +112,9 @@ function playMatch(row: Row, seed: number): Match {
     damage: r.totalDamage,
     combos: r.combos,
     towers: r.towers,
+    repairs: r.repairs,
+    repairGold: r.repairGold,
+    destroyed: r.towersDestroyed,
   };
 }
 
@@ -181,7 +188,7 @@ function perCast(ms: Match[], tag: 'arrowStorm' | 'meteor'): string {
 const comboDamage = (m: Match): number => m.by.meteorRain.damage + m.by.stunStorm.damage + m.by.shockwave.damage;
 
 function print(results: Match[][]): void {
-  const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers'];
+  const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers', 'repair (gold)', 'destroyed'];
   let group = '';
   let table: string[][] = [];
   const flush = () => {
@@ -220,6 +227,8 @@ function print(results: Match[][]): void {
       pct(sum(ms.map((m) => comboDamage(m))) / Math.max(1, sum(ms.map((m) => m.damage)))),
       pct(sum(ms.map((m) => m.ultDamage)) / Math.max(1, sum(ms.map((m) => m.damage)))),
       f(mean(ms.map((m) => m.towers)), 1),
+      `${f(mean(ms.map((m) => m.repairs ?? 0)), 1)} (${f(mean(ms.map((m) => m.repairGold ?? 0)))})`,
+      f(mean(ms.map((m) => m.destroyed ?? 0)), 1),
     ]);
   });
   flush();

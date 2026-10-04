@@ -51,12 +51,13 @@ Original names and art only. No Warcraft, Dota or other studio assets, names or 
 - **Wave income:** every player gets flat gold at the start of each wave, scaling with wave number (40 + 16 × (wave − 1) on Spire; wave income carries most of the economy).
 - **Call-early bonus:** paid to all players.
 - **Selling** a tower refunds 70% of the total gold spent on it.
+- **Repairing** a damaged tower brings it to full HP at once for ceil(repairRate × gold spent on it × share of HP missing) gold, at least 1 (`economy.repairRate`; see the Decision Log). It keeps the tier, branch and target setting. Repairs do not count toward the sell refund.
 - **Heart HP:** 100, no regeneration.
 - **Gold gifting** between teammates (Phase 3): give any whole amount of your gold to a connected teammate.
 
 ## 6. Towers
 
-A tower is owned by the player who built it, and its kills credit that player. Towers build instantly on an empty build pad and have 3 upgrade tiers, then a 4th: **one of two specialisations** (branches, `docs/REPLAYABILITY.md` §1), picked for good and priced as the late-game gold sink. The default target priority is **First** (closest to the Heart); Strongest and Closest are added in Phase 3.
+A tower is owned by the player who built it, and its kills credit that player. Towers build instantly on an empty build pad and have 3 upgrade tiers, then a 4th: **one of two specialisations** (branches, `docs/REPLAYABILITY.md` §1), picked for good and priced as the late-game gold sink. The default target priority is **First** (closest to the Heart); Strongest and Closest are added in Phase 3. Towers have HP: Archers and bosses damage them, a destroyed tower is gone with no refund, and the owner can **repair** a damaged one for gold (§5).
 
 | Tower | Hits | Behaviour | Phase |
 |---|---|---|---|
@@ -87,7 +88,7 @@ Phase 1 ships the Ranger only, with Q and W, max level 5. Phase 3 (heroes track)
 - **Right-click:** move, or attack the clicked target. **A + left-click:** attack-move.
 - **Q / W / E / R:** cast; targeted skills then take a left-click.
 - **Left-click a build pad:** tower menu. Or press **B**, then **1–5**.
-- **Left-click your own tower:** upgrade / sell panel.
+- **Left-click your own tower:** upgrade / repair / sell panel. **U** upgrades and **F** repairs the selected tower.
 - **Camera:** edge scroll, arrow keys, middle-mouse drag; mouse wheel zooms; **Space** centres on your hero.
 - **Esc:** cancels targeting or building.
 - **Touch controls:** see `docs/MOBILE.md` §5.

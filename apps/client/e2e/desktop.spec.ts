@@ -154,6 +154,43 @@ test('desktop tower panel: at tier 3 it offers the two specialisations; clicking
   await expect(page.locator('#tower-panel')).toContainText('Max tier');
 });
 
+test('desktop tower panel: Repair shows only while damaged; F and the button repair it for the price shown', async ({ page }) => {
+  await startSolo(page);
+  const padId = await page.evaluate(() => window.__tdt.latest()!.pads[1]!.id);
+  const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
+  const at = await toScreen(page, pad.x, pad.y);
+  const tower = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), padId);
+  const gold = () => page.evaluate(() => window.__tdt.latest()!.players[0]!.gold);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.press('1');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#tower-panel')).toBeVisible();
+  const repair = page.locator('#tower-panel button[data-action="repair"]');
+  await expect(repair).toHaveCount(0);
+
+  // F on the selected tower.
+  await page.evaluate(() => window.__tdt.damageTowers());
+  await expect(repair).toBeVisible();
+  await expect(page.locator('.toast.teach.repair')).toContainText('Repair (F)');
+  let shown = Number(await repair.locator('.cost').textContent());
+  let before = await gold();
+  await page.keyboard.press('f');
+  await expect.poll(() => tower().then((t) => t && t.hp === t.maxHp)).toBe(true);
+  expect(await gold()).toBe(before - shown);
+  await expect(repair).toHaveCount(0);
+
+  // The panel button.
+  await page.evaluate(() => window.__tdt.damageTowers());
+  await expect(repair).toBeVisible();
+  shown = Number(await repair.locator('.cost').textContent());
+  before = await gold();
+  await repair.click();
+  await expect.poll(() => tower().then((t) => t && t.hp === t.maxHp)).toBe(true);
+  expect(await gold()).toBe(before - shown);
+  expect((await sent(page, 'repair')).length).toBe(2);
+});
+
 test('a narrow desktop window gets the tall layout and still plays with the mouse', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 900 });
   await startSolo(page);

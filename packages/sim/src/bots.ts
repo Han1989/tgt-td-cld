@@ -22,7 +22,7 @@ import {
 import { shieldStandPoint } from './coop';
 import { mix32 } from './modifiers';
 import { getMap, type BuildPad } from './map';
-import { tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
+import { repairCost, tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
 
 export interface Bot {
@@ -242,6 +242,7 @@ export function createBalanceBot(
       if (focusLane != null && style === 'casual') biasSurgePad(free, mine, focusLane);
       if (style === 'expert') {
         gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses);
+        gold = spendRepairs(cmds, mine, tuning, gold);
       } else {
         for (;;) {
           const kind = nextTower(needs, kinds, team);
@@ -276,6 +277,8 @@ export function createBalanceBot(
             novice && flyerLeaks < NOVICE_FLYER_LEAKS,
           );
         }
+        // What is left after the purchases repairs its towers under half HP. A novice never repairs.
+        if (!novice) gold = spendRepairs(cmds, mine, tuning, gold);
 
         // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
         // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
@@ -765,6 +768,22 @@ function giftForSurge(cmds: Command[], snap: Snapshot, playerId: PlayerId, gold:
   if (amount < 20) return giftedWave;
   cmds.push({ type: 'gift', to: owner, amount });
   return upcoming.wave;
+}
+
+/** Below this share of its HP, a casual or expert bot repairs a tower (with the gold left after its purchases). */
+const REPAIR_BELOW = 0.5;
+
+/** Repairs this bot's towers under `REPAIR_BELOW` of their HP, most damaged first, while it can pay. Returns the gold left. */
+function spendRepairs(cmds: Command[], mine: TowerSnap[], tuning: Tuning, goldStart: number): number {
+  let gold = goldStart;
+  const hurt = mine.filter((t) => t.hp < t.maxHp * REPAIR_BELOW).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+  for (const t of hurt) {
+    const cost = repairCost(tuning, t);
+    if (gold < cost) continue;
+    cmds.push({ type: 'repair', towerId: t.id });
+    gold -= cost;
+  }
+  return gold;
 }
 
 /** Pads ordered by how much lane (and wisp flight line) they cover. `rangeScale` is Fog's shorter reach. */

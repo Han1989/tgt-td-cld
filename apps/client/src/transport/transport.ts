@@ -16,6 +16,9 @@ export interface Transport {
   setPaused?(paused: boolean): void;
   /** The page is visible again: check the connection now instead of waiting for a timer. */
   wake?(): void;
-  /** Browser-test builds, local play only: a debug control for the host (`'lose'`: the Heart drops to 0). */
-  debug?(ctl: 'lose'): void;
+  /**
+   * Browser-test builds, local play only: a debug control for the host (`'lose'`: the Heart drops to 0;
+   * `'damageTowers'`: every tower drops to 30% of its HP).
+   */
+  debug?(ctl: 'lose' | 'damageTowers'): void;
 }

@@ -188,6 +188,9 @@ export function parseCommand(value: unknown): Command | null {
     case 'sell':
       if (!hasOnlyKeys(value, ['type', 'towerId']) || !isId(value.towerId)) return null;
       return { type: 'sell', towerId: value.towerId };
+    case 'repair':
+      if (!hasOnlyKeys(value, ['type', 'towerId']) || !isId(value.towerId)) return null;
+      return { type: 'repair', towerId: value.towerId };
     case 'upgrade':
       if (!hasOnlyKeys(value, ['type', 'towerId', 'branch']) || !isId(value.towerId)) return null;
       if (value.branch === undefined) return { type: 'upgrade', towerId: value.towerId };
@@ -296,6 +299,7 @@ export function encodeReplayCommand(cmd: Command): (string | number)[] {
     case 'build':
       return [cmd.type, cmd.padId, cmd.tower];
     case 'sell':
+    case 'repair':
       return [cmd.type, cmd.towerId];
     case 'upgrade':
       return cmd.branch === undefined ? [cmd.type, cmd.towerId] : [cmd.type, cmd.towerId, cmd.branch];
@@ -323,6 +327,7 @@ export function decodeReplayCommand(parts: readonly unknown[]): Command | null {
     learn: ['slot'],
     build: ['padId', 'tower'],
     sell: ['towerId'],
+    repair: ['towerId'],
     upgrade: ['towerId', 'branch'],
     setPriority: ['towerId', 'priority'],
     gift: ['to', 'amount'],

@@ -876,6 +876,13 @@ button {
   color: var(--gold);
 }
 
+/* The one-time repair line: the rune green of a mend. */
+.toast.teach.repair {
+  background: linear-gradient(180deg, rgba(16, 52, 44, 0.96), rgba(8, 18, 16, 0.96));
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 /* Gift theater: a gold figure with the other player's colour on the rim. */
 .toast.gift {
   display: flex;

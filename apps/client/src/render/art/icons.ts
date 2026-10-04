@@ -379,6 +379,14 @@ const UI_ICONS: Record<string, IconDraw> = {
       p.line(c, ellipse(x, y - 0.5, 5.5, 2.6), k.woodDark, 1, 0.5);
     }
   },
+  // Repair: a mason's hammer, handle from the lower left, iron head at the upper right, a rune spark on the face.
+  repair: (c, p, k) => {
+    p.line(c, pathLine([-14, 14, 5, -5]), k.ink, 6.4);
+    p.line(c, pathLine([-14, 14, 5, -5]), k.wood, 3.6);
+    p.part(c, poly([-2, -8, 8, -18, 18, -8, 8, 2], 1.2), k.iron, box(-2, -18, 18, 2));
+    p.detail(c, poly([10, -16, 16, -10, 13, -7, 7, -13], 0.6), k.ironDark);
+    p.accent(c, ngon(-5, -12, 3, 4, 0, 0.3), k.rune);
+  },
   target: (c, p, k) => {
     p.line(c, circle(0, 0, 12), k.ink, 5);
     p.line(c, circle(0, 0, 12), k.moon, 2.6);
@@ -437,6 +445,7 @@ export type IconId =
   | 'chat'
   | 'upgrade'
   | 'sell'
+  | 'repair'
   | 'target'
   | 'level'
   | 'sound'

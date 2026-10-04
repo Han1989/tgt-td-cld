@@ -27,6 +27,7 @@ import { WorldRenderer } from './render/world';
 import { sharedSettings } from './settings';
 import { TutorialCoach } from './tutorial/coach';
 import { lessonStatus } from './tutorial/logic';
+import { repairHint } from './teach/cues';
 import { INTERP_DELAY_MS, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
@@ -52,6 +53,8 @@ export class GameView {
   private needsCentre = true;
   /** Solo was paused because the page was hidden; waiting for a tap to resume. */
   private paused = false;
+  /** Radial menus (phones, touch screens) rather than the desktop panels: how the repair line says it. */
+  private radialMenus: () => boolean = () => false;
 
   private constructor(
     readonly hud: Hud,
@@ -162,6 +165,7 @@ export class GameView {
       },
       // The panel stays open after an upgrade or a priority change.
       upgrade: (towerId, branch) => sendCmd(branch ? { type: 'upgrade', towerId, branch } : { type: 'upgrade', towerId }),
+      repair: (towerId) => controls.repair(towerId),
       setPriority: (towerId, priority) => sendCmd({ type: 'setPriority', towerId, priority }),
       callEarly: () => sendCmd({ type: 'callEarly' }),
       gift: (to, amount) => sendCmd({ type: 'gift', to, amount }),
@@ -226,6 +230,7 @@ export class GameView {
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
     const coach = new TutorialCoach(() => (document.body.classList.contains('touch') ? 'touch' : 'desktop'));
     view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
+    view.radialMenus = radial;
     coach.onSkip = () => {
       settings.set({ tutorial: lessonStatus('skip') });
       view.setLesson(false);
@@ -526,6 +531,8 @@ export class GameView {
         sent,
         /** Solo: ends the match in defeat at once (the Heart drops to 0), to reach the end screen. */
         lose: () => view.transport?.debug?.('lose'),
+        /** Solo: every tower drops to 30% of its HP (the Repair button and the repair hint). */
+        damageTowers: () => view.transport?.debug?.('damageTowers'),
         latest: (): Snapshot | undefined => buffer.latest,
         me: () => view.me,
         layout: () => layout,
@@ -588,6 +595,13 @@ export class GameView {
       airTowers: shown.myAirTowers,
       hero: hero?.kind ?? null,
     });
+    // Once ever: the first time one of your towers is under half HP, say it can be repaired.
+    const quiet = this.coach.cardUp || airCard;
+    const repair = repairHint(settings.repairHint === 'new' && !quiet, this.me, latest.towers, this.radialMenus());
+    if (repair) {
+      this.hud.toast(repair, 'repair');
+      sharedSettings().set({ repairHint: 'seen' });
+    }
   }
 
   private feedLesson(latest: Snapshot, events: Snapshot['events'], now: number): void {

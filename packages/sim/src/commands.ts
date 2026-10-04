@@ -10,7 +10,7 @@ import { nearestWalkable } from './pathfinding';
 import { castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
 import type { GameState, Tower } from './state';
 import { upgradeTower } from './towers';
-import { towerTier } from './tuning';
+import { repairCost, towerTier } from './tuning';
 import { callEarly } from './waves';
 
 /** Applies `command` for `playerId`. Returns true if it was accepted. */
@@ -149,6 +149,20 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       if (player.gold < cost) return reject('Not enough gold');
       player.gold -= cost;
       upgradeTower(state, tower, command.branch ?? null);
+      return true;
+    }
+    case 'repair': {
+      const tower = state.towers.find((t) => t.id === command.towerId && !t.dead);
+      if (!tower) return reject('No such tower');
+      if (tower.owner !== playerId) return reject('Not your tower');
+      if (tower.hp >= tower.maxHp) return reject('Tower is at full HP');
+      const cost = repairCost(state.tuning, tower);
+      if (player.gold < cost) return reject('Not enough gold');
+      player.gold -= cost;
+      // Repairs are not added to `spent`: sell refunds and the next repair's price stay on the tower's own price.
+      const hp = Math.round(tower.maxHp - tower.hp);
+      tower.hp = tower.maxHp;
+      emit(state, { type: 'towerRepaired', towerId: tower.id, owner: playerId, cost, hp });
       return true;
     }
     case 'setPriority': {

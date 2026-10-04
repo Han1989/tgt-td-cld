@@ -137,6 +137,11 @@ export class SimHost {
     this.state.heartHp = 0;
   }
 
+  /** Browser tests only (the worker's e2e `damageTowers` control): every tower drops to 30% of its HP. */
+  debugDamageTowers(): void {
+    for (const t of this.state.towers) t.hp = Math.floor(t.maxHp * 0.3);
+  }
+
   private get state(): GameState {
     return this.match.state;
   }
