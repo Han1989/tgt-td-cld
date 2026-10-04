@@ -69,7 +69,7 @@ const sections: ProgressSection[] = [
   {
     id: 'p6c',
     title: 'Phase 6c · Loot and progression',
-    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started. Combos are rebuilt here; the hook-test branch is not merged.',
+    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Combos are done (sim PR #66, presentation PR #83); the rest is not started. The hook-test branch is not merged.',
     group: 'later',
   },
   {
@@ -592,9 +592,10 @@ const items: ProgressItem[] = [
     id: 'p6c-combos',
     title: 'Combo ultimates',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'p6c',
-    note: 'A fused effect for every hero pair: Meteor Rain, Stun Storm and Shockwave are in the sim (SL-05, PR #66). Presentation of the two new ones is a separate pass. Do not merge claude/loving-hawking-7fvsu7.',
+    note: 'A fused effect for every hero pair: Meteor Rain, Stun Storm and Shockwave are in the sim (SL-05, PR #66). Stun Storm and Shockwave now have their own ribbon, sky, strikes, fuse burst and kill count, like Meteor Rain (client only). Do not merge claude/loving-hawking-7fvsu7.',
+    proof: { label: 'PR #83', href: `${REPO}/pull/83` },
   },
   {
     id: 'p6c-raids',

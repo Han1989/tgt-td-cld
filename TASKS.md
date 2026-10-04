@@ -154,7 +154,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 
 ## Phase 6 and later · unblocked (Gate 1 passed 2 Oct 2026)
 
-Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
+Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started, except p6c-combos (done, PR #83). Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
 
 ### Phase 6a · Foundation: accounts and data
 
@@ -176,7 +176,7 @@ Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started.
 
 | ID | Task | Owner |
 |---|---|---|
-| p6c-combos | Combo ultimates, full version: a fused effect for every hero pair. The sim has all three (Meteor Rain, Stun Storm, Shockwave: SL-05, PR #66); the presentation of Stun Storm and Shockwave is still later. Don't merge `claude/loving-hawking-7fvsu7`. | Team |
+| p6c-combos | Combo ultimates, full version: a fused effect for every hero pair. The sim has all three (Meteor Rain, Stun Storm, Shockwave: SL-05, PR #66). **Done:** Stun Storm and Shockwave now have their own presentation like Meteor Rain's: ribbon, sky, strike flight and landing, fuse burst and kill count (client only, PR #83). Don't merge `claude/loving-hawking-7fvsu7`. | Team |
 | p6c-raids | Raid bosses with team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. The first beat is already in: Quick wave 10 Matriarch takes no damage until two lanes hit within 3 s (SL-04). Full wave 10 does not. | Team |
 | p6c-gear | Team set gear: gear slots, Common-to-S rarity, effects that change how towers and skills behave. Set bonuses switch on when teammates wear pieces of the same set. Earned by play only at this stage. | Team |
 | p6c-tiers | Difficulty tiers: better gear unlocks harder tiers with better loot, so gear never makes co-op trivial | Team |
