@@ -162,6 +162,20 @@ export function branchChip(branch: TowerBranch, tuning: Tuning = TUNING): string
   return `${BRANCH_NAMES[branch]} (${tuning.branches[branch].cost}): ${BRANCH_BLURBS[branch]}`;
 }
 
+/**
+ * A held build button's chip: the tower, its cost and what it does at tier 1,
+ * e.g. "Arrow (60): Dmg 16 · Spd 1.43 · Rng 6 · Ground + air".
+ */
+export function buildPreviewChip(kind: TowerKind, names: Record<TowerKind, string>, tuning: Tuning = TUNING, rangeScale = 1): string {
+  const t = towerStats(tuning, kind, 1, null);
+  return [
+    `${names[kind]} (${buildCost(kind, tuning)}): Dmg ${t.damage}`,
+    `Spd ${round(1 / t.attackCooldown)}`,
+    `Rng ${round(t.range * rangeScale, 1)}`,
+    targetsText(kind, tuning),
+  ].join(' · ');
+}
+
 /** Both specialisations, so the ring explains the choice before either button is tapped. */
 export function branchOfferChip(choices: readonly BranchChoice[]): string {
   return choices.map((c) => `${c.name} (${c.cost}): ${c.blurb}`).join(' · ');

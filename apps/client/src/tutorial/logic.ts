@@ -217,7 +217,7 @@ export function tutorialPrompt(
         title: 'Build a tower',
         body:
           input === 'touch'
-            ? `Tap a pad beside a lane and build an Arrow tower (${ARROW_COST} gold). You'll upgrade it next.`
+            ? `Tap a pad beside a lane, then tap Arrow (${ARROW_COST} gold) to build it. Hold a tower button to see its range first. You'll upgrade it next.`
             : `Left-click a pad and choose Arrow (${ARROW_COST} gold). With the pad open, 1 builds it too.`,
         next: null,
         skip: true,
@@ -241,7 +241,7 @@ export function tutorialPrompt(
         title: 'Upgrade',
         body:
           input === 'touch'
-            ? `Tap the gold ↑ on your tower (${ARROW_UPGRADE} gold). One tap upgrades it. The first wave pays ${WAVE_ONE_GOLD}, which covers an Arrow.`
+            ? `Tap your tower, then tap Upgrade (${ARROW_UPGRADE} gold). The ring stays open, so the next tier is one more tap. The first wave pays ${WAVE_ONE_GOLD}.`
             : `Left-click your tower, then Upgrade (${ARROW_UPGRADE} gold), or press U. The first wave pays ${WAVE_ONE_GOLD}.`,
         next: null,
         skip: true,

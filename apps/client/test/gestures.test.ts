@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   aimPoint,
   arrowTo,
+  buildPress,
+  BUILD_PREVIEW_MS,
   holdProgress,
   inOverlay,
   isCancelRelease,
@@ -23,7 +25,6 @@ import {
   stickKnobOffset,
   stickMoveTarget,
   stickVector,
-  upgradeTagRect,
   type Candidate,
   type CastTarget,
 } from '../src/touch/gestures';
@@ -89,14 +90,6 @@ describe('joystick', () => {
     expect(firmShort!.x - HERO.x).toBeLessThan(STICK_AHEAD);
     expect(firmFull.x - HERO.x).toBeCloseTo(STICK_AHEAD);
     expect(stickMoveTarget(HERO, { dx: STICK_FEELS.firm.dead - 1, dy: 0, mag: 0.1 }, 50, STICK_AHEAD, STICK_FEELS.firm)).toBeNull();
-  });
-
-  it('keeps the upgrade tag above the tower centre and at least 44 px wide', () => {
-    const tag = upgradeTagRect({ x: 200, y: 400 }, 24);
-    expect(tag.width).toBeGreaterThanOrEqual(44);
-    expect(tag.top + tag.height).toBeLessThan(400);
-    expect(tag.left).toBeLessThan(200);
-    expect(tag.left + tag.width).toBeGreaterThan(200);
   });
 
   it('resends the move when the stick turns or the last move is stale, not on every frame', () => {
@@ -220,6 +213,24 @@ describe('hold to sell', () => {
     expect(holdProgress(1000, 1000)).toEqual({ progress: 0, done: false });
     expect(holdProgress(1000, 1000 + SELL_HOLD_MS / 2).done).toBe(false);
     expect(holdProgress(1000, 1000 + SELL_HOLD_MS)).toEqual({ progress: 1, done: true });
+  });
+});
+
+describe('build button: tap to build, hold to preview', () => {
+  it('a quick tap builds on release and shows no preview', () => {
+    expect(buildPress(0, false)).toEqual({ preview: false, build: true });
+    expect(buildPress(BUILD_PREVIEW_MS - 1, false)).toEqual({ preview: false, build: true });
+  });
+
+  it('a hold previews and lifting it does not build', () => {
+    expect(BUILD_PREVIEW_MS).toBeGreaterThanOrEqual(250);
+    expect(BUILD_PREVIEW_MS).toBeLessThanOrEqual(400);
+    expect(buildPress(BUILD_PREVIEW_MS, false)).toEqual({ preview: true, build: false });
+    expect(buildPress(BUILD_PREVIEW_MS + 2000, false)).toEqual({ preview: true, build: false });
+  });
+
+  it('a drag off the button never builds', () => {
+    expect(buildPress(50, true)).toEqual({ preview: false, build: false });
   });
 });
 

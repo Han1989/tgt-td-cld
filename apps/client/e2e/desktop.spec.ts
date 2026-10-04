@@ -163,10 +163,8 @@ test('a narrow desktop window gets the tall layout and still plays with the mous
   const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
   const at = await toScreen(page, pad.x, pad.y);
   await page.mouse.click(at.x, at.y);
-  // Radial menu, driven by clicks: first click previews, second builds.
-  const cannon = page.locator('.radial-btn[data-tower="cannon"]');
-  await cannon.click();
-  await cannon.click();
+  // Radial menu, driven by clicks: one click on a tower builds it.
+  await page.locator('.radial-btn[data-tower="cannon"]').click();
   await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'cannon' }]);
 });
 

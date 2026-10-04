@@ -10,12 +10,6 @@ async function overlayBoxes(page: Page): Promise<Box[]> {
   return Promise.all(OVERLAY.map((s) => box(page, s)));
 }
 
-/** Taps the centre of an element. Used for the upgrade tag, which is not a browser click target. */
-async function tapCentre(page: Page, selector: string): Promise<void> {
-  const b = await box(page, selector);
-  await page.touchscreen.tap((b.left + b.right) / 2, (b.top + b.bottom) / 2);
-}
-
 /** Taps the centre of a pad (by map pad id). */
 async function tapPad(page: Page, padId: number): Promise<void> {
   const p = await page.evaluate((id) => {
@@ -58,6 +52,34 @@ async function waitForCreepsNearHero(
   const r = (await handle.jsonValue()) as { ok: boolean; x: number; y: number; near: number };
   expect(r.ok, `${count} creeps within Q range ${offset >= 0 ? '+' : ''}${offset} of the hero in ${seconds} s of game time (saw ${r.near})`).toBe(true);
   return { x: r.x, y: r.y };
+}
+
+/** Where a pad is on screen: its centre and box (px). */
+async function padOnScreen(page: Page, padId: number): Promise<{ x: number; y: number; box: Box }> {
+  return page.evaluate((id) => {
+    const map = window.__tdt.map;
+    const pad = map.pads[id]!;
+    const c = window.__tdt.camera.worldToScreen(pad.x * 32, pad.y * 32);
+    const half = (map.padSize / 2) * 32 * window.__tdt.camera.zoom;
+    return { x: c.x, y: c.y, box: { left: c.x - half, top: c.y - half, right: c.x + half, bottom: c.y + half } };
+  }, padId);
+}
+
+/** Visible page elements (not full-screen layers like the canvas or the HUD root) that overlap `b`. */
+async function elementsOver(page: Page, b: Box): Promise<string[]> {
+  return page.evaluate((b) => {
+    const screen = window.innerWidth * window.innerHeight;
+    const out: string[] = [];
+    for (const el of document.body.querySelectorAll<HTMLElement>('*')) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0 || r.width * r.height > screen / 4) continue;
+      if (r.right <= b.left || b.right <= r.left || r.bottom <= b.top || b.bottom <= r.top) continue;
+      const style = getComputedStyle(el);
+      if (style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
+      out.push(`${el.tagName.toLowerCase()}#${el.id}.${el.className}`);
+    }
+    return out;
+  }, b);
 }
 
 /** Your pads in this match, lowest on screen first (closest to the controls). */
@@ -133,7 +155,8 @@ test.describe('portrait phone layout', () => {
     for (const padId of pads.slice(0, 3)) {
       await tapPad(page, padId);
       await expect(page.locator('#radial .radial-btn').first()).toBeVisible();
-      await expect(page.locator('#radial .radial-btn.armed')).toHaveCount(0);
+      await expect(page.locator('#radial .radial-btn.previewing')).toHaveCount(0);
+      await expect(page.locator('#radial-chip')).toHaveText('Tap to build · hold to preview');
       for (const b of await Promise.all((await page.locator('#radial .radial-btn').all()).map(async (l) => l.boundingBox()))) {
         const r = { left: b!.x, top: b!.y, right: b!.x + b!.width, bottom: b!.y + b!.height };
         expect(r.left).toBeGreaterThanOrEqual(0);
@@ -207,14 +230,10 @@ test.describe('portrait phone layout', () => {
     await expect.poll(() => sent(page, 'stop').then((s) => s.length)).toBe(1);
     await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.heroes[0]!.y)).toBeLessThan(heroBefore - 0.5);
 
-    // Build: tap a pad, first tap on a tower previews, the second builds.
+    // Build: tap a pad, then one tap on a tower builds it.
     const [padId] = await myPadsBottomFirst(page);
     await tapPad(page, padId!);
-    const arrow = page.locator('.radial-btn[data-tower="arrow"]');
-    await arrow.tap();
-    await expect(arrow).toHaveClass(/armed/);
-    expect(await sent(page, 'build')).toHaveLength(0);
-    await arrow.tap();
+    await page.locator('.radial-btn[data-tower="arrow"]').tap();
     await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
@@ -231,6 +250,8 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('#radial-chip')).toContainText('Dmg');
     await page.locator('.radial-btn[data-action="upgrade"]').tap();
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId)).toBe(2);
+    // The ring stays open on the new tier.
+    await expect(page.locator('#radial[data-menu="tower"] .radial-btn[data-action="upgrade"]')).toBeVisible();
 
     // Priority cycles First → Strongest.
     await page.locator('.radial-btn[data-action="priority"]').tap();
@@ -251,23 +272,71 @@ test.describe('portrait phone layout', () => {
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(false);
   });
 
-  test('one tap on the gold tag upgrades a tower', async ({ page }) => {
+  test('build ring: one tap builds, a hold previews and does not build; nothing sits on a tower until it is tapped', async ({ page }) => {
     await startSolo(page);
-    const [padId] = await myPadsBottomFirst(page);
+    const finger = await Finger.on(page);
+    const [padId, otherPad] = await myPadsBottomFirst(page);
+    const towerOn = (id: number) => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), id);
+
+    // Hold Cannon: the chip names it with its stats, the button lights, and lifting builds nothing.
     await tapPad(page, padId!);
-    const arrow = page.locator('.radial-btn[data-tower="arrow"]');
-    await arrow.tap();
-    await arrow.tap();
-    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId)).toBe(1);
-    const tag = page.locator('.upgrade-tag');
-    await expect(tag).toBeVisible();
-    await expect(tag).toContainText('↑');
-    // The tag is not a browser button (touch slop would steal the tower tap). The game hit-tests its box.
-    await tapCentre(page, '.upgrade-tag');
-    await expect.poll(() => sent(page, 'upgrade')).toEqual([{ type: 'upgrade', towerId: expect.any(Number) }]);
-    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId)).toBe(2);
-    // The tower body still opens the ring; the tag is not a second confirm.
+    const chip = page.locator('#radial-chip');
+    await expect(chip).toHaveText('Tap to build · hold to preview');
+    const cannon = centre(await box(page, '.radial-btn[data-tower="cannon"]'));
+    await finger.down(cannon.x, cannon.y);
+    await expect(page.locator('.radial-btn[data-tower="cannon"]')).toHaveClass(/previewing/);
+    await expect(chip).toContainText('Cannon');
+    await expect(chip).toContainText('Rng');
+    await finger.up();
+    await expect(chip).toHaveText('Tap to build · hold to preview');
+    await expect(page.locator('#radial .radial-btn.previewing')).toHaveCount(0);
+    await page.waitForTimeout(300);
+    expect(await sent(page, 'build')).toHaveLength(0);
+    // The ring is still open after the preview: one tap on Arrow builds.
+    await page.locator('.radial-btn[data-tower="arrow"]').tap();
+    await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
+    await expect.poll(() => towerOn(padId!).then((t) => t?.kind)).toBe('arrow');
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+
+    // A second tower, so there is more than one to check.
+    await tapPad(page, otherPad!);
+    await page.locator('.radial-btn[data-tower="frost"]').tap();
+    await expect.poll(() => towerOn(otherPad!).then((t) => t?.kind)).toBe('frost');
+
+    // Nothing is drawn over your towers until one is tapped: no tags, no ring, no chip.
+    await page.waitForTimeout(200);
+    for (const id of [padId!, otherPad!]) expect(await elementsOver(page, (await padOnScreen(page, id)).box)).toEqual([]);
+    expect(await sent(page, 'upgrade')).toHaveLength(0);
+
+    // Tapping the tower opens its ring; one tap on Upgrade upgrades, and the ring stays for the next tier.
+    await tapPad(page, padId!);
+    const upgrade = page.locator('#radial[data-menu="tower"] .radial-btn[data-action="upgrade"]');
+    await expect(upgrade).toBeVisible();
+    await upgrade.tap();
+    await expect.poll(() => towerOn(padId!).then((t) => t?.tier)).toBe(2);
+    await expect(upgrade).toBeVisible();
+    await upgrade.tap();
+    await expect.poll(() => towerOn(padId!).then((t) => t?.tier)).toBe(3);
+    expect(await sent(page, 'upgrade')).toHaveLength(2);
+  });
+
+  test('not enough gold: a build tap shakes the button, toasts and spends nothing', async ({ page }) => {
+    // Full mode without the lab: 100 gold. An Arrow leaves too little for any second tower.
+    await startSolo(page, '?', 'full');
+    const [padId, otherPad] = await myPadsBottomFirst(page);
+    await tapPad(page, padId!);
+    await page.locator('.radial-btn[data-tower="arrow"]').tap();
+    await expect.poll(() => sent(page, 'build').then((b) => b.length)).toBe(1);
+    await tapPad(page, otherPad!);
+    const cannon = page.locator('.radial-btn[data-tower="cannon"]');
+    await expect(cannon).toHaveClass(/poor/);
+    const gold = await page.evaluate(() => window.__tdt.latest()!.players[0]!.gold);
+    await cannon.tap();
+    await expect(page.locator('.toast', { hasText: 'Not enough gold' })).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(await sent(page, 'build')).toHaveLength(1);
+    expect(await page.evaluate(() => window.__tdt.latest()!.players[0]!.gold)).toBeGreaterThanOrEqual(gold);
+    expect(await page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), otherPad)).toBe(false);
   });
 
   test('joystick settings move the cluster and keep a short push', async ({ page }) => {
@@ -329,24 +398,14 @@ test.describe('portrait phone layout', () => {
     const [padId] = await myPadsBottomFirst(page);
     const tier = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.tier, padId);
     await tapPad(page, padId!);
-    const arrow = page.locator('.radial-btn[data-tower="arrow"]');
-    await arrow.tap();
-    await arrow.tap();
+    await page.locator('.radial-btn[data-tower="arrow"]').tap();
     await expect.poll(tier).toBe(1);
     await tapPad(page, padId!);
+    // The ring stays open after each upgrade: the next tier is one more tap.
     for (const t of [2, 3]) {
       await page.locator('.radial-btn[data-action="upgrade"]').tap();
       await expect.poll(tier).toBe(t);
     }
-
-    // The Spec tag opens the choice and does not spend. One tap on a branch buys it.
-    const layout = await page.evaluate(() => window.__tdt.layout());
-    await page.touchscreen.tap((layout.map.left + layout.map.right) / 2, layout.topBarBottom + 12);
-    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
-    const spec = page.locator('.upgrade-tag');
-    await expect(spec).toHaveText('Spec');
-    await tapCentre(page, '.upgrade-tag');
-    await expect.poll(tier).toBe(3);
 
     // Tier 3: Sniper and Volley replace Upgrade.
     await expect(page.locator('.radial-btn[data-action="upgrade"]')).toHaveCount(0);
@@ -375,9 +434,6 @@ test.describe('portrait phone layout', () => {
     ]);
     await expect.poll(tier).toBe(4);
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.branch, padId)).toBe('sniper');
-
-    // The ↑ tag is gone once the tower is branched.
-    await expect(page.locator('.upgrade-tag')).toHaveCount(0);
 
     // Tier 4 is the last: the ring shows Max tier and the chip names the branch.
     await expect(page.locator('.radial-btn[data-action="branch"]')).toHaveCount(0);
