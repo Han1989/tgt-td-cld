@@ -1,9 +1,10 @@
 import { TILE_PX } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
-import { flight, rainPlan, skyRate, skyStreaks, type RainKind } from '../src/render/fx/rain';
+import { ZONE_KINDS } from '@tdt/protocol';
+import { arrowRain, flight, pullMotes, rainPlan, skyRate, skyStreaks, type RainKind } from '../src/render/fx/rain';
 
 const S = TILE_PX;
-const KINDS: RainKind[] = ['arrowStorm', 'meteor', 'meteorRain'];
+const KINDS: readonly RainKind[] = ZONE_KINDS;
 
 /** A repeatable pseudo-random sequence in [0, 1). */
 function seeded(seed = 7): () => number {
@@ -47,6 +48,34 @@ describe('falling rain impacts', () => {
     expect(Math.hypot(r.fromX, r.fromY)).toBeLessThan(Math.hypot(m.fromX, m.fromY));
   });
 
+  it('a Stun Storm strike is a denser volley of arrows than an Arrow Storm, from higher, still from the upper left', () => {
+    const storm = rainPlan('arrowStorm', R, false, seeded());
+    const stun = rainPlan('stunStorm', R, false, seeded());
+    expect(arrowRain('stunStorm')).toBe(true);
+    expect(stun.streaks.length).toBeGreaterThan(storm.streaks.length);
+    for (const s of stun.streaks) {
+      expect(Math.hypot(s.landX, s.landY)).toBeLessThanOrEqual(R * S);
+      expect(s.fromX).toBeLessThan(0);
+      expect(s.fromY).toBeLessThan(storm.streaks[0]!.fromY);
+    }
+  });
+
+  it('a Shockwave strike is one comet onto the centre from the upper right, from higher than a Meteor', () => {
+    const meteor = rainPlan('meteor', R, false, seeded()).streaks[0]!;
+    const plan = rainPlan('shockwave', R, false, seeded());
+    expect(arrowRain('shockwave')).toBe(false);
+    expect(plan.streaks).toHaveLength(1);
+    const s = plan.streaks[0]!;
+    expect(s.landX).toBeCloseTo(0);
+    expect(s.landY).toBeCloseTo(0);
+    expect(s.fromX).toBeGreaterThan(0);
+    expect(s.fromY).toBeLessThan(meteor.fromY);
+  });
+
+  it('only the arrow rains are volleys', () => {
+    expect(KINDS.filter(arrowRain)).toEqual(['arrowStorm', 'stunStorm']);
+  });
+
   it('every streak flies downwards onto its landing spot', () => {
     for (const kind of KINDS) {
       for (const s of rainPlan(kind, R, false, seeded(3)).streaks) {
@@ -63,6 +92,14 @@ describe('falling rain impacts', () => {
     expect(shake('meteor')).toBeGreaterThan(shake('meteorRain'));
     // A strike used to add 0.8, so a rain kept the screen at full shake for its whole length.
     expect(shake('meteor')).toBeLessThanOrEqual(0.4);
+  });
+
+  it('the combos thump harder than the rain they are built on: Stun Storm lightly, Shockwave hardest of all', () => {
+    const shake = (kind: RainKind) => rainPlan(kind, R, false, seeded()).shake;
+    expect(shake('stunStorm')).toBeGreaterThan(shake('arrowStorm'));
+    expect(shake('stunStorm')).toBeLessThan(shake('meteorRain'));
+    expect(shake('shockwave')).toBeGreaterThan(shake('meteor'));
+    expect(shake('shockwave')).toBeLessThanOrEqual(0.4);
   });
 
   it('with reduced motion nothing flies and nothing thumps', () => {
@@ -111,11 +148,42 @@ describe('the sky of a running rain', () => {
     }
     expect(skyStreaks('arrowStorm', view, 1, seeded())[0]!.fromX).toBeLessThan(0);
     expect(skyStreaks('meteor', view, 1, seeded())[0]!.fromX).toBeGreaterThan(0);
+    expect(skyStreaks('stunStorm', view, 1, seeded())[0]!.fromX).toBeLessThan(0);
+    expect(skyStreaks('shockwave', view, 1, seeded())[0]!.fromX).toBeGreaterThan(0);
   });
 
   it('a Meteor Rain is the densest and a Meteor the sparsest, and nothing falls with reduced motion', () => {
     expect(skyRate('meteorRain', false)).toBeGreaterThan(skyRate('arrowStorm', false));
     expect(skyRate('arrowStorm', false)).toBeGreaterThan(skyRate('meteor', false));
     for (const kind of KINDS) expect(skyRate(kind, true)).toBe(0);
+  });
+
+  it('each combo has a sky of its own, denser than the rain it is built on', () => {
+    expect(skyRate('stunStorm', false)).toBeGreaterThan(skyRate('arrowStorm', false));
+    expect(skyRate('shockwave', false)).toBeGreaterThan(skyRate('meteor', false));
+    expect(skyRate('meteorRain', false)).toBeGreaterThanOrEqual(skyRate('stunStorm', false));
+  });
+});
+
+describe("the Shockwave's pull", () => {
+  it('dust starts on the pull circle, all round, and reaches the inner circle as it dies', () => {
+    const motes = pullMotes(3.5, 0.9, false, seeded(13));
+    expect(motes.length).toBeGreaterThanOrEqual(8);
+    const quadrants = new Set<string>();
+    for (const m of motes) {
+      expect(Math.hypot(m.x, m.y)).toBeCloseTo(3.5 * S, 6);
+      quadrants.add(`${Math.sign(m.x)},${Math.sign(m.y)}`);
+      const t = m.life / 1000;
+      const endX = m.x + Math.cos(m.angle) * m.speed * t;
+      const endY = m.y + Math.sin(m.angle) * m.speed * t;
+      expect(Math.hypot(endX, endY)).toBeCloseTo(0.9 * S, 6);
+      // Inwards: it ends nearer the impact than it started.
+      expect(Math.hypot(endX, endY)).toBeLessThan(Math.hypot(m.x, m.y));
+    }
+    expect(quadrants.size).toBe(4);
+  });
+
+  it('with reduced motion nothing rushes in', () => {
+    expect(pullMotes(3.5, 0.9, true, seeded())).toEqual([]);
   });
 });
