@@ -9,6 +9,7 @@ import {
   type ModifierAction,
   type ServerMessage,
 } from '@tdt/protocol';
+import { currentAnalytics } from './analytics/install';
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
 import type { ModifierDeal } from './lobby/modifierPicker';
@@ -47,6 +48,7 @@ export class OnlineController {
   }
 
   start(): void {
+    currentAnalytics()?.funnel('lobby');
     // After a reload, take our seat back if the room still has it.
     const saved = sessionStore.load();
     if (saved && saved.url === this.serverUrl) {

@@ -102,14 +102,14 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 | Metric | Meaning |
 |---|---|
 | Average playtime | How long a first session lasts from that channel |
-| Retention | Return rate (aim for D1 and D7; add D30 when Phase 6a analytics exist) |
+| Retention | Return rate: D1, D7 and D30 (D30 since p6a-analytics, PR #85) |
 | Repeat visits | Same player / same browser returning after the first session |
 
-Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The minimal funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30 still waits for Phase 6a.
+Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30, where new players stop, match breakdowns and crash reports are there too (p6a-analytics, PR #85).
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. | Team | ☑ |
+| D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. Phase 6a's p6a-analytics (PR #85) adds D30 per channel on the same dashboard. | Team | ☑ |
 | SL-01 | Soft-launch co-op presentation (client, #35): mirrored ping and same-emote burst within 1 s, gift sent/received toasts, twin-ultimate ribbon from two R casts within `R_OVERLAP_SECONDS`. Sim signals are T-06 (protocol 14): leak lane, gift totals, live `syncCast`, advisory boss lane lines. | Team | ☑ |
 | SL-02 | Soft-launch HUD hooks (client): lane clutch on a real leak (`laneName`, skip `FINALE_LEAK_CREEP_ID`), end-screen gold given and received via `heroGiftTotals`, twin ribbon prefers live `syncCast` (cast overlap stays the fallback), advisory boss lane banners from `bossLaneHint`. Protocol stays 14. | Team | ☑ |
 | SL-03 | Together-kill flash (client): two or more living heroes whose `damage` hit the same creep within 2 s of its `kill` get a short shared flash (seat colours, edge glow, dual-pitch chime). No gold or stat change. Protocol stays 14. A living player's towers share `damage.by`, so they count; a hero-only `togetherKill` event waits on Gameplay after Phase 5. | Team | ☑ |
@@ -154,7 +154,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 
 ## Phase 6 and later · unblocked (Gate 1 passed 2 Oct 2026)
 
-Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started, except p6c-combos (done, PR #83). Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
+Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started, except p6c-combos (done, PR #83) and p6a-analytics (done, PR #85). Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
 
 ### Phase 6a · Foundation: accounts and data
 
@@ -162,7 +162,7 @@ Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started,
 |---|---|---|
 | p6a-db | Choose the database host: Render Postgres, or AWS | Han (decision) |
 | p6a-accounts | Accounts and saved progress. Play as a guest first; link Google, Apple or email later. Currencies and inventory live on the server. | Team |
-| p6a-analytics | Analytics and crash reports: day-1, day-7 and day-30 return rates, match results, where new players quit | Team |
+| p6a-analytics | Analytics and crash reports: day-1, day-7 and day-30 return rates, match results, where new players quit. **Done** (PR #85, server + client, `PROTOCOL_VERSION` stays 18, no new service, `docs/ANALYTICS.md`): D1 / D7 / D30 overall and per channel from a small `retention.json` beside `events.jsonl` (one line per browser id, deleted 31 days after it was last seen, plus daily cohort counts with no id, kept 90 days), so D30 still works after the first visit is pruned at 30 days; a first-session funnel (opened, lobby, match start, waves 3 / 5 / 10, match end, second match, plus each lesson card) that names the step most new players stop after; match results by mode and difficulty, team, hero and channel, with length; client crash reports (`error` / `unhandledrejection`, trimmed stack, build, browser family, once per error, at most 5 a session); copy and delete by browser id behind the dashboard key. All behind the Play data switch; the privacy page lists the new data. Durable numbers still need `ANALYTICS_DIR` on a disk that survives deploys (D-01's advice). | Team |
 | p6a-privacy | Privacy basics: privacy policy, data export and deletion, an age check. PDPA, GDPR and child-safety rules apply. | Team |
 
 ### Phase 6b · Clans

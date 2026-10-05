@@ -1,5 +1,7 @@
 // POST /analytics/event from the client. GET /analytics and /analytics/summary
-// for Han, behind ANALYTICS_DASHBOARD_KEY. Origins follow the WebSocket allow-list.
+// for Han, behind ANALYTICS_DASHBOARD_KEY, and the same key for a player's copy
+// (GET /analytics/visitor?id=) or deletion (POST /analytics/forget?id=) request.
+// Origins follow the WebSocket allow-list.
 
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -10,6 +12,8 @@ import { summarize } from './summary';
 import type { AnalyticsStore } from './store';
 
 const BODY_LIMIT = 2048;
+const VISITOR_ID = /^[A-Za-z0-9_-]{8,64}$/;
+const ROUTES = ['/analytics', '/analytics/summary', '/analytics/event', '/analytics/visitor', '/analytics/forget'];
 /** One event a second sustained, a short burst for start + match + rating. */
 const PER_SECOND = 1;
 const BURST = 10;
@@ -119,7 +123,7 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
     }
     let path = url.pathname;
     if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-    if (path !== '/analytics' && path !== '/analytics/summary' && path !== '/analytics/event') return false;
+    if (!ROUTES.includes(path)) return false;
 
     if (path === '/analytics/event') {
       const origin = req.headers.origin;
@@ -169,7 +173,8 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
       send(res, 404, 'Not found\n', 'text/plain; charset=utf-8');
       return true;
     }
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const writes = path === '/analytics/forget';
+    if (writes ? req.method !== 'POST' : req.method !== 'GET' && req.method !== 'HEAD') {
       send(res, 405, 'Method not allowed\n', 'text/plain; charset=utf-8');
       return true;
     }
@@ -177,12 +182,32 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
       send(res, 401, 'Unauthorized\n', 'text/plain; charset=utf-8');
       return true;
     }
-    const summary = summarize(opts.store.all(), now(), {
-      connectedPlayers: opts.connectedPlayers(),
-      persistent: opts.store.persistent,
-      durable: opts.store.location.durable && opts.store.persistent,
-      dir: opts.store.persistent ? opts.store.location.dir : opts.store.location.dir,
-    });
+    if (path === '/analytics/visitor' || path === '/analytics/forget') {
+      const id = url.searchParams.get('id') ?? '';
+      if (!VISITOR_ID.test(id)) {
+        send(res, 400, 'Give the browser id as ?id=\n', 'text/plain; charset=utf-8');
+        return true;
+      }
+      if (writes) {
+        const removed = opts.store.forget(id);
+        await opts.store.flush();
+        send(res, 200, JSON.stringify({ visitor: id, removedEvents: removed }), 'application/json; charset=utf-8');
+      } else {
+        send(res, 200, JSON.stringify({ visitor: id, ...opts.store.visitorData(id) }), 'application/json; charset=utf-8');
+      }
+      return true;
+    }
+    const summary = summarize(
+      opts.store.all(),
+      now(),
+      {
+        connectedPlayers: opts.connectedPlayers(),
+        persistent: opts.store.persistent,
+        durable: opts.store.location.durable && opts.store.persistent,
+        dir: opts.store.location.dir,
+      },
+      opts.store.retentionTable(),
+    );
     if (path === '/analytics/summary') {
       send(res, 200, JSON.stringify(summary), 'application/json; charset=utf-8');
       return true;

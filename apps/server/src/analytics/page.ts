@@ -1,5 +1,8 @@
 // One HTML page. No scripts, no external assets. Numbers come from summarize().
 
+import type { ErrorGroup } from './errors';
+import type { MatchRow } from './matches';
+import { DAY_MS } from './retention';
 import type { AnalyticsSummary, Ratio } from './summary';
 
 function esc(value: string): string {
@@ -62,7 +65,49 @@ function bar(count: number, max: number): string {
   return `<span class="bar"><span style="width:${width}%"></span></span>`;
 }
 
-export function renderDashboard(summary: AnalyticsSummary): string {
+function pct(part: number, whole: number): string {
+  return whole <= 0 ? '—' : `${Math.round((part / whole) * 100)}%`;
+}
+
+function dayLabel(day: number): string {
+  return new Date(day * DAY_MS).toISOString().slice(0, 10);
+}
+
+function cohortCell(returned: number | null, visitors: number): string {
+  return returned === null ? '<span class="note">not yet</span>' : formatRatio({ eligible: visitors, returned });
+}
+
+function matchTable(title: string, rows: MatchRow[]): string {
+  if (rows.length === 0) return '';
+  const body = rows
+    .map(
+      (row) =>
+        `<tr><td>${esc(row.label)}</td><td>${row.matches}</td><td>${pct(row.wins, row.matches)}</td><td>${row.avgWave === null ? '—' : row.avgWave.toFixed(1)}</td><td>${formatDuration(row.avgDurationSec === null ? null : row.avgDurationSec * 1000)}</td></tr>`,
+    )
+    .join('');
+  return `<div class="scroll"><table><thead><tr><th>${esc(title)}</th><th>Matches</th><th>Won</th><th>Avg wave</th><th>Avg length</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function errorItem(group: ErrorGroup): string {
+  const when = new Date(group.lastAt).toISOString().replace('T', ' ').slice(0, 16);
+  const meta = [
+    `${group.reports} report${group.reports === 1 ? '' : 's'}`,
+    `${group.sessions} session${group.sessions === 1 ? '' : 's'}`,
+    group.kind === 'rejection' ? 'unhandled promise' : 'error',
+    group.browsers.join(', ') || 'browser unknown',
+    `build ${group.builds.map((b) => b.slice(0, 7)).join(', ') || '?'}`,
+    `last ${when} UTC`,
+  ];
+  const stack = group.stack ? `<details><summary>Stack</summary><pre>${esc(group.stack)}</pre></details>` : '';
+  return `<li><div class="err">${esc(group.message)}</div>${group.where ? `<div class="note mono">${esc(group.where)}</div>` : ''}<div class="note">${esc(meta.join(' · '))}</div>${stack}</li>`;
+}
+
+export interface DashboardOptions {
+  /** A screenshot or a test with made-up numbers: a red banner says so. */
+  example?: boolean;
+}
+
+export function renderDashboard(summary: AnalyticsSummary, options: DashboardOptions = {}): string {
   const when = new Date(summary.generatedAt).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
   const histMax = Math.max(1, ...summary.feedback.histogram);
   const stars = summary.feedback.histogram
@@ -74,7 +119,7 @@ export function renderDashboard(summary: AnalyticsSummary): string {
   const channelRows = summary.channels
     .map((row) => {
       const repeats = row.visitors === 0 ? '—' : formatRatio({ eligible: row.visitors, returned: row.repeatVisitors });
-      return `<tr><td>${esc(row.label)}</td><td>${row.sessions}</td><td>${row.visitors}</td><td>${formatDuration(row.avgPlaytimeMs)}</td><td>${repeats}</td><td>${formatRatio(row.d1)}</td><td>${formatRating(row.feedbackAverage)}</td></tr>`;
+      return `<tr><td>${esc(row.label)}</td><td>${row.sessions}</td><td>${row.visitors}</td><td>${formatDuration(row.avgPlaytimeMs)}</td><td>${repeats}</td><td>${formatRatio(row.d1)}</td><td>${formatRatio(row.d7)}</td><td>${formatRatio(row.d30)}</td><td>${formatRating(row.feedbackAverage)}</td></tr>`;
     })
     .join('');
   const platforms = summary.platforms
@@ -85,6 +130,40 @@ export function renderDashboard(summary: AnalyticsSummary): string {
     .join('');
   const lossWave =
     summary.outcomes.avgWaveOnLoss === null ? '—' : `wave ${summary.outcomes.avgWaveOnLoss.toFixed(1)}`;
+  const cohortRows = summary.cohorts
+    .map(
+      (row) =>
+        `<tr><td>${dayLabel(row.day)}</td><td>${row.visitors}</td><td>${cohortCell(row.d1, row.visitors)}</td><td>${cohortCell(row.d7, row.visitors)}</td><td>${cohortCell(row.d30, row.visitors)}</td></tr>`,
+    )
+    .join('');
+  const funnel = summary.funnel;
+  const landed = funnel.rows[0]?.reached ?? 0;
+  const funnelRows = funnel.rows
+    .map((row) => {
+      const stop = row.stage === funnel.biggestStop ? ' class="stop"' : '';
+      return `<div class="step"${stop}><span>${esc(row.label)}</span>${bar(row.reached, landed)}<span>${row.reached}</span><span class="note">${pct(row.reached, landed)}</span><span class="note">${row.stopped} stopped</span></div>`;
+    })
+    .join('');
+  const biggest = funnel.rows.find((row) => row.stage === funnel.biggestStop);
+  const stopLine = biggest
+    ? `<p class="warn">Most new players stop after <b>${esc(biggest.label.toLowerCase())}</b> (${biggest.stopped} of ${funnel.newPlayers}).</p>`
+    : '<p class="note">No new players in the window yet.</p>';
+  const lessonStarted = funnel.lesson[0]?.reached ?? 0;
+  const lessonRows = funnel.lesson
+    .map(
+      (row) =>
+        `<div class="step"><span>${esc(row.label)}</span>${bar(row.reached, lessonStarted)}<span>${row.reached}</span><span class="note">${pct(row.reached, lessonStarted)}</span><span></span></div>`,
+    )
+    .join('');
+  const matches = summary.matches;
+  const errors = summary.errors;
+  const errorList =
+    errors.groups.length === 0
+      ? '<p class="note">No error reports in the window.</p>'
+      : `<ul class="errs">${errors.groups.map(errorItem).join('')}</ul>`;
+  const example = options.example
+    ? '<p class="example">EXAMPLE DATA: made-up numbers for a screenshot, not real players.</p>'
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -104,9 +183,9 @@ export function renderDashboard(summary: AnalyticsSummary): string {
   .sub, .note { color: #6d655c; }
   .sub { margin: 2px 0 12px; }
   .banner { background: #fff8e4; border: 1px solid #e4d7a4; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
   .span { grid-column: 1 / -1; }
-  section { background: #fffdf8; border: 1px solid #e4dccf; border-radius: 12px; padding: 12px 14px 14px; }
+  section { min-width: 0; background: #fffdf8; border: 1px solid #e4dccf; border-radius: 12px; padding: 12px 14px 14px; }
   .big { font-size: 30px; font-weight: 720; letter-spacing: -0.03em; }
   .stats { display: flex; flex-wrap: wrap; gap: 14px 22px; margin: 4px 0 8px; }
   .stats b { display: block; font-size: 20px; }
@@ -120,10 +199,31 @@ export function renderDashboard(summary: AnalyticsSummary): string {
   .plats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .plat { background: #f7f3ea; border-radius: 10px; padding: 8px 10px; }
   .foot { margin-top: 10px; }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .scroll + .scroll { margin-top: 10px; }
+  .step { display: grid; grid-template-columns: minmax(120px, 1.4fr) 1fr 36px 40px 76px; gap: 6px; align-items: center; margin: 3px 0; }
+  .step > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step.stop > span:first-child { font-weight: 700; color: #8a3b12; }
+  .step.stop .bar > span { background: #c0612b; }
+  .example { background: #b3261e; color: #fff; font-weight: 700; border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+  .errs { list-style: none; padding: 0; margin: 0; }
+  .errs li { border-top: 1px solid #eee6da; padding: 6px 0; }
+  .err { font-weight: 650; word-break: break-word; }
+  .mono, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  pre { white-space: pre-wrap; word-break: break-all; background: #f7f3ea; border-radius: 8px; padding: 6px 8px; margin: 4px 0 0; }
+  .big3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 10px; }
+  .big3 > div { background: #f7f3ea; border-radius: 10px; padding: 8px 10px; }
+  .big3 .big { font-size: 26px; }
   @media (max-width: 800px) {
-    .grid { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: minmax(0, 1fr); }
     .span { grid-column: auto; }
     table { font-size: 13px; }
+  }
+  @media (max-width: 480px) {
+    main { padding: 12px 10px 24px; }
+    .step { grid-template-columns: minmax(96px, 1.3fr) 1fr 30px 36px; font-size: 13px; }
+    .step > span:last-child { display: none; }
+    .big3 .big { font-size: 22px; }
   }
 </style>
 </head>
@@ -131,8 +231,30 @@ export function renderDashboard(summary: AnalyticsSummary): string {
 <main>
   <h1>Tower Defense Together</h1>
   <p class="sub">Roll out or pivot · ${esc(when)} · refreshes every 30s · last ${summary.retentionDays} days</p>
+  ${example}
   <p class="banner">${esc(storageBanner(summary))}</p>
   <div class="grid">
+    <section class="span">
+      <h2>Coming back</h2>
+      <div class="big3">
+        <div><div class="big">${formatRatio(summary.d1).split(' ')[0]}</div><div>D1</div><div class="note">${summary.d1.returned} of ${summary.d1.eligible}</div></div>
+        <div><div class="big">${formatRatio(summary.d7).split(' ')[0]}</div><div>D7</div><div class="note">${summary.d7.returned} of ${summary.d7.eligible}</div></div>
+        <div><div class="big">${formatRatio(summary.d30).split(' ')[0]}</div><div>D30</div><div class="note">${summary.d30.returned} of ${summary.d30.eligible}</div></div>
+      </div>
+      <p class="note">Of the browsers whose first visit was at least 1, 7 or 30 UTC days ago (first visits in the last ${summary.cohortKeepDays} days), the share that opened the game again exactly that many days later. Today’s returns count as they come. “—” means nobody in that cohort yet. Gate 2 aims for about 25–30% D1 and 7–8% D7. Per channel in “Where they came from”.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>First visit (UTC)</th><th>New</th><th>D1</th><th>D7</th><th>D30</th></tr></thead>
+        <tbody>${cohortRows || '<tr><td colspan="5" class="note">No first visits yet.</td></tr>'}</tbody>
+      </table></div>
+    </section>
+    <section class="span">
+      <h2>Where new players stop</h2>
+      <p class="note">${funnel.newPlayers} new players: browsers whose first visit is in the last ${summary.retentionDays} days. What each did in that first visit. “Stopped” is the furthest step they got to.</p>
+      ${stopLine}
+      ${funnelRows}
+      <h2 style="margin-top:12px">First-match lesson (solo)</h2>
+      ${lessonStarted === 0 ? '<p class="note">Nobody has started the lesson in a first visit yet. Online rooms do not run it.</p>' : lessonRows}
+    </section>
     <section>
       <h2>Reaction</h2>
       <div class="big">${formatRating(summary.feedback.average)} <span class="note">/ 5</span></div>
@@ -160,18 +282,29 @@ export function renderDashboard(summary: AnalyticsSummary): string {
       <div class="stats">
         <div><b>${formatDuration(summary.avgPlaytimeMs)}</b><span class="note">avg playtime (ended sessions)</span></div>
         <div><b>${formatRatio({ eligible: summary.visitors, returned: summary.repeatVisitors })}</b><span class="note">repeat visitors</span></div>
-        <div><b>${formatRatio(summary.d1)}</b><span class="note">D1 return</span></div>
-        <div><b>${formatRatio(summary.d7)}</b><span class="note">D7 return</span></div>
       </div>
-      <p class="note">A session ends on close, or ${summary.idleSec}s after the last heartbeat. D1 is a new session on the next UTC day; D7 is the day seven days later. “—” means nobody in that cohort yet. Dozens of visitors per channel before a go / no-go.</p>
+      <p class="note">A session ends on close, or ${summary.idleSec}s after the last heartbeat. Return rates are under “Coming back”. Dozens of visitors per channel before a go / no-go.</p>
     </section>
     <section class="span">
       <h2>Where they came from</h2>
-      <table>
-        <thead><tr><th>Channel</th><th>Sessions</th><th>Visitors</th><th>Avg playtime</th><th>Repeat</th><th>D1</th><th>Rating</th></tr></thead>
+      <div class="scroll"><table>
+        <thead><tr><th>Channel</th><th>Sessions</th><th>Visitors</th><th>Avg playtime</th><th>Repeat</th><th>D1</th><th>D7</th><th>D30</th><th>Rating</th></tr></thead>
         <tbody>${channelRows}</tbody>
-      </table>
-      <p class="note">Visitors, repeat and D1 use the channel of a visitor’s first session. Sessions, playtime and rating use each visit’s own tag. Reddit only shows the right row when the link has <code>?src=</code>.</p>
+      </table></div>
+      <p class="note">Visitors, repeat and D1 / D7 / D30 use the channel of a visitor’s first session. Sessions, playtime and rating use each visit’s own tag. Reddit only shows the right row when the link has <code>?src=</code>.</p>
+    </section>
+    <section class="span">
+      <h2>Matches</h2>
+      <p class="note">${matches.started} started · ${matches.finished} finished (won or lost) in the last ${summary.retentionDays} days. Avg wave is the wave the match ended on; length includes the build phase.</p>
+      ${matchTable('Mode', matches.byMode)}
+      ${matchTable('Team', matches.byPlayers)}
+      ${matchTable('Your hero', matches.byHero)}
+      ${matchTable('Channel', matches.byChannel)}
+    </section>
+    <section class="span">
+      <h2>Crashes and errors</h2>
+      <p class="note">${errors.reports} reports from ${errors.sessions} sessions (${pct(errors.sessions, summary.sessionStarts)} of sessions). Each browser sends a given error once a session, at most 5 a session.</p>
+      ${errorList}
     </section>
     <section class="span">
       <h2>Platform</h2>

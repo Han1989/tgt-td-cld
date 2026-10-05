@@ -3,6 +3,7 @@
 // A new player's first match is the lesson (Quick, Normal); Skip leaves their saved pick alone.
 
 import type { Difficulty, GameMode, HeroKind } from '@tdt/protocol';
+import { currentAnalytics } from '../analytics/install';
 import { lessonStatus } from '../tutorial/logic';
 import { sharedSettings } from '../settings';
 import { DifficultyPicker, storedDifficulty, storeDifficulty } from './difficultyPicker';
@@ -86,6 +87,7 @@ export function showSoloPick(
     onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), true);
   };
   onSkipClick = () => {
+    currentAnalytics()?.funnel('tutorial_skip');
     sharedSettings().set({ tutorial: lessonStatus('skip') });
     applyLesson(false);
   };

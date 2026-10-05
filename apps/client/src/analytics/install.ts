@@ -2,6 +2,7 @@
 // the match must keep running if storage, fetch or the beacon throws.
 
 import { channelFromSearch, type Channel } from './channel';
+import { browserFamily, buildId, cleanErrorMessage, trimStack } from './errors';
 import { detectPlatform, type Platform } from './platform';
 import { ANALYTICS_KEY, analyticsOn, VISITOR_KEY, writeAnalyticsChoice, type AnalyticsChoice } from './preference';
 import { analyticsEndpoint, createAnalyticsClient, type AnalyticsClient } from './session';
@@ -68,6 +69,31 @@ function post(url: string, body: unknown, beacon: boolean): void {
   }).catch(() => {});
 }
 
+/** Uncaught errors and unhandled promise rejections become crash reports (the client trims and limits them). */
+function captureErrors(client: AnalyticsClient): void {
+  window.addEventListener('error', (e) => {
+    try {
+      if (!(e instanceof ErrorEvent)) return;
+      const error: unknown = e.error;
+      const message = cleanErrorMessage(error instanceof Error ? error : e.message);
+      const stack = trimStack(error instanceof Error ? error.stack : '', message);
+      client.error({ kind: 'error', message: message || 'Unknown error', stack }, Date.now());
+    } catch {
+      // Reporting must never throw from an error handler.
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    try {
+      const reason: unknown = e.reason;
+      const message = cleanErrorMessage(reason instanceof Error ? reason : `Unhandled rejection: ${String(reason)}`);
+      const stack = trimStack(reason instanceof Error ? reason.stack : '', message);
+      client.error({ kind: 'rejection', message: message || 'Unhandled rejection', stack }, Date.now());
+    } catch {
+      // As above.
+    }
+  });
+}
+
 /** The page is on screen (for ticks). */
 function visible(): boolean {
   return document.visibilityState === 'visible';
@@ -123,8 +149,11 @@ export function installAnalytics(serverUrl: string): void {
       newSessionId: randomId,
       post: (body, beacon) => post(endpoint, body, beacon),
       allowed: analyticsOn,
+      build: buildId(typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'),
+      browser: browserFamily(navigator.userAgent),
     });
     client.start(Date.now());
+    captureErrors(client);
     window.setInterval(() => {
       client.tick(visible(), Date.now());
     }, 25_000);
