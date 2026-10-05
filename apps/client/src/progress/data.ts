@@ -273,7 +273,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Playtime, D1/D7 retention, repeat visits, and a post-match rating, tagged by source. First-party HTTP on the game server. Not Phase 6a accounts.',
+    note: 'Playtime, D1/D7 retention, repeat visits, and a post-match rating, tagged by source. First-party HTTP on the game server. Not Phase 6a accounts. D30 came with p6a-analytics (PR #85).',
     proof: pr(25),
   },
   {
@@ -560,9 +560,10 @@ const items: ProgressItem[] = [
     id: 'p6a-analytics',
     title: 'Analytics and crash reports',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'p6a',
-    note: 'Day-1, day-7, and day-30 return rates, match results, and where new players quit. D-01 is the smaller funnel until then.',
+    note: 'Day-1, day-7 and day-30 return rates per channel (D30 survives the 30-day prune), where new players stop in their first visit, match results by mode, team, hero and channel, and crash reports, on the game server dashboard. Behind the Play data switch. No new service.',
+    proof: pr(85),
   },
   {
     id: 'p6a-privacy',
