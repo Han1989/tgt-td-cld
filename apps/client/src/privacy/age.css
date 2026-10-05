@@ -1,0 +1,87 @@
+/* The age question (privacy/ageCheck.ts), on the game page and the privacy page. Both pages define the colour
+   variables and `.btn`; this sheet only lays out the card. */
+
+.age-check {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background: rgba(4, 6, 10, 0.72);
+}
+
+.age-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 20px 16px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 16px;
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.2), 0 0 0 1px var(--ink), 0 16px 40px rgba(0, 0, 8, 0.6);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.age-card h2 {
+  margin: 0;
+  font-family: var(--title-font);
+  font-size: 20px;
+  color: #eef6ff;
+}
+
+.age-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.age-card input {
+  font: inherit;
+  font-size: 18px;
+  width: 100%;
+  min-height: 48px;
+  color: var(--text);
+  background: rgba(8, 6, 12, 0.75);
+  border: 1px solid var(--ink);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 8, 0.8), 0 0 0 1px rgba(207, 230, 255, 0.1);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+.age-card input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.age-card .btn {
+  min-height: 48px;
+  font-size: 17px;
+}
+
+.age-error {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 14px;
+  color: #ff8a8a;
+}
+
+.age-error:empty {
+  display: none;
+}
+
+.age-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.age-note a {
+  color: var(--accent);
+}

@@ -116,9 +116,15 @@ export interface AnalyticsClient {
   funnel(step: FunnelStep): void;
   /** A crash report: once per error a session, at most `MAX_ERRORS_PER_SESSION`, `ERROR_GAP_MS` apart. */
   error(report: ErrorReport, now: number): void;
+  /**
+   * This browser's id was deleted (or replaced): forget it and the session. Nothing more is sent under it; the next
+   * visible tick, if play data is on, starts a new session with a new id.
+   */
+  reset(): void;
 }
 
-export function analyticsEndpoint(serverUrl: string): string | null {
+/** `path` is `/analytics/event`, or `/analytics/mine` and `/analytics/mine/forget` for the player's own data. */
+export function analyticsEndpoint(serverUrl: string, path = '/analytics/event'): string | null {
   const trimmed = serverUrl.trim();
   if (!trimmed) return null;
   let url: URL;
@@ -132,7 +138,7 @@ export function analyticsEndpoint(serverUrl: string): string | null {
   else if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
   url.username = '';
   url.password = '';
-  url.pathname = '/analytics/event';
+  url.pathname = path;
   url.search = '';
   url.hash = '';
   return url.toString();
@@ -299,6 +305,13 @@ export function createAnalyticsClient(opts: {
       };
       if (report.stack) body.stack = report.stack;
       send(body, false);
+    },
+    reset() {
+      visitor = '';
+      session = '';
+      started = false;
+      endSent = false;
+      hiddenAt = null;
     },
   };
 }

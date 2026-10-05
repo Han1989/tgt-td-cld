@@ -4,6 +4,7 @@
 
 import type { Difficulty, GameMode, HeroKind } from '@tdt/protocol';
 import { currentAnalytics } from '../analytics/install';
+import { ageGate } from '../privacy/ageCheck';
 import { lessonStatus } from '../tutorial/logic';
 import { sharedSettings } from '../settings';
 import { DifficultyPicker, storedDifficulty, storeDifficulty } from './difficultyPicker';
@@ -77,14 +78,18 @@ export function showSoloPick(
   if (onPlayClick) play.removeEventListener('click', onPlayClick);
   if (onPracticeClick) practiceBtn.removeEventListener('click', onPracticeClick);
   if (onSkipClick) skip.removeEventListener('click', onSkipClick);
-  onPlayClick = () => {
-    root.classList.add('hidden');
-    onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), false);
-  };
+  // The online lobby asks the age question before this pick; a build with no lobby asks it here.
+  onPlayClick = () =>
+    ageGate(() => {
+      root.classList.add('hidden');
+      onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), false);
+    });
   onPracticeClick = () => {
     if (practiceBtn.disabled) return;
-    root.classList.add('hidden');
-    onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), true);
+    ageGate(() => {
+      root.classList.add('hidden');
+      onPlay(picker.hero, modes.mode, difficulties.difficulty, modifiers.deal(), true);
+    });
   };
   onSkipClick = () => {
     currentAnalytics()?.funnel('tutorial_skip');
