@@ -50,6 +50,9 @@ export const FX = {
   gold: 0xffd24a,
   goldLight: 0xfff1b8,
   goldDeep: 0xffb13d,
+  /** Stun Storm's light (its rain is `ZONE_COLORS.stunStorm`): the crackle and the cores of its strikes. */
+  stunLight: 0xeee2ff,
+  stunDeep: 0x8f6ae0,
   frost: 0x9fe3ff,
   frostLight: 0xdff6ff,
   badLight: 0xff8a8a,

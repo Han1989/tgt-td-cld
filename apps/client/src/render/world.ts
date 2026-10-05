@@ -1792,9 +1792,9 @@ export class WorldRenderer {
   }
 
   /**
-   * Global rains (radius 0: Arrow Storm, Meteor, Meteor Rain) have no circle: every strike is an `aoe` event. While
-   * one runs, from its start tick to its end tick, a faint rune ring and a column of light mark where it was cast
-   * (the zone's x, y), and faint streaks fall across the screen so the strikes stand out against it.
+   * Global rains (radius 0: Arrow Storm, Meteor and the three combos) have no circle: every strike is an `aoe` event.
+   * While one runs, from its start tick to its end tick, a faint rune ring and a column of light mark where it was cast
+   * (the zone's x, y), and faint streaks of its own fall across the screen so the strikes stand out against it.
    */
   private syncRains(snap: Snapshot, tick: number, now: number, dtMs: number): void {
     const seen = new Set<number>();
@@ -1821,7 +1821,7 @@ export class WorldRenderer {
       s.ring.alpha = 0.6 * fade;
       s.ring.rotation = calm ? 0 : now / 1400;
       s.column.alpha = (calm ? 0.14 : 0.24) * fade;
-      if (skyShown) this.fx.rainSky(z.kind === 'stunStorm' ? 'arrowStorm' : z.kind === 'shockwave' ? 'meteor' : z.kind, sky, dtMs);
+      if (skyShown) this.fx.rainSky(z.kind, sky, dtMs);
     }
     for (const [id, s] of this.rains) {
       if (!seen.has(id)) {

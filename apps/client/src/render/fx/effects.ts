@@ -14,7 +14,7 @@ import type { FxLevel } from '../quality';
 import { DISC_PX, GLYPH_PX, RING_PX, type FxAtlas, type FxFrame } from './atlas';
 import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
-import { flight, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
+import { arrowRain, flight, pullMotes, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
 import { Shake } from './shake';
 import { AOE_COLORS, COLORS, FX, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
 
@@ -149,6 +149,49 @@ const BLANK: Bit = newBit();
 
 /** Most hit-spark bursts per frame (the rest of that frame's hits only flash). */
 const HIT_BURSTS_PER_FRAME = 10;
+
+/**
+ * The comet rains' colours. `heavy`: the big landing (white-hot flash, debris, smoke, a wide burn); Meteor Rain's
+ * strikes are lighter since there are six or seven a second. Shockwave is the Meteor's comet in gold.
+ */
+const COMET: Record<'meteor' | 'meteorRain' | 'shockwave', {
+  heavy: boolean;
+  flash: number;
+  ring: number;
+  /** The lit path left behind, and the tail. */
+  path: number;
+  tail: number;
+  embers: readonly number[];
+  debris: readonly number[];
+}> = {
+  meteor: {
+    heavy: true,
+    flash: AOE_COLORS.meteor,
+    ring: FX.emberLight,
+    path: FX.emberLight,
+    tail: FX.fire,
+    embers: [FX.gold, FX.fire, FX.fireDeep],
+    debris: [FX.soot, FX.debris, FX.fire],
+  },
+  meteorRain: {
+    heavy: false,
+    flash: FX.goldLight,
+    ring: ZONE_COLORS.meteorRain,
+    path: ZONE_COLORS.meteorRain,
+    tail: ZONE_COLORS.meteorRain,
+    embers: [FX.goldLight, FX.goldDeep],
+    debris: [],
+  },
+  shockwave: {
+    heavy: true,
+    flash: ZONE_COLORS.shockwave,
+    ring: FX.goldLight,
+    path: FX.goldLight,
+    tail: ZONE_COLORS.shockwave,
+    embers: [FX.goldLight, FX.gold, FX.goldDeep],
+    debris: [FX.soot, FX.debris, FX.goldDeep],
+  },
+};
 
 export class Effects {
   readonly ground: Layer;
@@ -901,10 +944,11 @@ export class Effects {
   }
 
   /**
-   * One strike of a global rain: Arrow Storm, Meteor or Meteor Rain (protocol 16). The `aoe` event says where it
-   * landed and how wide it struck; something falls onto that spot from above, then the ground answers. The ring and
-   * flash are essential, so a strike still reads at Low quality. The streaks, debris and thump go with particles
-   * and shake, and reduced motion (`calm`) keeps only the ring, the flash and the burn mark.
+   * One strike of a global rain (`RainKind`). The `aoe` event says where it landed and how wide it struck; something
+   * falls onto that spot from above, then the ground answers: arrows for Arrow Storm and Stun Storm, a comet for the
+   * rest, each in its rain's colours. The ring and flash are essential, so a strike still reads at Low quality. The
+   * streaks, debris and thump go with particles and shake, and reduced motion (`calm`) keeps only the ring, the flash
+   * and the burn mark.
    */
   rainImpact(kind: RainKind, x: number, y: number, radius: number): void {
     const plan = rainPlan(kind, radius, this.calm);
@@ -912,10 +956,12 @@ export class Effects {
     const py = y * S;
     // Phones draw entities larger (up to 1.6x); the streaks follow, so they still read at small tile sizes.
     const k = this.bitScale;
-    if (kind === 'arrowStorm') {
-      this.ring(x, y, radius, ZONE_COLORS.arrowStorm, 340, 0.35);
-      this.ring(x, y, radius * 1.1, ZONE_COLORS.arrowStorm, 300, 0.5, 'shock');
-      this.flash(x, y, radius * 0.7, FX.spark, 140, 0.55);
+    if (arrowRain(kind)) {
+      const color = ZONE_COLORS[kind];
+      const light = kind === 'stunStorm' ? FX.stunLight : FX.spark;
+      this.ring(x, y, radius, color, 340, 0.35);
+      this.ring(x, y, radius * 1.1, color, 300, 0.5, 'shock');
+      this.flash(x, y, radius * 0.7, light, 140, 0.55);
       for (const s of plan.streaks) {
         const f = flight(px, py, s);
         // A faint long glow behind each arrow, so the fall reads as a line and not a speck.
@@ -931,7 +977,7 @@ export class Effects {
           align: true,
           alpha: [0.55, 0.2],
           hold: 0.75,
-          tint: ZONE_COLORS.arrowStorm,
+          tint: color,
           layer: 'add',
         });
         this.emit({
@@ -945,7 +991,7 @@ export class Effects {
           align: true,
           alpha: [1, 0.6],
           hold: 0.75,
-          tint: ZONE_COLORS.arrowStorm,
+          tint: color,
           layer: 'add',
         });
         // A spark where it lands.
@@ -960,10 +1006,11 @@ export class Effects {
           stretch: 1.4,
           align: true,
           drag: 3,
-          tint: FX.spark,
+          tint: light,
           layer: 'add',
         });
       }
+      this.bump(plan.shake);
       if (!this.particles || this.calm) return;
       this.emit({
         frame: 'smoke',
@@ -979,14 +1026,15 @@ export class Effects {
       });
       return;
     }
-    const meteor = kind === 'meteor';
+    const look = COMET[kind];
+    const meteor = look.heavy;
     if (meteor) {
       this.flash(x, y, radius, FX.hot, 170, 0.85);
-      this.flash(x, y, radius * 1.1, AOE_COLORS.meteor, 420, 0.5);
-      this.ring(x, y, radius * 1.1, FX.emberLight, 380, 0.3);
+      this.flash(x, y, radius * 1.1, look.flash, 420, 0.5);
+      this.ring(x, y, radius * 1.1, look.ring, 380, 0.3);
     } else {
-      this.flash(x, y, radius * 0.9, FX.goldLight, 130, 0.8);
-      this.ring(x, y, radius, ZONE_COLORS.meteorRain, 300, 0.3);
+      this.flash(x, y, radius * 0.9, look.flash, 130, 0.8);
+      this.ring(x, y, radius, look.ring, 300, 0.3);
     }
     this.bump(plan.shake);
     for (const s of plan.streaks) {
@@ -1004,7 +1052,7 @@ export class Effects {
         rotation: f.angle,
         alpha: [0.6, 0],
         hold: 0.15,
-        tint: meteor ? FX.emberLight : ZONE_COLORS.meteorRain,
+        tint: look.path,
         layer: 'add',
       });
       // A long bright tail and a hot head, flying the same way.
@@ -1020,7 +1068,7 @@ export class Effects {
         align: true,
         alpha: [1, 0.8],
         hold: 0.85,
-        tint: meteor ? FX.fire : ZONE_COLORS.meteorRain,
+        tint: look.tail,
         layer: 'add',
       });
       this.emit({
@@ -1052,7 +1100,7 @@ export class Effects {
       life: [320, 700],
       scale: [1, 0.15],
       jitter: 0.3,
-      tint: meteor ? [FX.gold, FX.fire, FX.fireDeep] : [FX.goldLight, FX.goldDeep],
+      tint: look.embers,
       layer: 'add',
     });
     if (!meteor) return;
@@ -1069,7 +1117,7 @@ export class Effects {
       scale: [1.1, 0.3],
       jitter: 0.4,
       spin: 10,
-      tint: [FX.soot, FX.debris, FX.fire],
+      tint: look.debris,
       hold: 0.4,
     });
     this.emit({
@@ -1095,17 +1143,19 @@ export class Effects {
     if (!this.particles) return;
     const n = chance(skyRate(kind, this.calm), dtMs);
     if (n === 0) return;
+    const arrows = arrowRain(kind);
+    const k = this.bitScale;
     for (const s of skyStreaks(kind, view, n)) {
       const f = flight(0, 0, s);
       this.emit({
-        frame: kind === 'arrowStorm' ? 'arrow' : 'spark',
+        frame: arrows ? 'arrow' : 'spark',
         x: f.x,
         y: f.y,
         speed: [f.speed, f.speed],
         angle: [f.angle, f.angle],
         life: [s.life, s.life],
-        scale: kind === 'arrowStorm' ? [1.1 * this.bitScale, 0.9 * this.bitScale] : [0.9 * this.bitScale, 0.65 * this.bitScale],
-        stretch: kind === 'arrowStorm' ? 1 : 3,
+        scale: arrows ? [1.1 * k, 0.9 * k] : kind === 'shockwave' ? [1.2 * k, 0.85 * k] : [0.9 * k, 0.65 * k],
+        stretch: arrows ? 1 : 3,
         align: true,
         alpha: [0.5, 0.12],
         hold: 0.5,
@@ -1116,43 +1166,91 @@ export class Effects {
   }
 
   /**
-   * One strike of a Stun Storm or a Shockwave: the Arrow Storm's or the Meteor's fall, then its own mark on top, so
-   * the combos read apart from the rains they are made of. Stun Storm: a violet ring and a few stun stars (the
-   * strike stuns). Shockwave: a gold band at the pull radius, since every impact first drags the creeps around it
-   * together. Rings and flashes are essential; the stars go under Low quality and reduced motion.
+   * One strike of a Stun Storm or a Shockwave: its own fall (violet arrows, a gold comet), then its own mark on top,
+   * so the combos read apart from the rains they are made of. Stun Storm: a violet ring and flash, a crackle and stun
+   * stars over the strike (every strike stuns). Shockwave: a gold band at the pull radius and a ring closing in from
+   * it with dust rushing in, since every impact first drags the creeps around it together. Rings and flashes are
+   * essential (they stay at Low and under reduced motion); the crackle, stars and dust go with particles and calm.
    */
   comboImpact(combo: 'stunStorm' | 'shockwave', x: number, y: number, radius: number): void {
-    this.rainImpact(combo === 'stunStorm' ? 'arrowStorm' : 'meteor', x, y, radius);
+    this.rainImpact(combo, x, y, radius);
     const color = ZONE_COLORS[combo];
+    const px = x * S;
+    const py = y * S;
+    const k = this.bitScale;
     if (combo === 'stunStorm') {
       this.ring(x, y, radius * 1.15, color, 420, 0.3);
       this.flash(x, y, radius * 0.9, color, 220, 0.6);
-    } else {
-      this.ring(x, y, TUNING.coop.shockwave.pullRadius, color, 520, 0.2, 'shock');
-      this.flash(x, y, radius, color, 260, 0.55);
+      if (!this.particles || this.calm) return;
+      this.emit({
+        frame: 'spark',
+        x: px,
+        y: py,
+        count: 6,
+        speed: [260, 420],
+        drag: 4,
+        life: [90, 160],
+        scale: [0.9 * k, 0.3 * k],
+        stretch: 2.2,
+        align: true,
+        tint: [FX.stunLight, FX.hot, color],
+        layer: 'add',
+      });
+      this.emit({
+        frame: 'star',
+        x: px,
+        y: py - S * 0.3,
+        count: 3,
+        spread: radius * S * 0.4,
+        speed: [10, 30],
+        angle: [-Math.PI * 0.75, -Math.PI * 0.25],
+        gravity: -20,
+        life: [500, 720],
+        scale: [0.55 * k, 0.2 * k],
+        spin: 4,
+        hold: 0.3,
+        tint: [color, FX.stunLight],
+        layer: 'add',
+      });
+      return;
     }
-    if (!this.particles || this.calm) return;
+    const pull = TUNING.coop.shockwave.pullRadius;
+    this.ring(x, y, pull, color, 520, 0.2, 'shock');
     this.emit({
-      frame: combo === 'stunStorm' ? 'spark' : 'dot',
-      x: x * S,
-      y: y * S,
-      count: combo === 'stunStorm' ? 4 : 5,
-      spread: radius * S * 0.5,
-      speed: [30, 90],
-      drag: 2,
-      gravity: -30,
-      life: [420, 720],
-      scale: [0.8, 0.15],
-      tint: [color, FX.goldLight],
+      frame: 'ring',
+      x: px,
+      y: py,
+      life: [300, 300],
+      scale: [(pull * S) / RING_PX, (radius * S * 0.5) / RING_PX],
+      tint: FX.goldLight,
+      alpha: [0.85, 0.15],
       layer: 'add',
+      essential: true,
     });
+    this.flash(x, y, radius, color, 260, 0.55);
+    if (!this.particles) return;
+    for (const m of pullMotes(pull, radius * 0.5, this.calm)) {
+      this.emit({
+        frame: 'dot',
+        x: px + m.x,
+        y: py + m.y,
+        speed: [m.speed, m.speed],
+        angle: [m.angle, m.angle],
+        life: [m.life, m.life],
+        scale: [0.5 * k, 0.9 * k],
+        alpha: [0.3, 0.9],
+        tint: [FX.goldLight, color],
+        layer: 'add',
+      });
+    }
   }
 
   /**
-   * Arrow Storm and Meteor fused into Meteor Rain: a wide ring and a flash in the rain's colour where the fused
-   * rain is marked (`x`, `y`: the Meteor caster) and a smaller pair at each caster in `casters`, so both halves
-   * read as going in. Rings and flashes are essential and stay under reduced motion; the embers go. No shake: the
-   * twin ribbon owns that.
+   * Two ultimates fused into a combo: a wide ring and a flash in the combo's colour where the fused rain is marked
+   * (`x`, `y`: the Meteor caster, or the Arrow Storm's for Stun Storm) and a smaller pair at each caster in
+   * `casters`, so both halves read as going in. Then each its own burst: Meteor Rain's embers rise, Stun Storm
+   * crackles out with stun stars, Shockwave's dust rushes in to the mark. Rings and flashes are essential and stay
+   * under reduced motion; the bursts go. No shake: the twin ribbon owns that.
    */
   rainFuse(combo: ComboKind, x: number, y: number, casters: readonly { x: number; y: number }[]): void {
     const fire = ZONE_COLORS[combo];
@@ -1167,16 +1265,70 @@ export class Effects {
       this.flash(c.x, c.y, 1.5, fire, 460, 0.6);
     }
     if (!this.particles || this.calm) return;
+    const px = x * S;
+    const py = y * S;
+    const k = this.bitScale;
+    if (combo === 'stunStorm') {
+      this.emit({
+        frame: 'spark',
+        x: px,
+        y: py,
+        count: 16,
+        speed: [220, 480],
+        drag: 3.5,
+        life: [200, 360],
+        scale: [1 * k, 0.3 * k],
+        stretch: 2.6,
+        align: true,
+        tint: [FX.stunLight, fire, FX.hot],
+        layer: 'add',
+      });
+      this.emit({
+        frame: 'star',
+        x: px,
+        y: py,
+        count: 8,
+        spread: S * 1.4,
+        speed: [15, 45],
+        angle: [-Math.PI * 0.8, -Math.PI * 0.2],
+        gravity: -40,
+        life: [700, 1000],
+        scale: [0.8 * k, 0.25 * k],
+        spin: 3,
+        hold: 0.3,
+        tint: [fire, FX.stunLight, FX.stunDeep],
+        layer: 'add',
+      });
+      return;
+    }
+    if (combo === 'shockwave') {
+      for (const m of pullMotes(5.2, 0.6, false)) {
+        this.emit({
+          frame: 'dot',
+          x: px + m.x,
+          y: py + m.y,
+          count: 2,
+          spread: S * 0.4,
+          speed: [m.speed / 1.7, m.speed / 1.6],
+          angle: [m.angle, m.angle],
+          life: [m.life * 1.6, m.life * 1.6],
+          scale: [0.5 * k, 1 * k],
+          alpha: [0.3, 1],
+          tint: [FX.goldLight, fire, FX.goldDeep],
+          layer: 'add',
+        });
+      }
+    }
     this.emit({
       frame: 'dot',
-      x: x * S,
-      y: y * S,
-      count: 18,
+      x: px,
+      y: py,
+      count: combo === 'shockwave' ? 10 : 18,
       spread: S * 1.2,
       speed: [20, 60],
       gravity: -150,
       life: [600, 1000],
-      scale: [0.7 * this.bitScale, 0.1],
+      scale: [0.7 * k, 0.1],
       tint: combo === 'meteorRain' ? [FX.emberLight, fire, FX.hot] : [FX.hot, fire, FX.goldLight],
       layer: 'add',
     });
