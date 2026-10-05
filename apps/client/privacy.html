@@ -18,7 +18,7 @@
     <main class="privacy">
       <p class="back"><a href="/">← Back to the game</a></p>
       <h1>Privacy</h1>
-      <p class="updated">Tower Defense Together · last updated 3 October 2026</p>
+      <p class="updated">Tower Defense Together · last updated 5 October 2026</p>
 
       <p>
         Tower Defense Together is a free browser game made by an independent developer in Singapore. There are no
@@ -31,7 +31,7 @@
         <ul>
           <li>No accounts: we never ask for your name, email or password.</li>
           <li>No ads, no third-party trackers or analytics services, and the game sets no cookies.</li>
-          <li>Play data is deleted after <strong>30 days</strong>.</li>
+          <li>Play data is deleted after <strong>30 days</strong>. One short line per browser id, used to count who comes back after a month, goes 31 days after your last visit (<a href="#keep">below</a>).</li>
           <li>You can turn it off for this browser at any time (<a href="#choices">below</a>, or in the game: ⚙ Settings → Play data).</li>
           <li>We never sell it or pass it on. Only the game's own server stores it.</li>
         </ul>
@@ -55,7 +55,22 @@
           <dt>Platform</dt>
           <dd>Web, iOS or Android, worked out in your browser. Nothing more about your device is kept.</dd>
           <dt>Match results</dt>
-          <dd>Won or lost, the Heart's HP left, Full or Quick, the wave reached, and how many players. This is how we tune difficulty.</dd>
+          <dd>
+            When a match starts and ends: Full or Quick, Normal or Hard, how many players, solo or online, the heroes in it and
+            yours, and at the end won or lost, the Heart's HP left, the wave reached and how long it took. This is how we tune
+            difficulty.
+          </dd>
+          <dt>How far a visit got</dt>
+          <dd>
+            A few milestones, each once a visit: the lobby came up, each card of the first-match lesson (or that you skipped it),
+            and reaching waves 3, 5 and 10. This shows where new players stop.
+          </dd>
+          <dt>Error reports</dt>
+          <dd>
+            If the game hits an error it did not expect: the error's message and the few lines of the game's own code where it
+            happened (web addresses cut down to the file name), the game's version, and your browser's family (Chrome, Safari,
+            Firefox, Edge, Samsung Internet or other). At most five a visit. This is how we find and fix crashes.
+          </dd>
           <dt>Ratings and notes, only if you leave one</dt>
           <dd>
             A 1–5 rating at the end of a match and an optional note of up to 140 characters.
@@ -98,8 +113,11 @@
       <section aria-labelledby="keep">
         <h2 id="keep">How long we keep it</h2>
         <p>
-          Play data is deleted automatically 30 days after it was sent. The visitor id stays in your browser until you clear
-          this site's data.
+          Play data is deleted automatically 30 days after it was sent. To count who comes back a day, a week and a month
+          after their first visit, the server also keeps one short line per visitor id: the day of its first visit, the link
+          tag of that visit, the last day it was seen, and whether it came back on day 1, 7 and 30. That line is deleted
+          31 days after the last day the id was seen. Daily totals with no id in them (how many new visitors a day, how many
+          of them came back) are kept for 90 days. The visitor id stays in your browser until you clear this site's data.
         </p>
       </section>
 
@@ -116,7 +134,7 @@
           </p>
         </div>
         <ul>
-          <li>Off stops every event from this browser straight away, ratings included. What was already sent is still deleted after 30 days, or sooner if you ask.</li>
+          <li>Off stops every event from this browser straight away, ratings and error reports included. What was already sent is still deleted on the schedule above, or sooner if you ask.</li>
           <li>If your browser sends Global Privacy Control or Do Not Track, it starts off. You can still turn it on.</li>
           <li>The same switch is in the game: ⚙ Settings → Play data.</li>
         </ul>
@@ -128,8 +146,8 @@
           Email
           <!-- TODO(Han): replace the marked placeholder with the privacy contact address before the Reddit posts (TASKS.md H-07). -->
           <span class="placeholder" data-placeholder="privacy-email">[PRIVACY EMAIL — Han to add before the Reddit posts]</span>
-          and include your browser's id. With no accounts, the id is the only way we can find your data. We reply within
-          30 days.
+          and include your browser's id. With no accounts, the id is the only way we can find your data. Deleting it removes
+          everything kept under that id, including the line used to count returns. We reply within 30 days.
         </p>
         <p class="visitor">
           Your browser's id:

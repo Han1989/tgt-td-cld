@@ -8,6 +8,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isChannel, isPlatform } from './channels';
 import { EVENT_TYPES, type ParsedEvent } from './parse';
+import {
+  emptyRetention,
+  expireRetention,
+  forgetVisitor,
+  observe,
+  parseRetention,
+  serializeRetention,
+  type RetentionState,
+  type VisitorRecord,
+} from './retention';
 import { RETAIN_MS, type StoredEvent } from './summary';
 
 function isStoredEvent(value: unknown): value is StoredEvent {
@@ -25,6 +35,8 @@ function isStoredEvent(value: unknown): value is StoredEvent {
 }
 
 const FILE_NAME = 'events.jsonl';
+/** First visits and daily return counts (retention.ts), beside the event log. */
+const RETENTION_FILE = 'retention.json';
 /** Rewrite the file once it passes this, keeping only what is still in memory. */
 const COMPACT_AT = 2_000_000;
 const MAX_EVENTS = 20_000;
@@ -49,7 +61,11 @@ export function resolveAnalyticsDir(configured: string): AnalyticsLocation {
 export class AnalyticsStore {
   readonly location: AnalyticsLocation;
   private file: string | null = null;
+  private retentionFile: string | null = null;
   private events: StoredEvent[] = [];
+  private retention: RetentionState = emptyRetention();
+  /** The retention table changed since it was last written. */
+  private retentionDirty = false;
   /** Lines waiting for the single writer. Kept separate so a compact cannot duplicate them. */
   private pending: StoredEvent[] = [];
   private writeChain: Promise<void> = Promise.resolve();
@@ -67,6 +83,13 @@ export class AnalyticsStore {
     try {
       mkdirSync(this.location.dir, { recursive: true });
       this.file = path.join(this.location.dir, FILE_NAME);
+      this.retentionFile = path.join(this.location.dir, RETENTION_FILE);
+      try {
+        this.retention = parseRetention(JSON.parse(readFileSync(this.retentionFile, 'utf8')) as unknown);
+      } catch (err) {
+        // Missing (first start) or torn: rebuilt from the event log below, as far as it reaches.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT' && !(err instanceof SyntaxError)) throw err;
+      }
       let raw = '';
       try {
         raw = readFileSync(this.file, 'utf8');
@@ -84,6 +107,9 @@ export class AnalyticsStore {
           // A torn last line from a crash is skipped.
         }
       }
+      // Replaying is idempotent, so this only fills in what the table missed (a crash before it was written).
+      for (const event of [...this.events].sort((a, b) => a.at - b.at)) observe(this.retention, event);
+      this.retentionDirty = true;
       this.persistent = true;
       this.prune(now);
     } catch (err) {
@@ -96,10 +122,38 @@ export class AnalyticsStore {
   record(event: ParsedEvent, at = Date.now()): void {
     const stored: StoredEvent = { ...event, at };
     this.events.push(stored);
+    if (observe(this.retention, stored)) this.retentionDirty = true;
     this.trim(at);
     if (!this.file || !this.persistent) return;
     this.pending.push(stored);
     this.enqueue(() => this.flushPending());
+  }
+
+  /**
+   * A deletion request: every event and the retention line of this browser id, from memory and from
+   * both files (rewritten at once). Returns how many events went.
+   */
+  forget(visitor: string): number {
+    const before = this.events.length;
+    this.events = this.events.filter((event) => event.visitor !== visitor);
+    this.pending = this.pending.filter((event) => event.visitor !== visitor);
+    const removed = before - this.events.length;
+    if (forgetVisitor(this.retention, visitor)) this.retentionDirty = true;
+    if (this.file && this.persistent) this.enqueue(() => this.compact());
+    return removed;
+  }
+
+  /** A copy request: this browser id's events and retention line. */
+  visitorData(visitor: string): { events: StoredEvent[]; retention: VisitorRecord | null } {
+    const record = this.retention.visitors.get(visitor);
+    return {
+      events: this.events.filter((event) => event.visitor === visitor),
+      retention: record ? { ...record } : null,
+    };
+  }
+
+  retentionTable(): RetentionState {
+    return this.retention;
   }
 
   /** Drops events older than RETAIN_MS from memory and rewrites the file from memory, whatever its size. */
@@ -135,6 +189,7 @@ export class AnalyticsStore {
       this.events = this.events.filter((event) => event.at >= cutoff);
     }
     if (this.events.length > MAX_EVENTS) this.events.splice(0, this.events.length - MAX_EVENTS);
+    if (expireRetention(this.retention, now)) this.retentionDirty = true;
   }
 
   private enqueue(fn: () => Promise<void>): void {
@@ -153,6 +208,16 @@ export class AnalyticsStore {
     await appendFile(this.file, batch.map((event) => JSON.stringify(event)).join('\n') + '\n', 'utf8');
     const info = await stat(this.file);
     if (info.size > COMPACT_AT) await this.compact();
+    else await this.writeRetention();
+  }
+
+  /** Rewrites retention.json when it changed. It changes on a new browser, a return or a new day, not per heartbeat. */
+  private async writeRetention(): Promise<void> {
+    if (!this.retentionFile || !this.retentionDirty) return;
+    this.retentionDirty = false;
+    const tmp = `${this.retentionFile}.tmp`;
+    await writeFile(tmp, JSON.stringify(serializeRetention(this.retention)), 'utf8');
+    await rename(tmp, this.retentionFile);
   }
 
   private async compact(): Promise<void> {
@@ -167,5 +232,7 @@ export class AnalyticsStore {
     await mkdir(path.dirname(this.file), { recursive: true });
     await writeFile(tmp, body, 'utf8');
     await rename(tmp, this.file);
+    this.retentionDirty = true;
+    await this.writeRetention();
   }
 }

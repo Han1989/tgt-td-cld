@@ -94,16 +94,35 @@ test('a browser that sends Global Privacy Control starts with play data off', as
 test('play data: the rating asks for no personal details, and turned off in Settings nothing more is posted', async ({ page }) => {
   const posts = await catchPosts(page);
   await startSolo(page, '?lab&analytics');
-  await expect.poll(() => posts.map((p) => p.t)).toEqual(['session_start']);
+  await expect.poll(() => posts[0]?.t).toBe('session_start');
   const visitor = await page.evaluate(() => localStorage.getItem('tdt.visitor'));
   expect(visitor).toMatch(/^[0-9a-f]{32}$/);
+  // A second of match time in, the match start (p6a-analytics).
+  await expect
+    .poll(() => posts.filter((p) => p.t === 'match_start'))
+    .toEqual([expect.objectContaining({ mode: 'quick', difficulty: 'normal', players: 1, hero: 'ranger', heroes: ['ranger'], online: false })]);
+  // An uncaught error is a crash report: once, with a short stack and no address host.
+  await page.evaluate(() => {
+    const fire = () => setTimeout(() => {
+      throw new Error('e2e crash report');
+    });
+    fire();
+    fire();
+  });
+  await expect.poll(() => posts.filter((p) => p.t === 'client_error')).toEqual([
+    expect.objectContaining({ kind: 'error', message: 'Error: e2e crash report', browser: expect.stringMatching(/^(chrome|safari)$/) }),
+  ]);
+  const report = posts.find((p) => p.t === 'client_error')!;
+  expect(String(report.stack ?? '')).not.toContain('http');
 
   await page.evaluate(() => window.__tdt.lose());
   await expect(page.locator('#end-feedback')).toBeVisible();
   await expect(page.locator('#end-comment-hint')).toBeVisible();
   await expect(page.locator('#end-comment-hint')).toContainText("Don't include personal details.");
   await expect(page.locator('#end-privacy')).toHaveAttribute('href', '/privacy.html');
-  await expect.poll(() => posts.filter((p) => p.t === 'match_end').length).toBe(1);
+  await expect
+    .poll(() => posts.filter((p) => p.t === 'match_end'))
+    .toEqual([expect.objectContaining({ result: 'defeat', difficulty: 'normal', hero: 'ranger', online: false, durationSec: expect.any(Number) })]);
   await page.locator('#end-comment').fill('fun match');
   await page.locator('.end-rate[data-rating="4"]').click();
   await expect.poll(() => posts.filter((p) => p.t === 'feedback')).toEqual([expect.objectContaining({ rating: 4, comment: 'fun match' })]);
@@ -118,6 +137,10 @@ test('play data: the rating asks for no personal details, and turned off in Sett
   await page.locator('#settings-btn').click();
   const before = posts.length;
   await tick(page);
+  await page.evaluate(() => setTimeout(() => {
+    throw new Error('e2e crash while off');
+  }));
+  await page.waitForTimeout(1200);
   await page.evaluate(() => window.__tdt.lose());
   await expect(page.locator('#end-screen')).toBeVisible();
   await expect(page.locator('#end-feedback')).toBeHidden();
@@ -139,6 +162,10 @@ test('play data already off when the page opens: nothing is posted and no visito
   const posts = await catchPosts(page);
   await startSolo(page, '?lab&analytics');
   await tick(page);
+  await page.evaluate(() => setTimeout(() => {
+    throw new Error('e2e crash while off');
+  }));
+  await page.waitForTimeout(1200);
   await page.evaluate(() => window.__tdt.lose());
   await expect(page.locator('#end-screen')).toBeVisible();
   await expect(page.locator('#end-feedback')).toBeHidden();
