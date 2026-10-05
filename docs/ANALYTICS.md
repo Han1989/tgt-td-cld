@@ -4,7 +4,7 @@ One page on the game server so Han can judge **roll out vs pivot**: are stranger
 
 Local solo with no `VITE_SERVER_URL` sends nothing. The Vercel build (online lobby, including **Play solo offline**) does, because that build knows the server.
 
-Players can read what is sent at **`/privacy.html`** and turn it off for their browser (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). Before the Reddit posts, put the privacy contact email on that page (`TASKS.md` H-07).
+Players can read what is sent at **`/privacy.html`**, turn it off for their browser, and download or delete what the server holds for it themselves (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). Nothing is sent before a one-time age question, and nothing ever under 13 ([Age](#age)). Before the Reddit posts, put the privacy contact email on that page (`TASKS.md` H-07).
 
 ## Open the dashboard
 
@@ -138,7 +138,7 @@ Limits, per session: each error (message plus first stack line) is sent once; at
 
 ## Privacy and the play-data switch
 
-**The page.** `apps/client/privacy.html` is a static page (a second Vite entry; it loads none of the game) at `https://<vercel-app>/privacy.html`. It is plain text that reads the same without JavaScript: what is sent and why, no accounts, no ads, no third-party trackers, no cookies, kept 30 days, the hosts (Vercel, Render in Singapore), the GDPR and PDPA basis, how to turn it off, and how to ask for a copy or deletion. A small script (`src/privacy/page.ts`) adds the switch and shows this browser's visitor id with a Copy button, so a player can quote it in a deletion request. The service worker serves it as itself, not as the game.
+**The page.** `apps/client/privacy.html` is a static page (a second Vite entry; it loads none of the game) at `https://<vercel-app>/privacy.html`. It is plain text that reads the same without JavaScript: what is sent and why, no accounts, no ads, no third-party trackers, no cookies, kept 30 days, the hosts (Vercel, Render in Singapore), the GDPR and PDPA basis, the player's rights under both in plain words, the age rule, how to turn it off, how to download or delete it themselves, and how to ask by email. A small script (`src/privacy/page.ts`) adds the switch, the **Download my data** / **Delete my data** buttons, the age question when On is pressed before it was answered, and this browser's visitor id with a Copy button for an email request. The service worker serves it as itself, not as the game.
 
 **Links.** The lobby card's last line ("No accounts · anonymous play data · Privacy"), the line under the rating's note box, and ⚙ Settings → Play data. All open in a new tab, so the lobby or the end screen stays.
 
@@ -147,11 +147,39 @@ Limits, per session: each error (message plus first stack line) is sent once; at
 - Off: nothing is sent: no heartbeat, no `session_end`, no match events, no funnel steps, no crash reports, no rating. The rating control is not shown. The session in progress just stops; the server closes it after its 90-second idle window.
 - On again: the next tick starts a new session (`session_start`), with the same visitor id.
 - Off from the start: no visitor id is made and the acquisition channel is not saved.
-- With no choice made, it is **on**, unless the browser sends **Global Privacy Control** or **Do Not Track**; then it starts off and the player can still turn it on. A player's own choice always wins.
+- With no choice made, it is **on** (16 and over, see [Age](#age)), unless the browser sends **Global Privacy Control** or **Do Not Track**; then it starts off and the player can still turn it on. A player's own choice always wins.
+- Before the age question is answered nothing is sent, whatever the switch says; under 13 it is off and On cannot be picked (`analyticsAllowed` in `preference.ts`).
 
 The page says what each event holds. When `AnalyticsBody` (`session.ts`) gains a field, add it to the page; `test/analytics.test.ts` fails until the field list there is updated too.
 
-**Copy and deletion requests.** There are no accounts, so the visitor id is the only key. With the dashboard key set:
+<a id="age"></a>**Age.** Before any play data is sent, the game asks once, **"How old are you?"**: one number field, no suggested answer, no hint of what any age changes (`src/privacy/ageCheck.ts`). The answer stays in the browser as `tdt.age` (`{ age, month }`; the age grows by full years since, never sooner) and is never sent. Everyone can play whatever the answer.
+
+| Age | Play data |
+|---|---|
+| Not answered yet | Nothing is sent. |
+| Under 13 | Off, and On cannot be picked. Anything this browser sent before is deleted with its data key, and its id and key are cleared. |
+| 13 to 15 | Starts off. The player may turn it on. |
+| 16 and over | The usual rule: on, unless GPC / DNT or the player turned it off. |
+
+When it is asked: at the first **Play solo**, **Start lesson**, **Create room** or **Join room** tap (the solo pick's Play in a build with no lobby), and when the player turns play data on before answering. Never on first load: the lobby paints and is tappable exactly as before (D-08's first-load numbers do not change), and a returning browser never sees it. Continue goes straight on to what was tapped, so a new player's first match costs one extra step (type the age, Continue), once. It is only asked when the page could send something: a build with no game server, or play data already off (switch or GPC / DNT), skips it until the player turns play data on. The lobby funnel step is sent right after the answer, since nothing went before it. Typing a different age needs clearing the site's data; the game does not offer a second try.
+
+<a id="your-data"></a>**Your data: copy and deletion, by the player.** ⚙ Settings → Play data → **Your data**, and the same two buttons on the privacy page:
+
+- **Download my data** asks the server for everything it holds for this browser and saves it as `tdt-play-data-<date>.json` (the share sheet on a phone that has one): an `about` line, the time, the visitor id, its events and its retention line.
+- **Delete my data** (tap twice) deletes the same from memory, `events.jsonl` and `retention.json` at once, then clears the id, the data key and the saved channel in this browser. An open game tab forgets the old id too (it listens for the key changing). If play data is still on, the next event starts a new id.
+
+How it proves the browser is yours without accounts: every browser has a **data key**, 32 random bytes kept only in its storage (`tdt.visitorKey`) and never sent with events. Its visitor id is derived from it: the first 32 hex characters of SHA-256 of `tdt-visitor-v1:<key>` (`analytics/dataKey.ts` on both sides; a test checks they agree). The two buttons post `{"key": "<key>"}` to `POST /analytics/mine` and `POST /analytics/mine/forget`; the server derives the id itself. So:
+
+- No request can name an id. An id seen anywhere (the dashboard, `events.jsonl`, an email, the privacy page) cannot be turned back into its key, and guessing a 256-bit key is hopeless.
+- A wrong key gets the same answer as a right key with nothing held (`200`, no events, `removedEvents: 0`), so the routes do not even say whether an id exists.
+- The key is in the POST body, never the URL, so it is not in access logs. Bodies over 256 bytes, other fields, or a key that is not 64 lowercase hex characters are `400` / `413`.
+- Rate limit: each address can make 5 requests, then one every 20 seconds (`429`, `Retry-After: 20`); all addresses together, 60 at once, then one a second.
+- Origins follow `ALLOWED_ORIGINS`, like events. The routes work whether or not `ANALYTICS_DASHBOARD_KEY` is set.
+- After a deletion the server drops events for that id for 15 minutes (memory only), so a heartbeat already in flight cannot bring it back.
+
+Ids made before data keys (a random `tdt.visitor` with no `tdt.visitorKey`) cannot prove they are this browser's, so at the next session start the game replaces them with a keyed id. That browser counts as a new visitor once. The old id's data goes in 30 days, or by email; Delete in such a browser clears the old id locally and says so.
+
+**Requests by email** (a player who cleared the site's data, or uses another device). The visitor id is the only key. With the dashboard key set:
 
 - **Copy:** `curl -H "x-analytics-key: $KEY" "https://<render-service>.onrender.com/analytics/visitor?id=<id>"` returns that browser's events and its retention line as JSON.
 - **Delete:** `curl -X POST -H "x-analytics-key: $KEY" "https://<render-service>.onrender.com/analytics/forget?id=<id>"` removes every event with that id and its retention line, takes it out of its first day's counts, and rewrites `events.jsonl` and `retention.json` at once. It answers `{"visitor":"<id>","removedEvents":N}`. No restart is needed, and the daily prune cannot write the lines back.
@@ -171,4 +199,4 @@ Both are filled in as events arrive and rebuilt from `events.jsonl` when the fil
 
 ## Limits
 
-Posts need an `Origin` in `ALLOWED_ORIGINS`. Bodies over 2 KB are rejected (a crash report is at most about 1.2 KB). Unknown fields are rejected. Each IP can burst 10 events and then about one per second. The server stamps the time; the client clock is not trusted.
+Posts need an `Origin` in `ALLOWED_ORIGINS`. Bodies over 2 KB are rejected (a crash report is at most about 1.2 KB). Unknown fields are rejected. Each IP can burst 10 events and then about one per second. A player's own copy and deletion have their own, tighter limit (see [Your data](#your-data)). The server stamps the time; the client clock is not trusted.
