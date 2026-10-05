@@ -42,6 +42,11 @@ const COMPACT_AT = 2_000_000;
 const MAX_EVENTS = 20_000;
 /** Drop events past RETAIN_MS and rewrite the file this often, whether or not anything was recorded. */
 export const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
+/**
+ * After a deletion, events for that id are dropped for this long: a heartbeat already in flight, or a game tab
+ * that has not seen the new id yet, must not put the browser back. Memory only.
+ */
+export const FORGOTTEN_MS = 15 * 60 * 1000;
 
 export interface AnalyticsLocation {
   /** Null when events stay in memory. */
@@ -70,6 +75,8 @@ export class AnalyticsStore {
   private pending: StoredEvent[] = [];
   private writeChain: Promise<void> = Promise.resolve();
   private pruneTimer: NodeJS.Timeout | null = null;
+  /** Deleted ids and when their events may be recorded again. */
+  private forgotten = new Map<string, number>();
   persistent = false;
   diskError: string | null = null;
 
@@ -119,21 +126,29 @@ export class AnalyticsStore {
     }
   }
 
-  record(event: ParsedEvent, at = Date.now()): void {
+  /** Keeps the event, unless its id was deleted in the last `FORGOTTEN_MS`. Returns whether it was kept. */
+  record(event: ParsedEvent, at = Date.now()): boolean {
+    if (this.isForgotten(event.visitor, at)) return false;
     const stored: StoredEvent = { ...event, at };
     this.events.push(stored);
     if (observe(this.retention, stored)) this.retentionDirty = true;
     this.trim(at);
-    if (!this.file || !this.persistent) return;
+    if (!this.file || !this.persistent) return true;
     this.pending.push(stored);
     this.enqueue(() => this.flushPending());
+    return true;
   }
 
   /**
    * A deletion request: every event and the retention line of this browser id, from memory and from
-   * both files (rewritten at once). Returns how many events went.
+   * both files (rewritten at once). Events for the id are then dropped for `FORGOTTEN_MS`. Returns how
+   * many events went.
    */
-  forget(visitor: string): number {
+  forget(visitor: string, now = Date.now()): number {
+    if (this.forgotten.size > 10_000) {
+      for (const [id, until] of this.forgotten) if (until <= now) this.forgotten.delete(id);
+    }
+    this.forgotten.set(visitor, now + FORGOTTEN_MS);
     const before = this.events.length;
     this.events = this.events.filter((event) => event.visitor !== visitor);
     this.pending = this.pending.filter((event) => event.visitor !== visitor);
@@ -150,6 +165,14 @@ export class AnalyticsStore {
       events: this.events.filter((event) => event.visitor === visitor),
       retention: record ? { ...record } : null,
     };
+  }
+
+  private isForgotten(visitor: string, now: number): boolean {
+    const until = this.forgotten.get(visitor);
+    if (until === undefined) return false;
+    if (until > now) return true;
+    this.forgotten.delete(visitor);
+    return false;
   }
 
   retentionTable(): RetentionState {

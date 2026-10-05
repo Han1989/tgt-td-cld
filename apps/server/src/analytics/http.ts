@@ -1,11 +1,14 @@
 // POST /analytics/event from the client. GET /analytics and /analytics/summary
-// for Han, behind ANALYTICS_DASHBOARD_KEY, and the same key for a player's copy
-// (GET /analytics/visitor?id=) or deletion (POST /analytics/forget?id=) request.
+// for Han, behind ANALYTICS_DASHBOARD_KEY, and the same key for a copy
+// (GET /analytics/visitor?id=) or deletion (POST /analytics/forget?id=) asked for by email.
+// A player's own copy and deletion (POST /analytics/mine, /analytics/mine/forget) take the
+// browser's data key instead (dataKey.ts): the server derives the id, so no request can name one.
 // Origins follow the WebSocket allow-list.
 
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { TokenBucket } from '../rateLimit';
+import { DATA_KEY, visitorFromKey } from './dataKey';
 import { parseAnalyticsEvent } from './parse';
 import { renderDashboard } from './page';
 import { summarize } from './summary';
@@ -13,10 +16,25 @@ import type { AnalyticsStore } from './store';
 
 const BODY_LIMIT = 2048;
 const VISITOR_ID = /^[A-Za-z0-9_-]{8,64}$/;
-const ROUTES = ['/analytics', '/analytics/summary', '/analytics/event', '/analytics/visitor', '/analytics/forget'];
+const ROUTES = [
+  '/analytics',
+  '/analytics/summary',
+  '/analytics/event',
+  '/analytics/visitor',
+  '/analytics/forget',
+  '/analytics/mine',
+  '/analytics/mine/forget',
+];
 /** One event a second sustained, a short burst for start + match + rating. */
 const PER_SECOND = 1;
 const BURST = 10;
+/** A player's own copy / deletion: a few at once, then one every 20 seconds, per IP. */
+const MINE_PER_SECOND = 1 / 20;
+const MINE_BURST = 5;
+/** And for everyone together, so many addresses cannot hammer it either. */
+const MINE_ALL_PER_SECOND = 1;
+const MINE_ALL_BURST = 60;
+const MINE_BODY_LIMIT = 256;
 
 export interface AnalyticsHttpOptions {
   store: AnalyticsStore;
@@ -98,20 +116,74 @@ function send(res: ServerResponse, status: number, body: string, type: string): 
  */
 export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   const buckets = new Map<string, { bucket: TokenBucket; seen: number }>();
+  const mineBuckets = new Map<string, { bucket: TokenBucket; seen: number }>();
+  let mineAll: TokenBucket | null = null;
   const now = () => opts.now?.() ?? Date.now();
 
-  function allow(ip: string, at: number): boolean {
-    let row = buckets.get(ip);
+  function take(
+    table: Map<string, { bucket: TokenBucket; seen: number }>,
+    ip: string,
+    at: number,
+    perSecond: number,
+    burst: number,
+  ): boolean {
+    let row = table.get(ip);
     if (!row) {
-      row = { bucket: new TokenBucket(PER_SECOND, BURST, at), seen: at };
-      buckets.set(ip, row);
-      if (buckets.size > 4000) {
+      row = { bucket: new TokenBucket(perSecond, burst, at), seen: at };
+      table.set(ip, row);
+      if (table.size > 4000) {
         const cutoff = at - 10 * 60 * 1000;
-        for (const [key, value] of buckets) if (value.seen < cutoff) buckets.delete(key);
+        for (const [key, value] of table) if (value.seen < cutoff) table.delete(key);
       }
     }
     row.seen = at;
     return row.bucket.take(at);
+  }
+
+  function allow(ip: string, at: number): boolean {
+    return take(buckets, ip, at, PER_SECOND, BURST);
+  }
+
+  function allowMine(ip: string, at: number): boolean {
+    if (!take(mineBuckets, ip, at, MINE_PER_SECOND, MINE_BURST)) return false;
+    mineAll ??= new TokenBucket(MINE_ALL_PER_SECOND, MINE_ALL_BURST, at);
+    return mineAll.take(at);
+  }
+
+  /** The player's own copy or deletion. Same answer shape whether or not anything is held for the key. */
+  async function mine(req: IncomingMessage, res: ServerResponse, forget: boolean): Promise<void> {
+    const at = now();
+    if (!allowMine(clientIp(req), at)) {
+      res.setHeader('Retry-After', '20');
+      send(res, 429, 'Slow down\n', 'text/plain; charset=utf-8');
+      return;
+    }
+    const raw = await readBody(req, MINE_BODY_LIMIT);
+    if (raw === null) {
+      send(res, 413, 'Too large\n', 'text/plain; charset=utf-8');
+      return;
+    }
+    let key: unknown;
+    try {
+      const json = JSON.parse(raw) as unknown;
+      if (json && typeof json === 'object' && !Array.isArray(json) && Object.keys(json).length === 1) {
+        key = (json as { key?: unknown }).key;
+      }
+    } catch {
+      key = undefined;
+    }
+    if (typeof key !== 'string' || !DATA_KEY.test(key)) {
+      send(res, 400, 'Send {"key": "<this browser\'s data key>"}\n', 'text/plain; charset=utf-8');
+      return;
+    }
+    const visitor = visitorFromKey(key);
+    if (forget) {
+      const removed = opts.store.forget(visitor, at);
+      await opts.store.flush();
+      send(res, 200, JSON.stringify({ visitor, removedEvents: removed }), 'application/json; charset=utf-8');
+    } else {
+      send(res, 200, JSON.stringify({ visitor, ...opts.store.visitorData(visitor) }), 'application/json; charset=utf-8');
+    }
   }
 
   return async (req, res) => {
@@ -124,6 +196,26 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
     let path = url.pathname;
     if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
     if (!ROUTES.includes(path)) return false;
+
+    if (path === '/analytics/mine' || path === '/analytics/mine/forget') {
+      const origin = req.headers.origin;
+      if (!opts.isOriginAllowed(typeof origin === 'string' ? origin : undefined)) {
+        send(res, 403, 'Forbidden\n', 'text/plain; charset=utf-8');
+        return true;
+      }
+      applyCors(req, res);
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, { 'Cache-Control': 'no-store' });
+        res.end();
+        return true;
+      }
+      if (req.method !== 'POST') {
+        send(res, 405, 'Method not allowed\n', 'text/plain; charset=utf-8');
+        return true;
+      }
+      await mine(req, res, path === '/analytics/mine/forget');
+      return true;
+    }
 
     if (path === '/analytics/event') {
       const origin = req.headers.origin;
@@ -189,7 +281,7 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
         return true;
       }
       if (writes) {
-        const removed = opts.store.forget(id);
+        const removed = opts.store.forget(id, now());
         await opts.store.flush();
         send(res, 200, JSON.stringify({ visitor: id, removedEvents: removed }), 'application/json; charset=utf-8');
       } else {
