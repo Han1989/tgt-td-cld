@@ -47,9 +47,20 @@ async function main(): Promise<void> {
     ready('progress');
     return;
   }
-  const view = await GameView.create();
   // ?stress=300: a render stress scene (no simulation) with an FPS readout, for performance checks.
   const stress = Number(params.get('stress'));
+  const e2eLobby = import.meta.env.MODE === 'e2e' && params.has('lobby');
+  const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
+  // ?practice=meteor-rain is a local solo path even when a game server is configured.
+  const localSolo = !serverUrl || params.get('practice') === 'meteor-rain';
+  // Before the game view, so a page that cannot start (no WebGL) still counts as a visit and sends its error.
+  // Analytics needs the server (docs/ANALYTICS.md); local solo sends nothing. Browser tests (`?analytics`,
+  // e2e builds only) post to this page's own origin to watch every event, also on the `?lobby` card.
+  if (!(stress > 0)) {
+    if (!localSolo && !e2eLobby) installAnalytics(serverUrl);
+    else if (import.meta.env.MODE === 'e2e' && params.has('analytics')) installAnalytics(location.origin);
+  }
+  const view = await GameView.create();
   if (stress > 0) {
     const { StressTransport } = await import('./stress');
     const combo = params.get('combo');
@@ -60,18 +71,13 @@ async function main(): Promise<void> {
     return;
   }
   // Browser tests open the online home card with no game server (`?lobby`). Create / Join stay on the card.
-  if (import.meta.env.MODE === 'e2e' && params.has('lobby')) {
+  if (e2eLobby) {
     new OnlineController(view, 'ws://127.0.0.1:9').start();
     ready('online');
     return;
   }
-  const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
-  // ?practice=meteor-rain is a local solo path even when a game server is configured.
-  if (!serverUrl || params.get('practice') === 'meteor-rain') {
+  if (localSolo) {
     // No game server configured: local solo mode, after a hero, mode and difficulty pick.
-    // Analytics needs the server (docs/ANALYTICS.md); this path sends nothing.
-    // Browser tests (`?analytics`, e2e builds only) post to this page's own origin to watch every event.
-    if (import.meta.env.MODE === 'e2e' && params.has('analytics')) installAnalytics(location.origin);
     const practiceEntry = params.get('practice') === 'meteor-rain';
     const solo = (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal, practice: boolean) =>
       playSolo(view, hero, mode, difficulty, deal, practice);
@@ -83,7 +89,6 @@ async function main(): Promise<void> {
     ready('solo');
     return;
   }
-  installAnalytics(serverUrl);
   new OnlineController(view, serverUrl).start();
   ready('online');
 }

@@ -191,7 +191,7 @@ export class StressTransport implements Transport {
         events.push({ type: 'heal', heroId: ranger.id, amount: 150 }, { type: 'heal', heroId: arcanist.id, amount: 90 });
       }
       // Rains end: yours, then the ally's.
-      if (k === 150) events.push({ type: 'ultResult', ult: 'meteorRain', by: PLAYER, kills: 12 });
+      if (k === 150) events.push({ type: 'ultResult', ult: this.comboAt(t), by: PLAYER, kills: 12 });
       if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
     }
     // While the fused rain runs, a strike every 0.3 s and the creep under it dies.
@@ -223,8 +223,8 @@ export class StressTransport implements Transport {
   }
 
   /**
-   * An Arrow Storm that never ends, a Meteor that lands every 2 s, and a global Meteor Rain (radius 0, as the sim
-   * sends rains) that runs 3.6 s of every 6.
+   * An Arrow Storm that never ends, a Meteor that lands every 2 s, and a global fused rain (radius 0, as the sim
+   * sends rains; `comboAt`) that runs 3.6 s of every 6.
    */
   private zones(t: number): ZoneSnap[] {
     const map = getMap();

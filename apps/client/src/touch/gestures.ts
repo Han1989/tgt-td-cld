@@ -1,7 +1,8 @@
 // Touch input recognition as pure functions (docs/MOBILE.md §5, §8): joystick,
 // tap vs drag, smart-cast targeting, drag-to-aim and cancel, snap-to-nearest,
-// hold-to-sell, overlay hit tests and radial menu placement. No DOM, so every
-// rule here is unit-tested; `touchControls.ts` wires them to pointer events.
+// hold-to-sell, tap-to-build vs hold-to-preview, overlay hit tests and radial
+// menu placement. No DOM, so every rule here is unit-tested; `touchControls.ts`
+// wires them to pointer events.
 
 import type { SkillSnap } from '@tdt/protocol';
 import { clamp, inRect, type Rect } from '../layout';
@@ -46,6 +47,8 @@ export const AIM_DRAG_PX = 90;
 export const SELL_HOLD_MS = 500;
 /** Hold a still finger on the map this long (ms) to ping. A drag cancels it. */
 export const PING_HOLD_MS = 450;
+/** Hold a build button this long (ms) to preview the tower on its pad. A quicker tap builds. */
+export const BUILD_PREVIEW_MS = 300;
 
 // ---------------------------------------------------------------------------
 // Joystick
@@ -92,17 +95,6 @@ export function stickKnobOffset(v: StickVec, radius: number, full: number = STIC
   if (len === 0 || radius <= 0) return { x: 0, y: 0 };
   const shown = Math.min(radius, (len / Math.max(1, full)) * radius * 0.92);
   return { x: (v.dx / len) * shown, y: (v.dy / len) * shown };
-}
-
-/**
- * One-tap upgrade tag on a tower (screen px). The box sits on the top of the pad and ends
- * above the centre, so a tap on the tower body still opens the ring. The tag is not a browser
- * click target: the phone's touch slop would otherwise steal the body tap.
- */
-export function upgradeTagRect(center: Pt, padHalf: number, height = 34): { left: number; top: number; width: number; height: number } {
-  const width = Math.max(48, padHalf * 2);
-  const bottom = center.y - 6;
-  return { left: center.x - width / 2, top: bottom - height, width, height };
 }
 
 /** True when a held stick should send a new move: it turned enough, or the last move is stale. */
@@ -273,6 +265,15 @@ export function inOverlay(p: Pt, rects: readonly Rect[], controlTop: number | nu
 export function holdProgress(startMs: number, nowMs: number, holdMs = SELL_HOLD_MS): { progress: number; done: boolean } {
   const progress = clamp((nowMs - startMs) / holdMs, 0, 1);
   return { progress, done: progress >= 1 };
+}
+
+/**
+ * A press on a build button, `elapsedMs` after the finger went down. Held past `holdMs` it shows the
+ * preview, and lifting then does not build. A quick tap that did not drag builds on release.
+ */
+export function buildPress(elapsedMs: number, dragged: boolean, holdMs = BUILD_PREVIEW_MS): { preview: boolean; build: boolean } {
+  const preview = elapsedMs >= holdMs;
+  return { preview, build: !preview && !dragged };
 }
 
 // ---------------------------------------------------------------------------

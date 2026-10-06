@@ -192,14 +192,23 @@ describe('analytics session', () => {
 describe('play-data switch', () => {
   const none = { gpc: false, dnt: false };
 
-  it('is on unless the player turned it off or the browser asks not to be tracked', () => {
-    expect(analyticsAllowed(null, none)).toBe(true);
-    expect(analyticsAllowed('off', none)).toBe(false);
-    expect(analyticsAllowed(null, { gpc: true, dnt: false })).toBe(false);
-    expect(analyticsAllowed(null, { gpc: false, dnt: true })).toBe(false);
+  it('is on unless the player turned it off or the browser asks not to be tracked (16 and over)', () => {
+    expect(analyticsAllowed(null, none, 'adult')).toBe(true);
+    expect(analyticsAllowed('off', none, 'adult')).toBe(false);
+    expect(analyticsAllowed(null, { gpc: true, dnt: false }, 'adult')).toBe(false);
+    expect(analyticsAllowed(null, { gpc: false, dnt: true }, 'adult')).toBe(false);
     // The player's own choice wins over the browser's signal.
-    expect(analyticsAllowed('on', { gpc: true, dnt: true })).toBe(true);
-    expect(analyticsAllowed('off', none)).toBe(false);
+    expect(analyticsAllowed('on', { gpc: true, dnt: true }, 'adult')).toBe(true);
+  });
+
+  it('sends nothing before the age is known, never under 13, and from 13 to 15 only once turned on', () => {
+    for (const choice of [null, 'on', 'off'] as const) {
+      expect(analyticsAllowed(choice, none, null)).toBe(false);
+      expect(analyticsAllowed(choice, none, 'child')).toBe(false);
+    }
+    expect(analyticsAllowed(null, none, 'teen')).toBe(false);
+    expect(analyticsAllowed('off', none, 'teen')).toBe(false);
+    expect(analyticsAllowed('on', { gpc: true, dnt: true }, 'teen')).toBe(true);
   });
 
   it('reads only on / off from storage, and GPC / DNT from the navigator', () => {
@@ -217,10 +226,16 @@ describe('play-data switch', () => {
   });
 
   it('says why it is off', () => {
-    expect(playDataStatus(null, none)).toEqual({ on: true, line: 'On: this browser sends anonymous play data.' });
-    expect(playDataStatus('off', none)).toEqual({ on: false, line: 'Off: this browser sends nothing.' });
-    expect(playDataStatus(null, { gpc: true, dnt: false }).line).toContain('asks sites not to track');
-    expect(playDataStatus('on', { gpc: true, dnt: false }).on).toBe(true);
+    expect(playDataStatus(null, none, 'adult')).toEqual({ on: true, locked: false, line: 'On: this browser sends anonymous play data.' });
+    expect(playDataStatus('off', none, 'adult')).toEqual({ on: false, locked: false, line: 'Off: this browser sends nothing.' });
+    expect(playDataStatus(null, { gpc: true, dnt: false }, 'adult').line).toContain('asks sites not to track');
+    expect(playDataStatus('on', { gpc: true, dnt: false }, 'adult').on).toBe(true);
+    expect(playDataStatus(null, none, null)).toMatchObject({ on: false, locked: false, line: expect.stringContaining('knows your age') });
+    // Off by choice or by GPC stays explained as before; the age is asked when the player turns it on.
+    expect(playDataStatus('off', none, null).line).toBe('Off: this browser sends nothing.');
+    expect(playDataStatus('on', none, 'child')).toEqual({ on: false, locked: true, line: 'Off: nothing is sent for players under 13.' });
+    expect(playDataStatus(null, none, 'teen').line).toContain('under 16 it starts off');
+    expect(playDataStatus('on', none, 'teen')).toMatchObject({ on: true, locked: false });
   });
 });
 
@@ -241,11 +256,36 @@ describe('privacy page and links', () => {
       'Where the visit came from',
       'Platform',
       'Match results',
+      'Normal or Hard',
+      'How far a visit got',
+      'Error reports',
+      'At most five a visit',
+      '31 days after the last day',
       '1–5 rating',
       '140 characters',
       "don't put personal details in a note",
       'Global Privacy Control',
-      'Ask for a copy, or for deletion',
+      'Get a copy, or delete it',
+      'Or ask by email',
+      'Download my data',
+      'Delete my data',
+      'tdt.visitorKey',
+      'nobody who learns the id can read or delete your data',
+      'Your rights',
+      'To get a copy',
+      'To have it deleted',
+      'To object, or to withdraw',
+      'To have it corrected',
+      'To complain',
+      'Personal Data Protection Commission',
+      'How old are you?',
+      'tdt.age',
+      'is never sent',
+      'Under 13:',
+      'nothing is ever sent from this browser',
+      '13 to 15:',
+      '16 and over:',
+      'Everyone can play',
       'Singapore',
       'GDPR',
       'PDPA',
@@ -278,6 +318,17 @@ describe('privacy page and links', () => {
       'mode',
       'wave',
       'players',
+      'difficulty',
+      'durationSec',
+      'hero',
+      'heroes',
+      'online',
+      'step',
+      'kind',
+      'message',
+      'stack',
+      'build',
+      'browser',
     ]);
   });
 

@@ -23,7 +23,7 @@ interface Hook {
     surgeLane: number | null;
     heroes: { owner: string; x: number; y: number; mana: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
     creeps: { x: number; y: number; kind: string }[];
-    towers: { id: number; padId: number; owner: string; tier: number; branch: string | null; priority: string; x: number; y: number }[];
+    towers: { id: number; padId: number; owner: string; kind: string; tier: number; branch: string | null; priority: string; x: number; y: number }[];
     pads: { id: number; owner: string | null }[];
     players: { id: string; gold: number }[];
   } | undefined;
@@ -84,7 +84,7 @@ interface Hook {
     map: Box;
     controls: { top: number; rects: Box[] } | null;
   };
-  map: { width: number; height: number; pads: { id: number; x: number; y: number; zone: string }[] };
+  map: { width: number; height: number; padSize: number; pads: { id: number; x: number; y: number; zone: string }[] };
   camera: {
     zoom: number;
     centerOn(x: number, y: number): void;

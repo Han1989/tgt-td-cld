@@ -59,6 +59,7 @@ export const sessionStore = {
 };
 
 export class NetworkTransport implements Transport {
+  readonly online = true;
   status: NetStatus = 'connecting';
   session: RoomSession | null = null;
 

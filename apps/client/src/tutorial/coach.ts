@@ -30,6 +30,8 @@ export class TutorialCoach {
   onSkip: () => void = () => {};
   /** The player reached the closing card (the lesson will not auto-run again). */
   onComplete: () => void = () => {};
+  /** A card came up: the lesson's first step when it starts, then each next one, `done` at the end. */
+  onStep: (step: TutorialRun['step']) => void = () => {};
   /** They dismissed the closing card. */
   onDismiss: () => void = () => {};
   /** They read the Wisps note (Got it, or they built a tower that hits air). */
@@ -75,6 +77,7 @@ export class TutorialCoach {
     this.heroKind = null;
     this.wave = 0;
     this.markShown(performance.now());
+    this.onStep(this.run.step);
     this.render();
   }
 
@@ -135,6 +138,7 @@ export class TutorialCoach {
       const satisfied = stepSatisfied(this.run.step, this.run.facts);
       if (tutorialMayAdvance(satisfied, this.satisfiedOnShow, now - this.shownAt)) {
         this.run = advanceTutorial(this.run);
+        this.onStep(this.run.step);
         if (this.run.step === 'done') this.onComplete();
         else this.markShown(now);
       }
@@ -154,6 +158,7 @@ export class TutorialCoach {
     }
     if (this.run.step !== 'emote') return;
     this.run = continueTutorial(this.run);
+    this.onStep(this.run.step);
     this.onComplete();
     this.render();
   }

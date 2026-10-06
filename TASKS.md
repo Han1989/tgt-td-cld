@@ -102,14 +102,14 @@ Signals only, for Client Polish to present. No new damage, no fused ultimates, n
 | Metric | Meaning |
 |---|---|
 | Average playtime | How long a first session lasts from that channel |
-| Retention | Return rate (aim for D1 and D7; add D30 when Phase 6a analytics exist) |
+| Retention | Return rate: D1, D7 and D30 (D30 since p6a-analytics, PR #85) |
 | Repeat visits | Same player / same browser returning after the first session |
 
-Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The minimal funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30 still waits for Phase 6a.
+Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30, where new players stop, match breakdowns and crash reports are there too (p6a-analytics, PR #85).
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. | Team | ☑ |
+| D-01 | Channel analytics: average playtime, retention (D1/D7), repeat visits, tagged by source (`reddit-playmygame`, `reddit-incremental`, `reddit-cozy`, `crazygames`, …). Prefer building on Phase 6a analytics when ready; until then, a minimal tagged funnel is enough. Phase 6a's p6a-analytics (PR #85) adds D30 per channel on the same dashboard. | Team | ☑ |
 | SL-01 | Soft-launch co-op presentation (client, #35): mirrored ping and same-emote burst within 1 s, gift sent/received toasts, twin-ultimate ribbon from two R casts within `R_OVERLAP_SECONDS`. Sim signals are T-06 (protocol 14): leak lane, gift totals, live `syncCast`, advisory boss lane lines. | Team | ☑ |
 | SL-02 | Soft-launch HUD hooks (client): lane clutch on a real leak (`laneName`, skip `FINALE_LEAK_CREEP_ID`), end-screen gold given and received via `heroGiftTotals`, twin ribbon prefers live `syncCast` (cast overlap stays the fallback), advisory boss lane banners from `bossLaneHint`. Protocol stays 14. | Team | ☑ |
 | SL-03 | Together-kill flash (client): two or more living heroes whose `damage` hit the same creep within 2 s of its `kill` get a short shared flash (seat colours, edge glow, dual-pitch chime). No gold or stat change. Protocol stays 14. A living player's towers share `damage.by`, so they count; a hero-only `togetherKill` event waits on Gameplay after Phase 5. | Team | ☑ |
@@ -144,6 +144,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
+| P2-01b | Phone build and upgrade fix (client, PR #82). Han's request in #57 was misread: one tap on a tower in the build ring builds (no "tap again"), a hold (0.3 s) previews its range and stats and does not build, and the gold ↑ tags on towers are gone (tap the tower, then Upgrade; the ring stays open). In review: Han tests the preview on his phone before merging. | Team + Han | ◐ |
 | P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude; PR #66, merged as 05a3fc0 after Han's review). The same work as SL-05. | Team + Han | ☑ |
 | P2-04 | Ultimate presentation and combo cue (client, PR #70). Each combo has its own ribbon, strikes and colour, and a finished rain or combo shows its kill count. No aim circles. | Team | ☑ |
@@ -155,7 +156,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 
 ## Phase 6 and later · unblocked (Gate 1 passed 2 Oct 2026)
 
-Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started. Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
+Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started, except p6c-combos (done, PR #83), p6a-analytics (done, PR #85) and p6a-privacy (done for play without accounts, PR #86). Discovery D-02–D-06 and Gate 2 remain the public soft-launch path (still open). Monetisation still waits on Gate 2. Store work still waits on Discovery showing that strangers stay. Playtest 2 follow-up: P2-01 to P2-04b are done (PR #57, PR #63, PR #66, PR #70, PR #73). P2-05 is still open.
 
 ### Phase 6a · Foundation: accounts and data
 
@@ -163,8 +164,8 @@ Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started.
 |---|---|---|
 | p6a-db | Choose the database host: Render Postgres, or AWS | Han (decision) |
 | p6a-accounts | Accounts and saved progress. Play as a guest first; link Google, Apple or email later. Currencies and inventory live on the server. | Team |
-| p6a-analytics | Analytics and crash reports: day-1, day-7 and day-30 return rates, match results, where new players quit | Team |
-| p6a-privacy | Privacy basics: privacy policy, data export and deletion, an age check. PDPA, GDPR and child-safety rules apply. | Team |
+| p6a-analytics | Analytics and crash reports: day-1, day-7 and day-30 return rates, match results, where new players quit. **Done** (PR #85, server + client, `PROTOCOL_VERSION` stays 18, no new service, `docs/ANALYTICS.md`): D1 / D7 / D30 overall and per channel from a small `retention.json` beside `events.jsonl` (one line per browser id, deleted 31 days after it was last seen, plus daily cohort counts with no id, kept 90 days), so D30 still works after the first visit is pruned at 30 days; a first-session funnel (opened, lobby, match start, waves 3 / 5 / 10, match end, second match, plus each lesson card) that names the step most new players stop after; match results by mode and difficulty, team, hero and channel, with length; client crash reports (`error` / `unhandledrejection`, trimmed stack, build, browser family, once per error, at most 5 a session); copy and delete by browser id behind the dashboard key. All behind the Play data switch; the privacy page lists the new data. Durable numbers still need `ANALYTICS_DIR` on a disk that survives deploys (D-01's advice). | Team |
+| p6a-privacy | Privacy basics: privacy policy, data export and deletion, an age check. PDPA, GDPR and child-safety rules apply. **Done for play without accounts** (PR #86, server + client, `PROTOCOL_VERSION` stays 18, no new service or database, `docs/ANALYTICS.md` "Age" and "Your data"): **Download my data** and **Delete my data** in ⚙ Settings and on `/privacy.html`, by a secret data key the browser keeps (`tdt.visitorKey`; the visitor id is derived from it, so nobody can ask for another browser's data by id; `POST /analytics/mine`, `/analytics/mine/forget`, rate limited, same answer whether or not data exists; the dashboard-key routes still work); a neutral one-time age question ("How old are you?") at the first Play / Create / Join tap, never on first load: nothing is sent before it, under 13 nothing is ever sent (and what was sent is deleted), 13–15 starts off; the privacy page explains GDPR and PDPA rights, the age rule and self-serve copy and deletion in plain words. Open questions for Han in the PR (age bands, the one extra step, legacy ids). Account data joins the same copy and deletion when p6a-accounts lands. The contact email is still H-07. | Team |
 
 ### Phase 6b · Clans
 
@@ -177,7 +178,7 @@ Gate 1 passed 2 Oct 2026, so Phase 6 may start. The tasks below are not started.
 
 | ID | Task | Owner |
 |---|---|---|
-| p6c-combos | Combo ultimates, full version: a fused effect for every hero pair. The sim has all three (Meteor Rain, Stun Storm, Shockwave: SL-05, PR #66); the presentation of Stun Storm and Shockwave is still later. Don't merge `claude/loving-hawking-7fvsu7`. | Team |
+| p6c-combos | Combo ultimates, full version: a fused effect for every hero pair. The sim has all three (Meteor Rain, Stun Storm, Shockwave: SL-05, PR #66). **Done:** Stun Storm and Shockwave now have their own presentation like Meteor Rain's: ribbon, sky, strike flight and landing, fuse burst and kill count (client only, PR #83). Don't merge `claude/loving-hawking-7fvsu7`. | Team |
 | p6c-raids | Raid bosses with team mechanics: two-lane shields, pressure plates, bosses that split across lanes. One raid boss rotates weekly. The first beat is already in: Quick wave 10 Matriarch takes no damage until two lanes hit within 3 s (SL-04). Full wave 10 does not. | Team |
 | p6c-gear | Team set gear: gear slots, Common-to-S rarity, effects that change how towers and skills behave. Set bonuses switch on when teammates wear pieces of the same set. Earned by play only at this stage. | Team |
 | p6c-tiers | Difficulty tiers: better gear unlocks harder tiers with better loot, so gear never makes co-op trivial | Team |
