@@ -193,6 +193,10 @@ export function createBalanceBot(
   let flyerLeaks = 0;
   /** Novice: the tick before which it has forgotten about its ultimate. */
   let ultForgottenUntil = -1;
+  /** Tick of this bot's last repair: players do not watch every tower, so it repairs one at a time (`REPAIR_EVERY`). */
+  let lastRepairTick = -Infinity;
+  const repairReady = (snap: Snapshot): boolean =>
+    style !== 'novice' && snap.tick - lastRepairTick >= REPAIR_EVERY[style] * snap.tickRate;
 
   return {
     playerId,
@@ -242,7 +246,11 @@ export function createBalanceBot(
       if (focusLane != null && style === 'casual') biasSurgePad(free, mine, focusLane);
       if (style === 'expert') {
         gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses);
-        gold = spendRepairs(cmds, mine, tuning, gold);
+        if (repairReady(snap)) {
+          const spent = spendRepair(cmds, mine, tuning, gold);
+          if (spent > 0) lastRepairTick = snap.tick;
+          gold -= spent;
+        }
       } else {
         for (;;) {
           const kind = nextTower(needs, kinds, team);
@@ -277,8 +285,12 @@ export function createBalanceBot(
             novice && flyerLeaks < NOVICE_FLYER_LEAKS,
           );
         }
-        // What is left after the purchases repairs its towers under half HP. A novice never repairs.
-        if (!novice) gold = spendRepairs(cmds, mine, tuning, gold);
+        // What is left after the purchases repairs a tower under half HP, one at a time. A novice never repairs.
+        if (repairReady(snap)) {
+          const spent = spendRepair(cmds, mine, tuning, gold);
+          if (spent > 0) lastRepairTick = snap.tick;
+          gold -= spent;
+        }
 
         // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
         // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
@@ -772,18 +784,26 @@ function giftForSurge(cmds: Command[], snap: Snapshot, playerId: PlayerId, gold:
 
 /** Below this share of its HP, a casual or expert bot repairs a tower (with the gold left after its purchases). */
 const REPAIR_BELOW = 0.5;
+/**
+ * Seconds between a bot's repairs. Set from play, not from the balance gates: Han (an expert, on a phone) repaired
+ * about once every 50 s in a Quick match with the sell-and-rebuild workaround and still lost 6 towers. An expert with
+ * a Repair button is quicker than that, a casual player slower. The novice never repairs.
+ */
+const REPAIR_EVERY: Record<'casual' | 'expert', number> = { expert: 15, casual: 30 };
 
-/** Repairs this bot's towers under `REPAIR_BELOW` of their HP, most damaged first, while it can pay. Returns the gold left. */
-function spendRepairs(cmds: Command[], mine: TowerSnap[], tuning: Tuning, goldStart: number): number {
-  let gold = goldStart;
+/**
+ * Repairs the most damaged of this bot's towers under `REPAIR_BELOW` of their HP that it can pay for. Returns the gold
+ * spent (0 if none).
+ */
+function spendRepair(cmds: Command[], mine: TowerSnap[], tuning: Tuning, gold: number): number {
   const hurt = mine.filter((t) => t.hp < t.maxHp * REPAIR_BELOW).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
   for (const t of hurt) {
     const cost = repairCost(tuning, t);
     if (gold < cost) continue;
     cmds.push({ type: 'repair', towerId: t.id });
-    gold -= cost;
+    return cost;
   }
-  return gold;
+  return 0;
 }
 
 /** Pads ordered by how much lane (and wisp flight line) they cover. `rangeScale` is Fog's shorter reach. */

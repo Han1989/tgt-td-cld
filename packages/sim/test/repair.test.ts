@@ -200,6 +200,22 @@ describe('bots repair', () => {
     expect(repairs(createBalanceBot('p1').decide(snapshot(state)))).toEqual([]);
   });
 
+  it('a bot repairs one tower at a time: the expert every 15 s, the casual bot every 30 s', () => {
+    for (const [make, gap] of [[createExpertBot, 15], [createBalanceBot, 30]] as const) {
+      const { state, player } = withTower();
+      expect(applyCommand(state, 'p1', { type: 'build', padId: LAB_PAD + 1, tower: 'arrow' })).toBe(true);
+      for (const t of state.towers) t.hp = t.maxHp * 0.2;
+      player.gold = 40;
+      const bot = make('p1');
+      expect(repairs(bot.decide(snapshot(state)))).toHaveLength(1);
+      // Both towers still hurt (nothing was applied), and gold enough: no second repair until the gap has passed.
+      state.tick += gap * 20 - 1;
+      expect(repairs(bot.decide(snapshot(state)))).toEqual([]);
+      state.tick += 1;
+      expect(repairs(bot.decide(snapshot(state)))).toHaveLength(1);
+    }
+  });
+
   it('the novice bot never repairs', () => {
     const { state } = damaged(0.1);
     state.wave = 8;
