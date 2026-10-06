@@ -180,6 +180,8 @@ export interface Tower {
   spent: number;
   priority: TargetPriority;
   stunUntil: number;
+  /** Tick a repair in progress ends (the tower is back at full HP and shoots again), or 0 when none. */
+  repairUntil: number;
   dead: boolean;
 }
 

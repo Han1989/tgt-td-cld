@@ -276,6 +276,7 @@ export function snapshot(state: GameState): Snapshot {
       spent: tw.spent,
       priority: tw.priority,
       stunned: state.tick < tw.stunUntil,
+      repairLeft: tw.repairUntil > 0 ? Math.max(0, tw.repairUntil - state.tick) : 0,
     })),
     pads: state.pads.map((p) => ({ id: p.id, owner: p.owner })),
     projectiles: state.projectiles.map((p) => ({ id: p.id, style: p.style, x: r2(p.x), y: r2(p.y) })),
