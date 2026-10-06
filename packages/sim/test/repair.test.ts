@@ -4,8 +4,9 @@ import { decodeReplayCommand, type GameEvent, type Replay } from '@tdt/protocol'
 import { describe, expect, it } from 'vitest';
 import { createBalanceBot, createExpertBot, createNoviceBot } from '../src/bots';
 import { applyCommand } from '../src/commands';
+import { damageTower } from '../src/combat';
 import { snapshot } from '../src/game';
-import { createMatch, matchCommand, matchReplay, matchReport, replayMatch } from '../src/match';
+import { createMatch, matchCommand, matchReplay, matchReport, matchStep, replayMatch, reportSummary } from '../src/match';
 import { repairCost, towerTier, TUNING } from '../src/tuning';
 import { LAB_PAD, labGame, parkHero } from './helpers';
 
@@ -152,6 +153,8 @@ describe('repair in the match report and the replay', () => {
     expect(a!.goldSpent).toBe(towerTier(state.tuning, 'arrow', 1).cost + cost);
     expect(b!.repairs).toBe(0);
     expect(b!.repairGold).toBe(0);
+    expect(a!.towersDestroyed).toBe(0);
+    expect(reportSummary(report)).toContain(`repairs 1/${cost}g towers lost 0`);
     const replay: Replay = JSON.parse(JSON.stringify(matchReplay(match)));
     const logged = replay.log.filter((e) => e[2] === 'repair');
     expect(logged).toEqual([
@@ -159,6 +162,19 @@ describe('repair in the match report and the replay', () => {
       [0, 0, 'repair', tower.id],
     ]);
     expect(decodeReplayCommand(logged[0]!.slice(2))).toEqual({ type: 'repair', towerId: tower.id });
+  });
+
+  it('counts each player\'s towers destroyed by creeps', () => {
+    const match = createMatch({ players: [{ id: 'p1', name: 'A', hero: 'ranger' }, { id: 'p2', name: 'B', hero: 'warden' }] }, 5);
+    const state = match.state;
+    state.players[1]!.gold = 1000;
+    const pad = state.pads.find((p) => p.owner === 'p2')!.id;
+    expect(matchCommand(match, 'p2', { type: 'build', padId: pad, tower: 'arrow' })).toBe(true);
+    damageTower(state, state.towers[0]!, 100_000, 'physical');
+    matchStep(match);
+    const [a, b] = matchReport(match).heroes;
+    expect(a!.towersDestroyed).toBe(0);
+    expect(b!.towersDestroyed).toBe(1);
   });
 
   it('a replay with a repair re-runs to the same report', () => {

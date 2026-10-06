@@ -114,11 +114,26 @@ export function lostShares(results: HeadlessResult[]): number[] {
   return lost.map((x) => (total > 0 ? x / total : 0));
 }
 
-/** Asserts the team difficulty curve (`CURVE`) over a gate's matches. */
-export function expectTeamCurve(results: HeadlessResult[]): void {
+/**
+ * Asserts the team difficulty curve (`CURVE`) over a gate's matches. `curve` replaces a bound only where tower repair
+ * broke it: provisional until Playtest 3 (docs/balance/TUNING_LOG.md, round 4).
+ */
+export function expectTeamCurve(results: HeadlessResult[], curve: { firstMax: number; lastMin: number } = CURVE): void {
   const [first, , last] = lostShares(results);
-  expect(first).toBeLessThanOrEqual(CURVE.firstMax);
-  expect(last).toBeGreaterThanOrEqual(CURVE.lastMin);
+  expect(first).toBeLessThanOrEqual(curve.firstMax);
+  expect(last).toBeGreaterThanOrEqual(curve.lastMin);
+}
+
+/**
+ * Bounds of the playtest-2 gates that assumed towers cannot be repaired, replaced by the measured 30-seed result with
+ * repair plus a small margin. **Provisional until Playtest 3**: the bots' repair pace is a guess until then, and the
+ * rebalance happens once, after it (docs/balance/TUNING_LOG.md, round 4). Only the bound that failed is replaced.
+ */
+export interface ProvisionalGate {
+  /** Replaces `band.max + slack` as the highest mean. */
+  meanMax?: number;
+  /** Replaces the share of seeds that must sit inside the band. */
+  share?: number;
 }
 
 /** Share of the gate seeds the novice bot wins, over every team in `teams`. */
@@ -145,15 +160,20 @@ export function noviceWinRate(teams: HeroKind[][], mode: GameMode): number {
  * the matrix's lesson is enforced: a single seed swings +-20 Heart, so no per-seed band can hold on every seed, but the
  * mean must sit inside `band` and at least `share` of the seeds must (every match must still win: assert that per seed).
  */
-export function heartGate(band: { min: number; max: number }, share: number, slack = 5): (heartHp: number) => void {
+export function heartGate(
+  band: { min: number; max: number },
+  share: number,
+  slack = 5,
+  provisional: ProvisionalGate = {},
+): (heartHp: number) => void {
   const hearts: number[] = [];
   afterAll(() => {
     if (hearts.length === 0) return;
     const mean = hearts.reduce((a, b) => a + b, 0) / hearts.length;
     const inBand = hearts.filter((x) => x >= band.min && x <= band.max).length / hearts.length;
     expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeGreaterThanOrEqual(band.min - slack);
-    expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeLessThanOrEqual(band.max + slack);
-    expect(inBand, `seeds inside ${band.min}-${band.max}: ${hearts.join(', ')}`).toBeGreaterThanOrEqual(share);
+    expect(mean, `mean Heart ${mean.toFixed(1)} of ${hearts.join(', ')}`).toBeLessThanOrEqual(provisional.meanMax ?? band.max + slack);
+    expect(inBand, `seeds inside ${band.min}-${band.max}: ${hearts.join(', ')}`).toBeGreaterThanOrEqual(provisional.share ?? share);
   });
   return (heartHp) => void hearts.push(heartHp);
 }

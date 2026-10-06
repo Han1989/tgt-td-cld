@@ -421,7 +421,8 @@ export type GameEvent =
   | { type: 'towerBuilt'; towerId: EntityId; owner: PlayerId }
   | { type: 'towerSold'; towerId: EntityId; owner: PlayerId; refund: number }
   | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number; branch: TowerBranch | null }
-  | { type: 'towerDestroyed'; towerId: EntityId }
+  /** Creeps destroyed `owner`'s tower (no refund). */
+  | { type: 'towerDestroyed'; towerId: EntityId; owner: PlayerId }
   /** `owner` paid `cost` gold to bring the tower back to full HP; `hp` is the HP it got back. */
   | { type: 'towerRepaired'; towerId: EntityId; owner: PlayerId; cost: number; hp: number }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
@@ -562,6 +563,8 @@ export interface HeroReport {
   repairs: number;
   /** Gold paid for repairs (also counted in `goldSpent`). Reports from before protocol 19 omit it: read as 0. */
   repairGold: number;
+  /** This player's towers destroyed by creeps. Reports from before protocol 19 omit it: read as 0. */
+  towersDestroyed: number;
   /** Gold still held when the match ended. */
   goldUnspent: number;
   /** Waves this player called early. */
@@ -582,9 +585,13 @@ export function heroGiftTotals(hero: {
   };
 }
 
-/** Repair totals on a hero report. A report saved before protocol 19 omits them; those count as 0. */
-export function heroRepairTotals(hero: { repairs?: number; repairGold?: number }): { repairs: number; repairGold: number } {
-  return { repairs: hero.repairs ?? 0, repairGold: hero.repairGold ?? 0 };
+/** Repair and tower-loss totals on a hero report. A report saved before protocol 19 omits them; those count as 0. */
+export function heroRepairTotals(hero: { repairs?: number; repairGold?: number; towersDestroyed?: number }): {
+  repairs: number;
+  repairGold: number;
+  towersDestroyed: number;
+} {
+  return { repairs: hero.repairs ?? 0, repairGold: hero.repairGold ?? 0, towersDestroyed: hero.towersDestroyed ?? 0 };
 }
 
 /** A summary of a finished match, built by the host (server or local worker) from the simulation. */

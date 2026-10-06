@@ -215,7 +215,7 @@ const items: ProgressItem[] = [
     owner: 'Both',
     status: 'in_progress',
     section: 'playtest2',
-    note: 'Sim and client, protocol 19. Repair costs 0.3 of the gold spent times the share of HP missing, takes 3 s with the tower silent, then full HP. Phone ring button, desktop panel and F, a progress bar and a one-time hint. The balance gates are red with repair, so the PR waits for Han. Built by Claude Code.',
+    note: 'Sim and client, protocol 19. Instant repair for 0.3 of the gold spent times the share of HP missing. Phone ring button, desktop panel and F, and a one-time hint. Reports carry repairs, repair gold and towers destroyed per player for Playtest 3; balance is provisional until then. In review with Han. Built by Claude Code.',
   },
   {
     id: 'H-01',

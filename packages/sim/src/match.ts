@@ -50,6 +50,7 @@ interface HeroTrack {
   goldSpent: number;
   repairs: number;
   repairGold: number;
+  towersDestroyed: number;
   wavesCalledEarly: number;
   goldGifted: number;
   goldReceived: number;
@@ -101,6 +102,7 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       goldSpent: 0,
       repairs: 0,
       repairGold: 0,
+      towersDestroyed: 0,
       wavesCalledEarly: 0,
       goldGifted: 0,
       goldReceived: 0,
@@ -217,6 +219,9 @@ export function matchStep(match: Match): void {
     } else if (e.type === 'kill' || e.type === 'leak') {
       const shield = match.shields.find((s) => s.creepId === e.creepId && s.end === 'alive');
       if (shield) shield.end = e.type === 'kill' ? 'killed' : 'leaked';
+    } else if (e.type === 'towerDestroyed') {
+      const owner = match.heroes[state.players.findIndex((p) => p.id === e.owner)];
+      if (owner) owner.towersDestroyed++;
     } else if (e.type === 'gift') {
       const from = match.heroes[state.players.findIndex((p) => p.id === e.from)];
       const to = match.heroes[state.players.findIndex((p) => p.id === e.to)];
@@ -277,6 +282,7 @@ export function matchReport(match: Match): MatchReport {
       goldSpent: t.goldSpent,
       repairs: t.repairs,
       repairGold: t.repairGold,
+      towersDestroyed: t.towersDestroyed,
       goldUnspent: Math.floor(player.gold),
       wavesCalledEarly: t.wavesCalledEarly,
       goldGifted: t.goldGifted,
@@ -449,7 +455,8 @@ export function reportSummary(report: MatchReport, room?: string): string {
     (h) =>
       `${h.name}/${h.hero} L${h.level} k${h.kills} d${h.deaths} Q${h.casts.Q} W${h.casts.W} R${h.casts.R} ` +
       `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps} ` +
-      `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0}`,
+      `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0} ` +
+      `repairs ${h.repairs ?? 0}/${h.repairGold ?? 0}g towers lost ${h.towersDestroyed ?? 0}`,
   );
   return (
     `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} ${modifierLabel(report.modifiers)} seed ${report.seed} v${report.protocol} build ${report.build} ` +

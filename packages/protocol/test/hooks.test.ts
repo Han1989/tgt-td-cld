@@ -53,7 +53,7 @@ describe('hero gift totals', () => {
 
 describe('hero repair totals', () => {
   it('reads a missing total as 0 (reports from before protocol 19)', () => {
-    expect(heroRepairTotals({})).toEqual({ repairs: 0, repairGold: 0 });
-    expect(heroRepairTotals({ repairs: 3, repairGold: 41 })).toEqual({ repairs: 3, repairGold: 41 });
+    expect(heroRepairTotals({})).toEqual({ repairs: 0, repairGold: 0, towersDestroyed: 0 });
+    expect(heroRepairTotals({ repairs: 3, repairGold: 41, towersDestroyed: 2 })).toEqual({ repairs: 3, repairGold: 41, towersDestroyed: 2 });
   });
 });

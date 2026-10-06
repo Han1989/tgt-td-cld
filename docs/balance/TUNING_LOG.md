@@ -87,7 +87,7 @@ Han's decision after his 4 Oct solo Quick Normal match (Arcanist, seed 111393989
 | main | No repair | `repair-main.txt`, 44 of 79 targets pass. Casual and expert bots lose 11–35 towers a match to Archers and bosses and rebuild them at tier 1. |
 | rule (0.3) | Repair instant, cost ceil(0.3 × spent × share missing); casual and expert bots repair every tower under half HP they can pay for, after their purchases | `repair-rule.txt`, 40 pass. Casual Normal 87–97 Heart (target 50–90), expert Hard 67–97 (target 40–80), casual Hard goes from 0–27% wins to 100% for every solo and pair. Bots repair 25–64 times a match; towers lost drop to 0–2. |
 | rule (0.5) | The same at repairRate 0.5 | 42 pass, Heart within 1–2 of 0.3 everywhere. The bots pay with gold they used to leave unspent, so the price does not hold them back. (0.4 was not run to the end: Han kept 0.3.) |
-| step 1 | Bots repair one tower at a time: expert every 15 s, casual every 30 s (from Han's play: about once every 50 s on a phone with the workaround) | `repair-step1.txt`, 39 pass. Heart unchanged within noise (casual Normal 87–97, expert Hard 67–97). Bots still repair 15–55 times a match; towers lost 0–10. |
+| step 1 (landed) | Bots repair one tower at a time: expert every 15 s, casual every 30 s (from Han's play: about once every 50 s on a phone with the workaround) | `repair-final.txt`, 39 pass. Heart unchanged within noise (casual Normal 87–97, expert Hard 67–97). Bots still repair 15–55 times a match; towers lost 0–10. |
 | step 2 | A repair takes 3 s and the tower does not shoot meanwhile (`economy.repairSeconds`), then full HP | `repair-step2.txt`, 41 pass. Heart within −4 / +5 of step 1. The 3 s cost each bot 0.3–0.5% of its tower time (about 50–150 tower-seconds a match), too little to matter. |
 
 ## Targets that changed (main → step 2)
@@ -249,3 +249,105 @@ Han asked, since expert Hard stayed above 80: one run of the expert and casual b
 | W+A | 100% · 87.0 | 100% · 78.5 (54–94) | 43%/51%/6% |
 | A+R | 100% · 83.9 | 100% · 80.2 (19–91) | 46%/50%/4% |
 | R+W+A | 100% · 74.6 | 100% · 65.3 (24–86) | 36%/56%/8% |
+
+
+# Round 4: late-wave creep growth with repair (inconclusive, stopped by Han)
+
+Han's decision after round 3: repair goes back to instant (the 3 s repair was balance-neutral and a dimmed, silent tower read as a bug); keep repairRate 0.3 and the step-1 bot pace; raise creep strength in the later waves (waves 1–5 keep their strength), on Normal and Hard, to the playtest-2 targets. The knob is `waves.lateHpGrowthPerWave`: creep HP × (1 + hpGrowthPerWave × (wave − 1) + lateHpGrowthPerWave × max(0, wave − `lateGrowthFrom` 5)), with its own value for Quick (`modes.quick.waves`). All runs used `--tuning`; **the setting stays at 0** and no number changed.
+
+## Runs
+
+| Run | Seeds | What it showed |
+|---|---|---|
+| Quick +0.05 | 10, Normal, all bots | Novice Ranger solo wins 30% (main 90%), A+R 80%; casual solos come into the band (72–77) but pairs stay at 86–89; experts unchanged (90–100). |
+| Quick +0.1 | 10, Normal, all bots | Novice wins 20–60% in five of seven teams; casual 50–81. |
+| Full +0.05 | 10, Normal, all bots | Novice wins 0–60% in five of seven teams; casual 58–82 (in the band). |
+| Full +0.1 | 10, Normal, all bots | Novice 0%, casual 0–20%, expert 24–90. |
+| Full / Quick +0.02 | 10, Normal, novice and casual | Full: novice pairs 70–90% wins while casual is still 86–96. Quick: novice Ranger 60% while casual is 84–92. |
+| Full / Quick +0.01 and +0.02 | 30, Normal, novice and casual | Table below. |
+
+## The finding
+
+With repair, a casual bot loses most of its Heart in the first third and almost none late (it keeps its towers); a novice, which never repairs, loses 10–35 towers a match and most of its Heart late. So any late-wave increase lands on the player who does not repair first. In Full, +0.02 takes casual down 2–8 Heart but sends novice pairs to 73–83% wins (−25 to −41 Heart); in Quick neither moves much at +0.02 on 30 seeds, but at +0.05 the novice Ranger falls to 30% while casual pairs are still above 85. The novice target (80% wins in every team) and the casual band (50–90) cannot both be met with late-wave growth while the bots' repair rate is a guess: we have no data on how often real players repair. Han stopped the round there: Playtest 3 measures it (repairs, repair gold and towers destroyed per player are in the match report), and the bots' repair pace and the rebalance are set once, after that.
+
+### 30 seeds, Normal: repair only (instant, step-1 pace, growth 0) against late growth +0.01 and +0.02
+
+
+**novice · full · normal** (Heart left; win% when not 100)
+
+| team | repair only | +0.01 | +0.02 |
+|---|---|---|---|
+| R | 74.7 | 74.4 | 67.7 |
+| W | 89.7 | 83.8 | 80.4 |
+| A | 85.7 | 84.3 | 79.7 |
+| R+W | 74.7 | 64.2 (90%) | 33.9 (73%) |
+| W+A | 84.6 | 68.3 (97%) | 53.0 (83%) |
+| A+R | 78.3 | 71.1 (97%) | 42.3 (83%) |
+| R+W+A | 79.0 | 73.8 | 65.9 |
+
+**casual · full · normal** (Heart left; win% when not 100)
+
+| team | repair only | +0.01 | +0.02 |
+|---|---|---|---|
+| R | 96.1 | 93.4 | 89.0 |
+| W | 96.9 | 95.3 | 93.5 |
+| A | 97.1 | 94.9 | 93.4 |
+| R+W | 90.7 | 89.4 | 85.3 |
+| W+A | 94.3 | 90.8 | 91.5 |
+| A+R | 96.0 | 93.8 | 90.3 |
+| R+W+A | 97.0 | 96.1 | 94.4 |
+
+**novice · quick · normal** (Heart left; win% when not 100)
+
+| team | repair only | +0.01 | +0.02 |
+|---|---|---|---|
+| R | 28.1 (90%) | 27.7 (90%) | 22.5 (87%) |
+| W | 52.6 | 51.6 | 48.4 |
+| A | 50.1 | 48.5 | 45.9 |
+| R+W | 41.0 | 41.0 | 40.0 |
+| W+A | 49.3 | 49.2 | 49.1 |
+| A+R | 43.8 | 43.3 | 41.9 |
+| R+W+A | 46.8 | 48.1 | 46.5 |
+
+**casual · quick · normal** (Heart left; win% when not 100)
+
+| team | repair only | +0.01 | +0.02 |
+|---|---|---|---|
+| R | 90.2 | 89.2 | 85.7 |
+| W | 88.6 | 87.9 | 86.9 |
+| A | 89.3 | 87.3 | 84.5 |
+| R+W | 87.2 | 87.1 | 87.0 |
+| W+A | 88.0 | 88.0 | 87.9 |
+| A+R | 90.6 | 90.9 | 90.9 |
+| R+W+A | 87.9 | 88.8 | 85.1 |
+
+## What landed, and the provisional test bounds
+
+Han: land repair as it is (instant, repairRate 0.3, the step-1 bot pace, `lateHpGrowthPerWave` 0, no creep change); Playtest 3 measures how often real players repair, and the bots' pace and the rebalance are set once, after that. The final tables are `repair-final.txt` and `repair-final-targets.txt` (the step-1 run: 39 of 79 targets, main 44); `repair-step2*.txt` is the reverted 3 s repair, kept for the record.
+
+The balance tests that assumed towers cannot be repaired failed with repair on (6 tests, and 8 Heart gates checked after their files' runs). In each, only the bound that failed was replaced by the measured 30-seed result with repair (each gate's own setup replayed on seeds 1–30) plus a small margin: mean +3 rounded up, share of seeds in the band −0.1 rounded down to 0.05, a third's share of the Heart lost ±0.1. Where the five gate seeds sit beyond that (they are fewer and less lucky), the bound is what they need, and both numbers are given. **All of them are provisional until Playtest 3** and marked so in the tests (`ProvisionalGate`, `expectTeamCurve(results, curve)` in `test/helpers.ts`). Tests that still passed were not touched.
+
+| Test | Bound | Old → new | 30 seeds with repair (gate seeds) |
+|---|---|---|---|
+| `balance.test.ts` (casual Full solo, Ranger) | mean ceiling | 95 → 99 | mean 96.1 (97.2) |
+| | share in 50–90 | 0.6 → 0 | 10% (0 of 5) |
+| `balanceHeroes.test.ts` (casual Full solo, Warden and Arcanist) | mean ceiling | 95 → 100 | mean 97.0 (96.9) |
+| | share in 50–90 | 0.6 → 0 | 3% (0 of 10) |
+| `balanceExpertTeams.test.ts` (expert Full Hard, pairs and trio) | mean ceiling | 85 → 95 | mean 91.5 (89.2) |
+| | share in 40–80 | 0.3 → 0 | 7% (1 of 10) |
+| | first third, pairs / trio | 0.45 → 1 / 1 | 78% / 92% (94% pairs) |
+| | last third, pairs / trio | 0.25 → 0 / 0 | 1% / 5% |
+| `balanceModifiers.test.ts` (casual solo, modifier sample) | share in 50–90 | 0.6 → 0.15 | 29% (25%) |
+| `balanceModifiersTeams.test.ts` (casual Full trio, Sky Tide) | share in 50–90 | 0.6 → 0 | 20% (0 of 5) |
+| `balanceQuick.test.ts` (casual Quick solo) | share in 50–90 | 0.6 → 0.2 | 34% (33%) |
+| `balanceQuickTeams.test.ts` (casual Quick pairs and trio) | share in 50–90 | 0.6 → 0.4 | 52% (50%) |
+| | last third, pairs | 0.25 → 0 | 0% |
+| | first third, trio | 0.45 → 0.55 | 17% (51%) |
+| | last third, trio | 0.25 → 0 | 59% (0%) |
+| `balanceTeam.test.ts` (casual Full trio) | mean ceiling | 95 → 100 | mean 97.0 (96.6) |
+| | share in 50–90 | 0.6 → 0 | 3% (0 of 5) |
+| | first third | 0.45 → 1 | 90% |
+| | last third | 0.25 → 0 | 0% |
+| `balanceDuo.test.ts` (casual Full pairs) | last third | 0.25 → 0 | 0% |
+| `balanceExpertQuickTeams.test.ts` (expert Quick Hard, pairs and trio) | first third, pairs / trio | 0.45 → 0.8 / 0.55 | 57% / 45% (76% / 54%) |
+| | last third, pairs / trio | 0.25 → 0 / 0 | 4% / 7% |
