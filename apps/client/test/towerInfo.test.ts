@@ -8,6 +8,7 @@ import {
   branchChoices,
   branchStatRows,
   buildCost,
+  buildPreviewChip,
   maxTier,
   nextPriority,
   targetsText,
@@ -92,6 +93,17 @@ describe('tower ring helpers', () => {
     expect(offer).toContain('Sniper (600): Long range, big crits, slow');
     expect(offer).toContain('Volley (550): Hits 3 targets at once');
     expect(offer).not.toContain('Tap again');
+  });
+
+  it('names a held build button\'s tower, cost and tier-1 stats', () => {
+    const t = TUNING.towers.arrow.tiers[0]!;
+    const chip = buildPreviewChip('arrow', TOWER_NAMES);
+    expect(chip).toContain(`${TOWER_NAMES.arrow} (${t.cost}): Dmg ${t.damage}`);
+    expect(chip).toContain(`Rng ${t.range}`);
+    expect(chip).toContain('Ground + air');
+    expect(buildPreviewChip('flak', TOWER_NAMES)).toContain('Air only');
+    expect(buildPreviewChip('arrow', TOWER_NAMES, TUNING, 2)).toContain(`Rng ${t.range * 2}`);
+    expect(chip).not.toContain('Tap again');
   });
 
   it('cycles the target priority', () => {

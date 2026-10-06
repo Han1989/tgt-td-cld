@@ -144,6 +144,7 @@ Follow-up from the 2 Oct 2026 friends session (Android, PC, iPhone Safari). P2-0
 | ID | Task | Owner | Status |
 |---|---|---|---|
 | P2-01 | Touch controls (client, #57). Client Polish. Phone UX from the 2 Oct 2026 friends session. | Team | ☑ |
+| P2-01b | Phone build and upgrade fix (client, PR #82). Han's request in #57 was misread: one tap on a tower in the build ring builds (no "tap again"), a hold (0.3 s) previews its range and stats and does not build, and the gold ↑ tags on towers are gone (tap the tower, then Upgrade; the ring stays open). In review: Han tests the preview on his phone before merging. | Team + Han | ◐ |
 | P2-02 | Air waves and unspent gold teaching (client, #63). Client Polish. Flyer readability, anti-air teaching, and a gold nudge. | Team | ☑ |
 | P2-03 | Kit rework and balance by simulation (sim, Claude; PR #66, merged as 05a3fc0 after Han's review). The same work as SL-05. | Team + Han | ☑ |
 | P2-04 | Ultimate presentation and combo cue (client, PR #70). Each combo has its own ribbon, strikes and colour, and a finished rain or combo shows its kill count. No aim circles. | Team | ☑ |

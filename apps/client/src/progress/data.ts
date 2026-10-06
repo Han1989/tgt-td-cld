@@ -166,6 +166,15 @@ const items: ProgressItem[] = [
     proof: pr(57),
   },
   {
+    id: 'P2-01b',
+    title: 'Phone build and upgrade fix',
+    owner: 'Both',
+    status: 'in_progress',
+    section: 'playtest2',
+    note: 'Client. Han’s request in #57 was misread: one tap in the build ring builds (no “tap again”), a hold previews the range and stats without building, and the gold ↑ tags on towers are gone (tap the tower, then Upgrade). Han tests the preview on his phone before merging.',
+    proof: pr(82),
+  },
+  {
     id: 'P2-02',
     title: 'Air waves and unspent gold',
     owner: 'Team',
