@@ -456,8 +456,14 @@ export interface Tuning {
     spawnInterval: number;
     /** Max random offset from the lane centre line. */
     laneSpread: number;
-    /** Creep HP multiplier: 1 + hpGrowthPerWave × (wave − 1). */
+    /**
+     * Creep HP multiplier: 1 + hpGrowthPerWave × (wave − 1) + lateHpGrowthPerWave × max(0, wave − lateGrowthFrom).
+     * The late term (balance round 4, with tower repair) adds pressure to the later waves only: waves up to
+     * `lateGrowthFrom` keep their strength.
+     */
     hpGrowthPerWave: number;
+    lateHpGrowthPerWave: number;
+    lateGrowthFrom: number;
     /** Armour added to every creep: armorGrowthPerWave × (wave − 1). */
     armorGrowthPerWave: number;
     list: WaveGroup[][];
@@ -632,6 +638,8 @@ export const TUNING: Tuning = {
     spawnInterval: 0.9,
     laneSpread: 0.8,
     hpGrowthPerWave: 0.1,
+    lateHpGrowthPerWave: 0,
+    lateGrowthFrom: 5,
     armorGrowthPerWave: 0.1,
     list: [
       // 1–10: the Phase 1 waves.
