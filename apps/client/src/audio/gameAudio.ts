@@ -248,6 +248,15 @@ export class GameAudio {
     if (h) this.play(`attack.${h.kind}`, now, { x, y }, h.owner === this.me);
   }
 
+  /**
+   * A rain's pulse launched its meteors (the renderer): the falling whistle, heard everywhere like the ultimate. Yours
+   * when you are the Arcanist (a combo is everyone's); the finale plays it lower.
+   */
+  meteorFall(kind: 'meteor' | 'meteorRain' | 'shockwave', finale: boolean, now: number): void {
+    if (!this.sink.sfxOn) return;
+    this.play('meteorFall', now, null, kind !== 'meteor' || this.myHeroIs('arcanist'), finale ? 0.85 : 1);
+  }
+
   /** A message was shown ("Not enough gold"…). */
   notice(text: string, now: number): void {
     const id = NOTICES[text];

@@ -39,7 +39,7 @@ export default defineConfig({
     },
     {
       name: 'pixel',
-      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy)\.spec\.ts/,
+      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy|meteor)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
     {

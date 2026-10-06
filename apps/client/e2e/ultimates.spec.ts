@@ -244,7 +244,8 @@ test.describe('412 × 839', () => {
   test.use({ viewport: { width: 412, height: 839 } });
 
   test('the popup, the chip and the R ring fit the phone', async ({ page }) => {
-    test.setTimeout(90_000);
+    // Frame-bound (the scene's clock moves with frames): the falling meteors' rains make software-GL frames slower.
+    test.setTimeout(150_000);
     const layout = await open(page);
     test.skip(layout !== 'tall', 'phone layout only');
     const pop = await cue(page, { kind: 'pop', text: 'Meteor Rain: 12' }, byCycle(AT.myRain));
@@ -261,7 +262,8 @@ test.describe('reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
   test('turns the shake off even on Strong, and still shows the cues', async ({ page }) => {
-    test.setTimeout(90_000);
+    // Frame-bound (the scene's clock moves with frames): the falling meteors' rains make software-GL frames slower.
+    test.setTimeout(150_000);
     await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: 'strong' })));
     const layout = await open(page);
     expect(await page.evaluate(() => window.__tdt.fx())).toMatchObject({ calm: true, shake: false, shakeScale: 0 });

@@ -166,6 +166,15 @@ const items: ProgressItem[] = [
     proof: pr(57),
   },
   {
+    id: 'P2-01b',
+    title: 'Phone build and upgrade fix',
+    owner: 'Both',
+    status: 'in_progress',
+    section: 'playtest2',
+    note: 'Client. Han’s request in #57 was misread: one tap in the build ring builds (no “tap again”), a hold previews the range and stats without building, and the gold ↑ tags on towers are gone (tap the tower, then Upgrade). Han tests the preview on his phone before merging.',
+    proof: pr(82),
+  },
+  {
     id: 'P2-02',
     title: 'Air waves and unspent gold',
     owner: 'Team',
@@ -200,6 +209,14 @@ const items: ProgressItem[] = [
     section: 'playtest2',
     note: 'Client. The part of Task 4 that PR #70 left out: a flare, blink, kick and sound on every cast, one exact kill count per ultimate, the R pulse and Combo! ring, a Screen shake setting (Off, Normal, Strong), Iron Vow heal on every hero and teammate chip, and kills per ultimate and combos per pair on the end screen (protocol 18). The P2-05 retest waited for it. Built by Claude Code.',
     proof: pr(73),
+  },
+  {
+    id: 'P2-04c',
+    title: 'Meteors you can see falling',
+    owner: 'Team',
+    status: 'todo',
+    section: 'playtest2',
+    note: 'Client. Meteor, Meteor Rain and Shockwave drop visible meteors about half a second before each pulse onto the creeps it will strike, over a red warning circle, with a red wash and sky meteors at the cast, a bigger finale and a falling whistle. Same kills and timing. Waiting on Han trying the preview on his phone. Built by Claude Code.',
   },
   {
     id: 'P2-05',

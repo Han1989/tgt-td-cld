@@ -25,7 +25,7 @@ interface Hook {
     surgeLane: number | null;
     heroes: { owner: string; x: number; y: number; mana: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
     creeps: { x: number; y: number; kind: string }[];
-    towers: { id: number; padId: number; owner: string; tier: number; branch: string | null; priority: string; x: number; y: number; hp: number; maxHp: number }[];
+    towers: { id: number; padId: number; owner: string; kind: string; tier: number; branch: string | null; priority: string; x: number; y: number; hp: number; maxHp: number }[];
     pads: { id: number; owner: string | null }[];
     players: { id: string; gold: number }[];
   } | undefined;
@@ -41,6 +41,20 @@ interface Hook {
   art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };
   /** The Iron Vow rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
   vow(): { rings: number; reach: number; alpha: number };
+  /** Falling meteors (fx/meteorShow.ts): launched, landed on a strike, strikes with none, render ticks of the firsts. */
+  meteors(): {
+    launched: number;
+    landed: number;
+    seenBeforeImpact: number;
+    fast: number;
+    lost: number;
+    falling: number;
+    mostFalling: number;
+    firstLaunchTick: number;
+    firstStrikeTick: number;
+    firstLandTick: number;
+    seenBeforeFirstStrike: boolean;
+  };
   /** Sound (docs/ART.md §13): the context's state, the music scene, notes queued, effects played / skipped. */
   audio(): {
     state: string;
@@ -72,7 +86,7 @@ interface Hook {
     map: Box;
     controls: { top: number; rects: Box[] } | null;
   };
-  map: { width: number; height: number; pads: { id: number; x: number; y: number; zone: string }[] };
+  map: { width: number; height: number; padSize: number; pads: { id: number; x: number; y: number; zone: string }[] };
   camera: {
     zoom: number;
     centerOn(x: number, y: number): void;

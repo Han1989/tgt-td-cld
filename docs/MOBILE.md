@@ -78,8 +78,8 @@
 | Press and drag a skill | Manual aim, with range and area shown. Release to cast; drag back onto the button to cancel. |
 | Nothing in range | The button shakes and no mana is spent. |
 | Read a skill | **Hold** a skill button, or tap **Skills**, to open a card with every skill's name and description. A short tap still casts. |
-| Build | Tap a pad in **your zone** to open the radial build menu (5 towers with costs, greyed out if unaffordable). The first tap on a tower previews its range; the second tap builds it. Building stays two taps: a pad is easy to hit while walking, and the first tap is the range check. |
-| Tower actions | Your tower shows a gold **↑ cost** tag. **One tap on the tag upgrades it.** Tap the tower body to open a **radial ring:** **Upgrade** (one tap, with cost), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A chip above the ring shows what the next tier adds, e.g. "Dmg 24→36". At tier 3 the tag says **Spec** and opens the ring: **two branch buttons**, each named with its cost, and the chip says what both do. **One tap buys** the branch. |
+| Build | Tap a pad in **your zone** to open the radial build menu (5 towers with costs, greyed out if unaffordable). **One tap on a tower builds it.** Hold a tower button (about 0.3 s) to preview: its range shows on the pad and its name and stats in the chip; lifting after a hold does not build. The chip reads "Tap to build · hold to preview" until a button is held. |
+| Tower actions | Nothing is drawn on your tower until you tap it. Tap it to open a **radial ring:** **Upgrade** (one tap, with cost; the ring stays open, so the next tier is one more tap), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A chip above the ring shows what the next tier adds, e.g. "Dmg 24→36". At tier 3 the ring shows **two branch buttons** where Upgrade was, each named with its cost, and the chip says what both do. **One tap buys** the branch. |
 | Target enemy | Tap an enemy to set the focus target. |
 | Close menus | Tap anywhere else. **The joystick keeps working while a menu or ring is open.** |
 

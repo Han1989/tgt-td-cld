@@ -31,6 +31,7 @@ import {
   branchChoices,
   branchOfferChip,
   buildCost,
+  buildPreviewChip,
   nextPriority,
   towerName,
   upgradeChip,
@@ -47,6 +48,7 @@ import type { UiState } from '../uiState';
 import {
   aimPoint,
   arrowTo,
+  buildPress,
   holdProgress,
   inOverlay,
   isCancelRelease,
@@ -61,7 +63,6 @@ import {
   stickKnobOffset,
   stickMoveTarget,
   stickVector,
-  upgradeTagRect,
   type StickFeel,
   type StickFeelName,
   type Candidate,
@@ -131,10 +132,6 @@ export class TouchControls {
   private readonly skills = new Map<SkillSlot, SkillEl>();
   private readonly skillInfo: HTMLButtonElement;
   private readonly sheet: HTMLElement;
-  private readonly tags: HTMLElement;
-  private readonly tagButtons = new Map<number, HTMLButtonElement>();
-  /** Upgrade tags that a precise tap (not the browser's touch slop) can hit. */
-  private tagHits: { id: number; left: number; top: number; width: number; height: number; button: HTMLButtonElement }[] = [];
 
   /** The joystick finger and its knob offset. */
   private stick: { id: number; vec: StickVec } | null = null;
@@ -151,6 +148,8 @@ export class TouchControls {
   private repairBtn: HTMLButtonElement | null = null;
   /** Hold-to-sell in progress. */
   private sellHold: { id: number; start: number; towerId: number; button: HTMLElement } | null = null;
+  /** A finger on a build button: a quick tap builds; held, it previews the tower and lifting does not build. */
+  private buildHold: { id: number; start: number; startPt: Pt; drag: boolean; padId: number; kind: TowerKind; button: HTMLElement } | null = null;
 
   private menu: Menu = null;
   private menuKey = '';
@@ -190,8 +189,6 @@ export class TouchControls {
     this.sheet.setAttribute('role', 'dialog');
     this.sheet.setAttribute('aria-label', 'Skills');
     this.sheet.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.tags = div('upgrade-tags', hud);
-    this.tags.id = 'upgrade-tags';
     this.radial = div('radial hidden', hud);
     this.radial.id = 'radial';
     this.chip = div('radial-chip hidden', hud);
@@ -231,11 +228,9 @@ export class TouchControls {
     this.overlay.classList.toggle('hidden', !c);
     if (!c) {
       this.releaseStick(false);
-      this.tags.classList.add('hidden');
       this.closeSkillSheet();
       return;
     }
-    this.tags.classList.remove('hidden');
     const put = (el: HTMLElement, x: number, y: number, size: number) => {
       el.style.left = `${Math.round(x - size / 2)}px`;
       el.style.top = `${Math.round(y - size / 2)}px`;
@@ -287,9 +282,9 @@ export class TouchControls {
     if (this.active && hero) this.updateSkills(hero, snap!.tickRate);
     this.driveStick(hero, now);
     this.updateHold(now);
+    this.updateBuildHold(now);
     this.updatePing(now);
     this.updateSkillInfo(now);
-    this.updateUpgradeTags(snap);
     this.updateMenu(snap);
   }
 
@@ -658,104 +653,10 @@ export class TouchControls {
     this.sheet.innerHTML = '';
   }
 
-  /**
-   * One-tap upgrade tags on your towers. The tag shows the cost (the affordance) and one tap
-   * buys the next tier. The tower body still opens the ring, for priority and sell.
-   */
-  private updateUpgradeTags(snap: Snapshot | undefined): void {
-    this.tagHits = [];
-    if (!this.active || !snap) {
-      this.tags.innerHTML = '';
-      this.tagButtons.clear();
-      return;
-    }
-    const me = this.actions.me();
-    const gold = snap.players.find((p) => p.id === me)?.gold ?? 0;
-    const map = getMap();
-    const half = (map.padSize / 2) * this.camera.zoom * TILE_PX;
-    const seen = new Set<number>();
-    const controls = this.layout?.controls;
-    for (const tower of snap.towers) {
-      if (tower.owner !== me) continue;
-      const next = upgradeCost(tower.kind, tower.tier);
-      const choices = branchChoices(tower.kind, tower.tier, tower.branch);
-      if (next === null && choices.length === 0) continue;
-      seen.add(tower.id);
-      let btn = this.tagButtons.get(tower.id);
-      if (!btn) {
-        btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'upgrade-tag';
-        this.tags.appendChild(btn);
-        this.tagButtons.set(tower.id, btn);
-      }
-      const label = choices.length > 0 ? 'Spec' : `↑ ${next}`;
-      const aria =
-        choices.length > 0
-          ? `${TOWER_NAMES[tower.kind]}: choose a specialisation`
-          : `Upgrade ${TOWER_NAMES[tower.kind]} for ${next} gold`;
-      if (btn.textContent !== label) btn.textContent = label;
-      if (btn.getAttribute('aria-label') !== aria) btn.setAttribute('aria-label', aria);
-      btn.classList.toggle('poor', next !== null && gold < next);
-      btn.classList.toggle('spec', choices.length > 0);
-      const at = this.toScreen(tower.x, tower.y);
-      const box = upgradeTagRect(at, half);
-      btn.style.left = `${Math.round(box.left)}px`;
-      btn.style.top = `${Math.round(box.top)}px`;
-      btn.style.width = `${Math.round(box.width)}px`;
-      btn.style.height = `${Math.round(box.height)}px`;
-      const covered =
-        !!controls &&
-        controls.rects.some((r) => box.left < r.right && r.left < box.left + box.width && box.top < r.bottom && r.top < box.top + box.height);
-      btn.classList.toggle('hidden', covered);
-      if (!covered) this.tagHits.push({ id: tower.id, ...box, button: btn });
-    }
-    for (const [id, btn] of this.tagButtons) {
-      if (seen.has(id)) continue;
-      btn.remove();
-      this.tagButtons.delete(id);
-    }
-  }
-
-  /** True when `p` is inside an upgrade tag. That tap buys, and does not also select the tower. */
-  private hitUpgradeTag(p: Pt): boolean {
-    for (let i = this.tagHits.length - 1; i >= 0; i--) {
-      const t = this.tagHits[i]!;
-      if (p.x < t.left || p.x > t.left + t.width || p.y < t.top || p.y > t.top + t.height) continue;
-      this.tapUpgradeTag(t.id, t.button);
-      return true;
-    }
-    return false;
-  }
-
-  /** One tap on the tag: buy the next tier, or open the specialisation choice. */
-  private tapUpgradeTag(towerId: number, button: HTMLButtonElement): void {
-    const snap = this.actions.latest();
-    const tower = snap?.towers.find((t) => t.id === towerId);
-    if (!snap || !tower || tower.owner !== this.actions.me()) return;
-    const choices = branchChoices(tower.kind, tower.tier, tower.branch);
-    if (choices.length > 0) {
-      this.openTower(tower.id);
-      return;
-    }
-    const next = upgradeCost(tower.kind, tower.tier);
-    if (next === null) return;
-    const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
-    if (gold < next) {
-      this.shake(button);
-      this.actions.toast('Not enough gold');
-      this.openTower(tower.id);
-      return;
-    }
-    this.actions.send({ type: 'upgrade', towerId: tower.id });
-  }
-
   /** A tap selects: your pad → build menu, your tower → ring, an enemy → focus target. It never moves the hero. */
   tap(p: Pt): void {
     const c = this.layout?.controls;
     if (c && inOverlay(p, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
-    // The gold tag is hit by its own box, not by the browser snapping a nearby touch onto a button.
-    if (this.hitUpgradeTag(p)) return;
     if (!this.sheet.classList.contains('hidden')) {
       this.closeSkillSheet();
       return;
@@ -874,7 +775,7 @@ export class TouchControls {
   // Radial menus
   // -------------------------------------------------------------------------
 
-  /** Radial build menu around a pad: the 5 towers with costs. First tap previews, second builds. */
+  /** Radial build menu around a pad: the 5 towers with costs. A tap builds; a hold previews the range. */
   openBuild(padId: number): void {
     this.closeMenus();
     this.ui.selectedPadId = padId;
@@ -894,6 +795,7 @@ export class TouchControls {
     this.ui.preview = null;
     this.sellHold = null;
     this.repairBtn = null;
+    this.buildHold = null;
     this.radial.classList.add('hidden');
     this.radial.innerHTML = '';
     this.chip.classList.add('hidden');
@@ -921,13 +823,19 @@ export class TouchControls {
       if (padStatus(snap, this.actions.me(), m.padId).kind !== 'mine') return this.actions.clearSelection();
       anchor = pad;
       extent = BUILD_RING_R + BUILD_BTN / 2;
-      const key = `b:${m.padId}:${this.ui.preview?.tower ?? ''}:${TOWER_KINDS.map((k) => gold >= buildCost(k)).join()}`;
+      // Rendered once per pad: a re-render under a held finger would drop its press.
+      const key = `b:${m.padId}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
-        this.renderBuild(m.padId, gold);
+        this.renderBuild(m.padId);
+      }
+      for (const b of this.radial.querySelectorAll<HTMLElement>('.radial-btn[data-tower]')) {
+        const kind = b.dataset.tower as TowerKind;
+        b.classList.toggle('poor', gold < buildCost(kind));
+        b.classList.toggle('previewing', this.ui.preview?.padId === m.padId && this.ui.preview.tower === kind);
       }
       const preview = this.ui.preview?.tower;
-      chip = preview ? `${TOWER_NAMES[preview]}: tap again to build` : 'Build a tower';
+      chip = preview ? buildPreviewChip(preview, TOWER_NAMES, TUNING, towerRangeScale(snap.modifiers, TUNING)) : 'Tap to build · hold to preview';
     } else {
       const tower = snap.towers.find((t) => t.id === m.towerId);
       if (!tower || tower.owner !== this.actions.me() || this.ui.selectedTowerId !== m.towerId) return this.actions.clearSelection();
@@ -969,29 +877,52 @@ export class TouchControls {
     this.chip.style.top = `${Math.round(at.y - extent - chipH / 2 - 2)}px`;
   }
 
-  private renderBuild(padId: number, gold: number): void {
+  private renderBuild(padId: number): void {
     this.radial.innerHTML = '';
     this.radial.dataset.menu = 'build';
     const spots = radialSpots(TOWER_KINDS.length, BUILD_RING_R);
     TOWER_KINDS.forEach((kind, i) => {
       const cost = buildCost(kind);
-      const armed = this.ui.preview?.padId === padId && this.ui.preview.tower === kind;
       const b = this.ringButton(spots[i]!, BUILD_BTN, `${ico(towerIcon(kind))}<span class="cap">${TOWER_NAMES[kind]}</span><span class="cost">${cost}</span>`);
       b.dataset.tower = kind;
-      b.classList.toggle('poor', gold < cost);
-      b.classList.toggle('armed', armed);
-      this.onRadialTap(b, () => this.pickTower(padId, kind, b));
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.buildHold) return;
+        b.setPointerCapture?.(e.pointerId);
+        this.buildHold = { id: e.pointerId, start: performance.now(), startPt: { x: e.clientX, y: e.clientY }, drag: false, padId, kind, button: b };
+      });
+      b.addEventListener('pointermove', (e) => {
+        const h = this.buildHold;
+        if (h && h.id === e.pointerId) h.drag = isDrag(h.startPt, { x: e.clientX, y: e.clientY }, h.drag);
+      });
+      b.addEventListener('pointerup', (e) => this.endBuildPress(e, true));
+      b.addEventListener('pointercancel', (e) => this.endBuildPress(e, false));
+      // After a pointerup this is a no-op; without one (the browser dropped the press) it ends the preview.
+      b.addEventListener('lostpointercapture', (e) => this.endBuildPress(e, false));
     });
   }
 
-  private pickTower(padId: number, kind: TowerKind, button: HTMLElement): void {
-    const armed = this.ui.preview?.padId === padId && this.ui.preview.tower === kind;
-    if (!armed) {
-      // First tap: preview the tower's range on the pad.
-      this.ui.preview = { padId, tower: kind };
-      this.menuKey = '';
-      return;
-    }
+  /** While a build button is held long enough, the pad shows that tower's range and the chip its stats. */
+  private updateBuildHold(now: number): void {
+    const h = this.buildHold;
+    if (!h) return;
+    if (!buildPress(now - h.start, h.drag).preview) return;
+    if (this.ui.preview?.padId !== h.padId || this.ui.preview.tower !== h.kind) this.ui.preview = { padId: h.padId, tower: h.kind };
+  }
+
+  /** Lifting a quick tap builds. Lifting after a hold (or a drag) only ends the preview. */
+  private endBuildPress(e: PointerEvent, lifted: boolean): void {
+    const h = this.buildHold;
+    if (!h || h.id !== e.pointerId) return;
+    this.buildHold = null;
+    this.ui.preview = null;
+    const drag = isDrag(h.startPt, { x: e.clientX, y: e.clientY }, h.drag);
+    if (lifted && buildPress(performance.now() - h.start, drag).build) this.buildTower(h.padId, h.kind, h.button);
+  }
+
+  /** One tap builds. Not enough gold: the button shakes and nothing is spent. */
+  private buildTower(padId: number, kind: TowerKind, button: HTMLElement): void {
     const gold = this.actions.latest()?.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
     if (gold < buildCost(kind)) {
       this.shake(button);
