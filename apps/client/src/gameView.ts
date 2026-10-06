@@ -223,6 +223,7 @@ export class GameView {
     settings.onChange(applySound);
     renderer.onTowerShot = (t) => audio.game.towerShot(t, performance.now());
     renderer.onMeleeImpact = (heroId, x, y) => audio.game.meleeHit(heroId, x, y, performance.now());
+    renderer.onMeteorFall = (kind, finale) => audio.game.meteorFall(kind, finale, performance.now());
     hud.onToast = (text) => audio.game.notice(text, performance.now());
     const stage = new CoopStage();
     hud.onGift = (accent) => stage.edge(accent, toCss(FX.gold));
@@ -425,7 +426,7 @@ export class GameView {
       const events = buffer.drainEvents(now);
       view.feedLesson(latest, events, now);
       view.feedTeach(latest, events);
-      renderer.playEvents(events, latest, view.me, now);
+      renderer.playEvents(events, latest, view.me, now, frame.from.tick + (frame.to.tick - frame.from.tick) * frame.alpha);
       for (const e of events) {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
@@ -553,6 +554,7 @@ export class GameView {
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
         vow: () => renderer.vowStats(),
+        meteors: () => renderer.meteorStats(),
         audio: () => ({
           state: audio.engine.state,
           scene: audio.music.scene,

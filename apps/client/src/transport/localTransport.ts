@@ -18,7 +18,7 @@ export class LocalTransport implements Transport {
     };
     if (import.meta.env.MODE === 'e2e') {
       const q = new URLSearchParams(location.search);
-      if (q.has('lab')) this.worker.postMessage({ ctl: 'lab', auras: q.has('auras') });
+      if (q.has('lab')) this.worker.postMessage({ ctl: 'lab', auras: q.has('auras'), ult: q.has('ult') });
     }
   }
 

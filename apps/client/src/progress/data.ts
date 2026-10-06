@@ -211,6 +211,14 @@ const items: ProgressItem[] = [
     proof: pr(73),
   },
   {
+    id: 'P2-04c',
+    title: 'Meteors you can see falling',
+    owner: 'Team',
+    status: 'todo',
+    section: 'playtest2',
+    note: 'Client. Meteor, Meteor Rain and Shockwave drop visible meteors about half a second before each pulse onto the creeps it will strike, over a red warning circle, with a red wash and sky meteors at the cast, a bigger finale and a falling whistle. Same kills and timing. Waiting on Han trying the preview on his phone. Built by Claude Code.',
+  },
+  {
     id: 'P2-05',
     title: 'Retest',
     owner: 'Han',
