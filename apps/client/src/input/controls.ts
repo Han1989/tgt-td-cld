@@ -250,6 +250,7 @@ export class Controls {
     const snap = this.actions.latest();
     const tower = snap?.towers.find((t) => t.id === towerId);
     if (!snap || !tower || tower.owner !== this.actions.me()) return;
+    if (tower.repairLeft > 0) return this.actions.toast('Tower is being repaired');
     const cost = repairCost(tuningForMode(TUNING, snap.mode), tower);
     if (cost === 0) return this.actions.toast('Tower is at full HP');
     const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;

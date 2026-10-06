@@ -1,5 +1,5 @@
 import { TOWER_KINDS } from '@tdt/protocol';
-import { TUNING } from '@tdt/sim';
+import { secondsToTicks, TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import {
   BRANCH_NAMES,
@@ -10,6 +10,7 @@ import {
   buildCost,
   maxTier,
   nextPriority,
+  repairProgress,
   targetsText,
   towerName,
   towerStatRows,
@@ -98,5 +99,15 @@ describe('tower ring helpers', () => {
     expect(nextPriority('first')).toBe('strongest');
     expect(nextPriority('strongest')).toBe('closest');
     expect(nextPriority('closest')).toBe('first');
+  });
+});
+
+describe('repair progress', () => {
+  it('is null with no repair, and fills from 0 to 1 over repairSeconds', () => {
+    const total = secondsToTicks(TUNING.economy.repairSeconds);
+    expect(repairProgress(0)).toBeNull();
+    expect(repairProgress(total)).toBe(0);
+    expect(repairProgress(total / 2)).toBeCloseTo(0.5);
+    expect(repairProgress(1)).toBeCloseTo(1 - 1 / total);
   });
 });

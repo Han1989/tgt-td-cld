@@ -594,6 +594,7 @@ describe('game audio', () => {
       { type: 'towerUpgraded', towerId: snap.towers[0]!.id, owner: 'me', tier: 2, branch: null },
       { type: 'towerUpgraded', towerId: snap.towers[0]!.id, owner: 'me', tier: 4, branch: 'sniper' },
       { type: 'towerSold', towerId: snap.towers[1]!.id, owner: 'mate', refund: 10 },
+      { type: 'towerRepairStarted', towerId: snap.towers[0]!.id, owner: 'me', cost: 12 },
       { type: 'towerRepaired', towerId: snap.towers[0]!.id, owner: 'me', hp: 300 },
       { type: 'kill', creepId: 5, kind: 'grunt', x: 10, y: 10, by: 'me', bounty: 3 },
       { type: 'gameOver', result: 'victory' },

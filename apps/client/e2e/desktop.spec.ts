@@ -154,7 +154,7 @@ test('desktop tower panel: at tier 3 it offers the two specialisations; clicking
   await expect(page.locator('#tower-panel')).toContainText('Max tier');
 });
 
-test('desktop tower panel: Repair shows only while damaged; F and the button repair it for the price shown', async ({ page }) => {
+test('desktop tower panel: Repair shows only while damaged; F and the button pay the price shown and repair it', async ({ page }) => {
   await startSolo(page);
   const padId = await page.evaluate(() => window.__tdt.latest()!.pads[1]!.id);
   const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
@@ -176,8 +176,10 @@ test('desktop tower panel: Repair shows only while damaged; F and the button rep
   let shown = Number(await repair.locator('.cost').textContent());
   let before = await gold();
   await page.keyboard.press('f');
-  await expect.poll(() => tower().then((t) => t && t.hp === t.maxHp)).toBe(true);
-  expect(await gold()).toBe(before - shown);
+  await expect.poll(gold).toBe(before - shown);
+  await expect(page.locator('#tower-panel')).toContainText('Repairing');
+  await expect(repair).toHaveCount(0);
+  await expect.poll(() => tower().then((t) => t && t.hp === t.maxHp && t.repairLeft === 0), { timeout: 15_000 }).toBe(true);
   await expect(repair).toHaveCount(0);
 
   // The panel button.
@@ -186,8 +188,8 @@ test('desktop tower panel: Repair shows only while damaged; F and the button rep
   shown = Number(await repair.locator('.cost').textContent());
   before = await gold();
   await repair.click();
-  await expect.poll(() => tower().then((t) => t && t.hp === t.maxHp)).toBe(true);
-  expect(await gold()).toBe(before - shown);
+  await expect.poll(gold).toBe(before - shown);
+  await expect.poll(() => tower().then((t) => t && t.hp === t.maxHp && t.repairLeft === 0), { timeout: 15_000 }).toBe(true);
   expect((await sent(page, 'repair')).length).toBe(2);
 });
 

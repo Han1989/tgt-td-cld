@@ -270,7 +270,7 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
   });
 
-  test('a damaged tower: the hint says so once, one tap on Repair brings it to full HP for the cost shown', async ({ page }) => {
+  test('a damaged tower: the hint says so once, one tap on Repair pays the cost shown and brings it to full HP', async ({ page }) => {
     await startSolo(page);
     const [padId] = await myPadsBottomFirst(page);
     await tapPad(page, padId!);
@@ -301,10 +301,13 @@ test.describe('portrait phone layout', () => {
     expect(shown).toBeGreaterThan(0);
     await repair.tap();
     await expect.poll(() => sent(page, 'repair')).toEqual([{ type: 'repair', towerId: expect.any(Number) }]);
-    await expect.poll(async () => { const t = await tower(); return t && t.hp === t.maxHp; }).toBe(true);
-    expect(await page.evaluate(() => window.__tdt.latest()!.players[0]!.gold)).toBe(gold - shown);
-    // Full again: the button goes, the ring stays.
+    // Paid at once; the repair runs 3 s (the button goes, the tower shows its progress and does not shoot).
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.players[0]!.gold)).toBe(gold - shown);
+    await expect.poll(async () => (await tower())?.repairLeft ?? 0).toBeGreaterThan(0);
     await expect(repair).toHaveCount(0);
+    await expect.poll(async () => { const t = await tower(); return t && t.hp === t.maxHp && t.repairLeft === 0; }, { timeout: 15_000 }).toBe(true);
+    // Full again: no Repair button, the ring stays.
+    await expect(page.locator('.radial-btn[data-action="repair"]')).toHaveCount(0);
     await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeVisible();
 
     // The line was once (remembered in the settings): damaged again, it does not come back.

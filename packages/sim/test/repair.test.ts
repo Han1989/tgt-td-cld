@@ -84,7 +84,7 @@ describe('repair command', () => {
     tower.hp = 100;
     applyCommand(state, 'p1', { type: 'repair', towerId: tower.id });
     const creep = placeCreep(state, 'brute', tower.x + 1.5, tower.y);
-    creep.speed = 0;
+    creep.stunUntil = 1_000_000;
     const full = creep.hp;
     run(state, REPAIR_TICKS - 1);
     expect(creep.hp).toBe(full);
