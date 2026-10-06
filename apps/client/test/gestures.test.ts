@@ -5,12 +5,14 @@ import {
   arrowTo,
   buildPress,
   BUILD_PREVIEW_MS,
+  CHIP_GAP,
   holdProgress,
   inOverlay,
   isCancelRelease,
   isDrag,
   mapPing,
   PING_HOLD_MS,
+  placeChip,
   placeRadial,
   radialSpots,
   resolveTap,
@@ -262,6 +264,29 @@ describe('radial menus', () => {
     const p = placeRadial({ x: 206, y: 640 }, 100, 30, bounds);
     expect(p.y + 100).toBeLessThanOrEqual(690);
     expect(p.x).toBe(206);
+  });
+
+  it('puts the chip above the ring, centred and clamped by its real width', () => {
+    const size = { w: 300, h: 70 };
+    const mid = placeChip({ x: 206, top: 300, bottom: 460 }, size, bounds);
+    expect(mid).toEqual({ x: 206 - 150, y: 300 - CHIP_GAP - 70 });
+    // A ring at the right edge: the whole chip stays on screen, still above the ring.
+    const right = placeChip({ x: 380, top: 300, bottom: 460 }, size, bounds);
+    expect(right.x + size.w).toBe(412 - CHIP_GAP);
+    expect(right.y + size.h).toBeLessThanOrEqual(300);
+    const left = placeChip({ x: 20, top: 300, bottom: 460 }, size, bounds);
+    expect(left.x).toBe(CHIP_GAP);
+  });
+
+  it('puts the chip below the ring when there is no room above, never over the ring or the controls', () => {
+    const size = { w: 300, h: 70 };
+    const top = placeChip({ x: 206, top: 60, bottom: 250 }, size, bounds);
+    expect(top.y).toBe(250 + CHIP_GAP);
+    expect(top.y + size.h).toBeLessThanOrEqual(690);
+    // No room above, and below would cover the controls: it still never covers the ring.
+    const short = { ...bounds, bottom: 400, avoid: [{ left: 0, top: 300, right: 412, bottom: 400 }] };
+    const squeezed = placeChip({ x: 206, top: 60, bottom: 250 }, size, short);
+    expect(squeezed.y).toBeGreaterThanOrEqual(250);
   });
 
   it('spreads buttons evenly, the first at the top', () => {
