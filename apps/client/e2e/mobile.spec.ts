@@ -95,6 +95,32 @@ async function myPadsBottomFirst(page: Page): Promise<number[]> {
   });
 }
 
+/** The radial chip's box and every ring button's box (px), as drawn now. */
+async function chipAndRing(page: Page): Promise<{ chip: Box; buttons: Box[] }> {
+  return page.evaluate(() => {
+    const rect = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    };
+    return { chip: rect(document.getElementById('radial-chip')!), buttons: [...document.querySelectorAll('#radial .radial-btn')].map(rect) };
+  });
+}
+
+/** Waits until the chip sits inside the screen, clear of every ring button (it is placed every frame). */
+async function expectChipClear(page: Page, what: string): Promise<void> {
+  const vp = page.viewportSize()!;
+  await expect
+    .poll(async () => {
+      const { chip, buttons } = await chipAndRing(page);
+      const problems: string[] = [];
+      if (chip.left < 0 || chip.right > vp.width || chip.top < 0 || chip.bottom > vp.height) problems.push(`off screen ${JSON.stringify(chip)}`);
+      if (chip.bottom - chip.top > 100) problems.push(`too tall (${Math.round(chip.bottom - chip.top)} px)`);
+      buttons.forEach((b, i) => overlaps(chip, b) && problems.push(`covers button ${i}`));
+      return problems;
+    }, { message: `${what}: the chip is on screen and covers no ring button` })
+    .toEqual([]);
+}
+
 test.describe('portrait phone layout', () => {
   test('the HUD and the controls stay inside the viewport and never overlap each other or the gameplay', async ({ page }) => {
     await startSolo(page);
@@ -487,6 +513,76 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeDisabled();
     await expect(page.locator('#radial-chip')).toContainText('Sniper');
   });
+
+  // Han's phone: a tier-3 Cannon in the right-hand column, Full match. Its chip wrapped into a tall column over the
+  // specialisation buttons. One match per position, so each has its own time budget and lab gold.
+  const CHIP_CASES = [
+    { name: 'right column', where: 'rightMid', pick: 0 },
+    { name: 'right column, lower', where: 'rightLow', pick: 1 },
+    { name: 'left column', where: 'left', pick: 0 },
+    { name: 'top row (top-right corner)', where: 'top', pick: 1, below: true },
+  ] as const;
+  for (const c of CHIP_CASES) {
+    test(`the ring chip never covers a ring button, ${c.name}: build, preview, tier 3, and each specialisation buys`, async ({ page }) => {
+      await startSolo(page, '?lab', 'full');
+      const finger = await Finger.on(page);
+      const padId = await page.evaluate((where) => {
+        const snap = window.__tdt.latest()!;
+        const mine = snap.pads.filter((p) => p.owner === window.__tdt.me() || p.owner === null).map((p) => window.__tdt.map.pads[p.id]!);
+        const xs = mine.map((p) => p.x);
+        const column = (x: number) => mine.filter((p) => p.x === x).sort((a, b) => a.y - b.y);
+        const right = column(Math.max(...xs));
+        const mid = Math.floor(right.length / 2);
+        if (where === 'rightMid') return right[mid]!.id;
+        if (where === 'rightLow') return right[mid + 1]!.id;
+        if (where === 'left') return column(Math.min(...xs))[mid]!.id;
+        // The top row on screen (a shorter phone follows the hero, so the map's own top row may be above the
+        // screen), rightmost: no room above the ring and the least room to the right.
+        const half = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom;
+        const top = window.__tdt.layout().topBarBottom;
+        const onScreen = mine.filter((p) => window.__tdt.camera.worldToScreen(p.x * 32, p.y * 32).y - half >= top);
+        const topY = Math.min(...onScreen.map((p) => p.y));
+        return onScreen.filter((p) => p.y === topY).sort((a, b) => b.x - a.x)[0]!.id;
+      }, c.where);
+      const tower = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), padId);
+
+      // The build ring's chip, then the hold-to-preview chip (longer: the tower's stats).
+      await tapPad(page, padId);
+      await expect(page.locator('#radial-chip')).toHaveText('Tap to build · hold to preview');
+      await expectChipClear(page, 'build ring');
+      const cannon = centre(await box(page, '.radial-btn[data-tower="cannon"]'));
+      await finger.down(cannon.x, cannon.y);
+      await expect(page.locator('.radial-btn[data-tower="cannon"]')).toHaveClass(/previewing/);
+      await expect(page.locator('#radial-chip')).toContainText('Rng');
+      await expectChipClear(page, 'build preview');
+      await finger.up();
+      await expect(page.locator('#radial-chip')).toHaveText('Tap to build · hold to preview');
+
+      // Build and upgrade to tier 3: the ring stays open between upgrades.
+      await page.locator('.radial-btn[data-tower="cannon"]').tap();
+      await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+      await tapPad(page, padId);
+      await expectChipClear(page, 'tower ring, tier 1');
+      for (const t of [2, 3]) {
+        await page.locator('.radial-btn[data-action="upgrade"]').tap();
+        await expect.poll(() => tower().then((x) => x?.tier)).toBe(t);
+      }
+
+      // Tier 3: the specialisation offer is the longest chip. It must leave both buttons clear and tappable.
+      const branches = page.locator('.radial-btn[data-action="branch"]');
+      await expect(branches).toHaveCount(2);
+      await expectChipClear(page, 'tier 3');
+      if ('below' in c) {
+        // No room above the ring: the chip sits under its bottom buttons.
+        const { chip, buttons } = await chipAndRing(page);
+        expect(chip.top).toBeGreaterThanOrEqual(Math.max(...buttons.map((b) => b.bottom)));
+      }
+      const choice = (await branches.nth(c.pick).getAttribute('data-branch'))!;
+      await branches.nth(c.pick).tap();
+      await expect.poll(() => tower().then((t) => t?.branch)).toBe(choice);
+      await expectChipClear(page, 'tier 4');
+    });
+  }
 
   test('touch only, solo Quick match: smart cast, nothing in range, drag to aim, and cancel', async ({ page }) => {
     await startSolo(page);

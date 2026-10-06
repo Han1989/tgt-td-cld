@@ -54,6 +54,7 @@ import {
   isCancelRelease,
   isDrag,
   mapPing,
+  placeChip,
   placeRadial,
   radialSpots,
   resolveTap,
@@ -78,9 +79,6 @@ const TOWER_RING_R = 64;
 const TOWER_BTN = 60;
 /** A damaged tower's Repair button sits below the ring, a little further out so it clears Target and Sell. */
 const REPAIR_SPOT = { x: 0, y: Math.round(TOWER_RING_R * 1.1) };
-/** Height reserved above a ring for its info chip (px). A branch choice wraps, so it is taller. */
-const CHIP_H = 30;
-const BRANCH_CHIP_H = 58;
 /** Hold a skill button this long (ms), without dragging, to open its description. A short tap still casts. */
 const SKILL_INFO_MS = 380;
 const SLOTS = ['Q', 'W', 'E', 'R'] as const;
@@ -799,7 +797,6 @@ export class TouchControls {
     this.radial.classList.add('hidden');
     this.radial.innerHTML = '';
     this.chip.classList.add('hidden');
-    this.chip.classList.remove('wrap');
     this.closePicker();
   }
 
@@ -816,7 +813,6 @@ export class TouchControls {
     let anchor: { x: number; y: number };
     let extent: number;
     let chip = '';
-    let chipH = CHIP_H;
     if (m.type === 'build') {
       const pad = map.pads[m.padId];
       if (!pad || this.ui.selectedPadId !== m.padId || snap.towers.some((t) => t.padId === m.padId)) return this.actions.clearSelection();
@@ -857,24 +853,36 @@ export class TouchControls {
         this.repairBtn.classList.toggle('poor', gold < repair);
         this.repairBtn.setAttribute('aria-label', `Repair ${TOWER_NAMES[tower.kind]} for ${repair} gold`);
       }
-      if (choices.length > 0) {
-        chip = branchOfferChip(choices);
-        chipH = BRANCH_CHIP_H;
-      } else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
+      if (choices.length > 0) chip = branchOfferChip(choices);
+      else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
       else
         chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier, TUNING, 2, towerRangeScale(snap.modifiers, TUNING)) || 'max tier'}`;
     }
-    const at = placeRadial(this.toScreen(anchor.x, anchor.y), extent, chipH, this.bounds());
+    // The ring stays around its pad or tower; the chip goes above it, or below it when there is no room above.
+    const bounds = this.bounds();
+    const at = placeRadial(this.toScreen(anchor.x, anchor.y), extent, 0, bounds);
     this.radial.style.left = `${Math.round(at.x)}px`;
     this.radial.style.top = `${Math.round(at.y)}px`;
     this.radial.classList.remove('hidden');
     if (this.chip.textContent !== chip) this.chip.textContent = chip;
-    this.chip.classList.toggle('wrap', chipH > CHIP_H);
     this.chip.classList.remove('hidden');
-    // Centred over the ring, but never off screen.
-    const half = this.chip.offsetWidth / 2;
-    this.chip.style.left = `${Math.round(clamp(at.x, half + 4, this.camera.viewW - half - 4))}px`;
-    this.chip.style.top = `${Math.round(at.y - extent - chipH / 2 - 2)}px`;
+    // Its size does not depend on where it sits (CSS: max-content up to the max width), so measure, then place.
+    const size = { w: this.chip.offsetWidth, h: this.chip.offsetHeight };
+    const p = placeChip({ x: at.x, ...this.ringSpan(at.y) }, size, bounds);
+    this.chip.style.left = `${Math.round(p.x)}px`;
+    this.chip.style.top = `${Math.round(p.y)}px`;
+  }
+
+  /** The top and bottom edges (px, on screen) of the open ring's buttons, its centre at `y`. */
+  private ringSpan(y: number): { top: number; bottom: number } {
+    let top = 0;
+    let bottom = 0;
+    for (const b of this.radial.children) {
+      if (!(b instanceof HTMLElement)) continue;
+      top = Math.min(top, b.offsetTop);
+      bottom = Math.max(bottom, b.offsetTop + b.offsetHeight);
+    }
+    return { top: y + top, bottom: y + bottom };
   }
 
   private renderBuild(padId: number): void {

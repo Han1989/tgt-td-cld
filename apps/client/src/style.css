@@ -3384,7 +3384,10 @@ body.layout-wide #emote-feed {
 .radial-chip {
   position: absolute;
   z-index: 3;
-  transform: translate(-50%, -50%);
+  /* As wide as its text up to the max width, wherever it sits: its width never depends on its left.
+     touchControls.ts measures it and places its top-left above (or below) the ring's buttons. */
+  width: max-content;
+  max-width: min(300px, calc(100vw - 16px));
   padding: 4px 10px;
   border-radius: 12px;
   background: var(--panel);
@@ -3392,15 +3395,9 @@ body.layout-wide #emote-feed {
   box-shadow: var(--panel-shadow);
   font-size: 13px;
   font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.radial-chip.wrap {
-  white-space: normal;
-  max-width: min(300px, calc(100vw - 16px));
-  text-align: center;
   line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
 }
 
 .picker {

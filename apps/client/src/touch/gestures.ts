@@ -307,6 +307,34 @@ export function placeRadial(anchor: Pt, extent: number, chipH: number, b: Radial
   return { x, y: Math.max(y, b.top + extent + chipH) };
 }
 
+/** A radial menu's buttons on screen: the ring's centre x and the top and bottom edges of its buttons (px). */
+export interface RingSpan {
+  x: number;
+  top: number;
+  bottom: number;
+}
+
+/** Gap between a radial menu's info chip and its buttons, and between the chip and the screen edge (px). */
+export const CHIP_GAP = 4;
+
+/**
+ * Where a radial menu's info chip goes (its top-left, px), from its measured size: centred over the ring and
+ * clamped inside the screen by its real half-width, its bottom edge just above the ring's top buttons. When there
+ * is no room above (a top-row tower), it goes just below the ring's bottom buttons, clear of the controls. Either
+ * way it never covers a ring button; only a screen too short for both falls back to the top of the screen.
+ */
+export function placeChip(ring: RingSpan, size: { w: number; h: number }, b: RadialBounds): Pt {
+  const x = clamp(ring.x - size.w / 2, b.left + CHIP_GAP, b.right - CHIP_GAP - size.w);
+  const above = ring.top - CHIP_GAP - size.h;
+  if (above >= b.top + CHIP_GAP) return { x, y: above };
+  const below = ring.bottom + CHIP_GAP;
+  const box = { left: x, top: below, right: x + size.w, bottom: below + size.h };
+  const clear = (r: Rect) => box.right <= r.left || r.right <= box.left || box.bottom <= r.top || r.bottom <= box.top;
+  if (box.bottom <= b.bottom - CHIP_GAP && b.avoid.every(clear)) return { x, y: below };
+  // No clear room on either side: below the ring over the controls (the chip takes no touches), else at the top.
+  return box.bottom <= b.bottom ? { x, y: below } : { x, y: b.top + CHIP_GAP };
+}
+
 /** Button centres around a radial menu: `n` buttons, the first at the top, clockwise. */
 export function radialSpots(n: number, r: number, startDeg = -90): Pt[] {
   return Array.from({ length: n }, (_, i) => {
