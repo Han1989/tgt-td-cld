@@ -4109,3 +4109,9 @@ body.layout-tall .mates {
     100% { opacity: 0; }
   }
 }
+
+/* Delete my data (Settings → Your data) waits for a second tap. */
+#settings-data-delete.armed {
+  outline: 2px solid var(--bad);
+  outline-offset: -2px;
+}

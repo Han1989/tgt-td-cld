@@ -423,31 +423,14 @@ export class Hud {
       this.renderUlts(this.report?.report ?? null);
       if (!this.outcomeSent) {
         this.outcomeSent = true;
-        this.openFeedback(snap);
+        this.openFeedback();
       }
     }
   }
 
-  /**
-   * Shows the rating when a server is configured and play data is on (Settings → Play data), and reports
-   * the outcome (the client drops it when play data is off).
-   */
-  private openFeedback(snap: Snapshot): void {
-    const client = currentAnalytics();
-    this.endFeedback.classList.toggle('hidden', client === null || !analyticsOn());
-    if (!client) return;
-    try {
-      client.matchEnd({
-        result: snap.phase === 'victory' ? 'victory' : 'defeat',
-        heartHp: snap.heartHp,
-        heartMax: snap.heartMaxHp,
-        mode: snap.mode,
-        wave: snap.wave,
-        players: snap.players.length,
-      });
-    } catch {
-      // Outcome reporting is optional.
-    }
+  /** Shows the rating when a server is configured and play data is on (Settings → Play data). */
+  private openFeedback(): void {
+    this.endFeedback.classList.toggle('hidden', currentAnalytics() === null || !analyticsOn());
   }
 
   private resetFeedback(): void {
