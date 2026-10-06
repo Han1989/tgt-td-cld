@@ -27,7 +27,8 @@ export type FxFrame =
   | 'smoke'
   | 'trail'
   | 'arrow'
-  | 'leaf';
+  | 'leaf'
+  | 'rock';
 
 /** Glyph height in the atlas (px); numbers are scaled from it. */
 export const GLYPH_PX = 34;
@@ -155,6 +156,32 @@ export function createFxAtlas(): FxAtlas {
     c.lineTo(w, h - 1);
     c.closePath();
     c.fill();
+  });
+  place('rock', 28, 28, (c, w, h) => {
+    // A meteor's head: a lumpy rock in greys (tinted at use), lit from the upper left, with two pits.
+    const lumps = [1, 0.86, 0.97, 0.8, 0.93, 1, 0.84, 0.95, 0.88];
+    const r = w / 2 - 2;
+    c.beginPath();
+    lumps.forEach((k, i) => {
+      const a = (i / lumps.length) * Math.PI * 2;
+      c.lineTo(w / 2 + Math.cos(a) * r * k, h / 2 + Math.sin(a) * r * k);
+    });
+    c.closePath();
+    const g = c.createRadialGradient(w * 0.36, h * 0.34, 1, w / 2, h / 2, r);
+    g.addColorStop(0, '#fff');
+    g.addColorStop(0.55, '#a0a0a0');
+    g.addColorStop(1, '#3c3c3c');
+    c.fillStyle = g;
+    c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    for (const [px, py, pr] of [
+      [0.6, 0.58, 2.6],
+      [0.38, 0.66, 1.8],
+    ] as const) {
+      c.beginPath();
+      c.arc(w * px, h * py, pr, 0, Math.PI * 2);
+      c.fill();
+    }
   });
   place('dot', 24, 24, (c, w, h) =>
     radial(c, w, h, [

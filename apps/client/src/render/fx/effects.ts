@@ -16,7 +16,8 @@ import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
 import { flight, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
 import { Shake } from './shake';
-import { AOE_COLORS, COLORS, FX, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
+import { AOE_COLORS, COLORS, FX, METEOR_COLORS, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
+import type { MeteorKind } from './meteors';
 
 const S = TILE_PX;
 const TAU = Math.PI * 2;
@@ -147,6 +148,9 @@ class Layer {
 
 const BLANK: Bit = newBit();
 
+/** Screen shake of one meteor landing, by rain (the finale's is 1.7 times this); as the rains' old streaks had it. */
+const METEOR_SHAKE: Record<MeteorKind, number> = { meteor: 0.3, meteorRain: 0.14, shockwave: 0.3 };
+
 /** Most hit-spark bursts per frame (the rest of that frame's hits only flash). */
 const HIT_BURSTS_PER_FRAME = 10;
 
@@ -169,7 +173,7 @@ export class Effects {
 
   constructor(private readonly atlas: FxAtlas) {
     const base = atlas.frames.dot;
-    this.ground = new Layer(base, 'normal', 160);
+    this.ground = new Layer(base, 'normal', 260);
     this.normal = new Layer(base, 'normal', 700);
     this.add = new Layer(base, 'add', 900);
     this.text = new Layer(base, 'normal', 260);
@@ -1123,6 +1127,11 @@ export class Effects {
    */
   comboImpact(combo: 'stunStorm' | 'shockwave', x: number, y: number, radius: number): void {
     this.rainImpact(combo === 'stunStorm' ? 'arrowStorm' : 'meteor', x, y, radius);
+    this.comboMark(combo, x, y, radius);
+  }
+
+  /** A combo strike's own mark over its fall (`comboImpact`; a Shockwave meteor that fell in full adds it too). */
+  comboMark(combo: 'stunStorm' | 'shockwave', x: number, y: number, radius: number): void {
     const color = ZONE_COLORS[combo];
     if (combo === 'stunStorm') {
       this.ring(x, y, radius * 1.15, color, 420, 0.3);
@@ -1180,6 +1189,134 @@ export class Effects {
       tint: combo === 'meteorRain' ? [FX.emberLight, fire, FX.hot] : [FX.hot, fire, FX.goldLight],
       layer: 'add',
     });
+  }
+
+  /**
+   * A falling meteor lands on its strike (fx/meteorShow.ts): a white-hot flash and a flash in the rain's fire, a shock
+   * ring, a scorch mark that glows and fades over about 2.5 s, and the rain's screen shake (stronger on the finale).
+   * Debris, embers and smoke go at Low quality; reduced motion (`calm`) keeps the flashes and the scorch only.
+   */
+  meteorStrike(kind: MeteorKind, x: number, y: number, radius: number, finale: boolean): void {
+    const c = METEOR_COLORS[kind];
+    const k = finale ? 1.3 : 1;
+    const px = x * S;
+    const py = y * S;
+    this.flash(x, y, radius * 0.85 * k, FX.hot, 190, 0.95);
+    this.flash(x, y, radius * 1.3 * k, c.fire, 480, 0.6);
+    // The scorch: an ink burn and the fire still glowing in it, both on the ground, both essential.
+    const burn = (radius * 0.85 * k * S) / DISC_PX;
+    this.emit({ frame: 'glow', x: px, y: py, life: [2600, 2600], scale: [burn, burn], tint: FX.scorch, alpha: [0.65, 0], hold: 0.55, layer: 'ground', essential: true });
+    this.emit({ frame: 'glow', x: px, y: py, life: [1800, 1800], scale: [burn * 0.6, burn * 0.45], tint: c.fire, alpha: [0.6, 0], hold: 0.25, layer: 'ground', essential: true });
+    if (this.calm) return;
+    this.ring(x, y, radius * 1.35 * k, c.trail, 440, 0.12, 'shock');
+    this.ring(x, y, radius * k, FX.emberLight, 340, 0.3);
+    this.bump(METEOR_SHAKE[kind] * (finale ? 1.7 : 1));
+    if (!this.particles) return;
+    this.emit({
+      frame: 'square',
+      x: px,
+      y: py,
+      count: finale ? 12 : 8,
+      spread: radius * S * 0.3,
+      speed: [120, 300],
+      drag: 2.5,
+      gravity: 260,
+      life: [400, 800],
+      scale: [1.1, 0.3],
+      jitter: 0.4,
+      spin: 10,
+      tint: [FX.soot, FX.debris, c.fire],
+      hold: 0.4,
+    });
+    this.emit({
+      frame: 'dot',
+      x: px,
+      y: py,
+      count: finale ? 16 : 10,
+      spread: radius * S * 0.4,
+      speed: [80, 240],
+      drag: 2.5,
+      gravity: -40,
+      life: [320, 700],
+      scale: [1, 0.15],
+      jitter: 0.3,
+      tint: [c.core, c.fire, c.trail],
+      layer: 'add',
+    });
+    this.emit({
+      frame: 'smoke',
+      x: px,
+      y: py,
+      count: finale ? 4 : 3,
+      spread: radius * S * 0.5,
+      speed: [20, 60],
+      gravity: -30,
+      life: [700, 1200],
+      scale: [1, 2.2],
+      alpha: [0.4, 0],
+      tint: [FX.soot, FX.smoke, FX.debrisDark],
+    });
+  }
+
+  /** A falling meteor whose creep died before it landed: it lands where it was heading, with a small burst. */
+  meteorLand(kind: MeteorKind, x: number, y: number): void {
+    const c = METEOR_COLORS[kind];
+    this.flash(x, y, 0.7, c.fire, 260, 0.6);
+    this.scorch(x, y, 0.45, 1200);
+    if (!this.particles || this.calm) return;
+    this.emit({
+      frame: 'dot',
+      x: x * S,
+      y: y * S,
+      count: 5,
+      speed: [50, 140],
+      drag: 2.5,
+      gravity: -40,
+      life: [250, 450],
+      scale: [0.8, 0.1],
+      tint: [c.core, c.fire],
+      layer: 'add',
+    });
+  }
+
+  /**
+   * What a falling meteor leaves behind it this frame at (px, py) (world px): `smoke` puffs and `embers`. Neither is
+   * essential, so Low quality drops both; the head and its glowing trail are sprites and stay.
+   */
+  meteorWake(kind: MeteorKind, px: number, py: number, size: number, smoke: number, embers: number): void {
+    if (!this.particles) return;
+    const c = METEOR_COLORS[kind];
+    if (smoke > 0) {
+      this.emit({
+        frame: 'smoke',
+        x: px,
+        y: py,
+        count: smoke,
+        spread: 3 * size,
+        speed: [6, 18],
+        gravity: -12,
+        life: [420, 720],
+        scale: [0.35 * size, 1.1 * size],
+        alpha: [0.45, 0],
+        tint: [FX.soot, FX.smoke],
+      });
+    }
+    if (embers > 0) {
+      this.emit({
+        frame: 'dot',
+        x: px,
+        y: py,
+        count: embers,
+        spread: 4 * size,
+        speed: [20, 70],
+        drag: 2,
+        gravity: 50,
+        life: [220, 420],
+        scale: [0.55 * size, 0.1],
+        tint: [c.core, c.fire, c.trail],
+        layer: 'add',
+      });
+    }
   }
 
   /** A dark burn mark on the ground that fades. */

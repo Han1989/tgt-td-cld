@@ -49,6 +49,7 @@ deploy; no code change. Step by step, with size targets and where to get sounds:
 | `arcanist.R.mp3` | Meteor cast | 1–2.5 s |
 | `fireballHit.mp3` | Fireball lands | 0.3–0.6 s |
 | `meteorHit.mp3` | Meteor lands | 1–1.5 s |
+| `meteorFall.mp3` | Meteors falling before a rain's pulse (Meteor, Meteor Rain, Shockwave): a whistle into the landing | 0.5–0.7 s |
 | `trap.mp3` | A Snare Trap springs | 0.2–0.4 s |
 | `levelUp.mp3` | A hero levels up | 1–2 s |
 | `heroDown.mp3` | A hero falls | 1.5–2.5 s |

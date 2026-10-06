@@ -26,7 +26,7 @@ let next = performance.now() + TICK_MS;
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; on?: unknown; seed?: unknown; modifiers?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown; on?: unknown; seed?: unknown; modifiers?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
     next = performance.now() + TICK_MS;
@@ -40,6 +40,8 @@ ctx.onmessage = (e) => {
     for (const m of Object.values(tuning.modes)) if (m.economy?.startingGold !== undefined) m.economy.startingGold = 5000;
     // `?lab&auras`: heroes start with their passive (E) learned.
     if (data.auras === true) tuning.hero.startingSkills = ['Q', 'W', 'E'];
+    // `?lab&ult`: heroes start with their ultimate (R) learned, so a browser test can cast it at once.
+    if (data.ult === true) tuning.hero.startingSkills = [...tuning.hero.startingSkills, 'R'];
     host.tuning = tuning;
     return;
   }

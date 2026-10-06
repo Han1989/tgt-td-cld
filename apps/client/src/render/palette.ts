@@ -133,6 +133,19 @@ export const ZONE_COLORS: Record<ZoneKind, number> = {
   shockwave: 0xffd24a,
 };
 
+/**
+ * Falling meteors (fx/meteorShow.ts), by rain: the rock's tint, its fire (glow and impact), the trail, the white-hot
+ * core, and the wash over the map while the rain runs. Meteor is red fire, Meteor Rain amber, Shockwave gold.
+ */
+export const METEOR_COLORS: Record<
+  'meteor' | 'meteorRain' | 'shockwave',
+  { rock: number; fire: number; trail: number; core: number; wash: number }
+> = {
+  meteor: { rock: 0x6a4434, fire: 0xff5a1f, trail: 0xff8a3d, core: 0xffc070, wash: 0xa01a08 },
+  meteorRain: { rock: 0x6a4a30, fire: 0xffb13d, trail: 0xffc070, core: 0xfff1b8, wash: 0xa04a08 },
+  shockwave: { rock: 0x5e5240, fire: 0xffd24a, trail: 0xfff1b8, core: 0xfff6e6, wash: 0x8a6a10 },
+};
+
 export const TOWER_COLORS: Record<TowerKind, number> = {
   arrow: 0xd4b483,
   cannon: 0x9aa5b1,

@@ -34,6 +34,8 @@ import type { UiState } from '../uiState';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
+import { MeteorShow, type MeteorStats } from './fx/meteorShow';
+import { isMeteorKind, type MeteorKind } from './fx/meteors';
 import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
 import { vowLook } from './fx/vow';
 import {
@@ -287,6 +289,8 @@ export class WorldRenderer {
 
   private readonly atlas: FxAtlas;
   readonly fx: Effects;
+  /** Falling meteors of Meteor, Meteor Rain and Shockwave (fx/meteorShow.ts). */
+  private readonly meteors: MeteorShow;
   private readonly hits = new HitTracker();
   private lastHitTick = -1;
   private lastRenderAt = 0;
@@ -344,6 +348,8 @@ export class WorldRenderer {
   onTowerShot: (tower: TowerSnap) => void = () => {};
   /** A melee blow visibly landed (its impact plays now), for its sound. */
   onMeleeImpact: (heroId: number, x: number, y: number) => void = () => {};
+  /** A rain's pulse launched its meteors (they land in about half a second), for the falling whistle. */
+  onMeteorFall: (kind: MeteorKind, finale: boolean) => void = () => {};
 
   constructor(
     app: Application,
@@ -351,6 +357,8 @@ export class WorldRenderer {
   ) {
     this.atlas = createFxAtlas();
     this.fx = new Effects(this.atlas);
+    this.meteors = new MeteorShow(this.atlas, this.fx);
+    this.meteors.onLaunch = (kind, finale) => this.onMeteorFall(kind, finale);
     this.art = new ArtKit('normal');
     this.ground = createGround(this.map, 'normal');
     this.world.addChild(
@@ -365,12 +373,15 @@ export class WorldRenderer {
       this.groundLayer,
       this.heroLayer,
       this.airLayer,
+      this.meteors.wash,
+      this.meteors.air,
       this.projectileLayer,
       this.fxLayer,
       this.textLayer,
       this.overlay,
     );
     this.fx.attach(this.groundFxLayer, this.fxLayer);
+    this.zoneLayer.addChild(this.meteors.ground);
     app.stage.addChild(this.world);
     this.drawMap();
     this.heart = this.makeHeart();
@@ -388,6 +399,11 @@ export class WorldRenderer {
   heroDrawn(): { x: number; y: number } | null {
     for (const s of this.heroes.values()) if (s.look.endsWith(':true') && s.root.visible) return { x: s.root.x / S, y: s.root.y / S };
     return null;
+  }
+
+  /** Falling meteors so far and now (browser tests). */
+  meteorStats(): MeteorStats {
+    return { ...this.meteors.stats };
   }
 
   /** What the art layer shows right now (browser tests). */
@@ -502,6 +518,8 @@ export class WorldRenderer {
     this.syncTraps(latest);
     this.syncZones(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
     this.syncRains(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
+    this.meteors.bitScale = this.entityScale;
+    this.meteors.sync(from.zones, from.tick + (to.tick - from.tick) * alpha, from.tickRate, creeps, this.screenRect(), now, dt);
     this.lastDt = dt;
     this.updateHeart(now);
     this.updatePortals(now, dt);
@@ -518,6 +536,7 @@ export class WorldRenderer {
     for (const s of this.dying) this.releaseCreep(s);
     this.dying = [];
     this.fx.clear();
+    this.meteors.reset();
     this.hits.reset();
     this.lastHitTick = -1;
     this.heartHitAt = -Infinity;
@@ -562,8 +581,10 @@ export class WorldRenderer {
     this.fx.bump(0.14);
   }
 
-  playEvents(events: GameEvent[], latest: Snapshot | undefined, me: PlayerId | null, now: number): void {
+  /** `tick`: the render tick of this frame (falling meteors land on the strikes of the pulse being drawn). */
+  playEvents(events: GameEvent[], latest: Snapshot | undefined, me: PlayerId | null, now: number, tick?: number): void {
     const fx = this.fx;
+    if (tick !== undefined) this.meteors.at(tick);
     // Damage numbers: everyone's in solo, only your hero's and towers' online.
     const crits = this.hits.feed(events, me, !latest || latest.players.length <= 1);
     for (const c of crits) fx.number(c.x, c.y - 0.3, c.damage, FX.crit, true);
@@ -795,11 +816,14 @@ export class WorldRenderer {
       case 'meteor':
       case 'arrowStorm':
       case 'meteorRain':
-        // Global rains: every strike is its own event, and something falls onto it.
+        // Global rains: every strike is its own event, and something falls onto it. A meteor launched for this pulse
+        // lands here; a strike with none gets the fast streak.
+        if (isMeteorKind(effect) && this.meteors.strike(effect, x, y, radius)) break;
         fx.rainImpact(effect, x, y, radius);
         break;
       case 'stunStorm':
       case 'shockwave':
+        if (effect === 'shockwave' && this.meteors.strike(effect, x, y, radius)) break;
         fx.comboImpact(effect, x, y, radius);
         break;
       case 'blizzard': {
@@ -1302,6 +1326,13 @@ export class WorldRenderer {
   }
 
   /** The visible world area (px), with a margin, for culling. */
+  /** The world rectangle on screen right now (px), no margin. */
+  private screenRect(): { left: number; top: number; right: number; bottom: number } {
+    const a = this.camera.screenToWorld(0, 0);
+    const b = this.camera.screenToWorld(this.camera.viewW, this.camera.viewH);
+    return { left: a.x, top: a.y, right: b.x, bottom: b.y };
+  }
+
   private viewBounds(): { left: number; top: number; right: number; bottom: number } {
     const a = this.camera.screenToWorld(-CULL_MARGIN, -CULL_MARGIN);
     const b = this.camera.screenToWorld(this.camera.viewW + CULL_MARGIN, this.camera.viewH + CULL_MARGIN);

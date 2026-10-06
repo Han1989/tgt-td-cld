@@ -625,6 +625,16 @@ export const SOUNDS = {
       knock(210, 0.07, 0.2, 0.5),
     ],
   }, { wet: 0.3 }),
+  /**
+   * Meteors falling before a rain's pulse (the renderer launches them about half a second ahead): a whistle sinking as
+   * the air roars in, ending as they land. Once a pulse; the finale plays it lower.
+   */
+  meteorFall: sfx(0.38, 220, 2, 1, {
+    layers: [
+      { wave: 'sine', freq: hz(D6), glide: 0.4, glideTime: 0.55, attack: 0.1, hold: 0.32, decay: 0.2, gain: 0.5, vibrato: [7, 0.012] },
+      whoosh(2200, 480, 0.22, 0.8, 0, 0.38, 1.5),
+    ],
+  }, { wet: 0.25, variants: 3 }),
   /** A Snare Trap springs: a snap and the rope's twang. */
   trap: sfx(0.36, 120, 2, 0, { layers: [knock(620, 0.05, 1), knock(900, 0.05, 0.6, 0.02), ...twang(G3, 0.5, 0.02, 0.2)] }),
 
