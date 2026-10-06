@@ -6,6 +6,9 @@ import { allowSocial, freshSocialClock, laneName, type ClientMessage, type Comma
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
+import { currentAnalytics } from './analytics/install';
+import { MatchTracker } from './analytics/matchTracker';
+import type { FunnelStep } from './analytics/session';
 import type { ViewBox } from './audio/mix';
 import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
 import { EmoteMenu } from './hud/emotes';
@@ -39,6 +42,15 @@ const MAX_ENTITY_SCALE = 1.6;
 /** Smoothing time (ms) of the vertical hero follow on shorter phones. */
 const FOLLOW_MS = 150;
 
+/** A new-player funnel step (docs/ANALYTICS.md); dropped with no analytics or play data off. */
+function funnel(step: FunnelStep): void {
+  try {
+    currentAnalytics()?.funnel(step);
+  } catch {
+    // Analytics is optional.
+  }
+}
+
 export class GameView {
   me: PlayerId | null = null;
   /** Called when the player clicks "Leave room" on the end screen (online). */
@@ -50,6 +62,7 @@ export class GameView {
 
   private transport: Transport | null = null;
   private unsubscribe: (() => void) | null = null;
+  private readonly matches = new MatchTracker();
   private needsCentre = true;
   /** Solo was paused because the page was hidden; waiting for a tap to resume. */
   private paused = false;
@@ -232,10 +245,12 @@ export class GameView {
     view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
     view.radialMenus = radial;
     coach.onSkip = () => {
+      funnel('tutorial_skip');
       settings.set({ tutorial: lessonStatus('skip') });
       view.setLesson(false);
     };
     coach.onComplete = () => settings.set({ tutorial: lessonStatus('complete') });
+    coach.onStep = (step) => funnel(`tutorial_${step}`);
     coach.onDismiss = () => view.setLesson(false);
     coach.onAirSeen = () => settings.set({ airLesson: 'seen' });
     renderer.onBounty = (x, y) => hud.flyCoin(x, y);
@@ -635,6 +650,7 @@ export class GameView {
       if (msg.t === 'welcome') {
         this.me = msg.playerId;
       } else if (msg.t === 'snapshot') {
+        this.trackMatch(msg.snap, transport.online === true);
         // A new match (tick counter restarted) or the first snapshot: reset the view.
         const latest = this.buffer.latest;
         // A tick that goes backwards is a new match. The opening hero/mode/difficulty
@@ -652,7 +668,23 @@ export class GameView {
     });
   }
 
+  /** Match start, wave milestones and the result, for analytics (the client drops them when play data is off). */
+  private trackMatch(snap: Snapshot, online: boolean): void {
+    const client = currentAnalytics();
+    if (!client) return;
+    try {
+      for (const action of this.matches.feed(snap, this.me, online)) {
+        if (action.t === 'start') client.matchStart(action.info);
+        else if (action.t === 'step') client.funnel(action.step);
+        else client.matchEnd(action.outcome);
+      }
+    } catch {
+      // Analytics is optional.
+    }
+  }
+
   detach(): void {
+    this.matches.reset();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.transport = null;

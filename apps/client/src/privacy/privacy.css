@@ -206,3 +206,14 @@ code {
 .hidden {
   display: none !important;
 }
+
+h3 {
+  margin: 18px 0 4px;
+  font-size: 17px;
+  color: #eef6ff;
+}
+
+.btn.armed {
+  outline: 2px solid #ff8a8a;
+  outline-offset: -2px;
+}

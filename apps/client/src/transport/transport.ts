@@ -10,6 +10,8 @@ export interface Transport {
   /** Subscribes to server messages; returns an unsubscribe function. */
   onMessage(handler: (msg: ServerMessage) => void): () => void;
   close(): void;
+  /** A game-server room, not a match in this browser (match analytics say which). */
+  readonly online?: boolean;
   /** How far behind the newest snapshot the view renders (ms); INTERP_DELAY_MS when unset. */
   readonly interpDelayMs?: number;
   /** Local play only: stops or restarts the simulation clock (the page was hidden, docs/MOBILE.md §7). */

@@ -1,10 +1,14 @@
 // Settings popup (the ⚙ in the top bar): sound (mute, music and effects volume, docs/ART.md §13),
 // touch controls layout (docs/MOBILE.md §5), graphics quality (§7), screen shake (Off / Normal / Strong), display (Normal /
-// Bright, docs/ART.md §2), play data on / off (docs/ANALYTICS.md; its own key, analytics/preference.ts) and installing
-// the app (Android prompt / iPhone sheet). The lobby's speaker button mutes too.
+// Bright, docs/ART.md §2), play data on / off with this browser's own copy and deletion (docs/ANALYTICS.md; its own key,
+// analytics/preference.ts; on asks the age question first if it is still to be answered) and installing the app
+// (Android prompt / iPhone sheet). The lobby's speaker button mutes too.
 
+import { AGE_KEY, currentAgeBand, readAgeAnswer } from '../analytics/age';
 import { setAnalyticsChoice } from '../analytics/install';
 import { ANALYTICS_KEY, browserSignals, playDataStatus, readAnalyticsChoice, type AnalyticsChoice } from '../analytics/preference';
+import { askAge } from '../privacy/ageCheck';
+import { wireMyData } from '../privacy/myDataUi';
 import type { StickAnchor, ThumbLayout } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import type { Display } from '../render/art/tokens';
@@ -74,11 +78,16 @@ export class SettingsPanel {
       'pointerdown',
       (e) => {
         const t = e.target as Element | null;
-        if (!this.root.classList.contains('hidden') && !t?.closest?.('#settings, #settings-btn')) this.close();
+        if (!this.root.classList.contains('hidden') && !t?.closest?.('#settings, #settings-btn, #age-check')) this.close();
       },
       true,
     );
     this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
+    wireMyData({
+      copy: $('settings-data-copy') as HTMLButtonElement,
+      erase: $('settings-data-delete') as HTMLButtonElement,
+      state: $('settings-data-state'),
+    });
     this.install.addEventListener('click', () => {
       this.close();
       void promptInstall();
@@ -92,7 +101,7 @@ export class SettingsPanel {
     store.onChange(() => this.render());
     // The privacy page (another tab) can change play data too.
     window.addEventListener('storage', (e) => {
-      if (e.key === ANALYTICS_KEY || e.key === null) this.render();
+      if (e.key === ANALYTICS_KEY || e.key === AGE_KEY || e.key === null) this.render();
     });
     this.render();
   }
@@ -127,12 +136,18 @@ export class SettingsPanel {
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
     this.choices(this.shake, Object.entries(SHAKE_NAMES) as [ShakeSetting, string][], s.shake, (v) => this.store.set({ shake: v }));
     this.choices(this.display, Object.entries(DISPLAY_NAMES) as [Display, string][], s.display, (v) => this.store.set({ display: v }));
-    const playData = playDataStatus(readAnalyticsChoice(), browserSignals());
+    const playData = playDataStatus(readAnalyticsChoice(), browserSignals(), currentAgeBand());
     const pickData = (v: AnalyticsChoice) => {
+      if (v === 'on' && readAgeAnswer() === null) {
+        void askAge().then(() => pickData('on'));
+        return;
+      }
       setAnalyticsChoice(v);
       this.render();
     };
     this.choices(this.analytics, Object.entries(PLAY_DATA_NAMES) as [AnalyticsChoice, string][], playData.on ? 'on' : 'off', pickData);
+    const onBtn = this.analytics.querySelector<HTMLButtonElement>('[data-value="on"]');
+    if (onBtn) onBtn.disabled = playData.locked;
     this.analyticsState.textContent = playData.line;
     const android = canInstall();
     const ios = isIos() && !isStandalone();

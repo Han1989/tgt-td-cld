@@ -1,15 +1,29 @@
 // Turns the event log into the four dashboard panels. Pure: the clock is passed in.
 
 import { CHANNELS, CHANNEL_LABELS, PLATFORMS, PLATFORM_LABELS, type Channel, type Platform } from './channels';
+import { summarizeErrors, type ErrorSummary } from './errors';
+import { summarizeFunnel, type FunnelSummary } from './funnel';
+import { summarizeMatches, type MatchBreakdown } from './matches';
 import type { ParsedEvent } from './parse';
+import {
+  COHORT_KEEP_DAYS,
+  cohortDays,
+  DAY_MS,
+  retentionFromEvents,
+  retentionRates,
+  utcDay,
+  type CohortDay,
+  type RetentionState,
+} from './retention';
+
+export { DAY_MS };
 
 /** No heartbeat or end for this long and the session is over. Matches the client. */
 export const IDLE_MS = 90_000;
 /** A stuck tab cannot inflate playtime past this. */
 export const MAX_SESSION_MS = 4 * 60 * 60 * 1000;
-/** Events older than this are dropped. Long enough for D7, short enough to stay small. */
+/** Events older than this are dropped. D30 reads the retention tables (retention.ts), not old events. */
 export const RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
-export const DAY_MS = 24 * 60 * 60 * 1000;
 /** Below this many ratings the dashboard tells Han to read match results as well. */
 export const LOW_FEEDBACK = 5;
 
@@ -30,6 +44,8 @@ export interface ChannelRow {
   avgPlaytimeMs: number | null;
   repeatVisitors: number;
   d1: Ratio;
+  d7: Ratio;
+  d30: Ratio;
   feedbackCount: number;
   feedbackAverage: number | null;
 }
@@ -53,6 +69,14 @@ export interface AnalyticsSummary {
   avgPlaytimeMs: number | null;
   d1: Ratio;
   d7: Ratio;
+  d30: Ratio;
+  /** First-visit days the return rates cover. */
+  cohortKeepDays: number;
+  /** The newest first-visit days, newest first. */
+  cohorts: CohortDay[];
+  funnel: FunnelSummary;
+  matches: MatchBreakdown;
+  errors: ErrorSummary;
   feedback: {
     count: number;
     comments: number;
@@ -83,10 +107,6 @@ interface Session {
   startedAt: number;
   lastAt: number;
   endedAt: number | null;
-}
-
-function utcDay(at: number): number {
-  return Math.floor(at / DAY_MS);
 }
 
 function average(values: number[]): number | null {
@@ -137,23 +157,20 @@ function closedDuration(session: Session, now: number): { closed: boolean; ms: n
   return { closed, ms };
 }
 
-function retention(visitors: Iterable<{ firstDay: number; days: Set<number> }>, today: number, lag: number): Ratio {
-  let eligible = 0;
-  let returned = 0;
-  for (const visitor of visitors) {
-    if (visitor.firstDay > today - lag) continue;
-    eligible++;
-    if (visitor.days.has(visitor.firstDay + lag)) returned++;
-  }
-  return { eligible, returned };
-}
-
+/**
+ * `retention` is the store's table (first visits that outlive the 30-day log); without it the table is
+ * rebuilt from `events`, which only sees first visits still in the log.
+ */
 export function summarize(
   events: readonly StoredEvent[],
   now: number,
   live: { connectedPlayers: number; persistent: boolean; durable: boolean; dir: string | null },
+  retention?: RetentionState,
 ): AnalyticsSummary {
   const recent = events.filter((event) => now - event.at <= RETAIN_MS && event.at <= now + 60_000);
+  const table = retention ?? retentionFromEvents(recent);
+  const firstSessions = new Map<string, string>();
+  for (const [id, record] of table.visitors) firstSessions.set(id, record.session);
   const sessions = buildSessions(recent);
   const today = utcDay(now);
   const weekAgo = now - 7 * DAY_MS;
@@ -163,7 +180,7 @@ export function summarize(
   let sessions7d = 0;
   const playtimes: number[] = [];
   const playtimeByChannel = new Map<Channel, number[]>();
-  const visitors = new Map<string, { firstAt: number; firstChannel: Channel; sessions: number; days: Set<number> }>();
+  const visitors = new Map<string, { firstAt: number; firstChannel: Channel; sessions: number }>();
   const platformSessions = new Map<Platform, Set<string>>();
   const platformVisitors = new Map<Platform, Set<string>>();
   for (const platform of PLATFORMS) {
@@ -186,14 +203,12 @@ export function summarize(
       firstAt: session.startedAt,
       firstChannel: session.channel,
       sessions: 0,
-      days: new Set<number>(),
     };
     if (session.startedAt < visitor.firstAt) {
       visitor.firstAt = session.startedAt;
       visitor.firstChannel = session.channel;
     }
     visitor.sessions++;
-    visitor.days.add(utcDay(session.startedAt));
     visitors.set(session.visitor, visitor);
     platformSessions.get(session.platform)?.add(session.id);
     platformVisitors.get(session.platform)?.add(session.visitor);
@@ -236,32 +251,30 @@ export function summarize(
     }
   }
 
-  const byFirstChannel = new Map<Channel, Map<string, { firstDay: number; days: Set<number>; sessions: number }>>();
+  const byFirstChannel = new Map<Channel, Map<string, { sessions: number }>>();
   for (const channel of CHANNELS) byFirstChannel.set(channel, new Map());
   for (const [id, visitor] of visitors) {
-    const row = byFirstChannel.get(visitor.firstChannel);
-    row?.set(id, { firstDay: utcDay(visitor.firstAt), days: visitor.days, sessions: visitor.sessions });
+    byFirstChannel.get(visitor.firstChannel)?.set(id, { sessions: visitor.sessions });
   }
-
-  const visitorDays = new Map<string, { firstDay: number; days: Set<number> }>();
-  for (const [id, visitor] of visitors) {
-    visitorDays.set(id, { firstDay: utcDay(visitor.firstAt), days: visitor.days });
-  }
+  const overall = retentionRates(table, now);
 
   const channels: ChannelRow[] = CHANNELS.map((channel) => {
     const group = byFirstChannel.get(channel)!;
     let repeat = 0;
     for (const visitor of group.values()) if (visitor.sessions >= 2) repeat++;
     const channelSessions = sessions.filter((session) => session.channel === channel);
+    const rates = retentionRates(table, now, channel);
     return {
       channel,
       label: CHANNEL_LABELS[channel],
       sessions: channelSessions.length,
-      // Visitors, repeats and D1 are the first-session cohort for this channel.
+      // Visitors, repeats and return rates are the first-session cohort for this channel.
       visitors: group.size,
       avgPlaytimeMs: average(playtimeByChannel.get(channel) ?? []),
       repeatVisitors: repeat,
-      d1: retention(group.values(), today, 1),
+      d1: rates.d1,
+      d7: rates.d7,
+      d30: rates.d30,
       feedbackCount: (ratingsByChannel.get(channel) ?? []).length,
       feedbackAverage: average(ratingsByChannel.get(channel) ?? []),
     };
@@ -285,8 +298,14 @@ export function summarize(
     visitors: visitors.size,
     repeatVisitors,
     avgPlaytimeMs: average(playtimes),
-    d1: retention(visitorDays.values(), today, 1),
-    d7: retention(visitorDays.values(), today, 7),
+    d1: overall.d1,
+    d7: overall.d7,
+    d30: overall.d30,
+    cohortKeepDays: COHORT_KEEP_DAYS,
+    cohorts: cohortDays(table, now, 10),
+    funnel: summarizeFunnel(recent, firstSessions),
+    matches: summarizeMatches(recent),
+    errors: summarizeErrors(recent),
     feedback: {
       count: ratings.length,
       comments,
