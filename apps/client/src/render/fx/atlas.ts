@@ -28,7 +28,8 @@ export type FxFrame =
   | 'trail'
   | 'arrow'
   | 'leaf'
-  | 'rock';
+  | 'rock'
+  | 'warn';
 
 /** Glyph height in the atlas (px); numbers are scaled from it. */
 export const GLYPH_PX = 34;
@@ -92,6 +93,16 @@ export function createFxAtlas(): FxAtlas {
     c.lineWidth = 5;
     c.beginPath();
     c.arc(w / 2, h / 2, RING_PX, 0, Math.PI * 2);
+    c.stroke();
+  });
+  place('warn', 128, 128, (c, w, h) => {
+    // A meteor's warning circle in one quad: a faint fill and its rim (one blended layer instead of two).
+    c.fillStyle = 'rgba(255,255,255,0.34)';
+    c.beginPath();
+    c.arc(w / 2, h / 2, RING_PX, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#fff';
+    c.lineWidth = 5;
     c.stroke();
   });
   place('shock', 128, 128, (c, w, h) => {

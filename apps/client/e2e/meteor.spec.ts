@@ -7,6 +7,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { startSolo, waitForReady } from './helpers';
 
 async function castMeteor(page: Page, quality: 'high' | 'low'): Promise<void> {
+  // A real match drawn at the phone's resolution: software GL on CI runners is slow, the waits are for game state.
+  test.setTimeout(150_000);
   await page.addInitScript((q) => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: q })), quality);
   await startSolo(page, '?lab&ult', 'quick', 'Arcanist');
   await waitForReady(page);
@@ -22,7 +24,7 @@ async function castMeteor(page: Page, quality: 'high' | 'low'): Promise<void> {
 for (const quality of ['high', 'low'] as const) {
   test(`Meteor: a meteor is falling on screen before the first strike lands (${quality} quality)`, async ({ page }) => {
     await castMeteor(page, quality);
-    await expect.poll(() => page.evaluate(() => window.__tdt.meteors().landed), { timeout: 15_000 }).toBeGreaterThan(0);
+    await expect.poll(() => page.evaluate(() => window.__tdt.meteors().landed), { timeout: 30_000 }).toBeGreaterThan(0);
     const m = await page.evaluate(() => window.__tdt.meteors());
     expect(m.firstLaunchTick).toBeGreaterThanOrEqual(0);
     // Launched well ahead of the first strike (about 0.6 s at 20 ticks a second), and seen falling on screen by then.
@@ -39,7 +41,7 @@ test('Meteor under reduced motion: the warning circles still show, but nothing f
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await castMeteor(page, 'high');
   expect(await page.evaluate(() => window.__tdt.fx().calm)).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.__tdt.meteors().landed), { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__tdt.meteors().landed), { timeout: 30_000 }).toBeGreaterThan(0);
   const m = await page.evaluate(() => window.__tdt.meteors());
   // Circles were put down ahead of the strikes (a launch is its circle), but no head was ever drawn.
   expect(m.firstStrikeTick - m.firstLaunchTick).toBeGreaterThanOrEqual(6);

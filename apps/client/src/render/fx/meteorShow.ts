@@ -15,7 +15,7 @@ import { Container, Sprite, Texture } from 'pixi.js';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { CreepSnap, ZoneSnap } from '@tdt/protocol';
 import { METEOR_COLORS } from '../palette';
-import { DISC_PX, RING_PX, type FxAtlas } from './atlas';
+import { RING_PX, type FxAtlas } from './atlas';
 import type { Effects } from './effects';
 import {
   dueLaunch,
@@ -45,6 +45,8 @@ const WASH_ALPHA = 0.2;
 const SKY_COUNT = 3;
 const SKY_LIFE: readonly [number, number] = [1500, 1900];
 const SKY_GAP_MS = 280;
+/** Radius of a head's fire glow (tiles, before its size and the entity scale). */
+const GLOW_TILES = 1;
 /** Smoke puffs and embers a second behind one meteor (fewer each when many fall at once). */
 const SMOKE_RATE = 20;
 const EMBER_RATE = 26;
@@ -77,7 +79,7 @@ interface Flight extends Falling {
 interface Slot {
   head: Head;
   circle: Container;
-  fill: Sprite;
+  /** Fill and rim in one frame (`warn`): the circle is one full-size quad plus the inner ring as it closes. */
   ring: Sprite;
   inner: Sprite;
   flight: Flight | null;
@@ -363,11 +365,9 @@ export class MeteorShow {
       const appear = Math.min(1, t * 6);
       const { radius } = strikeSize(f.kind);
       if (calm) {
-        s.fill.alpha = 0.26 * appear;
-        s.ring.alpha = 0.85 * appear;
+        s.ring.alpha = 0.8 * appear;
       } else {
-        s.fill.alpha = (0.1 + 0.22 * t) * appear;
-        s.ring.alpha = (0.6 + 0.35 * Math.sin(this.tick * 2.4) * t) * appear;
+        s.ring.alpha = (0.62 + 0.3 * t + 0.08 * Math.sin(this.tick * 2.4) * t) * appear;
         s.inner.scale.set(Math.max(0.02, ((radius * S) / RING_PX) * at.ring));
         s.inner.alpha = 0.85 * appear;
         const hx = tx + at.dx * S;
@@ -377,11 +377,13 @@ export class MeteorShow {
         const k = at.scale * bs;
         h.rock.scale.set((S * 0.44 * k) / 12);
         h.rock.rotation += dtMs * 0.006;
-        h.glow.scale.set((S * 1.25 * k) / 32);
+        // Sized for fill as much as for looks: 16 heads near the ground at a phone's entity scale would otherwise cover
+        // the map in blended quads again (glows and trails are additive).
+        h.glow.scale.set((S * GLOW_TILES * k) / 32);
         h.core.scale.set((S * 0.42 * k) / 32);
-        const len = S * (2 + 2.6 * at.speed) * k;
-        h.trail.scale.set(len / 64, (S * 0.95 * k) / 10);
-        h.inner.scale.set((len * 0.6) / 64, (S * 0.42 * k) / 10);
+        const len = S * (1.7 + 2.3 * at.speed) * k;
+        h.trail.scale.set(len / 64, (S * 0.9 * k) / 10);
+        h.inner.scale.set((len * 0.5) / 64, (S * 0.36 * k) / 10);
         if (!f.seen && hx >= view.left && hx <= view.right && hy >= view.top && hy <= view.bottom) f.seen = true;
         f.smokeAcc += (SMOKE_RATE * share * dtMs) / 1000;
         f.emberAcc += (EMBER_RATE * share * dtMs) / 1000;
@@ -437,10 +439,10 @@ export class MeteorShow {
       fadeHead(h, 0.5 * Math.min(1, t * 5, (1 - t) * 4));
       const k = 1.7 * bs;
       h.rock.scale.set((S * 0.44 * k) / 12);
-      h.glow.scale.set((S * 1.25 * k) / 32);
+      h.glow.scale.set((S * GLOW_TILES * k) / 32);
       h.core.scale.set((S * 0.42 * k) / 32);
-      h.trail.scale.set((S * 6 * k) / 64, (S * 0.95 * k) / 10);
-      h.inner.scale.set((S * 3.6 * k) / 64, (S * 0.42 * k) / 10);
+      h.trail.scale.set((S * 5.5 * k) / 64, (S * 0.9 * k) / 10);
+      h.inner.scale.set((S * 2.8 * k) / 64, (S * 0.36 * k) / 10);
     }
   }
 
@@ -462,9 +464,6 @@ export class MeteorShow {
   private dress(slot: Slot, kind: MeteorKind, radius: number): void {
     const c = METEOR_COLORS[kind];
     const r = radius * S;
-    slot.fill.tint = c.fire;
-    slot.fill.scale.set(r / DISC_PX);
-    slot.fill.alpha = 0;
     slot.ring.tint = c.fire;
     slot.ring.scale.set(r / RING_PX);
     slot.ring.alpha = 0;
@@ -496,14 +495,13 @@ export class MeteorShow {
 
   private makeSlot(circles: Container): Slot {
     const circle = new Container();
-    const fill = new Sprite(this.atlas.frames.disc);
-    const ring = new Sprite(this.atlas.frames.ring);
+    const ring = new Sprite(this.atlas.frames.warn);
     const inner = new Sprite(this.atlas.frames.ring);
-    for (const sp of [fill, ring, inner]) sp.anchor.set(0.5);
-    circle.addChild(fill, ring, inner);
+    for (const sp of [ring, inner]) sp.anchor.set(0.5);
+    circle.addChild(ring, inner);
     circle.visible = false;
     circles.addChild(circle);
-    return { head: this.makeHead(this.airLayers), circle, fill, ring, inner, flight: null };
+    return { head: this.makeHead(this.airLayers), circle, ring, inner, flight: null };
   }
 
   private makeHead(layers: BlendLayers): Head {
