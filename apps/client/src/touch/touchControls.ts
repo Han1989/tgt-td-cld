@@ -932,8 +932,7 @@ export class TouchControls {
       const tower = snap.towers.find((t) => t.id === m.towerId);
       if (!tower || tower.owner !== this.actions.me() || this.ui.selectedTowerId !== m.towerId) return this.actions.clearSelection();
       anchor = tower;
-      // While a repair runs the button is gone (the tower shows its progress); the price is for the next one.
-      const repair = tower.repairLeft > 0 ? 0 : repairCost(tuningForMode(TUNING, snap.mode), tower);
+      const repair = repairCost(tuningForMode(TUNING, snap.mode), tower);
       extent = repair > 0 ? REPAIR_SPOT.y + TOWER_BTN / 2 : TOWER_RING_R + TOWER_BTN / 2;
       const next = upgradeCost(tower.kind, tower.tier);
       const choices = branchChoices(tower.kind, tower.tier, tower.branch);
@@ -1069,9 +1068,9 @@ export class TouchControls {
     sellBtn.addEventListener('pointerup', release);
     sellBtn.addEventListener('pointercancel', release);
 
-    // Repair: only while the tower is damaged and not already being repaired. One tap; the price is what the sim charges.
+    // Repair: only while the tower is damaged. One tap; the price is what the sim charges.
     this.repairBtn = null;
-    if (tower.hp < tower.maxHp && tower.repairLeft === 0) {
+    if (tower.hp < tower.maxHp) {
       const repairBtn = this.ringButton(REPAIR_SPOT, TOWER_BTN, `${ico('repair')}<span class="cap">Repair</span><span class="cost"></span>`);
       repairBtn.dataset.action = 'repair';
       this.repairBtn = repairBtn;
@@ -1083,7 +1082,7 @@ export class TouchControls {
   private pickRepair(towerId: number, button: HTMLElement): void {
     const snap = this.actions.latest();
     const tower = snap?.towers.find((t) => t.id === towerId);
-    if (!snap || !tower || tower.repairLeft > 0) return;
+    if (!snap || !tower) return;
     const cost = repairCost(tuningForMode(TUNING, snap.mode), tower);
     if (cost === 0) return;
     const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;

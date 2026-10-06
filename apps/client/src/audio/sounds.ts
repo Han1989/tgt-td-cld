@@ -656,7 +656,7 @@ export const SOUNDS = {
   branch: sfx(0.56, 200, 1, 1, {
     layers: [...thud(120, 0.2, 0.8), ...gong(hz(D4) * 0.5, 2.2, 0.5, 0.02), ...gliss([D4, A4, D5, F5, A5, D6], 0.04, 1.3, 0.8, 0.05)],
   }, { ...TUNE, wet: 0.3 }),
-  /** Repair starts: three quick mallet taps on timber, rising, and one bright string. */
+  /** Repair: three quick mallet taps on timber, rising, and one bright string as it's whole again. */
   repair: sfx(0.42, 150, 2, 1, {
     layers: [knock(420, 0.06, 0.8), knock(500, 0.06, 0.7, 0.08), knock(600, 0.06, 0.7, 0.16), ...guzheng(D5, 0.7, 0.55, 0.22)],
   }, TUNE),

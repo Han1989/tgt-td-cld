@@ -1115,9 +1115,8 @@ export class Hud {
       const affordable = [nextCost ?? Infinity, ...branchChoices(tower.kind, tower.tier, tower.branch).map((c) => c.cost)]
         .map((c) => gold >= c)
         .join();
-      const repairing = tower.repairLeft > 0;
-      const repair = mine && !repairing ? repairCost(tuningForMode(TUNING, snap.mode), tower) : 0;
-      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}:${repair > 0}:${repairing}`;
+      const repair = mine ? repairCost(tuningForMode(TUNING, snap.mode), tower) : 0;
+      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}:${repair > 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold);
@@ -1204,15 +1203,12 @@ export class Hud {
       panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
     }
 
-    // Repair: only while the tower is damaged. The price is set (and kept current) by updateMenus. While a repair runs
-    // the tower does not shoot; the panel says so instead of offering another.
-    if (tower.repairLeft > 0) {
-      panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Repairing</span><span>not shooting</span></div>');
-    } else if (tower.hp < tower.maxHp) {
+    // Repair: only while the tower is damaged. The price is set (and kept current) by updateMenus.
+    if (tower.hp < tower.maxHp) {
       const fix = document.createElement('button');
       fix.className = 'btn';
       fix.dataset.action = 'repair';
-      fix.title = `Hotkey: F. Back to full HP in ${TUNING.economy.repairSeconds} s (it does not shoot meanwhile); keeps the tier, specialisation and target`;
+      fix.title = 'Hotkey: F. Back to full HP; keeps the tier, specialisation and target';
       fix.innerHTML = `<i class="ico" style="--ico: ${iconVar('repair')}"></i> Repair <span class="cost"></span>`;
       fix.addEventListener('click', () => this.actions.repair(tower.id));
       panel.appendChild(fix);

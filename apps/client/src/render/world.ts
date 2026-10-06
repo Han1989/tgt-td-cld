@@ -29,7 +29,6 @@ import { getMap, padAtTile, TILE_PX, towerRangeScale, towerStats, towerTier, tun
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
-import { repairProgress } from '../hud/towerInfo';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
@@ -159,10 +158,6 @@ interface TowerSprite extends EntitySprite {
   /** What it can shoot at (its tier / branch), for aiming. */
   hitsAir: boolean;
   hitsGround: boolean;
-  /** Repair progress bar under the HP bar (made on the first repair), and the progress it shows. */
-  repairBg: Sprite | null;
-  repairFill: Sprite | null;
-  repairShown: number | null;
 }
 
 interface HeroSprite extends EntitySprite {
@@ -698,14 +693,8 @@ export class WorldRenderer {
           if (s) this.startPop(s, now);
           break;
         }
-        case 'towerRepairStarted': {
-          // The repair begins: a small dust puff (the tower goes quiet and its green bar fills).
-          const t = this.towerPos(e.towerId, latest);
-          if (t) fx.dustRing(t.x, t.y, 1, FX.dust, 6);
-          break;
-        }
         case 'towerRepaired': {
-          // Mended: a green ring and a few green motes rising off the tower.
+          // A short mend: a green ring and a few green motes rising off the tower.
           const t = this.towerPos(e.towerId, latest);
           if (!t) break;
           fx.ring(t.x, t.y, 1.4, COLORS.good, 380, 0.3, 'shock');
@@ -1371,9 +1360,6 @@ export class WorldRenderer {
           aimUntil: -Infinity,
           hitsAir: true,
           hitsGround: true,
-          repairBg: null,
-          repairFill: null,
-          repairShown: null,
         };
         this.startPop(s, now);
         this.towerLayer.addChild(s.root);
@@ -1383,7 +1369,6 @@ export class WorldRenderer {
       const scale = Math.min(this.entityScale, MAX_TOWER_SCALE);
       s.root.scale.set(scale);
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
-      updateRepairBar(s, repairProgress(t.repairLeft), S * 1.6, -S * TOWER_SIZE * 0.5 - 1);
       const statusKey = `${t.tier}${t.branch ?? ''}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
@@ -2130,33 +2115,6 @@ function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y:
   s.hpFill.setSize(Math.max(0.01, width * frac), 3);
   const color = hpColor(frac);
   if (s.hpFill.tint !== color) s.hpFill.tint = color;
-}
-
-/**
- * A tower under repair: a green bar filling under its HP bar, and the body dimmed (it does not shoot). Sprites only,
- * resized when the progress changes; made on the tower's first repair.
- */
-function updateRepairBar(s: TowerSprite, progress: number | null, width: number, y: number): void {
-  if (progress === s.repairShown) return;
-  s.repairShown = progress;
-  s.body.alpha = progress === null ? 1 : 0.6;
-  if (progress === null) {
-    if (s.repairBg) s.repairBg.visible = s.repairFill!.visible = false;
-    return;
-  }
-  if (!s.repairBg || !s.repairFill) {
-    s.repairBg = new Sprite(Texture.WHITE);
-    s.repairBg.tint = RL.ink;
-    s.repairBg.alpha = 0.7;
-    s.repairFill = new Sprite(Texture.WHITE);
-    s.repairFill.tint = COLORS.good;
-    s.repairBg.position.set(-width / 2 - 1, y - 1);
-    s.repairBg.setSize(width + 2, 5);
-    s.repairFill.position.set(-width / 2, y);
-    s.root.addChild(s.repairBg, s.repairFill);
-  }
-  s.repairBg.visible = s.repairFill.visible = true;
-  s.repairFill.setSize(Math.max(0.01, width * progress), 3);
 }
 
 /** Shardback's hide, read from its magic resist (Ether hide raises it above the base value). */

@@ -2,7 +2,7 @@
 // of static tuning data (no DOM), so they are unit-tested.
 
 import { TARGET_PRIORITIES, TOWER_BRANCHES, type TargetPriority, type TowerBranch, type TowerKind } from '@tdt/protocol';
-import { secondsToTicks, towerStats, towerTier, TUNING, type TowerLevelStats, type Tuning } from '@tdt/sim';
+import { towerStats, towerTier, TUNING, type TowerLevelStats, type Tuning } from '@tdt/sim';
 
 export const PRIORITY_NAMES: Record<TargetPriority, string> = {
   first: 'First',
@@ -183,14 +183,4 @@ export function upgradeChip(kind: TowerKind, tier: number, tuning: Tuning = TUNI
 /** The ring's Priority button cycles First → Strongest → Closest → First. */
 export function nextPriority(p: TargetPriority): TargetPriority {
   return TARGET_PRIORITIES[(TARGET_PRIORITIES.indexOf(p) + 1) % TARGET_PRIORITIES.length]!;
-}
-
-/**
- * How far a repair in progress has come, 0–1, from the snapshot's ticks left; null when the tower is not being
- * repaired. The renderer fills a bar with it; the ring and the panel hide Repair meanwhile.
- */
-export function repairProgress(repairLeft: number, tuning: Tuning = TUNING): number | null {
-  if (repairLeft <= 0) return null;
-  const total = Math.max(1, secondsToTicks(tuning.economy.repairSeconds));
-  return Math.max(0, Math.min(1, 1 - repairLeft / total));
 }
