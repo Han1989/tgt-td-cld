@@ -74,3 +74,178 @@ Han: no aiming. Arrow Storm and Meteor are instant casts again, rain on all thre
 - Waiting for a teammate 4 s or 12 s (1.0–1.1 combos a match in Quick pairs; 25 s gave 1.4–2.2).
 - Hard 1.27 / 1.3 for Full solo and pairs.
 - Boss damage cuts beyond `ultimateBossFactor` (kept at 0.75 as asked).
+
+
+# Round 3: tower repair (P2-06, protocol 19)
+
+Han's decision after his 4 Oct solo Quick Normal match (Arcanist, seed 1113939891, build a620c32): towers can be repaired for gold. He sold and rebuilt a damaged tier-1 tower on the same pad 11 times (at 18–232 of 500 HP) and Archers destroyed 6 more: 37 towers for about 20 pads. **No creep, tower, hero or target number changed in this round.** Every run is 30 seeds of the full matrix; the tables are `repair-*.txt` (main: `repair-main.txt`, which reproduces `final.txt` exactly).
+
+## Runs
+
+| Run | Rule | What it showed |
+|---|---|---|
+| main | No repair | `repair-main.txt`, 44 of 79 targets pass. Casual and expert bots lose 11–35 towers a match to Archers and bosses and rebuild them at tier 1. |
+| rule (0.3) | Repair instant, cost ceil(0.3 × spent × share missing); casual and expert bots repair every tower under half HP they can pay for, after their purchases | `repair-rule.txt`, 40 pass. Casual Normal 87–97 Heart (target 50–90), expert Hard 67–97 (target 40–80), casual Hard goes from 0–27% wins to 100% for every solo and pair. Bots repair 25–64 times a match; towers lost drop to 0–2. |
+| rule (0.5) | The same at repairRate 0.5 | 42 pass, Heart within 1–2 of 0.3 everywhere. The bots pay with gold they used to leave unspent, so the price does not hold them back. (0.4 was not run to the end: Han kept 0.3.) |
+| step 1 | Bots repair one tower at a time: expert every 15 s, casual every 30 s (from Han's play: about once every 50 s on a phone with the workaround) | `repair-step1.txt`, 39 pass. Heart unchanged within noise (casual Normal 87–97, expert Hard 67–97). Bots still repair 15–55 times a match; towers lost 0–10. |
+| step 2 | A repair takes 3 s and the tower does not shoot meanwhile (`economy.repairSeconds`), then full HP | `repair-step2.txt`, 41 pass. Heart within −4 / +5 of step 1. The 3 s cost each bot 0.3–0.5% of its tower time (about 50–150 tower-seconds a match), too little to matter. |
+
+## Targets that changed (main → step 2)
+
+Now failing: the difficulty curve of casual Normal pairs (Full and Quick) and the Full trio, and of expert Hard pairs (Full and Quick) and the Quick trio: with repair the last third costs almost nothing. Now passing: the Quick trio's Warden-lane flyer loss. The Heart-band targets were already failing on main (a share of seeds outside the band); their means moved up as in the table above. Novice rows are identical (the novice never repairs).
+
+## Why price and pace do not balance it
+
+The casual and expert bots end most matches with gold to spare, and the towers they lose on main are the main way they lose Heart: a destroyed tower comes back at tier 1. With any repair at all they keep their upgraded front row, which is what Han wanted for players. The 3 s silence is a fraction of a percent of fire. What would move it is the strength of the waves (Hard's creep multiplier; Normal's targets), which this round did not touch.
+
+## Step 2 in isolation (step 1 against step 1 + 2)
+
+Heart and wins move by noise alone (−4 to +5). "Tower-seconds silent" is repairs × 3 s: each repair stops one tower for 3 s (an upper bound by a hair, since a tower destroyed mid-repair or a match ending cuts one short). The share is that over all tower time (towers at the end × match length, Full ≈ 1,190 s, Quick ≈ 560 s).
+
+**casual · full · normal**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 96.1 | 94.0 | -2.1 | 100 → 100 | 28.4 | 85 | 0.28% |
+| W | 96.9 | 96.5 | -0.3 | 100 → 100 | 28.8 | 87 | 0.28% |
+| A | 97.1 | 96.2 | -0.8 | 100 → 100 | 27.7 | 83 | 0.27% |
+| R+W | 90.7 | 90.1 | -0.7 | 100 → 100 | 45.4 | 136 | 0.44% |
+| W+A | 94.3 | 95.5 | +1.2 | 100 → 100 | 45.3 | 136 | 0.44% |
+| A+R | 96.0 | 96.1 | +0.1 | 100 → 100 | 43.2 | 130 | 0.42% |
+| R+W+A | 97.0 | 96.7 | -0.3 | 100 → 100 | 39.3 | 118 | 0.34% |
+
+**expert · full · normal**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 96.2 | 96.0 | -0.2 | 100 → 100 | 36.4 | 109 | 0.46% |
+| W | 92.1 | 92.1 | -0.0 | 100 → 100 | 39.0 | 117 | 0.49% |
+| A | 99.9 | 99.9 | +0.0 | 100 → 100 | 35.4 | 106 | 0.45% |
+| R+W | 98.3 | 99.2 | +0.9 | 100 → 100 | 48.6 | 146 | 0.47% |
+| W+A | 99.9 | 100.0 | +0.0 | 100 → 100 | 48.0 | 144 | 0.47% |
+| A+R | 100.0 | 99.9 | -0.1 | 100 → 100 | 46.4 | 139 | 0.45% |
+| R+W+A | 98.5 | 97.6 | -0.9 | 100 → 100 | 49.3 | 148 | 0.43% |
+
+**casual · full · hard**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 54.2 | 57.4 | +3.3 | 100 → 100 | 28.9 | 87 | 0.28% |
+| W | 65.7 | 66.7 | +1.0 | 100 → 100 | 29.9 | 90 | 0.29% |
+| A | 64.7 | 63.9 | -0.9 | 100 → 100 | 28.9 | 87 | 0.28% |
+| R+W | 60.4 | 63.2 | +2.9 | 100 → 100 | 45.5 | 137 | 0.44% |
+| W+A | 74.2 | 74.4 | +0.2 | 100 → 100 | 45.3 | 136 | 0.44% |
+| A+R | 73.3 | 73.2 | -0.1 | 100 → 100 | 45.0 | 135 | 0.44% |
+| R+W+A | 12.6 | 11.1 | -1.5 | 47 → 40 | 38.7 | 116 | 0.34% |
+
+**expert · full · hard**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 72.0 | 71.2 | -0.8 | 100 → 100 | 37.6 | 113 | 0.47% |
+| W | 67.3 | 65.9 | -1.5 | 100 → 100 | 39.4 | 118 | 0.50% |
+| A | 88.4 | 88.3 | -0.1 | 100 → 100 | 36.0 | 108 | 0.45% |
+| R+W | 86.3 | 83.6 | -2.7 | 100 → 100 | 49.0 | 147 | 0.48% |
+| W+A | 97.0 | 97.1 | +0.1 | 100 → 100 | 49.9 | 150 | 0.48% |
+| A+R | 97.0 | 96.4 | -0.6 | 100 → 100 | 47.5 | 143 | 0.46% |
+| R+W+A | 89.0 | 87.5 | -1.4 | 100 → 100 | 51.1 | 153 | 0.44% |
+
+**casual · quick · normal**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 90.2 | 87.5 | -2.7 | 100 → 100 | 15.7 | 47 | 0.32% |
+| W | 88.6 | 85.0 | -3.6 | 100 → 100 | 15.8 | 48 | 0.33% |
+| A | 89.3 | 90.1 | +0.9 | 100 → 100 | 15.5 | 47 | 0.32% |
+| R+W | 87.2 | 88.8 | +1.6 | 100 → 100 | 23.3 | 70 | 0.48% |
+| W+A | 88.0 | 88.5 | +0.5 | 100 → 100 | 23.3 | 70 | 0.48% |
+| A+R | 90.6 | 90.3 | -0.3 | 100 → 100 | 23.6 | 71 | 0.49% |
+| R+W+A | 87.9 | 93.0 | +5.2 | 100 → 100 | 22.1 | 66 | 0.41% |
+
+**expert · quick · normal**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 92.8 | 92.5 | -0.3 | 100 → 100 | 18.9 | 57 | 0.51% |
+| W | 96.8 | 96.5 | -0.3 | 100 → 100 | 20.1 | 60 | 0.54% |
+| A | 98.7 | 98.6 | -0.0 | 100 → 100 | 17.9 | 54 | 0.48% |
+| R+W | 97.1 | 96.5 | -0.6 | 100 → 100 | 25.9 | 78 | 0.53% |
+| W+A | 99.8 | 99.8 | +0.0 | 100 → 100 | 24.7 | 74 | 0.51% |
+| A+R | 99.7 | 99.4 | -0.2 | 100 → 100 | 24.4 | 73 | 0.50% |
+| R+W+A | 99.9 | 100.0 | +0.1 | 100 → 100 | 28.1 | 84 | 0.52% |
+
+**casual · quick · hard**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 47.7 | 48.9 | +1.2 | 100 → 100 | 15.7 | 47 | 0.32% |
+| W | 51.4 | 50.5 | -0.9 | 100 → 100 | 15.9 | 48 | 0.33% |
+| A | 45.0 | 44.6 | -0.4 | 100 → 97 | 15.5 | 46 | 0.32% |
+| R+W | 14.6 | 9.2 | -5.4 | 47 → 30 | 24.7 | 74 | 0.51% |
+| W+A | 26.9 | 24.2 | -2.7 | 70 → 63 | 25.4 | 76 | 0.52% |
+| A+R | 22.4 | 18.6 | -3.7 | 63 → 60 | 25.3 | 76 | 0.52% |
+| R+W+A | 0.0 | 0.0 | +0.0 | 0 → 0 | 19.1 | 57 | 0.35% |
+
+**expert · quick · hard**
+
+| team | Heart step 1 | Heart step 1+2 | Δ | win% step 1 → 1+2 | repairs / match | tower-seconds silent / match | share of tower time |
+|---|---|---|---|---|---|---|---|
+| R | 76.2 | 73.1 | -3.2 | 100 → 100 | 20.1 | 60 | 0.54% |
+| W | 67.6 | 64.8 | -2.8 | 100 → 100 | 20.5 | 62 | 0.55% |
+| A | 83.6 | 85.1 | +1.4 | 100 → 100 | 20.2 | 61 | 0.54% |
+| R+W | 66.8 | 63.0 | -3.8 | 100 → 100 | 27.4 | 82 | 0.56% |
+| W+A | 87.9 | 87.0 | -0.8 | 100 → 100 | 28.2 | 85 | 0.58% |
+| A+R | 83.0 | 83.9 | +0.9 | 100 → 100 | 26.9 | 81 | 0.55% |
+| R+W+A | 77.1 | 74.6 | -2.6 | 100 → 100 | 31.3 | 94 | 0.58% |
+
+## Report only: Hard creep HP +0.05 (not committed)
+
+Han asked, since expert Hard stayed above 80: one run of the expert and casual bots on Hard with every Hard creep-HP multiplier one round step higher, everything else as step 2. Full `difficulty.hard.byPlayers` hp 1.18 / 1.18 / 1.17 → 1.23 / 1.23 / 1.22; Quick `modes.quick.hard.byPlayers` hp 1.2 / 1.28 / 1.3 → 1.25 / 1.33 / 1.35 (counts and ramps unchanged). Run with `--tuning`; `tuning.ts` is unchanged. Expert Hard drops 0–10 Heart but Full Arcanist (85), W+A (94), A+R (94) and the trio (88), and Quick Arcanist (84), stay above 80, and most expert Hard teams now lose 65–91% of their Heart in the first third (the curve wants at most 45%). Casual Hard solo falls to 31–51 Heart and the Quick pairs to 20–47% wins.
+
+**casual · full · hard**
+
+| team | step 2: win% · Heart | Hard HP +0.05: win% · Heart | lost 1st/2nd/3rd (probe) |
+|---|---|---|---|
+| R | 100% · 57.4 | 100% · 40.3 (13–65) | 59%/19%/22% |
+| W | 100% · 66.7 | 100% · 45.2 (13–69) | 58%/22%/20% |
+| A | 100% · 63.9 | 100% · 51.4 (24–84) | 59%/18%/23% |
+| R+W | 100% · 63.2 | 100% · 40.5 (3–67) | 62%/38%/0% |
+| W+A | 100% · 74.4 | 100% · 61.3 (31–82) | 57%/43%/0% |
+| A+R | 100% · 73.2 | 100% · 60.4 (33–85) | 62%/38%/0% |
+| R+W+A | 40% · 11.1 | 23% · 5.0 (0–33) | 18%/12%/70% |
+
+**expert · full · hard**
+
+| team | step 2: win% · Heart | Hard HP +0.05: win% · Heart | lost 1st/2nd/3rd (probe) |
+|---|---|---|---|
+| R | 100% · 71.2 | 100% · 61.1 (48–71) | 84%/16%/0% |
+| W | 100% · 65.9 | 100% · 57.8 (47–73) | 65%/28%/7% |
+| A | 100% · 88.3 | 100% · 85.3 (77–98) | 85%/15%/0% |
+| R+W | 100% · 83.6 | 100% · 73.4 (28–92) | 69%/31%/0% |
+| W+A | 100% · 97.1 | 100% · 94.3 (85–100) | 87%/13%/0% |
+| A+R | 100% · 96.4 | 100% · 94.1 (78–100) | 89%/11%/0% |
+| R+W+A | 100% · 87.5 | 100% · 87.7 (72–94) | 91%/6%/4% |
+
+**casual · quick · hard**
+
+| team | step 2: win% · Heart | Hard HP +0.05: win% · Heart | lost 1st/2nd/3rd (probe) |
+|---|---|---|---|
+| R | 100% · 48.9 | 100% · 30.8 (6–52) | 27%/29%/44% |
+| W | 100% · 50.5 | 100% · 38.2 (10–67) | 27%/41%/32% |
+| A | 97% · 44.6 | 100% · 35.7 (11–52) | 30%/27%/42% |
+| R+W | 30% · 9.2 | 20% · 4.0 (0–47) | 26%/42%/33% |
+| W+A | 63% · 24.2 | 47% · 17.8 (0–70) | 27%/37%/36% |
+| A+R | 60% · 18.6 | 37% · 10.7 (0–65) | 26%/32%/41% |
+| R+W+A | 0% · 0.0 | 0% · 0.0 (0–0) | 28%/46%/26% |
+
+**expert · quick · hard**
+
+| team | step 2: win% · Heart | Hard HP +0.05: win% · Heart | lost 1st/2nd/3rd (probe) |
+|---|---|---|---|
+| R | 100% · 73.1 | 100% · 64.5 (29–84) | 41%/47%/13% |
+| W | 100% · 64.8 | 100% · 58.2 (37–72) | 34%/53%/13% |
+| A | 100% · 85.1 | 100% · 83.8 (71–92) | 53%/39%/8% |
+| R+W | 100% · 63.0 | 100% · 56.5 (18–86) | 44%/53%/3% |
+| W+A | 100% · 87.0 | 100% · 78.5 (54–94) | 43%/51%/6% |
+| A+R | 100% · 83.9 | 100% · 80.2 (19–91) | 46%/50%/4% |
+| R+W+A | 100% · 74.6 | 100% · 65.3 (24–86) | 36%/56%/8% |
