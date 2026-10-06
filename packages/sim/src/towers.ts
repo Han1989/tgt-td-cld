@@ -20,12 +20,10 @@ import { secondsToTicks, TICK_RATE, towerStats, type TowerLevelStats } from './t
 import { dist, moveToward } from './vec';
 
 export function updateTowers(state: GameState): void {
-  updateRepairs(state);
   for (const tower of state.towers) {
     if (tower.dead) continue;
     if (tower.cooldown > 0) tower.cooldown--;
-    // A tower under repair does not shoot.
-    if (tower.repairUntil > 0 || state.tick < tower.stunUntil || tower.cooldown > 0) continue;
+    if (state.tick < tower.stunUntil || tower.cooldown > 0) continue;
     const rolled = towerStats(state.tuning, tower.kind, tower.tier, tower.branch);
     const range = scaledTowerRange(state, rolled.range);
     const st = range === rolled.range ? rolled : { ...rolled, range };
@@ -37,17 +35,6 @@ export function updateTowers(state: GameState): void {
     if (targets.length === 0) continue;
     tower.cooldown = secondsToTicks(st.attackCooldown);
     for (const target of targets) fire(state, tower, st, target);
-  }
-}
-
-/** Repairs whose time is up: the tower is back at full HP (whatever it took meanwhile) and shoots again. */
-function updateRepairs(state: GameState): void {
-  for (const tower of state.towers) {
-    if (tower.dead || tower.repairUntil === 0 || state.tick < tower.repairUntil) continue;
-    const hp = Math.max(0, Math.round(tower.maxHp - tower.hp));
-    tower.hp = tower.maxHp;
-    tower.repairUntil = 0;
-    emit(state, { type: 'towerRepaired', towerId: tower.id, owner: tower.owner, hp });
   }
 }
 

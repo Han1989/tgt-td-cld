@@ -442,8 +442,6 @@ export interface Tuning {
      * (sell refunds 0.7, rebuild costs 1) and is far less on an upgraded one, which a rebuild sends back to tier 1.
      */
     repairRate: number;
-    /** A repair takes this long: the tower does not shoot meanwhile and comes back at full HP at the end (paid at the start). */
-    repairSeconds: number;
     waveIncomeBase: number;
     waveIncomePerWave: number;
     /** Call-early bonus per second left on the wave timer. */
@@ -623,7 +621,6 @@ export const TUNING: Tuning = {
     startingGold: 100,
     sellRefund: 0.7,
     repairRate: 0.3,
-    repairSeconds: 3,
     waveIncomeBase: 40,
     waveIncomePerWave: 16,
     callEarlyGoldPerSecond: 0.5,

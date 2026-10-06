@@ -10,7 +10,7 @@ import { nearestWalkable } from './pathfinding';
 import { castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
 import type { GameState, Tower } from './state';
 import { upgradeTower } from './towers';
-import { repairCost, secondsToTicks, towerTier } from './tuning';
+import { repairCost, towerTier } from './tuning';
 import { callEarly } from './waves';
 
 /** Applies `command` for `playerId`. Returns true if it was accepted. */
@@ -113,7 +113,6 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
         spent: stats.cost,
         priority: 'first',
         stunUntil: 0,
-        repairUntil: 0,
         dead: false,
       };
       state.towers.push(tower);
@@ -156,15 +155,14 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       const tower = state.towers.find((t) => t.id === command.towerId && !t.dead);
       if (!tower) return reject('No such tower');
       if (tower.owner !== playerId) return reject('Not your tower');
-      if (tower.repairUntil > 0) return reject('Tower is being repaired');
       if (tower.hp >= tower.maxHp) return reject('Tower is at full HP');
       const cost = repairCost(state.tuning, tower);
       if (player.gold < cost) return reject('Not enough gold');
       player.gold -= cost;
-      // Paid now; `updateRepairs` brings it to full HP when the time is up. It does not shoot meanwhile.
       // Repairs are not added to `spent`: sell refunds and the next repair's price stay on the tower's own price.
-      tower.repairUntil = state.tick + Math.max(1, secondsToTicks(state.tuning.economy.repairSeconds));
-      emit(state, { type: 'towerRepairStarted', towerId: tower.id, owner: playerId, cost });
+      const hp = Math.round(tower.maxHp - tower.hp);
+      tower.hp = tower.maxHp;
+      emit(state, { type: 'towerRepaired', towerId: tower.id, owner: playerId, cost, hp });
       return true;
     }
     case 'setPriority': {

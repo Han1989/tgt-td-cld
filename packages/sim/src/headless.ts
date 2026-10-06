@@ -49,7 +49,7 @@ export interface HeadlessResult {
   ultBy: UltStats['by'];
   /** Combos that fired (`combo` events). */
   combos: number;
-  /** Tower repairs paid for (`towerRepairStarted` events), the gold they cost, and towers destroyed by creeps. */
+  /** Tower repairs (`towerRepaired` events), the gold they cost, and towers destroyed by creeps. */
   repairs: number;
   repairGold: number;
   towersDestroyed: number;
@@ -138,7 +138,7 @@ export function runHeadlessMatch(opts: {
       }
       if (e.type === 'damage') for (let i = 1; i < e.hits.length; i += 2) totalDamage += e.hits[i]!;
       if (e.type === 'combo') combos++;
-      if (e.type === 'towerRepairStarted') {
+      if (e.type === 'towerRepaired') {
         repairs++;
         repairGold += e.cost;
       }

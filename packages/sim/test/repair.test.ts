@@ -1,5 +1,4 @@
-// Tower repair: owner only, paid at the start, ceil(repairRate × spent × share missing) gold; the tower does not shoot
-// for repairSeconds and then is back at full HP.
+// Tower repair: owner only, instant, to full HP, for ceil(repairRate × spent × share missing) gold.
 
 import { decodeReplayCommand, type GameEvent, type Replay } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
@@ -7,10 +6,8 @@ import { createBalanceBot, createExpertBot, createNoviceBot } from '../src/bots'
 import { applyCommand } from '../src/commands';
 import { snapshot } from '../src/game';
 import { createMatch, matchCommand, matchReplay, matchReport, replayMatch } from '../src/match';
-import { repairCost, secondsToTicks, towerTier, TUNING } from '../src/tuning';
-
-const REPAIR_TICKS = secondsToTicks(TUNING.economy.repairSeconds);
-import { LAB_PAD, labGame, parkHero, placeCreep, run, runCollect } from './helpers';
+import { repairCost, towerTier, TUNING } from '../src/tuning';
+import { LAB_PAD, labGame, parkHero } from './helpers';
 
 function withTower(gold = 10_000) {
   const state = labGame(TUNING, 2);
@@ -49,7 +46,7 @@ describe('repair cost', () => {
 });
 
 describe('repair command', () => {
-  it('charges at the start, takes repairSeconds, then the tower is at full HP; tier, target and spent kept', () => {
+  it('brings the tower to full HP at once, charges the cost and keeps tier, branch, target and spent', () => {
     const { state, tower, player } = withTower();
     applyCommand(state, 'p1', { type: 'upgrade', towerId: tower.id });
     applyCommand(state, 'p1', { type: 'setPriority', towerId: tower.id, priority: 'strongest' });
@@ -60,36 +57,19 @@ describe('repair command', () => {
     const gold = player.gold;
     state.pendingEvents = [];
     expect(applyCommand(state, 'p1', { type: 'repair', towerId: tower.id })).toBe(true);
-    expect(player.gold).toBe(gold - cost);
-    expect(state.pendingEvents).toContainEqual<GameEvent>({ type: 'towerRepairStarted', towerId: tower.id, owner: 'p1', cost });
-    // Not yet: the snapshot shows the time left.
-    expect(tower.hp).toBe(tower.maxHp * 0.25);
-    expect(snapshot(state).towers[0]!.repairLeft).toBe(REPAIR_TICKS);
-    expect(TUNING.economy.repairSeconds).toBe(3);
-    run(state, REPAIR_TICKS - 1);
-    expect(tower.hp).toBeLessThan(tower.maxHp);
-    expect(snapshot(state).towers[0]!.repairLeft).toBe(1);
-    const events = runCollect(state, 1);
     expect(tower.hp).toBe(tower.maxHp);
-    expect(events).toContainEqual<GameEvent>({ type: 'towerRepaired', towerId: tower.id, owner: 'p1', hp: Math.round(tower.maxHp * 0.75) });
-    expect(snapshot(state).towers[0]!.repairLeft).toBe(0);
-    expect(snapshot(state).towers[0]!.hp).toBe(tower.maxHp);
+    expect(player.gold).toBe(gold - cost);
     expect(tower.tier).toBe(2);
     expect(tower.priority).toBe('strongest');
     expect(tower.spent).toBe(spent);
-  });
-
-  it('the tower does not shoot while it is being repaired, and shoots again after', () => {
-    const { state, tower } = withTower();
-    tower.hp = 100;
-    applyCommand(state, 'p1', { type: 'repair', towerId: tower.id });
-    const creep = placeCreep(state, 'brute', tower.x + 1.5, tower.y);
-    creep.speed = 0;
-    const full = creep.hp;
-    run(state, REPAIR_TICKS - 1);
-    expect(creep.hp).toBe(full);
-    run(state, 40);
-    expect(creep.hp).toBeLessThan(full);
+    expect(state.pendingEvents).toContainEqual<GameEvent>({
+      type: 'towerRepaired',
+      towerId: tower.id,
+      owner: 'p1',
+      cost,
+      hp: Math.round(tower.maxHp * 0.75),
+    });
+    expect(snapshot(state).towers[0]!.hp).toBe(tower.maxHp);
   });
 
   it('keeps a branch', () => {
@@ -99,7 +79,6 @@ describe('repair command', () => {
     expect(applyCommand(state, 'p1', { type: 'upgrade', towerId: tower.id, branch: 'volley' })).toBe(true);
     tower.hp = 10;
     expect(applyCommand(state, 'p1', { type: 'repair', towerId: tower.id })).toBe(true);
-    run(state, REPAIR_TICKS);
     expect(tower.branch).toBe('volley');
     expect(tower.tier).toBe(4);
     expect(tower.hp).toBe(tower.maxHp);
@@ -127,14 +106,6 @@ describe('repair command', () => {
     expect(lastRejection(state)).toBe('Tower is at full HP');
     expect(player.gold).toBe(1000);
 
-    tower.hp = 100;
-    expect(applyCommand(state, 'p1', { type: 'repair', towerId: tower.id })).toBe(true);
-    const paid = player.gold;
-    expect(applyCommand(state, 'p1', { type: 'repair', towerId: tower.id })).toBe(false);
-    expect(lastRejection(state)).toBe('Tower is being repaired');
-    expect(player.gold).toBe(paid);
-
-    player.gold = 1000;
     tower.hp = 0;
     tower.dead = true;
     expect(applyCommand(state, 'p1', { type: 'repair', towerId: tower.id })).toBe(false);

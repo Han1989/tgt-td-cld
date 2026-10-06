@@ -368,8 +368,6 @@ export interface TowerSnap {
   spent: number;
   priority: TargetPriority;
   stunned: boolean;
-  /** Ticks left of a repair in progress (it does not shoot meanwhile), or 0 when none. */
-  repairLeft: number;
 }
 
 /**
@@ -424,10 +422,8 @@ export type GameEvent =
   | { type: 'towerSold'; towerId: EntityId; owner: PlayerId; refund: number }
   | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number; branch: TowerBranch | null }
   | { type: 'towerDestroyed'; towerId: EntityId }
-  /** `owner` paid `cost` gold to repair the tower; it does not shoot until `towerRepaired` (`economy.repairSeconds`). */
-  | { type: 'towerRepairStarted'; towerId: EntityId; owner: PlayerId; cost: number }
-  /** A repair finished: the tower is back at full HP; `hp` is the HP it got back. */
-  | { type: 'towerRepaired'; towerId: EntityId; owner: PlayerId; hp: number }
+  /** `owner` paid `cost` gold to bring the tower back to full HP; `hp` is the HP it got back. */
+  | { type: 'towerRepaired'; towerId: EntityId; owner: PlayerId; cost: number; hp: number }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
   /**
    * A living hero's R landed while another living hero's R was still inside `R_OVERLAP_SECONDS`.

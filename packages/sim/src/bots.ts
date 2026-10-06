@@ -796,9 +796,7 @@ const REPAIR_EVERY: Record<'casual' | 'expert', number> = { expert: 15, casual: 
  * spent (0 if none).
  */
 function spendRepair(cmds: Command[], mine: TowerSnap[], tuning: Tuning, gold: number): number {
-  const hurt = mine
-    .filter((t) => t.repairLeft === 0 && t.hp < t.maxHp * REPAIR_BELOW)
-    .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+  const hurt = mine.filter((t) => t.hp < t.maxHp * REPAIR_BELOW).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
   for (const t of hurt) {
     const cost = repairCost(tuning, t);
     if (gold < cost) continue;
