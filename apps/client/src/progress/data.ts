@@ -210,6 +210,14 @@ const items: ProgressItem[] = [
     note: 'Han retests after Playtest 2 tasks P2-01 through P2-04b.',
   },
   {
+    id: 'P2-06',
+    title: 'Tower repair',
+    owner: 'Both',
+    status: 'in_progress',
+    section: 'playtest2',
+    note: 'Sim and client, protocol 19. Repair costs 0.3 of the gold spent times the share of HP missing, takes 3 s with the tower silent, then full HP. Phone ring button, desktop panel and F, a progress bar and a one-time hint. The balance gates are red with repair, so the PR waits for Han. Built by Claude Code.',
+  },
+  {
     id: 'H-01',
     title: 'Let friends open preview links',
     owner: 'Han',

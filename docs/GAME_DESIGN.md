@@ -51,7 +51,7 @@ Original names and art only. No Warcraft, Dota or other studio assets, names or 
 - **Wave income:** every player gets flat gold at the start of each wave, scaling with wave number (40 + 16 × (wave − 1) on Spire; wave income carries most of the economy).
 - **Call-early bonus:** paid to all players.
 - **Selling** a tower refunds 70% of the total gold spent on it.
-- **Repairing** a damaged tower brings it to full HP at once for ceil(repairRate × gold spent on it × share of HP missing) gold, at least 1 (`economy.repairRate`; see the Decision Log). It keeps the tier, branch and target setting. Repairs do not count toward the sell refund.
+- **Repairing** a damaged tower costs ceil(repairRate × gold spent on it × share of HP missing) gold, at least 1 (`economy.repairRate` 0.3), paid at once. The repair takes 3 s (`economy.repairSeconds`): the tower does not shoot meanwhile, then it is back at full HP (see the Decision Log). It keeps the tier, branch and target setting. Repairs do not count toward the sell refund.
 - **Heart HP:** 100, no regeneration.
 - **Gold gifting** between teammates (Phase 3): give any whole amount of your gold to a connected teammate.
 

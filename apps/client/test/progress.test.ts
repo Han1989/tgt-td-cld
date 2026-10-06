@@ -34,8 +34,8 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('soft launch');
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
-    expect(summary.hanOpen).toBe(11);
-    expect(summary.inProgress).toBe(0);
+    expect(summary.hanOpen).toBe(12);
+    expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -166,7 +166,7 @@ describe('progress dashboard data', () => {
   });
 
   it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
-    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual([]);
+    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['P2-06']);
     const empty = renderCooking({ ...PROGRESS, items: PROGRESS.items.filter((item) => item.status !== 'in_progress') });
     expect(empty).toContain('Cooking now');
     expect(empty).toContain('Nothing is marked in progress.');
@@ -195,7 +195,7 @@ describe('progress dashboard data', () => {
           section: 'han',
           note: 'Working the tracker row.',
         },
-        ...PROGRESS.items,
+        ...PROGRESS.items.filter((item) => item.status !== 'in_progress'),
       ],
     };
     expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9']);

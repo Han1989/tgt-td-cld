@@ -178,11 +178,11 @@ On the production build (it has the game server), on a phone and in the installe
 Solo Quick on Normal is enough; Archers (from wave 3) and bosses damage towers. A desktop for 12.6.
 
 - [ ] 12.1 Build a tower and let Archers hit it. The first time one of **your** towers drops under half HP, a one-line green toast says **"A tower is under half HP. Tap it, then Repair."** It never shows again on this phone, in any later match (⚙ → Replay tutorial brings it back once).
-- [ ] 12.2 Tap the damaged tower: the ring has a fourth button at the bottom, **Repair** with a hammer and its gold price, clear of Target and Sell and never over the joystick or the skill buttons. A tower at full HP has no Repair button. Nothing is drawn on the tower itself beyond its health bar.
+- [ ] 12.2 Tap the damaged tower: the ring has a fourth button at the bottom, **Repair** with a hammer and its gold price, clear of Target and Sell and never over the joystick or the skill buttons. A tower at full HP has no Repair button.
 - [ ] 12.3 With the ring open while Archers keep hitting it, the price climbs as the HP drops, and the button does not flicker or lose your tap.
-- [ ] 12.4 **One tap** on Repair: the tower's bar is full at once, a short green ring and motes play on it with a mallet-and-string sound, and your gold drops by exactly the price that was shown. The tower keeps its tier, specialisation and target setting; the Repair button goes and the ring stays open.
+- [ ] 12.4 **One tap** on Repair: your gold drops at once by exactly the price that was shown, with a mallet-and-string sound. For **3 seconds** the tower is dimmed, a **green bar fills under its health bar**, and it **does not shoot**; the Repair button is gone meanwhile. Then its health bar is full, a short green ring and motes play on it, and it shoots again. It keeps its tier, specialisation and target setting, and the ring stays open. Say whether the 3 s reads clearly on the phone.
 - [ ] 12.5 Spend down until you cannot afford a repair, then tap Repair: the button **shakes**, a toast says **Not enough gold**, and no gold is spent. A teammate's tower (online) has no ring, so no Repair.
-- [ ] 12.6 Desktop: click your damaged tower; the panel has **Repair** with its price under the upgrade, and **F** repairs the selected tower too (the **Controls** list says so). A full-HP tower shows no Repair; F on it says "Tower is at full HP".
+- [ ] 12.6 Desktop: click your damaged tower; the panel has **Repair** with its price under the upgrade, and **F** repairs the selected tower too (the **Controls** list says so). While it runs the panel says **Repairing · not shooting** and F says "Tower is being repaired". A full-HP tower shows no Repair; F on it says "Tower is at full HP".
 
 ## Results
 
