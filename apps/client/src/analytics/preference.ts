@@ -3,10 +3,16 @@
 // a game tab saving its settings must not put back an old choice. Every analytics post reads it
 // first (session.ts `allowed`), so a change in any tab holds from the next event.
 
+// The age answer (age.ts) comes first: nothing is sent before it, never under 13, and from 13 to 15 only once the
+// player turns it on.
+
+import { currentAgeBand, type AgeBand } from './age';
+import { VISITOR_KEY } from './dataKey';
+
+export { VISITOR_KEY };
+
 /** `on` / `off`; missing until the player picks one. */
 export const ANALYTICS_KEY = 'tdt.analytics';
-/** The random visitor id (install.ts). The privacy page shows it so a deletion request can name it. */
-export const VISITOR_KEY = 'tdt.visitor';
 
 export type AnalyticsChoice = 'on' | 'off';
 
@@ -23,10 +29,18 @@ export function parseAnalyticsChoice(raw: string | null | undefined): AnalyticsC
 }
 
 /**
- * Whether this browser sends play data. The player's own choice wins; with none, it is on unless the
+ * Whether this browser sends play data. Nothing before the age question is answered and never under 13. From 13
+ * to 15 only when the player turned it on. From 16 the player's own choice wins; with none, it is on unless the
  * browser sends Global Privacy Control or Do Not Track.
  */
-export function analyticsAllowed(choice: AnalyticsChoice | null, signals: PrivacySignals): boolean {
+export function analyticsAllowed(choice: AnalyticsChoice | null, signals: PrivacySignals, age: AgeBand | null): boolean {
+  if (age === null || age === 'child') return false;
+  if (age === 'teen') return choice === 'on';
+  return wouldSend(choice, signals);
+}
+
+/** The switch's own rule, before the age: the player's choice, else on unless GPC / DNT. */
+export function wouldSend(choice: AnalyticsChoice | null, signals: PrivacySignals): boolean {
   if (choice) return choice === 'on';
   return !signals.gpc && !signals.dnt;
 }
@@ -83,7 +97,7 @@ export function browserSignals(): PrivacySignals {
 /** True when this browser may send play data right now. Never throws (false on error). */
 export function analyticsOn(): boolean {
   try {
-    return analyticsAllowed(readAnalyticsChoice(), browserSignals());
+    return analyticsAllowed(readAnalyticsChoice(), browserSignals(), currentAgeBand());
   } catch {
     return false;
   }
@@ -99,10 +113,22 @@ export function storedVisitorId(): string | null {
   }
 }
 
+export interface PlayDataStatus {
+  on: boolean;
+  line: string;
+  /** Under 13: On cannot be picked. */
+  locked: boolean;
+}
+
 /** The switch's state and the line under it (Settings → Play data and the privacy page). */
-export function playDataStatus(choice: AnalyticsChoice | null, signals: PrivacySignals): { on: boolean; line: string } {
-  const on = analyticsAllowed(choice, signals);
-  if (on) return { on, line: 'On: this browser sends anonymous play data.' };
-  if (!choice) return { on, line: 'Off: your browser asks sites not to track it, so nothing is sent.' };
-  return { on, line: 'Off: this browser sends nothing.' };
+export function playDataStatus(choice: AnalyticsChoice | null, signals: PrivacySignals, age: AgeBand | null): PlayDataStatus {
+  const on = analyticsAllowed(choice, signals, age);
+  if (age === 'child') return { on, locked: true, line: 'Off: nothing is sent for players under 13.' };
+  if (on) return { on, locked: false, line: 'On: this browser sends anonymous play data.' };
+  if (age === null && wouldSend(choice, signals)) {
+    return { on, locked: false, line: 'Off until the game knows your age. It asks once, when you first press Play or turn this on.' };
+  }
+  if (age === 'teen' && !choice) return { on, locked: false, line: 'Off: under 16 it starts off. You can turn it on.' };
+  if (!choice) return { on, locked: false, line: 'Off: your browser asks sites not to track it, so nothing is sent.' };
+  return { on, locked: false, line: 'Off: this browser sends nothing.' };
 }

@@ -14,6 +14,7 @@ import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
 import type { ModifierDeal } from './lobby/modifierPicker';
 import { showSoloPick } from './lobby/solo';
+import { ageGate } from './privacy/ageCheck';
 import { sharedSettings } from './settings';
 import { shouldStartLesson, tutorialMatch } from './tutorial/logic';
 import { LocalTransport } from './transport/localTransport';
@@ -28,10 +29,18 @@ export class OnlineController {
     private readonly view: GameView,
     private readonly serverUrl: string,
   ) {
+    // The age question comes before the first room or solo match, never before the lobby (docs/ANALYTICS.md "Age").
+    // Nothing was sent before it, so the lobby step of the funnel goes once it is answered.
+    const gated = (next: () => void) =>
+      ageGate(() => {
+        currentAnalytics()?.funnel('lobby');
+        next();
+      });
     this.ui = new LobbyUi({
-      create: (name, hero) => this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…'),
-      join: (code, name, hero) => this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`),
-      playOffline: () => this.playOffline(),
+      create: (name, hero) => gated(() => this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…')),
+      join: (code, name, hero) =>
+        gated(() => this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`)),
+      playOffline: () => gated(() => this.playOffline()),
       setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
       setMode: (mode: GameMode) => this.transport?.send({ t: 'mode', mode }),
       setDifficulty: (difficulty: Difficulty) => this.transport?.send({ t: 'difficulty', difficulty }),

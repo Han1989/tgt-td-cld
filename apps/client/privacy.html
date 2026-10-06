@@ -12,7 +12,8 @@
   <body>
     <!--
       The privacy notice (docs/ANALYTICS.md "Privacy"). Static text: it reads the same without JavaScript.
-      src/privacy/page.ts only wires the switch and shows this browser's id. Keep it in step with what
+      src/privacy/page.ts only wires the switch, the age question, the copy / delete buttons and this browser's id.
+      Keep it in step with what
       apps/client/src/analytics/session.ts sends and with the server's 30-day retention.
     -->
     <main class="privacy">
@@ -23,7 +24,8 @@
       <p>
         Tower Defense Together is a free browser game made by an independent developer in Singapore. There are no
         accounts. The game sends a small amount of anonymous play data to its own server so we can tell whether new
-        players enjoy it and come back. This page says what, why, for how long, and how to turn it off.
+        players enjoy it and come back. This page says what, why, for how long, how to turn it off, and how to get a copy
+        or delete it yourself.
       </p>
 
       <section aria-labelledby="short">
@@ -34,6 +36,8 @@
           <li>Play data is deleted after <strong>30 days</strong>. One short line per browser id, used to count who comes back after a month, goes 31 days after your last visit (<a href="#keep">below</a>).</li>
           <li>You can turn it off for this browser at any time (<a href="#choices">below</a>, or in the game: ⚙ Settings → Play data).</li>
           <li>We never sell it or pass it on. Only the game's own server stores it.</li>
+          <li>You can download or delete what the server holds for this browser yourself, at once (<a href="#mine">below</a>, or ⚙ Settings → Your data).</li>
+          <li>The game asks your age once. Under 13, nothing is ever sent (<a href="#age">below</a>).</li>
         </ul>
       </section>
 
@@ -43,7 +47,9 @@
           <dt>A random visitor id</dt>
           <dd>
             Made by your browser and kept in its storage (<code>tdt.visitor</code>). It is not tied to your name, email or
-            device. We use it to count players who come back the next day or the next week.
+            device. We use it to count players who come back the next day or the next week. It is made from a secret key
+            that also stays in your browser (<code>tdt.visitorKey</code>) and is never sent with play data. Only that key
+            can ask for this browser's copy or deletion, so nobody who learns the id can read or delete your data.
           </dd>
           <dt>Visits and playtime</dt>
           <dd>A new id for each visit, when it starts and ends, and a heartbeat every 25 seconds while the game is on screen.</dd>
@@ -110,6 +116,32 @@
         </p>
       </section>
 
+      <section aria-labelledby="rights">
+        <h2 id="rights">Your rights</h2>
+        <p>
+          The EU and UK GDPR and Singapore's PDPA give you these rights over your data. Here is how each works in this game.
+        </p>
+        <dl class="data">
+          <dt>To know what we collect and why</dt>
+          <dd>This page. If it changes, the date at the top changes.</dd>
+          <dt>To get a copy (access, and taking it elsewhere)</dt>
+          <dd>Press <em>Download my data</em> <a href="#mine">below</a>. You get a file with everything the server holds for this browser, in a common format (JSON).</dd>
+          <dt>To have it deleted</dt>
+          <dd>Press <em>Delete my data</em>. It is gone from the server at once, and this browser gets a new id.</dd>
+          <dt>To object, or to withdraw</dt>
+          <dd>Turn play data off. Nothing more is sent from this browser.</dd>
+          <dt>To have it corrected</dt>
+          <dd>Play data is a record of what happened in the game, so there is little to correct. If something is wrong, delete it, or email us.</dd>
+          <dt>To complain</dt>
+          <dd>To Singapore's Personal Data Protection Commission, or to the data protection authority where you live.</dd>
+        </dl>
+        <p>
+          We keep the data safe, use it only for the purpose on this page, and keep it no longer than it says. If it were
+          ever exposed, we would tell the authorities and say so on this page, as the law asks. You do not need to give
+          a reason or prove who you are: the buttons work for this browser only.
+        </p>
+      </section>
+
       <section aria-labelledby="keep">
         <h2 id="keep">How long we keep it</h2>
         <p>
@@ -136,35 +168,62 @@
         <ul>
           <li>Off stops every event from this browser straight away, ratings and error reports included. What was already sent is still deleted on the schedule above, or sooner if you ask.</li>
           <li>If your browser sends Global Privacy Control or Do Not Track, it starts off. You can still turn it on.</li>
+          <li>Nothing is sent until the game knows your age. Under 13 it stays off; from 13 to 15 it starts off (<a href="#age">below</a>).</li>
           <li>The same switch is in the game: ⚙ Settings → Play data.</li>
         </ul>
       </section>
 
-      <section aria-labelledby="ask">
-        <h2 id="ask">Ask for a copy, or for deletion</h2>
+      <section id="mine" aria-labelledby="mine-title">
+        <h2 id="mine-title">Get a copy, or delete it</h2>
+        <p>
+          These buttons work for this browser only. Your browser proves it is yours with its secret key; the server works
+          out the id from the key, so nobody can ask for another browser's data.
+        </p>
+        <div class="switch my-data">
+          <div class="switch-buttons">
+            <button type="button" id="privacy-data-copy" class="btn" disabled>Download my data</button>
+            <button type="button" id="privacy-data-delete" class="btn" disabled>Delete my data</button>
+          </div>
+          <p id="privacy-data-state" class="state" role="status" aria-live="polite">
+            The buttons need JavaScript. Without it, ask by email (below).
+          </p>
+        </div>
+        <ul>
+          <li>Delete removes every event and the return-count line kept under this browser's id, then clears the id and key here. If play data is still on, the next visit starts with a new id.</li>
+          <li>A copy holds nothing about you beyond what this page lists.</li>
+        </ul>
+        <h3 id="ask">Or ask by email</h3>
         <p>
           Email
           <!-- TODO(Han): replace the marked placeholder with the privacy contact address before the Reddit posts (TASKS.md H-07). -->
           <span class="placeholder" data-placeholder="privacy-email">[PRIVACY EMAIL — Han to add before the Reddit posts]</span>
-          and include your browser's id. With no accounts, the id is the only way we can find your data. Deleting it removes
-          everything kept under that id, including the line used to count returns. We reply within 30 days.
+          and include your browser's id, for example if you cleared this site's data or use another device. With no
+          accounts, the id is the only way we can find your data. Deleting it removes everything kept under that id,
+          including the line used to count returns. We reply within 30 days.
         </p>
         <p class="visitor">
           Your browser's id:
           <code id="privacy-visitor">shown here when JavaScript is on</code>
           <button type="button" id="privacy-copy" class="btn small hidden">Copy</button>
         </p>
-        <p>
-          You can also complain to Singapore's Personal Data Protection Commission or to the data protection authority where
-          you live.
-        </p>
       </section>
 
-      <section aria-labelledby="kids">
-        <h2 id="kids">Children</h2>
+      <section id="age" aria-labelledby="kids">
+        <h2 id="kids">Children and the age question</h2>
         <p>
-          There are no accounts, chat is a few fixed phrases, and we never ask for personal details. If a child has typed
-          personal details into a note, email us and we will delete it.
+          Before any play data is sent, the game asks once: "How old are you?" The answer stays in your browser
+          (<code>tdt.age</code>) and is never sent. It only decides play data. Everyone can play.
+        </p>
+        <ul>
+          <li><strong>Under 13:</strong> nothing is ever sent from this browser, and play data cannot be turned on. Anything sent before the answer is deleted.</li>
+          <li><strong>13 to 15:</strong> play data starts off. You can turn it on yourself.</li>
+          <li><strong>16 and over:</strong> play data starts on, unless your browser asks sites not to track it. You can turn it off.</li>
+        </ul>
+        <p>
+          There are no accounts, no ads, chat is a few fixed phrases, and we never ask for personal details. Online, the
+          nickname is shown to the others in the room, so pick one that isn't your real name. If a child has typed
+          personal details into a note, a parent can press <em>Delete my data</em> on the child's device. For a nickname
+          in an online match's log line, email us.
         </p>
       </section>
 

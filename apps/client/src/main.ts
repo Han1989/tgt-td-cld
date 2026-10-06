@@ -55,9 +55,9 @@ async function main(): Promise<void> {
   const localSolo = !serverUrl || params.get('practice') === 'meteor-rain';
   // Before the game view, so a page that cannot start (no WebGL) still counts as a visit and sends its error.
   // Analytics needs the server (docs/ANALYTICS.md); local solo sends nothing. Browser tests (`?analytics`,
-  // e2e builds only) post to this page's own origin to watch every event.
-  if (!(stress > 0) && !e2eLobby) {
-    if (!localSolo) installAnalytics(serverUrl);
+  // e2e builds only) post to this page's own origin to watch every event, also on the `?lobby` card.
+  if (!(stress > 0)) {
+    if (!localSolo && !e2eLobby) installAnalytics(serverUrl);
     else if (import.meta.env.MODE === 'e2e' && params.has('analytics')) installAnalytics(location.origin);
   }
   const view = await GameView.create();

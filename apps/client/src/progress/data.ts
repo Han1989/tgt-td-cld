@@ -569,9 +569,10 @@ const items: ProgressItem[] = [
     id: 'p6a-privacy',
     title: 'Privacy basics',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'p6a',
-    note: 'Privacy policy, data export and deletion, and an age check.',
+    note: 'Done for play without accounts: Download / Delete my data in Settings and on the privacy page, by a secret key only this browser holds; a one-time neutral age question before any play data (under 13 nothing is sent, 13 to 15 starts off); GDPR and PDPA rights in plain words. No database or new service. Account data joins it with p6a-accounts.',
+    proof: pr(86),
   },
   {
     id: 'p6b-clans',
