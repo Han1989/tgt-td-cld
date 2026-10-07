@@ -282,7 +282,13 @@ function inCorner(stickX: number, r: number, pivotX: number, bottom: number, mir
   const at = (a: number, size: number) => onArc(pivot, mirror ? 180 - a : a, size);
   return {
     joystick,
-    skills: { Q: at(180, SKILL_PX), W: at(135, SKILL_PX), R: at(90, SKILL_PX), E: { x: pivot.x, y: pivot.y, r: BADGE_PX / 2 } },
+    // Q, W, R read left to right in both corners: mirrored, Q takes R's place above E and R takes Q's.
+    skills: {
+      Q: at(mirror ? 90 : 180, SKILL_PX),
+      W: at(135, SKILL_PX),
+      R: at(mirror ? 180 : 90, SKILL_PX),
+      E: { x: pivot.x, y: pivot.y, r: BADGE_PX / 2 },
+    },
   };
 }
 

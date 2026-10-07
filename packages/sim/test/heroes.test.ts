@@ -715,3 +715,95 @@ describe('Arcanist', () => {
     expect(state.zones).toHaveLength(0);
   });
 });
+
+// A point cast only sets the hero's order; any order that arrived before the hero's next update used to
+// replace it (the stick resends `move` every 100 ms). The cast now goes off first when it can.
+describe('a point cast followed by another order in the same tick', () => {
+  function arcanist(): { state: GameState; hero: Hero; at: { x: number; y: number }; manaCost: number } {
+    const { state, heroes } = lab(['arcanist']);
+    const hero = heroes[0]!;
+    hero.ranks.Q = 1;
+    // Open ground below the Heart, 3 tiles to the east: well inside Fireball's range.
+    hero.x = 2.5;
+    hero.y = 38.5;
+    return { state, hero, at: { x: hero.x + 3, y: hero.y }, manaCost: TUNING.hero.arcanist.fireball.manaCost[0]! };
+  }
+  const away = { x: 2.5, y: 35.5 };
+
+  it.each([
+    ['move', (): object => ({ type: 'move', ...away })],
+    ['attackMove', (): object => ({ type: 'attackMove', ...away })],
+    ['stop', (): object => ({ type: 'stop' })],
+  ] as const)('%s after cast Q casts it and the new order stands', (type, make) => {
+    const { state, hero, at, manaCost } = arcanist();
+    const before = hero.mana;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q', ...at })).toBe(true);
+    expect(applyCommand(state, 'p1', make() as Parameters<typeof applyCommand>[2])).toBe(true);
+    expect(hero.order.type).toBe(type === 'stop' ? 'idle' : type);
+    run(state, 1);
+    expect(hero.mana).toBeCloseTo(before - manaCost + TUNING.hero.arcanist.manaRegen / 20, 1);
+    expect(hero.skillCd.Q).toBeGreaterThan(0);
+    expect(state.projectiles.filter((p) => p.style === 'fireball')).toHaveLength(1);
+  });
+
+  it('attack after cast Q casts it and the hero attacks', () => {
+    const { state, hero, at, manaCost } = arcanist();
+    const creep = placeCreep(state, 'brute', at.x, at.y - 1);
+    creep.rootUntil = 1_000_000;
+    const before = hero.mana;
+    applyCommand(state, 'p1', { type: 'cast', slot: 'Q', ...at });
+    expect(applyCommand(state, 'p1', { type: 'attack', targetId: creep.id })).toBe(true);
+    expect(hero.order).toEqual({ type: 'attack', targetId: creep.id });
+    expect(hero.mana).toBeLessThanOrEqual(before - manaCost);
+    expect(hero.skillCd.Q).toBeGreaterThan(0);
+  });
+
+  it('keeps walking: the move order is the one the hero follows after the cast', () => {
+    const { state, hero, at } = arcanist();
+    applyCommand(state, 'p1', { type: 'cast', slot: 'Q', ...at });
+    applyCommand(state, 'p1', { type: 'move', ...away });
+    run(state, 20);
+    expect(hero.y).toBeLessThan(37.5);
+    expect(hero.skillCd.Q).toBeGreaterThan(0);
+  });
+
+  it('an out-of-range cast is still replaced by a move (the hero was walking to it)', () => {
+    const { state, hero, manaCost } = arcanist();
+    const far = { x: hero.x, y: hero.y - 20 };
+    const before = hero.mana;
+    applyCommand(state, 'p1', { type: 'cast', slot: 'Q', ...far });
+    applyCommand(state, 'p1', { type: 'move', ...away });
+    expect(hero.order.type).toBe('move');
+    expect(hero.mana).toBe(before);
+    expect(hero.mana).toBeGreaterThan(before - manaCost);
+    expect(hero.skillCd.Q).toBe(0);
+  });
+
+  it('a hero killed after the cast order, or a skill that went on cooldown, does not cast', () => {
+    const dead = arcanist();
+    applyCommand(dead.state, 'p1', { type: 'cast', slot: 'Q', ...dead.at });
+    dead.hero.alive = false;
+    const mana = dead.hero.mana;
+    applyCommand(dead.state, 'p1', { type: 'stop' });
+    expect(dead.hero.mana).toBe(mana);
+    expect(dead.hero.skillCd.Q).toBe(0);
+
+    const cd = arcanist();
+    applyCommand(cd.state, 'p1', { type: 'cast', slot: 'Q', ...cd.at });
+    cd.hero.skillCd.Q = 100;
+    const before = cd.hero.mana;
+    applyCommand(cd.state, 'p1', { type: 'move', ...away });
+    expect(cd.hero.mana).toBe(before);
+    expect(cd.hero.skillCd.Q).toBe(100);
+    expect(cd.hero.order.type).toBe('move');
+  });
+
+  it('a second point cast in the same tick still replaces the first (left for the post-Playtest 3 rebalance)', () => {
+    const { state, hero, at } = arcanist();
+    hero.ranks.W = 1;
+    applyCommand(state, 'p1', { type: 'cast', slot: 'Q', ...at });
+    applyCommand(state, 'p1', { type: 'cast', slot: 'W', ...at });
+    expect(hero.order).toMatchObject({ type: 'castPoint', slot: 'W' });
+    expect(hero.skillCd.Q).toBe(0);
+  });
+});

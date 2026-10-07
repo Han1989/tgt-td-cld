@@ -91,7 +91,9 @@
 
 **Settings → Controls layout**, two rows:
 - **Stick:** **Floating** (default; a drag anywhere walks, the resting stick is a hint) or **Fixed** (the joystick stays where it is drawn).
-- **Skills:** **Around the stick** (default; the one-thumb arc at the bottom, with the **Joystick** row Left / Center / Right below it), **Right corner** (the stick bottom-left, the skills in a quarter arc around E bottom-right) or **Left corner** (the mirror, for left thumbs). The Joystick row shows only for Around the stick.
+- **Skills:** **Around the stick** (default; the one-thumb arc at the bottom, with the **Joystick** row Left / Center / Right below it), **Right corner** (the stick bottom-left, the skills in a quarter arc around E bottom-right) or **Left corner** (the mirror, for left thumbs: W and E mirror, Q and R trade places so both corners read Q, W, R from left to right). The Joystick row shows only for Around the stick.
+
+**Steering and casting at once:** a point skill (Q / W on the Arcanist, W on the Ranger) cast while the stick is held goes off at once. The stick resends `move` every 100 ms, and a point cast only sets the hero's order, so the sim now casts a pending in-range point cast before any `move`, `attackMove`, `attack` or `stop` replaces it (a cast still out of range is replaced as before). A second point cast in the same tick still replaces the first. Both corner layouts read Q, W, R from left to right.
 
 Saves from before the two rows keep what they had: One thumb → Fixed + Around the stick (with its side), Two thumbs → Fixed + Right corner, Two thumbs left-handed → Fixed + Left corner, PR #92's floating stick right / left → Floating + Right / Left corner. A save that never picked anything (One thumb at Center, the old default written for everyone, or PR #92's default) moves to the new default. All layouts use the same overlay approach.
 
