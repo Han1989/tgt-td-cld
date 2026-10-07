@@ -27,17 +27,29 @@ export const KNOB_R = 22;
 /** Skill button and E badge diameters (px). E is a real target so the passive can be read. */
 export const SKILL_PX = 56;
 export const BADGE_PX = 44;
-/** Distance from the joystick (one thumb) or the corner pivot (two thumbs) to the skill buttons. */
+/** Distance from the corner pivot (two thumbs) to the skill buttons. */
 export const ARC_R = 88;
-/** "Skills" button diameter (px): opens the description sheet. */
-export const INFO_PX = 44;
+/** The floating stick's base radius (px): drawn at rest as a hint, and under the thumb while it steers. */
+export const FLOAT_R = 40;
+/** Around the stick: the least room (px) between two skill buttons, and between the stick and a button. */
+export const SKILL_GAP = 24;
 /** Gap between the controls and the bottom / side edges (px), on top of the safe-area insets. */
 export const EDGE_GAP = 8;
 /** Room above the buttons for the skill-learn "+" badges (px). */
 export const LEARN_ALLOWANCE = 4;
 
-export type ThumbLayout = 'one' | 'two' | 'twoLeft';
-/** Where the one-thumb cluster sits. Two-thumb layouts already pick a side. */
+/**
+ * Controls layout (⚙ → Controls layout), two choices. The stick: `float` (the default) walks the hero from a drag
+ * that starts anywhere on the map or the empty part of the control band, with the base under the thumb and a faint
+ * resting stick as a hint only; `fixed` is a joystick that stays where it is drawn. The skills: `around` the stick
+ * (the default, the one-thumb arc at the bottom, moved by `stickAnchor`), or in the `right` or `left` bottom corner
+ * (the two-thumb arc, the stick in the other corner).
+ */
+export type StickMode = 'float' | 'fixed';
+export type SkillsPlace = 'around' | 'right' | 'left';
+export const STICK_MODES: readonly StickMode[] = ['float', 'fixed'];
+export const SKILL_PLACES: readonly SkillsPlace[] = ['around', 'right', 'left'];
+/** Where the skills-around-the-stick cluster sits. The corner layouts already pick a side. */
 export type StickAnchor = 'left' | 'center' | 'right';
 export type LayoutKind = 'tall' | 'wide' | 'rotate';
 export type ControlSlot = 'Q' | 'W' | 'E' | 'R';
@@ -71,8 +83,9 @@ export interface LayoutInput {
   touch: boolean;
   /** The device is held sideways (from the screen orientation, not the viewport). */
   landscape: boolean;
-  thumbs: ThumbLayout;
-  /** One-thumb cluster: left, center or right. Ignored for two-thumb layouts. */
+  stick: StickMode;
+  skills: SkillsPlace;
+  /** Skills around the stick: the cluster sits left, center or right. Ignored for the corner layouts. */
   stickAnchor: StickAnchor;
   /** Map size in tiles and the first safe-zone row. */
   mapW: number;
@@ -81,10 +94,11 @@ export interface LayoutInput {
 }
 
 export interface Controls {
+  /** The fixed joystick, or the floating stick's resting place (a faint hint; a drag anywhere walks). */
   joystick: Circle;
+  /** Floating stick: map drags walk the hero, and the joystick is only where it rests. */
+  floating: boolean;
   skills: Record<ControlSlot, Circle>;
-  /** Opens the skill description sheet. Sits in a gap the thumbs can reach. */
-  skillInfo: Circle;
   /** Bounding boxes of the joystick and the buttons (learn badges included); taps here never reach the map. */
   rects: Rect[];
   /** Screen y above which the controls never reach (tall layout: the map must keep gameplay above this). */
@@ -181,35 +195,90 @@ export function followOffset(layout: Layout, heroY: number | null): number {
 
 const deg = (d: number) => (d * Math.PI) / 180;
 
+type Pt = { x: number; y: number };
+type Parts = { joystick: Circle; skills: Record<ControlSlot, Circle> };
+
 /** Points on an arc of radius ARC_R around `c`; angles in degrees, 0 = right, 90 = up. */
-function onArc(c: { x: number; y: number }, angle: number, size: number): Circle {
+function onArc(c: Pt, angle: number, size: number): Circle {
   return { x: c.x + ARC_R * Math.cos(deg(angle)), y: c.y - ARC_R * Math.sin(deg(angle)), r: size / 2 };
 }
 
-/** One thumb: joystick with Q / W / R arcing over it and the E badge at the right end of the arc. */
-function oneThumb(cx: number, bottom: number): { joystick: Circle; skills: Record<ControlSlot, Circle> } {
-  const joystick = { x: cx, y: bottom - JOY_R, r: JOY_R };
-  // The arc hangs a little below the stick centre so the buttons sit in the thumb's sweep,
-  // not a reach up into the lanes.
-  const arc = { x: joystick.x, y: joystick.y + 10 };
-  return {
-    joystick,
-    skills: {
-      Q: onArc(arc, 168, SKILL_PX),
-      W: onArc(arc, 126, SKILL_PX),
-      R: onArc(arc, 54, SKILL_PX),
-      E: onArc(arc, 12, BADGE_PX),
-    },
-  };
+/** Height of the two-thumb pivot (E) above the bottom edge (px). */
+const TWO_THUMB_LIFT = 36;
+/**
+ * The floating stick's corner arc sits a little lower, so R's top stays under the gameplay rows and the whole map
+ * still fits a 412 × 839 phone with no panning. Q's lower edge stays above the bottom gap.
+ */
+const FLOAT_LIFT = 30;
+/**
+ * Around the stick: W's and R's centres sit this far above the bottom edge, as high as on the first one-thumb arc and
+ * no higher, so the whole map still fits a 412 × 839 phone with no panning.
+ */
+const AROUND_TOP = 111;
+
+/** The stick's radius: the floating stick's base (its resting hint is drawn at that size) or the fixed joystick. */
+function stickR(stick: StickMode): number {
+  return stick === 'float' ? FLOAT_R : JOY_R;
+}
+
+/** The x on `side` (-1 left, 1 right) at height `y` that is at least `d` from every centre `c`. */
+function clearX(y: number, side: -1 | 1, keep: { c: Pt; d: number }[]): number {
+  let x = side < 0 ? Infinity : -Infinity;
+  for (const { c, d } of keep) {
+    const dx = Math.sqrt(Math.max(0, d * d - (y - c.y) ** 2));
+    x = side < 0 ? Math.min(x, c.x - dx) : Math.max(x, c.x + dx);
+  }
+  return x;
+}
+
+/** The lower on screen of the two points that are `da` from `a` and `db` from `b`. */
+function lowerMeet(a: Pt, da: number, b: Pt, db: number): Pt {
+  const d = Math.hypot(b.x - a.x, b.y - a.y);
+  const along = (d * d + da * da - db * db) / (2 * d);
+  const off = Math.sqrt(Math.max(0, da * da - along * along));
+  const ux = (b.x - a.x) / d;
+  const uy = (b.y - a.y) / d;
+  const mx = a.x + along * ux;
+  const my = a.y + along * uy;
+  const p = { x: mx - off * uy, y: my + off * ux };
+  const q = { x: mx + off * uy, y: my - off * ux };
+  return p.y >= q.y ? p : q;
 }
 
 /**
- * Two thumbs: the joystick near one bottom corner and the skills in a quarter arc around the
- * other corner (E in the corner). `stickX` / `pivotX` are the joystick centre and the pivot.
+ * Skills around the stick (one thumb): W and R over the stick, Q and the E badge at the ends of the arc, every
+ * button SKILL_GAP from the stick and from its neighbours. W and R sit no higher than AROUND_TOP; Q and E go as close
+ * to the stick as the gaps allow, never under the bottom edge. The arc spreads sideways for the room.
  */
-function twoThumbs(stickX: number, pivotX: number, bottom: number, mirror: boolean): { joystick: Circle; skills: Record<ControlSlot, Circle> } {
-  const joystick = { x: stickX, y: bottom - JOY_R, r: JOY_R };
-  const pivot = { x: pivotX, y: bottom - 36 };
+function aroundStick(cx: number, bottom: number, r: number): Parts {
+  const joystick = { x: cx, y: bottom - r, r };
+  const btn = SKILL_PX / 2;
+  const badge = BADGE_PX / 2;
+  const y = bottom - AROUND_TOP;
+  const dx = Math.sqrt((r + SKILL_GAP + btn) ** 2 - (joystick.y - y) ** 2);
+  const W = { x: cx - dx, y, r: btn };
+  const R = { x: cx + dx, y, r: btn };
+  // Q (and E) touch both the stick's and the top button's keep-out circles, or sit on the bottom edge.
+  const end = (top: Circle, size: number, side: -1 | 1): Circle => {
+    const keep = [
+      { c: joystick, d: r + SKILL_GAP + size },
+      { c: top, d: top.r + SKILL_GAP + size },
+    ];
+    const meet = lowerMeet(joystick, keep[0]!.d, top, keep[1]!.d);
+    const ey = Math.min(meet.y, bottom - size);
+    return { x: clearX(ey, side, keep), y: ey, r: size };
+  };
+  return { joystick, skills: { Q: end(W, btn, -1), W, R, E: end(R, badge, 1) } };
+}
+
+/**
+ * Skills in a corner (two thumbs): the stick near one bottom corner and the skills in a quarter arc around the
+ * other corner (E in the corner). `stickX` / `pivotX` are the stick centre and the pivot; `lift` is the pivot's
+ * height above the bottom edge.
+ */
+function inCorner(stickX: number, r: number, pivotX: number, bottom: number, mirror: boolean, lift: number): Parts {
+  const joystick = { x: stickX, y: bottom - r, r };
+  const pivot = { x: pivotX, y: bottom - lift };
   const at = (a: number, size: number) => onArc(pivot, mirror ? 180 - a : a, size);
   return {
     joystick,
@@ -217,54 +286,17 @@ function twoThumbs(stickX: number, pivotX: number, bottom: number, mirror: boole
   };
 }
 
-function finish(
-  parts: { joystick: Circle; skills: Record<ControlSlot, Circle> },
-  area: { left: number; right: number },
-): Controls {
-  const skillInfo = placeSkillInfo(parts.joystick, parts.skills, area);
-  const circles = [parts.joystick, ...Object.values(parts.skills), skillInfo];
+function finish(parts: Parts, floating: boolean): Controls {
+  const circles = [parts.joystick, ...Object.values(parts.skills)];
   const rects = circles.map((c) =>
-    rect(c.x - c.r, c.y - c.r - (c === parts.joystick || c === skillInfo ? 0 : LEARN_ALLOWANCE), c.x + c.r, c.y + c.r),
+    rect(c.x - c.r, c.y - c.r - (c === parts.joystick ? 0 : LEARN_ALLOWANCE), c.x + c.r, c.y + c.r),
   );
-  return { ...parts, skillInfo, rects, top: Math.min(...rects.map((r) => r.top)) };
+  return { ...parts, floating, rects, top: Math.min(...rects.map((r) => r.top)) };
 }
 
-/**
- * A 44 px "Skills" button in the widest gap that still clears the stick and the skill buttons.
- * `area` is the x-range it must stay inside (the screen on a phone, one side margin on a tablet).
- */
-function placeSkillInfo(joystick: Circle, skills: Record<ControlSlot, Circle>, area: { left: number; right: number }): Circle {
-  const r = INFO_PX / 2;
-  const circles = [joystick, ...Object.values(skills)].sort((a, b) => a.x - b.x);
-  const y = joystick.y;
-  const gaps: { x: number; room: number }[] = [];
-  let edge = area.left;
-  for (const c of circles) {
-    if (c.x + c.r < area.left || c.x - c.r > area.right) continue;
-    const leftEdge = Math.max(area.left, edge);
-    const room = Math.max(area.left, c.x - c.r) - leftEdge;
-    if (room > 0) gaps.push({ x: leftEdge + room / 2, room });
-    edge = Math.max(edge, c.x + c.r);
-  }
-  const tailLeft = Math.max(edge, area.left);
-  const tail = area.right - tailLeft;
-  if (tail > 0) gaps.push({ x: tailLeft + tail / 2, room: tail });
-  gaps.sort((a, b) => b.room - a.room);
-  for (const g of gaps) {
-    if (g.room < r * 2 + 6) continue;
-    const x = Math.min(area.right - r - 2, Math.max(area.left + r + 2, g.x));
-    const clear = circles.every((o) => Math.hypot(o.x - x, o.y - y) >= o.r + r + 4);
-    if (clear && x - r >= area.left - 0.5 && x + r <= area.right + 0.5) return { x, y, r };
-  }
-  const inside = circles.filter((c) => c.x >= area.left && c.x <= area.right);
-  const top = inside.reduce((a, b) => (a.y - a.r < b.y - b.r ? a : b), inside[0] ?? joystick);
-  const x = Math.min(area.right - r - 2, Math.max(area.left + r + 2, top.x));
-  return { x, y: top.y - top.r - 8 - r, r };
-}
-
-/** Joystick x so the one-thumb cluster (stick plus the skill arc) stays on screen. */
-function oneThumbX(w: number, insets: Insets, anchor: StickAnchor): number {
-  const probe = oneThumb(0, 0);
+/** Stick x so the skills-around-the-stick cluster stays on screen. */
+function aroundX(w: number, insets: Insets, anchor: StickAnchor, r: number): number {
+  const probe = aroundStick(0, 0, r);
   const circles = [probe.joystick, ...Object.values(probe.skills)];
   const minLeft = Math.min(...circles.map((c) => c.x - c.r));
   const maxRight = Math.max(...circles.map((c) => c.x + c.r));
@@ -275,36 +307,31 @@ function oneThumbX(w: number, insets: Insets, anchor: StickAnchor): number {
 }
 
 function tallControls(input: LayoutInput): Controls {
-  const { w, h, insets, thumbs } = input;
+  const { w, h, insets, stick, skills } = input;
   const bottom = h - Math.max(EDGE_GAP, insets.bottom);
-  const area = { left: insets.left, right: w - insets.right };
-  if (thumbs === 'one') return finish(oneThumb(oneThumbX(w, insets, input.stickAnchor), bottom), area);
+  const floating = stick === 'float';
+  const r = stickR(stick);
+  if (skills === 'around') return finish(aroundStick(aroundX(w, insets, input.stickAnchor, r), bottom, r), floating);
   const left = insets.left + EDGE_GAP;
   const right = w - insets.right - EDGE_GAP;
-  const mirror = thumbs === 'twoLeft';
-  const stickX = mirror ? right - JOY_R : left + JOY_R;
+  const mirror = skills === 'left';
+  const stickX = mirror ? right - r : left + r;
   const pivotX = mirror ? left + 32 : right - 32;
-  return finish(twoThumbs(stickX, pivotX, bottom, mirror), area);
+  return finish(inCorner(stickX, r, pivotX, bottom, mirror, floating ? FLOAT_LIFT : TWO_THUMB_LIFT), floating);
 }
 
 /** Wide layout on a touch screen: the controls sit in the side margins. */
 function wideControls(input: LayoutInput, margin: number): Controls {
-  const { w, h, insets, thumbs } = input;
+  const { w, h, insets, stick, skills } = input;
   const bottom = h - Math.max(EDGE_GAP * 2, insets.bottom);
-  const parts = (() => {
-    // One thumb: the whole cluster in the right margin.
-    if (thumbs === 'one') return oneThumb(input.stickAnchor === 'left' ? margin / 2 : w - margin / 2, bottom);
-    const mirror = thumbs === 'twoLeft';
-    const stickX = mirror ? w - margin / 2 : margin / 2;
-    const pivotX = mirror ? insets.left + 48 : w - insets.right - 48;
-    return twoThumbs(stickX, pivotX, bottom, mirror);
-  })();
-  const ax = Object.values(parts.skills).reduce((s, c) => s + c.x, 0) / 4;
-  const spans = [
-    { left: 0, right: margin },
-    { left: w - margin, right: w },
-  ].sort((a, b) => Math.abs((a.left + a.right) / 2 - ax) - Math.abs((b.left + b.right) / 2 - ax));
-  return finish(parts, spans[0]!);
+  const floating = stick === 'float';
+  const r = stickR(stick);
+  // Around the stick: the whole cluster in one margin (the right one unless the stick is set to the left).
+  if (skills === 'around') return finish(aroundStick(input.stickAnchor === 'left' ? margin / 2 : w - margin / 2, bottom, r), floating);
+  const mirror = skills === 'left';
+  const stickX = mirror ? w - margin / 2 : margin / 2;
+  const pivotX = mirror ? insets.left + 48 : w - insets.right - 48;
+  return finish(inCorner(stickX, r, pivotX, bottom, mirror, floating ? FLOAT_LIFT : TWO_THUMB_LIFT), floating);
 }
 
 // ---------------------------------------------------------------------------

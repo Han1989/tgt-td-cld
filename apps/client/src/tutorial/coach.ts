@@ -56,7 +56,11 @@ export class TutorialCoach {
   /** How many anti-air towers they had when the Wisps card opened. Building one more finishes it. */
   private airTowersOnShow = 0;
 
-  constructor(private readonly input: () => 'touch' | 'desktop') {
+  constructor(
+    private readonly input: () => 'touch' | 'desktop',
+    /** The floating stick is on (the move and ping steps say "drag anywhere"). */
+    private readonly floating: () => boolean = () => true,
+  ) {
     this.skip.addEventListener('click', () => this.onSkip());
     this.next.addEventListener('click', () => this.forward());
     // The card itself is click-through (style.css). Button presses stop here so they do not reach the map.
@@ -172,7 +176,7 @@ export class TutorialCoach {
   private render(): void {
     const run = this.run;
     if (!run) return;
-    const prompt = tutorialPrompt(run.step, this.input(), this.heroKind, this.wave);
+    const prompt = tutorialPrompt(run.step, this.input(), this.heroKind, this.wave, this.floating());
     const key = `${run.step}|${prompt.body}|${prompt.next}|${prompt.skip}`;
     this.root.classList.remove('hidden', 'air');
     if (key === this.rendered) return;

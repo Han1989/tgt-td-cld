@@ -9,7 +9,10 @@ import {
   type Insets,
   type LayoutInput,
   type Rect,
-  type ThumbLayout,
+  SKILL_GAP,
+  SKILL_PLACES,
+  STICK_MODES,
+  type Controls,
 } from '../src/layout';
 
 const map = getMap();
@@ -22,7 +25,8 @@ function input(w: number, h: number, over: Partial<LayoutInput> = {}): LayoutInp
     insets: NO_INSETS,
     touch: true,
     landscape: w > h,
-    thumbs: 'one',
+    stick: 'float',
+    skills: 'around',
     stickAnchor: 'center',
     mapW: map.width,
     mapH: map.height,
@@ -48,6 +52,27 @@ function gameplayRects(tile: number, origin: { left: number; top: number }): Rec
   return rects;
 }
 
+/** The stick (or the floating stick's hint) and every skill button. */
+function circlesOf(c: Controls) {
+  return [c.joystick, ...Object.values(c.skills)];
+}
+
+/** The room (px) between the closest two of the stick and the skill buttons. */
+function minGap(c: Controls): number {
+  const circles = circlesOf(c);
+  let min = Infinity;
+  for (let i = 0; i < circles.length; i++) {
+    for (let j = i + 1; j < circles.length; j++) {
+      const a = circles[i]!;
+      const b = circles[j]!;
+      min = Math.min(min, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r);
+    }
+  }
+  return min;
+}
+
+const LAYOUTS = STICK_MODES.flatMap((stick) => SKILL_PLACES.map((skills) => ({ stick, skills })));
+
 describe('computeLayout: phones held upright', () => {
   it('fits the whole 50-row map on a 412 × 839 screen under a 44 px top bar, with room to spare', () => {
     const l = computeLayout(input(412, 839));
@@ -63,29 +88,25 @@ describe('computeLayout: phones held upright', () => {
     expect(computeLayout(input(412, 915)).tilePx).toBeGreaterThanOrEqual(412 / 26 - 1e-9);
   });
 
-  for (const thumbs of ['one', 'two', 'twoLeft'] as ThumbLayout[]) {
-    it(`keeps the ${thumbs} controls inside the screen, off the gameplay, and never overlapping each other`, () => {
+  for (const { stick, skills } of LAYOUTS) {
+    it(`keeps the ${stick} stick, skills ${skills} controls inside the screen, off the gameplay, and never overlapping`, () => {
       for (const [w, h, insets] of [
         [412, 839, NO_INSETS],
         [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
         [360, 780, NO_INSETS],
         [430, 932, { top: 59, right: 0, bottom: 34, left: 0 }],
+        [390, 664, NO_INSETS],
+        [360, 640, NO_INSETS],
       ] as const) {
-        const l = computeLayout(input(w, h, { thumbs, insets }));
+        const l = computeLayout(input(w, h, { stick, skills, insets }));
         const c = l.controls!;
+        expect(c.floating).toBe(stick === 'float');
         for (const r of c.rects) {
           expect(r.left).toBeGreaterThanOrEqual(0);
           expect(r.right).toBeLessThanOrEqual(w);
           expect(r.bottom).toBeLessThanOrEqual(h - insets.bottom);
         }
-        const circles = [c.joystick, c.skillInfo, ...Object.values(c.skills)];
-        for (let i = 0; i < circles.length; i++) {
-          for (let j = i + 1; j < circles.length; j++) {
-            const a = circles[i]!;
-            const b = circles[j]!;
-            expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(a.r + b.r);
-          }
-        }
+        expect(minGap(c)).toBeGreaterThan(0);
         // With the camera scrolled as far as it may go, gameplay never sits under the controls.
         const offset = l.followRange;
         const gameplay = gameplayRects(l.tilePx, { left: l.map.left, top: l.map.top - offset });
@@ -95,6 +116,20 @@ describe('computeLayout: phones held upright', () => {
       }
     });
   }
+
+  it('has no Skills button in any layout: only the stick and the four skill buttons', () => {
+    for (const { stick, skills } of LAYOUTS) {
+      for (const [w, h, landscape] of [
+        [412, 839, false],
+        [1024, 768, true],
+      ] as const) {
+        const c = computeLayout(input(w, h, { stick, skills, landscape })).controls!;
+        expect(Object.keys(c).sort()).toEqual(['floating', 'joystick', 'rects', 'skills', 'top']);
+        expect(Object.keys(c.skills).sort()).toEqual(['E', 'Q', 'R', 'W']);
+        expect(c.rects).toHaveLength(5);
+      }
+    }
+  });
 
   it('uses touch targets of at least 44 px', () => {
     const c = computeLayout(input(412, 839)).controls!;
@@ -124,7 +159,7 @@ describe('computeLayout: phones held upright', () => {
     expect(computeLayout(input(839, 412, { landscape: true })).kind).toBe('rotate');
   });
 
-  it('moves the one-thumb cluster left or right without leaving the screen or covering gameplay', () => {
+  it('moves the skills-around-the-stick cluster left or right without leaving the screen or covering gameplay', () => {
     const mid = computeLayout(input(390, 844, { insets: { top: 47, right: 0, bottom: 34, left: 0 } })).controls!;
     for (const stickAnchor of ['left', 'right'] as const) {
       const l = computeLayout(input(390, 844, { insets: { top: 47, right: 0, bottom: 34, left: 0 }, stickAnchor }));
@@ -133,14 +168,7 @@ describe('computeLayout: phones held upright', () => {
         expect(r.left).toBeGreaterThanOrEqual(0);
         expect(r.right).toBeLessThanOrEqual(390);
       }
-      const circles = [c.joystick, c.skillInfo, ...Object.values(c.skills)];
-      for (let i = 0; i < circles.length; i++) {
-        for (let j = i + 1; j < circles.length; j++) {
-          const a = circles[i]!;
-          const b = circles[j]!;
-          expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(a.r + b.r);
-        }
-      }
+      expect(minGap(c)).toBeGreaterThanOrEqual(SKILL_GAP - 1e-6);
       expect(l.gameplayBottom - l.followRange).toBeLessThanOrEqual(c.top + 1e-9);
     }
     const left = computeLayout(input(390, 844, { stickAnchor: 'left' })).controls!;
@@ -149,14 +177,100 @@ describe('computeLayout: phones held upright', () => {
     expect(right.joystick.x).toBeGreaterThan(mid.joystick.x + 40);
   });
 
-  it('mirrors the two-thumb layout for left-handed players', () => {
-    const right = computeLayout(input(412, 839, { thumbs: 'two' })).controls!;
-    const left = computeLayout(input(412, 839, { thumbs: 'twoLeft' })).controls!;
-    expect(right.joystick.x).toBeLessThan(206);
-    expect(left.joystick.x).toBeGreaterThan(206);
-    expect(left.joystick.x).toBeCloseTo(412 - right.joystick.x);
-    expect(left.skills.R.x).toBeCloseTo(412 - right.skills.R.x);
-    expect(left.skillInfo.x).toBeCloseTo(412 - right.skillInfo.x);
+  it('mirrors the corner layouts for left-handed players', () => {
+    for (const stick of STICK_MODES) {
+      const right = computeLayout(input(412, 839, { stick, skills: 'right' })).controls!;
+      const left = computeLayout(input(412, 839, { stick, skills: 'left' })).controls!;
+      expect(right.joystick.x).toBeLessThan(206);
+      expect(left.joystick.x).toBeGreaterThan(206);
+      expect(left.joystick.x).toBeCloseTo(412 - right.joystick.x);
+      for (const slot of ['Q', 'W', 'E', 'R'] as const) {
+        expect(left.skills[slot].x).toBeCloseTo(412 - right.skills[slot].x);
+        expect(left.skills[slot].y).toBeCloseTo(right.skills[slot].y);
+      }
+    }
+  });
+});
+
+/** The first one-thumb arc (main before the floating stick) at 412 × 839: W's and R's tops. */
+const MAIN_ARC_TOP = 839 - 8 - 50 + 10 - 88 * Math.sin((54 * Math.PI) / 180) - 28;
+
+describe('computeLayout: skills around the stick', () => {
+  const PHONES = [
+    [412, 839],
+    [390, 664],
+    [360, 640],
+  ] as const;
+
+  for (const stick of STICK_MODES) {
+    it(`leaves at least ${SKILL_GAP} px between any two buttons and between the stick and any button (${stick} stick)`, () => {
+      for (const [w, h] of PHONES) {
+        const c = computeLayout(input(w, h, { stick })).controls!;
+        expect(minGap(c)).toBeGreaterThanOrEqual(SKILL_GAP - 1e-6);
+        // The one-thumb arc: W and R over the stick, Q and E at its ends, centred on the stick.
+        expect(c.joystick.x).toBeCloseTo(w / 2);
+        expect(c.skills.Q.x).toBeLessThan(c.skills.W.x);
+        expect(c.skills.W.x).toBeLessThan(c.joystick.x);
+        expect(c.skills.R.x).toBeGreaterThan(c.joystick.x);
+        expect(c.skills.E.x).toBeGreaterThan(c.skills.R.x);
+        expect(c.skills.W.y).toBeLessThan(c.joystick.y);
+        expect(c.skills.R.y).toBeCloseTo(c.skills.W.y);
+        for (const slot of ['Q', 'W', 'R'] as const) expect(c.skills[slot].r * 2).toBeGreaterThanOrEqual(56);
+      }
+    });
+  }
+
+  it('draws the floating stick at rest as an 80 px hint in the middle and the fixed stick at 100 px', () => {
+    const float = computeLayout(input(412, 839)).controls!;
+    expect(float.floating).toBe(true);
+    expect(float.joystick.r * 2).toBe(80);
+    expect(computeLayout(input(412, 839, { stick: 'fixed' })).controls!.joystick.r * 2).toBe(100);
+  });
+
+  it('spreads sideways, not up: no button higher than on the first one-thumb arc, and the whole map fits 412 × 839', () => {
+    for (const stick of STICK_MODES) {
+      const l = computeLayout(input(412, 839, { stick }));
+      expect(l.followRange).toBe(0);
+      for (const b of Object.values(l.controls!.skills)) expect(b.y - b.r).toBeGreaterThanOrEqual(MAIN_ARC_TOP - 1e-6);
+    }
+  });
+});
+
+describe('computeLayout: skills in a corner', () => {
+  it('puts the skills together in one bottom corner and only the stick in the other, nothing in the bottom centre', () => {
+    for (const [w, h, insets] of [
+      [412, 839, NO_INSETS],
+      [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
+      [360, 780, NO_INSETS],
+    ] as const) {
+      const c = computeLayout(input(w, h, { skills: 'right', insets })).controls!;
+      expect(c.floating).toBe(true);
+      expect(c.joystick.r * 2).toBe(80);
+      // The resting stick is a hint in the bottom-left corner.
+      expect(c.joystick.x + c.joystick.r).toBeLessThan(w / 3);
+      for (const b of Object.values(c.skills)) expect(b.x - b.r).toBeGreaterThan(w / 2 - 4);
+    }
+  });
+
+  it('uses the two-thumb arc a little lower with the floating stick, so the whole map still fits a 412 × 839 phone', () => {
+    const l = computeLayout(input(412, 839, { skills: 'right' }));
+    expect(l.followRange).toBe(0);
+    const float = l.controls!;
+    const fixed = computeLayout(input(412, 839, { stick: 'fixed', skills: 'right' })).controls!;
+    expect(fixed.floating).toBe(false);
+    for (const slot of ['Q', 'W', 'E', 'R'] as const) {
+      expect(float.skills[slot].x).toBeCloseTo(fixed.skills[slot].x);
+      expect(float.skills[slot].y).toBeGreaterThan(fixed.skills[slot].y);
+      expect(float.skills[slot].y - fixed.skills[slot].y).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it('keeps every layout in the side margins on a landscape tablet', () => {
+    for (const { stick, skills } of LAYOUTS) {
+      const l = computeLayout(input(1024, 768, { stick, skills, landscape: true }));
+      expect(l.controls!.floating).toBe(stick === 'float');
+      for (const r of l.controls!.rects) expect(r.right <= l.map.left || r.left >= l.map.right).toBe(true);
+    }
   });
 });
 
@@ -171,7 +285,7 @@ describe('computeLayout: tablets and desktop', () => {
   });
 
   it('puts the touch controls in the side margins on a landscape tablet', () => {
-    const l = computeLayout(input(1024, 768, { thumbs: 'two', landscape: true }));
+    const l = computeLayout(input(1024, 768, { stick: 'fixed', skills: 'right', landscape: true }));
     expect(l.kind).toBe('wide');
     const c = l.controls!;
     for (const r of c.rects) expect(r.right <= l.map.left || r.left >= l.map.right).toBe(true);

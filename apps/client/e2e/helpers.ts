@@ -207,16 +207,17 @@ export class Finger {
     return new Finger(await page.context().newCDPSession(page), id);
   }
 
-  async down(x: number, y: number): Promise<void> {
-    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: this.id }] });
+  /** `at`: the event's own time (seconds since the epoch, as `Date.now() / 1000`), as a real touch screen stamps it. */
+  async down(x: number, y: number, at?: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: this.id }], ...(at ? { timestamp: at } : {}) });
   }
 
   async move(x: number, y: number): Promise<void> {
     await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y, id: this.id }] });
   }
 
-  async up(): Promise<void> {
-    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  async up(at?: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], ...(at ? { timestamp: at } : {}) });
   }
 
   /** Press at `from`, slide to `to` in steps, and optionally hold before releasing. */
@@ -226,4 +227,37 @@ export class Finger {
     if (holdMs) await new Promise((r) => setTimeout(r, holdMs));
     if (release) await this.up();
   }
+}
+
+/**
+ * Several fingers on the screen at once. Each event names the finger it is about: a touchEnd with no points would
+ * lift every finger, and a touchMove or touchEnd that names a finger only moves or lifts that one.
+ */
+export class Hand {
+  private constructor(private readonly cdp: CDPSession) {}
+
+  static async on(page: Page): Promise<Hand> {
+    return new Hand(await page.context().newCDPSession(page));
+  }
+
+  /** `at`: the event's own time (seconds since the epoch), as `Finger.down` takes it. */
+  async press(id: number, x: number, y: number, at?: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id, x, y }], ...(at ? { timestamp: at } : {}) });
+  }
+
+  async move(id: number, x: number, y: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id, x, y }] });
+  }
+
+  async lift(id: number, x: number, y: number, at?: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ id, x, y }], ...(at ? { timestamp: at } : {}) });
+  }
+}
+
+/** Blocks the page's main thread for `ms` (a long frame, a GC pause). */
+export async function stall(page: Page, ms: number): Promise<void> {
+  await page.evaluate((ms) => {
+    const end = performance.now() + ms;
+    while (performance.now() < end);
+  }, ms);
 }

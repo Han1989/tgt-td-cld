@@ -242,7 +242,10 @@ export class GameView {
     installPressFeedback(document, () => audio.game.tap(performance.now()));
     const marks = new MarkerLayer();
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
-    const coach = new TutorialCoach(() => (document.body.classList.contains('touch') ? 'touch' : 'desktop'));
+    const coach = new TutorialCoach(
+      () => (document.body.classList.contains('touch') ? 'touch' : 'desktop'),
+      () => settings.get().stick === 'float',
+    );
     view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
     view.radialMenus = radial;
     coach.onSkip = () => {
@@ -285,7 +288,8 @@ export class GameView {
         insets: readInsets(),
         touch: !!coarse?.matches,
         landscape: orientation ? orientation.startsWith('landscape') : w > h,
-        thumbs: settings.get().thumbs,
+        stick: settings.get().stick,
+        skills: settings.get().skills,
         stickAnchor: settings.get().stickAnchor,
         mapW: map.width,
         mapH: map.height,

@@ -1,11 +1,11 @@
-// Touch input recognition as pure functions (docs/MOBILE.md §5, §8): joystick,
-// tap vs drag, smart-cast targeting, drag-to-aim and cancel, snap-to-nearest,
-// hold-to-sell, tap-to-build vs hold-to-preview, overlay hit tests and radial
-// menu placement. No DOM, so every rule here is unit-tested; `touchControls.ts`
+// Touch input recognition as pure functions (docs/MOBILE.md §5, §8): joystick and
+// the floating stick, tap vs drag, smart-cast targeting, drag-to-aim and cancel,
+// snap-to-nearest, hold-to-sell, tap-to-build vs hold-to-preview, taps that count
+// as taps when a frame is late, overlay hit tests and radial menu placement. No DOM, so every rule here is unit-tested; `touchControls.ts`
 // wires them to pointer events.
 
 import type { SkillSnap } from '@tdt/protocol';
-import { clamp, inRect, type Rect } from '../layout';
+import { clamp, FLOAT_R, inRect, type Rect } from '../layout';
 
 export interface Pt {
   x: number;
@@ -49,6 +49,15 @@ export const SELL_HOLD_MS = 500;
 export const PING_HOLD_MS = 450;
 /** Hold a build button this long (ms) to preview the tower on its pad. A quicker tap builds. */
 export const BUILD_PREVIEW_MS = 300;
+/** Hold a skill button this long (ms), without dragging, to open its description. A shorter tap casts. */
+export const SKILL_INFO_MS = 380;
+/**
+ * A frame this long (ms) after the one before it follows a stall. A hold is not decided on that frame: a lift
+ * queued during the stall has not been handled yet, so the next frame decides.
+ */
+export const HITCH_MS = 100;
+/** Floating stick: the base's radius (px, `layout.ts`). It is drawn this size, and trails the thumb once it goes further. */
+export { FLOAT_R };
 
 // ---------------------------------------------------------------------------
 // Joystick
@@ -105,6 +114,92 @@ export function shouldResendMove(lastDir: number | null, dir: number, lastSentMs
 }
 
 // ---------------------------------------------------------------------------
+// Floating stick
+// ---------------------------------------------------------------------------
+
+/**
+ * The floating stick's base after the thumb moved to `finger`: where it was, or, once the thumb is further than
+ * `radius` from it, pulled along so the thumb sits on its rim. Reversing direction is then a short move.
+ */
+export function trailBase(base: Pt, finger: Pt, radius: number = FLOAT_R): Pt {
+  const dx = finger.x - base.x;
+  const dy = finger.y - base.y;
+  const len = Math.hypot(dx, dy);
+  if (len <= radius || len === 0) return { x: base.x, y: base.y };
+  const k = (len - radius) / len;
+  return { x: base.x + dx * k, y: base.y + dy * k };
+}
+
+/** One step of the floating stick: the trailed base and the knob vector for a thumb at `finger`. */
+export function floatStick(base: Pt, finger: Pt, radius: number = FLOAT_R): { base: Pt; vec: StickVec } {
+  const next = trailBase(base, finger, radius);
+  return { base: next, vec: stickVector(next, finger, radius) };
+}
+
+/**
+ * What a touch on the map is, as it moves. It stays a `press` (a tap, or a ping once held still) until it moves past
+ * the tap slop; then, with the floating stick, it becomes the `stick` (its base where the touch started), and with a
+ * fixed stick a `drag` that does nothing. Distance decides, never time, so a late frame cannot turn a drag into a tap.
+ * `stickFree` is false while another finger already steers.
+ */
+export function mapTouchKind(start: Pt, now: Pt, was: MapTouchKind, floating: boolean, stickFree: boolean): MapTouchKind {
+  if (was !== 'press') return was;
+  if (!isDrag(start, now)) return 'press';
+  return floating && stickFree ? 'stick' : 'drag';
+}
+export type MapTouchKind = 'press' | 'stick' | 'drag';
+
+// ---------------------------------------------------------------------------
+// Press length from the events' own timestamps
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a press lasted (ms), from its pointerdown and pointerup `event.timeStamp`s. Those are when the finger went
+ * down and up, not when the handlers ran, so a stalled page does not stretch a tap into a hold.
+ */
+export function pressLength(downStamp: number, upStamp: number): number {
+  return Math.max(0, upStamp - downStamp);
+}
+
+/**
+ * A frame's verdict on a held press: it has lasted `holdMs` since its down stamp, and this frame did not come
+ * straight after a stall (`frameGapMs` > HITCH_MS), when the lift may still be queued.
+ */
+export function holdReached(downStamp: number, nowMs: number, frameGapMs: number, holdMs: number): boolean {
+  return nowMs - downStamp >= holdMs && frameGapMs <= HITCH_MS;
+}
+
+export type SkillRelease =
+  /** A tap: smart cast. `closeSheet` when a late frame opened the description although the press was short. */
+  | { type: 'cast'; closeSheet: boolean }
+  /** A tap while the description card was already open: show that skill's row, cast nothing. */
+  | { type: 'showRow' }
+  /** A real hold: the description stays (or opens) at this skill, nothing is cast. */
+  | { type: 'read' }
+  /** A drag released away from the button: cast where it aimed. */
+  | { type: 'aimCast' }
+  | { type: 'none' };
+
+/**
+ * Lifting a finger from a skill button. Tap or hold is decided here, from the press's real length: a description
+ * that opened only because a frame was late is closed again and the skill is cast.
+ */
+export function skillRelease(
+  p: { pressMs: number; drag: boolean; sheetWasOpen: boolean; infoOpened: boolean; cancel: boolean },
+  holdMs = SKILL_INFO_MS,
+): SkillRelease {
+  if (p.drag) return p.cancel ? { type: 'none' } : { type: 'aimCast' };
+  if (p.pressMs >= holdMs) return { type: 'read' };
+  if (p.sheetWasOpen) return { type: 'showRow' };
+  return { type: 'cast', closeSheet: p.infoOpened };
+}
+
+/** Lifting a still finger from the map pings once it was held `holdMs`. A drag never pings. */
+export function pingRelease(pressMs: number, dragged: boolean, holdMs = PING_HOLD_MS): boolean {
+  return !dragged && pressMs >= holdMs;
+}
+
+// ---------------------------------------------------------------------------
 // Tap vs drag
 // ---------------------------------------------------------------------------
 
@@ -114,8 +209,9 @@ export function isDrag(start: Pt, now: Pt, wasDrag = false, slop = TAP_SLOP): bo
 }
 
 /**
- * A map press that has not moved. `progress` grows 0..1 over `holdMs`; `ping` once it has been
- * held that long. Any drag cancels it (progress stays 0), so a swipe never pings.
+ * A map press that has not moved. `progress` grows 0..1 over `holdMs` (the ring under the finger); `ping` once it
+ * has been held that long, and the ping goes out when the finger lifts (`pingRelease`). Any drag cancels it
+ * (progress stays 0), so a swipe, or the floating stick, never pings.
  */
 export function mapPing(elapsedMs: number, dragged: boolean, holdMs = PING_HOLD_MS): { progress: number; ping: boolean } {
   if (dragged || elapsedMs <= 0) return { progress: 0, ping: false };
@@ -261,7 +357,10 @@ export function inOverlay(p: Pt, rects: readonly Rect[], controlTop: number | nu
 // Hold to sell
 // ---------------------------------------------------------------------------
 
-/** Progress (0..1) of a hold that started at `startMs`; `done` once it has lasted `holdMs`. */
+/**
+ * Progress (0..1) of a hold that started at `startMs`; `done` once it has lasted `holdMs`. The frame loop only sells
+ * on a frame that is not straight after a stall (`holdReached`), and a lift sells only after a real hold (`pressLength`).
+ */
 export function holdProgress(startMs: number, nowMs: number, holdMs = SELL_HOLD_MS): { progress: number; done: boolean } {
   const progress = clamp((nowMs - startMs) / holdMs, 0, 1);
   return { progress, done: progress >= 1 };
@@ -269,7 +368,8 @@ export function holdProgress(startMs: number, nowMs: number, holdMs = SELL_HOLD_
 
 /**
  * A press on a build button, `elapsedMs` after the finger went down. Held past `holdMs` it shows the
- * preview, and lifting then does not build. A quick tap that did not drag builds on release.
+ * preview, and lifting then does not build. A quick tap that did not drag builds on release. At release,
+ * `elapsedMs` is the press's real length (`pressLength`), so a preview a late frame opened still builds.
  */
 export function buildPress(elapsedMs: number, dragged: boolean, holdMs = BUILD_PREVIEW_MS): { preview: boolean; build: boolean } {
   const preview = elapsedMs >= holdMs;
