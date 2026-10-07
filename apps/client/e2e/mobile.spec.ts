@@ -903,8 +903,8 @@ test.describe('floating stick with the skills around it (the default) and taps w
     const t0 = Date.now() / 1000;
     await hand.press(1, q.x, q.y, t0);
     await hand.lift(1, q.x, q.y, t0 + 0.08);
-    await expect.poll(() => sent(page, 'cast').then((c) => c.map((x) => x.type))).toEqual(['cast']);
-    expect(((await sent(page, 'cast'))[0] as { slot: string }).slot).toBe('Q');
+    await expect.poll(() => sent(page, 'cast').then((c) => c.length)).toBe(1);
+    expect((await sent(page, 'cast'))[0]).toMatchObject({ type: 'cast', slot: 'Q' });
     // The cast went off while the stick was still held: Q is on cooldown, and the stick keeps steering.
     await expect.poll(qCooldown).toBeGreaterThan(0);
     await hand.move(0, joy.x + 30, joy.y - 45);
