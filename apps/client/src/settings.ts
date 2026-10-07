@@ -1,7 +1,7 @@
 // Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake;
 // Display: docs/ART.md §2; sound: docs/ART.md §13; the first-match lesson: tutorial/logic.ts).
 
-import type { StickAnchor, ThumbLayout } from './layout';
+import { THUMB_LAYOUTS, type StickAnchor, type ThumbLayout } from './layout';
 import type { StickFeelName } from './touch/gestures';
 import type { Display } from './render/art/tokens';
 import { parseAirLesson, parseRepairHint, type AirLesson, type RepairHint, type TutorialStatus } from './tutorial/logic';
@@ -11,7 +11,13 @@ export type Quality = 'auto' | 'high' | 'low';
 export type ShakeSetting = 'off' | 'normal' | 'strong';
 
 export interface Settings {
+  /** Controls layout. The floating stick with the skills on the right is the default. */
   thumbs: ThumbLayout;
+  /**
+   * The player picked a controls layout or a joystick side in ⚙. Saves from before the floating stick have no such
+   * flag: there, One thumb at Center was the old default, so it moves to the new one; any other layout is kept.
+   */
+  thumbsPicked: boolean;
   /** One-thumb cluster: left, center or right. The skill buttons move with it. */
   stickAnchor: StickAnchor;
   /** How far the thumb must travel before the hero is at full speed. */
@@ -47,9 +53,11 @@ export interface Settings {
 }
 
 export const THUMB_NAMES: Record<ThumbLayout, string> = {
-  one: 'One thumb',
-  two: 'Two thumbs',
-  twoLeft: 'Two thumbs, left-handed',
+  float: 'Floating stick, skills right',
+  floatLeft: 'Floating stick, skills left (left-handed)',
+  one: 'Fixed stick, one thumb',
+  two: 'Fixed stick, two thumbs',
+  twoLeft: 'Fixed stick, two thumbs, left-handed',
 };
 
 export const STICK_ANCHOR_NAMES: Record<StickAnchor, string> = {
@@ -83,7 +91,8 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 
 const KEY = 'tdt.settings';
 export const DEFAULT_SETTINGS: Settings = {
-  thumbs: 'one',
+  thumbs: 'float',
+  thumbsPicked: false,
   stickAnchor: 'center',
   stickFeel: 'normal',
   quality: 'auto',
@@ -108,8 +117,13 @@ export function parseSettings(raw: string | null): Settings {
   if (!raw) return out;
   try {
     const v = JSON.parse(raw) as Partial<Record<keyof Settings, unknown>>;
-    if (v.thumbs === 'one' || v.thumbs === 'two' || v.thumbs === 'twoLeft') out.thumbs = v.thumbs;
     if (v.stickAnchor === 'left' || v.stickAnchor === 'center' || v.stickAnchor === 'right') out.stickAnchor = v.stickAnchor;
+    out.thumbsPicked = v.thumbsPicked === true;
+    if (THUMB_LAYOUTS.includes(v.thumbs as ThumbLayout)) {
+      // Before the floating stick every save held One thumb at Center whether or not the player chose it.
+      const oldDefault = !out.thumbsPicked && v.thumbs === 'one' && out.stickAnchor === 'center';
+      if (!oldDefault) out.thumbs = v.thumbs as ThumbLayout;
+    }
     if (v.stickFeel === 'light' || v.stickFeel === 'normal' || v.stickFeel === 'firm') out.stickFeel = v.stickFeel;
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;
     if (v.shake === 'off' || v.shake === 'normal' || v.shake === 'strong') out.shake = v.shake;

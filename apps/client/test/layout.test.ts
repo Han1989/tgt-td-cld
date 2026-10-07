@@ -9,7 +9,7 @@ import {
   type Insets,
   type LayoutInput,
   type Rect,
-  type ThumbLayout,
+  THUMB_LAYOUTS,
 } from '../src/layout';
 
 const map = getMap();
@@ -63,7 +63,7 @@ describe('computeLayout: phones held upright', () => {
     expect(computeLayout(input(412, 915)).tilePx).toBeGreaterThanOrEqual(412 / 26 - 1e-9);
   });
 
-  for (const thumbs of ['one', 'two', 'twoLeft'] as ThumbLayout[]) {
+  for (const thumbs of THUMB_LAYOUTS) {
     it(`keeps the ${thumbs} controls inside the screen, off the gameplay, and never overlapping each other`, () => {
       for (const [w, h, insets] of [
         [412, 839, NO_INSETS],
@@ -157,6 +157,54 @@ describe('computeLayout: phones held upright', () => {
     expect(left.joystick.x).toBeCloseTo(412 - right.joystick.x);
     expect(left.skills.R.x).toBeCloseTo(412 - right.skills.R.x);
     expect(left.skillInfo.x).toBeCloseTo(412 - right.skillInfo.x);
+  });
+});
+
+describe('computeLayout: the floating stick', () => {
+  it('puts the skills together in one bottom corner and only the resting stick in the other, nothing in the bottom centre', () => {
+    for (const [w, h, insets] of [
+      [412, 839, NO_INSETS],
+      [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
+      [360, 780, NO_INSETS],
+    ] as const) {
+      const c = computeLayout(input(w, h, { thumbs: 'float', insets })).controls!;
+      expect(c.floating).toBe(true);
+      // The resting stick is a hint in the bottom-left corner.
+      expect(c.joystick.x + c.joystick.r).toBeLessThan(w / 3);
+      // Every skill and the Skills button sit right of the centre, so the thumb has the bottom centre and left.
+      for (const b of [...Object.values(c.skills), c.skillInfo]) expect(b.x - b.r).toBeGreaterThan(w / 2 - 4);
+      // The Skills button sits with the arc, next to Q and W, not in the gap beside the stick.
+      expect(Math.hypot(c.skillInfo.x - c.skills.Q.x, c.skillInfo.y - c.skills.Q.y)).toBeLessThan(80);
+      expect(Math.hypot(c.skillInfo.x - c.skills.W.x, c.skillInfo.y - c.skills.W.y)).toBeLessThan(80);
+    }
+  });
+
+  it('uses the two-thumb arc a little lower, so the whole map still fits a 412 × 839 phone, and mirrors it for left-handed players', () => {
+    const l = computeLayout(input(412, 839, { thumbs: 'float' }));
+    expect(l.followRange).toBe(0);
+    const float = l.controls!;
+    const two = computeLayout(input(412, 839, { thumbs: 'two' })).controls!;
+    expect(two.floating).toBe(false);
+    expect(float.joystick).toEqual(two.joystick);
+    for (const slot of ['Q', 'W', 'E', 'R'] as const) {
+      expect(float.skills[slot].x).toBeCloseTo(two.skills[slot].x);
+      expect(float.skills[slot].y).toBeGreaterThan(two.skills[slot].y);
+      expect(float.skills[slot].y - two.skills[slot].y).toBeLessThanOrEqual(8);
+    }
+    const left = computeLayout(input(412, 839, { thumbs: 'floatLeft' })).controls!;
+    expect(left.floating).toBe(true);
+    expect(left.joystick.x).toBeCloseTo(412 - float.joystick.x);
+    expect(left.skills.R.x).toBeCloseTo(412 - float.skills.R.x);
+    expect(left.skillInfo.x).toBeCloseTo(412 - float.skillInfo.x);
+    expect(left.skillInfo.y).toBeCloseTo(float.skillInfo.y);
+  });
+
+  it('keeps the floating controls in the side margins on a landscape tablet', () => {
+    for (const thumbs of ['float', 'floatLeft'] as const) {
+      const l = computeLayout(input(1024, 768, { thumbs, landscape: true }));
+      expect(l.controls!.floating).toBe(true);
+      for (const r of l.controls!.rects) expect(r.right <= l.map.left || r.left >= l.map.right).toBe(true);
+    }
   });
 });
 

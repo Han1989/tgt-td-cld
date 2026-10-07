@@ -10,7 +10,7 @@
 |---|---|
 | Orientation | **Portrait on phones.** Tablets and desktop show the same map centred, with the HUD in the side margins. |
 | Map | **Spire is the only map, on every device.** Crossroads is retired. |
-| Controls | Controls are **drawn over the map, semi-transparent**, with a fixed joystick at bottom-centre, Q/W/R in a tight arc around it and E as a badge. There is **no separate control strip.** |
+| Controls | Controls are **drawn over the map, semi-transparent**. There is **no separate control strip.** Since 7 Oct 2026 the default is the **floating stick**: drag anywhere to walk, the skills together in the bottom-right corner (§5). The fixed joystick at bottom-centre with Q/W/R in an arc around it stays as a choice. |
 | Casting | **Tap a skill to smart-cast it; press and drag to aim it.** |
 | Hero attacks | The hero **auto-attacks while moving or standing still, on all devices.** |
 | Towers in co-op | **Each player has their own zone of pads, and bigger teams unlock extra pads.** |
@@ -53,10 +53,9 @@
 
 - **Top bar, one compact row:** gold, Heart HP, wave, timer, Call early, settings. Hero level, XP and a skill-point badge go here too. There is no separate hero row.
 - **Map:** the rest of the screen, from the top bar down to the bottom edge.
-- **Control overlay, bottom-centre, over the safe zone:**
-  - A **fixed joystick** at about 35% opacity when idle, solid while touched.
-  - **Q, W, R** as buttons of about 52 pt, semi-transparent, in a tight arc around the joystick.
-  - **E** (passive) as a small badge.
+- **Control overlay, at the bottom, over the safe zone:**
+  - **Default (floating stick):** **Q, W, R** (56 pt) in a quarter arc around **E** in the bottom-right corner, with **Skills** just outside the arc, and a faint **resting stick** in the bottom-left corner as a hint. The bottom centre is empty, for the thumb. A drag anywhere walks (§5).
+  - **Fixed layouts** (⚙): a **fixed joystick** at about 35% opacity when idle, solid while touched, with Q, W, R in an arc around it (one thumb) or in the other corner (two thumbs), and E as a badge.
   - Skill-learn "+" badges sit on the buttons.
 - Hero HP and mana show above the hero sprite.
 - **Landscape on a phone** shows a "Rotate to portrait" screen.
@@ -73,27 +72,31 @@
 
 | Action | Touch |
 |---|---|
-| Move | Joystick over the forest. A full push is a short drag (⚙ → Stick feel: Light, Normal or Firm). ⚙ → Joystick moves the whole cluster **Left**, **Center** or **Right** (the skill buttons move with it). The hero auto-attacks while moving, and is drawn moving at once (client-side prediction; Decision Log). |
+| Move | **Floating stick (default): drag anywhere.** A touch that starts on the map or on the empty part of the control band and moves past the tap slop (10 px) becomes the stick: its base appears where the touch started and the hero walks. If the thumb goes past the base's radius (40 px), the base trails it, so turning back is a short move. Lifting stops the hero. A full push is a short drag (⚙ → Stick feel: Light, Normal or Firm). Starting a drag closes an open ring or picker. A drag never selects, never pings and never presses a button it passes over; a touch that starts on a skill, a ring button or any other control belongs to that control. One finger can steer while another taps a skill or a pad. **Fixed layouts** (⚙): the joystick over the forest; ⚙ → Joystick moves the one-thumb cluster **Left**, **Center** or **Right** (the skill buttons move with it), and a drag on the map does nothing. The hero auto-attacks while moving, and is drawn moving at once (client-side prediction; Decision Log). |
 | Tap a skill | **Smart cast.** Instant skills fire; targeted skills hit the densest enemy group in range; self-buffs cast on the hero. |
 | Press and drag a skill | Manual aim, with range and area shown. Release to cast; drag back onto the button to cancel. |
 | Nothing in range | The button shakes and no mana is spent. |
 | Read a skill | **Hold** a skill button, or tap **Skills**, to open a card with every skill's name and description. A short tap still casts. |
+| Ping | Hold a finger **still** on the map: a ring fills (0.45 s) and glows; **lifting** then pings. Moving cancels it (with the floating stick the move walks instead). |
 | Build | Tap a pad in **your zone** to open the radial build menu (5 towers with costs, greyed out if unaffordable). **One tap on a tower builds it.** Hold a tower button (about 0.3 s) to preview: its range shows on the pad and its name and stats in the chip; lifting after a hold does not build. The chip reads "Tap to build · hold to preview" until a button is held. |
 | Tower actions | Nothing is drawn on your tower until you tap it. Tap it to open a **radial ring:** **Upgrade** (one tap, with cost; the ring stays open, so the next tier is one more tap), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A chip above the ring shows what the next tier adds, e.g. "Dmg 24→36" (below the ring when there is no room above it, as on the top row; it never covers a ring button, wherever the tower is). At tier 3 the ring shows **two branch buttons** where Upgrade was, each named with its cost, and the chip says what both do. **One tap buys** the branch. |
 | Target enemy | Tap an enemy to set the focus target. |
-| Close menus | Tap anywhere else. **The joystick keeps working while a menu or ring is open.** |
+| Close menus | Tap anywhere else. With the floating stick, starting a drag also closes it (and walks). **A fixed joystick keeps working while a menu or ring is open.** |
 
 **Tap rules**
 - A tap snaps to the nearest pad or tower within 44 pt. If two are equally close, a tiny picker appears.
+- **Tap or hold is decided at release, from the events' own timestamps** (`event.timeStamp` of pointerdown and pointerup), not from when the page's frames ran. A skill card or a build preview that opened only because a frame was late, under a press shorter than its hold (0.38 s / 0.3 s), closes and the skill casts or the tower builds. A hold is never decided on the first frame after a stall (over 100 ms since the last frame), since the lift may still be queued. Sell still needs a real 0.5 s hold. Tap or drag on the map is decided by distance, never time.
 - Taps inside the control overlay never select anything on the map.
 - A radial menu or ring **moves up whenever it would overlap the control overlay.** It never covers the joystick or skills.
 
-**Settings → Layout:**
-- **One thumb** (default): as above.
-- **Two thumbs:** joystick bottom-left, skills bottom-right.
-- **Two thumbs, left-handed:** the mirror of Two thumbs.
+**Settings → Controls layout:**
+- **Floating stick, skills right** (default): as above.
+- **Floating stick, skills left (left-handed):** the mirror.
+- **Fixed stick, one thumb:** the joystick with Q / W / R in an arc around it (Left, Center or Right).
+- **Fixed stick, two thumbs:** joystick bottom-left, skills bottom-right.
+- **Fixed stick, two thumbs, left-handed:** the mirror of two thumbs.
 
-The two-thumb layouts use the same overlay approach.
+A player who picked a layout before the floating stick keeps it (One thumb at Center, the old default for everyone, moves to the floating stick). All layouts use the same overlay approach.
 
 ## 6. Quick mode
 

@@ -20,7 +20,7 @@ import { SettingsPanel } from './hud/settingsPanel';
 import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
-import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
+import { clamp, computeLayout, followOffset, isFloating, type Insets, type Layout } from './layout';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
@@ -242,7 +242,10 @@ export class GameView {
     installPressFeedback(document, () => audio.game.tap(performance.now()));
     const marks = new MarkerLayer();
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
-    const coach = new TutorialCoach(() => (document.body.classList.contains('touch') ? 'touch' : 'desktop'));
+    const coach = new TutorialCoach(
+      () => (document.body.classList.contains('touch') ? 'touch' : 'desktop'),
+      () => isFloating(settings.get().thumbs),
+    );
     view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
     view.radialMenus = radial;
     coach.onSkip = () => {

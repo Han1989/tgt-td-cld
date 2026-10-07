@@ -6,18 +6,27 @@ import {
   buildPress,
   BUILD_PREVIEW_MS,
   CHIP_GAP,
+  FLOAT_R,
+  floatStick,
+  HITCH_MS,
   holdProgress,
+  holdReached,
   inOverlay,
   isCancelRelease,
   isDrag,
   mapPing,
+  mapTouchKind,
   PING_HOLD_MS,
+  pingRelease,
   placeChip,
   placeRadial,
+  pressLength,
   radialSpots,
   resolveTap,
   SELL_HOLD_MS,
   shouldResendMove,
+  SKILL_INFO_MS,
+  skillRelease,
   smartCast,
   STICK_DEAD,
   STICK_RESEND_MS,
@@ -27,6 +36,8 @@ import {
   stickKnobOffset,
   stickMoveTarget,
   stickVector,
+  TAP_SLOP,
+  trailBase,
   type Candidate,
   type CastTarget,
 } from '../src/touch/gestures';
@@ -294,5 +305,106 @@ describe('radial menus', () => {
     expect(spots[0]!.x).toBeCloseTo(0);
     expect(spots[0]!.y).toBeCloseTo(-10);
     expect(spots[1]!.x).toBeCloseTo(10);
+  });
+});
+
+describe('floating stick', () => {
+  const start = { x: 200, y: 600 };
+
+  it('a touch that does not move stays a press; past the tap slop it becomes the stick, by distance, never by time', () => {
+    expect(mapTouchKind(start, { x: 204, y: 603 }, 'press', true, true)).toBe('press');
+    expect(mapTouchKind(start, { x: start.x + TAP_SLOP + 1, y: start.y }, 'press', true, true)).toBe('stick');
+    // Once the stick, always the stick, even back where it started.
+    expect(mapTouchKind(start, start, 'stick', true, true)).toBe('stick');
+    // A fixed-stick layout: a drag on the map does nothing (and never taps or pings).
+    expect(mapTouchKind(start, { x: 260, y: 600 }, 'press', false, true)).toBe('drag');
+    expect(mapTouchKind(start, start, 'drag', false, true)).toBe('drag');
+  });
+
+  it('two fingers: while one steers, a second finger on the map can tap but not start another stick', () => {
+    expect(mapTouchKind(start, { x: 202, y: 601 }, 'press', true, false)).toBe('press');
+    expect(mapTouchKind(start, { x: 260, y: 600 }, 'press', true, false)).toBe('drag');
+  });
+
+  it('the base appears where the touch started and walks towards the drag', () => {
+    const { base, vec } = floatStick(start, { x: start.x + 15, y: start.y }, FLOAT_R);
+    expect(base).toEqual(start);
+    expect(vec.dx).toBe(15);
+    expect(vec.dy).toBe(0);
+    // Past the dead zone: the hero walks right at once.
+    const target = stickMoveTarget({ x: 10, y: 10 }, vec, FLOAT_R);
+    expect(target!.x).toBeGreaterThan(10);
+    expect(target!.y).toBeCloseTo(10);
+  });
+
+  it('the base trails a thumb that goes past its radius, so reversing is a short move', () => {
+    // Thumb far right of where it started: the base follows to one radius behind it.
+    let base = trailBase(start, { x: start.x + 150, y: start.y }, FLOAT_R);
+    expect(base).toEqual({ x: start.x + 150 - FLOAT_R, y: start.y });
+    // Within the radius the base stays put.
+    expect(trailBase(base, { x: base.x + 10, y: base.y - 10 }, FLOAT_R)).toEqual(base);
+    // Reverse: a short move back past the base already walks left at full push, not after 150 px.
+    const thumb = { x: base.x - STICK_FULL - 1, y: base.y };
+    const step = floatStick(base, thumb, FLOAT_R);
+    expect(step.base).toEqual(base);
+    const target = stickMoveTarget({ x: 0, y: 0 }, step.vec, FLOAT_R);
+    expect(target!.x).toBeCloseTo(-STICK_AHEAD);
+    // A long way the other way: the base trails again and the knob stays on the rim.
+    base = trailBase(base, { x: base.x - 300, y: base.y + 40 }, FLOAT_R);
+    expect(Math.hypot(base.x - (start.x + 110 - 300), base.y - (start.y + 40))).toBeCloseTo(FLOAT_R);
+    const rim = floatStick(base, { x: base.x - 300, y: base.y }, FLOAT_R);
+    expect(Math.hypot(rim.vec.dx, rim.vec.dy)).toBeCloseTo(FLOAT_R);
+    expect(rim.vec.mag).toBe(1);
+  });
+
+  it('the Stick feel still sets how far the thumb travels to full speed', () => {
+    const v = floatStick(start, { x: start.x + STICK_FEELS.light.full, y: start.y }, FLOAT_R).vec;
+    const light = stickMoveTarget({ x: 0, y: 0 }, v, FLOAT_R, STICK_AHEAD, STICK_FEELS.light)!;
+    const firm = stickMoveTarget({ x: 0, y: 0 }, v, FLOAT_R, STICK_AHEAD, STICK_FEELS.firm)!;
+    expect(light.x).toBeCloseTo(STICK_AHEAD);
+    expect(firm.x).toBeLessThan(light.x);
+  });
+});
+
+describe('taps that register when the page stalls', () => {
+  it('measures a press from its events\' own timestamps', () => {
+    expect(pressLength(1000, 1080)).toBe(80);
+    expect(pressLength(1000, 990)).toBe(0);
+  });
+
+  it('a late frame does not decide a hold: it waits a frame for a lift that may be queued', () => {
+    // Held long enough, frames on time: the hold is reached.
+    expect(holdReached(1000, 1000 + SELL_HOLD_MS, 16, SELL_HOLD_MS)).toBe(true);
+    expect(holdReached(1000, 1000 + SELL_HOLD_MS - 1, 16, SELL_HOLD_MS)).toBe(false);
+    // The first frame after a 600 ms stall says the finger has been down 600 ms, but its lift may not have run.
+    expect(holdReached(1000, 1620, 600, SELL_HOLD_MS)).toBe(false);
+    expect(holdReached(1000, 1620, HITCH_MS + 1, SELL_HOLD_MS)).toBe(false);
+    expect(holdReached(1000, 1636, 16, SELL_HOLD_MS)).toBe(true);
+  });
+
+  it('a quick tap on a skill casts, even when a late frame opened its description', () => {
+    const tap = { pressMs: 90, drag: false, sheetWasOpen: false, infoOpened: false, cancel: true };
+    expect(skillRelease(tap)).toEqual({ type: 'cast', closeSheet: false });
+    expect(skillRelease({ ...tap, infoOpened: true })).toEqual({ type: 'cast', closeSheet: true });
+    // A real hold reads, whether or not a frame got to open the card.
+    expect(skillRelease({ ...tap, pressMs: SKILL_INFO_MS, infoOpened: true })).toEqual({ type: 'read' });
+    expect(skillRelease({ ...tap, pressMs: 700 })).toEqual({ type: 'read' });
+    // The card was already open: a tap shows that skill's row and casts nothing.
+    expect(skillRelease({ ...tap, sheetWasOpen: true })).toEqual({ type: 'showRow' });
+    // Drag to aim: cast where it points, or nothing when let go back on the button.
+    expect(skillRelease({ ...tap, drag: true, cancel: false, pressMs: 900 })).toEqual({ type: 'aimCast' });
+    expect(skillRelease({ ...tap, drag: true, cancel: true })).toEqual({ type: 'none' });
+  });
+
+  it('a quick tap on a build button builds, even when a late frame showed the preview', () => {
+    // At release the press's real length decides.
+    expect(buildPress(pressLength(5000, 5080), false)).toEqual({ preview: false, build: true });
+    expect(buildPress(pressLength(5000, 5000 + BUILD_PREVIEW_MS), false).build).toBe(false);
+  });
+
+  it('pings on lifting a still hold, never on a tap or a drag', () => {
+    expect(pingRelease(PING_HOLD_MS, false)).toBe(true);
+    expect(pingRelease(PING_HOLD_MS - 1, false)).toBe(false);
+    expect(pingRelease(2000, true)).toBe(false);
   });
 });

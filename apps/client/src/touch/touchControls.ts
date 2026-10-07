@@ -1,8 +1,10 @@
-// Touch controls (docs/MOBILE.md §5): a joystick and Q/W/E/R buttons drawn over the
-// map, tap-to-select on the map with
-// snapping and a tie picker, a radial build menu around pads and a radial ring
-// around your towers. The rules are pure functions in `gestures.ts`; this file
-// wires them to pointer events and DOM.
+// Touch controls (docs/MOBILE.md §5): a floating stick (a drag anywhere on the map
+// walks; the default) or a fixed joystick, Q/W/E/R buttons drawn over the map,
+// tap-to-select on the map with snapping and a tie picker, a radial build menu
+// around pads and a radial ring around your towers. Taps and holds are told apart
+// by the events' own timestamps, so a stalled frame does not turn a tap into a
+// hold. The rules are pure functions in `gestures.ts`; this file wires them to
+// pointer events and DOM.
 //
 // Mouse input on the canvas stays with the desktop `Controls`; this class handles
 // touch and pen on the canvas, and any pointer on its own buttons.
@@ -48,17 +50,27 @@ import type { UiState } from '../uiState';
 import {
   aimPoint,
   arrowTo,
+  BUILD_PREVIEW_MS,
   buildPress,
+  FLOAT_R,
+  floatStick,
   holdProgress,
+  holdReached,
   inOverlay,
   isCancelRelease,
   isDrag,
   mapPing,
+  mapTouchKind,
+  pingRelease,
   placeChip,
   placeRadial,
+  pressLength,
   radialSpots,
   resolveTap,
+  SELL_HOLD_MS,
   shouldResendMove,
+  SKILL_INFO_MS,
+  skillRelease,
   smartCast,
   STICK_FEELS,
   stickKnobOffset,
@@ -67,6 +79,7 @@ import {
   type StickFeel,
   type StickFeelName,
   type Candidate,
+  type MapTouchKind,
   type Pt,
   type Scored,
   type StickVec,
@@ -79,8 +92,6 @@ const TOWER_RING_R = 64;
 const TOWER_BTN = 60;
 /** A damaged tower's Repair button sits below the ring, a little further out so it clears Target and Sell. */
 const REPAIR_SPOT = { x: 0, y: Math.round(TOWER_RING_R * 1.1) };
-/** Hold a skill button this long (ms), without dragging, to open its description. A short tap still casts. */
-const SKILL_INFO_MS = 380;
 const SLOTS = ['Q', 'W', 'E', 'R'] as const;
 
 export interface TouchActions {
@@ -131,22 +142,42 @@ export class TouchControls {
   private readonly skillInfo: HTMLButtonElement;
   private readonly sheet: HTMLElement;
 
-  /** The joystick finger and its knob offset. */
-  private stick: { id: number; vec: StickVec } | null = null;
+  /**
+   * The finger steering the hero: its knob offset, the base radius (px) and, for the floating stick, where the base
+   * is now (it appears where the drag started and trails the thumb). `base` is null on the fixed joystick.
+   */
+  private stick: { id: number; vec: StickVec; r: number; base: Pt | null } | null = null;
   private stickFeel: StickFeel = STICK_FEELS.normal;
   private lastMoveDir: number | null = null;
   private lastMoveAt = 0;
-  /** A finger on a skill button: a tap (smart cast), a drag aim, or a hold that opened the description. */
-  private press: { slot: SkillSlot; id: number; start: Pt; at: number; drag: boolean; info: boolean; button: HTMLButtonElement } | null = null;
-  /** A finger on the map: a tap unless it moves, or a ping once it has been held still. */
-  private mapTouch: { id: number; start: Pt; drag: boolean; at: number; pinged: boolean; dismiss: boolean } | null = null;
+  /**
+   * A finger on a skill button: a tap (smart cast), a drag aim, or a hold that opened the description. `at` is the
+   * pointerdown's `timeStamp`; the release decides tap or hold from the pointerup's.
+   */
+  private press: {
+    slot: SkillSlot;
+    id: number;
+    start: Pt;
+    at: number;
+    drag: boolean;
+    info: boolean;
+    sheetWasOpen: boolean;
+    button: HTMLButtonElement;
+  } | null = null;
+  /**
+   * A finger on the map: a tap unless it moves, a ping when lifted after a still hold, or (floating stick) the stick
+   * once it moves. `start` is canvas px, `client` viewport px (where the stick's base goes), `at` the down `timeStamp`.
+   */
+  private mapTouch: { id: number; start: Pt; client: Pt; kind: MapTouchKind; at: number; dismiss: boolean } | null = null;
+  /** The last frame's time, to tell a frame that follows a stall (a hold is not decided on it). */
+  private lastFrame = 0;
   /** Grows under a still finger until the ping fires. */
   private readonly pingHold: HTMLElement;
   /** The open tower ring's Repair button (its cost changes as the tower takes hits; updated in place). */
   private repairBtn: HTMLButtonElement | null = null;
-  /** Hold-to-sell in progress. */
+  /** Hold-to-sell in progress (`start` is the pointerdown's `timeStamp`). */
   private sellHold: { id: number; start: number; towerId: number; button: HTMLElement } | null = null;
-  /** A finger on a build button: a quick tap builds; held, it previews the tower and lifting does not build. */
+  /** A finger on a build button: a quick tap builds; held, it previews the tower and lifting does not build (`start`: down `timeStamp`). */
   private buildHold: { id: number; start: number; startPt: Pt; drag: boolean; padId: number; kind: TowerKind; button: HTMLElement } | null = null;
 
   private menu: Menu = null;
@@ -204,7 +235,8 @@ export class TouchControls {
     canvas.addEventListener('pointerdown', (e) => this.onMapDown(e));
     canvas.addEventListener('pointermove', (e) => this.onMapMove(e));
     canvas.addEventListener('pointerup', (e) => this.onMapUp(e));
-    canvas.addEventListener('pointercancel', () => this.cancelMap());
+    canvas.addEventListener('pointercancel', (e) => this.onMapCancel(e));
+    canvas.addEventListener('lostpointercapture', (e) => this.onMapCancel(e));
     // No synthesized click after a map tap: it would land on the radial menu the tap just opened.
     canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
     // Keep popups' touches away from the canvas below.
@@ -229,12 +261,15 @@ export class TouchControls {
       this.closeSkillSheet();
       return;
     }
+    // The floating stick's resting base is a hint: touches on it fall through to the map, where a drag steers.
+    this.overlay.classList.toggle('floating', c.floating);
+    if (this.stick && (this.stick.base !== null) !== c.floating) this.releaseStick(true);
     const put = (el: HTMLElement, x: number, y: number, size: number) => {
       el.style.left = `${Math.round(x - size / 2)}px`;
       el.style.top = `${Math.round(y - size / 2)}px`;
       el.style.width = el.style.height = `${size}px`;
     };
-    this.putJoy(c.joystick.x, c.joystick.y);
+    if (!this.stick?.base) this.putJoy(c.joystick.x, c.joystick.y, c.joystick.r);
     put(this.skillInfo, c.skillInfo.x, c.skillInfo.y, c.skillInfo.r * 2);
     for (const slot of SLOTS) {
       const circle = c.skills[slot];
@@ -244,8 +279,7 @@ export class TouchControls {
     this.menuKey = '';
   }
 
-  private putJoy(x: number, y: number): void {
-    const r = this.layout?.controls?.joystick.r ?? 50;
+  private putJoy(x: number, y: number, r: number): void {
     const size = r * 2;
     this.joy.style.left = `${Math.round(x - size / 2)}px`;
     this.joy.style.top = `${Math.round(y - size / 2)}px`;
@@ -277,12 +311,15 @@ export class TouchControls {
   update(now: number): void {
     const snap = this.actions.latest();
     const hero = this.myHero(snap);
+    // A frame long after the last one follows a stall: holds wait for the next frame, by when a queued lift has run.
+    const gap = this.lastFrame > 0 ? now - this.lastFrame : 0;
+    this.lastFrame = now;
     if (this.active && hero) this.updateSkills(hero, snap!.tickRate);
     this.driveStick(hero, now);
-    this.updateHold(now);
-    this.updateBuildHold(now);
+    this.updateHold(now, gap);
+    this.updateBuildHold(now, gap);
     this.updatePing(now);
-    this.updateSkillInfo(now);
+    this.updateSkillInfo(now, gap);
     this.updateMenu(snap);
   }
 
@@ -292,16 +329,16 @@ export class TouchControls {
 
   private onStickDown(e: PointerEvent): void {
     e.preventDefault();
-    if (this.stick) return;
+    if (this.stick || this.layout?.controls?.floating) return;
     this.joy.setPointerCapture?.(e.pointerId);
-    this.stick = { id: e.pointerId, vec: { dx: 0, dy: 0, mag: 0 } };
+    this.stick = { id: e.pointerId, vec: { dx: 0, dy: 0, mag: 0 }, r: this.layout?.controls?.joystick.r ?? 50, base: null };
     this.lastMoveDir = null;
     this.joy.classList.add('held');
     this.onStickMove(e);
   }
 
   private onStickMove(e: PointerEvent): void {
-    if (!this.stick || e.pointerId !== this.stick.id) return;
+    if (!this.stick || e.pointerId !== this.stick.id || this.stick.base) return;
     const r = this.joy.getBoundingClientRect();
     const radius = r.width / 2;
     const v = stickVector({ x: r.left + radius, y: r.top + radius }, { x: e.clientX, y: e.clientY }, radius);
@@ -314,8 +351,49 @@ export class TouchControls {
   }
 
   private onStickUp(e: PointerEvent): void {
-    if (!this.stick || e.pointerId !== this.stick.id) return;
+    if (!this.stick || e.pointerId !== this.stick.id || this.stick.base) return;
     this.releaseStick(true);
+  }
+
+  /**
+   * A map touch moved past the tap slop with the floating stick: it steers from now on. The base appears where the
+   * touch started (trailing the thumb if it is already further), an open ring or picker closes, and the touch is no
+   * longer a tap or a ping. The map stays free for a second finger.
+   */
+  private startFloat(e: PointerEvent, t: { client: Pt }): void {
+    this.mapTouch = null;
+    this.pingHold.classList.add('hidden');
+    if (this.menu || !this.picker.classList.contains('hidden') || this.ui.emoteOpen) this.actions.clearSelection();
+    try {
+      this.canvas.setPointerCapture?.(e.pointerId);
+    } catch {
+      // The pointer is already gone; its pointerup ends the stick.
+    }
+    const { base, vec } = floatStick(t.client, { x: e.clientX, y: e.clientY }, FLOAT_R);
+    this.stick = { id: e.pointerId, vec, r: FLOAT_R, base };
+    this.lastMoveDir = null;
+    this.joy.classList.add('held');
+    this.drawFloat();
+    this.driveStick(this.myHero(this.actions.latest()), performance.now());
+  }
+
+  private onFloatMove(e: PointerEvent): void {
+    const s = this.stick;
+    if (!s?.base) return;
+    const next = floatStick(s.base, { x: e.clientX, y: e.clientY }, s.r);
+    s.base = next.base;
+    s.vec = next.vec;
+    this.drawFloat();
+    this.driveStick(this.myHero(this.actions.latest()), performance.now());
+  }
+
+  /** The floating base under the thumb, its knob towards the thumb (a full push looks full). */
+  private drawFloat(): void {
+    const s = this.stick;
+    if (!s?.base) return;
+    this.putJoy(s.base.x, s.base.y, s.r);
+    const knob = stickKnobOffset(s.vec, s.r, this.stickFeel.full);
+    this.knob.style.transform = `translate(${knob.x}px, ${knob.y}px)`;
   }
 
   private releaseStick(stop: boolean): void {
@@ -326,6 +404,9 @@ export class TouchControls {
     // Stop walking; the hero keeps shooting whatever is in range.
     if (was && stop && this.lastMoveDir !== null) this.actions.send({ type: 'stop' });
     this.lastMoveDir = null;
+    // The floating base goes back to its resting place.
+    const rest = this.layout?.controls?.joystick;
+    if (was?.base && rest) this.putJoy(rest.x, rest.y, rest.r);
   }
 
   /** The joystick is held (the hero is being steered). */
@@ -337,8 +418,7 @@ export class TouchControls {
   private stickSteers(): boolean {
     const s = this.stick;
     if (!s) return false;
-    const r = this.joy.getBoundingClientRect().width / 2 || 50;
-    return stickMoveTarget({ x: 0, y: 0 }, s.vec, r, undefined, this.stickFeel) !== null;
+    return stickMoveTarget({ x: 0, y: 0 }, s.vec, s.r, undefined, this.stickFeel) !== null;
   }
 
   /** A point cast stops the hero's walk in the sim: while steering, resend the move on the next frame. */
@@ -350,10 +430,9 @@ export class TouchControls {
   private driveStick(hero: HeroSnap | undefined, now: number): void {
     const s = this.stick;
     if (!s || !hero?.alive) return;
-    const r = this.joy.getBoundingClientRect().width / 2 || 50;
     // Aim from where the hero is drawn (ahead of the snapshots while it walks), so the prediction and
     // the server head for the same point.
-    const target = stickMoveTarget(this.actions.heroAt() ?? hero, s.vec, r, undefined, this.stickFeel);
+    const target = stickMoveTarget(this.actions.heroAt() ?? hero, s.vec, s.r, undefined, this.stickFeel);
     if (!target) return;
     const dir = Math.atan2(s.vec.dy, s.vec.dx);
     if (!shouldResendMove(this.lastMoveDir, dir, this.lastMoveAt, now)) return;
@@ -464,7 +543,16 @@ export class TouchControls {
     e.stopPropagation();
     if (this.press) return;
     button.setPointerCapture?.(e.pointerId);
-    this.press = { slot, id: e.pointerId, start: { x: e.clientX, y: e.clientY }, at: performance.now(), drag: false, info: false, button };
+    this.press = {
+      slot,
+      id: e.pointerId,
+      start: { x: e.clientX, y: e.clientY },
+      at: e.timeStamp,
+      drag: false,
+      info: false,
+      sheetWasOpen: !this.sheet.classList.contains('hidden'),
+      button,
+    };
   }
 
   private onSkillMove(e: PointerEvent): void {
@@ -497,16 +585,29 @@ export class TouchControls {
     const aim = this.ui.aim;
     this.ui.aim = null;
     p.button.classList.remove('cancel');
-    if (!released || p.info) return;
-    if (!p.drag) {
-      // The sheet is for reading. A tap on a skill while it is open switches the row and does not cast.
-      if (!this.sheet.classList.contains('hidden')) {
-        this.openSkillSheet(p.slot);
-        return;
-      }
+    if (!released) return;
+    // Tap or hold from the press's real length (the events' timestamps), not from when the frames ran.
+    const what = skillRelease({
+      pressMs: pressLength(p.at, e.timeStamp),
+      drag: p.drag,
+      sheetWasOpen: p.sheetWasOpen,
+      infoOpened: p.info,
+      cancel: !aim || aim.cancel,
+    });
+    if (what.type === 'none') return;
+    if (what.type === 'read') {
+      // A real hold whose frame never came (the page stalled): open the card now.
+      if (!p.info) this.openSkillSheet(p.slot);
+      return;
+    }
+    // The sheet is for reading. A tap on a skill while it is open switches the row and does not cast.
+    if (what.type === 'showRow') return this.openSkillSheet(p.slot);
+    if (what.type === 'cast') {
+      // A late frame opened the card under a quick tap: close it, then cast.
+      if (what.closeSheet) this.closeSkillSheet();
       return this.smartCastSlot(p.slot, p.button);
     }
-    if (!aim || aim.cancel) return;
+    if (!aim) return;
     const ok = this.castable(p.slot, p.button);
     if (!ok) return;
     if (ok.skill.targeted) {
@@ -545,57 +646,74 @@ export class TouchControls {
     const start = this.screenPt(e);
     // An open menu is dismissed by the release; that press is not a ping.
     const dismiss = this.menu !== null || !this.picker.classList.contains('hidden') || this.ui.emoteOpen;
-    this.mapTouch = { id: e.pointerId, start, drag: false, at: performance.now(), pinged: false, dismiss };
+    this.mapTouch = { id: e.pointerId, start, client: { x: e.clientX, y: e.clientY }, kind: 'press', at: e.timeStamp, dismiss };
   }
 
   private onMapMove(e: PointerEvent): void {
+    if (this.stick?.base && e.pointerId === this.stick.id) return this.onFloatMove(e);
     const t = this.mapTouch;
     if (!t || e.pointerId !== t.id) return;
-    t.drag = isDrag(t.start, this.screenPt(e), t.drag);
+    // Distance, not time, decides: past the tap slop the touch is the floating stick (or, with a fixed stick, a
+    // drag that does nothing). Either way it never selects, pings or presses a button it passes over.
+    t.kind = mapTouchKind(t.start, this.screenPt(e), t.kind, !!this.layout?.controls?.floating, this.stick === null);
+    if (t.kind === 'stick') this.startFloat(e, t);
   }
 
   private onMapUp(e: PointerEvent): void {
+    if (this.stick?.base && e.pointerId === this.stick.id) return this.releaseStick(true);
     const t = this.mapTouch;
     if (!t || e.pointerId !== t.id) return;
     this.cancelMap();
-    if (!t.pinged && !t.drag) this.tap(this.screenPt(e));
+    if (t.kind !== 'press') return;
+    // A still hold pings when the finger lifts, measured by the events' timestamps; anything shorter is a tap.
+    if (!t.dismiss && pingRelease(pressLength(t.at, e.timeStamp), false)) return this.ping(t.start);
+    this.tap(this.screenPt(e));
+  }
+
+  private onMapCancel(e: PointerEvent): void {
+    if (this.stick?.base && e.pointerId === this.stick.id) this.releaseStick(true);
+    if (this.mapTouch?.id === e.pointerId) this.cancelMap();
   }
 
   private cancelMap(): void {
     this.mapTouch = null;
+    this.pingHold.classList.remove('ready');
     this.pingHold.classList.add('hidden');
   }
 
-  /** A still finger on the map grows a ring, then pings once. A drag or an open menu never pings. */
+  /** A ping where a still hold was let go, unless it was in the control overlay. */
+  private ping(at: Pt): void {
+    const c = this.layout?.controls;
+    if (c && inOverlay(at, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
+    const w = this.camera.screenToWorld(at.x, at.y);
+    this.actions.send({ type: 'ping', x: w.x / TILE_PX, y: w.y / TILE_PX });
+  }
+
+  /** A still finger on the map grows a ring; once it is full, lifting pings. A drag or an open menu never pings. */
   private updatePing(now: number): void {
     const t = this.mapTouch;
-    if (!t || t.dismiss || t.drag || t.pinged) {
-      if (!t || t.dismiss || t.drag) this.pingHold.classList.add('hidden');
+    const c = this.layout?.controls;
+    if (!t || t.dismiss || t.kind !== 'press' || (c && inOverlay(t.start, c.rects, this.layout?.kind === 'tall' ? c.top : null))) {
+      this.pingHold.classList.add('hidden');
       return;
     }
-    const { progress, ping } = mapPing(now - t.at, t.drag);
+    const { progress, ping } = mapPing(now - t.at, false);
     if (progress <= 0) {
       this.pingHold.classList.add('hidden');
       return;
     }
     this.pingHold.classList.remove('hidden');
+    this.pingHold.classList.toggle('ready', ping);
     this.pingHold.style.left = `${t.start.x}px`;
     this.pingHold.style.top = `${t.start.y}px`;
     this.pingHold.style.setProperty('--p', String(0.35 + progress * 0.65));
-    if (!ping) return;
-    t.pinged = true;
-    this.pingHold.classList.add('hidden');
-    const c = this.layout?.controls;
-    if (c && inOverlay(t.start, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
-    const w = this.camera.screenToWorld(t.start.x, t.start.y);
-    this.actions.send({ type: 'ping', x: w.x / TILE_PX, y: w.y / TILE_PX });
   }
 
-  /** A still hold on a skill opens the description sheet and does not cast. */
-  private updateSkillInfo(now: number): void {
+  /** A still hold on a skill opens the description sheet and does not cast (unless the release shows it was a tap). */
+  private updateSkillInfo(now: number, gap: number): void {
     const p = this.press;
     if (!p || p.drag || p.info) return;
-    if (now - p.at < SKILL_INFO_MS) return;
+    if (!holdReached(p.at, now, gap, SKILL_INFO_MS)) return;
     p.info = true;
     this.ui.aim = null;
     p.button.classList.remove('cancel');
@@ -898,7 +1016,7 @@ export class TouchControls {
         e.stopPropagation();
         if (this.buildHold) return;
         b.setPointerCapture?.(e.pointerId);
-        this.buildHold = { id: e.pointerId, start: performance.now(), startPt: { x: e.clientX, y: e.clientY }, drag: false, padId, kind, button: b };
+        this.buildHold = { id: e.pointerId, start: e.timeStamp, startPt: { x: e.clientX, y: e.clientY }, drag: false, padId, kind, button: b };
       });
       b.addEventListener('pointermove', (e) => {
         const h = this.buildHold;
@@ -912,21 +1030,24 @@ export class TouchControls {
   }
 
   /** While a build button is held long enough, the pad shows that tower's range and the chip its stats. */
-  private updateBuildHold(now: number): void {
+  private updateBuildHold(now: number, gap: number): void {
     const h = this.buildHold;
     if (!h) return;
-    if (!buildPress(now - h.start, h.drag).preview) return;
+    if (!holdReached(h.start, now, gap, BUILD_PREVIEW_MS)) return;
     if (this.ui.preview?.padId !== h.padId || this.ui.preview.tower !== h.kind) this.ui.preview = { padId: h.padId, tower: h.kind };
   }
 
-  /** Lifting a quick tap builds. Lifting after a hold (or a drag) only ends the preview. */
+  /**
+   * Lifting a quick tap builds. Lifting after a hold (or a drag) only ends the preview. The press's real length
+   * (the events' timestamps) decides, so a preview a late frame opened under a quick tap still builds.
+   */
   private endBuildPress(e: PointerEvent, lifted: boolean): void {
     const h = this.buildHold;
     if (!h || h.id !== e.pointerId) return;
     this.buildHold = null;
     this.ui.preview = null;
     const drag = isDrag(h.startPt, { x: e.clientX, y: e.clientY }, h.drag);
-    if (lifted && buildPress(performance.now() - h.start, drag).build) this.buildTower(h.padId, h.kind, h.button);
+    if (lifted && buildPress(pressLength(h.start, e.timeStamp), drag).build) this.buildTower(h.padId, h.kind, h.button);
   }
 
   /** One tap builds. Not enough gold: the button shakes and nothing is spent. */
@@ -994,18 +1115,21 @@ export class TouchControls {
     sellBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       sellBtn.setPointerCapture?.(e.pointerId);
-      this.sellHold = { id: e.pointerId, start: performance.now(), towerId: tower.id, button: sellBtn };
+      this.sellHold = { id: e.pointerId, start: e.timeStamp, towerId: tower.id, button: sellBtn };
       sellBtn.classList.add('holding');
     });
-    const release = (e: PointerEvent) => {
-      if (!this.sellHold || this.sellHold.id !== e.pointerId) return;
+    const release = (e: PointerEvent, lifted: boolean) => {
+      const h = this.sellHold;
+      if (!h || h.id !== e.pointerId) return;
       this.sellHold = null;
       sellBtn.classList.remove('holding');
       sellBtn.style.setProperty('--hold', '0deg');
+      // A real 0.5 s hold that ended before a frame could sell it (the page stalled) still sells.
+      if (lifted && pressLength(h.start, e.timeStamp) >= SELL_HOLD_MS) return this.sell(h.towerId);
       this.actions.toast('Hold Sell to sell');
     };
-    sellBtn.addEventListener('pointerup', release);
-    sellBtn.addEventListener('pointercancel', release);
+    sellBtn.addEventListener('pointerup', (e) => release(e, true));
+    sellBtn.addEventListener('pointercancel', (e) => release(e, false));
 
     // Repair: only while the tower is damaged. One tap; the price is what the sim charges.
     this.repairBtn = null;
@@ -1069,14 +1193,19 @@ export class TouchControls {
     button.addEventListener('pointercancel', (e) => end(e, false));
   }
 
-  private updateHold(now: number): void {
+  /** Hold Sell: the ring fills; the sale goes through on a frame that does not follow a stall (a quick lift may be queued). */
+  private updateHold(now: number, gap: number): void {
     const h = this.sellHold;
     if (!h) return;
-    const { progress, done } = holdProgress(h.start, now);
+    const { progress } = holdProgress(h.start, now);
     h.button.style.setProperty('--hold', `${progress * 360}deg`);
-    if (!done) return;
+    if (!holdReached(h.start, now, gap, SELL_HOLD_MS)) return;
     this.sellHold = null;
-    this.actions.send({ type: 'sell', towerId: h.towerId });
+    this.sell(h.towerId);
+  }
+
+  private sell(towerId: number): void {
+    this.actions.send({ type: 'sell', towerId });
     this.actions.clearSelection();
   }
 

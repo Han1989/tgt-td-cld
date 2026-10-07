@@ -7,11 +7,25 @@ describe('settings', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{bad json')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ ...DEFAULT_SETTINGS, thumbs: 'twoLeft', quality: 'low' });
+    expect(parseSettings(JSON.stringify({ thumbs: 'float', thumbsPicked: 'yes' }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ stickAnchor: 'left', stickFeel: 'light' }))).toMatchObject({ stickAnchor: 'left', stickFeel: 'light' });
     expect(parseSettings(JSON.stringify({ stickAnchor: 'loose', stickFeel: 'tiny' }))).toMatchObject({ stickAnchor: 'center', stickFeel: 'normal' });
     expect(parseSettings(JSON.stringify({ thumbs: 'three', quality: 7 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ display: 'bright' })).display).toBe('bright');
     expect(parseSettings(JSON.stringify({ display: 'neon' })).display).toBe('normal');
+  });
+
+  it('defaults to the floating stick, and keeps a layout the player picked before it existed', () => {
+    expect(DEFAULT_SETTINGS.thumbs).toBe('float');
+    expect(parseSettings(JSON.stringify({ thumbs: 'floatLeft' })).thumbs).toBe('floatLeft');
+    // Old saves wrote One thumb at Center for everyone: that was the default, not a choice.
+    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'center', quality: 'low' }))).toMatchObject({ thumbs: 'float', quality: 'low' });
+    // Any other old layout was picked, and stays.
+    expect(parseSettings(JSON.stringify({ thumbs: 'two', stickAnchor: 'center' })).thumbs).toBe('two');
+    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft' })).thumbs).toBe('twoLeft');
+    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'right' }))).toMatchObject({ thumbs: 'one', stickAnchor: 'right' });
+    // Picking One thumb at Center from now on is remembered.
+    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'center', thumbsPicked: true }))).toMatchObject({ thumbs: 'one', thumbsPicked: true });
   });
 
   it('keeps the sound settings: effects 80% and music 50% by default, volumes in 5% steps', () => {

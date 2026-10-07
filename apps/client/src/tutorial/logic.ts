@@ -193,6 +193,8 @@ export function tutorialPrompt(
   input: 'touch' | 'desktop',
   hero: HeroKind | null,
   wave: number,
+  /** Touch with the floating stick (the default layout): drag anywhere to walk. False: a fixed joystick. */
+  floating = true,
 ): TutorialPrompt {
   if (step === 'done') {
     return {
@@ -213,7 +215,9 @@ export function tutorialPrompt(
         title: 'Move',
         body:
           input === 'touch'
-            ? 'Drag the joystick. A short push already walks at full speed, and your hero keeps shooting.'
+            ? floating
+              ? 'Drag your thumb anywhere on the map: a joystick appears under it and your hero walks. Let go to stop. Your hero keeps shooting.'
+              : 'Drag the joystick. A short push already walks at full speed, and your hero keeps shooting.'
             : 'Right-click the ground, or hold the arrow keys. Your hero walks and keeps shooting.',
         next: null,
         skip: true,
@@ -259,7 +263,9 @@ export function tutorialPrompt(
         title: 'Ping the map',
         body:
           input === 'touch'
-            ? 'Press and hold on open ground, not on the joystick, until the ring fills. A marker appears.'
+            ? floating
+              ? 'Press and hold a finger still on open ground until the ring fills, then lift it. A marker appears. Dragging walks instead.'
+              : 'Press and hold on open ground, not on the joystick, until the ring fills, then lift. A marker appears.'
             : 'Alt-click the ground. A marker appears for your team.',
         next: null,
         skip: true,

@@ -236,6 +236,14 @@ const items: ProgressItem[] = [
     proof: pr(90),
   },
   {
+    id: 'P2-07',
+    title: 'Floating stick and taps that register',
+    owner: 'Both',
+    status: 'in_progress',
+    section: 'playtest2',
+    note: 'Client only. Friends found the joystick too small and hit skills by accident. Drag anywhere on the map to walk: the stick appears under the thumb and follows it, the skills sit together in the bottom-right corner (left-handed mirror and the old fixed layouts in Settings). A drag never taps a skill or selects; two fingers steer and cast at once. Tap or hold is decided from the timestamps of the touch events, so a stalled frame no longer turns a quick tap into a hold. In review: Han tests the preview on his phone. Built by Claude Code.',
+  },
+  {
     id: 'H-01',
     title: 'Let friends open preview links',
     owner: 'Han',

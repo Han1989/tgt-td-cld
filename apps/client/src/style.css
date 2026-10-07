@@ -2771,6 +2771,17 @@ body.touch .touch-overlay:not(.hidden) {
   opacity: 1;
 }
 
+/* Floating stick: the resting base is only a hint. Touches fall through to the map, where a drag steers;
+   while a thumb steers, the base sits under it. */
+.touch-overlay.floating .joy {
+  pointer-events: none;
+  opacity: 0.28;
+}
+
+.touch-overlay.floating .joy.held {
+  opacity: 0.95;
+}
+
 .joy-knob {
   position: absolute;
   left: 50%;
@@ -3249,6 +3260,11 @@ body.touch .touch-overlay:not(.hidden) {
   box-shadow: 0 0 0 1px var(--ink);
   transform: scale(var(--p, 0.3));
   z-index: 3;
+}
+
+/* Full: lifting the finger now pings. */
+.ping-hold.ready {
+  box-shadow: 0 0 0 1px var(--ink), 0 0 14px var(--gold);
 }
 
 #emote-menu .emote-pick {

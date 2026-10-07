@@ -150,4 +150,17 @@ describe('tutorial steps', () => {
     expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('hold');
     expect(tutorialPrompt('ping', 'desktop', 'ranger', 1).body).toContain('Alt-click');
   });
+
+  it('teaches the floating stick by default, and the fixed joystick to players who picked one', () => {
+    const floating = tutorialPrompt('move', 'touch', 'ranger', 0).body;
+    expect(floating).toContain('anywhere');
+    expect(floating).toContain('joystick appears under it');
+    const fixed = tutorialPrompt('move', 'touch', 'ranger', 0, false).body;
+    expect(fixed).toContain('Drag the joystick');
+    expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('then lift');
+    expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('Dragging walks');
+    expect(tutorialPrompt('ping', 'touch', 'ranger', 1, false).body).toContain('not on the joystick');
+    // Desktop does not change.
+    expect(tutorialPrompt('move', 'desktop', 'ranger', 0, false).body).toBe(tutorialPrompt('move', 'desktop', 'ranger', 0).body);
+  });
 });

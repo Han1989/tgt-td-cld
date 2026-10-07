@@ -38,6 +38,7 @@ export class SettingsPanel {
   private readonly root = $('settings');
   private readonly thumbs = $('settings-thumbs');
   private readonly stick = $('settings-stick');
+  private readonly stickSide = $('settings-stick-side');
   private readonly feel = $('settings-feel');
   private readonly quality = $('settings-quality');
   private readonly shake = $('settings-shake');
@@ -130,8 +131,10 @@ export class SettingsPanel {
       if (v.input.value !== pct) v.input.value = pct;
       v.label.textContent = `${pct}%`;
     }
-    this.choices(this.thumbs, Object.entries(THUMB_NAMES) as [ThumbLayout, string][], s.thumbs, (v) => this.store.set({ thumbs: v }));
-    this.choices(this.stick, Object.entries(STICK_ANCHOR_NAMES) as [StickAnchor, string][], s.stickAnchor, (v) => this.store.set({ stickAnchor: v }));
+    this.choices(this.thumbs, Object.entries(THUMB_NAMES) as [ThumbLayout, string][], s.thumbs, (v) => this.store.set({ thumbs: v, thumbsPicked: true }));
+    // Left / Center / Right only moves the one-thumb fixed cluster.
+    this.stickSide.classList.toggle('hidden', s.thumbs !== 'one');
+    this.choices(this.stick, Object.entries(STICK_ANCHOR_NAMES) as [StickAnchor, string][], s.stickAnchor, (v) => this.store.set({ stickAnchor: v, thumbsPicked: true }));
     this.choices(this.feel, Object.entries(STICK_FEEL_NAMES) as [StickFeelName, string][], s.stickFeel, (v) => this.store.set({ stickFeel: v }));
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
     this.choices(this.shake, Object.entries(SHAKE_NAMES) as [ShakeSetting, string][], s.shake, (v) => this.store.set({ shake: v }));

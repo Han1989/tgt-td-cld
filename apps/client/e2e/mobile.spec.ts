@@ -2,7 +2,7 @@
 // Pixel projects), docs/MOBILE.md §8.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, centre, Finger, lessonCard, overlaps, sent, startSolo, waitForReady, type Box } from './helpers';
+import { box, centre, Finger, Hand, lessonCard, overlaps, sent, stall, startSolo, waitForReady, type Box } from './helpers';
 
 const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn', '#skill-info'];
 
@@ -212,12 +212,14 @@ test.describe('portrait phone layout', () => {
     const finger = await Finger.on(page);
     const joy = centre(await box(page, '#joystick'));
     await page.evaluate(() => {
-      const w = window as unknown as { downAt: number };
-      document.getElementById('joystick')!.addEventListener('pointerdown', () => (w.downAt = performance.now()), { capture: true });
+      const w = window as unknown as { downAt?: number };
+      // The floating stick starts steering on the drag's first move.
+      window.addEventListener('pointermove', () => (w.downAt ??= performance.now()), { capture: true });
       window.__tdt.heroTrace(true);
     });
     // Push right for a moment and let go.
-    await finger.down(joy.x + 40, joy.y);
+    await finger.down(joy.x, joy.y);
+    await finger.move(joy.x + 40, joy.y);
     await page.waitForTimeout(500);
     await finger.up();
     const latency = await page.evaluate(() => {
@@ -264,12 +266,14 @@ test.describe('portrait phone layout', () => {
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
     await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
 
-    // The joystick keeps working while a menu is open.
+    // Starting a drag walks and closes an open ring.
     await tapPad(page, padId!);
     await expect(page.locator('#radial[data-menu="tower"] .radial-btn').first()).toBeVisible();
     const movesBefore = (await sent(page, 'move')).length;
     await finger.drag(joy, { x: joy.x + 40, y: joy.y }, 300);
     expect((await sent(page, 'move')).length).toBeGreaterThan(movesBefore);
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+    await tapPad(page, padId!);
     await expect(page.locator('#radial[data-menu="tower"] .radial-btn').first()).toBeVisible();
 
     // Upgrade (chip shows what the next tier adds).
@@ -412,11 +416,15 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('.toast.teach.repair')).toHaveCount(0);
   });
 
-  test('joystick settings move the cluster and keep a short push', async ({ page }) => {
+  test('joystick settings: the fixed layouts are still there, the cluster moves, and a short push walks', async ({ page }) => {
     await startSolo(page);
     const finger = await Finger.on(page);
-    const before = centre(await box(page, '#joystick'));
     await page.locator('#settings-btn').tap();
+    // The floating stick is the default; Left / Center / Right is for the fixed one-thumb cluster only.
+    await expect(page.locator('#settings-thumbs button[data-value="float"]')).toHaveClass(/active/);
+    await expect(page.locator('#settings-stick-side')).toBeHidden();
+    await page.locator('#settings-thumbs button[data-value="one"]').tap();
+    const before = centre(await box(page, '#joystick'));
     await expect(page.locator('#settings-stick button[data-value="left"]')).toBeVisible();
     await expect(page.locator('#settings-feel button[data-value="light"]')).toBeVisible();
     await page.locator('#settings-stick button[data-value="left"]').tap();
@@ -430,6 +438,14 @@ test.describe('portrait phone layout', () => {
     const movesBefore = (await sent(page, 'move')).length;
     await finger.drag(joy, { x: joy.x, y: joy.y - 24 }, 250);
     expect((await sent(page, 'move')).length).toBeGreaterThan(movesBefore);
+    // A fixed stick: a drag on the map does not walk.
+    const l = await page.evaluate(() => window.__tdt.layout());
+    const moves = (await sent(page, 'move')).length;
+    const from = { x: (l.map.left + l.map.right) / 2, y: l.topBarBottom + 120 };
+    await finger.drag(from, { x: from.x, y: from.y + 60 }, 200);
+    await page.waitForTimeout(150);
+    expect((await sent(page, 'move')).length).toBe(moves);
+    expect(await sent(page, 'ping')).toHaveLength(0);
   });
 
   test('skill descriptions open from a hold and from the Skills button', async ({ page }) => {
@@ -730,5 +746,145 @@ test.describe('portrait phone layout', () => {
 
     await page.locator('#tutorial-skip').click();
     await expect(page.locator('#tutorial')).toBeHidden();
+  });
+});
+
+test.describe('floating stick (the default) and taps when the page stalls', () => {
+  test('a drag that starts on a pad walks the hero and opens no ring; the stick sits under the thumb; a tap opens the ring', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const [padId] = await myPadsBottomFirst(page);
+    const pad = await padOnScreen(page, padId!);
+    const rest = centre(await box(page, '#joystick'));
+    const heroBefore = await page.evaluate(() => window.__tdt.latest()!.heroes[0]!.y);
+
+    // Mid-drag: the base appeared where the touch started, under the thumb, and the hero walks up.
+    await finger.drag(pad, { x: pad.x, y: pad.y - 30 }, 400, false);
+    await expect(page.locator('#joystick')).toHaveClass(/held/);
+    const held = centre(await box(page, '#joystick'));
+    expect(Math.hypot(held.x - pad.x, held.y - pad.y)).toBeLessThan(2);
+    expect((await sent(page, 'move')).length).toBeGreaterThan(0);
+    await finger.up();
+    await expect.poll(() => sent(page, 'stop').then((x) => x.length)).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.heroes[0]!.y)).toBeLessThan(heroBefore - 0.5);
+    // Let go: the hint is back at rest, and the drag selected nothing and pinged nothing.
+    await expect(page.locator('#joystick')).not.toHaveClass(/held/);
+    const back = centre(await box(page, '#joystick'));
+    expect(Math.hypot(back.x - rest.x, back.y - rest.y)).toBeLessThan(1);
+    await page.waitForTimeout(200);
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+    expect(await sent(page, 'ping')).toHaveLength(0);
+
+    // A tap on the same pad opens its build ring.
+    await tapPad(page, padId!);
+    await expect(page.locator('#radial[data-menu="build"] .radial-btn').first()).toBeVisible();
+  });
+
+  test('the base trails the thumb, so turning back is a short move', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const l = await page.evaluate(() => window.__tdt.layout());
+    const from = { x: (l.map.left + l.map.right) / 2 - 60, y: l.controls!.top - 40 };
+    await finger.down(from.x, from.y);
+    for (let dx = 15; dx <= 120; dx += 15) await finger.move(from.x + dx, from.y);
+    // The base followed to one radius behind the thumb.
+    const base = centre(await box(page, '#joystick'));
+    expect(base.x).toBeGreaterThan(from.x + 60);
+    // 70 px back from the far point is past the base: the stick now walks left (a fixed base would need 140).
+    await finger.move(from.x + 50, from.y);
+    await expect.poll(async () => ((await sent(page, 'move')).at(-1)!.x as number) < (await page.evaluate(() => window.__tdt.latest()!.heroes[0]!.x))).toBe(true);
+    await finger.up();
+  });
+
+  test('a drag that crosses the skill buttons casts nothing', async ({ page }) => {
+    await startSolo(page, '?lab&ult');
+    const finger = await Finger.on(page);
+    const q = centre(await box(page, '.tskill[data-slot="Q"] .tskill-btn'));
+    const w = centre(await box(page, '.tskill[data-slot="W"] .tskill-btn'));
+    const r = centre(await box(page, '.tskill[data-slot="R"] .tskill-btn'));
+    // From the empty band left of Q, over Q, W and R, and let go on R (castable: `?lab&ult` starts with it learned).
+    const from = { x: q.x - 80, y: q.y };
+    await finger.down(from.x, from.y);
+    for (const p of [{ x: q.x - 40, y: q.y }, q, w, r]) await finger.move(p.x, p.y);
+    await finger.up();
+    await page.waitForTimeout(400);
+    expect((await sent(page, 'move')).length).toBeGreaterThan(0);
+    expect(await sent(page, 'cast')).toHaveLength(0);
+    await expect(page.locator('#skill-sheet')).toBeHidden();
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+  });
+
+  test('two fingers: steering with one while tapping R with the other casts, and the stick keeps steering', async ({ page }) => {
+    await startSolo(page, '?lab&ult');
+    const hand = await Hand.on(page);
+    const joy = centre(await box(page, '#joystick'));
+    const r = centre(await box(page, '.tskill[data-slot="R"] .tskill-btn'));
+    await hand.press(0, joy.x, joy.y);
+    await hand.move(0, joy.x, joy.y - 20);
+    await hand.move(0, joy.x, joy.y - 40);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(0);
+    await hand.press(1, r.x, r.y);
+    await hand.lift(1, r.x, r.y);
+    await expect.poll(() => sent(page, 'cast')).toEqual([{ type: 'cast', slot: 'R' }]);
+    // Still steering: moves keep going out and nothing stopped the hero.
+    const moves = (await sent(page, 'move')).length;
+    await hand.move(0, joy.x + 30, joy.y - 40);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(moves);
+    expect(await sent(page, 'stop')).toHaveLength(0);
+    await hand.lift(0, joy.x + 30, joy.y - 40);
+    await expect.poll(() => sent(page, 'stop').then((x) => x.length)).toBe(1);
+  });
+
+  test('a quick tap during a 600 ms stall still casts and still builds; a quick tap on Sell still does not sell', async ({ page }) => {
+    await startSolo(page, '?lab&ult');
+    const finger = await Finger.on(page);
+    const sheet = page.locator('#skill-sheet');
+
+    // Skill: the finger is up after 80 ms, but the page stalls 600 ms in between. The frames after the stall see a
+    // long press and open the description; the release, stamped 80 ms after the press, closes it and casts.
+    const r = centre(await box(page, '.tskill[data-slot="R"] .tskill-btn'));
+    const t0 = Date.now() / 1000;
+    await finger.down(r.x, r.y, t0);
+    await stall(page, 600);
+    await expect(sheet).toBeVisible();
+    await finger.up(t0 + 0.08);
+    await expect.poll(() => sent(page, 'cast')).toEqual([{ type: 'cast', slot: 'R' }]);
+    await expect(sheet).toBeHidden();
+
+    // Build button: the stall shows the range preview; the 80 ms release builds anyway.
+    const [padId] = await myPadsBottomFirst(page);
+    await tapPad(page, padId!);
+    const arrowBtn = page.locator('.radial-btn[data-tower="arrow"]');
+    const arrow = centre(await box(page, '.radial-btn[data-tower="arrow"]'));
+    const t1 = Date.now() / 1000;
+    await finger.down(arrow.x, arrow.y, t1);
+    await stall(page, 600);
+    await expect(arrowBtn).toHaveClass(/previewing/);
+    await finger.up(t1 + 0.08);
+    await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
+    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+
+    // Sell: a quick tap whose lift waits behind a 600 ms stall is still a tap; selling needs a real 0.5 s hold.
+    await tapPad(page, padId!);
+    const sellBtn = page.locator('.radial-btn[data-action="sell"]');
+    await expect(sellBtn).toBeVisible();
+    const s = centre(await box(page, '.radial-btn[data-action="sell"]'));
+    // The page stalls 600 ms while it handles the press, so the lift (80 ms later on the screen) waits behind it.
+    await page.evaluate(() => {
+      window.addEventListener(
+        'pointerdown',
+        () => {
+          const end = performance.now() + 600;
+          while (performance.now() < end);
+        },
+        { capture: true, once: true },
+      );
+    });
+    // Both sent at once: the lift reaches the page while the press's handler is still stalled, as on a phone.
+    const t2 = Date.now() / 1000;
+    await Promise.all([finger.down(s.x, s.y, t2), finger.up(t2 + 0.08)]);
+    await expect(page.locator('.toast', { hasText: 'Hold Sell' })).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await sent(page, 'sell')).toHaveLength(0);
   });
 });
