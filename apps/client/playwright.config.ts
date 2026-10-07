@@ -14,6 +14,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4190;
+const CI = !!process.env.CI;
+/**
+ * On CI a browser test that fails gets one more try, so one slow software-GL runner can't block a pull request. A test
+ * that passes on its second try is reported as flaky (the JSON report, and `.github/scripts/playwright-summary.mjs` in
+ * the job summary), never as a plain pass. Locally, and for the stress test everywhere, a failure is a failure.
+ */
+const RETRIES = CI ? 1 : 0;
 
 export default defineConfig({
   testDir: 'e2e',
@@ -21,7 +28,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   fullyParallel: true,
   workers: 2,
-  reporter: [['list']],
+  // CI also writes a JSON report, which the workflow turns into the job summary (failed and flaky tests).
+  reporter: CI ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]] : [['list']],
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
@@ -34,21 +42,26 @@ export default defineConfig({
   projects: [
     {
       name: 'iphone',
+      retries: RETRIES,
       testMatch: /(mobile|lobby|hook|ultimates|privacy)\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
     {
       name: 'pixel',
+      retries: RETRIES,
       testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy|meteor)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
     {
       name: 'desktop',
+      retries: RETRIES,
       testMatch: /(desktop|lobby|hook|ultimates|privacy)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } },
     },
     {
       name: 'perf',
+      // A measurement: one slow run is a result, not a flake to retry.
+      retries: 0,
       testMatch: /perf\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
       dependencies: ['iphone', 'pixel', 'desktop'],
