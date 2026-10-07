@@ -101,6 +101,8 @@ for (const c of COMBOS) {
 }
 
 test('a fuse names Meteor Rain and both casters, and the band stays on screen clear of the controls', async ({ page }) => {
+  // Waits for a 12 s fuse like the per-combo tests above, so it gets their time on a slow machine.
+  test.setTimeout(150_000);
   await page.goto('/?stress=12');
   await waitForReady(page, 'stress');
   const vp = page.viewportSize()!;

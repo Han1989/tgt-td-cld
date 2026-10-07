@@ -101,16 +101,28 @@ jobs:
       - name: Build the e2e client
         run: npm run build:e2e -w @tdt/client
 
+      # On CI each browser test gets one retry (playwright.config.ts; never the stress test), so one slow runner can't
+      # block a pull request. A test that passes only on its retry is flaky, not green: the next step lists it in the
+      # job summary and puts a warning annotation on the run.
       - name: Browser tests
+        id: tests
         working-directory: apps/client
         run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
+
+      - name: Job summary (failed and flaky tests)
+        if: always() && steps.tests.outcome != 'skipped'
+        run: >-
+          node .github/scripts/playwright-summary.mjs apps/client/playwright-report/results.json
+          "Browser tests: ${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }}"
 
       - name: Keep traces of failed tests
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-${{ matrix.project }}-${{ matrix.shard }}-of-${{ matrix.shards }}
-          path: apps/client/test-results/
+          path: |
+            apps/client/test-results/
+            apps/client/playwright-report/
           retention-days: 7
           if-no-files-found: ignore
 

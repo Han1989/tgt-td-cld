@@ -18,6 +18,8 @@ interface Hook {
     tick: number;
     tickRate: number;
     totalWaves: number;
+    /** The wave running (0 before the first). */
+    wave: number;
     phase: string;
     modifiers: string[];
     surgeLane: number | null;
