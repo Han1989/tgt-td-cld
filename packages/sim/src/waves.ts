@@ -214,7 +214,8 @@ export function playerHpMultiplier(state: GameState, wave: number): number {
 
 export function creepMaxHp(state: GameState, kind: CreepKind, wave: number): number {
   const base = state.tuning.creeps[kind].hp;
-  const waveMult = 1 + state.tuning.waves.hpGrowthPerWave * (wave - 1);
+  const w = state.tuning.waves;
+  const waveMult = 1 + w.hpGrowthPerWave * (wave - 1) + w.lateHpGrowthPerWave * Math.max(0, wave - w.lateGrowthFrom);
   const playerMult = playerHpMultiplier(state, wave);
   const scale = difficultyScaling(state, wave);
   const diffHp = state.tuning.creeps[kind].boss ? scale.bossHp : scale.hp;

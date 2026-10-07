@@ -172,6 +172,17 @@ On the production build (it has the game server), on a phone and in the installe
 - [ ] 11.3 End a match: under the rating's note box it says **Don't include personal details. · Privacy**, and the link opens the privacy page. Rating still works and never blocks **Play again**.
 - [ ] 11.4 ⚙ → **Play data** → **Off**: the line says *Off: this browser sends nothing.* Finish another match: no rating control is offered. On the privacy page (open it again) the switch also shows **Off**. Turn it **On** there, back in the game ⚙ shows **On**. On `/analytics` (Han) a new session appears only after it is on again.
 
+## 12. Tower repair (protocol 19)
+
+Solo Quick on Normal is enough; Archers (from wave 3) and bosses damage towers. A desktop for 12.6.
+
+- [ ] 12.1 Build a tower and let Archers hit it. The first time one of **your** towers drops under half HP, a one-line green toast says **"A tower is under half HP. Tap it, then Repair."** It never shows again on this phone, in any later match (⚙ → Replay tutorial brings it back once).
+- [ ] 12.2 Tap the damaged tower: the ring has a fourth button at the bottom, **Repair** with a hammer and its gold price, clear of Target and Sell and never over the joystick or the skill buttons. A tower at full HP has no Repair button. Nothing is drawn on the tower itself beyond its health bar.
+- [ ] 12.3 With the ring open while Archers keep hitting it, the price climbs as the HP drops, and the button does not flicker or lose your tap.
+- [ ] 12.4 **One tap** on Repair: the tower's health bar is full at once, a short green ring and motes play on it with a mallet-and-string sound, and your gold drops by exactly the price that was shown. It never stops shooting. It keeps its tier, specialisation and target setting; the Repair button goes and the ring stays open.
+- [ ] 12.5 Spend down until you cannot afford a repair, then tap Repair: the button **shakes**, a toast says **Not enough gold**, and no gold is spent. A teammate's tower (online) has no ring, so no Repair.
+- [ ] 12.6 Desktop: click your damaged tower; the panel has **Repair** with its price under the upgrade, and **F** repairs the selected tower too (the **Controls** list says so). A full-HP tower shows no Repair; F on it says "Tower is at full HP".
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

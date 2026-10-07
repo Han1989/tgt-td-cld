@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { heroGiftTotals, PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
+import { heroGiftTotals, heroRepairTotals, PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
 import { matchReport, replayMatch, replayProblem } from '../src';
 
 const path = process.argv[2];
@@ -102,12 +102,12 @@ if (state.phase !== end.result) problems.push(`result ${state.phase}, recorded $
 if (state.wave !== end.wave) problems.push(`wave ${state.wave}, recorded ${end.wave}`);
 if (state.heartHp !== end.heartHp) problems.push(`Heart ${state.heartHp}, recorded ${end.heartHp}`);
 // The build is checked above (a re-run of an unstamped file gets the default one), so compare the rest.
-// Reports saved before protocol 14 omit gift totals; those count as 0.
+// Reports saved before protocol 14 omit gift totals, before 19 repair totals; those count as 0.
 const comparable = (r: MatchReport) => {
   const body: MatchReport = {
     ...r,
     build: '',
-    heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h) })),
+    heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h), ...heroRepairTotals(h) })),
   };
   // Reports saved before protocol 16 omit `coop`. A re-run always has it; ignore that field alone.
   if (!saved?.coop) delete body.coop;

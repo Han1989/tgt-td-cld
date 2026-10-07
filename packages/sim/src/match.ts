@@ -48,6 +48,9 @@ interface HeroTrack {
   upgrades: number;
   branches: number;
   goldSpent: number;
+  repairs: number;
+  repairGold: number;
+  towersDestroyed: number;
   wavesCalledEarly: number;
   goldGifted: number;
   goldReceived: number;
@@ -97,6 +100,9 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       upgrades: 0,
       branches: 0,
       goldSpent: 0,
+      repairs: 0,
+      repairGold: 0,
+      towersDestroyed: 0,
       wavesCalledEarly: 0,
       goldGifted: 0,
       goldReceived: 0,
@@ -133,7 +139,7 @@ export function matchCommand(match: Match, playerId: PlayerId, command: Command)
   return ok;
 }
 
-/** Counts a successful build, upgrade, branch, sell or call-early toward the report. */
+/** Counts a successful build, upgrade, branch, sell, repair or call-early toward the report. */
 function noteEconomy(track: HeroTrack, cmd: Command, spent: number): void {
   if (cmd.type === 'build') {
     track.towersBuilt++;
@@ -143,6 +149,10 @@ function noteEconomy(track: HeroTrack, cmd: Command, spent: number): void {
     else track.upgrades++;
     track.goldSpent += spent;
   } else if (cmd.type === 'sell') {
+    track.goldSpent += spent;
+  } else if (cmd.type === 'repair') {
+    track.repairs++;
+    track.repairGold += spent;
     track.goldSpent += spent;
   } else if (cmd.type === 'callEarly') {
     track.wavesCalledEarly++;
@@ -209,6 +219,9 @@ export function matchStep(match: Match): void {
     } else if (e.type === 'kill' || e.type === 'leak') {
       const shield = match.shields.find((s) => s.creepId === e.creepId && s.end === 'alive');
       if (shield) shield.end = e.type === 'kill' ? 'killed' : 'leaked';
+    } else if (e.type === 'towerDestroyed') {
+      const owner = match.heroes[state.players.findIndex((p) => p.id === e.owner)];
+      if (owner) owner.towersDestroyed++;
     } else if (e.type === 'gift') {
       const from = match.heroes[state.players.findIndex((p) => p.id === e.from)];
       const to = match.heroes[state.players.findIndex((p) => p.id === e.to)];
@@ -267,6 +280,9 @@ export function matchReport(match: Match): MatchReport {
       upgrades: t.upgrades,
       branches: t.branches,
       goldSpent: t.goldSpent,
+      repairs: t.repairs,
+      repairGold: t.repairGold,
+      towersDestroyed: t.towersDestroyed,
       goldUnspent: Math.floor(player.gold),
       wavesCalledEarly: t.wavesCalledEarly,
       goldGifted: t.goldGifted,
@@ -439,7 +455,8 @@ export function reportSummary(report: MatchReport, room?: string): string {
     (h) =>
       `${h.name}/${h.hero} L${h.level} k${h.kills} d${h.deaths} Q${h.casts.Q} W${h.casts.W} R${h.casts.R} ` +
       `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps} ` +
-      `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0}`,
+      `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0} ` +
+      `repairs ${h.repairs ?? 0}/${h.repairGold ?? 0}g towers lost ${h.towersDestroyed ?? 0}`,
   );
   return (
     `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} ${modifierLabel(report.modifiers)} seed ${report.seed} v${report.protocol} build ${report.build} ` +
@@ -449,6 +466,7 @@ export function reportSummary(report: MatchReport, room?: string): string {
     `upgrades ${report.heroes.reduce((n, h) => n + h.upgrades, 0)} ` +
     `branches ${report.heroes.reduce((n, h) => n + h.branches, 0)} ` +
     `spent ${report.heroes.reduce((n, h) => n + h.goldSpent, 0)} ` +
+    `repairs ${report.heroes.reduce((n, h) => n + (h.repairs ?? 0), 0)}/${report.heroes.reduce((n, h) => n + (h.repairGold ?? 0), 0)}g ` +
     `unspent ${report.heroes.reduce((n, h) => n + h.goldUnspent, 0)} ` +
     `early ${report.heroes.reduce((n, h) => n + h.wavesCalledEarly, 0)} | ` +
     `heart by wave ${report.heartAfterWave.join(' ')} | ${heroes.join(' | ')}`

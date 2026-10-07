@@ -18,6 +18,7 @@ import {
   GOLD_NUDGE_CAP,
   GOLD_SIT_SECONDS,
   hitsAir,
+  repairHint,
   kindFlies,
   readAir,
   readGold,
@@ -212,5 +213,21 @@ describe('unspent gold', () => {
     const ended = sit(sat, sat.lastTick! + GOLD_SIT_SECONDS * TICK_RATE, { phase: 'victory' });
     expect(ended.toast).toBeNull();
     expect(ended.memory.sitting).toBe(100);
+  });
+});
+
+describe('repair line', () => {
+  const tower = (owner: string, hp: number) => ({ owner, hp, maxHp: 500 });
+
+  it('speaks once one of your towers is under half HP, in the words of the device', () => {
+    expect(repairHint(true, 'me', [tower('me', 249)], true)).toBe('A tower is under half HP. Tap it, then Repair.');
+    expect(repairHint(true, 'me', [tower('me', 249)], false)).toBe('A tower is under half HP. Click it, then Repair (F).');
+  });
+
+  it('stays quiet at half HP or more, for a teammate\'s tower, once seen, and with no player', () => {
+    expect(repairHint(true, 'me', [tower('me', 250), tower('me', 500)], true)).toBeNull();
+    expect(repairHint(true, 'me', [tower('mate', 10)], true)).toBeNull();
+    expect(repairHint(false, 'me', [tower('me', 10)], true)).toBeNull();
+    expect(repairHint(true, null, [tower('me', 10)], true)).toBeNull();
   });
 });

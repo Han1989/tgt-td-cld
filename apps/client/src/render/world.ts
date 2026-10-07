@@ -714,6 +714,14 @@ export class WorldRenderer {
           if (s) this.startPop(s, now);
           break;
         }
+        case 'towerRepaired': {
+          // A short mend: a green ring and a few green motes rising off the tower.
+          const t = this.towerPos(e.towerId, latest);
+          if (!t) break;
+          fx.ring(t.x, t.y, 1.4, COLORS.good, 380, 0.3, 'shock');
+          fx.sparkle(t.x, t.y, COLORS.good, 8, 0.7);
+          break;
+        }
         case 'towerSold': {
           const t = this.towerPos(e.towerId, latest);
           if (!t) break;

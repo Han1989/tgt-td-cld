@@ -58,6 +58,7 @@ deploy; no code change. Step by step, with size targets and where to get sounds:
 | `upgrade.mp3` | A tower is upgraded | 0.5–1.2 s |
 | `branch.mp3` | A tower takes its tier-4 branch | 1–2.5 s |
 | `sell.mp3` | A tower is sold | 0.2–0.4 s |
+| `repair.mp3` | A tower is repaired | 0.3–0.8 s |
 | `towerBreak.mp3` | A tower is destroyed | 0.3–0.6 s |
 | `victory.mp3` | Victory | 3–4.5 s |
 | `defeat.mp3` | Defeat | 3–4.5 s |

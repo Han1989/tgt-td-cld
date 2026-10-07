@@ -25,7 +25,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/sim';
+import { getMap, repairCost, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/sim';
 import { currentAnalytics } from '../analytics/install';
 import { analyticsOn } from '../analytics/preference';
 import type { Camera } from '../input/camera';
@@ -133,6 +133,8 @@ export interface HudActions {
   sell(towerId: number): void;
   /** `branch`: the specialisation, for the upgrade after the last regular tier. */
   upgrade(towerId: number, branch?: TowerBranch): void;
+  /** Your damaged tower back to full HP, for gold (hotkey F). */
+  repair(towerId: number): void;
   setPriority(towerId: number, priority: TargetPriority): void;
   callEarly(): void;
   /** Online only: give some of your gold to a teammate. */
@@ -707,7 +709,7 @@ export class Hud {
   /** A gift toast went up. `accent` is the other player's colour (css). */
   onGift: (accent: string) => void = () => {};
 
-  toast(text: string, kind?: 'air' | 'gold'): void {
+  toast(text: string, kind?: 'air' | 'gold' | 'repair'): void {
     this.onToast(text);
     const el = document.createElement('div');
     el.className = kind ? `toast teach ${kind}` : 'toast';
@@ -1113,14 +1115,22 @@ export class Hud {
       const affordable = [nextCost ?? Infinity, ...branchChoices(tower.kind, tower.tier, tower.branch).map((c) => c.cost)]
         .map((c) => gold >= c)
         .join();
-      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}`;
+      const repair = mine ? repairCost(tuningForMode(TUNING, snap.mode), tower) : 0;
+      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}:${repair > 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold);
       }
-      // HP changes often; update it in place so the buttons aren't rebuilt under the pointer.
+      // HP changes often; update it (and the repair price that follows it) in place so the buttons aren't rebuilt
+      // under the pointer.
       const hp = this.towerPanel.querySelector<HTMLElement>('.tower-hp');
       if (hp) setText(hp, `${tower.hp} / ${tower.maxHp}`);
+      const repairBtn = this.towerPanel.querySelector<HTMLButtonElement>('button[data-action="repair"]');
+      if (repairBtn) {
+        const cost = repairBtn.querySelector<HTMLElement>('.cost');
+        if (cost) setText(cost, String(repair));
+        repairBtn.disabled = gold < repair;
+      }
       this.towerPanel.classList.remove('hidden');
       this.place(this.towerPanel, tower.x + getMap().padSize / 2 + 0.3, tower.y - 1);
     } else {
@@ -1191,6 +1201,17 @@ export class Hud {
       panel.append(label, row);
     } else {
       panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
+    }
+
+    // Repair: only while the tower is damaged. The price is set (and kept current) by updateMenus.
+    if (tower.hp < tower.maxHp) {
+      const fix = document.createElement('button');
+      fix.className = 'btn';
+      fix.dataset.action = 'repair';
+      fix.title = 'Hotkey: F. Back to full HP; keeps the tier, specialisation and target';
+      fix.innerHTML = `<i class="ico" style="--ico: ${iconVar('repair')}"></i> Repair <span class="cost"></span>`;
+      fix.addEventListener('click', () => this.actions.repair(tower.id));
+      panel.appendChild(fix);
     }
 
     const label = document.createElement('div');

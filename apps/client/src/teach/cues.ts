@@ -219,3 +219,21 @@ export function readGold(memory: GoldMemory, sample: GoldSample): { memory: Gold
     toast,
   };
 }
+
+/** A tower under this share of its HP brings up the repair line (once ever, `Settings.repairHint`). */
+export const REPAIR_HINT_BELOW = 0.5;
+
+/**
+ * The one-time repair line: when it is still due and one of `me`'s towers is under half HP, what to say (the phone
+ * taps the tower, the desktop clicks it or uses F); otherwise null.
+ */
+export function repairHint(
+  due: boolean,
+  me: string | null,
+  towers: readonly { owner: string; hp: number; maxHp: number }[],
+  touch: boolean,
+): string | null {
+  if (!due || me === null) return null;
+  if (!towers.some((t) => t.owner === me && t.hp < t.maxHp * REPAIR_HINT_BELOW)) return null;
+  return touch ? 'A tower is under half HP. Tap it, then Repair.' : 'A tower is under half HP. Click it, then Repair (F).';
+}

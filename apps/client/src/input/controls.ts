@@ -3,7 +3,7 @@
 // the canvas belongs to `touch/touchControls.ts`, so this class ignores it.
 
 import { TOWER_KINDS, type Command, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
-import { getMap, padAtTile, TILE_PX } from '@tdt/sim';
+import { getMap, padAtTile, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import { padStatus } from '../padInfo';
 import { COLORS } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
@@ -245,6 +245,18 @@ export class Controls {
     this.actions.send({ type: 'learn', slot });
   }
 
+  /** F or the panel's Repair button: your damaged tower to full HP. Says why when it can't; nothing is spent. */
+  repair(towerId: number): void {
+    const snap = this.actions.latest();
+    const tower = snap?.towers.find((t) => t.id === towerId);
+    if (!snap || !tower || tower.owner !== this.actions.me()) return;
+    const cost = repairCost(tuningForMode(TUNING, snap.mode), tower);
+    if (cost === 0) return this.actions.toast('Tower is at full HP');
+    const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+    if (gold < cost) return this.actions.toast('Not enough gold');
+    this.actions.send({ type: 'repair', towerId });
+  }
+
   /** Build hotkeys: build on the selected pad, or pick a tower to place. */
   pressBuild(tower: TowerKind): void {
     if (this.ui.selectedPadId !== null) {
@@ -300,6 +312,10 @@ export class Controls {
       case 'u':
         // Upgrade the selected tower (the sim rejects it if it isn't ours).
         if (this.ui.selectedTowerId !== null) this.actions.send({ type: 'upgrade', towerId: this.ui.selectedTowerId });
+        break;
+      case 'f':
+        // Repair ("fix") the selected tower.
+        if (this.ui.selectedTowerId !== null) this.repair(this.ui.selectedTowerId);
         break;
       case ' ':
         e.preventDefault();

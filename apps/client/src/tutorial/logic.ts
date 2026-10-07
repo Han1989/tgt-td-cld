@@ -16,6 +16,13 @@ export function parseAirLesson(value: unknown): AirLesson {
   return value === 'seen' ? 'seen' : 'new';
 }
 
+/** `new` says once that towers can be repaired, the first time one of yours drops under half HP. `seen` does not. */
+export type RepairHint = 'new' | 'seen';
+
+export function parseRepairHint(value: unknown): RepairHint {
+  return value === 'seen' ? 'seen' : 'new';
+}
+
 export const TUTORIAL_STEPS = ['move', 'build', 'cast', 'upgrade', 'ping', 'emote'] as const;
 export type TutorialStepId = (typeof TUTORIAL_STEPS)[number];
 

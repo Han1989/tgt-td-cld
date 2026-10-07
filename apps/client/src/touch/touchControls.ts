@@ -19,7 +19,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, TILE_PX, towerRangeScale, TUNING } from '@tdt/sim';
+import { getMap, repairCost, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
@@ -77,6 +77,8 @@ const BUILD_RING_R = 72;
 const BUILD_BTN = 58;
 const TOWER_RING_R = 64;
 const TOWER_BTN = 60;
+/** A damaged tower's Repair button sits below the ring, a little further out so it clears Target and Sell. */
+const REPAIR_SPOT = { x: 0, y: Math.round(TOWER_RING_R * 1.1) };
 /** Hold a skill button this long (ms), without dragging, to open its description. A short tap still casts. */
 const SKILL_INFO_MS = 380;
 const SLOTS = ['Q', 'W', 'E', 'R'] as const;
@@ -140,6 +142,8 @@ export class TouchControls {
   private mapTouch: { id: number; start: Pt; drag: boolean; at: number; pinged: boolean; dismiss: boolean } | null = null;
   /** Grows under a still finger until the ping fires. */
   private readonly pingHold: HTMLElement;
+  /** The open tower ring's Repair button (its cost changes as the tower takes hits; updated in place). */
+  private repairBtn: HTMLButtonElement | null = null;
   /** Hold-to-sell in progress. */
   private sellHold: { id: number; start: number; towerId: number; button: HTMLElement } | null = null;
   /** A finger on a build button: a quick tap builds; held, it previews the tower and lifting does not build. */
@@ -776,7 +780,7 @@ export class TouchControls {
     this.menu = { type: 'build', padId };
   }
 
-  /** Radial ring around your tower: Upgrade, Priority, Sell (hold). */
+  /** Radial ring around your tower: Upgrade, Priority, Sell (hold), and Repair while it is damaged. */
   openTower(towerId: number): void {
     this.closeMenus();
     this.ui.selectedTowerId = towerId;
@@ -788,6 +792,7 @@ export class TouchControls {
     this.menuKey = '';
     this.ui.preview = null;
     this.sellHold = null;
+    this.repairBtn = null;
     this.buildHold = null;
     this.radial.classList.add('hidden');
     this.radial.innerHTML = '';
@@ -831,14 +836,22 @@ export class TouchControls {
       const tower = snap.towers.find((t) => t.id === m.towerId);
       if (!tower || tower.owner !== this.actions.me() || this.ui.selectedTowerId !== m.towerId) return this.actions.clearSelection();
       anchor = tower;
-      extent = TOWER_RING_R + TOWER_BTN / 2;
+      const repair = repairCost(tuningForMode(TUNING, snap.mode), tower);
+      extent = repair > 0 ? REPAIR_SPOT.y + TOWER_BTN / 2 : TOWER_RING_R + TOWER_BTN / 2;
       const next = upgradeCost(tower.kind, tower.tier);
       const choices = branchChoices(tower.kind, tower.tier, tower.branch);
       const affordable = [next ?? Infinity, ...choices.map((c) => c.cost)].map((c) => gold >= c).join();
-      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${affordable}`;
+      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${affordable}:${repair > 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
         this.renderTowerRing(tower, gold);
+      }
+      // The price follows the HP; update it in place so the button isn't rebuilt under the finger.
+      if (this.repairBtn) {
+        const cost = this.repairBtn.querySelector<HTMLElement>('.cost');
+        if (cost && cost.textContent !== String(repair)) cost.textContent = String(repair);
+        this.repairBtn.classList.toggle('poor', gold < repair);
+        this.repairBtn.setAttribute('aria-label', `Repair ${TOWER_NAMES[tower.kind]} for ${repair} gold`);
       }
       if (choices.length > 0) chip = branchOfferChip(choices);
       else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
@@ -993,6 +1006,31 @@ export class TouchControls {
     };
     sellBtn.addEventListener('pointerup', release);
     sellBtn.addEventListener('pointercancel', release);
+
+    // Repair: only while the tower is damaged. One tap; the price is what the sim charges.
+    this.repairBtn = null;
+    if (tower.hp < tower.maxHp) {
+      const repairBtn = this.ringButton(REPAIR_SPOT, TOWER_BTN, `${ico('repair')}<span class="cap">Repair</span><span class="cost"></span>`);
+      repairBtn.dataset.action = 'repair';
+      this.repairBtn = repairBtn;
+      this.onRadialTap(repairBtn, () => this.pickRepair(tower.id, repairBtn));
+    }
+  }
+
+  /** One tap repairs the tower to full HP. Not enough gold shakes the button and says so; nothing is spent. */
+  private pickRepair(towerId: number, button: HTMLElement): void {
+    const snap = this.actions.latest();
+    const tower = snap?.towers.find((t) => t.id === towerId);
+    if (!snap || !tower) return;
+    const cost = repairCost(tuningForMode(TUNING, snap.mode), tower);
+    if (cost === 0) return;
+    const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+    if (gold < cost) {
+      this.shake(button);
+      this.actions.toast('Not enough gold');
+      return;
+    }
+    this.actions.send({ type: 'repair', towerId });
   }
 
   /** One tap buys the specialisation. The chip already says what each one does. The choice is final. */

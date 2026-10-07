@@ -31,6 +31,9 @@ describe('settings', () => {
     expect(parseSettings(null).airLesson).toBe('new');
     expect(parseSettings(JSON.stringify({ airLesson: 'seen' })).airLesson).toBe('seen');
     expect(parseSettings(JSON.stringify({ airLesson: 'later' })).airLesson).toBe('new');
+    expect(DEFAULT_SETTINGS.repairHint).toBe('new');
+    expect(parseSettings(JSON.stringify({ repairHint: 'seen' })).repairHint).toBe('seen');
+    expect(parseSettings(JSON.stringify({ repairHint: 1 })).repairHint).toBe('new');
   });
 });
 

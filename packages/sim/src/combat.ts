@@ -286,7 +286,7 @@ export function damageTower(state: GameState, tower: Tower, amount: number, type
   if (tower.hp > 0) return;
   tower.hp = 0;
   tower.dead = true;
-  emit(state, { type: 'towerDestroyed', towerId: tower.id });
+  emit(state, { type: 'towerDestroyed', towerId: tower.id, owner: tower.owner });
 }
 
 export function spawnProjectile(

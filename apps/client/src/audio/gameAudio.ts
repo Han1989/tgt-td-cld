@@ -207,6 +207,9 @@ export class GameAudio {
         case 'towerSold':
           this.play('sell', now, null, e.owner === me);
           break;
+        case 'towerRepaired':
+          this.play('repair', now, this.tower(e.towerId), e.owner === me);
+          break;
         case 'towerDestroyed':
           this.play('towerBreak', now);
           break;

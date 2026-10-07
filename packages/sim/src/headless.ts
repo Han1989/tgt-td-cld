@@ -49,6 +49,10 @@ export interface HeadlessResult {
   ultBy: UltStats['by'];
   /** Combos that fired (`combo` events). */
   combos: number;
+  /** Tower repairs (`towerRepaired` events), the gold they cost, and towers destroyed by creeps. */
+  repairs: number;
+  repairGold: number;
+  towersDestroyed: number;
 }
 
 export interface HeroMatchStats {
@@ -104,6 +108,9 @@ export function runHeadlessMatch(opts: {
   const flyerByLane = [0, 0, 0];
   let totalDamage = 0;
   let combos = 0;
+  let repairs = 0;
+  let repairGold = 0;
+  let towersDestroyed = 0;
   const heroDeaths = state.heroes.map(() => 0);
   const kindById = new Map<number, string>();
   const casts = { Q: 0, W: 0, R: 0 };
@@ -131,6 +138,11 @@ export function runHeadlessMatch(opts: {
       }
       if (e.type === 'damage') for (let i = 1; i < e.hits.length; i += 2) totalDamage += e.hits[i]!;
       if (e.type === 'combo') combos++;
+      if (e.type === 'towerRepaired') {
+        repairs++;
+        repairGold += e.cost;
+      }
+      if (e.type === 'towerDestroyed') towersDestroyed++;
       if (e.type === 'heroDied') {
         deaths++;
         const i = state.heroes.findIndex((h) => h.id === e.heroId);
@@ -174,6 +186,9 @@ export function runHeadlessMatch(opts: {
     ultKills: state.ultStats.kills,
     ultBy: state.ultStats.by,
     combos,
+    repairs,
+    repairGold,
+    towersDestroyed,
     bossLeaks,
     deaths,
     earlyCalls,

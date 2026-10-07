@@ -436,6 +436,12 @@ export interface Tuning {
   economy: {
     startingGold: number;
     sellRefund: number;
+    /**
+     * Repair cost = ceil(repairRate × gold spent on the tower × share of its HP missing), at least 1 (`repairCost`).
+     * A full repair costs repairRate × spent. At 0.3 that equals the sell-and-rebuild workaround on a tier-1 tower
+     * (sell refunds 0.7, rebuild costs 1) and is far less on an upgraded one, which a rebuild sends back to tier 1.
+     */
+    repairRate: number;
     waveIncomeBase: number;
     waveIncomePerWave: number;
     /** Call-early bonus per second left on the wave timer. */
@@ -450,8 +456,14 @@ export interface Tuning {
     spawnInterval: number;
     /** Max random offset from the lane centre line. */
     laneSpread: number;
-    /** Creep HP multiplier: 1 + hpGrowthPerWave × (wave − 1). */
+    /**
+     * Creep HP multiplier: 1 + hpGrowthPerWave × (wave − 1) + lateHpGrowthPerWave × max(0, wave − lateGrowthFrom).
+     * The late term (balance round 4, with tower repair) adds pressure to the later waves only: waves up to
+     * `lateGrowthFrom` keep their strength.
+     */
     hpGrowthPerWave: number;
+    lateHpGrowthPerWave: number;
+    lateGrowthFrom: number;
     /** Armour added to every creep: armorGrowthPerWave × (wave − 1). */
     armorGrowthPerWave: number;
     list: WaveGroup[][];
@@ -614,6 +626,7 @@ export const TUNING: Tuning = {
   economy: {
     startingGold: 100,
     sellRefund: 0.7,
+    repairRate: 0.3,
     waveIncomeBase: 40,
     waveIncomePerWave: 16,
     callEarlyGoldPerSecond: 0.5,
@@ -625,6 +638,8 @@ export const TUNING: Tuning = {
     spawnInterval: 0.9,
     laneSpread: 0.8,
     hpGrowthPerWave: 0.1,
+    lateHpGrowthPerWave: 0,
+    lateGrowthFrom: 5,
     armorGrowthPerWave: 0.1,
     list: [
       // 1–10: the Phase 1 waves.
@@ -1061,6 +1076,18 @@ export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
 export function towerTier(tuning: Tuning, kind: TowerKind, tier: number): TowerTierStats {
   const tiers = tuning.towers[kind].tiers;
   return tiers[Math.max(1, Math.min(tiers.length, tier)) - 1]!;
+}
+
+/**
+ * Gold to repair a damaged tower to full HP: ceil(repairRate × gold spent on it × share of HP missing), at least 1.
+ * HP counts in whole points, rounded up as snapshots show it, so the client prices a repair exactly as the sim
+ * charges it. 0 for a tower at full HP (it cannot be repaired).
+ */
+export function repairCost(tuning: Tuning, tower: { spent: number; hp: number; maxHp: number }): number {
+  if (tower.hp >= tower.maxHp || tower.maxHp <= 0) return 0;
+  const missing = tower.maxHp - Math.min(tower.maxHp, Math.ceil(Math.max(0, tower.hp)));
+  // The epsilon keeps a whole product (0.3 × 100 × 0.5) from rounding up past itself.
+  return Math.max(1, Math.ceil((tuning.economy.repairRate * tower.spent * missing) / tower.maxHp - 1e-9));
 }
 
 /** The tier a branch counts as: one past the last regular tier. */

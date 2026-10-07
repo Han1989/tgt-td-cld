@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -245,6 +245,8 @@ export type Command =
   /** Next tier; from the last regular tier, `branch` picks the specialisation (required there, refused before). */
   | { type: 'upgrade'; towerId: EntityId; branch?: TowerBranch }
   | { type: 'setPriority'; towerId: EntityId; priority: TargetPriority }
+  /** Your damaged tower back to full HP at once, for gold (`repairCost`): it keeps its tier, branch and target setting. */
+  | { type: 'repair'; towerId: EntityId }
   | { type: 'callEarly' }
   /** Give some of your gold to a teammate. */
   | { type: 'gift'; to: PlayerId; amount: number }
@@ -419,7 +421,10 @@ export type GameEvent =
   | { type: 'towerBuilt'; towerId: EntityId; owner: PlayerId }
   | { type: 'towerSold'; towerId: EntityId; owner: PlayerId; refund: number }
   | { type: 'towerUpgraded'; towerId: EntityId; owner: PlayerId; tier: number; branch: TowerBranch | null }
-  | { type: 'towerDestroyed'; towerId: EntityId }
+  /** Creeps destroyed `owner`'s tower (no refund). */
+  | { type: 'towerDestroyed'; towerId: EntityId; owner: PlayerId }
+  /** `owner` paid `cost` gold to bring the tower back to full HP; `hp` is the HP it got back. */
+  | { type: 'towerRepaired'; towerId: EntityId; owner: PlayerId; cost: number; hp: number }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
   /**
    * A living hero's R landed while another living hero's R was still inside `R_OVERLAP_SECONDS`.
@@ -552,8 +557,14 @@ export interface HeroReport {
   upgrades: number;
   /** Towers taken into a tier-4 branch. */
   branches: number;
-  /** Net gold paid for towers: builds and upgrades, minus sell refunds. */
+  /** Net gold paid for towers: builds, upgrades and repairs, minus sell refunds. */
   goldSpent: number;
+  /** Towers repaired. Reports from before protocol 19 omit it: read as 0. */
+  repairs: number;
+  /** Gold paid for repairs (also counted in `goldSpent`). Reports from before protocol 19 omit it: read as 0. */
+  repairGold: number;
+  /** This player's towers destroyed by creeps. Reports from before protocol 19 omit it: read as 0. */
+  towersDestroyed: number;
   /** Gold still held when the match ended. */
   goldUnspent: number;
   /** Waves this player called early. */
@@ -572,6 +583,15 @@ export function heroGiftTotals(hero: {
     goldGifted: hero.goldGifted ?? 0,
     goldReceived: hero.goldReceived ?? 0,
   };
+}
+
+/** Repair and tower-loss totals on a hero report. A report saved before protocol 19 omits them; those count as 0. */
+export function heroRepairTotals(hero: { repairs?: number; repairGold?: number; towersDestroyed?: number }): {
+  repairs: number;
+  repairGold: number;
+  towersDestroyed: number;
+} {
+  return { repairs: hero.repairs ?? 0, repairGold: hero.repairGold ?? 0, towersDestroyed: hero.towersDestroyed ?? 0 };
 }
 
 /** A summary of a finished match, built by the host (server or local worker) from the simulation. */
