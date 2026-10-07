@@ -659,8 +659,10 @@ test.describe('portrait phone layout', () => {
     // Drag to aim, then back onto the button: the aim shows a cancel while held, and the release casts nothing.
     const wBtn = page.locator('.tskill[data-slot="W"] .tskill-btn');
     const w = centre(await box(page, '.tskill[data-slot="W"] .tskill-btn'));
-    await finger.down(w.x, w.y);
-    for (const dy of [-20, -40, -60, -30, -10, 0]) await finger.move(w.x, w.y + dy);
+    // The press and the first move go out together, as a real drag's do: on a loaded runner a move sent after a
+    // round trip can reach the page past the 0.38 s hold, which opens the card instead of aiming.
+    await Promise.all([finger.down(w.x, w.y), finger.move(w.x, w.y - 20)]);
+    for (const dy of [-40, -60, -30, -10, 0]) await finger.move(w.x, w.y + dy);
     await expect(wBtn).toHaveClass(/\bcancel\b/);
     await finger.up();
     // The release handler clears the cancel mark before it would cast, so once the mark is gone the release is done.
@@ -669,7 +671,9 @@ test.describe('portrait phone layout', () => {
     expect(await sent(page, 'cast')).toHaveLength(1);
 
     // Drag to aim and release: the trap goes where the drag points, straight up the lane from the standing hero.
-    await finger.drag(w, { x: w.x, y: w.y - 70 });
+    await Promise.all([finger.down(w.x, w.y), finger.move(w.x, w.y - 20)]);
+    for (const dy of [-45, -70]) await finger.move(w.x, w.y + dy);
+    await finger.up();
     await expect.poll(() => sent(page, 'cast').then((c) => c.length)).toBe(2);
     const cast = (await sent(page, 'cast'))[1]!;
     expect(cast).toMatchObject({ type: 'cast', slot: 'W' });
