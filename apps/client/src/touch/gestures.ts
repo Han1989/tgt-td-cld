@@ -5,7 +5,7 @@
 // wires them to pointer events.
 
 import type { SkillSnap } from '@tdt/protocol';
-import { clamp, inRect, type Rect } from '../layout';
+import { clamp, FLOAT_R, inRect, type Rect } from '../layout';
 
 export interface Pt {
   x: number;
@@ -56,8 +56,8 @@ export const SKILL_INFO_MS = 380;
  * queued during the stall has not been handled yet, so the next frame decides.
  */
 export const HITCH_MS = 100;
-/** Floating stick: the base's radius (px). It is drawn this size, and trails the thumb once it goes further. */
-export const FLOAT_R = 40;
+/** Floating stick: the base's radius (px, `layout.ts`). It is drawn this size, and trails the thumb once it goes further. */
+export { FLOAT_R };
 
 // ---------------------------------------------------------------------------
 // Joystick

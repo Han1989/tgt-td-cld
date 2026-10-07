@@ -54,8 +54,8 @@
 - **Top bar, one compact row:** gold, Heart HP, wave, timer, Call early, settings. Hero level, XP and a skill-point badge go here too. There is no separate hero row.
 - **Map:** the rest of the screen, from the top bar down to the bottom edge.
 - **Control overlay, at the bottom, over the safe zone:**
-  - **Default (floating stick):** **Q, W, R** (56 pt) in a quarter arc around **E** in the bottom-right corner, with **Skills** just outside the arc, and a faint **resting stick** in the bottom-left corner as a hint. The bottom centre is empty, for the thumb. A drag anywhere walks (§5).
-  - **Fixed layouts** (⚙): a **fixed joystick** at about 35% opacity when idle, solid while touched, with Q, W, R in an arc around it (one thumb) or in the other corner (two thumbs), and E as a badge.
+  - **Default (floating stick, skills around it):** a faint **resting stick** (80 pt, the floating base's size) at the bottom centre as a hint only: it takes no touches, and a drag anywhere walks (§5). **W** and **R** (56 pt) sit over it and **Q** and the **E** badge at the ends of the one-thumb arc, where a right thumb resting near the bottom centre reaches. **At least 24 pt** separate any two buttons, and the hint from any button; the arc is spread sideways for that room, never raised: W's and R's tops sit no higher than on the first one-thumb arc (692 pt down on a 412 × 839 phone), so the whole map still fits with no panning. There is no Skills button: holding any skill button opens the card.
+  - **Other layouts** (⚙, §5): the same arc around a **fixed joystick** (100 pt, about 35% opacity when idle, solid while touched; the arc keeps 24 pt from its larger edge), or the skills in a quarter arc around E in one bottom corner with the stick (floating hint or fixed) in the other.
   - Skill-learn "+" badges sit on the buttons.
 - Hero HP and mana show above the hero sprite.
 - **Landscape on a phone** shows a "Rotate to portrait" screen.
@@ -72,11 +72,11 @@
 
 | Action | Touch |
 |---|---|
-| Move | **Floating stick (default): drag anywhere.** A touch that starts on the map or on the empty part of the control band and moves past the tap slop (10 px) becomes the stick: its base appears where the touch started and the hero walks. If the thumb goes past the base's radius (40 px), the base trails it, so turning back is a short move. Lifting stops the hero. A full push is a short drag (⚙ → Stick feel: Light, Normal or Firm). Starting a drag closes an open ring or picker. A drag never selects, never pings and never presses a button it passes over; a touch that starts on a skill, a ring button or any other control belongs to that control. One finger can steer while another taps a skill or a pad. **Fixed layouts** (⚙): the joystick over the forest; ⚙ → Joystick moves the one-thumb cluster **Left**, **Center** or **Right** (the skill buttons move with it), and a drag on the map does nothing. The hero auto-attacks while moving, and is drawn moving at once (client-side prediction; Decision Log). |
+| Move | **Floating stick (default): drag anywhere.** A touch that starts on the map or on the empty part of the control band and moves past the tap slop (10 px) becomes the stick: its base appears where the touch started and the hero walks. If the thumb goes past the base's radius (40 px), the base trails it, so turning back is a short move. Lifting stops the hero. A full push is a short drag (⚙ → Stick feel: Light, Normal or Firm). Starting a drag closes an open ring or picker. A drag never selects, never pings and never presses a button it passes over; a touch that starts on a skill, a ring button or any other control belongs to that control. One finger can steer while another taps a skill or a pad. ⚙ → Joystick moves the stick with the skills around it **Left**, **Center** or **Right** (the buttons move with it). **Fixed stick** (⚙): the joystick over the forest, and a drag on the map does nothing. The hero auto-attacks while moving, and is drawn moving at once (client-side prediction; Decision Log). |
 | Tap a skill | **Smart cast.** Instant skills fire; targeted skills hit the densest enemy group in range; self-buffs cast on the hero. |
 | Press and drag a skill | Manual aim, with range and area shown. Release to cast; drag back onto the button to cancel. |
 | Nothing in range | The button shakes and no mana is spent. |
-| Read a skill | **Hold** a skill button, or tap **Skills**, to open a card with every skill's name and description. A short tap still casts. |
+| Read a skill | **Hold** any skill button (E, the passive, included) to open a card with every skill's name and description, on that skill's row; **Close** or a tap on the map shuts it. A short tap still casts. There is no separate Skills button. |
 | Ping | Hold a finger **still** on the map: a ring fills (0.45 s) and glows; **lifting** then pings. Moving cancels it (with the floating stick the move walks instead). |
 | Build | Tap a pad in **your zone** to open the radial build menu (5 towers with costs, greyed out if unaffordable). **One tap on a tower builds it.** Hold a tower button (about 0.3 s) to preview: its range shows on the pad and its name and stats in the chip; lifting after a hold does not build. The chip reads "Tap to build · hold to preview" until a button is held. |
 | Tower actions | Nothing is drawn on your tower until you tap it. Tap it to open a **radial ring:** **Upgrade** (one tap, with cost; the ring stays open, so the next tier is one more tap), **Priority** (cycles First / Strongest / Closest), **Sell** (hold 0.5 s). A chip above the ring shows what the next tier adds, e.g. "Dmg 24→36" (below the ring when there is no room above it, as on the top row; it never covers a ring button, wherever the tower is). At tier 3 the ring shows **two branch buttons** where Upgrade was, each named with its cost, and the chip says what both do. **One tap buys** the branch. |
@@ -89,14 +89,11 @@
 - Taps inside the control overlay never select anything on the map.
 - A radial menu or ring **moves up whenever it would overlap the control overlay.** It never covers the joystick or skills.
 
-**Settings → Controls layout:**
-- **Floating stick, skills right** (default): as above.
-- **Floating stick, skills left (left-handed):** the mirror.
-- **Fixed stick, one thumb:** the joystick with Q / W / R in an arc around it (Left, Center or Right).
-- **Fixed stick, two thumbs:** joystick bottom-left, skills bottom-right.
-- **Fixed stick, two thumbs, left-handed:** the mirror of two thumbs.
+**Settings → Controls layout**, two rows:
+- **Stick:** **Floating** (default; a drag anywhere walks, the resting stick is a hint) or **Fixed** (the joystick stays where it is drawn).
+- **Skills:** **Around the stick** (default; the one-thumb arc at the bottom, with the **Joystick** row Left / Center / Right below it), **Right corner** (the stick bottom-left, the skills in a quarter arc around E bottom-right) or **Left corner** (the mirror, for left thumbs). The Joystick row shows only for Around the stick.
 
-A player who picked a layout before the floating stick keeps it (One thumb at Center, the old default for everyone, moves to the floating stick). All layouts use the same overlay approach.
+Saves from before the two rows keep what they had: One thumb → Fixed + Around the stick (with its side), Two thumbs → Fixed + Right corner, Two thumbs left-handed → Fixed + Left corner, PR #92's floating stick right / left → Floating + Right / Left corner. A save that never picked anything (One thumb at Center, the old default written for everyone, or PR #92's default) moves to the new default. All layouts use the same overlay approach.
 
 ## 6. Quick mode
 

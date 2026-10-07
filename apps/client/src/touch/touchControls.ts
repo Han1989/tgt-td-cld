@@ -139,7 +139,6 @@ export class TouchControls {
   private readonly chip: HTMLElement;
   private readonly picker: HTMLElement;
   private readonly skills = new Map<SkillSlot, SkillEl>();
-  private readonly skillInfo: HTMLButtonElement;
   private readonly sheet: HTMLElement;
 
   /**
@@ -204,15 +203,6 @@ export class TouchControls {
     this.knob = div('joy-knob', this.joy);
     this.respawn = div('t-respawn hidden', this.overlay);
     for (const slot of SLOTS) this.skills.set(slot, this.createSkill(slot));
-    this.skillInfo = document.createElement('button');
-    this.skillInfo.type = 'button';
-    this.skillInfo.id = 'skill-info';
-    this.skillInfo.className = 'skill-info';
-    this.skillInfo.textContent = 'Skills';
-    this.skillInfo.setAttribute('aria-label', 'Skill descriptions');
-    this.skillInfo.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.skillInfo.addEventListener('click', () => this.openSkillSheet(null));
-    this.overlay.appendChild(this.skillInfo);
     this.sheet = div('skill-sheet hidden', hud);
     this.sheet.id = 'skill-sheet';
     this.sheet.setAttribute('role', 'dialog');
@@ -270,7 +260,6 @@ export class TouchControls {
       el.style.width = el.style.height = `${size}px`;
     };
     if (!this.stick?.base) this.putJoy(c.joystick.x, c.joystick.y, c.joystick.r);
-    put(this.skillInfo, c.skillInfo.x, c.skillInfo.y, c.skillInfo.r * 2);
     for (const slot of SLOTS) {
       const circle = c.skills[slot];
       put(this.skills.get(slot)!.wrap, circle.x, circle.y, circle.r * 2);

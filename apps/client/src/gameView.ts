@@ -20,7 +20,7 @@ import { SettingsPanel } from './hud/settingsPanel';
 import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
-import { clamp, computeLayout, followOffset, isFloating, type Insets, type Layout } from './layout';
+import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
@@ -244,7 +244,7 @@ export class GameView {
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
     const coach = new TutorialCoach(
       () => (document.body.classList.contains('touch') ? 'touch' : 'desktop'),
-      () => isFloating(settings.get().thumbs),
+      () => settings.get().stick === 'float',
     );
     view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
     view.radialMenus = radial;
@@ -288,7 +288,8 @@ export class GameView {
         insets: readInsets(),
         touch: !!coarse?.matches,
         landscape: orientation ? orientation.startsWith('landscape') : w > h,
-        thumbs: settings.get().thumbs,
+        stick: settings.get().stick,
+        skills: settings.get().skills,
         stickAnchor: settings.get().stickAnchor,
         mapW: map.width,
         mapH: map.height,

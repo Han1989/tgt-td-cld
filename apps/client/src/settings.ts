@@ -1,7 +1,7 @@
 // Player settings kept in localStorage (docs/MOBILE.md §5 Layout, §7 Quality; screen shake;
 // Display: docs/ART.md §2; sound: docs/ART.md §13; the first-match lesson: tutorial/logic.ts).
 
-import { THUMB_LAYOUTS, type StickAnchor, type ThumbLayout } from './layout';
+import { SKILL_PLACES, STICK_MODES, type SkillsPlace, type StickAnchor, type StickMode } from './layout';
 import type { StickFeelName } from './touch/gestures';
 import type { Display } from './render/art/tokens';
 import { parseAirLesson, parseRepairHint, type AirLesson, type RepairHint, type TutorialStatus } from './tutorial/logic';
@@ -11,14 +11,16 @@ export type Quality = 'auto' | 'high' | 'low';
 export type ShakeSetting = 'off' | 'normal' | 'strong';
 
 export interface Settings {
-  /** Controls layout. The floating stick with the skills on the right is the default. */
-  thumbs: ThumbLayout;
+  /** Controls layout, the stick: floating (the default) or fixed. */
+  stick: StickMode;
+  /** Controls layout, the skills: around the stick (the default), or in the right or left corner. */
+  skills: SkillsPlace;
   /**
    * The player picked a controls layout or a joystick side in ⚙. Saves from before the floating stick have no such
    * flag: there, One thumb at Center was the old default, so it moves to the new one; any other layout is kept.
    */
   thumbsPicked: boolean;
-  /** One-thumb cluster: left, center or right. The skill buttons move with it. */
+  /** Skills around the stick: the cluster sits left, center or right. */
   stickAnchor: StickAnchor;
   /** How far the thumb must travel before the hero is at full speed. */
   stickFeel: StickFeelName;
@@ -52,12 +54,27 @@ export interface Settings {
   repairHint: RepairHint;
 }
 
-export const THUMB_NAMES: Record<ThumbLayout, string> = {
-  float: 'Floating stick, skills right',
-  floatLeft: 'Floating stick, skills left (left-handed)',
-  one: 'Fixed stick, one thumb',
-  two: 'Fixed stick, two thumbs',
-  twoLeft: 'Fixed stick, two thumbs, left-handed',
+export const STICK_NAMES: Record<StickMode, string> = {
+  float: 'Floating',
+  fixed: 'Fixed',
+};
+
+export const SKILLS_NAMES: Record<SkillsPlace, string> = {
+  around: 'Around the stick',
+  right: 'Right corner',
+  left: 'Left corner',
+};
+
+/**
+ * Saves before the two rows held one `thumbs` value. Each maps to the stick and skills it showed: the floating
+ * stick with the skills in a corner (PR #92), the fixed one-thumb arc, or the fixed two-thumb corners.
+ */
+const OLD_THUMBS: Record<string, { stick: StickMode; skills: SkillsPlace }> = {
+  float: { stick: 'float', skills: 'right' },
+  floatLeft: { stick: 'float', skills: 'left' },
+  one: { stick: 'fixed', skills: 'around' },
+  two: { stick: 'fixed', skills: 'right' },
+  twoLeft: { stick: 'fixed', skills: 'left' },
 };
 
 export const STICK_ANCHOR_NAMES: Record<StickAnchor, string> = {
@@ -91,7 +108,8 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 
 const KEY = 'tdt.settings';
 export const DEFAULT_SETTINGS: Settings = {
-  thumbs: 'float',
+  stick: 'float',
+  skills: 'around',
   thumbsPicked: false,
   stickAnchor: 'center',
   stickFeel: 'normal',
@@ -119,10 +137,15 @@ export function parseSettings(raw: string | null): Settings {
     const v = JSON.parse(raw) as Partial<Record<keyof Settings, unknown>>;
     if (v.stickAnchor === 'left' || v.stickAnchor === 'center' || v.stickAnchor === 'right') out.stickAnchor = v.stickAnchor;
     out.thumbsPicked = v.thumbsPicked === true;
-    if (THUMB_LAYOUTS.includes(v.thumbs as ThumbLayout)) {
-      // Before the floating stick every save held One thumb at Center whether or not the player chose it.
-      const oldDefault = !out.thumbsPicked && v.thumbs === 'one' && out.stickAnchor === 'center';
-      if (!oldDefault) out.thumbs = v.thumbs as ThumbLayout;
+    const legacy = (v as { thumbs?: unknown }).thumbs;
+    const old = typeof legacy === 'string' && Object.hasOwn(OLD_THUMBS, legacy) ? OLD_THUMBS[legacy] : undefined;
+    if (STICK_MODES.includes(v.stick as StickMode) && SKILL_PLACES.includes(v.skills as SkillsPlace)) {
+      out.stick = v.stick as StickMode;
+      out.skills = v.skills as SkillsPlace;
+    } else if (old) {
+      // Unpicked, the old defaults (One thumb at Center, then PR #92's floating stick) move to the new default.
+      const oldDefault = !out.thumbsPicked && (legacy === 'float' || (legacy === 'one' && out.stickAnchor === 'center'));
+      if (!oldDefault) Object.assign(out, old);
     }
     if (v.stickFeel === 'light' || v.stickFeel === 'normal' || v.stickFeel === 'firm') out.stickFeel = v.stickFeel;
     if (v.quality === 'auto' || v.quality === 'high' || v.quality === 'low') out.quality = v.quality;

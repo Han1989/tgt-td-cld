@@ -240,16 +240,17 @@ export class Hand {
     return new Hand(await page.context().newCDPSession(page));
   }
 
-  async press(id: number, x: number, y: number): Promise<void> {
-    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id, x, y }] });
+  /** `at`: the event's own time (seconds since the epoch), as `Finger.down` takes it. */
+  async press(id: number, x: number, y: number, at?: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id, x, y }], ...(at ? { timestamp: at } : {}) });
   }
 
   async move(id: number, x: number, y: number): Promise<void> {
     await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id, x, y }] });
   }
 
-  async lift(id: number, x: number, y: number): Promise<void> {
-    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ id, x, y }] });
+  async lift(id: number, x: number, y: number, at?: number): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ id, x, y }], ...(at ? { timestamp: at } : {}) });
   }
 }
 

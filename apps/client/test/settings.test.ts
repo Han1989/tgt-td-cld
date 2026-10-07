@@ -6,8 +6,16 @@ describe('settings', () => {
   it('keeps known values and falls back to the defaults', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{bad json')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft', quality: 'low' }))).toEqual({ ...DEFAULT_SETTINGS, thumbs: 'twoLeft', quality: 'low' });
+    expect(parseSettings(JSON.stringify({ stick: 'fixed', skills: 'left', quality: 'low' }))).toEqual({
+      ...DEFAULT_SETTINGS,
+      stick: 'fixed',
+      skills: 'left',
+      quality: 'low',
+    });
+    expect(parseSettings(JSON.stringify({ stick: 'loose', skills: 'left' }))).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings(JSON.stringify({ stick: 'fixed', skills: 'top' }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ thumbs: 'float', thumbsPicked: 'yes' }))).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings(JSON.stringify({ thumbs: 'constructor', thumbsPicked: true }))).toEqual({ ...DEFAULT_SETTINGS, thumbsPicked: true });
     expect(parseSettings(JSON.stringify({ stickAnchor: 'left', stickFeel: 'light' }))).toMatchObject({ stickAnchor: 'left', stickFeel: 'light' });
     expect(parseSettings(JSON.stringify({ stickAnchor: 'loose', stickFeel: 'tiny' }))).toMatchObject({ stickAnchor: 'center', stickFeel: 'normal' });
     expect(parseSettings(JSON.stringify({ thumbs: 'three', quality: 7 }))).toEqual(DEFAULT_SETTINGS);
@@ -15,17 +23,40 @@ describe('settings', () => {
     expect(parseSettings(JSON.stringify({ display: 'neon' })).display).toBe('normal');
   });
 
-  it('defaults to the floating stick, and keeps a layout the player picked before it existed', () => {
-    expect(DEFAULT_SETTINGS.thumbs).toBe('float');
-    expect(parseSettings(JSON.stringify({ thumbs: 'floatLeft' })).thumbs).toBe('floatLeft');
-    // Old saves wrote One thumb at Center for everyone: that was the default, not a choice.
-    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'center', quality: 'low' }))).toMatchObject({ thumbs: 'float', quality: 'low' });
-    // Any other old layout was picked, and stays.
-    expect(parseSettings(JSON.stringify({ thumbs: 'two', stickAnchor: 'center' })).thumbs).toBe('two');
-    expect(parseSettings(JSON.stringify({ thumbs: 'twoLeft' })).thumbs).toBe('twoLeft');
-    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'right' }))).toMatchObject({ thumbs: 'one', stickAnchor: 'right' });
-    // Picking One thumb at Center from now on is remembered.
-    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'center', thumbsPicked: true }))).toMatchObject({ thumbs: 'one', thumbsPicked: true });
+  it('defaults to the floating stick with the skills around it', () => {
+    expect(DEFAULT_SETTINGS).toMatchObject({ stick: 'float', skills: 'around', stickAnchor: 'center', thumbsPicked: false });
+    expect(parseSettings(JSON.stringify({ stick: 'fixed', skills: 'around', stickAnchor: 'left', thumbsPicked: true }))).toMatchObject({
+      stick: 'fixed',
+      skills: 'around',
+      stickAnchor: 'left',
+    });
+  });
+
+  it('maps every layout saved before the two rows to the stick and skills it had', () => {
+    const was = (save: object) => {
+      const s = parseSettings(JSON.stringify(save));
+      return { stick: s.stick, skills: s.skills, stickAnchor: s.stickAnchor };
+    };
+    // Unpicked old defaults move to the new default: One thumb at Center (before the floating stick)
+    // and PR #92's floating stick with the skills on the right.
+    expect(parseSettings(JSON.stringify({ thumbs: 'one', stickAnchor: 'center', quality: 'low' }))).toMatchObject({
+      stick: 'float',
+      skills: 'around',
+      quality: 'low',
+    });
+    expect(was({ thumbs: 'float', thumbsPicked: false })).toEqual({ stick: 'float', skills: 'around', stickAnchor: 'center' });
+    // Every picked layout keeps its stick and skills (older saves without the flag picked any other layout).
+    expect(was({ thumbs: 'float', thumbsPicked: true })).toEqual({ stick: 'float', skills: 'right', stickAnchor: 'center' });
+    expect(was({ thumbs: 'floatLeft', thumbsPicked: true })).toEqual({ stick: 'float', skills: 'left', stickAnchor: 'center' });
+    expect(was({ thumbs: 'floatLeft' })).toEqual({ stick: 'float', skills: 'left', stickAnchor: 'center' });
+    expect(was({ thumbs: 'one', stickAnchor: 'center', thumbsPicked: true })).toEqual({ stick: 'fixed', skills: 'around', stickAnchor: 'center' });
+    expect(was({ thumbs: 'one', stickAnchor: 'right' })).toEqual({ stick: 'fixed', skills: 'around', stickAnchor: 'right' });
+    expect(was({ thumbs: 'two', stickAnchor: 'center' })).toEqual({ stick: 'fixed', skills: 'right', stickAnchor: 'center' });
+    expect(was({ thumbs: 'twoLeft' })).toEqual({ stick: 'fixed', skills: 'left', stickAnchor: 'center' });
+    // A save with the two rows wins over an old value left in it.
+    expect(was({ thumbs: 'two', stick: 'float', skills: 'around', thumbsPicked: true })).toEqual({ stick: 'float', skills: 'around', stickAnchor: 'center' });
+    // Saved again, the new rows carry the choice and no old value.
+    expect(Object.keys(parseSettings(JSON.stringify({ thumbs: 'two' })))).not.toContain('thumbs');
   });
 
   it('keeps the sound settings: effects 80% and music 50% by default, volumes in 5% steps', () => {

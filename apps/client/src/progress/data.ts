@@ -230,9 +230,9 @@ const items: ProgressItem[] = [
     id: 'P2-06',
     title: 'Tower repair',
     owner: 'Both',
-    status: 'in_progress',
+    status: 'done',
     section: 'playtest2',
-    note: 'Sim and client, protocol 19. Instant repair for 0.3 of the gold spent times the share of HP missing. Phone ring button, desktop panel and F, and a one-time hint. Reports carry repairs, repair gold and towers destroyed per player for Playtest 3; balance is provisional until then. In review with Han. Built by Claude Code.',
+    note: 'Sim and client, protocol 19. Instant repair for 0.3 of the gold spent times the share of HP missing. Phone ring button, desktop panel and F, and a one-time hint. Reports carry repairs, repair gold and towers destroyed per player for Playtest 3; balance is provisional until then. Merged. Built by Claude Code.',
     proof: pr(90),
   },
   {
@@ -241,7 +241,7 @@ const items: ProgressItem[] = [
     owner: 'Both',
     status: 'in_progress',
     section: 'playtest2',
-    note: 'Client only. Friends found the joystick too small and hit skills by accident. Drag anywhere on the map to walk: the stick appears under the thumb and follows it, the skills sit together in the bottom-right corner (left-handed mirror and the old fixed layouts in Settings). A drag never taps a skill or selects; two fingers steer and cast at once. Tap or hold is decided from the timestamps of the touch events, so a stalled frame no longer turns a quick tap into a hold. In review: Han tests the preview on his phone. Built by Claude Code.',
+    note: 'Client only. Friends found the joystick too small and hit skills by accident. Drag anywhere on the map to walk: the stick appears under the thumb and follows it. Round 2, after Han tried PR #92 one-thumbed: the skills are back in the one-thumb arc around the stick, at least 24 px apart and 24 px from the stick, with no Skills button (hold any skill to read them all). Settings has two rows, Stick (Floating, Fixed) and Skills (Around the stick, Right corner, Left corner). A drag never taps a skill or selects; two fingers steer and cast at once. Tap or hold is decided from the timestamps of the touch events, so a stalled frame no longer turns a quick tap into a hold. In review: Han tests the preview on his phone. Built by Claude Code.',
   },
   {
     id: 'H-01',

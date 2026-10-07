@@ -2985,26 +2985,6 @@ body.touch .touch-overlay:not(.hidden) {
   box-shadow: 0 0 0 3px var(--bad);
 }
 
-/* Skills: opens the description sheet. Sits in a gap beside the stick or the skill buttons. */
-.skill-info {
-  position: absolute;
-  padding: 0;
-  border-radius: 50%;
-  border: 2px solid rgba(207, 230, 255, 0.7);
-  background: radial-gradient(circle at 35% 28%, rgba(84, 90, 116, 0.92), rgba(22, 18, 32, 0.92) 72%);
-  color: var(--moon);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1.05;
-  text-shadow: 0 1px 2px var(--ink);
-  box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--ink), 0 3px 8px rgba(0, 0, 8, 0.5);
-  pointer-events: auto;
-  touch-action: manipulation;
-  z-index: 2;
-}
-
 /* Skill descriptions on a phone: a card under the top bar, not a hover title. */
 .skill-sheet {
   position: absolute;
@@ -3575,6 +3555,14 @@ body.touch .settings .touch-only {
   font-size: 14px;
   letter-spacing: 0.04em;
   color: var(--moon);
+}
+
+/* A row of the controls layout (Stick, Skills, Joystick). */
+.settings h4 {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .settings section + section {

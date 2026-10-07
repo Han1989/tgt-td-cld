@@ -9,16 +9,17 @@ import { setAnalyticsChoice } from '../analytics/install';
 import { ANALYTICS_KEY, browserSignals, playDataStatus, readAnalyticsChoice, type AnalyticsChoice } from '../analytics/preference';
 import { askAge } from '../privacy/ageCheck';
 import { wireMyData } from '../privacy/myDataUi';
-import type { StickAnchor, ThumbLayout } from '../layout';
+import type { SkillsPlace, StickAnchor, StickMode } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import type { Display } from '../render/art/tokens';
 import {
   DISPLAY_NAMES,
   QUALITY_NAMES,
   SHAKE_NAMES,
+  SKILLS_NAMES,
   STICK_ANCHOR_NAMES,
   STICK_FEEL_NAMES,
-  THUMB_NAMES,
+  STICK_NAMES,
   type Quality,
   type SettingsStore,
   type ShakeSetting,
@@ -36,7 +37,8 @@ function $(id: string): HTMLElement {
 
 export class SettingsPanel {
   private readonly root = $('settings');
-  private readonly thumbs = $('settings-thumbs');
+  private readonly stickMode = $('settings-stick-mode');
+  private readonly skills = $('settings-skills');
   private readonly stick = $('settings-stick');
   private readonly stickSide = $('settings-stick-side');
   private readonly feel = $('settings-feel');
@@ -131,9 +133,11 @@ export class SettingsPanel {
       if (v.input.value !== pct) v.input.value = pct;
       v.label.textContent = `${pct}%`;
     }
-    this.choices(this.thumbs, Object.entries(THUMB_NAMES) as [ThumbLayout, string][], s.thumbs, (v) => this.store.set({ thumbs: v, thumbsPicked: true }));
-    // Left / Center / Right only moves the one-thumb fixed cluster.
-    this.stickSide.classList.toggle('hidden', s.thumbs !== 'one');
+    const picked = { thumbsPicked: true };
+    this.choices(this.stickMode, Object.entries(STICK_NAMES) as [StickMode, string][], s.stick, (v) => this.store.set({ stick: v, ...picked }));
+    this.choices(this.skills, Object.entries(SKILLS_NAMES) as [SkillsPlace, string][], s.skills, (v) => this.store.set({ skills: v, ...picked }));
+    // Left / Center / Right moves the stick with the skills around it; the corner layouts already pick a side.
+    this.stickSide.classList.toggle('hidden', s.skills !== 'around');
     this.choices(this.stick, Object.entries(STICK_ANCHOR_NAMES) as [StickAnchor, string][], s.stickAnchor, (v) => this.store.set({ stickAnchor: v, thumbsPicked: true }));
     this.choices(this.feel, Object.entries(STICK_FEEL_NAMES) as [StickFeelName, string][], s.stickFeel, (v) => this.store.set({ stickFeel: v }));
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
