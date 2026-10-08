@@ -103,6 +103,22 @@
         font-size: 13px;
         color: #97a8a8;
       }
+      /* Shown by main.ts's start-up watchdog (src/startup/boot.ts) when the start-up is slow or has no graphics. */
+      .boot-reload {
+        min-height: 44px;
+        padding: 10px 26px;
+        border: 1.5px solid rgba(127, 252, 216, 0.7);
+        border-radius: 999px;
+        background: rgba(127, 252, 216, 0.14);
+        color: #eef6ff;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .boot-reload[hidden] {
+        display: none;
+      }
       @media (prefers-reduced-motion: reduce) {
         #boot {
           transition: none;
@@ -119,6 +135,7 @@
       <div class="boot-logo">Tower Defense <span>Together</span></div>
       <div class="boot-runes" aria-hidden="true"><i></i><i></i><i></i></div>
       <p id="boot-note" class="boot-note">Loading…</p>
+      <button id="boot-reload" class="boot-reload" type="button" hidden>Reload</button>
     </div>
     <div id="game"></div>
 

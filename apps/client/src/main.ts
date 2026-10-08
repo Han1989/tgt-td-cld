@@ -1,18 +1,43 @@
 import { COMBO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
 import './style.css';
-import { installAnalytics } from './analytics/install';
+import { currentAnalytics, installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
 import type { ModifierDeal } from './lobby/modifierPicker';
 import { showSoloPick } from './lobby/solo';
 import { endSolo, OnlineController, playSolo } from './online';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
+import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
+import { showBootMessage } from './startup/splash';
+
+/**
+ * Start-up watchdog (startup/boot.ts): after 15 s on screen without `ready()` the splash says it is still loading and
+ * offers Reload; a start-up with no graphics says so at once. Either is sent once as a crash report whose message is
+ * the fixed reason (`boot_timeout`, `webgl_unavailable`, `webgl_context_lost`): nothing else, and only while play data
+ * is on (the analytics client checks that), so local solo (no analytics) sends nothing.
+ */
+const bootWatchdog = createBootWatchdog({
+  onSlow: () => showBootMessage(BOOT_COPY.slow),
+  onFailed: () => showBootMessage(BOOT_COPY.graphics),
+  onReport: reportBoot,
+});
+bootWatchdog.visible(document.visibilityState === 'visible');
+document.addEventListener('visibilitychange', () => bootWatchdog.visible(document.visibilityState === 'visible'));
+
+function reportBoot(reason: BootReason): void {
+  try {
+    currentAnalytics()?.error({ kind: 'error', message: reason, stack: '' }, Date.now());
+  } catch {
+    // Reporting must never get in the way of the message.
+  }
+}
 
 /**
  * The first screen is up and interactive (the game view, with `window.__tdt` in e2e builds, exists by then):
  * `<html data-ready="…">` for browser tests to wait on, and a `tdt:ready` performance mark for cold-start timing.
  */
 function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 'online'): void {
+  bootWatchdog.ready();
   performance.mark('tdt:ready', { detail: screen });
   document.documentElement.dataset.ready = screen;
   // The boot splash (index.html) stops taking taps at once and fades out.
@@ -94,7 +119,11 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  const note = document.getElementById('boot-note');
-  if (note) note.textContent = 'The game could not start. Refresh to try again.';
+  // No graphics: said plainly and reported by its fixed reason. Not rethrown, so it is not reported a second time.
+  if (err instanceof GraphicsUnavailableError) {
+    bootWatchdog.fail(err.reason);
+    return;
+  }
+  showBootMessage(BOOT_COPY.threw);
   throw err;
 });
