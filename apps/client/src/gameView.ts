@@ -4,7 +4,7 @@
 
 import { allowSocial, freshSocialClock, laneName, type ClientMessage, type Command, type PlayerId, type Snapshot, type SocialClock, type SocialKind } from '@tdt/protocol';
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
-import { Application, UPDATE_PRIORITY } from 'pixi.js';
+import { Application, isWebGLSupported, UPDATE_PRIORITY } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import { currentAnalytics } from './analytics/install';
 import { MatchTracker } from './analytics/matchTracker';
@@ -28,6 +28,8 @@ import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/q
 import { HeroPredictor } from './predict';
 import { WorldRenderer } from './render/world';
 import { sharedSettings } from './settings';
+import { GraphicsUnavailableError } from './startup/boot';
+import { guardCanvasContext } from './startup/glGuard';
 import { TutorialCoach } from './tutorial/coach';
 import { lessonStatus } from './tutorial/logic';
 import { repairHint } from './teach/cues';
@@ -49,6 +51,12 @@ function funnel(step: FunnelStep): void {
   } catch {
     // Analytics is optional.
   }
+}
+
+/** The canvas's WebGL context was lost (asks for the context it already has; a canvas with none gets a new one). */
+function contextLost(canvas: HTMLCanvasElement): boolean {
+  const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+  return gl !== null && gl.isContextLost();
 }
 
 export class GameView {
@@ -108,17 +116,44 @@ export class GameView {
     let autoDegraded = false;
     const quality = () => effectiveQuality(settings.get().quality, autoDegraded);
 
-    const app = new Application();
-    await app.init({
-      background: COLORS.background,
-      resizeTo: window,
-      antialias: true,
-      autoDensity: true,
-      resolution: resolutionFor(quality(), window.devicePixelRatio),
-    });
-    const canvas = app.canvas;
+    // The renderer is WebGL or nothing. Left to itself Pixi falls back to WebGPU, whose adapter request has no timeout
+    // and may never answer (the start-up then hangs on "Loading…"), and then to a canvas renderer this game is not
+    // drawn for. Ask once here (Pixi remembers the answer, so its own check costs nothing) and stop with a plain error.
+    if (!isWebGLSupported()) throw new GraphicsUnavailableError('webgl_unavailable');
+    // The canvas is ours and in the page before the renderer is made, so its context can be asked about whenever
+    // start-up goes wrong (the loss event only arrives later; `isContextLost()` is true at once).
+    const canvas = document.createElement('canvas');
     canvas.id = 'game-canvas';
     document.getElementById('game')!.appendChild(canvas);
+    const app = new Application();
+    // While the renderer starts, a lost context makes Pixi's texture-limit probe spin for ever; the guard turns that
+    // into an error (startup/glGuard.ts) and comes off again once the renderer is up.
+    const unguard = guardCanvasContext(canvas);
+    try {
+      await app.init({
+        canvas,
+        preference: ['webgl'],
+        background: COLORS.background,
+        resizeTo: window,
+        antialias: true,
+        autoDensity: true,
+        resolution: resolutionFor(quality(), window.devicePixelRatio),
+      });
+    } catch (err) {
+      unguard();
+      const lost = contextLost(canvas);
+      canvas.remove();
+      // The probe passed but the real context could not be made (Pixi: "This browser does not support WebGL").
+      if (lost || /webgl|no available renderer/i.test(err instanceof Error ? err.message : String(err))) {
+        throw new GraphicsUnavailableError(lost ? 'webgl_context_lost' : 'webgl_unavailable', err);
+      }
+      throw err;
+    }
+    unguard();
+    if (contextLost(canvas)) {
+      canvas.remove();
+      throw new GraphicsUnavailableError('webgl_context_lost');
+    }
 
     const map = getMap();
     const camera = new Camera(map.width * TILE_PX, map.height * TILE_PX);

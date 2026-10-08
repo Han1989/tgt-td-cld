@@ -34,9 +34,9 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('soft launch');
     expect(summary.done).toBeGreaterThan(0);
     expect(summary.open).toBeGreaterThan(0);
-    // P2-01b (the phone build fix) waits on Han's phone test.
-    expect(summary.hanOpen).toBe(13);
-    expect(summary.inProgress).toBe(2);
+    // P2-01b (the phone build fix) waits on Han's phone test. P2-07 (phone controls) merged in PRs #93 and #94.
+    expect(summary.hanOpen).toBe(12);
+    expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -51,6 +51,8 @@ describe('progress dashboard data', () => {
       'H-04': 42,
       'SL-05': 66,
       'P2-03': 66,
+      'P2-07': 94,
+      'P2-08': 95,
     };
     for (const [id, pull] of Object.entries(proofs)) {
       const item = byId(id);
@@ -72,6 +74,7 @@ describe('progress dashboard data', () => {
     expect(byId('g1-gate').proof?.label).toBe('Passed 2 Oct 2026');
     expect(byId('g1-gate').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/blob/main/TASKS.md');
     expect(byId('P2-01').status).toBe('done');
+    expect(byId('P2-08').status).toBe('done');
     expect(byId('P2-02').status).toBe('done');
     expect(byId('P2-01').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/57');
     expect(byId('P2-02').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/63');
@@ -167,7 +170,7 @@ describe('progress dashboard data', () => {
   });
 
   it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
-    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['P2-01b', 'P2-07']);
+    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['P2-01b']);
     const empty = renderCooking({ ...PROGRESS, items: PROGRESS.items.filter((item) => item.status !== 'in_progress') });
     expect(empty).toContain('Cooking now');
     expect(empty).toContain('Nothing is marked in progress.');
@@ -199,7 +202,7 @@ describe('progress dashboard data', () => {
         ...PROGRESS.items,
       ],
     };
-    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'P2-01b', 'P2-07']);
+    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'P2-01b']);
     const html = renderCooking(flying);
     expect(html).toContain('Z-9');
     expect(html).toContain('data-status="in_progress"');

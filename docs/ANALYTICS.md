@@ -118,12 +118,12 @@ A loss at wave 4 reaches "Finished a match" but not "Reached wave 5"; it stops a
 | `match_start` | A second of match time in (solo or a room): mode, difficulty, player count, solo or online (`online`), your hero, every hero in seat order |
 | `match_end` | The Heart survives or falls: result, Heart HP, wave, length in seconds (`durationSec`), and the same fields as `match_start` |
 | `funnel` | Once a session per step: `lobby`, `wave_3` / `wave_5` / `wave_10`, the lesson cards `tutorial_move` … `tutorial_emote`, `tutorial_done`, `tutorial_skip` |
-| `client_error` | An uncaught error or unhandled rejection: `kind`, `message`, `stack`, `build`, `browser` (see [Crash reports](#crash-reports)) |
+| `client_error` | An uncaught error or unhandled rejection, or a start-up that was slow or had no graphics: `kind`, `message`, `stack`, `build`, `browser` (see [Crash reports](#crash-reports)) |
 | `feedback` | One tap of 1–5 on the end screen, plus the optional note |
 
 Every event carries the visitor id, the session id, the channel and the platform, and nothing else beyond the fields above (the server rejects unknown fields). The game view turns snapshots into the match events (`analytics/matchTracker.ts`); the HUD no longer sends `match_end` itself. The end-screen control is hidden when there is no server URL or play data is off. Under the note box it says **"Don't include personal details."** with a link to the privacy page. Tapping a rating never blocks **Play again**. If the post fails, the match is unchanged.
 
-Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do not start a session. On the online build the session starts before the game view is created, so a page that cannot start (no WebGL) still counts as a visit and can send its error.
+Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do not start a session. On the online build the session starts before the game view is created, so a page that cannot start (no WebGL) still counts as a visit and can send its reason (`webgl_unavailable`).
 
 ## Crash reports
 
@@ -132,6 +132,16 @@ Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do
 - `message`: the error's name and message, at most 160 characters.
 - `stack`: the top six frames, at most 700 characters. Every web address loses its host, query and hash (`https://host/assets/a.js?src=…` becomes `assets/a.js`), so tagged links and room codes never travel.
 - `build`: the commit Vercel built (`__BUILD__`, or `dev`). `browser`: Chrome, Safari, Firefox, Edge, Samsung Internet or other, from the user agent. Nothing else about the browser is kept.
+
+**Start-up reasons.** The start-up watchdog (`startup/boot.ts`, main.ts) sends three fixed messages through this same path, with `kind: error` and no stack, so nothing else about the player or the page travels:
+
+| `message` | When |
+|---|---|
+| `boot_timeout` | The game had not reached its first screen after 15 seconds of the page being on screen (time in the background does not count). The player is shown "Still loading…" with a Reload button. The start-up keeps going, so this counts **slow** starts: the game may well have started a moment later. |
+| `webgl_unavailable` | The browser could not create WebGL (none, or the real context could not be made). Shown at once: "This browser could not start the game's graphics." with Reload. |
+| `webgl_context_lost` | The WebGL context was lost while the renderer started. Shown at once, same line. |
+
+They follow the rules below like any other report, the Play data switch and the age answer included. The dashboard groups them by message, so *Crash reports* shows how many reports and sessions each had and in which browsers; every event also carries the platform. Local solo (no game server, no analytics) sends none. A page that never runs `main.ts` at all (the script not arriving) sends nothing: the splash is plain HTML on purpose and has no script of its own.
 
 Limits, per session: each error (message plus first stack line) is sent once; at most 5 reports; a report less than 5 seconds after the last one is dropped (a burst is usually one fault). A new session starts the count again. Errors in the simulation worker are not captured (the worker's own errors do not reach `window`). Errors before analytics is installed (the first lines of `main.ts`) are not either. The server accepts messages up to 200 characters and stacks up to 1,000 and rejects anything else.
 
