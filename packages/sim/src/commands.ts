@@ -7,11 +7,26 @@ import { DRIVE_HOLD_TICKS, setPath } from './heroes';
 import { getMap } from './map';
 import { padBlocker } from './pads';
 import { nearestWalkable } from './pathfinding';
-import { castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
-import type { GameState, Tower } from './state';
+import { castAtPoint, castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
+import type { GameState, Hero, Tower } from './state';
 import { upgradeTower } from './towers';
 import { repairCost, towerTier } from './tuning';
+import { dist } from './vec';
 import { callEarly } from './waves';
+
+/**
+ * A point cast only sets the hero's order; the hero casts on its next update. A new order that arrives
+ * before that update (the stick resends `move` every 100 ms) would swallow the cast, so cast it now if it
+ * can be: hero alive, nothing blocking it and the point already in range. Out of range, the hero is still
+ * walking to the point and the new order replaces it as before. (A second point cast replaces the first.)
+ */
+function flushPointCast(state: GameState, hero: Hero): void {
+  const order = hero.order;
+  if (order.type !== 'castPoint' || !hero.alive || castBlocker(state, hero, order.slot)) return;
+  if (dist(hero.x, hero.y, order.x, order.y) > skillInfo(state, hero, order.slot).range) return;
+  castAtPoint(state, hero, order.slot, order.x, order.y);
+  hero.order = { type: 'idle' };
+}
 
 /** Applies `command` for `playerId`. Returns true if it was accepted. */
 export function applyCommand(state: GameState, playerId: PlayerId, command: Command): boolean {
@@ -29,6 +44,7 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
   switch (command.type) {
     case 'move': {
       if (!hero.alive) return reject('Hero is dead');
+      flushPointCast(state, hero);
       // The joystick refreshes this every few ticks. Even a step that cannot be pathed
       // (into a wall) holds the hero: it faces the stick and does not auto-chase.
       hero.drivenUntil = state.tick + DRIVE_HOLD_TICKS;
@@ -45,6 +61,7 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       if (!hero.alive) return reject('Hero is dead');
       const goal = nearestWalkable(map, command.x, command.y);
       if (!goal || !setPath(hero, goal.x, goal.y)) return reject('Cannot move there');
+      flushPointCast(state, hero);
       hero.order = { type: 'attackMove', x: goal.x, y: goal.y };
       return true;
     }
@@ -52,12 +69,14 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       if (!hero.alive) return reject('Hero is dead');
       const target = state.creeps.find((c) => c.id === command.targetId && !c.dead);
       if (!target) return reject('Invalid target');
+      flushPointCast(state, hero);
       hero.order = { type: 'attack', targetId: target.id };
       hero.path = [];
       hero.repathTick = 0;
       return true;
     }
     case 'stop':
+      flushPointCast(state, hero);
       hero.order = { type: 'idle' };
       hero.path = [];
       hero.drivenUntil = 0;

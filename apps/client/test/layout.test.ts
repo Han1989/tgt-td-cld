@@ -184,9 +184,23 @@ describe('computeLayout: phones held upright', () => {
       expect(right.joystick.x).toBeLessThan(206);
       expect(left.joystick.x).toBeGreaterThan(206);
       expect(left.joystick.x).toBeCloseTo(412 - right.joystick.x);
+      // W and E mirror; Q and R trade places so the row still reads Q, W, R (next test).
+      const mirrored = { Q: 'R', W: 'W', E: 'E', R: 'Q' } as const;
       for (const slot of ['Q', 'W', 'E', 'R'] as const) {
-        expect(left.skills[slot].x).toBeCloseTo(412 - right.skills[slot].x);
-        expect(left.skills[slot].y).toBeCloseTo(right.skills[slot].y);
+        expect(left.skills[slot].x).toBeCloseTo(412 - right.skills[mirrored[slot]].x);
+        expect(left.skills[slot].y).toBeCloseTo(right.skills[mirrored[slot]].y);
+      }
+    }
+  });
+
+  it('reads Q, W, R from left to right in both corner layouts', () => {
+    for (const stick of STICK_MODES) {
+      for (const skills of ['right', 'left'] as const) {
+        for (const [w, h] of [[412, 839], [390, 664], [360, 640]] as const) {
+          const c = computeLayout(input(w, h, { stick, skills })).controls!;
+          const order = (['Q', 'W', 'R'] as const).slice().sort((a, b) => c.skills[a].x - c.skills[b].x);
+          expect(order).toEqual(['Q', 'W', 'R']);
+        }
       }
     }
   });

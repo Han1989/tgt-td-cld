@@ -881,6 +881,39 @@ test.describe('floating stick with the skills around it (the default) and taps w
     await expect.poll(() => sent(page, 'stop').then((x) => x.length)).toBe(1);
   });
 
+  test('two fingers, Arcanist: steering with one while tapping Q with the other casts Fireball, and the stick keeps steering', async ({
+    page,
+  }) => {
+    // A point cast used to be replaced by the stick's next `move`, so Q never fired while the hero walked.
+    await startSolo(page, '?lab', 'quick', 'Arcanist');
+    const hand = await Hand.on(page);
+    const joy = centre(await box(page, '#joystick'));
+    const q = centre(await box(page, '.tskill[data-slot="Q"] .tskill-btn'));
+    const qCooldown = () => page.evaluate(() => window.__tdt.latest()!.heroes[0]!.skills.find((s) => s.slot === 'Q')!.cooldown);
+    expect(await qCooldown()).toBe(0);
+
+    // Call the first wave and walk up the Mid lane with the stick held until a creep is well inside Q's range.
+    await page.locator('#call-early').tap();
+    await hand.press(0, joy.x, joy.y);
+    for (const dy of [-15, -30, -45]) await hand.move(0, joy.x, joy.y + dy);
+    await waitForCreepsNearHero(page, { count: 1, offset: -1, still: false, seconds: 40 });
+    const moves = (await sent(page, 'move')).length;
+
+    // A quick tap by the events' own clock (on a loaded runner the two messages can arrive a second apart).
+    const t0 = Date.now() / 1000;
+    await hand.press(1, q.x, q.y, t0);
+    await hand.lift(1, q.x, q.y, t0 + 0.08);
+    await expect.poll(() => sent(page, 'cast').then((c) => c.length)).toBe(1);
+    expect((await sent(page, 'cast'))[0]).toMatchObject({ type: 'cast', slot: 'Q' });
+    // The cast went off while the stick was still held: Q is on cooldown, and the stick keeps steering.
+    await expect.poll(qCooldown).toBeGreaterThan(0);
+    await hand.move(0, joy.x + 30, joy.y - 45);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(moves);
+    expect(await sent(page, 'stop')).toHaveLength(0);
+    await hand.lift(0, joy.x + 30, joy.y - 45);
+    await expect.poll(() => sent(page, 'stop').then((x) => x.length)).toBe(1);
+  });
+
   test('a quick tap during a 600 ms stall still casts and still builds; a quick tap on Sell still does not sell', async ({ page }) => {
     await startSolo(page, '?lab&ult');
     const finger = await Finger.on(page);
