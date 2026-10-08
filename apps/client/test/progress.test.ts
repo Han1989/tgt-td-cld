@@ -52,6 +52,7 @@ describe('progress dashboard data', () => {
       'SL-05': 66,
       'P2-03': 66,
       'P2-07': 94,
+      'P2-08': 95,
     };
     for (const [id, pull] of Object.entries(proofs)) {
       const item = byId(id);

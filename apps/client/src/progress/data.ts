@@ -251,6 +251,7 @@ const items: ProgressItem[] = [
     status: 'done',
     section: 'playtest2',
     note: 'Client only, protocol stays 19. Browser-test runs sat on Loading for 150 s twice. After 15 s on screen without the first screen the splash says it is still loading and offers Reload, and keeps waiting; no WebGL, or a context lost while starting, says so at once. Each is reported once as a crash report with a fixed reason (boot_timeout, webgl_unavailable, webgl_context_lost). Two Pixi 8.21 start-up hangs closed: a lost context froze the page in a loop no timer can reach, and no WebGL waited on a WebGPU request with no timeout. Auto-merge. Built by Claude Code.',
+    proof: pr(95),
   },
   {
     id: 'H-01',
