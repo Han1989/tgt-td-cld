@@ -254,6 +254,14 @@ const items: ProgressItem[] = [
     proof: pr(95),
   },
   {
+    id: 'P2-09',
+    title: 'Calm battle sound',
+    owner: 'Both',
+    status: 'in_progress',
+    section: 'playtest2',
+    note: 'Client audio only, protocol stays 19. A friend on 8 Oct: the music is great but tower and hero attacks sound like a car workshop. Measured and fixed: the room reverb is the same at every sample rate and 14 dB quieter; tower shots, creep deaths and coins share one budget (half the plays), shots at half their level, deaths and coins at 0.7, your hero’s attacks and Q / W a quarter louder; the Frost shot loses its bell, the coin is one soft clink, the Warden’s hit is a thud. In late waves the effects sit 11 dB under the music instead of 3. Sliders unchanged. Han listens to the preview on his phone before merging. Built by Claude Code.',
+  },
+  {
     id: 'H-01',
     title: 'Let friends open preview links',
     owner: 'Han',

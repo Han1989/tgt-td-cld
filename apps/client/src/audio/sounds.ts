@@ -13,6 +13,12 @@ import { midiHz, soundSeconds, varyDef, type Layer, type SynthDef } from './synt
 /** Voice priority: 0 = frequent and skippable (shots, deaths), 1 = normal, 2 = must be heard (the Heart, waves, the end). */
 export type Priority = 0 | 1 | 2;
 
+/**
+ * The combat background, gated as a whole on top of each sound's own cooldown (`GROUP_BUDGETS` in mix.ts): every
+ * tower's shots and the Blizzard pulse (`shot`), creeps falling (`fall`) and bounty coins (`coin`).
+ */
+export type SoundGroup = 'shot' | 'fall' | 'coin';
+
 export interface SoundSpec {
   def: SynthDef;
   /** Loudness, 0–1, before the Effects volume and the mix (yours / others', on / off screen). */
@@ -28,6 +34,8 @@ export interface SoundSpec {
   wet: number;
   /** Pitch spread of a play (fraction of the rate, ±): small for tunes, larger for hits. */
   pitch: number;
+  /** The combat background's budget this sound shares (yours and teammates' alike), if it is part of it. */
+  group?: SoundGroup;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +63,6 @@ const A5 = 81;
 const C6 = 84;
 const D6 = 86;
 const A6 = 93;
-const D7 = 98;
 
 interface ZitherOpts {
   bright?: number;
@@ -232,6 +239,11 @@ function steel(freq: number, decay: number, gain = 1, at = 0): Layer[] {
   ];
 }
 
+/** A blade's short, dull ring: steel's inharmonic partials, muffled (a blow that lands, not a clash). */
+function dullRing(freq: number, decay: number, gain = 1, at = 0): Layer {
+  return { wave: 'sine', freq, decay, gain, at, attack: 0.002, partials: [[1.34, 0.45], [1.87, 0.2], [2.41, 0.08]], filter: { type: 'lp', from: 1400, to: 700 } };
+}
+
 /** A bowstring's twang: a taut string that drops in pitch and wobbles as it slaps home, and the limbs' knock. */
 function twang(note: number, gain = 1, at = 0, decay = 0.28): Layer[] {
   return [
@@ -393,6 +405,11 @@ function clink(freq: number, gain = 1, at = 0): Layer {
   return { wave: 'sine', freq, decay: 0.09, gain, at, attack: 0.001, partials: [[1.47, 0.45], [2.09, 0.2]] };
 }
 
+/** A coin set down rather than dropped: a softer strike, its ring short and its upper partials faint. */
+function softClink(freq: number, gain = 1, at = 0): Layer {
+  return { wave: 'sine', freq, decay: 0.05, gain, at, attack: 0.003, partials: [[1.47, 0.22], [2.09, 0.06]] };
+}
+
 /** A soft glittering hiss (frost). */
 function sparkle(decay: number, gain = 1, at = 0): Layer {
   return { wave: 'noise', freq: 0, decay, gain, at, attack: 0.01, filter: { type: 'hp', from: 5000, to: 7200 } };
@@ -402,6 +419,7 @@ interface SfxOpts {
   variants?: number;
   wet?: number;
   pitch?: number;
+  group?: SoundGroup;
 }
 
 /** A sound: volume, cooldown (ms), most voices at once, priority, then its synth definition. */
@@ -416,11 +434,14 @@ function sfx(volume: number, cooldown: number, max: number, priority: Priority, 
     variants: o.variants ?? (priority === 0 ? 4 : soundSeconds(def) > 1.2 ? 2 : 3),
     wet: o.wet ?? 0.2,
     pitch: o.pitch ?? 0.03,
+    ...(o.group ? { group: o.group } : {}),
   };
 }
 
 /** Tunes (in the music's scale): varied, but never out of tune. */
 const TUNE: SfxOpts = { pitch: 0.006 };
+/** A tower's shot: part of the combat background's shared budget (`GROUP_BUDGETS.shot`). */
+const SHOT: SfxOpts = { group: 'shot' };
 
 // ---------------------------------------------------------------------------
 // Sound effects
@@ -448,50 +469,52 @@ export const SOUNDS = {
   deny: sfx(0.45, 200, 1, 2, { layers: [...koto(D3, 0.14, 1, 0, { damp: 0.9, bright: 0.3 }), knock(294, 0.08, 0.6)] }, { wet: 0.1 }),
 
   // Tower shots (branches play the same sound at another pitch: `BRANCH_RATE`) ---
+  // The combat background sits under the music: shots at half the level they had before the 8 Oct playtest, creeps
+  // falling and coins at 0.7 of it, all sharing one budget per group (`GROUP_BUDGETS`). Your hero stays on top.
   /** Arrow: a bowstring's twang and the arrow's hiss. */
-  'shot.arrow': sfx(0.22, 70, 3, 0, { layers: [...twang(D3, 1), whoosh(2600, 900, 0.08, 0.35, 0.01, 0.004)] }),
+  'shot.arrow': sfx(0.11, 70, 3, 0, { layers: [...twang(D3, 1), whoosh(2600, 900, 0.08, 0.35, 0.01, 0.004)] }, SHOT),
   /** Cannon: a black-powder bombard: a boom with a body and a burst of smoke. */
-  'shot.cannon': sfx(0.36, 110, 3, 0, {
+  'shot.cannon': sfx(0.18, 110, 3, 0, {
     layers: [
       ...drum(58, 0.45, 1, 0, { skin: 0.15, tension: 1.7, shell: 0.6 }),
       { wave: 'noise', freq: 0, decay: 0.32, gain: 0.55, attack: 0.003, filter: { type: 'lp', from: 1300, to: 140 } },
     ],
-  }),
-  /** Frost: a string's high harmonic and a little bronze bell. */
-  'shot.frost': sfx(0.16, 90, 3, 0, {
-    layers: [...zither(A5, 0.4, 1, 0, { bright: 0.9, pos: 0.5, damp: 0.1 }), bell(D7 - 12, 0.25, 0.35, 0.02), sparkle(0.06, 0.15)],
-  }, TUNE),
+  }, SHOT),
+  /** Frost: a string's soft harmonic, plucked at its middle, and a breath of frost (no bell: it rang over the music). */
+  'shot.frost': sfx(0.08, 90, 3, 0, {
+    layers: [...zither(D5, 0.3, 1, 0, { bright: 0.25, pos: 0.5, damp: 0.6 }), sparkle(0.04, 0.06)],
+  }, { ...TUNE, ...SHOT }),
   /** Arcane: a struck bronze bowl that hums and rings. */
-  'shot.arcane': sfx(0.17, 90, 3, 0, {
+  'shot.arcane': sfx(0.085, 90, 3, 0, {
     layers: [
       { wave: 'sine', freq: hz(A4), glide: 1.5, glideTime: 0.1, decay: 0.18, gain: 0.5, attack: 0.01, vibrato: [18, 0.01] },
       { wave: 'sine', freq: hz(D5), decay: 0.45, gain: 1, at: 0.03, attack: 0.002, partials: [[1.007, 0.6], [2.71, 0.3], [5.1, 0.08]] },
     ],
-  }, TUNE),
+  }, { ...TUNE, ...SHOT }),
   /** Flak: two quick tanggu pops. */
-  'shot.flak': sfx(0.24, 90, 3, 0, {
+  'shot.flak': sfx(0.12, 90, 3, 0, {
     layers: [
       ...drum(190, 0.12, 1, 0, { skin: 0.7, tension: 1.2, shell: 0.2 }),
       whoosh(1300, 700, 0.05, 0.4, 0, 0.002),
       ...drum(175, 0.12, 0.85, 0.07, { skin: 0.7, tension: 1.2, shell: 0.2 }),
       whoosh(1200, 600, 0.05, 0.35, 0.07, 0.002),
     ],
-  }),
+  }, SHOT),
   /** The Blizzard pulse: a gust with harness bells in it. */
-  blizzard: sfx(0.3, 250, 2, 0, {
+  blizzard: sfx(0.15, 250, 2, 0, {
     layers: [whoosh(2800, 650, 0.6, 1, 0, 0.05, 1.1), bell(A5, 0.35, 0.35, 0.05), bell(D6, 0.35, 0.3, 0.12), bell(G5, 0.3, 0.25, 0.2)],
-  }),
+  }, SHOT),
 
   // Creeps -------------------------------------------------------------------
   /** A creep falls: a body hitting the ground and a rattle of gear (bigger creeps play it lower). */
-  death: sfx(0.24, 45, 4, 0, {
+  death: sfx(0.17, 45, 4, 0, {
     layers: [
       ...thud(120, 0.16, 1),
       { wave: 'noise', freq: 0, decay: 0.1, gain: 0.45, at: 0.01, attack: 0.003, filter: { type: 'bp', from: 900, to: 400, q: 1 } },
       knock(610, 0.04, 0.25, 0.035),
       knock(470, 0.04, 0.2, 0.07),
     ],
-  }),
+  }, { group: 'fall' }),
   /** A boss falls: a great gong, a deep boom and a horn sinking. */
   bossDeath: sfx(0.8, 400, 1, 2, {
     layers: [
@@ -500,8 +523,8 @@ export const SOUNDS = {
       { ...horn(A2, 0.6, 0.5, 0.2)[0]!, glide: 0.8, glideTime: 1.2 },
     ],
   }, { variants: 2, wet: 0.3 }),
-  /** Your bounty: two copper coins. */
-  coin: sfx(0.13, 70, 2, 0, { layers: [clink(1900, 0.8), clink(2250, 0.6, 0.05)] }, { wet: 0.12 }),
+  /** Your bounty: one soft copper clink, low (on every kill, so it never glitters over the music). */
+  coin: sfx(0.09, 70, 2, 0, { layers: [softClink(hz(A5), 1)] }, { wet: 0.12, group: 'coin' }),
   /** Ironhorn's Stomp: the ground itself is a drum. */
   stomp: sfx(0.6, 300, 1, 1, {
     layers: [
@@ -545,25 +568,25 @@ export const SOUNDS = {
     ],
   }, { variants: 2, wet: 0.3 }),
 
-  // Hero attacks --------------------------------------------------------------------
+  // Hero attacks (each louder than any tower's shot: a test checks it) ---------------------
   /** The Ranger's bow: a heavier twang and the arrow's hiss. */
-  'attack.ranger': sfx(0.32, 80, 2, 1, { layers: [...twang(A2, 1, 0, 0.32), whoosh(2400, 1100, 0.07, 0.35, 0.012, 0.004)] }),
-  /** The Warden's blade landing: steel on steel, a thunk behind it. */
-  'attack.warden': sfx(0.36, 80, 2, 1, {
-    layers: [...steel(1180, 0.32, 1), knock(190, 0.1, 0.8, 0.004), whoosh(2200, 800, 0.06, 0.4, 0, 0.004, 2)],
+  'attack.ranger': sfx(0.4, 80, 2, 1, { layers: [...twang(A2, 1, 0, 0.32), whoosh(2400, 1100, 0.07, 0.35, 0.012, 0.004)] }),
+  /** The Warden's blade landing: a heavy thud through the armour, a short dull ring of the blade, the swing's breath. */
+  'attack.warden': sfx(0.45, 80, 2, 1, {
+    layers: [...thud(220, 0.14, 0.7), knock(300, 0.09, 0.8, 0.003), dullRing(hz(D5), 0.14, 0.7, 0.004), whoosh(1400, 500, 0.06, 0.3, 0, 0.004, 1.6)],
   }),
   /** The Arcanist's staff: a string struck with a rod, falling, and a spark. */
-  'attack.arcanist': sfx(0.28, 80, 2, 1, {
+  'attack.arcanist': sfx(0.35, 80, 2, 1, {
     layers: [...zither(A4, 0.4, 1, 0, { bright: 0.9, damp: 0.15, bend: 0.94, bendAt: 0.02 }), whoosh(3000, 1500, 0.08, 0.25, 0, 0.003, 2)],
   }),
 
   // Hero skills (Q / W / R; E is passive) ---------------------------------------------
   /** Multishot: three strings loosed at once, ragged. */
-  'ranger.Q': sfx(0.45, 150, 2, 1, {
+  'ranger.Q': sfx(0.56, 150, 2, 1, {
     layers: [...twang(A2, 1), ...twang(C3, 0.9, 0.03), ...twang(D3, 0.8, 0.065), whoosh(2600, 1000, 0.16, 0.45, 0.02)],
   }),
   /** Snare Trap: a wooden clack and a creaking rope pulled tight. */
-  'ranger.W': sfx(0.45, 150, 2, 1, {
+  'ranger.W': sfx(0.56, 150, 2, 1, {
     layers: [knock(420, 0.08, 1), knock(300, 0.1, 0.9, 0.08), { wave: 'pluck', freq: 105, glide: 1.25, glideTime: 0.25, decay: 0.35, gain: 0.5, at: 0.1, pluck: { bright: 0.4, damp: 0.7 } }],
   }),
   /** Arrow Storm: a volley loosed by a line of archers, then the sky full of arrows. */
@@ -575,11 +598,11 @@ export const SOUNDS = {
     ],
   }),
   /** Cleave: a heavy swing, steel biting and a thud. */
-  'warden.Q': sfx(0.5, 150, 2, 1, {
+  'warden.Q': sfx(0.625, 150, 2, 1, {
     layers: [whoosh(1500, 420, 0.28, 1, 0, 0.05, 1.8), ...steel(940, 0.45, 0.8, 0.12), ...thud(100, 0.25, 0.8, 0.12)],
   }),
   /** Taunt: a sword beaten on the shield, and a horn's blast. */
-  'warden.W': sfx(0.5, 150, 2, 1, {
+  'warden.W': sfx(0.625, 150, 2, 1, {
     layers: [...drum(130, 0.25, 0.9, 0, { skin: 0.8 }), ...steel(760, 0.3, 0.5, 0), ...drum(130, 0.25, 0.8, 0.14, { skin: 0.8 }), ...horn(A2, 0.3, 0.6, 0.2)],
   }),
   /** Iron Vow: a great gong and a war drum. */
@@ -587,7 +610,7 @@ export const SOUNDS = {
     layers: [...gong(hz(D3) * 0.75, 3, 1, 0), ...drum(50, 0.9, 0.9, 0, { skin: 0.35, shell: 0.7 }), ...guzheng(D5, 1.6, 0.35, 0.12, { vib: 0.006 })],
   }, { wet: 0.3 }),
   /** Fireball: a rushing fwoom and the crackle of flame. */
-  'arcanist.Q': sfx(0.45, 150, 2, 1, {
+  'arcanist.Q': sfx(0.56, 150, 2, 1, {
     layers: [
       whoosh(360, 1700, 0.35, 1, 0, 0.04, 1.2),
       { wave: 'sine', freq: 180, glide: 2, decay: 0.28, gain: 0.5, attack: 0.02 },
@@ -595,7 +618,7 @@ export const SOUNDS = {
     ],
   }),
   /** Frost Nova: a spray of small bells and a glittering hiss. */
-  'arcanist.W': sfx(0.5, 150, 2, 1, {
+  'arcanist.W': sfx(0.625, 150, 2, 1, {
     layers: [bell(A5, 0.6, 1), bell(D6, 0.5, 0.7, 0.03), bell(A6, 0.45, 0.5, 0.06), bell(G5, 0.5, 0.5, 0.09), sparkle(0.45, 0.45)],
   }, TUNE),
   /** Meteor: a roar climbing to the sky over a gong swelling in. */
