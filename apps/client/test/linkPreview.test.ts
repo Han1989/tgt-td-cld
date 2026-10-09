@@ -87,7 +87,14 @@ describe('tagged links (docs/ANALYTICS.md)', () => {
   const tagged = [...doc.matchAll(/`https:\/\/<vercel-app>\/(\?src=[\w-]+)`/g)].map((m) => m[1]!);
 
   it('get the same static page, so the same card, and still record their channel from ?src=', () => {
-    expect(tagged).toEqual(['?src=reddit-playmygame', '?src=reddit-incremental', '?src=reddit-cozy', '?src=crazygames']);
+    expect(tagged).toEqual([
+      '?src=friends',
+      '?src=cold',
+      '?src=reddit-playmygame',
+      '?src=reddit-webgames',
+      '?src=reddit-towerdefense',
+      '?src=crazygames',
+    ]);
     for (const search of tagged) {
       const src = new URLSearchParams(search).get('src')!;
       expect(CHANNELS).toContain(src);

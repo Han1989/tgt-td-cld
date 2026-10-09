@@ -2,9 +2,11 @@
 // The client list in apps/client/src/analytics/channel.ts must stay the same.
 
 export const CHANNELS = [
+  'friends',
+  'cold',
   'reddit-playmygame',
-  'reddit-incremental',
-  'reddit-cozy',
+  'reddit-webgames',
+  'reddit-towerdefense',
   'crazygames',
   'other',
   'direct',
@@ -17,9 +19,11 @@ export const PLATFORMS = ['web', 'ios', 'android'] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 export const CHANNEL_LABELS: Record<Channel, string> = {
+  friends: 'Friends',
+  cold: 'Cold test',
   'reddit-playmygame': 'r/PlayMyGame',
-  'reddit-incremental': 'r/incremental_games',
-  'reddit-cozy': 'r/cozygames',
+  'reddit-webgames': 'r/WebGames',
+  'reddit-towerdefense': 'r/TowerDefense',
   crazygames: 'CrazyGames',
   other: 'Other',
   direct: 'Direct',

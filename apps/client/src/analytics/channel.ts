@@ -2,9 +2,11 @@
 // apps/server/src/analytics/channels.ts.
 
 export const CHANNELS = [
+  'friends',
+  'cold',
   'reddit-playmygame',
-  'reddit-incremental',
-  'reddit-cozy',
+  'reddit-webgames',
+  'reddit-towerdefense',
   'crazygames',
   'other',
   'direct',
@@ -16,16 +18,20 @@ const ALIASES: readonly (readonly [string, Channel])[] = [
   ['reddit-playmygame', 'reddit-playmygame'],
   ['playmygame', 'reddit-playmygame'],
   ['r/playmygame', 'reddit-playmygame'],
-  ['reddit-incremental', 'reddit-incremental'],
-  ['incremental_games', 'reddit-incremental'],
-  ['incremental-games', 'reddit-incremental'],
-  ['r/incremental_games', 'reddit-incremental'],
-  ['reddit-cozy', 'reddit-cozy'],
-  ['cozygames', 'reddit-cozy'],
-  ['cozy-games', 'reddit-cozy'],
-  ['r/cozygames', 'reddit-cozy'],
+  ['reddit-webgames', 'reddit-webgames'],
+  ['webgames', 'reddit-webgames'],
+  ['web-games', 'reddit-webgames'],
+  ['r/webgames', 'reddit-webgames'],
+  ['reddit-towerdefense', 'reddit-towerdefense'],
+  ['towerdefense', 'reddit-towerdefense'],
+  ['tower-defense', 'reddit-towerdefense'],
+  ['r/towerdefense', 'reddit-towerdefense'],
   ['crazygames', 'crazygames'],
   ['crazy-games', 'crazygames'],
+  ['friends', 'friends'],
+  ['friend', 'friends'],
+  ['cold', 'cold'],
+  ['coldtest', 'cold'],
 ];
 
 export interface ChannelInput {
@@ -91,8 +97,8 @@ function referrerChannel(referrer: string | null): 'crazygames' | 'other' | null
 /**
  * Tag for this visit.
  *
- * Put `?src=reddit-playmygame` (or `reddit-incremental`, `reddit-cozy`, `crazygames`)
- * on the link. `utm_source` / `utm_campaign` with the same id, or a known alias, also work.
+ * Put `?src=friends` (or `cold`, `reddit-playmygame`, `reddit-webgames`, `reddit-towerdefense`,
+ * `crazygames`) on the link. `utm_source` / `utm_campaign` with the same id, or a known alias, also work.
  * A crazygames.com referrer counts as CrazyGames. A reddit.com referrer does not name the
  * subreddit, so it stays `other` unless a channel was saved from a tagged visit.
  * A later visit with no tag keeps the saved channel.

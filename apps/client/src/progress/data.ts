@@ -5,8 +5,8 @@
  * dashboard reads. When a pull request finishes a task, update both TASKS.md and
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
- * Seeded from main as of 2 Oct 2026. Production protocol is 16.
- * Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). This page only reports status.
+ * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
+ * 9 Oct 2026, 10:35). Production protocol is 19. This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -19,6 +19,12 @@ function pr(n: number): ProgressProof {
 
 const sections: ProgressSection[] = [
   {
+    id: 'order',
+    title: 'Now · the order from here',
+    blurb: 'Han’s plan of 8 Oct 2026, top to bottom: the friends retest, the cold test, one fix round, then one Reddit post at a time and the gate (D-06). On hold until D-06 is called: nothing in Phase 6 or later and no new feature; bug fixes and these rows are the only work. While a post is live, no merge that changes the sim or the protocol (each one restarts the game server).',
+    group: 'now',
+  },
+  {
     id: 'gate1',
     title: 'Gate 1 · Friends playtest',
     blurb: 'Passed 2 Oct 2026. Friends played on Android, PC, and iPhone Safari, so Phase 6 may proceed.',
@@ -27,19 +33,19 @@ const sections: ProgressSection[] = [
   {
     id: 'playtest2',
     title: 'Playtest 2 · work orders',
-    blurb: 'Follow-up from the 2 Oct 2026 friends session. P2-01 to P2-04b are done (PR #57, #63, #66, #70, #73). The retest (P2-05) is still open. Not the overnight auto-pull list.',
+    blurb: 'Follow-up from the 2 Oct 2026 friends session. The work orders are done; the retest (P2-05) is a step in the order from here, on the link tagged ?src=friends. Not the overnight auto-pull list.',
     group: 'now',
   },
   {
     id: 'han',
     title: 'Han, in parallel',
-    blurb: 'Only Han can do these: phones, friends, accounts, and the hook-test server. Preview links (H-01) are done. The rest do not block the team from reading the tracker.',
+    blurb: 'Only Han can do these: phones, friends, accounts and settings. The Render disk (H-08) and the cold test (H-09) are steps in the order from here.',
     group: 'now',
   },
   {
     id: 'discovery',
     title: 'Discovery and rollout',
-    blurb: 'Public soft-launch path. Measurement, the privacy notice (D-07), the link preview and the press kit are in. Posts (D-02–D-06) and the go/no-go are Han, and still open; the privacy email (H-07) comes first.',
+    blurb: 'Public soft-launch path. Measurement with a funnel per link (D-09), the privacy notice and its email (D-07, H-07), the link preview and the press kit are in. The posts (D-02–D-04) and the gate (D-06) are steps in the order from here; CrazyGames (D-05) waits with Gate 2.',
     group: 'now',
   },
   {
@@ -55,33 +61,39 @@ const sections: ProgressSection[] = [
     group: 'archive',
   },
   {
+    id: 'after',
+    title: 'Later · after D-06 passes',
+    blurb: 'On hold until D-06 passes (Han, 9 Oct 2026). In this order: a bot teammate in solo, progress saved in the browser, then Phase 6a. No matchmaking yet: too few players for a queue, and the room link is how friends join.',
+    group: 'later',
+  },
+  {
     id: 'p6a',
     title: 'Phase 6a · Accounts and data',
-    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026), then after L-01 and L-02. Analytics and privacy basics are done; accounts are not started.',
     group: 'later',
   },
   {
     id: 'p6b',
     title: 'Phase 6b · Clans',
-    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026). Not started.',
     group: 'later',
   },
   {
     id: 'p6c',
     title: 'Phase 6c · Loot and progression',
-    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Combos are done (sim PR #66, presentation PR #83); the rest is not started. The hook-test branch is not merged.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026). Combos are done (sim PR #66, presentation PR #83); the rest is not started. The hook-test branch is not merged.',
     group: 'later',
   },
   {
     id: 'p6d',
     title: 'Phase 6d · Competition',
-    blurb: 'Unblocked 2 Oct 2026 (Gate 1 passed). Not started.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026). Not started.',
     group: 'later',
   },
   {
     id: 'gate2',
     title: 'Gate 2 · Public soft launch',
-    blurb: 'Public soft-launch path, still open, with the Reddit posts (D-02–D-06). Same measurement bar as D-01 and D-06. Han calls the gate.',
+    blurb: 'CrazyGames, on hold until D-06 is called. Gate 2 keeps its day-1 and day-7 bar. Han calls the gate.',
     group: 'later',
   },
   {
@@ -111,6 +123,80 @@ const sections: ProgressSection[] = [
 ];
 
 const items: ProgressItem[] = [
+  {
+    id: 'D-09',
+    title: 'Link tags and a funnel per link',
+    owner: 'Team',
+    status: 'done',
+    section: 'order',
+    note: 'Server analytics and client, protocol stays 19. New tags ?src=friends (Friends) and ?src=cold (Cold test), remembered like the Reddit tags; r/WebGames and r/TowerDefense replace r/incremental_games and r/cozygames. Where new players stop adds one row per first-visit channel: new players, started a match, reached wave 5, finished a match, started a second match, each a count and a share (also in /analytics/summary and the example page). The privacy contact address is on /privacy.html (H-07).',
+    proof: pr(98),
+  },
+  {
+    id: 'H-08',
+    title: 'Render Starter with a disk',
+    owner: 'Han',
+    status: 'done',
+    section: 'order',
+    note: 'Done 9 Oct 2026. The game server is on the Starter plan with a disk at /var/data and ANALYTICS_DIR set to it, so the numbers survive a sleep or a deploy.',
+    proof: { label: 'Han, 9 Oct 2026', href: `${REPO}/blob/main/docs/ANALYTICS.md` },
+  },
+  {
+    id: 'P2-05',
+    title: 'Retest with friends',
+    owner: 'Han',
+    status: 'todo',
+    section: 'order',
+    note: 'Friends retest the new phone controls and the rest of Playtest 2 (P2-01 through P2-09, P2-04b included) on the link tagged ?src=friends. Everyone saves the match report.',
+  },
+  {
+    id: 'H-09',
+    title: 'Cold test',
+    owner: 'Han',
+    status: 'todo',
+    section: 'order',
+    note: 'Three to five people who have never seen the game, on the link tagged ?src=cold, with no help; two of them bring a friend of their own. The bar: they finish a first match unaided and at least half start another.',
+  },
+  {
+    id: 'T-07',
+    title: 'One fix round and the rebalance',
+    owner: 'Team',
+    status: 'todo',
+    section: 'order',
+    note: 'From the retest and the cold test, with the rebalance in it, which ends the “provisional until Playtest 3” balance bounds. Starts after P2-05 and H-09.',
+  },
+  {
+    id: 'D-02',
+    title: 'Post to r/PlayMyGame',
+    owner: 'Han',
+    status: 'todo',
+    section: 'order',
+    note: 'The first post, r/PlayMyGame only. Follow the sub’s rules. One clear link, tagged ?src=reddit-playmygame.',
+  },
+  {
+    id: 'D-03',
+    title: 'Post to r/WebGames',
+    owner: 'Han',
+    status: 'todo',
+    section: 'order',
+    note: 'Only after D-02’s numbers are read. Follow the sub’s rules; link tagged ?src=reddit-webgames.',
+  },
+  {
+    id: 'D-04',
+    title: 'Post to r/TowerDefense',
+    owner: 'Han',
+    status: 'todo',
+    section: 'order',
+    note: 'Only after D-03’s numbers are read. Follow the sub’s rules; link tagged ?src=reddit-towerdefense.',
+  },
+  {
+    id: 'D-06',
+    title: 'The gate: read each link, call go or no-go',
+    owner: 'Han',
+    status: 'todo',
+    section: 'order',
+    note: 'This round’s bar is the first session, read per link: started a match, finished it, started a second one, and the rating. Day-1 returns are noted; day-7 is not the bar yet, because no progress is saved between visits. Gate 2 keeps its day-1 and day-7 bar. Friends-only signal is not enough to go.',
+  },
   {
     id: 'g1-render',
     title: 'Render on Starter for the evening',
@@ -169,9 +255,9 @@ const items: ProgressItem[] = [
     id: 'P2-01b',
     title: 'Phone build and upgrade fix',
     owner: 'Both',
-    status: 'in_progress',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client. Han’s request in #57 was misread: one tap in the build ring builds (no “tap again”), a hold previews the range and stats without building, and the gold ↑ tags on towers are gone (tap the tower, then Upgrade). Han tests the preview on his phone before merging.',
+    note: 'Client. Han’s request in #57 was misread: one tap in the build ring builds (no “tap again”), a hold previews the range and stats without building, and the gold ↑ tags on towers are gone (tap the tower, then Upgrade). Merged.',
     proof: pr(82),
   },
   {
@@ -214,17 +300,10 @@ const items: ProgressItem[] = [
     id: 'P2-04c',
     title: 'Meteors you can see falling',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client. Meteor, Meteor Rain and Shockwave drop visible meteors about half a second before each pulse onto the creeps it will strike, over a red warning circle, with a red wash and sky meteors at the cast, a bigger finale and a falling whistle. Same kills and timing. Waiting on Han trying the preview on his phone. Built by Claude Code.',
-  },
-  {
-    id: 'P2-05',
-    title: 'Retest',
-    owner: 'Han',
-    status: 'todo',
-    section: 'playtest2',
-    note: 'Han retests after Playtest 2 tasks P2-01 through P2-04b.',
+    note: 'Client. Meteor, Meteor Rain and Shockwave drop visible meteors about half a second before each pulse onto the creeps it will strike, over a red warning circle, with a red wash and sky meteors at the cast, a bigger finale and a falling whistle. Same kills and timing. Merged. Built by Claude Code.',
+    proof: pr(88),
   },
   {
     id: 'P2-06',
@@ -257,9 +336,10 @@ const items: ProgressItem[] = [
     id: 'P2-09',
     title: 'Calm battle sound',
     owner: 'Both',
-    status: 'in_progress',
+    status: 'done',
     section: 'playtest2',
-    note: 'Client audio only, protocol stays 19. A friend on 8 Oct: the music is great but tower and hero attacks sound like a car workshop. Measured and fixed: the room reverb is the same at every sample rate and 14 dB quieter; tower shots, creep deaths and coins share one budget (half the plays), shots at half their level, deaths and coins at 0.7, your hero’s attacks and Q / W a quarter louder; the Frost shot loses its bell, the coin is one soft clink, the Warden’s hit is a thud. In late waves the effects sit 11 dB under the music instead of 3. Sliders unchanged. Han listens to the preview on his phone before merging. Built by Claude Code.',
+    note: 'Client audio only, protocol stays 19. A friend on 8 Oct: the music is great but tower and hero attacks sound like a car workshop. Measured and fixed: the room reverb is the same at every sample rate and 14 dB quieter; tower shots, creep deaths and coins share one budget (half the plays), shots at half their level, deaths and coins at 0.7, your hero’s attacks and Q / W a quarter louder; the Frost shot loses its bell, the coin is one soft clink, the Warden’s hit is a thud. In late waves the effects sit 11 dB under the music instead of 3. Sliders unchanged. Merged 9 Oct 2026. Built by Claude Code.',
+    proof: pr(96),
   },
   {
     id: 'H-01',
@@ -274,9 +354,10 @@ const items: ProgressItem[] = [
     id: 'H-02',
     title: 'Confirm the hook-test server',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'han',
-    note: 'In Render, check tgt-td-spike is Live and copy its address. /health should show shard H. On 30 Sep the public URL returned 404.',
+    note: 'No longer needed: the hook is on main (SL-04) and the tgt-td-spike service is deleted.',
+    proof: { label: 'Not needed, 9 Oct 2026', href: `${REPO}/blob/main/TASKS.md` },
   },
   {
     id: 'H-03',
@@ -307,17 +388,19 @@ const items: ProgressItem[] = [
     id: 'H-06',
     title: 'Give the team GitHub access',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'han',
-    note: 'Write access for branches and pull requests. Merging stays with Han.',
+    note: 'Done: the team opens and merges pull requests (auto-merge once CI is green).',
+    proof: { label: 'Han', href: `${REPO}/blob/main/TASKS.md` },
   },
   {
     id: 'H-07',
     title: 'Privacy contact email',
     owner: 'Han',
-    status: 'todo',
+    status: 'done',
     section: 'han',
-    note: 'Before the Reddit posts: replace the marked placeholder on privacy.html with the address players write to for a copy or deletion of their play data (D-07). The server already prunes events.jsonl to 30 days (PR #75).',
+    note: 'Done 9 Oct 2026: towerdefensetogether@gmail.com is a mailto link on privacy.html, for a copy or deletion of a player’s play data (D-07). The placeholder is gone. The server already prunes events.jsonl to 30 days (PR #75).',
+    proof: pr(98),
   },
   {
     id: 'D-01',
@@ -379,7 +462,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'discovery',
-    note: 'Client only, no protocol change. A plain-language page at /privacy.html (what is collected and why, no accounts or third-party trackers, 30 days, deletion by email), linked from the lobby, the rating control and Settings; the note box asks for no personal details; Settings → Play data turns analytics off for this browser (off by default with Global Privacy Control or Do Not Track). The email is H-07.',
+    note: 'Client only, no protocol change. A plain-language page at /privacy.html (what is collected and why, no accounts or third-party trackers, 30 days, deletion by email), linked from the lobby, the rating control and Settings; the note box asks for no personal details; Settings → Play data turns analytics off for this browser (off by default with Global Privacy Control or Do Not Track). The email came with H-07.',
     proof: pr(74),
   },
   {
@@ -392,44 +475,12 @@ const items: ProgressItem[] = [
     proof: pr(77),
   },
   {
-    id: 'D-02',
-    title: 'Post to r/PlayMyGame',
-    owner: 'Han',
-    status: 'todo',
-    section: 'discovery',
-    note: 'Follow the sub’s rules. One clear link, with the channel tag.',
-  },
-  {
-    id: 'D-03',
-    title: 'Post to r/incremental_games',
-    owner: 'Han',
-    status: 'todo',
-    section: 'discovery',
-    note: 'Only if the pitch fits. Follow the sub’s rules and use the channel tag.',
-  },
-  {
-    id: 'D-04',
-    title: 'Post to r/cozygames',
-    owner: 'Han',
-    status: 'todo',
-    section: 'discovery',
-    note: 'Only if the pitch fits. Follow the sub’s rules and use the channel tag.',
-  },
-  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
     status: 'todo',
     section: 'discovery',
-    note: 'Same work as Gate 2 g2-launch. Before or alongside store submission, not instead of polish.',
-  },
-  {
-    id: 'D-06',
-    title: 'Review channels and call go or no-go',
-    owner: 'Han',
-    status: 'todo',
-    section: 'discovery',
-    note: 'Playtime, retention, and repeats per channel. Friends-only signal is not enough to push stores.',
+    note: 'Same work as Gate 2 g2-launch, on hold with it until D-06 is called. Gate 2 keeps its day-1 and day-7 bar. Not instead of polish.',
   },
   {
     id: 'T-00',
@@ -591,6 +642,22 @@ const items: ProgressItem[] = [
     section: 'earlier',
     note: 'Combo ultimates, a boss shield, and a solo bot ally, behind ?spike=hook. The branch stays unmerged. Meteor Rain, the wave-10 shield and solo practice shipped on main as SL-04.',
     proof: { label: 'Branch (do not merge)', href: `${REPO}/tree/claude/loving-hawking-7fvsu7` },
+  },
+  {
+    id: 'L-01',
+    title: 'A bot teammate in solo',
+    owner: 'Team',
+    status: 'todo',
+    section: 'after',
+    note: 'A lone player gets a bot hero on another lane, so combos happen without a friend. Builds on the practice ally and needs a balance run. On hold until D-06 passes.',
+  },
+  {
+    id: 'L-02',
+    title: 'Progress saved in the browser',
+    owner: 'Team',
+    status: 'todo',
+    section: 'after',
+    note: 'For example stars per hero, mode and difficulty. No accounts. After L-01; on hold until D-06 passes.',
   },
   {
     id: 'p6a-db',
@@ -847,12 +914,12 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '2 Oct 2026',
-  protocol: 17,
+  asOf: '9 Oct 2026',
+  protocol: 19,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
-  nextGate: 'Gate 2',
-  nextGateDetail: 'Public soft launch',
+  nextGate: 'D-06',
+  nextGateDetail: 'Soft launch go / no-go, read per link',
   phases: [
     { id: '1', title: 'Solo', state: 'done' },
     { id: '2', title: 'Online', state: 'done' },

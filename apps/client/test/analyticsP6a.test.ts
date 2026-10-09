@@ -62,7 +62,7 @@ describe('crash reports', () => {
   });
 
   it('trims stacks, drops hosts and query strings, and names the browser family', () => {
-    expect(shortenUrls('at f (https://tgt-td-cld.vercel.app/assets/index-ab12.js?src=reddit-cozy#x:1:20)')).toBe('at f (assets/index-ab12.js)');
+    expect(shortenUrls('at f (https://tgt-td-cld.vercel.app/assets/index-ab12.js?src=reddit-webgames#x:1:20)')).toBe('at f (assets/index-ab12.js)');
     expect(shortenUrls('f@https://host.example/assets/a.js:3:9')).toBe('f@assets/a.js:3:9');
     expect(shortenUrls('Failed to fetch https://host/?room=AB12')).toBe('Failed to fetch /');
     const stack = ['Error: boom', ...Array.from({ length: 20 }, (_, i) => `    at fn${i} (https://h/assets/a.js:${i}:1)`)].join('\n');

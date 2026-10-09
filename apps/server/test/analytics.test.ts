@@ -30,6 +30,15 @@ describe('parseAnalyticsEvent', () => {
     expect(parseAnalyticsEvent(null)).toBeNull();
   });
 
+  it('accepts the link tags, Friends and Cold test among them, and no other channel', () => {
+    for (const channel of ['friends', 'cold', 'reddit-playmygame', 'reddit-webgames', 'reddit-towerdefense', 'crazygames', 'other', 'direct']) {
+      expect(parseAnalyticsEvent({ ...base, t: 'session_start', channel })).toMatchObject({ channel });
+    }
+    for (const channel of ['reddit-incremental', 'reddit-cozy', 'webgames', 'Friends', '']) {
+      expect(parseAnalyticsEvent({ ...base, t: 'session_start', channel })).toBeNull();
+    }
+  });
+
   it('accepts a 1–5 rating and a short note, and a match result', () => {
     expect(parseAnalyticsEvent({ ...base, t: 'feedback', rating: 5, comment: '  nice\nwave ' })).toMatchObject({
       rating: 5,
@@ -320,16 +329,16 @@ describe('analytics HTTP', () => {
     const { http } = await up('top-secret');
     expect((await fetch(`${http}/analytics`)).status).toBe(401);
     expect((await fetch(`${http}/analytics?key=nope`)).status).toBe(401);
-    expect((await post(http, { ...base, t: 'session_start', channel: 'reddit-cozy', platform: 'ios' })).status).toBe(204);
+    expect((await post(http, { ...base, t: 'session_start', channel: 'reddit-towerdefense', platform: 'ios' })).status).toBe(204);
     expect(
       (
         await post(http, {
           ...base,
           t: 'feedback',
-          channel: 'reddit-cozy',
+          channel: 'reddit-towerdefense',
           platform: 'ios',
           rating: 4,
-          comment: 'cozy run',
+          comment: 'great run',
         })
       ).status,
     ).toBe(204);
@@ -339,15 +348,34 @@ describe('analytics HTTP', () => {
     expect(html.headers.get('content-type')).toContain('text/html');
     const page = await html.text();
     expect(page).toContain('Roll out or pivot');
-    expect(page).toContain('r/cozygames');
-    expect(page).not.toContain('cozy run');
+    expect(page).toContain('r/TowerDefense');
+    expect(page).toContain('By link');
+    expect(page).not.toContain('great run');
     expect(page).not.toContain('top-secret');
 
     const json = await fetch(`${http}/analytics/summary`, { headers: { 'x-analytics-key': 'top-secret' } });
     expect(json.status).toBe(200);
-    const summary = (await json.json()) as { feedback: { count: number; comments: number }; platforms: { platform: string; sessions: number }[] };
+    const summary = (await json.json()) as {
+      feedback: { count: number; comments: number };
+      platforms: { platform: string; sessions: number }[];
+      funnel: { byChannel: { channel: string; newPlayers: number; steps: { stage: string; reached: number; share: number }[] }[] };
+    };
     expect(summary.feedback).toMatchObject({ count: 1, comments: 1 });
     expect(summary.platforms.find((row) => row.platform === 'ios')!.sessions).toBe(1);
-    expect(JSON.stringify(summary)).not.toContain('cozy run');
+    // The per-link funnel: one new player from r/TowerDefense who has not started a match yet.
+    expect(summary.funnel.byChannel).toEqual([
+      {
+        channel: 'reddit-towerdefense',
+        label: 'r/TowerDefense',
+        newPlayers: 1,
+        steps: [
+          { stage: 'match_start', label: 'Started a match', reached: 0, share: 0 },
+          { stage: 'wave_5', label: 'Reached wave 5', reached: 0, share: 0 },
+          { stage: 'match_end', label: 'Finished a match (won or lost)', reached: 0, share: 0 },
+          { stage: 'second_match', label: 'Started a second match', reached: 0, share: 0 },
+        ],
+      },
+    ]);
+    expect(JSON.stringify(summary)).not.toContain('great run');
   });
 });

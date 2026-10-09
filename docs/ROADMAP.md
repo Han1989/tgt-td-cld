@@ -1,6 +1,6 @@
 # Tower Defense Together: Roadmap
 
-**As of 2 Oct 2026.** Vision and locked decisions are copied from [`HANDOVER.md`](../HANDOVER.md) §2. Phase order and status follow [`TASKS.md`](../TASKS.md), which is the tracker. Design detail stays in [`GAME_DESIGN.md`](GAME_DESIGN.md). Do not treat this file as a second design bible.
+**As of 9 Oct 2026** (the roadmap's copy of 9 Oct 2026, 10:35). Vision and locked decisions are copied from [`HANDOVER.md`](../HANDOVER.md) §2. Phase order and status follow [`TASKS.md`](../TASKS.md), which is the tracker. Design detail stays in [`GAME_DESIGN.md`](GAME_DESIGN.md). Do not treat this file as a second design bible.
 
 ## Vision
 
@@ -8,7 +8,11 @@
 
 **Business target:** a few thousand loyal players and about **US$2k a month** from a fair model, not millions of free players. The reference points are Legion TD 2 and Bloons: a small loyal community, cosmetics, a season pass, fair purchases. Han may sell the game later, so everything in it has to be original or properly licensed.
 
-**Where the build is:** Phases 1–3 are done. Phase 4a (mobile) and the Phase 4b polish list **T-00–T-05** are done (CI, Hard, pings, the first-match tutorial, projectile and trap art, these docs). Real-device checks (`docs/MOBILE_TESTING.md`, H-05) and the optional app-store wrap (Phase 4c) are still open. Tower branches (Phase 5 §1), lane surges and match modifiers are in. More maps are not. **Gate 1 (friends playtest) passed on 2 Oct 2026** (Android, PC, iPhone Safari), so Phase 6 may proceed and is not started. Playtest 2 work orders are open. Discovery D-02–D-06 and Gate 2 are the public soft-launch path and are still open. The same picture is on the site at `/?progress` ([`docs/PROGRESS.md`](PROGRESS.md); production: https://tgt-td-cld.vercel.app/?progress). `TASKS.md` stays the tracker.
+**Where the build is:** Phases 1–3 are done. Phase 4a (mobile) and the Phase 4b polish list **T-00–T-05** are done (CI, Hard, pings, the first-match tutorial, projectile and trap art, these docs). Real-device checks (`docs/MOBILE_TESTING.md`, H-05) and the optional app-store wrap (Phase 4c) are still open. Tower branches (Phase 5 §1), lane surges and match modifiers are in. More maps are not. **Gate 1 (friends playtest) passed on 2 Oct 2026** (Android, PC, iPhone Safari). Playtest 2's work orders are done but the retest.
+
+**The plan from 8 Oct 2026 (Han).** Before any Reddit post: friends retest the new phone controls on the link tagged `?src=friends` (P2-05), then three to five people who have never seen the game play it with no help on `?src=cold` (the cold test, H-09; two of them bring a friend; the bar is that they finish a first match unaided and at least half start another). One fix round follows, with the rebalance that ends the "provisional until Playtest 3" balance bounds (T-07). Then the first post, r/PlayMyGame only (D-02), then r/WebGames (D-03) and r/TowerDefense (D-04) one at a time, each only after the previous post's numbers are read, then the gate (D-06). D-06's bar for this round is the first session, read per link: started a match, finished it, started a second one, and the rating; day-1 returns are noted, and day-7 is not the bar yet, because no progress is saved between visits. Gate 2 (CrazyGames) keeps its day-1 and day-7 bar. The measurement for it (link tags and a funnel per link, D-09) is in, and the numbers survive a sleep or a deploy (Render Starter with a disk, H-08, 9 Oct 2026).
+
+**On hold (Han, 8 Oct 2026):** nothing in Phase 6 or later, and no new feature, starts before D-06 is called; bug fixes and the rows above are the only work. While a post is live, no merge changes the sim or the protocol, because each one restarts the game server. **After D-06 passes** (Han, 9 Oct 2026), in this order: a bot teammate in solo (L-01: a lone player gets a bot hero on another lane, so combos happen without a friend), progress saved in the browser (L-02: for example stars per hero, mode and difficulty; no accounts), then Phase 6a. No matchmaking yet: too few players for a queue, and the room link is how friends join. The same picture is on the site at `/?progress` ([`docs/PROGRESS.md`](PROGRESS.md); production: https://tgt-td-cld.vercel.app/?progress). `TASKS.md` stays the tracker.
 
 ## Locked decisions
 
@@ -50,13 +54,15 @@ The hook-test branch `claude/loving-hawking-7fvsu7` (combo ultimates, boss shiel
 | **4c · App stores** | Capacitor wrap of the same web build | Not started (Phase 9 does the store release) |
 | **5 · Replayability** | Tower branches; lane surges, match modifiers, more maps (`docs/REPLAYABILITY.md`) | Branches, lane surges and match modifiers are done. More maps are backlog |
 | **Gate 1 · Friends** | 2–3 friends, saved match reports, unprompted "play again" | **Passed 2 Oct 2026.** Friends played on Android, PC, and iPhone Safari (g1-render, g1-play, g1-watch, g1-tune, g1-gate) |
-| **Playtest 2** | Touch controls, air waves and unspent gold, kit rework and sim balance, ultimate presentation, retest | Open. Work orders P2-01–P2-05 in `TASKS.md` |
-| **Discovery** | Reddit posts and CrazyGames Basic Launch; playtime, D1/D7, repeat visits by channel (`docs/ANALYTICS.md`) | Measurement (D-01) is in. Posts and the go/no-go are Han (D-02–D-06), still open. Public soft-launch path with Gate 2 |
-| **6a · Accounts** | Guest play, then Google / Apple / email; progress, currencies and inventory on the server; analytics and privacy | Unblocked 2 Oct 2026 (Gate 1 passed). Not started |
-| **6b · Clans** | Clans of 3, party queue, quick-chat only | Unblocked 2 Oct 2026 (Gate 1 passed). Not started |
-| **6c · Loot** | Combo ultimates (rebuilt, not the spike branch), raid bosses, team set gear, difficulty tiers, AFK camp | Unblocked 2 Oct 2026 (Gate 1 passed). Not started |
-| **6d · Competition** | Weekly seeded challenge, regional and world leaderboards, clan challenges, weekend clan wars | Unblocked 2 Oct 2026 (Gate 1 passed). Not started |
-| **Gate 2 · Soft launch** | CrazyGames Basic Launch, no monetisation yet. About 25–30% back the next day and 7–8% after a week | After polish, with the Reddit posts. Han calls the gate |
+| **Playtest 2** | Touch controls, air waves and unspent gold, kit rework and sim balance, ultimate presentation, tower repair, phone controls, start-up watchdog, calm battle sound, retest | Work orders P2-01–P2-09 done. The retest with friends (P2-05, `?src=friends`) is step 3 of the order in `TASKS.md` → Now |
+| **Cold test and fix round** | Three to five people who have never seen the game, no help, `?src=cold` (H-09); then one fix round with the rebalance (T-07) | Next, after the retest |
+| **Discovery** | Reddit posts one at a time: r/PlayMyGame, r/WebGames, r/TowerDefense; playtime, D1/D7, repeat visits and a first-visit funnel per link (`docs/ANALYTICS.md`) | Measurement is in (D-01, D-09) and survives deploys (H-08). Posts and the gate are Han (D-02–D-04, D-06), after the fix round. D-06 reads the first session per link |
+| **Later · after D-06 passes** | A bot teammate in solo (L-01), progress saved in the browser (L-02), then Phase 6a. No matchmaking yet | On hold until D-06 passes (Han, 9 Oct 2026) |
+| **6a · Accounts** | Guest play, then Google / Apple / email; progress, currencies and inventory on the server; analytics and privacy | On hold until D-06 is called (Han, 8 Oct 2026), then after L-01 and L-02. Analytics and privacy basics are done; accounts not started |
+| **6b · Clans** | Clans of 3, party queue, quick-chat only | On hold until D-06 is called (Han, 8 Oct 2026). Not started |
+| **6c · Loot** | Combo ultimates (rebuilt, not the spike branch), raid bosses, team set gear, difficulty tiers, AFK camp | On hold until D-06 is called (Han, 8 Oct 2026). Combos are done; the rest is not started |
+| **6d · Competition** | Weekly seeded challenge, regional and world leaderboards, clan challenges, weekend clan wars | On hold until D-06 is called (Han, 8 Oct 2026). Not started |
+| **Gate 2 · Soft launch** | CrazyGames Basic Launch, no monetisation yet. About 25–30% back the next day and 7–8% after a week | On hold until D-06 is called. Keeps its day-1 and day-7 bar. Han calls the gate |
 | **7 · Monetisation** | Cosmetics, season pass, forge spins (odds shown, pity, no trading), CrazyGames purchases, optional rewarded ads in solo only | After Gate 2 |
 | **8 · Live PvP** | 3v3 send-creeps, then a paid-only hero brawl (Brawl Pass). Gear equalised, bots fill seats | Last, after the co-op live game |
 | **9 · Reach** | Steam wishlists, then App Store and Google Play. Store-facing build leads with 1p and 2p; 3p stays the community flagship | Only after Discovery shows strangers stay |
@@ -65,6 +71,9 @@ Backlog, not scheduled: more maps (Phase 5), and whether Quick is the default on
 
 ## What not to start
 
+- Anything in Phase 6 or later, and any new feature, before D-06 is called (Han, 8 Oct 2026). Bug fixes and the order in `TASKS.md` → Now are the only work.
+- A merge that changes the sim or the protocol while a Reddit post is live: each one restarts the game server.
+- Matchmaking: too few players for a queue; the room link is how friends join (Han, 9 Oct 2026).
 - Monetisation, prices or odds before Gate 2, and not without Han.
 - Store submission before the discovery go/no-go (D-06). Friends-only playtests are not that signal.
 - A merge of `claude/loving-hawking-7fvsu7`.

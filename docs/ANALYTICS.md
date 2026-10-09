@@ -4,7 +4,7 @@ One page on the game server so Han can judge **roll out vs pivot**: are stranger
 
 Local solo with no `VITE_SERVER_URL` sends nothing. The Vercel build (online lobby, including **Play solo offline**) does, because that build knows the server.
 
-Players can read what is sent at **`/privacy.html`**, turn it off for their browser, and download or delete what the server holds for it themselves (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). Nothing is sent before a one-time age question, and nothing ever under 13 ([Age](#age)). Before the Reddit posts, put the privacy contact email on that page (`TASKS.md` H-07).
+Players can read what is sent at **`/privacy.html`**, turn it off for their browser, and download or delete what the server holds for it themselves (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). Nothing is sent before a one-time age question, and nothing ever under 13 ([Age](#age)). Requests by email go to the address on that page, towerdefensetogether@gmail.com (`TASKS.md` H-07).
 
 ## Open the dashboard
 
@@ -47,22 +47,26 @@ There is no database and no paid add-on required. Without a disk, do not read D1
 
 ## Tag the links
 
-Put this on the URL Han posts. It wins over the referrer and over `utm_source` / `utm_campaign`.
+Put this on the URL Han posts or sends. It wins over the referrer and over `utm_source` / `utm_campaign`.
 
-| Where | URL |
-|---|---|
-| r/PlayMyGame | `https://<vercel-app>/?src=reddit-playmygame` |
-| r/incremental_games | `https://<vercel-app>/?src=reddit-incremental` |
-| r/cozygames | `https://<vercel-app>/?src=reddit-cozy` |
-| CrazyGames | `https://<vercel-app>/?src=crazygames` |
+| Where | Label | URL |
+|---|---|---|
+| Friends retest (P2-05) | Friends | `https://<vercel-app>/?src=friends` |
+| Cold test (H-09) | Cold test | `https://<vercel-app>/?src=cold` |
+| r/PlayMyGame | r/PlayMyGame | `https://<vercel-app>/?src=reddit-playmygame` |
+| r/WebGames | r/WebGames | `https://<vercel-app>/?src=reddit-webgames` |
+| r/TowerDefense | r/TowerDefense | `https://<vercel-app>/?src=reddit-towerdefense` |
+| CrazyGames | CrazyGames | `https://<vercel-app>/?src=crazygames` |
 
-`utm_source` or `utm_campaign` with the same id also works, plus the aliases `playmygame`, `incremental_games`, `cozygames` and `crazygames` (a trailing `-` or `_` suffix is fine, e.g. `playmygame-sept`).
+The order they are used in (Han, 8 Oct 2026, `TASKS.md` → Now): friends, the cold test, then r/PlayMyGame, r/WebGames and r/TowerDefense one at a time, each after the previous post's numbers are read; CrazyGames with Gate 2.
+
+`utm_source` or `utm_campaign` with the same id also works, plus the aliases `friend`, `coldtest`, `playmygame`, `webgames`, `web-games`, `towerdefense`, `tower-defense` and `crazygames`, and `r/playmygame`, `r/webgames`, `r/towerdefense` (any case; a trailing `-` or `_` suffix is fine, e.g. `playmygame-sept`, `friends-oct`, `cold-test`). The client list (`apps/client/src/analytics/channel.ts`) and the server list (`apps/server/src/analytics/channels.ts`) are the same; the server drops events, stored ones included, whose channel it does not know. The old `reddit-incremental` and `reddit-cozy` tags are gone (nothing was ever posted with them); a link that still has one counts as **Other**.
 
 **Reddit's referrer is only `reddit.com`.** It does not name the subreddit, so a link without `?src=` lands in **Other** (or keeps a channel saved from an earlier tagged visit). Use the query param.
 
 A visit whose referrer host is `crazygames.com` (or a subdomain) counts as CrazyGames even without `?src=`. Set the portal URL with `?src=crazygames` anyway, in case the frame omits the referrer.
 
-Anything else with a referrer is **Other**. No referrer and no tag is **Direct**. A later visit with no tag keeps the last saved acquisition channel (`reddit-*` or CrazyGames) in `localStorage`. `?src=direct` or `?src=other` clears that.
+Anything else with a referrer is **Other**. No referrer and no tag is **Direct**. A later visit with no tag keeps the last saved acquisition channel (Friends, Cold test, `reddit-*` or CrazyGames) in `localStorage`. `?src=direct` or `?src=other` clears that. Opening a tagged link yourself to check it saves that channel in your browser: open `?src=direct` afterwards, so your own visits stay out of that row.
 
 ## What each panel means
 
@@ -73,7 +77,7 @@ The page is the last 30 days unless a panel says otherwise. Times are UTC. To se
 - **D1 / D7 / D30** — of the browsers whose first visit was at least 1, 7 or 30 UTC days ago, the share that started a session exactly 1, 7 or 30 UTC days after the first one. It covers first visits in the last 90 days (the cohort counts, see [Retention](#retention)), not just the 30-day event window, so a Reddit post's cohort keeps its D30 after day 30. Today's returns count as they come, so the newest cohort climbs during the day. `—` means the cohort is empty (nobody has had that long yet, or the log was wiped).
 - **By first visit** — per UTC day: new browsers, and D1 / D7 / D30 for that day's cohort ("not yet" until it is old enough). A post day stands out.
 
-A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an account. Clearing site data looks like a new person. Gate 2's bar, once a channel has dozens of visitors, is about 25–30% back the next day and 7–8% after a week, compared across Reddit and CrazyGames. The page shows the rates; it does not paint pass or fail.
+A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an account. Clearing site data looks like a new person. Gate 2's bar, once a channel has dozens of visitors, is about 25–30% back the next day and 7–8% after a week, compared across Reddit and CrazyGames. The Reddit round's gate (D-06, `TASKS.md`) reads the first session per link instead (**By link**, below): day-1 returns are noted there, and day-7 is not the bar yet, because no progress is saved between visits. The page shows the rates; it does not paint pass or fail.
 
 **Where new players stop.** New players are browsers whose first session is in the 30-day window (the retention table says which session was first). For each step, how many did it **in that first session**, as a share of those who opened the game, and how many **stopped** there (it was the furthest step they reached). The yellow line names the step most stopped after, the last one aside.
 
@@ -86,7 +90,11 @@ A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an acco
 | Finished a match (won or lost) | `match_end` |
 | Started a second match | a second `match_start` in the same session |
 
-A loss at wave 4 reaches "Finished a match" but not "Reached wave 5"; it stops at "Finished". Below it, **First-match lesson (solo)**: how many first sessions reached each lesson card (`tutorial_move` … `tutorial_emote`), finished it (`tutorial_done`) or skipped it (`tutorial_skip`, the card's Skip or the solo pick's Skip lesson). Online rooms never run the lesson.
+A loss at wave 4 reaches "Finished a match" but not "Reached wave 5"; it stops at "Finished".
+
+**By link.** Under the funnel, a table with one row per channel that has new players, by the channel of their **first** session (a later visit from another link does not move them): new players, then how many started a match, reached wave 5, finished a match and started a second match in that first visit, each as a count and as a share of that channel's new players. A channel with no new players has no row. `/analytics/summary` has the same numbers under `funnel.byChannel` (`newPlayers`, then `steps` with `reached` and `share`, 0–1). So Han's own visits, friends, cold testers and each post are read apart: the D-06 gate reads this table and each channel's rating, and the cold test's bar (H-09) is the Cold test row (finished a match, and at least half started a second).
+
+Below it, **First-match lesson (solo)**: how many first sessions reached each lesson card (`tutorial_move` … `tutorial_emote`), finished it (`tutorial_done`) or skipped it (`tutorial_skip`, the card's Skip or the solo pick's Skip lesson). Online rooms never run the lesson.
 
 **Reaction.** Ratings are 1–5 from the end screen (4–5 positive, 3 mixed, 1–2 negative). Notes are optional, at most 140 characters. The page shows how many notes were left, not the text. The text is only in `events.jsonl`. Under five ratings, the page says to use match results as well: wins, losses, average Heart HP left on a win, average wave on a loss. Those come from the client when the match ends, including when nobody rates.
 
