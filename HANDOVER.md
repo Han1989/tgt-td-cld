@@ -110,7 +110,7 @@ The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish ite
 4. **Han's list:** H-01 is done (Vercel Authentication Disabled on tgt-td-cld, Han confirmed 1 Oct 2026). H-04 is done (lobby, match, and boss music, PR #42). H-02, H-03, H-05, and H-06 stay open: the hook-test server, trying the hook test, the iPhone checklist, and GitHub access.
 5. **Phase 6 may proceed** (accounts, clans, loot, leaderboards). Those tasks are not started. Kit rework and sim balance from the friends session is Playtest 2 (P2-03).
 6. **Discovery and rollout** (plan in `TASKS.md`) is the public soft-launch path and is still open. Before or alongside store submission, put the polished build in front of **strangers** and measure response:
-   - Reddit: **r/PlayMyGame**, **r/incremental_games**, **r/cozygames**
+   - Reddit, one post at a time: **r/PlayMyGame**, then **r/WebGames**, then **r/TowerDefense** (Han's plan of 8 Oct 2026: a friends retest and a cold test come first; `TASKS.md` → Now)
    - **CrazyGames Basic Launch** (Gate 2)
    - Per channel, track **average playtime**, **retention** (at least D1 / D7), and **repeat visits**
    - Decide store push vs more polish from that data — friends alone are not the audience test

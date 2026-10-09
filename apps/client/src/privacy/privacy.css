@@ -195,14 +195,6 @@ code {
   margin-top: 4px;
 }
 
-.placeholder {
-  padding: 1px 6px;
-  border-radius: 5px;
-  color: #1a1206;
-  background: var(--gold);
-  font-weight: 700;
-}
-
 .hidden {
   display: none !important;
 }

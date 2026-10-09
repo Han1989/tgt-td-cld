@@ -95,7 +95,12 @@ test('the privacy page fits a phone and its switch turns play data off for this 
   ]) {
     await expect(page.locator('h2', { hasText: heading })).toBeVisible();
   }
-  await expect(page.locator('[data-placeholder="privacy-email"]')).toContainText('PRIVACY EMAIL');
+  const email = page.locator('#privacy-email');
+  await expect(email).toBeVisible();
+  await expect(email).toHaveText('towerdefensetogether@gmail.com');
+  await expect(email).toHaveAttribute('href', 'mailto:towerdefensetogether@gmail.com');
+  await expect(page.locator('[data-placeholder]')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('PRIVACY EMAIL');
 
   // Off until the age question is answered, and no id until something is sent.
   await expect(page.locator('#privacy-off')).toHaveAttribute('aria-pressed', 'true');

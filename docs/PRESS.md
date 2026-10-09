@@ -68,14 +68,18 @@ ffmpeg -ss 00:01:05 -i recording.mov -t 15 -vf "scale=-2:1280" -c:v libx264 -crf
 
 ## 4. Tagged links and checking the card
 
-Every post uses its channel's link (ANALYTICS.md), so the dashboard can tell the channels apart:
+Every post, and every message to testers, uses its channel's link (ANALYTICS.md), so the dashboard can tell the channels apart, and **Where new players stop → By link** gives each its own first-visit funnel:
 
 | Where | Link |
 |---|---|
+| Friends retest (P2-05) | `https://tgt-td-cld.vercel.app/?src=friends` |
+| Cold test (H-09) | `https://tgt-td-cld.vercel.app/?src=cold` |
 | r/PlayMyGame | `https://tgt-td-cld.vercel.app/?src=reddit-playmygame` |
-| r/incremental_games | `https://tgt-td-cld.vercel.app/?src=reddit-incremental` |
-| r/cozygames | `https://tgt-td-cld.vercel.app/?src=reddit-cozy` |
+| r/WebGames | `https://tgt-td-cld.vercel.app/?src=reddit-webgames` |
+| r/TowerDefense | `https://tgt-td-cld.vercel.app/?src=reddit-towerdefense` |
 | CrazyGames | `https://tgt-td-cld.vercel.app/?src=crazygames` |
+
+**The order (Han, 8 Oct 2026; `TASKS.md` → Now → The order from here):** the friends retest on the friends link, the cold test on the cold link (three to five people who have never seen the game, no help), one fix round, then the first post, **r/PlayMyGame only**. r/WebGames and then r/TowerDefense follow one at a time, each only after the previous post's numbers are read. The gate (D-06) reads the first session per link: started a match, finished it, started a second one, and the rating. CrazyGames comes with Gate 2, after D-06. While a post is live, no merge changes the sim or the protocol (each one restarts the game server).
 
 A tagged link shows the same card as the bare URL: the tags are in `index.html` for every query string, the canonical URL is a tag only, and the page never rewrites its address, so `?src=` reaches the analytics (`e2e/platform.spec.ts` and `test/linkPreview.test.ts` check both).
 

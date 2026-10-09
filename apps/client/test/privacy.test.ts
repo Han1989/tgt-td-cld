@@ -129,7 +129,7 @@ describe('your data: copy and delete', () => {
   });
 
   it('deletes on the server first, then the id, key and channel here', async () => {
-    const store = memory({ [DATA_KEY_KEY]: KEY, [VISITOR_KEY]: visitorFromKey(KEY), [CHANNEL_KEY]: 'reddit-cozy', 'tdt.name': 'Kim' });
+    const store = memory({ [DATA_KEY_KEY]: KEY, [VISITOR_KEY]: visitorFromKey(KEY), [CHANNEL_KEY]: 'reddit-webgames', 'tdt.name': 'Kim' });
     const calls: Call[] = [];
     let cleared = 0;
     const result = await deleteMyData(server, store, () => cleared++, fakeFetch(200, { visitor: 'x', removedEvents: 3 }, calls));

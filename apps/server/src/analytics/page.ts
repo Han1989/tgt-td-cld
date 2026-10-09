@@ -1,6 +1,7 @@
 // One HTML page. No scripts, no external assets. Numbers come from summarize().
 
 import type { ErrorGroup } from './errors';
+import { CHANNEL_FUNNEL, type ChannelFunnelStage } from './funnel';
 import type { MatchRow } from './matches';
 import { DAY_MS } from './retention';
 import type { AnalyticsSummary, Ratio } from './summary';
@@ -21,6 +22,14 @@ function esc(value: string): string {
     }
   });
 }
+
+/** Short column heads for the per-link funnel, so the table fits a phone. */
+const CHANNEL_STEP_HEADS: Record<ChannelFunnelStage, string> = {
+  match_start: 'Started',
+  wave_5: 'Wave 5',
+  match_end: 'Finished',
+  second_match: '2nd match',
+};
 
 export function formatDuration(ms: number | null): string {
   if (ms === null || !Number.isFinite(ms)) return '—';
@@ -148,6 +157,22 @@ export function renderDashboard(summary: AnalyticsSummary, options: DashboardOpt
   const stopLine = biggest
     ? `<p class="warn">Most new players stop after <b>${esc(biggest.label.toLowerCase())}</b> (${biggest.stopped} of ${funnel.newPlayers}).</p>`
     : '<p class="note">No new players in the window yet.</p>';
+  const channelStepHeads = CHANNEL_FUNNEL.map((stage) => `<th>${esc(CHANNEL_STEP_HEADS[stage])}</th>`).join('');
+  const channelFunnelRows = funnel.byChannel
+    .map(
+      (row) =>
+        `<tr><td>${esc(row.label)}</td><td>${row.newPlayers}</td>${row.steps.map((step) => `<td>${step.reached} <span class="note">${pct(step.reached, row.newPlayers)}</span></td>`).join('')}</tr>`,
+    )
+    .join('');
+  const channelFunnel =
+    funnel.byChannel.length === 0
+      ? ''
+      : `<h2 style="margin-top:12px">By link</h2>
+      <div class="scroll"><table class="by-link">
+        <thead><tr><th>First visit</th><th>New</th>${channelStepHeads}</tr></thead>
+        <tbody>${channelFunnelRows}</tbody>
+      </table></div>
+      <p class="note">One row per channel with new players, by the channel of their first visit. Each step (started a match, reached wave 5, finished a match, started a second match): how many did it in that first visit, and their share of the channel’s new players.</p>`;
   const lessonStarted = funnel.lesson[0]?.reached ?? 0;
   const lessonRows = funnel.lesson
     .map(
@@ -224,6 +249,9 @@ export function renderDashboard(summary: AnalyticsSummary, options: DashboardOpt
     .step { grid-template-columns: minmax(96px, 1.3fr) 1fr 30px 36px; font-size: 13px; }
     .step > span:last-child { display: none; }
     .big3 .big { font-size: 22px; }
+    .by-link th, .by-link td { padding: 4px 4px; }
+    .by-link th { white-space: normal; vertical-align: bottom; }
+    .by-link td .note { display: block; font-size: 12px; }
   }
 </style>
 </head>
@@ -252,6 +280,7 @@ export function renderDashboard(summary: AnalyticsSummary, options: DashboardOpt
       <p class="note">${funnel.newPlayers} new players: browsers whose first visit is in the last ${summary.retentionDays} days. What each did in that first visit. “Stopped” is the furthest step they got to.</p>
       ${stopLine}
       ${funnelRows}
+      ${channelFunnel}
       <h2 style="margin-top:12px">First-match lesson (solo)</h2>
       ${lessonStarted === 0 ? '<p class="note">Nobody has started the lesson in a first visit yet. Online rooms do not run it.</p>' : lessonRows}
     </section>

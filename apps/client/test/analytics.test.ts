@@ -9,8 +9,49 @@ const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebK
 const android = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 describe('acquisition channel', () => {
-  it('uses the six channel ids the server accepts', () => {
-    expect(CHANNELS).toEqual(['reddit-playmygame', 'reddit-incremental', 'reddit-cozy', 'crazygames', 'other', 'direct']);
+  it('uses the eight channel ids the server accepts', () => {
+    expect(CHANNELS).toEqual([
+      'friends',
+      'cold',
+      'reddit-playmygame',
+      'reddit-webgames',
+      'reddit-towerdefense',
+      'crazygames',
+      'other',
+      'direct',
+    ]);
+    const server = readFileSync(new URL('../../server/src/analytics/channels.ts', import.meta.url), 'utf8');
+    const list = /export const CHANNELS = \[([^\]]*)\]/.exec(server)![1]!;
+    expect([...list.matchAll(/'([\w-]+)'/g)].map((m) => m[1])).toEqual([...CHANNELS]);
+  });
+
+  it('reads the friends and cold-test tags and their aliases, and remembers them like the Reddit tags', () => {
+    for (const tag of ['friends', 'FRIENDS', 'friend', 'friends-oct', 'friends_round2', 'utm-friends']) {
+      expect(channelFromSearch(`?src=${tag}`, '', null)).toEqual({ channel: 'friends', save: true, clear: false });
+    }
+    for (const tag of ['cold', 'Cold', 'coldtest', 'cold-test', 'cold_test', 'cold-test-2']) {
+      expect(channelFromSearch(`?src=${tag}`, '', null)).toEqual({ channel: 'cold', save: true, clear: false });
+    }
+    expect(channelFromSearch('?utm_campaign=cold-test', '', null)).toMatchObject({ channel: 'cold', save: true });
+    expect(channelFromSearch('?utm_source=friends', '', 'reddit-playmygame')).toMatchObject({ channel: 'friends', save: true });
+    // A later visit with no tag keeps the saved channel, also behind another site's referrer.
+    expect(channelFromSearch('', '', 'friends')).toEqual({ channel: 'friends', save: false, clear: false });
+    expect(channelFromSearch('', 'https://discord.com/', 'cold')).toEqual({ channel: 'cold', save: false, clear: false });
+    expect(channelFromSearch('?src=direct', '', 'cold')).toEqual({ channel: 'direct', save: false, clear: true });
+  });
+
+  it('reads the r/WebGames and r/TowerDefense tags and their aliases, and no longer the old subreddits', () => {
+    for (const tag of ['reddit-webgames', 'webgames', 'web-games', 'r/WebGames', 'webgames-oct', 'reddit-web-games']) {
+      expect(channelFromSearch(`?src=${encodeURIComponent(tag)}`, '', null)).toEqual({ channel: 'reddit-webgames', save: true, clear: false });
+    }
+    for (const tag of ['reddit-towerdefense', 'towerdefense', 'tower-defense', 'r/TowerDefense', 'TowerDefense_oct']) {
+      expect(channelFromSearch(`?src=${encodeURIComponent(tag)}`, '', null)).toEqual({ channel: 'reddit-towerdefense', save: true, clear: false });
+    }
+    for (const tag of ['reddit-incremental', 'reddit-cozy', 'cozygames', 'incremental_games']) {
+      expect(channelFromSearch(`?src=${tag}`, '', 'friends')).toEqual({ channel: 'other', save: false, clear: true });
+    }
+    // An old saved id is not a channel any more.
+    expect(channelFromSearch('', '', 'reddit-cozy')).toEqual({ channel: 'direct', save: false, clear: false });
   });
 
   it('reads ?src= first, then utm, then a crazygames referrer, then a saved channel', () => {
@@ -19,8 +60,8 @@ describe('acquisition channel', () => {
       save: true,
       clear: false,
     });
-    expect(channelFromSearch('?src=REDDIT-COZY', 'https://www.reddit.com/r/cozygames', 'crazygames')).toMatchObject({
-      channel: 'reddit-cozy',
+    expect(channelFromSearch('?src=REDDIT-TOWERDEFENSE', 'https://www.reddit.com/r/TowerDefense', 'crazygames')).toMatchObject({
+      channel: 'reddit-towerdefense',
       save: true,
     });
     expect(resolveChannel({ src: 'nope', utmSource: null, utmCampaign: null, referrer: null, stored: 'crazygames' })).toEqual({
@@ -29,7 +70,7 @@ describe('acquisition channel', () => {
       clear: true,
     });
     expect(channelFromSearch('?utm_campaign=playmygame-sept', '', null)).toMatchObject({ channel: 'reddit-playmygame', save: true });
-    expect(channelFromSearch('?utm_source=crazygames', '', 'reddit-cozy')).toMatchObject({ channel: 'crazygames', save: true });
+    expect(channelFromSearch('?utm_source=crazygames', '', 'reddit-towerdefense')).toMatchObject({ channel: 'crazygames', save: true });
     expect(channelFromSearch('', 'https://games.crazygames.com/game/td', null)).toEqual({
       channel: 'crazygames',
       save: true,
@@ -37,8 +78,8 @@ describe('acquisition channel', () => {
     });
     // Reddit's referrer does not name the subreddit.
     expect(channelFromSearch('', 'https://old.reddit.com/r/PlayMyGame/comments/1', null)).toMatchObject({ channel: 'other', clear: false });
-    expect(channelFromSearch('', 'https://www.reddit.com/', 'reddit-incremental')).toMatchObject({
-      channel: 'reddit-incremental',
+    expect(channelFromSearch('', 'https://www.reddit.com/', 'reddit-webgames')).toMatchObject({
+      channel: 'reddit-webgames',
       save: false,
       clear: false,
     });
@@ -294,9 +335,10 @@ describe('privacy page and links', () => {
     }
   });
 
-  it('marks the contact email as a placeholder until Han adds it', () => {
-    expect(page).toContain('data-placeholder="privacy-email"');
-    expect(page).not.toMatch(/mailto:/);
+  it('shows the contact email as a mailto link, with no placeholder left', () => {
+    expect(page).toContain('<a id="privacy-email" href="mailto:towerdefensetogether@gmail.com">towerdefensetogether@gmail.com</a>');
+    expect([...page.matchAll(/mailto:([^"]+)"/g)].map((m) => m[1])).toEqual(['towerdefensetogether@gmail.com']);
+    expect(page).not.toMatch(/placeholder|PRIVACY EMAIL|TODO/i);
   });
 
   it('describes every field the client can send', () => {

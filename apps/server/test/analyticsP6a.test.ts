@@ -54,7 +54,7 @@ describe('retention: D1, D7 and D30', () => {
       start('visitor-aaaa', 'session-a1b', at(1, 9)),
       start('visitor-aaaa', 'session-a7', at(7)),
       start('visitor-aaaa', 'session-a30', at(30)),
-      start('visitor-bbbb', 'session-b0', at(0), 'reddit-cozy'),
+      start('visitor-bbbb', 'session-b0', at(0), 'reddit-webgames'),
       start('visitor-bbbb', 'session-b2', at(2), 'direct'),
       start('visitor-bbbb', 'session-b8', at(8), 'direct'),
       start('visitor-cccc', 'session-c0', at(29)),
@@ -64,7 +64,7 @@ describe('retention: D1, D7 and D30', () => {
     expect(rates.d7).toEqual({ eligible: 2, returned: 1 });
     expect(rates.d30).toEqual({ eligible: 2, returned: 1 });
     // A later Direct visit still counts for the channel of the first visit.
-    expect(retentionRates(state, at(30, 18), 'reddit-cozy')).toEqual({
+    expect(retentionRates(state, at(30, 18), 'reddit-webgames')).toEqual({
       d1: { eligible: 1, returned: 0 },
       d7: { eligible: 1, returned: 0 },
       d30: { eligible: 1, returned: 0 },
@@ -189,6 +189,57 @@ describe('where new players stop', () => {
 
   it('has no biggest stop with nobody new', () => {
     expect(summarizeFunnel([], new Map()).biggestStop).toBeNull();
+    expect(summarizeFunnel([], new Map()).byChannel).toEqual([]);
+  });
+
+  it('has a row per link with new players, by the channel of the first session', () => {
+    const visit = (visitor: string, session: string, channel: StoredEvent['channel'], steps: string[]): StoredEvent[] => {
+      const on = { visitor, session, channel };
+      const out: StoredEvent[] = [ev({ t: 'session_start', at: 1, ...on }), ev({ t: 'funnel', at: 2, ...on, step: 'lobby' })];
+      let t = 3;
+      for (const step of steps) {
+        if (step === 'start') out.push(ev({ t: 'match_start', at: t++, ...on, ...match }));
+        else if (step === 'end') out.push(ev({ t: 'match_end', at: t++, ...on, ...match, result: 'victory', heartHp: 60, heartMax: 100, wave: 15 }));
+        else out.push(ev({ t: 'funnel', at: t++, ...on, step: step as StoredEvent['step'] }));
+      }
+      return out;
+    };
+    const first = new Map([
+      ['visitor-f001', 'session-f001'],
+      ['visitor-f002', 'session-f002'],
+      ['visitor-c001', 'session-c001'],
+      ['visitor-c002', 'session-c002'],
+      ['visitor-c003', 'session-c003'],
+      ['visitor-c004', 'session-c004'],
+    ]);
+    const events = [
+      // Friends: both play a whole match and start another.
+      ...visit('visitor-f001', 'session-f001', 'friends', ['start', 'wave_3', 'wave_5', 'end', 'start']),
+      ...visit('visitor-f002', 'session-f002', 'friends', ['start', 'wave_3', 'wave_5', 'end', 'start']),
+      // Cold test: one leaves at the lobby, one quits at wave 3, one finishes, one plays two.
+      ...visit('visitor-c001', 'session-c001', 'cold', []),
+      ...visit('visitor-c002', 'session-c002', 'cold', ['start', 'wave_3']),
+      ...visit('visitor-c003', 'session-c003', 'cold', ['start', 'wave_3', 'wave_5', 'end']),
+      ...visit('visitor-c004', 'session-c004', 'cold', ['start', 'wave_3', 'wave_5', 'end', 'start']),
+      // A later visit tagged r/PlayMyGame is not a new player there: no row for it.
+      ...visit('visitor-c003', 'session-c003b', 'reddit-playmygame', ['start', 'end']),
+    ];
+    const funnel = summarizeFunnel(events, first);
+    expect(funnel.newPlayers).toBe(6);
+    const table = funnel.byChannel.map((row) => [row.label, row.newPlayers, ...row.steps.map((step) => [step.reached, step.share])]);
+    expect(table).toEqual([
+      ['Friends', 2, [2, 1], [2, 1], [2, 1], [2, 1]],
+      ['Cold test', 4, [3, 0.75], [2, 0.5], [2, 0.5], [1, 0.25]],
+    ]);
+    expect(funnel.byChannel[0]!.steps.map((step) => step.stage)).toEqual(['match_start', 'wave_5', 'match_end', 'second_match']);
+    // The rows add up to the overall funnel.
+    expect(funnel.rows.find((row) => row.stage === 'match_end')!.reached).toBe(4);
+
+    const page = renderDashboard(summarize(events, 10, live, retentionFromEvents(events)));
+    const byLink = page.slice(page.indexOf('By link'), page.indexOf('</table>', page.indexOf('By link')));
+    expect(byLink).toContain('<td>Cold test</td><td>4</td><td>3 <span class="note">75%</span></td>');
+    expect(byLink).toContain('<td>Friends</td>');
+    expect(byLink).not.toContain('r/PlayMyGame');
   });
 });
 

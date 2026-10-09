@@ -20,13 +20,20 @@ function pick<T>(list: readonly T[]): T {
 
 const now = Date.UTC(2026, 9, 5, 9, 30);
 const weights: [Channel, number][] = [
-  ['reddit-playmygame', 0.34],
-  ['reddit-incremental', 0.12],
-  ['reddit-cozy', 0.14],
-  ['crazygames', 0.24],
-  ['other', 0.06],
+  ['friends', 0.08],
+  ['cold', 0.05],
+  ['reddit-playmygame', 0.3],
+  ['reddit-webgames', 0.12],
+  ['reddit-towerdefense', 0.12],
+  ['crazygames', 0.18],
+  ['other', 0.05],
   ['direct', 0.1],
 ];
+/** How likely a first visit leaves at the lobby, and plays a second match, so the per-link funnel differs. */
+const habits: Partial<Record<Channel, { leave: number; again: number }>> = {
+  friends: { leave: 0.04, again: 0.6 },
+  cold: { leave: 0.3, again: 0.2 },
+};
 function channel(): Channel {
   let r = rand();
   for (const [c, w] of weights) if ((r -= w) <= 0) return c;
@@ -49,11 +56,12 @@ function visit(visitor: string, ch: Channel, at: number, first: boolean): void {
     return;
   }
   push({ t: 'funnel', at: (t += 1500), step: 'lobby' });
-  if (first && rand() < 0.18) {
+  const habit = habits[ch] ?? { leave: 0.18, again: 0.35 };
+  if (first && rand() < habit.leave) {
     push({ t: 'session_end', at: t + 20_000 });
     return;
   }
-  const matches = rand() < 0.35 ? 2 : 1;
+  const matches = rand() < habit.again ? 2 : 1;
   for (let m = 0; m < matches; m++) {
     const players = rand() < 0.7 ? 1 : pick([2, 3]);
     const online = players > 1 || rand() < 0.2;
