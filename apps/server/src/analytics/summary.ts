@@ -1,6 +1,7 @@
-// Turns the event log into the four dashboard panels. Pure: the clock is passed in.
+// Turns the event log (and the anonymous daily counts, counts.ts) into the dashboard panels. Pure: the clock is passed in.
 
 import { CHANNELS, CHANNEL_LABELS, PLATFORMS, PLATFORM_LABELS, type Channel, type Platform } from './channels';
+import { emptyCounts, summarizeBeforeAge, type BeforeAgeSummary, type CountState } from './counts';
 import { summarizeErrors, type ErrorSummary } from './errors';
 import { summarizeFunnel, type FunnelSummary } from './funnel';
 import { summarizeMatches, type MatchBreakdown } from './matches';
@@ -74,6 +75,8 @@ export interface AnalyticsSummary {
   cohortKeepDays: number;
   /** The newest first-visit days, newest first. */
   cohorts: CohortDay[];
+  /** Page opens and failed starts (anonymous counts, sent before the age answer too) next to sessions started. */
+  beforeAge: BeforeAgeSummary;
   funnel: FunnelSummary;
   matches: MatchBreakdown;
   errors: ErrorSummary;
@@ -159,13 +162,15 @@ function closedDuration(session: Session, now: number): { closed: boolean; ms: n
 
 /**
  * `retention` is the store's table (first visits that outlive the 30-day log); without it the table is
- * rebuilt from `events`, which only sees first visits still in the log.
+ * rebuilt from `events`, which only sees first visits still in the log. `counts` is the store's anonymous
+ * daily totals (none when left out).
  */
 export function summarize(
   events: readonly StoredEvent[],
   now: number,
   live: { connectedPlayers: number; persistent: boolean; durable: boolean; dir: string | null },
   retention?: RetentionState,
+  counts: CountState = emptyCounts(),
 ): AnalyticsSummary {
   const recent = events.filter((event) => now - event.at <= RETAIN_MS && event.at <= now + 60_000);
   const table = retention ?? retentionFromEvents(recent);
@@ -303,6 +308,7 @@ export function summarize(
     d30: overall.d30,
     cohortKeepDays: COHORT_KEEP_DAYS,
     cohorts: cohortDays(table, now, 10),
+    beforeAge: summarizeBeforeAge(counts, now, new Map(channels.map((row) => [row.channel, row.sessions]))),
     funnel: summarizeFunnel(recent, firstSessions),
     matches: summarizeMatches(recent),
     errors: summarizeErrors(recent),

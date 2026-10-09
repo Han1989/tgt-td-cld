@@ -1,5 +1,6 @@
 // One HTML page. No scripts, no external assets. Numbers come from summarize().
 
+import type { BeforeAgeSummary } from './counts';
 import type { ErrorGroup } from './errors';
 import { CHANNEL_FUNNEL, type ChannelFunnelStage } from './funnel';
 import type { MatchRow } from './matches';
@@ -95,6 +96,61 @@ function matchTable(title: string, rows: MatchRow[]): string {
     )
     .join('');
   return `<div class="scroll"><table><thead><tr><th>${esc(title)}</th><th>Matches</th><th>Won</th><th>Avg wave</th><th>Avg length</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function share(value: number | null): string {
+  return value === null ? '—' : `${Math.round(value * 100)}%`;
+}
+
+/** A small share keeps one decimal, so a few failed starts do not read as 0%. */
+function smallShare(value: number | null): string {
+  if (value === null) return '—';
+  const pctValue = value * 100;
+  return pctValue > 0 && pctValue < 10 ? `${pctValue.toFixed(1)}%` : `${Math.round(pctValue)}%`;
+}
+
+/** Page opens and failed starts: anonymous counts with no id, the only thing sent before the age answer. */
+function beforeAgePanel(before: BeforeAgeSummary): string {
+  const rows = before.channels
+    .filter((row) => row.opens > 0 || row.sessions > 0)
+    .map((row) => `<tr><td>${esc(row.label)}</td><td>${row.opens}</td><td>${row.sessions}</td><td>${share(row.share)}</td></tr>`)
+    .join('');
+  const total = `<tr><td><b>All links</b></td><td><b>${before.opens}</b></td><td><b>${before.sessions}</b></td><td><b>${share(before.share)}</b></td></tr>`;
+  const reasons = before.failed.byReason
+    .map(
+      (row) =>
+        `<div><b>${row.starts}</b><span class="note">${esc(row.label)}${row.shareOfOpens === null ? '' : ` · ${smallShare(row.shareOfOpens)} of opens`}</span></div>`,
+    )
+    .join('');
+  const failedRows = before.failed.rows
+    .map(
+      (row) =>
+        `<tr><td>${esc(row.label)}</td><td>${esc(row.platformLabel)}</td><td>${esc(row.browserLabel)}</td><td>${row.starts}</td></tr>`,
+    )
+    .join('');
+  const failedTable =
+    failedRows === ''
+      ? '<p class="note">No failed starts counted.</p>'
+      : `<div class="scroll"><table><thead><tr><th>Reason</th><th>Platform</th><th>Browser</th><th>Starts</th></tr></thead><tbody>${failedRows}</tbody></table></div>`;
+  return `<section class="span">
+      <h2>Before the age question</h2>
+      <p class="note">Anonymous counts with no id, last ${before.days} days (UTC; kept ${before.keepDays}). Each load of the game page sends one, before the age answer too, and a start that fails sends its reason once. None with play data off, from a browser that asks not to be tracked, under 13, or from 13 to 15 unless play data was turned on. A session needs the age answer and play data on. <b>An open is a page load, so reloads and returning visitors count again and the share is a floor.</b></p>
+      <div class="stats">
+        <div><b>${before.opens}</b><span class="note">pages opened</span></div>
+        <div><b>${before.sessions}</b><span class="note">sessions started</span></div>
+        <div><b>${share(before.share)}</b><span class="note">sessions per open</span></div>
+        <div><b>${before.failed.starts}</b><span class="note">failed starts</span></div>
+      </div>
+      ${
+        rows === ''
+          ? '<p class="note">No page opens counted yet.</p>'
+          : `<div class="scroll"><table><thead><tr><th>Channel</th><th>Opened</th><th>Sessions</th><th>Share</th></tr></thead><tbody>${rows}${total}</tbody></table></div>`
+      }
+      <h2 style="margin-top:12px">Failed starts</h2>
+      <div class="stats">${reasons}</div>
+      ${failedTable}
+      <p class="note">The start-up watchdog’s reasons, once per page load each: <b>Slow start</b>, still loading after 15 s on screen (the game may start a moment later); <b>No WebGL</b>, the browser could not start the graphics; <b>WebGL lost</b>, the graphics were lost while starting. Browsers whose age is known also send them as crash reports (“Crashes and errors”).</p>
+    </section>`;
 }
 
 function errorItem(group: ErrorGroup): string {
@@ -275,6 +331,7 @@ export function renderDashboard(summary: AnalyticsSummary, options: DashboardOpt
         <tbody>${cohortRows || '<tr><td colspan="5" class="note">No first visits yet.</td></tr>'}</tbody>
       </table></div>
     </section>
+    ${beforeAgePanel(summary.beforeAge)}
     <section class="span">
       <h2>Where new players stop</h2>
       <p class="note">${funnel.newPlayers} new players: browsers whose first visit is in the last ${summary.retentionDays} days. What each did in that first visit. “Stopped” is the furthest step they got to.</p>

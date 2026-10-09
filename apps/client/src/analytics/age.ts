@@ -1,6 +1,8 @@
 // The age check (docs/ANALYTICS.md "Age"): one neutral question, "How old are you?", asked once per browser before
-// any play data is sent. The answer stays in this browser (`tdt.age`) and is never sent. It only decides play data:
-// under 13 nothing is ever sent; 13–15 starts off (the player may turn it on); 16 and over is the usual rule.
+// any play data (anything with an id) is sent; until then only an anonymous count with no id may go (preference.ts
+// `countAllowed`). The answer stays in this browser (`tdt.age`) and is never sent. It only decides what is sent:
+// under 13 nothing more is sent, not even the count; 13–15 starts off (the player may turn it on); 16 and over is
+// the usual rule.
 // Play is never blocked. Pure, except the small storage helpers at the end.
 
 export const AGE_KEY = 'tdt.age';

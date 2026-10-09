@@ -19,7 +19,7 @@
     <main class="privacy">
       <p class="back"><a href="/">← Back to the game</a></p>
       <h1>Privacy</h1>
-      <p class="updated">Tower Defense Together · last updated 5 October 2026</p>
+      <p class="updated">Tower Defense Together · last updated 9 October 2026</p>
 
       <p>
         Tower Defense Together is a free browser game made by an independent developer in Singapore. There are no
@@ -37,13 +37,24 @@
           <li>You can turn it off for this browser at any time (<a href="#choices">below</a>, or in the game: ⚙ Settings → Play data).</li>
           <li>We never sell it or pass it on. Only the game's own server stores it.</li>
           <li>You can download or delete what the server holds for this browser yourself, at once (<a href="#mine">below</a>, or ⚙ Settings → Your data).</li>
-          <li>The game asks your age once. Under 13, nothing is ever sent (<a href="#age">below</a>).</li>
+          <li>The game asks your age once. Until you answer, the only thing sent is an anonymous count with no id: that the page was opened, or that it failed to start (<a href="#count">below</a>). Under 13, nothing at all is sent after the answer (<a href="#age">below</a>).</li>
         </ul>
       </section>
 
       <section aria-labelledby="what">
         <h2 id="what">What the game sends, and why</h2>
         <dl class="data">
+          <dt id="count">A count of page opens, with no id</dt>
+          <dd>
+            Each time the game page opens, and once if it fails to start (still loading after 15 seconds, or your browser
+            cannot start its graphics), the game sends one anonymous count: that the page was opened, or that it failed to
+            start and why, with the tag on the link (as below), the kind of device (web, iOS or Android) and the browser
+            family (Chrome, Safari, Firefox, Edge, Samsung Internet or other). It has no id and no time from your browser.
+            The server adds it to a total for that day and keeps nothing else, so nothing is kept per person and there is
+            nothing to copy or delete. It is the only thing sent before you answer the age question. It stops when play
+            data is off, when your browser asks not to be tracked, and once the answer is under 13. This shows how many
+            people open the game, how many get as far as playing, and how many cannot start it.
+          </dd>
           <dt>A random visitor id</dt>
           <dd>
             Made by your browser and kept in its storage (<code>tdt.visitor</code>). It is not tied to your name, email or
@@ -76,7 +87,8 @@
             If the game hits an error it did not expect: the error's message and the few lines of the game's own code where it
             happened (web addresses cut down to the file name), the game's version, and your browser's family (Chrome, Safari,
             Firefox, Edge, Samsung Internet or other). If the game is slow to start or your browser cannot start its graphics,
-            the report is one fixed word for that and nothing else. At most five a visit. This is how we find and fix crashes.
+            the report is one fixed word for that and nothing else (the same word also goes in the count above). At most five
+            a visit. This is how we find and fix crashes.
           </dd>
           <dt>Ratings and notes, only if you leave one</dt>
           <dd>
@@ -86,7 +98,7 @@
         </dl>
         <p>
           We don't collect your name, email, contacts, location or advertising ids, and we don't store your IP address with
-          any of this. The data is pseudonymous: a random id, not you.
+          any of this. The data is pseudonymous: a random id, not you. The count of page opens has no id at all.
         </p>
       </section>
 
@@ -150,7 +162,7 @@
           after their first visit, the server also keeps one short line per visitor id: the day of its first visit, the link
           tag of that visit, the last day it was seen, and whether it came back on day 1, 7 and 30. That line is deleted
           31 days after the last day the id was seen. Daily totals with no id in them (how many new visitors a day, how many
-          of them came back) are kept for 90 days. The visitor id stays in your browser until you clear this site's data.
+          of them came back, and how many times the page was opened or failed to start) are kept for 90 days. The visitor id stays in your browser until you clear this site's data.
         </p>
       </section>
 
@@ -167,9 +179,9 @@
           </p>
         </div>
         <ul>
-          <li>Off stops every event from this browser straight away, ratings and error reports included. What was already sent is still deleted on the schedule above, or sooner if you ask.</li>
+          <li>Off stops everything this browser sends straight away, ratings, error reports and the count of page opens included. What was already sent under this browser's id is still deleted on the schedule above, or sooner if you ask.</li>
           <li>If your browser sends Global Privacy Control or Do Not Track, it starts off. You can still turn it on.</li>
-          <li>Nothing is sent until the game knows your age. Under 13 it stays off; from 13 to 15 it starts off (<a href="#age">below</a>).</li>
+          <li>Until the game knows your age, the only thing sent is the anonymous count with no id (<a href="#count">above</a>). Under 13 it stays off and nothing is sent; from 13 to 15 it starts off (<a href="#age">below</a>).</li>
           <li>The same switch is in the game: ⚙ Settings → Play data.</li>
         </ul>
       </section>
@@ -211,12 +223,13 @@
       <section id="age" aria-labelledby="kids">
         <h2 id="kids">Children and the age question</h2>
         <p>
-          Before any play data is sent, the game asks once: "How old are you?" The answer stays in your browser
-          (<code>tdt.age</code>) and is never sent. It only decides play data. Everyone can play.
+          Before any play data with an id is sent, the game asks once: "How old are you?" Until you answer, the only thing
+          sent is the anonymous count with no id (<a href="#count">above</a>). The answer stays in your browser
+          (<code>tdt.age</code>) and is never sent. It only decides what is sent. Everyone can play.
         </p>
         <ul>
-          <li><strong>Under 13:</strong> nothing is ever sent from this browser, and play data cannot be turned on. Anything sent before the answer is deleted.</li>
-          <li><strong>13 to 15:</strong> play data starts off. You can turn it on yourself.</li>
+          <li><strong>Under 13:</strong> nothing more is sent from this browser, not even the count, and play data cannot be turned on. Anything sent before under this browser's id is deleted. A count sent before the answer has no id: it is only part of that day's total, so there is nothing of it to find or delete.</li>
+          <li><strong>13 to 15:</strong> play data starts off, and so does the count. You can turn it on yourself.</li>
           <li><strong>16 and over:</strong> play data starts on, unless your browser asks sites not to track it. You can turn it off.</li>
         </ul>
         <p>

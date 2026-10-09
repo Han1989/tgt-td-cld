@@ -1,5 +1,5 @@
-// Session clock and the bodies posted to /analytics/event. No DOM, no throwing.
-// `allowed` (the player's play-data switch, preference.ts) is read before every post: while it is
+// Session clock and the bodies posted to /analytics/event, and the anonymous counts posted to /analytics/count.
+// No DOM, no throwing. `allowed` (the player's play-data switch, preference.ts) is read before every post: while it is
 // off nothing is sent, and the session in progress stops where it is (no session_end; the server
 // closes it after its idle window). Turned back on, the next tick starts a new session.
 
@@ -71,6 +71,59 @@ export interface AnalyticsBody {
   browser?: Browser;
 }
 
+/**
+ * What an anonymous count says: the game page opened, or the start-up watchdog's reason for a start that failed
+ * (startup/boot.ts `BootReason`). The server's list (channels.ts `COUNT_KINDS`) must stay the same.
+ */
+export const COUNT_KINDS = ['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost'] as const;
+export type CountKind = (typeof COUNT_KINDS)[number];
+
+/**
+ * The whole body posted to /analytics/count (docs/ANALYTICS.md "Before the age question"): no visitor id, no session,
+ * no text and no time. The server adds it to a daily total and keeps nothing else.
+ */
+export interface CountBody {
+  what: CountKind;
+  channel: Channel;
+  platform: Platform;
+  browser: Browser;
+}
+
+export interface Counter {
+  /** Sends this count once per page load (a repeat is dropped), if `allowed` says so now. */
+  count(what: CountKind): void;
+}
+
+/**
+ * Anonymous counts for this page load. `allowed` (preference.ts `countOn`) is read before every post, so it holds
+ * before the age answer too: off, GPC / DNT, under 13, or 13 to 15 without play data turned on, and nothing goes.
+ */
+export function createCounter(opts: {
+  channel: Channel;
+  platform: Platform;
+  browser: Browser;
+  post: (body: CountBody) => void;
+  allowed: () => boolean;
+}): Counter {
+  const sent = new Set<CountKind>();
+  return {
+    count(what) {
+      if (sent.has(what) || !(COUNT_KINDS as readonly string[]).includes(what)) return;
+      try {
+        if (!opts.allowed()) return;
+      } catch {
+        return;
+      }
+      sent.add(what);
+      try {
+        opts.post({ what, channel: opts.channel, platform: opts.platform, browser: opts.browser });
+      } catch {
+        // A failed post must not break the page.
+      }
+    },
+  };
+}
+
 /** A match as it begins. */
 export interface MatchInfo {
   mode: string;
@@ -123,7 +176,10 @@ export interface AnalyticsClient {
   reset(): void;
 }
 
-/** `path` is `/analytics/event`, or `/analytics/mine` and `/analytics/mine/forget` for the player's own data. */
+/**
+ * `path` is `/analytics/event`, `/analytics/count` for the anonymous counts, or `/analytics/mine` and
+ * `/analytics/mine/forget` for the player's own data.
+ */
 export function analyticsEndpoint(serverUrl: string, path = '/analytics/event'): string | null {
   const trimmed = serverUrl.trim();
   if (!trimmed) return null;

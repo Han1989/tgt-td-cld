@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 9 Oct 2026** (the roadmap's copy of 9 Oct 2026, 10:35). Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Updated 8–9 Oct: Han's new plan before any Reddit post (**Now → The order from here**): friends retest, a cold test, one fix round, then one post at a time and the gate (D-06); everything else is on hold until D-06 is called. Playtest 2's work orders are done but the retest (P2-05), which is open.
+**As of 9 Oct 2026** (the roadmap's copy of 9 Oct 2026, 12:30). Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Updated 8–9 Oct: Han's new plan before any Reddit post (**Now → The order from here**): friends retest, a cold test, one fix round, page opens and failed starts counted with no id (D-10), then one post at a time and the gate (D-06); everything else is on hold until D-06 is called. Playtest 2's work orders are done but the retest (P2-05), which is open.
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -8,7 +8,7 @@
 **Owner:** **Team** = the Grok bot and the automated team. **Han** = only Han can do it (phones, friends, accounts, money, decisions).
 **Status:** ☐ to do · ◐ in progress · ☑ done · ⛔ blocked
 
-**Next (Han, 8 Oct 2026):** before any Reddit post, friends retest the new phone controls (P2-05, on the link tagged `?src=friends`) and three to five people who have never seen the game play it with no help (the cold test, H-09, `?src=cold`). One fix round follows (T-07, with the rebalance), then the posts one at a time (D-02 r/PlayMyGame, D-03 r/WebGames, D-04 r/TowerDefense) and the gate (D-06). The order is **Now → The order from here**. Measurement for it is in (D-09: the friends and cold-test tags and a funnel per link) and the numbers survive a sleep or a deploy (H-08, Render Starter with a disk, 9 Oct 2026). **On hold until D-06 is called:** nothing in Phase 6 or later, and no new feature; bug fixes and the rows in that order are the only work. Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). Han's list still has H-03 (the hook on a phone) and H-05 (the iPhone checklist).
+**Next (Han, 8 Oct 2026):** before any Reddit post, friends retest the new phone controls (P2-05, on the link tagged `?src=friends`) and three to five people who have never seen the game play it with no help (the cold test, H-09, `?src=cold`). One fix round follows (T-07, with the rebalance), then the posts one at a time (D-02 r/PlayMyGame, D-03 r/WebGames, D-04 r/TowerDefense) and the gate (D-06). The order is **Now → The order from here**. Measurement for it is in (D-09: the friends and cold-test tags and a funnel per link) and the numbers survive a sleep or a deploy (H-08, Render Starter with a disk, 9 Oct 2026). D-10 (page opens and failed starts counted with no id, before the age question) is in review before the first post. **On hold until D-06 is called:** nothing in Phase 6 or later, and no new feature; bug fixes and the rows in that order are the only work. Gate 1 passed 2 Oct 2026 (Android, PC, iPhone Safari friends). Han's list still has H-03 (the hook on a phone) and H-05 (the iPhone checklist).
 
 ---
 
@@ -18,7 +18,7 @@
 
 **While a post is live** (D-02, D-03, D-04): no merge that changes the sim or the protocol, because each one restarts the game server.
 
-**Overnight bots.** Open **Team** rows in this section, top to bottom, are the auto-pull order. Skip Han rows and anything already done. The order is this file only. The one open Team row, T-07, starts after P2-05 and H-09.
+**Overnight bots.** Open **Team** rows in this section, top to bottom, are the auto-pull order. Skip Han rows and anything already done. The order is this file only. The one open Team row, T-07, starts after P2-05 and H-09. D-10 is in review (PR #99) until Han merges it.
 
 ### The order from here · Han, 8 Oct 2026
 
@@ -31,10 +31,11 @@ Top to bottom. Each Reddit post waits until the previous post's numbers are read
 | 3 | P2-05 | **Retest with friends:** the new phone controls (P2-07) and the rest of Playtest 2, on the link tagged `?src=friends`. Everyone taps **Save match report** after each match. P2-04b is done, so it can start. | Han | ☐ |
 | 4 | H-09 | **Cold test:** three to five people who have never seen the game, on the link tagged `?src=cold`, with no help; two of them bring a friend of their own. **The bar:** they finish a first match unaided, and at least half start another (**By link** → Cold test: finished a match, started a second match). | Han | ☐ |
 | 5 | T-07 | **One fix round** from the retest and the cold test, with the rebalance in it, which ends the "provisional until Playtest 3" balance bounds (`ProvisionalGate`, `docs/balance/TUNING_LOG.md`). Already waiting for it: how often players repair (the reports' repairs and repair gold), `waves.lateHpGrowthPerWave` (0 until then), and a second point cast in the same tick (P2-07 round 3). Starts after P2-05 and H-09. | Team | ☐ |
-| 6 | D-02 | **First post: r/PlayMyGame only** (follow the sub's rules; one clear link, `?src=reddit-playmygame`). | Han | ☐ |
-| 7 | D-03 | Post to **r/WebGames** (`?src=reddit-webgames`; follow the sub's rules), only after D-02's numbers are read. | Han | ☐ |
-| 8 | D-04 | Post to **r/TowerDefense** (`?src=reddit-towerdefense`; follow the sub's rules), only after D-03's numbers are read. | Han | ☐ |
-| 9 | D-06 | **The gate.** This round's bar is the first session, read per link (**By link**, and the rating per channel in **Where they came from**): of the new players, how many started a match, finished it and started a second one, and the rating. Day-1 returns are noted. Day-7 is not the bar yet, because no progress is saved between visits. Gate 2 (CrazyGames) keeps its day-1 and day-7 bar. **Go** starts the Later rows (L-01, L-02, then Phase 6a); **no-go** means more polish or a pitch change. Friends-only signal is not enough for go. | Han | ☐ |
+| 6 | D-10 | **Count page opens and failed starts with no id** (server analytics and client, PR #99, `PROTOCOL_VERSION` stays 19; Han's decision of 8 Oct 2026). Needed before the first post, not before the retest or the cold test. `POST /analytics/count` takes exactly `{ what, channel, platform, browser }` (`open`, or the watchdog's `boot_timeout` / `webgl_unavailable` / `webgl_context_lost`): no id, no text, no time; the same origin check, CORS, body limit and per-address rate limit as events. The server keeps daily totals only (per UTC day, what, channel, platform and browser) in memory and `counts.json`, 90 days, nothing in `events.jsonl`, no address; copy and deletion are not affected. The client sends one `open` per load of the game page and the watchdog's reason once when it shows its message, by `countAllowed` (`preference.ts`): before the age answer unless play data is off or GPC / DNT, never under 13, 13–15 only when turned on, 16 and over the play-data rule. Dashboard and `/analytics/summary`: **Before the age question** (per channel pages opened, sessions started, the share; failed starts by reason, platform and browser), also in `npm run analytics:example`. The privacy page, the Play data line and `docs/ANALYTICS.md` say so. In review: Han reads the privacy page's changed sentences on his phone before merging; no auto-merge. | Team | ◐ |
+| 7 | D-02 | **First post: r/PlayMyGame only** (follow the sub's rules; one clear link, `?src=reddit-playmygame`). | Han | ☐ |
+| 8 | D-03 | Post to **r/WebGames** (`?src=reddit-webgames`; follow the sub's rules), only after D-02's numbers are read. | Han | ☐ |
+| 9 | D-04 | Post to **r/TowerDefense** (`?src=reddit-towerdefense`; follow the sub's rules), only after D-03's numbers are read. | Han | ☐ |
+| 10 | D-06 | **The gate.** This round's bar is the first session, read per link (**By link**, and the rating per channel in **Where they came from**): of the new players, how many started a match, finished it and started a second one, and the rating. Day-1 returns are noted. Day-7 is not the bar yet, because no progress is saved between visits. Gate 2 (CrazyGames) keeps its day-1 and day-7 bar. **Go** starts the Later rows (L-01, L-02, then Phase 6a); **no-go** means more polish or a pitch change. Friends-only signal is not enough for go. | Han | ☐ |
 
 ### T-00 · CI and branch protection · NEW · Team, then Han · ☑
 
@@ -113,7 +114,7 @@ H-08 (the Render disk) and H-09 (the cold test) are steps in **The order from he
 
 ## After polish · Discovery and rollout · NEW
 
-**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends). **Han's plan of 8 Oct 2026** puts a friends retest (P2-05), a cold test (H-09) and one fix round (T-07) before the first post; the posts (D-02, D-03, D-04) and the gate (D-06) are steps 6–9 of **Now → The order from here**, and their rows live there. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-08 (link preview, first load, press kit) is done, so posts have a card and a measured first load; D-09 adds the friends and cold-test tags and a funnel per link.
+**Polish path T-00–T-05 is done** (CI, Hard, pings, tutorial, art, docs). **Gate 1 passed on 2 Oct 2026** (Android, PC, iPhone Safari friends). **Han's plan of 8 Oct 2026** puts a friends retest (P2-05), a cold test (H-09) and one fix round (T-07) before the first post; the anonymous counts (D-10), the posts (D-02, D-03, D-04) and the gate (D-06) are steps 6–10 of **Now → The order from here**, and their rows live there. Discovery and store submission still wait on the measurement below; friends-only signal is not a store go. D-08 (link preview, first load, press kit) is done, so posts have a card and a measured first load; D-09 adds the friends and cold-test tags and a funnel per link, and D-10 counts, with no id, the page opens and failed starts that never reach the age question.
 
 **Why:** current playtesters are only **2–3 friends**. That is enough for confusion and hook notes, not for whether strangers stay. Discovery is the first real-audience signal **before or alongside** store submission.
 
@@ -127,7 +128,7 @@ H-08 (the Render disk) and H-09 (the cold test) are steps in **The order from he
 | Retention | Return rate: D1, D7 and D30 (D30 since p6a-analytics, PR #85) |
 | Repeat visits | Same player / same browser returning after the first session |
 
-Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30, where new players stop, match breakdowns and crash reports are there too (p6a-analytics, PR #85). The friends retest and the cold test have their own tags, and **Where new players stop** has a row per link (D-09).
+Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compared. The funnel is in [`docs/ANALYTICS.md`](docs/ANALYTICS.md): `?src=` on the link, events on the game server, one dashboard. D30, where new players stop, match breakdowns and crash reports are there too (p6a-analytics, PR #85). The friends retest and the cold test have their own tags, and **Where new players stop** has a row per link (D-09). Page opens and failed starts are counted with no id, before the age question too, so a link's visitors who leave before Play, and first visits that never start, show under **Before the age question** (D-10, in review).
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
@@ -141,7 +142,7 @@ Tag sessions (or landing links) by channel so Reddit vs CrazyGames can be compar
 | D-08 | **Link preview and first load** (client only, protocol stays 18): Open Graph / Twitter tags with README's pitch, a 1200 × 630 card from the game's own art (`npm run og -w @tdt/client`), tagged links keep the card and their `?src=`, a boot splash, Play solo one tap with no scrolling on phones, first load measured on a throttled Pixel 7 (`npm run first-load -w @tdt/client`), press kit in [`docs/PRESS.md`](docs/PRESS.md). PR #77. | Team | ☑ |
 | D-05 | **CrazyGames Basic Launch** — same work as Gate 2 `g2-launch`, on hold with it until D-06 is called; Gate 2 keeps its day-1 and day-7 bar. Not instead of finishing polish. | Han | ☐ |
 
-D-02 (r/PlayMyGame), D-03 (r/WebGames), D-04 (r/TowerDefense) and D-06 (the gate) are steps 6–9 of **Now → The order from here**.
+D-10 (page opens and failed starts, counted with no id), D-02 (r/PlayMyGame), D-03 (r/WebGames), D-04 (r/TowerDefense) and D-06 (the gate) are steps 6–10 of **Now → The order from here**.
 
 ## Gate 1 · Friends playtest · PASSED · 2 Oct 2026
 
