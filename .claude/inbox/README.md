@@ -49,5 +49,6 @@ Every task keeps these constraints in **Constraints**, even when the goal does n
 - **Balance:** the balance bot must finish with Heart HP in the **40–80** band (Full and Quick, 1–3 players). Do not retune past that gate.
 - **PROTOCOL:** any change to messages, commands, or snapshots bumps `PROTOCOL_VERSION` and updates codec validation and snapshot deltas.
 - **No spend:** never spend money, and never change a free tier into a paid tier.
+- **Browser tests:** where a task says "`npm run test:e2e` passes", it means on CI. In the session follow `CLAUDE.md`, Session rules: only the specs you touched, and once the pull request is open and `CURRENT.md` is updated, stop.
 
 `CURRENT.md` starts `IDLE`. Bots overwrite it with `READY` tasks.

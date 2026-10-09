@@ -15,7 +15,7 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npm run dev:server` | Run the game server with reload (ws://localhost:8080; allows localhost:5173/4173) |
 | `VITE_SERVER_URL=ws://localhost:8080 npm run dev` | Client in online mode (lobby) against the local server |
 | `npm test` | Vitest across all workspaces: unit tests, headless balance runs, the 3-bot server integration test |
-| `npm run test:e2e` | Playwright browser tests (`apps/client/e2e`): builds `apps/client/dist-e2e` with `--mode e2e`, then runs portrait iPhone / Pixel emulation, desktop and PWA tests in Chromium, and last, alone (the `perf` project waits for the others), the 300-creep stress test (1.5–3 min: a fixed number of frames, so slower machines take longer); `?lab&auras` starts heroes with E learned, `?lab&ult` with R. CI runs each project (sharded) in its own job and the stress test alone in `e2e (perf)` (`--project=perf --no-deps`); `ci` aggregates them. On CI each browser test (not the stress test) gets one retry, and a test that passes only on its retry is listed as flaky in the job summary and as a warning annotation (`.github/scripts/playwright-summary.mjs`) |
+| `npm run test:e2e` | Playwright browser tests (`apps/client/e2e`): builds `apps/client/dist-e2e` with `--mode e2e`, then runs portrait iPhone / Pixel emulation, desktop and PWA tests in Chromium, and last, alone (the `perf` project waits for the others), the 300-creep stress test (1.5–3 min: a fixed number of frames, so slower machines take longer); `?lab&auras` starts heroes with E learned, `?lab&ult` with R. CI runs each project (sharded) in its own job and the stress test alone in `e2e (perf)` (`--project=perf --no-deps`); `ci` aggregates them. On CI each browser test (not the stress test) gets one retry, and a test that passes only on its retry is listed as flaky in the job summary and as a warning annotation (`.github/scripts/playwright-summary.mjs`). **Off CI it refuses to start unless spec files are named (`e2e/localRun.ts`): in a session run single specs, never the whole suite (Session rules).** |
 | `npm run build` | Typecheck every workspace (`tsc`), build the client to `apps/client/dist`, bundle the server to `apps/server/dist/index.cjs` |
 | `npm run loadtest [-- --url wss://… --origin …]` | Ramp full rooms (3 bots each) until the server's average tick exceeds 10 ms (see docs/DEPLOY.md §6) |
 | `npm run analytics:example -w @tdt/server [-- out.html]` | Write the analytics dashboard from made-up events (red EXAMPLE DATA banner) to check its layout or take a screenshot; reads no real log (docs/ANALYTICS.md) |
@@ -39,7 +39,19 @@ Run everything from the repo root. You need Node ≥ 22.12 and npm workspaces.
 | `npx vitest run --project sim` | Tests for one workspace (`sim`, `protocol`, `client` or `server`) |
 | `docker build -t tdt-server .` | Build the server image exactly as Render does |
 
-`npm test` and `npm run build` must pass before any push. Run `npm run test:e2e` after client changes (layout, input, HUD, PWA).
+`npm test` and `npm run build` must pass before any push, run after your last edit. For browser tests, and for when to stop, follow **Session rules** below.
+
+## Session rules
+
+For every agent session (Claude Code, Cursor or any other). They keep a session short.
+
+- **Before each push:** `npm test` and `npm run build`, run after your last edit, docs and tracker included (`apps/client/test/progress.test.ts` checks the tracker's counts).
+- **Browser tests in a session: only the specs you changed or that cover what you touched, once.** Build with `npm run build:e2e -w @tdt/client`, then from `apps/client` run `npx playwright test e2e/<name>.spec.ts --project=<project>` (`iphone`, `pixel` or `desktop`; `playwright.config.ts` lists the specs each project runs). The stress test on its own: `npx playwright test --project=perf --no-deps` (without `--no-deps` it runs every other test first).
+- **Never the whole browser suite in a session.** It takes over half an hour there. CI runs it in about 11 minutes, split over seven jobs, on every pull request, and `ci` is the required check. Off CI the runner refuses a run that names no spec file (`apps/client/e2e/localRun.ts`): don't set `TDT_E2E_ALL` to get past it. Where a task or an older doc says "`npm run test:e2e` passes", it means on CI.
+- **A spec that fails:** run that one spec once more on its own. If it passes, say so in the pull request and move on. A test that fails only on a busy machine is for CI to judge.
+- **Don't wait for CI:** no polling, no monitors, no timers or check-ins.
+- **When the pull request is open, stop.** Turn on auto-merge first if the task says so, unsubscribe the session from the pull request's activity if it was subscribed, write the summary and end. If CI fails, a new session takes it.
+- **A merged or closed pull request ends the task.** A session that is resumed checks the pull request's state before it does anything else.
 
 ## Repo layout
 

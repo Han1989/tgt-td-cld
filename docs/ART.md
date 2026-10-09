@@ -266,7 +266,7 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 4. Use **tokens only** (`k.<token>`; add new ones to `RL` and to §2), the **painter** calls (§3), light from the upper left, glow only on emitters.
 5. Follow the **camera** (§5) and **size** (§6) rules; check the phone-size copy in `?showcase` in both Normal and Bright.
 6. Animate with transforms, tint and alpha only (§7, §9).
-7. Run `npx vitest run --project client` (the art tests check ids, frames, sizes and packing), `npm test`, `npm run build`, and `npm run test:e2e` (the showcase test finds your file by name; the stress test keeps ≥ 30 FPS).
+7. Run `npx vitest run --project client` (the art tests check ids, frames, sizes and packing), `npm test` and `npm run build`. Then two browser tests, from `apps/client` after `npm run build:e2e -w @tdt/client`: `npx playwright test e2e/art.spec.ts --project=pixel` (the showcase test finds your file by name) and `npx playwright test --project=perf --no-deps` (the stress test keeps ≥ 30 FPS). CI runs the rest (`CLAUDE.md`, Session rules).
 8. Update §1's status line and, if you decided something new, this guide and the Decision Log.
 
 A **prop** (category `prop`) is a file too: frames are its variants, `where` says forest or clearing, `weight` how often it is picked; the ground painter places it (§4). Check it in the real map as well as `?showcase` (it must not look like a creep or something to tap).
