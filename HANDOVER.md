@@ -125,7 +125,7 @@ The full list, with briefs and acceptance criteria, is in `TASKS.md`. Polish ite
 1. **Merges.** One task per branch and pull request. Never push to `main`. Prefer GitHub native auto-merge once required CI is green; Han remains product owner and can still review or block.
 2. **`main` deploys itself.** Vercel rebuilds the client and Render restarts the game server (matches get up to 280 s to finish). Say in the PR if it restarts the server, so Han doesn't merge during a play session.
 3. **Never merge `claude/loving-hawking-7fvsu7`.** It's a throwaway test. Combos get rebuilt properly in Phase 6c.
-4. **Before opening a PR:** `npm test` and `npm run build` pass; also `npm run test:e2e` after any client change (layout, input, HUD, PWA).
+4. **Before opening a PR:** `npm test` and `npm run build` pass, run after your last edit. Browser tests: only the specs you touched; CI runs the whole suite. Stop when the PR is open (`CLAUDE.md`, Session rules).
 5. **The sim is pure and deterministic.** No `Math.random()`, `Date.now()` or `performance.now()` in `packages/sim` (a test enforces this). All balance numbers live in `packages/sim/src/tuning.ts`.
 6. **Protocol changes bump `PROTOCOL_VERSION`** (now 11) and update the validation in `codec.ts` and its tests.
 7. **Balance gates stay green:** 1, 2 and 3 players, Full and Quick, 40–80 Heart left, plus the difficulty-curve rule. Results swing about ±20 Heart between seeds, so run `npm run balance` over a wide seed list before trusting a tuning change.
@@ -188,7 +188,7 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 - **Claude-specific names.** `CLAUDE.md` and the `claude/…` branch names come from how the game was built. Keep `CLAUDE.md` as the guide. `AGENTS.md` points at it (T-05). Use your own branch prefix. The hook-test branch `claude/loving-hawking-7fvsu7` stays unmerged.
 - **One tracker.** Han's original checklist lives in his claude.ai account and nobody else can tick it. `TASKS.md` is the tracker. `apps/client/src/progress/data.ts` mirrors it for `/?progress`. Do not add a third list.
 - **Balance cliffs.** Solo and pairs break with small changes (see the balance notes in `CLAUDE.md` → Conventions). Ranger + Warden is the weakest pair.
-- **Slow browser tests.** `npm run test:e2e` takes several minutes; the 300-creep stress test runs alone at the end (about 4 minutes).
+- **Slow browser tests.** The whole suite (`npm run test:e2e`) takes over half an hour in an agent session and about 11 minutes on CI, which splits it over seven jobs. Off CI the runner refuses it: run single specs (`CLAUDE.md`, Session rules).
 - **No recorded music yet.** `apps/client/public/music/` holds only a README; the game plays its code-made music.
 - **The hook test stays on protocol 11** on purpose, so its client can still play on the live server without `?spike`.
 - **Match reports** (the end screen's "Save match report") are the best test data. `npm run replay <file>` re-runs one exactly and warns if your checkout is a different build.

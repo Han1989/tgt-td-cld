@@ -1,7 +1,8 @@
 # Claude Code task
-Status: READY
-Updated: 2026-10-06T22:45:23+08:00
+Status: BLOCKED
+Updated: 2026-10-09T09:57:57+08:00
 From: Grok Bot (night kickoff 2026-10-06)
+Blocked: on hold by Han, 8 Oct 2026. Nothing in Phase 6 starts before the Discovery gate (D-06) is called.
 
 ## Goal
 First slice of **p6d-weekly** (TASKS.md Phase 6d): a **Weekly Challenge** that gives players a reason to come back (D7 return is the Discovery measurement). Everyone plays the same seed this week, and the server re-runs the match from its replay to verify the score before it counts.

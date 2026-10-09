@@ -10,6 +10,10 @@
 // another project fails, Playwright skips it: fix that failure first. CI runs each
 // project (sharded) in its own job and the stress test in a job of its own with
 // `--project=perf --no-deps` (.github/workflows/ci.yml).
+//
+// Off CI a run must name its spec files: e2e/localRun.ts (the globalSetup) refuses
+// anything else before the first test. TDT_E2E_ALL=1 is the one way to run everything
+// off CI.
 
 import { defineConfig, devices } from '@playwright/test';
 
@@ -28,6 +32,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   fullyParallel: true,
   workers: 2,
+  globalSetup: './e2e/localRun.ts',
   // CI also writes a JSON report, which the workflow turns into the job summary (failed and flaky tests).
   reporter: CI ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]] : [['list']],
   use: {
