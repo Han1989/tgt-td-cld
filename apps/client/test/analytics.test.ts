@@ -2,8 +2,27 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHANNELS, channelFromSearch, resolveChannel } from '../src/analytics/channel';
 import { detectPlatform } from '../src/analytics/platform';
-import { analyticsAllowed, parseAnalyticsChoice, playDataStatus, readPrivacySignals } from '../src/analytics/preference';
-import { analyticsEndpoint, cleanComment, CLIENT_IDLE_MS, createAnalyticsClient, HEARTBEAT_MS, type AnalyticsBody } from '../src/analytics/session';
+import type { AgeBand } from '../src/analytics/age';
+import {
+  analyticsAllowed,
+  countAllowed,
+  parseAnalyticsChoice,
+  playDataStatus,
+  readPrivacySignals,
+  type AnalyticsChoice,
+  type PrivacySignals,
+} from '../src/analytics/preference';
+import {
+  analyticsEndpoint,
+  cleanComment,
+  CLIENT_IDLE_MS,
+  COUNT_KINDS,
+  createAnalyticsClient,
+  createCounter,
+  HEARTBEAT_MS,
+  type AnalyticsBody,
+  type CountBody,
+} from '../src/analytics/session';
 
 const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 const android = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
@@ -121,6 +140,7 @@ describe('analytics session', () => {
   it('builds the event URL from the websocket server', () => {
     expect(analyticsEndpoint('wss://tgt-td-server.onrender.com/ignored?x=1')).toBe('https://tgt-td-server.onrender.com/analytics/event');
     expect(analyticsEndpoint('ws://localhost:8080')).toBe('http://localhost:8080/analytics/event');
+    expect(analyticsEndpoint('wss://tgt-td-server.onrender.com', '/analytics/count')).toBe('https://tgt-td-server.onrender.com/analytics/count');
     expect(analyticsEndpoint('')).toBeNull();
     expect(analyticsEndpoint('not a url')).toBeNull();
   });
@@ -230,6 +250,59 @@ describe('analytics session', () => {
   });
 });
 
+describe('anonymous counts', () => {
+  function counter(allowed: () => boolean) {
+    const posts: CountBody[] = [];
+    const api = createCounter({ channel: 'cold', platform: 'android', browser: 'chrome', post: (body) => posts.push(body), allowed });
+    return { api, posts };
+  }
+
+  it('sends each kind once a page load, as exactly what, channel, platform and browser', () => {
+    let reads = 0;
+    const { api, posts } = counter(() => {
+      reads++;
+      return true;
+    });
+    api.count('open');
+    api.count('open');
+    api.count('boot_timeout');
+    api.count('webgl_unavailable');
+    api.count('boot_timeout');
+    expect(posts).toEqual([
+      { what: 'open', channel: 'cold', platform: 'android', browser: 'chrome' },
+      { what: 'boot_timeout', channel: 'cold', platform: 'android', browser: 'chrome' },
+      { what: 'webgl_unavailable', channel: 'cold', platform: 'android', browser: 'chrome' },
+    ]);
+    for (const body of posts) expect(Object.keys(body).sort()).toEqual(['browser', 'channel', 'platform', 'what']);
+    // The rule is read at every count, not once.
+    expect(reads).toBe(3);
+  });
+
+  it('sends nothing while the rule says no, and treats a rule that throws as no', () => {
+    let on = false;
+    const { api, posts } = counter(() => on);
+    api.count('open');
+    expect(posts).toEqual([]);
+    on = true;
+    api.count('webgl_context_lost');
+    expect(posts.map((body) => body.what)).toEqual(['webgl_context_lost']);
+    const broken = counter(() => {
+      throw new Error('storage blocked');
+    });
+    broken.api.count('open');
+    expect(broken.posts).toEqual([]);
+  });
+
+  it('uses the four kinds the server accepts: the page open and the watchdog reasons', () => {
+    expect([...COUNT_KINDS]).toEqual(['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost']);
+    const server = readFileSync(new URL('../../server/src/analytics/channels.ts', import.meta.url), 'utf8');
+    const list = /export const COUNT_KINDS = \[([^\]]*)\]/.exec(server)![1]!;
+    expect([...list.matchAll(/'([\w-]+)'/g)].map((m) => m[1])).toEqual([...COUNT_KINDS]);
+    const boot = readFileSync(new URL('../src/startup/boot.ts', import.meta.url), 'utf8');
+    for (const reason of COUNT_KINDS.slice(1)) expect(boot).toContain(`'${reason}'`);
+  });
+});
+
 describe('play-data switch', () => {
   const none = { gpc: false, dnt: false };
 
@@ -252,6 +325,45 @@ describe('play-data switch', () => {
     expect(analyticsAllowed('on', { gpc: true, dnt: true }, 'teen')).toBe(true);
   });
 
+  it('lets an anonymous count go before the age answer, by the switch and GPC / DNT; never under 13; 13–15 only when on', () => {
+    const gpc = { gpc: true, dnt: false };
+    const dnt = { gpc: false, dnt: true };
+    const rows: [AnalyticsChoice | null, PrivacySignals, AgeBand | null, boolean][] = [
+      // Not answered yet: yes, unless the player turned play data off or the browser sends GPC or DNT.
+      [null, none, null, true],
+      ['on', none, null, true],
+      ['off', none, null, false],
+      [null, gpc, null, false],
+      [null, dnt, null, false],
+      ['on', gpc, null, true],
+      ['off', dnt, null, false],
+      // Under 13: never, whatever the switch or the browser says.
+      [null, none, 'child', false],
+      ['on', none, 'child', false],
+      ['off', none, 'child', false],
+      [null, gpc, 'child', false],
+      // 13 to 15: only when the player turned play data on.
+      [null, none, 'teen', false],
+      ['on', none, 'teen', true],
+      ['off', none, 'teen', false],
+      [null, dnt, 'teen', false],
+      ['on', dnt, 'teen', true],
+      // 16 and over: the same rule as play data.
+      [null, none, 'adult', true],
+      ['on', none, 'adult', true],
+      ['off', none, 'adult', false],
+      [null, gpc, 'adult', false],
+      [null, dnt, 'adult', false],
+      ['on', gpc, 'adult', true],
+    ];
+    for (const [choice, signals, age, expected] of rows) {
+      expect(countAllowed(choice, signals, age), JSON.stringify({ choice, signals, age })).toBe(expected);
+      // Once the age is known the count follows play data exactly; before it, play data sends nothing.
+      if (age !== null) expect(countAllowed(choice, signals, age)).toBe(analyticsAllowed(choice, signals, age));
+      else expect(analyticsAllowed(choice, signals, age)).toBe(false);
+    }
+  });
+
   it('reads only on / off from storage, and GPC / DNT from the navigator', () => {
     expect(parseAnalyticsChoice('on')).toBe('on');
     expect(parseAnalyticsChoice('off')).toBe('off');
@@ -271,7 +383,11 @@ describe('play-data switch', () => {
     expect(playDataStatus('off', none, 'adult')).toEqual({ on: false, locked: false, line: 'Off: this browser sends nothing.' });
     expect(playDataStatus(null, { gpc: true, dnt: false }, 'adult').line).toContain('asks sites not to track');
     expect(playDataStatus('on', { gpc: true, dnt: false }, 'adult').on).toBe(true);
-    expect(playDataStatus(null, none, null)).toMatchObject({ on: false, locked: false, line: expect.stringContaining('knows your age') });
+    expect(playDataStatus(null, none, null)).toEqual({
+      on: false,
+      locked: false,
+      line: 'Off until the game knows your age. Until then it only sends an anonymous count with no id: that the page opened, or failed to start. It asks once, when you first press Play or turn this on.',
+    });
     // Off by choice or by GPC stays explained as before; the age is asked when the player turns it on.
     expect(playDataStatus('off', none, null).line).toBe('Off: this browser sends nothing.');
     expect(playDataStatus('on', none, 'child')).toEqual({ on: false, locked: true, line: 'Off: nothing is sent for players under 13.' });
@@ -323,7 +439,19 @@ describe('privacy page and links', () => {
       'tdt.age',
       'is never sent',
       'Under 13:',
-      'nothing is ever sent from this browser',
+      'nothing more is sent from this browser, not even the count',
+      'A count of page opens, with no id',
+      'that the page was opened, or that it failed to start',
+      'the tag on the link',
+      'the kind of device (web, iOS or Android)',
+      'the browser family',
+      'It has no id and no time from your browser',
+      'adds it to a total for that day',
+      'nothing is kept per person and there is nothing to copy or delete',
+      'It is the only thing sent before you answer the age question',
+      'It stops when play data is off, when your browser asks not to be tracked, and once the answer is under 13',
+      'how many times the page was opened or failed to start) are kept for 90 days',
+      'last updated 9 October 2026',
       '13 to 15:',
       '16 and over:',
       'Everyone can play',
@@ -372,6 +500,13 @@ describe('privacy page and links', () => {
       'build',
       'browser',
     ]);
+    // The anonymous count's body (before the age answer): every field is named on the page.
+    const count = /export interface CountBody \{([^}]*)\}/.exec(session)![1]!;
+    expect([...count.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1])).toEqual(['what', 'channel', 'platform', 'browser']);
+    const countEntry = /<dt id="count">[\s\S]*?<\/dd>/.exec(page)![0].replace(/\s+/g, ' ');
+    for (const named of ['page was opened', 'failed to start', 'tag on the link', 'kind of device', 'browser family']) {
+      expect(countEntry, named).toContain(named);
+    }
   });
 
   it('is linked from the lobby, the rating control and Settings, in a new tab', () => {

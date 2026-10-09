@@ -1,6 +1,6 @@
 import { COMBO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
 import './style.css';
-import { currentAnalytics, installAnalytics } from './analytics/install';
+import { countBootFailure, currentAnalytics, installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
 import type { ModifierDeal } from './lobby/modifierPicker';
 import { showSoloPick } from './lobby/solo';
@@ -14,7 +14,9 @@ import { showBootMessage } from './startup/splash';
  * Start-up watchdog (startup/boot.ts): after 15 s on screen without `ready()` the splash says it is still loading and
  * offers Reload; a start-up with no graphics says so at once. Either is sent once as a crash report whose message is
  * the fixed reason (`boot_timeout`, `webgl_unavailable`, `webgl_context_lost`): nothing else, and only while play data
- * is on (the analytics client checks that), so local solo (no analytics) sends nothing.
+ * is on (the analytics client checks that). The same reason also goes once as an anonymous count with no id
+ * (`countBootFailure`), which may go before the age answer, so a first visit that never starts is still seen.
+ * Local solo (no analytics) sends neither.
  */
 const bootWatchdog = createBootWatchdog({
   onSlow: () => showBootMessage(BOOT_COPY.slow),
@@ -25,6 +27,7 @@ bootWatchdog.visible(document.visibilityState === 'visible');
 document.addEventListener('visibilitychange', () => bootWatchdog.visible(document.visibilityState === 'visible'));
 
 function reportBoot(reason: BootReason): void {
+  countBootFailure(reason);
   try {
     currentAnalytics()?.error({ kind: 'error', message: reason, stack: '' }, Date.now());
   } catch {
@@ -78,7 +81,8 @@ async function main(): Promise<void> {
   const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
   // ?practice=meteor-rain is a local solo path even when a game server is configured.
   const localSolo = !serverUrl || params.get('practice') === 'meteor-rain';
-  // Before the game view, so a page that cannot start (no WebGL) still counts as a visit and sends its error.
+  // Before the game view, so a page that cannot start (no WebGL) still counts: its open and its reason as anonymous
+  // counts, and, once the age is known, as a visit with its error.
   // Analytics needs the server (docs/ANALYTICS.md); local solo sends nothing. Browser tests (`?analytics`,
   // e2e builds only) post to this page's own origin to watch every event, also on the `?lobby` card.
   if (!(stress > 0)) {

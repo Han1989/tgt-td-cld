@@ -1,4 +1,4 @@
-// Browser wiring for the rollout events. Everything here is allowed to fail;
+// Browser wiring for the rollout events and the anonymous counts. Everything here is allowed to fail;
 // the match must keep running if storage, fetch or the beacon throws.
 
 import { channelFromSearch, type Channel } from './channel';
@@ -7,10 +7,20 @@ import { detectPlatform, type Platform } from './platform';
 import { AGE_KEY } from './age';
 import { DATA_KEY_KEY, ensureVisitor } from './dataKey';
 import { CHANNEL_KEY } from './myData';
-import { ANALYTICS_KEY, analyticsOn, writeAnalyticsChoice, type AnalyticsChoice } from './preference';
-import { analyticsEndpoint, createAnalyticsClient, type AnalyticsClient } from './session';
+import type { BootReason } from '../startup/boot';
+import { ANALYTICS_KEY, analyticsOn, countOn, writeAnalyticsChoice, type AnalyticsChoice } from './preference';
+import {
+  analyticsEndpoint,
+  createAnalyticsClient,
+  createCounter,
+  type AnalyticsClient,
+  type CountKind,
+  type Counter,
+} from './session';
 
 let current: AnalyticsClient | null = null;
+/** This page load's anonymous counts; null until `installAnalytics` (so never on ?showcase, ?stress, ?progress). */
+let counter: Counter | null = null;
 
 export function currentAnalytics(): AnalyticsClient | null {
   return current;
@@ -95,6 +105,19 @@ function captureErrors(client: AnalyticsClient): void {
   });
 }
 
+/**
+ * The start-up watchdog's reason (main.ts), as an anonymous count: once per page load, and only when `countOn` allows
+ * it, so it can go before the age answer. Nothing when analytics is not installed. Never throws.
+ */
+export function countBootFailure(reason: BootReason): void {
+  const what: CountKind = reason;
+  try {
+    counter?.count(what);
+  } catch {
+    // Counting must never get in the way of the message.
+  }
+}
+
 /** The page is on screen (for ticks). */
 function visible(): boolean {
   return document.visibilityState === 'visible';
@@ -129,7 +152,8 @@ export function resetAnalytics(): void {
 }
 
 /**
- * Starts one session for this page. No-op when the build has no game server
+ * Starts one session for this page, and counts the page open (an anonymous count, sent before the age answer
+ * too: `countAllowed` in preference.ts). No-op when the build has no game server
  * (`VITE_SERVER_URL` empty): local solo then keeps no analytics. Showcase and
  * stress pages should not call this. While the player has play data off
  * (preference.ts) nothing is sent and no visitor id is made.
@@ -151,6 +175,12 @@ export function installAnalytics(serverUrl: string): void {
       platform: navigator.platform,
       maxTouchPoints: navigator.maxTouchPoints ?? 0,
     });
+    const browser = browserFamily(navigator.userAgent);
+    const countUrl = analyticsEndpoint(serverUrl, '/analytics/count');
+    if (countUrl) {
+      counter = createCounter({ channel, platform, browser, post: (body) => post(countUrl, body, false), allowed: countOn });
+      counter.count('open');
+    }
     const client = createAnalyticsClient({
       visitor,
       channel,
@@ -159,7 +189,7 @@ export function installAnalytics(serverUrl: string): void {
       post: (body, beacon) => post(endpoint, body, beacon),
       allowed: analyticsOn,
       build: buildId(typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'),
-      browser: browserFamily(navigator.userAgent),
+      browser,
     });
     client.start(Date.now());
     captureErrors(client);

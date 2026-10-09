@@ -6,7 +6,7 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
- * 9 Oct 2026, 10:35). Production protocol is 19. This page only reports status.
+ * 9 Oct 2026, 12:30). Production protocol is 19. This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -21,7 +21,7 @@ const sections: ProgressSection[] = [
   {
     id: 'order',
     title: 'Now · the order from here',
-    blurb: 'Han’s plan of 8 Oct 2026, top to bottom: the friends retest, the cold test, one fix round, then one Reddit post at a time and the gate (D-06). On hold until D-06 is called: nothing in Phase 6 or later and no new feature; bug fixes and these rows are the only work. While a post is live, no merge that changes the sim or the protocol (each one restarts the game server).',
+    blurb: 'Han’s plan of 8 Oct 2026, top to bottom: the friends retest, the cold test, one fix round, page opens and failed starts counted with no id (D-10), then one Reddit post at a time and the gate (D-06). On hold until D-06 is called: nothing in Phase 6 or later and no new feature; bug fixes and these rows are the only work. While a post is live, no merge that changes the sim or the protocol (each one restarts the game server).',
     group: 'now',
   },
   {
@@ -164,6 +164,15 @@ const items: ProgressItem[] = [
     status: 'todo',
     section: 'order',
     note: 'From the retest and the cold test, with the rebalance in it, which ends the “provisional until Playtest 3” balance bounds. Starts after P2-05 and H-09.',
+  },
+  {
+    id: 'D-10',
+    title: 'Count page opens and failed starts, with no id',
+    owner: 'Team',
+    status: 'in_progress',
+    section: 'order',
+    note: 'Server analytics and client, protocol stays 19 (Han, 8 Oct 2026). Needed before the first post. An anonymous count (what, channel, platform, browser; no id, no time) for each page open and each failed start, sent before the age answer too unless play data is off or the browser asks not to be tracked, never under 13. The server keeps daily totals only, 90 days. The dashboard’s “Before the age question” panel: opens, sessions and the share per link, failed starts by reason, platform and browser. The privacy page says so. In review: Han reads the changed privacy sentences on his phone before merging.',
+    proof: pr(99),
   },
   {
     id: 'D-02',

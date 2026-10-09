@@ -4,7 +4,7 @@ One page on the game server so Han can judge **roll out vs pivot**: are stranger
 
 Local solo with no `VITE_SERVER_URL` sends nothing. The Vercel build (online lobby, including **Play solo offline**) does, because that build knows the server.
 
-Players can read what is sent at **`/privacy.html`**, turn it off for their browser, and download or delete what the server holds for it themselves (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). Nothing is sent before a one-time age question, and nothing ever under 13 ([Age](#age)). Requests by email go to the address on that page, towerdefensetogether@gmail.com (`TASKS.md` H-07).
+Players can read what is sent at **`/privacy.html`**, turn it off for their browser, and download or delete what the server holds for it themselves (see [Privacy and the play-data switch](#privacy-and-the-play-data-switch)). No play data (anything with an id) is sent before a one-time age question, and nothing at all after an answer under 13 ([Age](#age)). The one thing that may go before the answer is an anonymous count with no id: the page opened, or it failed to start ([Before the age question](#before-the-age-question), Han, 8 Oct 2026). Requests by email go to the address on that page, towerdefensetogether@gmail.com (`TASKS.md` H-07).
 
 ## Open the dashboard
 
@@ -39,7 +39,7 @@ The client posts to `POST /analytics/event` on the same host as `VITE_SERVER_URL
 | A Render Disk mount, e.g. `/var/data` | `events.jsonl` in that directory. This is what survives a deploy. On Render: **Disks** → add a disk → mount path `/var/data` → set `ANALYTICS_DIR=/var/data`. The process user must be able to write there. |
 | `memory` | RAM only. Lost when the process stops. |
 
-Beside it, `retention.json` holds the return-rate tables (see [Retention](#retention)); it is small (one short line per browser seen in the last month, plus daily counts) and is rewritten only when a new browser arrives, one comes back on day 1 / 7 / 30, or a browser is seen on a new day.
+Beside it, `retention.json` holds the return-rate tables (see [Retention](#retention)); it is small (one short line per browser seen in the last month, plus daily counts) and is rewritten only when a new browser arrives, one comes back on day 1 / 7 / 30, or a browser is seen on a new day. `counts.json` holds the anonymous daily totals (see [Before the age question](#before-the-age-question)): one short row per UTC day, kind, channel, platform and browser that had any, kept 90 days, rewritten the same way (a temp file, then a rename) when a total changes (a burst of counts is written a few times, not once each), and read back at startup. Nothing else holds those totals, so a missing or torn `counts.json` starts them again from zero.
 
 The file keeps 30 days (and at most the newest 20,000 events). The server drops older events and rewrites the file at startup and then every 24 hours of uptime, whatever the file size and whether or not anything was recorded that day. A deploy or restart also runs the startup prune. Between those, the file is also rewritten whenever an append pushes it past 2 MB. So nothing stays on disk for more than 30 days plus one day. Memory follows the same rule (see [Retention](#retention)). If the directory cannot be created, the server stays up and keeps events in memory; the log and the yellow banner say so.
 
@@ -78,6 +78,8 @@ The page is the last 30 days unless a panel says otherwise. Times are UTC. To se
 - **By first visit** — per UTC day: new browsers, and D1 / D7 / D30 for that day's cohort ("not yet" until it is old enough). A post day stands out.
 
 A visitor id is a random id in `localStorage` (`tdt.visitor`). It is not an account. Clearing site data looks like a new person. Gate 2's bar, once a channel has dozens of visitors, is about 25–30% back the next day and 7–8% after a week, compared across Reddit and CrazyGames. The Reddit round's gate (D-06, `TASKS.md`) reads the first session per link instead (**By link**, below): day-1 returns are noted there, and day-7 is not the bar yet, because no progress is saved between visits. The page shows the rates; it does not paint pass or fail.
+
+**Before the age question.** Anonymous counts with no id (see [Before the age question](#before-the-age-question)), over the last 30 UTC days, today included. Four numbers on top: pages opened, sessions started, sessions per open, and failed starts. Then one row per channel that had an open or a session: **Opened** (page loads of the game counted for that link), **Sessions** (sessions started in the event log, as in **Where they came from**), and **Share** (sessions over opens), with a total row. A session needs the age answer and play data on, so the share reads roughly how many opens got past the age question. **An open is a page load, so reloads and returning visitors count again and the share is a floor.** Read it per link, against the same link's **By link** row. In the first days after this change, browsers still on an older build start sessions without counting their open, so a share can read over 100% until they update. Then **Failed starts**: how many of each reason (`boot_timeout` "Slow start", `webgl_unavailable` "No WebGL", `webgl_context_lost` "WebGL lost") and their share of opens, and a table with one row per reason, platform and browser that had any, most first. These include first visits that never reached the age question, which **Crashes and errors** cannot see. `/analytics/summary` has the same numbers under `beforeAge` (`opens`, `sessions`, `share`, `channels` with `opens` / `sessions` / `share` per channel, `failed` with `starts`, `byReason` and `rows`).
 
 **Where new players stop.** New players are browsers whose first session is in the 30-day window (the retention table says which session was first). For each step, how many did it **in that first session**, as a share of those who opened the game, and how many **stopped** there (it was the furthest step they reached). The yellow line names the step most stopped after, the last one aside.
 
@@ -129,9 +131,18 @@ Below it, **First-match lesson (solo)**: how many first sessions reached each le
 | `client_error` | An uncaught error or unhandled rejection, or a start-up that was slow or had no graphics: `kind`, `message`, `stack`, `build`, `browser` (see [Crash reports](#crash-reports)) |
 | `feedback` | One tap of 1–5 on the end screen, plus the optional note |
 
-Every event carries the visitor id, the session id, the channel and the platform, and nothing else beyond the fields above (the server rejects unknown fields). The game view turns snapshots into the match events (`analytics/matchTracker.ts`); the HUD no longer sends `match_end` itself. The end-screen control is hidden when there is no server URL or play data is off. Under the note box it says **"Don't include personal details."** with a link to the privacy page. Tapping a rating never blocks **Play again**. If the post fails, the match is unchanged.
+Every event carries the visitor id, the session id, the channel and the platform, and nothing else beyond the fields above (the server rejects unknown fields).
 
-Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do not start a session. On the online build the session starts before the game view is created, so a page that cannot start (no WebGL) still counts as a visit and can send its reason (`webgl_unavailable`).
+**Anonymous counts** go to `POST /analytics/count`, never as events. The body is exactly `{ what, channel, platform, browser }` (`CountBody` in `session.ts`): no visitor id, no session id, no text and no time.
+
+| `what` | When |
+|---|---|
+| `open` | Once per load of the game page, from `installAnalytics` (so not on `?showcase`, `?stress`, `?progress` or `privacy.html`) |
+| `boot_timeout`, `webgl_unavailable`, `webgl_context_lost` | Once per page load each, when the start-up watchdog shows the slow-start or the graphics message: `reportBoot` in `main.ts` calls `countBootFailure` (`analytics/install.ts`) as well as sending the crash report |
+
+`channel` is the one this page's session carries (the link's tag, else the saved channel, else the referrer or Direct), `platform` is web, iOS or Android and `browser` the family, as in a crash report. Whether a count may go is read before each one (`countOn`, `countAllowed` in `preference.ts`, see [Age](#age)). The game view turns snapshots into the match events (`analytics/matchTracker.ts`); the HUD no longer sends `match_end` itself. The end-screen control is hidden when there is no server URL or play data is off. Under the note box it says **"Don't include personal details."** with a link to the privacy page. Tapping a rating never blocks **Play again**. If the post fails, the match is unchanged.
+
+Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do not start a session or count an open. On the online build analytics is installed before the game view is created, so a page that cannot start (no WebGL) still counts its open and its reason (anonymous counts, before the age answer too) and, once the age is known, a visit with its crash report (`webgl_unavailable`).
 
 ## Crash reports
 
@@ -149,7 +160,7 @@ Showcase (`?showcase`), the stress scene, and the progress page (`?progress`) do
 | `webgl_unavailable` | The browser could not create WebGL (none, or the real context could not be made). Shown at once: "This browser could not start the game's graphics." with Reload. |
 | `webgl_context_lost` | The WebGL context was lost while the renderer started. Shown at once, same line. |
 
-They follow the rules below like any other report, the Play data switch and the age answer included. The dashboard groups them by message, so *Crash reports* shows how many reports and sessions each had and in which browsers; every event also carries the platform. Local solo (no game server, no analytics) sends none. A page that never runs `main.ts` at all (the script not arriving) sends nothing: the splash is plain HTML on purpose and has no script of its own.
+They follow the rules below like any other report, the Play data switch and the age answer included. Each reason also goes once as an anonymous count (see [Before the age question](#before-the-age-question)), which may go before the age answer, so a first visit whose game never starts is still seen, under **Before the age question → Failed starts**. The dashboard groups the reports by message, so *Crash reports* shows how many reports and sessions each had and in which browsers; every event also carries the platform. Local solo (no game server, no analytics) sends none. A page that never runs `main.ts` at all (the script not arriving) sends nothing: the splash is plain HTML on purpose and has no script of its own.
 
 Limits, per session: each error (message plus first stack line) is sent once; at most 5 reports; a report less than 5 seconds after the last one is dropped (a burst is usually one fault). A new session starts the count again. Errors in the simulation worker are not captured (the worker's own errors do not reach `window`). Errors before analytics is installed (the first lines of `main.ts`) are not either. The server accepts messages up to 200 characters and stacks up to 1,000 and rejects anything else.
 
@@ -162,24 +173,24 @@ Limits, per session: each error (message plus first stack line) is sent once; at
 
 **The switch.** ⚙ Settings → **Play data: On / Off**, and the same switch on the privacy page. It is saved for this browser under its own key, `tdt.analytics` (`on` / `off`), not in `tdt.settings`, so a game tab saving its settings cannot put back an old choice. The client reads it before **every** post (`allowed` in `session.ts`), so Off holds from the next event in every open tab:
 
-- Off: nothing is sent: no heartbeat, no `session_end`, no match events, no funnel steps, no crash reports, no rating. The rating control is not shown. The session in progress just stops; the server closes it after its 90-second idle window.
+- Off: nothing is sent: no heartbeat, no `session_end`, no match events, no funnel steps, no crash reports, no rating, no anonymous count. The rating control is not shown. The session in progress just stops; the server closes it after its 90-second idle window.
 - On again: the next tick starts a new session (`session_start`), with the same visitor id.
-- Off from the start: no visitor id is made and the acquisition channel is not saved.
+- Off from the start: no visitor id is made, the acquisition channel is not saved and no count is sent.
 - With no choice made, it is **on** (16 and over, see [Age](#age)), unless the browser sends **Global Privacy Control** or **Do Not Track**; then it starts off and the player can still turn it on. A player's own choice always wins.
-- Before the age question is answered nothing is sent, whatever the switch says; under 13 it is off and On cannot be picked (`analyticsAllowed` in `preference.ts`).
+- Before the age question is answered no play data is sent, whatever the switch says (`analyticsAllowed` in `preference.ts`); only the anonymous counts may go, and only while the switch would send (`countAllowed`). Under 13 it is off, On cannot be picked, and no count goes either.
 
-The page says what each event holds. When `AnalyticsBody` (`session.ts`) gains a field, add it to the page; `test/analytics.test.ts` fails until the field list there is updated too.
+The page says what each event holds. When `AnalyticsBody` (`session.ts`) gains a field, add it to the page; `test/analytics.test.ts` fails until the field list there is updated too. The same goes for `CountBody`, whose fields the page's "A count of page opens, with no id" entry names.
 
-<a id="age"></a>**Age.** Before any play data is sent, the game asks once, **"How old are you?"**: one number field, no suggested answer, no hint of what any age changes (`src/privacy/ageCheck.ts`). The answer stays in the browser as `tdt.age` (`{ age, month }`; the age grows by full years since, never sooner) and is never sent. Everyone can play whatever the answer.
+<a id="age"></a>**Age.** Before any play data (anything with an id) is sent, the game asks once, **"How old are you?"**: one number field, no suggested answer, no hint of what any age changes (`src/privacy/ageCheck.ts`). The answer stays in the browser as `tdt.age` (`{ age, month }`; the age grows by full years since, never sooner) and is never sent. Everyone can play whatever the answer.
 
-| Age | Play data |
-|---|---|
-| Not answered yet | Nothing is sent. |
-| Under 13 | Off, and On cannot be picked. Anything this browser sent before is deleted with its data key, and its id and key are cleared. |
-| 13 to 15 | Starts off. The player may turn it on. |
-| 16 and over | The usual rule: on, unless GPC / DNT or the player turned it off. |
+| Age | Play data | Anonymous counts (`countAllowed`) |
+|---|---|---|
+| Not answered yet | Nothing is sent. | Sent, unless the player turned play data off or the browser sends GPC / DNT. |
+| Under 13 | Off, and On cannot be picked. Anything this browser sent before is deleted with its data key, and its id and key are cleared. | Never. A count sent before the answer has no id: it is only part of a day's total. |
+| 13 to 15 | Starts off. The player may turn it on. | Only once the player turned play data on. |
+| 16 and over | The usual rule: on, unless GPC / DNT or the player turned it off. | The same rule as play data. |
 
-When it is asked: at the first **Play solo**, **Start lesson**, **Create room** or **Join room** tap (the solo pick's Play in a build with no lobby), and when the player turns play data on before answering. Never on first load: the lobby paints and is tappable exactly as before (D-08's first-load numbers do not change), and a returning browser never sees it. Continue goes straight on to what was tapped, so a new player's first match costs one extra step (type the age, Continue), once. It is only asked when the page could send something: a build with no game server, or play data already off (switch or GPC / DNT), skips it until the player turns play data on. The lobby funnel step is sent right after the answer, since nothing went before it. Typing a different age needs clearing the site's data; the game does not offer a second try.
+When it is asked: at the first **Play solo**, **Start lesson**, **Create room** or **Join room** tap (the solo pick's Play in a build with no lobby), and when the player turns play data on before answering. Never on first load: the lobby paints and is tappable exactly as before (D-08's first-load numbers do not change), and a returning browser never sees it. Continue goes straight on to what was tapped, so a new player's first match costs one extra step (type the age, Continue), once. It is only asked when the page could send something: a build with no game server, or play data already off (switch or GPC / DNT), skips it until the player turns play data on. The lobby funnel step is sent right after the answer, since no event went before it. Typing a different age needs clearing the site's data; the game does not offer a second try.
 
 <a id="your-data"></a>**Your data: copy and deletion, by the player.** ⚙ Settings → Play data → **Your data**, and the same two buttons on the privacy page:
 
@@ -215,6 +226,18 @@ D30 needs the day-30 visit and the first visit together, and the first visit is 
 
 Both are filled in as events arrive and rebuilt from `events.jsonl` when the file is missing or torn (replaying an event twice changes nothing). The privacy page says the same. Nothing needs trimming by hand.
 
+## Before the age question
+
+**Han's decision (8 Oct 2026):** count, anonymously, the visitors who open the link and leave before tapping Play, and the first visits whose game never starts. The rule that no play data, meaning anything with an id, is sent before the age answer stays exactly as it is. Before this, nothing at all was sent before the answer, so 100 people opening a Reddit link of whom 30 tapped Play showed as 30, and a first visit with no WebGL never reported its reason.
+
+**What is sent.** One anonymous count per page load of the game (`open`), and the start-up watchdog's reason once if the start fails (`boot_timeout`, `webgl_unavailable`, `webgl_context_lost`), to `POST /analytics/count` (see [What the client sends](#what-the-client-sends)). The body is exactly `{ what, channel, platform, browser }`: no visitor id, no session id, no text, no time from the client.
+
+**When.** `countAllowed` in `preference.ts`, read before each count (see [Age](#age)): before the age answer, unless the player turned play data off or the browser sends Global Privacy Control or Do Not Track; never under 13; from 13 to 15 only once the player turned play data on; from 16 the same rule as play data. Local solo (no game server) sends none.
+
+**What the server keeps.** Totals only (`apps/server/src/analytics/counts.ts`): per UTC day, `what`, channel, platform and browser, how many. In memory and in `counts.json` beside `retention.json` (see [Keep the numbers across deploys](#keep-the-numbers-across-deploys)), kept **90 days** like the cohort counts, pruned at startup and every 24 hours with the event log, and read back at startup. No address, no line per request, and nothing goes into `events.jsonl`. **Copy and deletion are not affected:** there is nothing per person, so a copy has none of it and a deletion has nothing to remove (a count sent before an under-13 answer stays in its day's total). The route checks the `Origin`, answers CORS and takes the same body limit and per-address rate limit as events (see [Limits](#limits)); an unknown `what`, channel, platform or browser, or any other field, is `400`.
+
+**Reading it.** The dashboard's **Before the age question** panel (see [What each panel means](#what-each-panel-means)). An open is a page load, so reloads and returning visitors count again and the share of opens that became sessions is a floor.
+
 ## Limits
 
-Posts need an `Origin` in `ALLOWED_ORIGINS`. Bodies over 2 KB are rejected (a crash report is at most about 1.2 KB). Unknown fields are rejected. Each IP can burst 10 events and then about one per second. A player's own copy and deletion have their own, tighter limit (see [Your data](#your-data)). The server stamps the time; the client clock is not trusted.
+Posts to `/analytics/event` and `/analytics/count` need an `Origin` in `ALLOWED_ORIGINS`. Bodies over 2 KB are rejected (a crash report is at most about 1.2 KB; a count under 100 bytes). Unknown fields or values are rejected. Each IP can burst 10 posts, events and counts together, and then about one per second. The limiter keeps a token bucket per address in memory only (never on disk, never with an event or a count); once it holds 4,000 addresses it drops those idle for 10 minutes. A player's own copy and deletion have their own, tighter limit (see [Your data](#your-data)). The server stamps the time; the client clock is not trusted.

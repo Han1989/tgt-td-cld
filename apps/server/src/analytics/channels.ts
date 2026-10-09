@@ -71,6 +71,26 @@ export const FUNNEL_STEPS = [
 
 export type FunnelStep = (typeof FUNNEL_STEPS)[number];
 
+/**
+ * What an anonymous count says (POST /analytics/count, counts.ts): the game page opened, or the start-up watchdog's
+ * reason for a start that failed. The client list in apps/client/src/analytics/session.ts must stay the same.
+ */
+export const COUNT_KINDS = ['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost'] as const;
+
+export type CountKind = (typeof COUNT_KINDS)[number];
+
+/** The three failed-start reasons, in the dashboard's order. */
+export type BootReason = Exclude<CountKind, 'open'>;
+
+export const BOOT_REASONS: readonly BootReason[] = ['boot_timeout', 'webgl_unavailable', 'webgl_context_lost'];
+
+/** Short, so the failed-starts table fits a phone; the panel's note says what each means. */
+export const BOOT_REASON_LABELS: Record<BootReason, string> = {
+  boot_timeout: 'Slow start',
+  webgl_unavailable: 'No WebGL',
+  webgl_context_lost: 'WebGL lost',
+};
+
 export function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value);
 }
@@ -85,4 +105,8 @@ export function isBrowser(value: unknown): value is Browser {
 
 export function isFunnelStep(value: unknown): value is FunnelStep {
   return typeof value === 'string' && (FUNNEL_STEPS as readonly string[]).includes(value);
+}
+
+export function isCountKind(value: unknown): value is CountKind {
+  return typeof value === 'string' && (COUNT_KINDS as readonly string[]).includes(value);
 }

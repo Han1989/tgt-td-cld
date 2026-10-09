@@ -4,7 +4,8 @@
 
 import { writeFileSync } from 'node:fs';
 import { HERO_KINDS } from '@tdt/protocol';
-import { CHANNELS, type Channel } from '../src/analytics/channels';
+import { BROWSERS, CHANNELS, type Browser, type Channel, type Platform } from '../src/analytics/channels';
+import { addCount, emptyCounts, expireCounts } from '../src/analytics/counts';
 import { renderDashboard } from '../src/analytics/page';
 import { DAY_MS, expireRetention, retentionFromEvents } from '../src/analytics/retention';
 import { summarize, type StoredEvent } from '../src/analytics/summary';
@@ -41,6 +42,21 @@ function channel(): Channel {
 }
 
 const events: StoredEvent[] = [];
+/** Anonymous daily totals: every page load, and the starts that failed. */
+const counts = emptyCounts();
+/** Of the page loads that never reach the age question's answer, per channel (a Reddit link loses more than friends). */
+const bounce: Partial<Record<Channel, number>> = { friends: 0.1, cold: 0.25, 'reddit-playmygame': 0.55, crazygames: 0.45 };
+function browserFor(platform: Platform): Browser {
+  if (platform === 'ios') return rand() < 0.85 ? 'safari' : 'chrome';
+  if (platform === 'android') return rand() < 0.7 ? 'chrome' : pick(['samsung', 'firefox'] as const);
+  return pick(BROWSERS);
+}
+function opened(ch: Channel, platform: Platform, at: number): void {
+  const browser = browserFor(platform);
+  addCount(counts, { what: 'open', channel: ch, platform, browser }, at);
+  if (rand() < 0.02) addCount(counts, { what: 'boot_timeout', channel: ch, platform, browser }, at);
+  else if (rand() < 0.008) addCount(counts, { what: pick(['webgl_unavailable', 'webgl_context_lost'] as const), channel: ch, platform, browser }, at);
+}
 let n = 0;
 const id = (prefix: string) => `${prefix}-${String(++n).padStart(8, '0')}`;
 
@@ -48,6 +64,7 @@ function visit(visitor: string, ch: Channel, at: number, first: boolean): void {
   const session = id('session');
   const base = { visitor, session, channel: ch, platform: pick(['web', 'ios', 'android'] as const) };
   const push = (e: Omit<StoredEvent, keyof typeof base>) => events.push({ ...base, ...e } as StoredEvent);
+  opened(ch, base.platform, at);
   let t = at;
   push({ t: 'session_start', at: t });
   if (rand() < 0.04) {
@@ -113,6 +130,9 @@ for (let day = 45; day >= 0; day--) {
     const visitor = id('visitor');
     const ch = channel();
     const first = now - day * DAY_MS - Math.floor(rand() * 8 * 60 * 60 * 1000);
+    // Some open the link and leave before the age question: an open count and nothing else.
+    const left = bounce[ch] ?? 0.35;
+    while (rand() < left) opened(ch, pick(['web', 'ios', 'android'] as const), first - Math.floor(rand() * 60 * 60 * 1000));
     visit(visitor, ch, first, true);
     for (const back of [1, 2, 7, 14, 30]) {
       const odds = back === 1 ? 0.3 : back === 7 ? 0.11 : back === 30 ? 0.06 : 0.08;
@@ -127,7 +147,8 @@ events.push({ t: 'session_start', at: now - 200_000, visitor: 'visitor-live0001'
 
 const table = retentionFromEvents(events.filter((e) => e.at <= now));
 expireRetention(table, now);
-const summary = summarize(events, now, { connectedPlayers: 2, persistent: true, durable: true, dir: '/var/data' }, table);
+expireCounts(counts, now);
+const summary = summarize(events, now, { connectedPlayers: 2, persistent: true, durable: true, dir: '/var/data' }, table, counts);
 const out = process.argv[2] ?? 'analytics-example.html';
 writeFileSync(out, renderDashboard(summary, { example: true }));
 console.log(`Wrote ${out} (${events.length} made-up events, ${CHANNELS.length} channels).`);

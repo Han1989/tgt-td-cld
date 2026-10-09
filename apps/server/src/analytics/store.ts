@@ -1,12 +1,22 @@
 // In-memory event log plus an append-only JSONL file when a directory is writable.
 // An explicit ANALYTICS_DIR (a Render Disk) survives deploys. The default temp
-// file does not. `memory` keeps RAM only.
+// file does not. `memory` keeps RAM only. Beside the log: retention.json (retention.ts)
+// and counts.json, the anonymous daily totals (counts.ts), which hold no id and no address.
 
 import { appendFile, mkdir, rename, stat, writeFile } from 'node:fs/promises';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isChannel, isPlatform } from './channels';
+import {
+  addCount,
+  emptyCounts,
+  expireCounts,
+  parseCounts,
+  serializeCounts,
+  type CountBody,
+  type CountState,
+} from './counts';
 import { EVENT_TYPES, type ParsedEvent } from './parse';
 import {
   emptyRetention,
@@ -37,6 +47,8 @@ function isStoredEvent(value: unknown): value is StoredEvent {
 const FILE_NAME = 'events.jsonl';
 /** First visits and daily return counts (retention.ts), beside the event log. */
 const RETENTION_FILE = 'retention.json';
+/** Anonymous daily totals (counts.ts): page opens and failed starts, no id. */
+const COUNTS_FILE = 'counts.json';
 /** Rewrite the file once it passes this, keeping only what is still in memory. */
 const COMPACT_AT = 2_000_000;
 const MAX_EVENTS = 20_000;
@@ -67,10 +79,14 @@ export class AnalyticsStore {
   readonly location: AnalyticsLocation;
   private file: string | null = null;
   private retentionFile: string | null = null;
+  private countsFile: string | null = null;
   private events: StoredEvent[] = [];
   private retention: RetentionState = emptyRetention();
   /** The retention table changed since it was last written. */
   private retentionDirty = false;
+  /** Totals only: per UTC day, what, channel, platform and browser, how many. Nothing per request. */
+  private counts: CountState = emptyCounts();
+  private countsDirty = false;
   /** Lines waiting for the single writer. Kept separate so a compact cannot duplicate them. */
   private pending: StoredEvent[] = [];
   private writeChain: Promise<void> = Promise.resolve();
@@ -91,12 +107,20 @@ export class AnalyticsStore {
       mkdirSync(this.location.dir, { recursive: true });
       this.file = path.join(this.location.dir, FILE_NAME);
       this.retentionFile = path.join(this.location.dir, RETENTION_FILE);
+      this.countsFile = path.join(this.location.dir, COUNTS_FILE);
       try {
         this.retention = parseRetention(JSON.parse(readFileSync(this.retentionFile, 'utf8')) as unknown);
       } catch (err) {
         // Missing (first start) or torn: rebuilt from the event log below, as far as it reaches.
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT' && !(err instanceof SyntaxError)) throw err;
       }
+      try {
+        this.counts = parseCounts(JSON.parse(readFileSync(this.countsFile, 'utf8')) as unknown);
+      } catch (err) {
+        // Missing (first start) or torn: the totals start again; nothing else holds them.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT' && !(err instanceof SyntaxError)) throw err;
+      }
+      this.countsDirty = true;
       let raw = '';
       try {
         raw = readFileSync(this.file, 'utf8');
@@ -137,6 +161,24 @@ export class AnalyticsStore {
     this.pending.push(stored);
     this.enqueue(() => this.flushPending());
     return true;
+  }
+
+  /**
+   * An anonymous count (a page open or a failed start): one more in that day's total. Nothing else about the request
+   * is kept, and it never reaches the event log.
+   */
+  count(body: CountBody, at = Date.now()): void {
+    addCount(this.counts, body, at);
+    this.countsDirty = true;
+    this.trim(at);
+    if (!this.file || !this.persistent) return;
+    // Queued writes run one at a time and skip when nothing changed, so a burst of counts writes the file a few times.
+    this.enqueue(() => this.writeCounts());
+  }
+
+  /** The daily totals (read-only for the dashboard). */
+  countTable(): CountState {
+    return this.counts;
   }
 
   /**
@@ -213,6 +255,7 @@ export class AnalyticsStore {
     }
     if (this.events.length > MAX_EVENTS) this.events.splice(0, this.events.length - MAX_EVENTS);
     if (expireRetention(this.retention, now)) this.retentionDirty = true;
+    if (expireCounts(this.counts, now)) this.countsDirty = true;
   }
 
   private enqueue(fn: () => Promise<void>): void {
@@ -243,6 +286,15 @@ export class AnalyticsStore {
     await rename(tmp, this.retentionFile);
   }
 
+  /** Rewrites counts.json when the totals changed, the same way as retention.json. */
+  private async writeCounts(): Promise<void> {
+    if (!this.countsFile || !this.countsDirty) return;
+    this.countsDirty = false;
+    const tmp = `${this.countsFile}.tmp`;
+    await writeFile(tmp, JSON.stringify(serializeCounts(this.counts)), 'utf8');
+    await rename(tmp, this.countsFile);
+  }
+
   private async compact(): Promise<void> {
     if (!this.file) return;
     // Snapshot first, then drop queued copies of those events so the next
@@ -257,5 +309,6 @@ export class AnalyticsStore {
     await rename(tmp, this.file);
     this.retentionDirty = true;
     await this.writeRetention();
+    await this.writeCounts();
   }
 }

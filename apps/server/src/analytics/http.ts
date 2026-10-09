@@ -1,4 +1,5 @@
-// POST /analytics/event from the client. GET /analytics and /analytics/summary
+// POST /analytics/event from the client, and POST /analytics/count for the anonymous counts (counts.ts: a page open
+// or a failed start, no id, added to a daily total). GET /analytics and /analytics/summary
 // for Han, behind ANALYTICS_DASHBOARD_KEY, and the same key for a copy
 // (GET /analytics/visitor?id=) or deletion (POST /analytics/forget?id=) asked for by email.
 // A player's own copy and deletion (POST /analytics/mine, /analytics/mine/forget) take the
@@ -8,6 +9,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { TokenBucket } from '../rateLimit';
+import { parseCount } from './counts';
 import { DATA_KEY, visitorFromKey } from './dataKey';
 import { parseAnalyticsEvent } from './parse';
 import { renderDashboard } from './page';
@@ -20,12 +22,13 @@ const ROUTES = [
   '/analytics',
   '/analytics/summary',
   '/analytics/event',
+  '/analytics/count',
   '/analytics/visitor',
   '/analytics/forget',
   '/analytics/mine',
   '/analytics/mine/forget',
 ];
-/** One event a second sustained, a short burst for start + match + rating. */
+/** One event a second sustained, a short burst for start + match + rating. Counts share the same bucket. */
 const PER_SECOND = 1;
 const BURST = 10;
 /** A player's own copy / deletion: a few at once, then one every 20 seconds, per IP. */
@@ -217,7 +220,8 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
       return true;
     }
 
-    if (path === '/analytics/event') {
+    // Events and counts: the same origin check, CORS, body limit and per-address bucket.
+    if (path === '/analytics/event' || path === '/analytics/count') {
       const origin = req.headers.origin;
       if (!opts.isOriginAllowed(typeof origin === 'string' ? origin : undefined)) {
         send(res, 403, 'Forbidden\n', 'text/plain; charset=utf-8');
@@ -244,11 +248,22 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
         send(res, 413, 'Too large\n', 'text/plain; charset=utf-8');
         return true;
       }
+      const counting = path === '/analytics/count';
       let json: unknown;
       try {
         json = JSON.parse(raw) as unknown;
       } catch {
-        send(res, 400, 'Bad event\n', 'text/plain; charset=utf-8');
+        send(res, 400, counting ? 'Bad count\n' : 'Bad event\n', 'text/plain; charset=utf-8');
+        return true;
+      }
+      if (counting) {
+        const count = parseCount(json);
+        if (!count) {
+          send(res, 400, 'Bad count\n', 'text/plain; charset=utf-8');
+          return true;
+        }
+        opts.store.count(count, at);
+        send(res, 204, '', 'text/plain; charset=utf-8');
         return true;
       }
       const event = parseAnalyticsEvent(json);
@@ -299,6 +314,7 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
         dir: opts.store.location.dir,
       },
       opts.store.retentionTable(),
+      opts.store.countTable(),
     );
     if (path === '/analytics/summary') {
       send(res, 200, JSON.stringify(summary), 'application/json; charset=utf-8');

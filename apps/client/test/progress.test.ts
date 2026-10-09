@@ -33,12 +33,13 @@ describe('progress dashboard data', () => {
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
     expect(summary.done).toBe(53);
-    expect(summary.open).toBe(39);
+    // D-10 (the anonymous counts, PR #99) is in review: open and in progress.
+    expect(summary.open).toBe(40);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
     expect(summary.hanOpen).toBe(9);
-    expect(summary.inProgress).toBe(0);
-    expect(summary.total).toBe(92);
+    expect(summary.inProgress).toBe(1);
+    expect(summary.total).toBe(93);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -107,6 +108,9 @@ describe('progress dashboard data', () => {
       expect(byId(id).status).toBe('todo');
     }
     for (const id of ['H-02', 'H-06', 'H-07', 'H-08', 'D-09']) expect(byId(id).status).toBe('done');
+    expect(byId('D-10')).toMatchObject({ owner: 'Team', status: 'in_progress', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/99' } });
+    expect(byId('D-10').note).toContain('no id');
+    expect(byId('D-10').note).toContain('In review');
     expect(byId('H-07').note).toContain('towerdefensetogether@gmail.com');
     expect(byId('D-03').title).toContain('r/WebGames');
     expect(byId('D-04').title).toContain('r/TowerDefense');
@@ -127,7 +131,8 @@ describe('progress dashboard data', () => {
 
   it('lists the order from here first, top to bottom, and holds the Later rows until D-06', () => {
     const order = PROGRESS.items.filter((item) => item.section === 'order').map((item) => item.id);
-    expect(order).toEqual(['D-09', 'H-08', 'P2-05', 'H-09', 'T-07', 'D-02', 'D-03', 'D-04', 'D-06']);
+    // D-10 is needed before the first post, not before the retest or the cold test.
+    expect(order).toEqual(['D-09', 'H-08', 'P2-05', 'H-09', 'T-07', 'D-10', 'D-02', 'D-03', 'D-04', 'D-06']);
     expect(PROGRESS.sections[0]!.id).toBe('order');
     expect(PROGRESS.sections[0]!.blurb).toContain('On hold until D-06 is called');
     expect(PROGRESS.items.filter((item) => item.section === 'after').map((item) => item.id)).toEqual(['L-01', 'L-02']);
@@ -196,8 +201,9 @@ describe('progress dashboard data', () => {
   });
 
   it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
-    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual([]);
-    expect(renderCooking(PROGRESS)).toContain('Nothing is marked in progress.');
+    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['D-10']);
+    expect(renderCooking(PROGRESS)).toContain('D-10');
+    expect(renderCooking(PROGRESS)).not.toContain('Nothing is marked in progress.');
     const empty = renderCooking({ ...PROGRESS, items: PROGRESS.items.filter((item) => item.status !== 'in_progress') });
     expect(empty).toContain('Cooking now');
     expect(empty).toContain('Nothing is marked in progress.');
@@ -229,7 +235,7 @@ describe('progress dashboard data', () => {
         ...PROGRESS.items,
       ],
     };
-    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9']);
+    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'D-10']);
     const html = renderCooking(flying);
     expect(html).toContain('Z-9');
     expect(html).toContain('data-status="in_progress"');

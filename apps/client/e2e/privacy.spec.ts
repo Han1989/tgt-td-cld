@@ -1,6 +1,6 @@
 // The privacy page (privacy.html), its links, and the play-data switch (docs/ANALYTICS.md). The e2e build
-// has no game server; `?analytics` (e2e builds only, main.ts) posts this page's play data to its own
-// origin, where the test catches every event.
+// has no game server; `?analytics` (e2e builds only, main.ts) posts this page's play data and its anonymous
+// counts to its own origin, where the test catches every event and every count.
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -43,6 +43,21 @@ async function catchPosts(page: Page): Promise<Post[]> {
     await route.fulfill({ status: 204 });
   });
   return posts;
+}
+
+interface Count {
+  what: string;
+  [key: string]: unknown;
+}
+
+/** Catches every anonymous count (`/analytics/count`: a page open or a failed start, no id), answered 204. */
+async function catchCounts(page: Page): Promise<Count[]> {
+  const counts: Count[] = [];
+  await page.route('**/analytics/count', async (route) => {
+    counts.push(JSON.parse(route.request().postData() ?? '{}') as Count);
+    await route.fulfill({ status: 204 });
+  });
+  return counts;
 }
 
 /** This browser answered the age question as an adult before the page loads. */
@@ -217,6 +232,7 @@ test('play data: the rating asks for no personal details, and turned off in Sett
 test('play data already off when the page opens: nothing is posted and no visitor id is made', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('tdt.analytics', 'off'));
   const posts = await catchPosts(page);
+  const counts = await catchCounts(page);
   await startSolo(page, '?lab&analytics');
   await tick(page);
   await page.evaluate(() => setTimeout(() => {
@@ -228,19 +244,29 @@ test('play data already off when the page opens: nothing is posted and no visito
   await expect(page.locator('#end-feedback')).toBeHidden();
   await page.waitForTimeout(300);
   expect(posts).toEqual([]);
+  // Not even the anonymous count of the page open.
+  expect(counts).toEqual([]);
   expect(await page.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 });
 
-test('the age question comes at the first Play, not on load, and nothing is sent before it', async ({ page }) => {
+test('the age question comes at the first Play, not on load, and only one anonymous count goes before it', async ({ page }) => {
   const posts = await catchPosts(page);
-  await page.goto('/?lobby&analytics');
+  const counts = await catchCounts(page);
+  await page.goto('/?lobby&analytics&src=cold');
   await waitForReady(page, 'online');
-  // The lobby is up and tappable as before: no sheet, and nothing sent.
+  // The lobby is up and tappable as before: no sheet, and no event sent.
   await expect(page.locator('#lobby-offline')).toBeVisible();
   await expect(page.locator('#age-check')).toHaveCount(0);
   await tick(page);
   await page.waitForTimeout(500);
   expect(posts).toEqual([]);
+  // A new browser sends exactly one count of the page open: the link's tag, the platform and the browser family,
+  // and nothing else (no id, no session, no time).
+  expect(counts).toEqual([
+    { what: 'open', channel: 'cold', platform: expect.stringMatching(/^(web|ios|android)$/), browser: expect.stringMatching(/^(chrome|safari)$/) },
+  ]);
+  expect(Object.keys(counts[0]!).sort()).toEqual(['browser', 'channel', 'platform', 'what']);
+  expect(await page.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 
   await page.locator('#lobby-offline').click();
   await expect(page.locator('#age-check')).toBeVisible();
@@ -258,15 +284,59 @@ test('the age question comes at the first Play, not on load, and nothing is sent
   // Straight on to the solo pick: no second tap of Play solo.
   await expect(page.locator('#lobby-solo')).toBeVisible();
   await expect.poll(() => posts.map((p) => p.t)).toEqual(['session_start', 'funnel']);
+  expect(posts[0]).toMatchObject({ channel: 'cold' });
   expect(posts[1]).toMatchObject({ step: 'lobby' });
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem('tdt.age')))!)).toMatchObject({ age: 34 });
+  // The answer sends no count of its own.
+  expect(counts).toHaveLength(1);
 
-  // Asked once: the next visit goes straight through.
+  // Asked once: the next visit goes straight through, and its page load is counted again.
   await page.reload();
   await waitForReady(page, 'online');
   await page.locator('#lobby-offline').click();
   await expect(page.locator('#lobby-solo')).toBeVisible();
   await expect(page.locator('#age-check')).toHaveCount(0);
+  await expect.poll(() => counts.map((c) => c.what)).toEqual(['open', 'open']);
+  await expect.poll(() => posts.filter((p) => p.t === 'session_start').length).toBe(2);
+});
+
+test('a browser that sends Do Not Track sends nothing at all before the age answer, not even the count', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(Navigator.prototype, 'doNotTrack', { get: () => '1' }));
+  const posts = await catchPosts(page);
+  const counts = await catchCounts(page);
+  await page.goto('/?lobby&analytics&src=cold');
+  await waitForReady(page, 'online');
+  await tick(page);
+  // Play data is off, so the age is not even asked: Play solo goes straight on.
+  await page.locator('#lobby-offline').click();
+  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await expect(page.locator('#age-check')).toHaveCount(0);
+  await tick(page);
+  await page.waitForTimeout(500);
+  expect(counts).toEqual([]);
+  expect(posts).toEqual([]);
+});
+
+test('after an under-13 answer nothing more is sent, not even the count of the next page open', async ({ page }) => {
+  const posts = await catchPosts(page);
+  const counts = await catchCounts(page);
+  await page.goto('/?lobby&analytics');
+  await waitForReady(page, 'online');
+  await expect.poll(() => counts.map((c) => c.what)).toEqual(['open']);
+  await page.locator('#lobby-offline').click();
+  await page.locator('#age-input').fill('10');
+  await page.locator('#age-continue').click();
+  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await tick(page);
+  await page.reload();
+  await waitForReady(page, 'online');
+  await page.locator('#lobby-offline').click();
+  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await tick(page);
+  await page.waitForTimeout(500);
+  expect(counts.map((c) => c.what)).toEqual(['open']);
+  expect(posts).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 });
 
 test('under 13: play goes on, play data is forced off, nothing is sent and what was sent before is deleted', async ({ page }) => {
