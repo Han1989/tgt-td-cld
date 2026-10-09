@@ -490,7 +490,10 @@ export function varyDef(def: SynthDef, k: number): SynthDef {
 /**
  * The room reverb's impulse response (stereo): a few early reflections, then a diffuse tail that
  * dies to −60 dB over `seconds` and gets darker as it goes (a wooden hall, not a cave). No direct
- * sound: the dry signal plays alongside it. Deterministic.
+ * sound: the dry signal plays alongside it. Deterministic. Scaled to unit energy (the mean of the
+ * two channels' sum of squares is 1), so the room is as loud at every sample rate: unscaled, its
+ * samples keep their size and the tail has more of them at 48 kHz than at 24 kHz (+19 dB against
+ * +16 dB). How loud it comes back is the engine's return (`ROOM_RETURN`).
  */
 export function roomImpulse(rate: number, seconds: number, seed = 7): [Float32Array, Float32Array] {
   const n = Math.max(1, Math.round(seconds * rate));
@@ -513,6 +516,10 @@ export function roomImpulse(rate: number, seconds: number, seed = 7): [Float32Ar
       if (at < n) c[at]! += (e % 2 === ch ? 0.5 : -0.4) * Math.pow(0.8, e);
     });
   });
+  let energy = 0;
+  for (const c of chans) for (let i = 0; i < n; i++) energy += c[i]! * c[i]!;
+  const scale = energy > 0 ? 1 / Math.sqrt(energy / 2) : 0;
+  for (const c of chans) for (let i = 0; i < n; i++) c[i]! *= scale;
   return chans;
 }
 

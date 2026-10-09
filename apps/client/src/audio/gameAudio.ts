@@ -305,8 +305,10 @@ export class GameAudio {
       gain *= p.gain;
       pan = p.pan;
     }
-    const priority = (mine ? Math.min(2, spec.priority + 1) : spec.priority) as Priority;
-    if (!this.gate.admit(sid, mine ? `${sid}!` : sid, spec, priority, soundMs(sid) / rate, now)) {
+    // Yours get a voice more, except the combat background: in solo every tower is yours.
+    const group = spec.group ?? null;
+    const priority = (mine && !group ? Math.min(2, spec.priority + 1) : spec.priority) as Priority;
+    if (!this.gate.admit(sid, mine ? `${sid}!` : sid, spec, priority, soundMs(sid) / rate, now, group)) {
       this.stats.skipped++;
       return;
     }

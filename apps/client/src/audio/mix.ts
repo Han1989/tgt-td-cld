@@ -5,11 +5,23 @@
 //   quieter the further away they are, and past `HEAR_MARGIN` tiles they are skipped (yours never are).
 // - `VoiceGate` caps the voices: each sound has a cooldown and a most-at-once, and low-priority
 //   sounds (shots, deaths) stop at `VOICE_CAPS[0]` voices so they never crowd out a warning.
+// - The combat background (tower shots, creeps falling, coins) also shares one budget per group
+//   (`GROUP_BUDGETS`), whoever's they are, so a full map firing sits under the music.
 
-import type { Priority } from './sounds';
+import type { Priority, SoundGroup } from './sounds';
 
 /** Voices playing at once, most, by the priority of the sound that wants to start. */
 export const VOICE_CAPS: Record<Priority, number> = { 0: 12, 1: 20, 2: 26 };
+/**
+ * The combat background's budget, across every sound of a group and every player: one tower shot every 140 ms and
+ * three ringing at once over all tower kinds, a creep's fall every 200 ms, a coin every 450 ms. About half the plays a
+ * late wave used to make (7.5 a second instead of 15).
+ */
+export const GROUP_BUDGETS: Record<SoundGroup, GateSpec> = {
+  shot: { cooldown: 140, max: 3 },
+  fall: { cooldown: 200, max: 4 },
+  coin: { cooldown: 450, max: 2 },
+};
 /** A teammate's sounds, against your own. */
 export const OTHERS_GAIN = 0.5;
 /** Tiles beyond the screen edge over which a sound fades out; further away it is skipped. */
@@ -44,28 +56,36 @@ export interface GateSpec {
   max: number;
 }
 
-/** Voice cap and per-sound cooldowns. Times in ms (performance.now()). */
+/** Voice cap, per-sound cooldowns and the groups' budgets. Times in ms (performance.now()). */
 export class VoiceGate {
   private readonly last = new Map<string, number>();
-  private voices: { id: string; end: number }[] = [];
+  private readonly lastOfGroup = new Map<SoundGroup, number>();
+  private voices: { id: string; group: SoundGroup | null; end: number }[] = [];
 
   /**
    * Whether sound `id` may start now (and if so, counts it): `key` is the cooldown's key (yours and
-   * others' use different keys), `ms` how long it rings.
+   * others' use different keys), `ms` how long it rings, `group` the budget it also shares (one key for everyone).
    */
-  admit(id: string, key: string, spec: GateSpec, priority: Priority, ms: number, now: number): boolean {
+  admit(id: string, key: string, spec: GateSpec, priority: Priority, ms: number, now: number, group: SoundGroup | null = null): boolean {
     if (now - (this.last.get(key) ?? -Infinity) < spec.cooldown) return false;
+    if (group && now - (this.lastOfGroup.get(group) ?? -Infinity) < GROUP_BUDGETS[group].cooldown) return false;
     if (this.voices.length > 0 && this.voices[0]!.end <= now) this.voices = this.voices.filter((v) => v.end > now);
     if (this.voices.length >= VOICE_CAPS[priority]) return false;
     let same = 0;
-    for (const v of this.voices) if (v.id === id) same++;
+    let inGroup = 0;
+    for (const v of this.voices) {
+      if (v.id === id) same++;
+      if (group && v.group === group) inGroup++;
+    }
     if (same >= spec.max) return false;
+    if (group && inGroup >= GROUP_BUDGETS[group].max) return false;
     this.last.set(key, now);
+    if (group) this.lastOfGroup.set(group, now);
     // Kept sorted by end time, so the check above finds ended voices at the front.
     const end = now + ms;
     let i = this.voices.length;
     while (i > 0 && this.voices[i - 1]!.end > end) i--;
-    this.voices.splice(i, 0, { id, end });
+    this.voices.splice(i, 0, { id, group, end });
     return true;
   }
 
@@ -76,6 +96,7 @@ export class VoiceGate {
 
   reset(): void {
     this.last.clear();
+    this.lastOfGroup.clear();
     this.voices = [];
   }
 }

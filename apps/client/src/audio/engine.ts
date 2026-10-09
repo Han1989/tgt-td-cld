@@ -84,9 +84,18 @@ const BAKE_FIRST = [
 ];
 
 /** The room: a wooden hall, about a second of tail. */
-const ROOM_SECONDS = 1.1;
-/** How loud the reverb returns. */
-const ROOM_RETURN = 0.9;
+export const ROOM_SECONDS = 1.1;
+/**
+ * How loud the reverb returns (the impulse has unit energy, `roomImpulse`): 14 dB under the old room at 48 kHz
+ * (a 0.9 return on an impulse of +18.7 dB), so a shot's room, at a send of 0.2, is about 10 dB under the shot instead
+ * of 4 dB over it, and a second of room after every shot no longer piles up into a wash.
+ */
+export const ROOM_RETURN = 1.55;
+/**
+ * The code-made music's send makes up those 14 dB: the score was mixed with the old room and sounds as it did (the
+ * recorded music files play dry).
+ */
+export const MUSIC_ROOM = 5;
 
 interface FileSfx {
   buf: AudioBuffer;
@@ -232,6 +241,7 @@ export class AudioEngine {
       const ir = ctx.createBuffer(2, l.length, ctx.sampleRate);
       ir.getChannelData(0).set(l);
       ir.getChannelData(1).set(r);
+      // Already at unit energy (`roomImpulse`): the browser's own scaling would change the level again.
       room.normalize = false;
       room.buffer = ir;
       const back = ctx.createGain();
@@ -382,7 +392,7 @@ export class AudioEngine {
     set(this.sfxBus.gain, volumeGain(this.mix.sfx));
     set(this.sfxSend.gain, volumeGain(this.mix.sfx));
     set(this.musicBus.gain, volumeGain(this.mix.music));
-    set(this.musicSend.gain, volumeGain(this.mix.music));
+    set(this.musicSend.gain, volumeGain(this.mix.music) * MUSIC_ROOM);
   }
 
   private visibility(): void {

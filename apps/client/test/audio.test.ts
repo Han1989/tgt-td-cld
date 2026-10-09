@@ -15,7 +15,7 @@ import {
   soundFiles,
   trimSilence,
 } from '../src/audio/files';
-import { HEAR_MARGIN, OTHERS_GAIN, placement, TAKE_DELAY, TAKE_GAIN_DB, Takes, VOICE_CAPS, VoiceGate, type ViewBox } from '../src/audio/mix';
+import { GROUP_BUDGETS, HEAR_MARGIN, OTHERS_GAIN, placement, TAKE_DELAY, TAKE_GAIN_DB, Takes, VOICE_CAPS, VoiceGate, type ViewBox } from '../src/audio/mix';
 import {
   humanize,
   lobbyTrack,
@@ -248,6 +248,30 @@ describe('mix', () => {
     expect(g.admit('heart', 'heart', { cooldown: 0, max: 1 }, 2, 500, 200)).toBe(true);
     expect(g.active(200)).toBe(VOICE_CAPS[0] + 1);
     expect(g.active(10_000)).toBe(0);
+  });
+
+  it('gates the combat background as a whole: one budget per group across sounds and players', () => {
+    const g = new VoiceGate();
+    const free = { cooldown: 0, max: 9 };
+    const shot = GROUP_BUDGETS.shot;
+    // Your arrow tower, then a teammate's cannon: one shot budget, whoever's tower it is.
+    expect(g.admit('shot.arrow', 'shot.arrow!', free, 0, 1000, 0, 'shot')).toBe(true);
+    expect(g.admit('shot.cannon', 'shot.cannon', free, 0, 1000, shot.cooldown - 1, 'shot')).toBe(false);
+    expect(g.admit('shot.cannon', 'shot.cannon', free, 0, 1000, shot.cooldown, 'shot')).toBe(true);
+    // Other groups have their own budget.
+    expect(g.admit('death', 'death', free, 0, 200, shot.cooldown, 'fall')).toBe(true);
+    // At most `max` shots ring at once over every tower kind.
+    let t = shot.cooldown;
+    for (let i = 2; i < shot.max; i++) expect(g.admit('shot.frost', 'shot.frost', free, 0, 1000, (t += shot.cooldown), 'shot')).toBe(true);
+    expect(g.admit('shot.flak', 'shot.flak', free, 0, 1000, (t += shot.cooldown), 'shot')).toBe(false);
+    expect(g.admit('shot.flak', 'shot.flak', free, 0, 1000, 1000, 'shot')).toBe(true);
+    // A sound outside the groups isn't held back by them.
+    expect(g.admit('ranger.Q', 'ranger.Q!', free, 1, 500, 1000)).toBe(true);
+    expect(SOUNDS['shot.frost'].group).toBe('shot');
+    expect(SOUNDS.blizzard.group).toBe('shot');
+    expect(SOUNDS.death.group).toBe('fall');
+    expect(SOUNDS.coin.group).toBe('coin');
+    expect(SOUNDS.bossDeath.group).toBeUndefined();
   });
 });
 
@@ -589,13 +613,14 @@ describe('game audio', () => {
       { type: 'heroAttack', heroId: me.id, x: me.x, y: me.y - 2 },
       // Melee attacks sound when the blade lands (meleeHit), not on the event.
       { type: 'heroAttack', heroId: mate.id, x: mate.x, y: mate.y - 1 },
+      // Before the dozen sounds below: the combat background stops at the low-priority voice cap, yours too.
+      { type: 'kill', creepId: 5, kind: 'grunt', x: 10, y: 10, by: 'me', bounty: 3 },
       { type: 'levelUp', heroId: me.id, level: 2 },
       { type: 'towerBuilt', towerId: snap.towers[0]!.id, owner: 'me' },
       { type: 'towerUpgraded', towerId: snap.towers[0]!.id, owner: 'me', tier: 2, branch: null },
       { type: 'towerUpgraded', towerId: snap.towers[0]!.id, owner: 'me', tier: 4, branch: 'sniper' },
       { type: 'towerSold', towerId: snap.towers[1]!.id, owner: 'mate', refund: 10 },
       { type: 'towerRepaired', towerId: snap.towers[0]!.id, owner: 'me', cost: 12, hp: 300 },
-      { type: 'kill', creepId: 5, kind: 'grunt', x: 10, y: 10, by: 'me', bounty: 3 },
       { type: 'gameOver', result: 'victory' },
     ];
     audio.events(events, 1000);
@@ -605,14 +630,14 @@ describe('game audio', () => {
       'ranger.Q',
       'warden.Q',
       'attack.ranger',
+      'death',
+      'coin',
       'levelUp',
       'build',
       'upgrade',
       'branch',
       'sell',
       'repair',
-      'death',
-      'coin',
       'victory',
     ]);
     const gain = (id: string) => sink.plays.filter((p) => p.id === id).map((p) => p.gain);
@@ -628,7 +653,7 @@ describe('game audio', () => {
   it('plays a coin for gold you send or receive, and the co-op flourishes', () => {
     const { sink, audio } = match();
     audio.events([{ type: 'gift', from: 'me', to: 'mate', amount: 25 }], 0);
-    audio.events([{ type: 'gift', from: 'mate', to: 'me', amount: 100 }], 300);
+    audio.events([{ type: 'gift', from: 'mate', to: 'me', amount: 100 }], GROUP_BUDGETS.coin.cooldown);
     audio.events([{ type: 'gift', from: 'mate', to: 'other', amount: 10 }], 600);
     audio.flourish('pingBurst', 900);
     audio.flourish('emoteBurst', 1700);
@@ -682,9 +707,48 @@ describe('game audio', () => {
     }
     const deaths = sink.ids().filter((id) => id === 'death').length;
     const shots = sink.ids().filter((id) => id === 'shot.arrow').length;
-    expect(deaths).toBeLessThanOrEqual(Math.ceil(1000 / SOUNDS.death.cooldown));
-    expect(shots).toBeLessThanOrEqual(Math.ceil(1000 / SOUNDS['shot.arrow'].cooldown));
+    const coins = sink.ids().filter((id) => id === 'coin').length;
+    expect(deaths).toBeLessThanOrEqual(Math.ceil(1000 / GROUP_BUDGETS.fall.cooldown));
+    expect(shots).toBeLessThanOrEqual(Math.ceil(1000 / GROUP_BUDGETS.shot.cooldown));
+    expect(coins).toBeLessThanOrEqual(Math.ceil(1000 / GROUP_BUDGETS.coin.cooldown));
     expect(audio.stats.skipped).toBeGreaterThan(1000);
+  });
+
+  it('your towers and a teammate’s share the background budget, and yours get no voice more', () => {
+    const { snap, sink, audio } = match();
+    const [mine, theirs] = [snap.towers.find((t) => t.owner === 'me')!, snap.towers.find((t) => t.owner === 'mate')!];
+    audio.towerShot(mine, 0);
+    audio.towerShot(theirs, 50);
+    audio.towerShot(theirs, GROUP_BUDGETS.shot.cooldown);
+    expect(sink.ids()).toEqual(['shot.arrow', 'shot.cannon']);
+    // Twelve of your sounds ringing fill the low-priority voices: your next shot and kill wait (no voice more as yours),
+    // a teammate's Cleave (priority 1) still plays.
+    const { snap: s2, sink: full, audio: busy } = match();
+    const me = s2.heroes.find((h) => h.owner === 'me')!;
+    const mate = s2.heroes.find((h) => h.owner === 'mate')!;
+    const tower = s2.towers.find((t) => t.owner === 'me')!.id;
+    busy.events(
+      [
+        { type: 'waveStart', wave: 1, income: 0 },
+        { type: 'leak', creepId: 1, damage: 1, lane: 1 },
+        { type: 'levelUp', heroId: me.id, level: 2 },
+        { type: 'towerBuilt', towerId: tower, owner: 'me' },
+        { type: 'towerUpgraded', towerId: tower, owner: 'me', tier: 2, branch: null },
+        { type: 'towerUpgraded', towerId: tower, owner: 'me', tier: 4, branch: 'sniper' },
+        { type: 'towerSold', towerId: tower, owner: 'me', refund: 10 },
+        { type: 'towerRepaired', towerId: tower, owner: 'me', cost: 12, hp: 300 },
+        { type: 'towerDestroyed', towerId: tower, owner: 'me' },
+        { type: 'cast', heroId: me.id, slot: 'Q', x: 0, y: 0 },
+        { type: 'cast', heroId: me.id, slot: 'W', x: 0, y: 0 },
+        { type: 'cast', heroId: me.id, slot: 'R', x: 0, y: 0 },
+      ],
+      0,
+    );
+    expect(full.plays).toHaveLength(VOICE_CAPS[0]);
+    busy.towerShot(mine, 5);
+    busy.events([{ type: 'kill', creepId: 9, kind: 'grunt', x: 1, y: 1, by: 'me', bounty: 0 }], 5);
+    busy.events([{ type: 'cast', heroId: mate.id, slot: 'Q', x: 0, y: 0 }], 5);
+    expect(full.ids().slice(VOICE_CAPS[0])).toEqual(['warden.Q']);
   });
 
   it('does no work while nothing can be heard (muted)', () => {
