@@ -19,6 +19,15 @@
 - **C · Image sprites in the match**, for heroes and bosses only. One route is a 3D model rendered once in Blender into 2D frames that drop into the atlas; a one-hero trial was proposed, not decided. Not started.
 - **D · Real 3D in the match.** A rewrite of the renderer that would not show at 25 px. Not planned.
 
+**The presentation pass, slice by slice.** The full rows are in `TASKS.md` → Presentation pass.
+
+| ID | Slice | Status |
+|---|---|---|
+| **V-01** | **The first screen.** The picked hero stands large on a moonlit clearing under the title; three hero buttons; one main button (Play solo, or Join room for a friend who came by an invite link); then the friends' controls | In review (PR #100). Comes before the cold test |
+| **V-02** | **The second screen.** The solo pick and the room card in the same look. Proposed, for Han to decide: a new player's Play solo goes straight into the lesson | Waits for Han's go |
+| **V-03** | **Depth in the match.** Empty build pads recede, towers and units cast shadows, towers get height | Waits for Han's go |
+| **V-04** | **Bigger on a phone.** Heroes and creeps drawn larger, or a closer view of the lanes in play. Touches two locked decisions (the whole Spire map fits the screen; the camera is locked on phones) | Han decides how first |
+
 B and C cost money and carry two risks this roadmap already cares about: everything in the game has to be original or properly licensed, because Han may sell it (an image made from a prompt alone may not be protected by copyright), and the Reddit communities in the Discovery plan react badly to art that looks machine-made. The recommendation on 10 Oct was B after the gate, and C for heroes only if the numbers ask for it. Han has decided A only.
 
 **On hold (Han, 8 Oct 2026):** nothing in Phase 6 or later, and no new feature, starts before D-06 is called; bug fixes, the rows above and the presentation pass (Han, 10 Oct 2026) are the only work. While a post is live, no merge changes the sim or the protocol, because each one restarts the game server. **After D-06 passes** (Han, 9 Oct 2026), in this order: a bot teammate in solo (L-01: a lone player gets a bot hero on another lane, so combos happen without a friend), progress saved in the browser (L-02: for example stars per hero, mode and difficulty; no accounts), then Phase 6a. No matchmaking yet: too few players for a queue, and the room link is how friends join. The same picture is on the site at `/?progress` ([`docs/PROGRESS.md`](PROGRESS.md); production: https://tgt-td-cld.vercel.app/?progress). `TASKS.md` stays the tracker.
