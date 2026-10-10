@@ -145,28 +145,31 @@
         <h1 class="logo">Tower Defense <span>Together</span></h1>
 
         <section id="lobby-home">
-          <div id="tutorial-offer" class="tutorial-offer hidden">
-            <p>New here? A short solo lesson (Quick, Normal) covers moving, building, a skill, upgrading and pings. Creating or joining a room does not start it.</p>
-            <div class="tutorial-offer-actions">
-              <button id="tutorial-offer-start" class="btn" type="button">Start lesson</button>
-              <button id="tutorial-offer-skip" class="btn" type="button">Skip</button>
-            </div>
+          <!-- The first screen (docs/ART.md §12): the picked hero on a moonlit clearing, then one main button. -->
+          <div id="lobby-stage" class="hero-stage">
+            <h1 class="logo stage-logo">Tower Defense <span>Together</span></h1>
+            <canvas class="hero-stage-figure" aria-hidden="true"></canvas>
           </div>
-          <label class="field">
-            <span>Nickname</span>
-            <input id="lobby-name" maxlength="16" autocomplete="nickname" placeholder="Your name" />
-          </label>
-          <div class="field">
-            <span>Hero</span>
-            <div id="lobby-heroes-home" class="hero-picks"></div>
-          </div>
-          <button id="lobby-create" class="btn big" type="button">Create room</button>
-          <div class="join-row">
-            <input id="lobby-code" maxlength="5" placeholder="CODE" autocapitalize="characters" spellcheck="false" />
-            <button id="lobby-join" class="btn" type="button">Join room</button>
-          </div>
+          <div id="lobby-heroes-home" class="hero-picks hero-tabs" role="group" aria-label="Hero"></div>
+          <p class="hero-blurb" aria-live="polite"><b id="lobby-hero-role" class="hero-role"></b><span id="lobby-hero-blurb"></span></p>
           <div class="solo-dock">
-            <button id="lobby-offline" class="btn" type="button">Play solo offline</button>
+            <button id="lobby-offline" class="btn big" type="button">Play solo</button>
+          </div>
+          <div id="tutorial-offer" class="tutorial-offer hidden">
+            <p>New here? Your first solo match is a short lesson.</p>
+            <button id="tutorial-offer-skip" class="btn" type="button">Skip lesson</button>
+          </div>
+          <div class="friends">
+            <h2 class="friends-title">Play with friends</h2>
+            <label class="field">
+              <span>Nickname</span>
+              <input id="lobby-name" maxlength="16" autocomplete="nickname" placeholder="Your name" />
+            </label>
+            <button id="lobby-create" class="btn" type="button">Create room</button>
+            <div class="join-row">
+              <input id="lobby-code" maxlength="5" placeholder="CODE" autocapitalize="characters" spellcheck="false" aria-label="Room code" />
+              <button id="lobby-join" class="btn" type="button">Join room</button>
+            </div>
           </div>
         </section>
 

@@ -33,13 +33,15 @@ describe('progress dashboard data', () => {
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
     expect(summary.done).toBe(53);
-    // D-10 (the anonymous counts, PR #99) is in review: open and in progress.
-    expect(summary.open).toBe(40);
+    // D-10 (the anonymous counts, PR #99) is in review: open and in progress. So is V-01 (the first screen, PR #100),
+    // and the rest of the presentation pass (V-02, V-03, V-04) is to do.
+    expect(summary.open).toBe(44);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
-    expect(summary.hanOpen).toBe(9);
-    expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(93);
+    // The presentation pass's open rows (V-02, V-03, V-04) each wait for Han's go.
+    expect(summary.hanOpen).toBe(12);
+    expect(summary.inProgress).toBe(2);
+    expect(summary.total).toBe(97);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -136,6 +138,17 @@ describe('progress dashboard data', () => {
     expect(PROGRESS.sections[0]!.id).toBe('order');
     expect(PROGRESS.sections[0]!.blurb).toContain('On hold until D-06 is called');
     expect(PROGRESS.items.filter((item) => item.section === 'after').map((item) => item.id)).toEqual(['L-01', 'L-02']);
+    // The presentation pass (Han, 10 Oct 2026) is the one exception to the hold: current work, in its own section
+    // after the order, not on the overnight auto-pull list.
+    expect(PROGRESS.sections[1]!.id).toBe('visual');
+    expect(PROGRESS.sections[1]!.blurb).toContain('Not on the overnight auto-pull list');
+    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04']);
+    expect(byId('V-01')).toMatchObject({ owner: 'Team', status: 'in_progress', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/100' } });
+    expect(byId('V-01').note).toContain('In review');
+    for (const id of ['V-02', 'V-03', 'V-04']) expect(byId(id).status).toBe('todo');
+    // Han's first (his go, or his decision), so the overnight bots skip them.
+    for (const id of ['V-02', 'V-03', 'V-04']) expect(byId(id).owner).toBe('Both');
+    expect(matchesFilter(PROGRESS, byId('V-02'), 'now')).toBe(true);
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
     }
@@ -201,8 +214,9 @@ describe('progress dashboard data', () => {
   });
 
   it('cooking now is the in-progress rows only, plus the overnight-bot order', () => {
-    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['D-10']);
+    expect(cookingNow(PROGRESS).map((item) => item.id)).toEqual(['D-10', 'V-01']);
     expect(renderCooking(PROGRESS)).toContain('D-10');
+    expect(renderCooking(PROGRESS)).toContain('V-01');
     expect(renderCooking(PROGRESS)).not.toContain('Nothing is marked in progress.');
     const empty = renderCooking({ ...PROGRESS, items: PROGRESS.items.filter((item) => item.status !== 'in_progress') });
     expect(empty).toContain('Cooking now');
@@ -235,7 +249,7 @@ describe('progress dashboard data', () => {
         ...PROGRESS.items,
       ],
     };
-    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'D-10']);
+    expect(cookingNow(flying).map((item) => item.id)).toEqual(['Z-9', 'D-10', 'V-01']);
     const html = renderCooking(flying);
     expect(html).toContain('Z-9');
     expect(html).toContain('data-status="in_progress"');

@@ -90,11 +90,12 @@ Art files describe **shapes** (a `Path2D` and a base colour). The painter (`art/
 |---|---|---|
 | `p.part(c, path, color, box, opts)` | Body gradient (base +6% at the top → darkened by `bodyDarken` at the bottom), moonlit rim on the upper left, ink outline | Every body part (torso, head, deck, barrel) |
 | `p.detail(c, path, color, outline?)` | Flat colour, thin ink outline | Small things on a part: eyes, rivets, belts, planks |
-| `p.accent(c, path, color)` | Coloured glow (7 px blur) with a hot core | Runes, gems, embers, glowing eyes: **only** things that emit light |
+| `p.accent(c, path, color)` | Coloured glow (7 px blur at the atlas's 2×) with a hot core | Runes, gems, embers, glowing eyes: **only** things that emit light |
 | `p.line(c, path, color, width, alpha?)` | Round-capped stroke | Strings, seams, cracks, facets |
 | `p.shadow(c, x, y, rx, ry)` | Soft radial contact shadow | Under anything standing on the ground |
 
 - **Outline weights** (world px, `LINE` in `paint.ts`): body parts **2.4** (`opts.line` scales it: 0.6–0.8 for small parts such as feet, hands and bolts, up to 1.2 for the Heart); details **1.1**; lines 1–2.4. Inner parts that sit on an outlined part may skip the outline (`noOutline`).
+- **A drawing at another size** (the lobby's hero stage, §12) makes its own painter: `createPainter(lighting, glow, weight)`. `glow` is the drawing's scale ÷ the atlas's, because a canvas blur ignores the drawing's scale; `weight` scales the ink outlines (0.5 on the stage: at five times the size the full weight swallows the shapes). The atlas and the icons use 1 for both.
 - **Light comes from the upper left** (the moon). Never light a part from another side, and never add a specular highlight elsewhere. Gems may have one white shine on their upper-left facet.
 - **Glow is rare.** A character gets at most its eyes and one accent; a tower gets 2–4 rune studs (more for higher tiers). Glow marks what matters: upgrades, magic, fire, eyes.
 - **Rounding** is modest (corner radius ~0.6× what a toy look would use): Runelight is carved, not puffy.
@@ -260,7 +261,7 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
 3. Pick the category and its required frames (`REQUIRED_FRAMES` in `registry.ts`):
    - **creep**: `body` with contact shadow and weapon baked in, `flash` set (the silhouette without the shadow), `feet`, a `gait` from `GAITS`. A flyer draws its shadow as its own `shadow` frame instead (the registry refuses a flyer without one). Other looks go in `variants` (frames the size of `body`, each with a flash).
    - **tower**: `base1..3` and `top1..3` (top points +x), optional `<branch>.base` / `<branch>.top` for its two branches (`TOWER_BRANCHES`), `turret`.
-   - **hero**: any frames (each with `flash: true` for the hit flash) plus a `rig(kit, mine)` returning a `HeroRig`: extend `HeroRigBase`, make parts with `this.part(frame)` and pose them in `pose()` (walk, attack from `shotAt`, cast from `casting()`); see `ranger.ts`, `warden.ts`, `arcanist.ts`.
+   - **hero**: any frames (each with `flash: true` for the hit flash), `feet`, a `stand(to, now)` (the rig's rest pose as plain placements, for the lobby's hero stage, §12: the same parts, order and offsets as `pose()` standing still, breathing with `breath(now)`; `test/stand.test.ts` checks it) plus a `rig(kit, mine)` returning a `HeroRig`: extend `HeroRigBase`, make parts with `this.part(frame)` and pose them in `pose()` (walk, attack from `shotAt`, cast from `casting()`); see `ranger.ts`, `warden.ts`, `arcanist.ts`.
    - **projectile**: `body`, pointing +x, no shadow. `kind` is the snapshot style. The renderer rotates it along its travel and scales it with creeps (`entityScale`). See §6.
    - **trap**: `idle`, `armed` and `ring`, from above, plus `ringRadius` (the ring circle's radius in world px). The ring is scaled to the snapshot radius; the coil uses `entityScale`. See §6.
 4. Use **tokens only** (`k.<token>`; add new ones to `RL` and to §2), the **painter** calls (§3), light from the upper left, glow only on emitters.
@@ -281,11 +282,12 @@ apps/client/src/render/art/
   paint.ts         The painter (part / detail / accent / line / shadow), LINE weights, path helpers, hash
   parts.ts         Shared drawing helpers (planks, stone blocks, rune rings, tower tier runes)
   registry.ts      registerArt, entry types by category, REQUIRED_FRAMES, lookups (creepArt, towerArt, projectileArt, trapArt…)
+  stand.ts         A hero's standing pose as placements, its box, and the fit into an area (pure, tested); drawn by lobby/heroStage.ts
   load.ts          Imports common.ts and every file in entities/ (import.meta.glob)
   common.ts        Shared frames (contact shadow)
   atlas.ts         Bakes every frame into 1024 px pages (+ flash silhouettes); re-bakes on Display change
   kit.ts           ArtKit: the atlas, sprite(id, frame), setDisplay
-  rigs.ts          CreepRig, TowerRig, HeroRigBase, GAITS, HIT_FLASH, DEATH / deathPose (hit and death reactions)
+  rigs.ts          CreepRig, TowerRig, HeroRigBase, GAITS, HIT_FLASH, DEATH / deathPose (hit and death reactions), breath
   ground.ts        The ground painter
   scatter.ts       Where props go (pure, tested)
   damage.ts        The Heart's damage stages (pure, tested)
@@ -295,6 +297,7 @@ apps/client/src/render/art/
                    tree, rock, mushrooms, runestone; projectiles: arrowShot, cannonShot, frostShot, arcaneShot, flakShot,
                    rangerArrow, critArrow, multishotArrow, arcanistBolt, fireball, archerArrow; traps: snareTrap)
 apps/client/src/showcase.ts   ?showcase dev page (entities, variants, UI icons, sounds)
+apps/client/src/lobby/heroStage.ts  The home card's hero stage (§12): the picked hero drawn large with Canvas 2D
 apps/client/src/ogCard.ts     ?ogcard: the link-preview card's frame (§14); scripts/ogImage.ts writes public/og-card.png
 apps/client/src/audio/        Sound (§13): synth, sound bank, mix, score, engine, music, game events → sounds
 apps/client/src/style.css     The Runelight UI (§12)
@@ -309,6 +312,8 @@ The DOM UI follows the same look (`style.css`, variables at the top of `:root`):
 - **Titles** (logo, banner, end title, headings, stat labels) use the carved serif stack `--title-font` (Palatino / Book Antiqua / Georgia: system fonts, no downloads); body text stays system sans.
 - **Radial menus and skill buttons** are stone medallions: radial buttons rimmed in rune-teal (gold while a build button is held for its preview), skill buttons in moonlight, with a code-drawn icon, the key letter as a small badge, pips and a conic cooldown.
 - **Icons** are drawn in code (`render/art/icons.ts`) with the painter and tokens, in a 40 × 40 box, bold enough for 20–32 CSS px: a tower icon per kind, a skill icon per hero and slot, a hero emblem per hero, and HUD glyphs (coin, Heart, cracked Heart, wave, timer, gear, upgrade, sell, target, level). `installIcons()` bakes them once at start-up to PNG data URLs published as `--icon-<id>`; an element shows one with `class="ico" style="--ico: var(--icon-<id>)"` (or `background-image`). No icon packs, fonts of symbols or image files. A new tower, hero or skill needs its icon (a test checks).
+- **The home card's hero stage** (`lobby/heroStage.ts`, V-01): the first thing a player sees is the picked hero, large, on a moonlit clearing under the title. The clearing is CSS (`.hero-stage`: night sky, two tree lines, lit moss, moonlight behind the hero, a few motes, night closing in at the edges). The hero is a canvas drawn from its own art: each frame is drawn once at the stage's size (vector paths: sharp at any size, with room around it so a glow is not cut), then placed by the hero's standing pose (`HeroArt.stand`) 30 times a second, on a pool of the hero's colour and a contact shadow. Every hero gets the same scale (`standRoom`, `fitStand`), feet on one ground line, clear of the title. A newly picked hero steps in (220 ms). Nothing is drawn while the stage is hidden, and under reduced motion it is one still drawing with no entrance. A new hero needs `feet` and `stand` (§10). Look at it on a phone and a desktop: the Ranger's bow is held further out than in a match so the string clears its face, the Warden's sword is lower than at rest so the figure is not all blade.
+- **One main button per lobby screen.** On the home card it is Play solo, under the hero; for a friend who opened an invite link it is Join room. Everything else on the card is carved stone.
 - **End screen:** the Heart emblem, whole and beating on a victory, split on a defeat, over a gold-trimmed card.
 - The e2e layout tests check the UI stays clear of the map; keep panel sizes as they were when restyling (a heading one pixel taller moved the desktop tower panel under a test's wheel point).
 

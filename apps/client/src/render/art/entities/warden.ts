@@ -16,8 +16,8 @@ import { TUNING } from '@tdt/sim';
 import { Container, type Sprite } from 'pixi.js';
 import type { ArtKit } from '../kit';
 import { box, circle, css, ellipse, pathLine, poly, rrect } from '../paint';
-import { registerArt, type Draw, type HeroPose } from '../registry';
-import { clamp01, hold, HeroRigBase, smooth } from '../rigs';
+import { registerArt, type Draw, type HeroPose, type StandPose } from '../registry';
+import { breath, clamp01, hold, HeroRigBase, smooth } from '../rigs';
 
 const ID = 'warden';
 
@@ -305,11 +305,29 @@ class WardenRig extends HeroRigBase {
   }
 }
 
+/** Standing (`stand`): the sword held forward and up, lower than REST so the figure is not all blade (radians). */
+const STAND_SWORD = -0.72;
+
+/** The rig's rest pose (WardenRig.pose with nothing going on), the sword at STAND_SWORD, the shield in front. */
+function stand(to: StandPose, now: number): void {
+  const bob = breath(now);
+  to.part('cape', -3, 2 - bob * 0.8, Math.sin(now / 1300) * 0.02);
+  to.part('foot', 4, FEET);
+  to.push(SHOULDER.x, SHOULDER.y - bob, STAND_SWORD + Math.sin(now / 1500) * 0.02);
+  to.part('sword', GRIP_X, 0);
+  to.pop();
+  to.part('body', 0, 2 - bob);
+  to.part('foot', -4, FEET);
+  to.part('head', 0.5, -9 - bob);
+  to.part('shield', 3.5, 3.5 - bob);
+}
+
 registerArt({
   id: ID,
   name: 'Warden',
   category: 'hero',
   kind: 'warden',
+  feet: FEET,
   frames: {
     cape: { w: 28, h: 28, draw: cape, flash: true },
     body: { w: 26, h: 26, draw: torso, flash: true },
@@ -320,4 +338,5 @@ registerArt({
     slash: { w: 70, h: 70, draw: slash },
   },
   rig: (kit, mine) => new WardenRig(kit, mine),
+  stand,
 });

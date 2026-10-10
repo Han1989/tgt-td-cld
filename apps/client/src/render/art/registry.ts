@@ -103,11 +103,33 @@ export interface HeroRig {
   die(t: number): void;
 }
 
+/**
+ * Receives a hero's standing pose part by part, back to front (`HeroArt.stand`). The hero faces +x and
+ * its position is (0, 0), in world px, exactly as its rig places it when it stands still.
+ */
+export interface StandPose {
+  /** One of the hero's frames, its centre at (x, y), turned by `rot` (radians) around that centre. */
+  part(frame: string, x: number, y: number, rot?: number): void;
+  /** A thin stroke in a palette colour (a bowstring). */
+  line(x0: number, y0: number, x1: number, y1: number, color: number, width: number): void;
+  /** Until the matching `pop()`, everything is placed in a frame moved to (x, y) and turned by `rot` (an arm). */
+  push(x: number, y: number, rot: number): void;
+  pop(): void;
+}
+
 /** A hero: frames plus a rig built from them (heroes are too different for one shared rig). */
 export interface HeroArt extends ArtBase {
   category: 'hero';
   kind: HeroKind;
+  /** Where the feet are, px below the hero's position (the rig's pivot). */
+  feet: number;
   rig(kit: ArtKit, mine: boolean): HeroRig;
+  /**
+   * The hero standing still at time `now` (ms), for drawing it with no rig and no atlas, at any size
+   * (the lobby's hero stage, `render/art/stand.ts`). It is the rig's rest pose: the same parts, order
+   * and offsets, the same slow breath.
+   */
+  stand(to: StandPose, now: number): void;
 }
 
 /**

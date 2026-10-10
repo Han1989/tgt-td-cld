@@ -2000,24 +2000,241 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   flex: 1;
 }
 
-/* Secondary to Create / Join: the same carved stone, a full-width thumb target, no teal glow. */
-#lobby-offline {
-  min-height: 44px;
+/* The home card (docs/ART.md §12): the picked hero on a moonlit clearing, the hero buttons, one main
+   button (Play solo; Join for a friend who came by an invite link), then the friends' controls. */
+
+/* The card's own title is the stage's on the home card. */
+.lobby-card:has(> #lobby-home:not(.hidden)) > .logo {
+  display: none;
 }
 
-/* Play solo needs no name: when the home card is taller than the screen (a phone, a new player's
-   lesson card), it stays docked at the card's bottom edge, so one tap starts solo without scrolling.
-   The dock reaches the card's edges and fades the content scrolling under it. */
-.solo-dock {
-  position: sticky;
-  bottom: -18px;
-  z-index: 1;
+#lobby-home {
+  gap: 12px;
+}
+
+.hero-stage {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  margin: -16px -26px -18px;
-  padding: 16px 26px 18px;
-  background: linear-gradient(180deg, rgba(15, 13, 23, 0), rgb(15, 13, 23) 16px);
-  border-radius: 0 0 16px 16px;
+  align-items: center;
+  justify-content: space-between;
+  /* Up to the card's top and side edges. As tall as the screen allows with Play solo still on it. */
+  margin: -26px -26px 0;
+  height: 260px;
+  height: clamp(190px, calc(100dvh - 500px), 320px);
+  overflow: hidden;
+  border-bottom: 1px solid var(--ink);
+  border-radius: 15px 15px 0 0;
+  box-shadow: inset 0 -1px 0 rgba(207, 230, 255, 0.12);
+  /* Back to front: night sky, the far and the near tree line, the clearing's lit moss, moonlight
+     behind the hero, a few motes. */
+  background:
+    radial-gradient(circle at 15% 36%, rgba(127, 252, 216, 0.6) 0 1.5px, transparent 3px),
+    radial-gradient(circle at 86% 47%, rgba(255, 162, 74, 0.55) 0 1.5px, transparent 3px),
+    radial-gradient(circle at 74% 24%, rgba(127, 252, 216, 0.45) 0 1.2px, transparent 2.6px),
+    radial-gradient(circle at 24% 62%, rgba(255, 162, 74, 0.4) 0 1.2px, transparent 2.6px),
+    radial-gradient(ellipse 44% 52% at 50% 54%, rgba(160, 200, 255, 0.3), transparent 72%),
+    radial-gradient(ellipse 66% 17% at 50% 87%, rgba(96, 146, 116, 0.95), rgba(52, 86, 70, 0.9) 50%, rgba(29, 51, 41, 0) 100%),
+    linear-gradient(180deg, transparent 0 62%, #16291f 70%, #1b3327 100%),
+    radial-gradient(ellipse 50% 100% at 50% 100%, #16291f 0 97%, transparent 100%) left -18px top 50% / 78px 24% repeat-x,
+    radial-gradient(ellipse 50% 100% at 50% 100%, #1b3529 0 97%, transparent 100%) left 14px top 40% / 58px 18% repeat-x,
+    radial-gradient(ellipse 50% 100% at 50% 100%, #1f3d30 0 97%, transparent 100%) left 30px top 33% / 96px 16% repeat-x,
+    linear-gradient(180deg, #070b0d 0%, #0f1d1a 34%, #1c3a30 62%, #14251d 100%);
+}
+
+/* Night closes in at the edges of the clearing. */
+.hero-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(ellipse 78% 82% at 50% 58%, transparent 52%, rgba(0, 0, 8, 0.6) 100%);
+  pointer-events: none;
+}
+
+.hero-stage-figure {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* A newly picked hero steps in. */
+.hero-stage.swap .hero-stage-figure {
+  animation: stage-in 220ms ease-out;
+}
+
+@keyframes stage-in {
+  from {
+    opacity: 0.15;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+.lobby-card .stage-logo {
+  position: relative;
+  z-index: 2;
+  margin-top: 14px;
+  padding: 0 50px;
+  font-size: 19px;
+  line-height: 1.12;
+  text-shadow: 0 2px 0 var(--ink), 0 0 12px rgba(0, 0, 8, 0.9);
+}
+
+.stage-logo span {
+  display: block;
+  font-size: 30px;
+  text-shadow: 0 0 16px rgba(127, 252, 216, 0.6), 0 2px 0 var(--ink);
+}
+
+/* The hero buttons under the stage: an emblem and a name each; the stage and the line under them say the rest. */
+.hero-picks.hero-tabs {
+  flex-direction: row;
+  gap: 6px;
+}
+
+.hero-tabs .hero-pick {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 6px;
+}
+
+.hero-tabs .hero-pick-head {
+  gap: 6px;
+  min-width: 0;
+}
+
+.hero-tabs .hero-pick .hero-ico {
+  width: 26px;
+  height: 26px;
+}
+
+.hero-tabs .hero-pick-name {
+  font-size: 14px;
+}
+
+.hero-tabs .hero-pick-role,
+.hero-tabs .hero-pick-desc {
+  display: none;
+}
+
+/* The picked hero's role and one line about it. Room for the longest line, so the main button does
+   not move when the hero changes. */
+.hero-blurb {
+  margin: 0;
+  min-height: calc(3 * 1.35em);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--muted);
+}
+
+.hero-role {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* The main button sits under the hero, on screen without scrolling and with no nickname (docs/PRESS.md §5). */
+.solo-dock {
+  display: flex;
+  flex-direction: column;
+}
+
+#lobby-offline {
+  min-height: 50px;
+}
+
+#lobby-offline.big {
+  font-size: 19px;
+  letter-spacing: 0.03em;
+}
+
+/* Keyboard focus on a lobby button: a moonlit ring, clear of the button's own edge. */
+.lobby .btn:focus-visible {
+  outline: 2px solid var(--moon);
+  outline-offset: 2px;
+}
+
+.friends {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-edge);
+}
+
+.friends-title {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: var(--title-font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.friends .field {
+  grid-column: 1 / -1;
+}
+
+.friends .join-row {
+  min-width: 0;
+}
+
+/* A friend who came by an invite link: the nickname and Join come first, Join is the main button. */
+#lobby-home.invited .solo-dock,
+#lobby-home.invited .tutorial-offer {
+  order: 1;
+}
+
+#lobby-home.invited .friends {
+  padding-top: 0;
+  border-top: none;
+  grid-template-columns: 1fr;
+}
+
+#lobby-home.invited #lobby-create {
+  order: 1;
+}
+
+#lobby-home.invited #lobby-join {
+  min-height: 50px;
+}
+
+@media (max-width: 520px) {
+  .lobby-card {
+    padding: 16px 16px 14px;
+  }
+
+  .hero-stage {
+    margin: -16px -16px 0;
+    height: 240px;
+    height: clamp(190px, calc(100dvh - 400px), 320px);
+  }
+
+  .hero-blurb {
+    min-height: calc(4 * 1.35em);
+  }
+
+  .friends {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-stage.swap .hero-stage-figure {
+    animation: none;
+  }
 }
 
 .hero-picks {
@@ -2177,25 +2394,27 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   pointer-events: auto;
 }
 
+/* Under Play solo, for a new player: one line, Skip lesson beside it. */
 .tutorial-offer {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 5px 5px 12px;
   border: 1px solid var(--panel-edge);
   border-radius: 12px;
   background: rgba(16, 12, 22, 0.35);
 }
 
 .tutorial-offer p {
+  flex: 1;
   margin: 0;
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
-.tutorial-offer-actions {
-  display: flex;
-  gap: 8px;
+.tutorial-offer .btn {
+  flex: none;
+  white-space: nowrap;
 }
 
 .tutorial-solo-note {
@@ -3496,6 +3715,7 @@ body.layout-wide #emote-feed {
 
 .sound-btn {
   position: absolute;
+  z-index: 3;
   top: 10px;
   right: 10px;
   width: 40px;

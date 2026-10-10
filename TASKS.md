@@ -1,6 +1,6 @@
 # Tower Defense Together: Task list
 
-**As of 9 Oct 2026** (the roadmap's copy of 9 Oct 2026, 12:30). Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Updated 8–9 Oct: Han's new plan before any Reddit post (**Now → The order from here**): friends retest, a cold test, one fix round, page opens and failed starts counted with no id (D-10), then one post at a time and the gate (D-06); everything else is on hold until D-06 is called. Playtest 2's work orders are done but the retest (P2-05), which is open.
+**As of 10 Oct 2026** (the roadmap's copy of 9 Oct 2026, 12:30, plus Han's graphics review of 10 Oct). Copied from Han's roadmap checklist (11 of 50 done), plus the items marked **NEW**, added for the handover. Updated 30 Sep: Discovery and rollout after polish; 1p/2p store-facing, 3p community flagship. Updated 2 Oct: Gate 1 passed (Android, PC, iPhone Safari friends). Updated 8–9 Oct: Han's new plan before any Reddit post (**Now → The order from here**): friends retest, a cold test, one fix round, page opens and failed starts counted with no id (D-10), then one post at a time and the gate (D-06); everything else is on hold until D-06 is called. Playtest 2's work orders are done but the retest (P2-05), which is open. Updated 10 Oct: Han's graphics review and the presentation pass (**Now → Presentation pass**, V-01–V-04).
 **This file is now the tracker.** Update a task's status in the same pull request that finishes it. Also update [`apps/client/src/progress/data.ts`](apps/client/src/progress/data.ts) so the dashboard stays in step ([`docs/PROGRESS.md`](docs/PROGRESS.md)). Do not add a third list: no queue file. `data.ts` only mirrors this file.
 
 **Progress dashboard:** `/?progress` on any build (production: https://tgt-td-cld.vercel.app/?progress). **Cooking now** on that page lists rows marked ◐ in progress in this file. Open pull requests and CI stay on the Ops Dashboard.
@@ -14,11 +14,11 @@
 
 ## Now: in this order
 
-**On hold (Han, 8 Oct 2026):** nothing in Phase 6 or later, and no new feature, starts before D-06 is called. Bug fixes and the rows in **The order from here** are the only work.
+**On hold (Han, 8 Oct 2026):** nothing in Phase 6 or later, and no new feature, starts before D-06 is called. Bug fixes and the rows in **The order from here** are the only work. **One exception (Han, 10 Oct 2026):** the presentation pass, below the order.
 
 **While a post is live** (D-02, D-03, D-04): no merge that changes the sim or the protocol, because each one restarts the game server.
 
-**Overnight bots.** Open **Team** rows in this section, top to bottom, are the auto-pull order. Skip Han rows and anything already done. The order is this file only. The one open Team row, T-07, starts after P2-05 and H-09. D-10 is in review (PR #99) until Han merges it.
+**Overnight bots.** Open **Team** rows in this section, top to bottom, are the auto-pull order. Skip Han rows and anything already done. The order is this file only. The one open Team row, T-07, starts after P2-05 and H-09. D-10 is in review (PR #99) until Han merges it. The presentation pass rows (V-01–V-04) are not on the auto-pull list: each one starts when Han says go.
 
 ### The order from here · Han, 8 Oct 2026
 
@@ -36,6 +36,19 @@ Top to bottom. Each Reddit post waits until the previous post's numbers are read
 | 8 | D-03 | Post to **r/WebGames** (`?src=reddit-webgames`; follow the sub's rules), only after D-02's numbers are read. | Han | ☐ |
 | 9 | D-04 | Post to **r/TowerDefense** (`?src=reddit-towerdefense`; follow the sub's rules), only after D-03's numbers are read. | Han | ☐ |
 | 10 | D-06 | **The gate.** This round's bar is the first session, read per link (**By link**, and the rating per channel in **Where they came from**): of the new players, how many started a match, finished it and started a second one, and the rating. Day-1 returns are noted. Day-7 is not the bar yet, because no progress is saved between visits. Gate 2 (CrazyGames) keeps its day-1 and day-7 bar. **Go** starts the Later rows (L-01, L-02, then Phase 6a); **no-go** means more polish or a pitch change. Friends-only signal is not enough for go. | Han | ☐ |
+
+### Presentation pass · Han, 10 Oct 2026
+
+**Why.** On 10 Oct 2026 Han compared the game with store games: the rules and the group play hold up, the look does not yet. A review of the live build found that the gap is less the art than where it shows. The first screen was a form (a title, a paragraph, a name box, three text cards). A hero is about 25 px tall on a phone. Everything in a match is flat, seen from straight above. Han chose **option A, a presentation pass**: drawn in code, no new spend. Paid art (illustrated portraits and key art, image sprites in the match, 3D) was reviewed the same day and is not started (`docs/ROADMAP.md` → Graphics review).
+
+**Rules.** Client only: no sim, tuning or protocol change, so no merge here restarts the game server. Runelight stays drawn in code (`docs/ART.md`). **Not on the overnight auto-pull list:** the open rows are **Han, then Team**: each starts when Han says go, after he has looked at the row before it on a phone. V-01 comes before the cold test (H-09), so people who have never seen the game meet the new first screen.
+
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| V-01 | **The first screen** (the home card; client only, `PROTOCOL_VERSION` stays 19, PR #100). The picked hero stands large on a moonlit clearing under the title, breathing, drawn from its own art at the screen's size (`HeroArt.stand`, `render/art/stand.ts`, `lobby/heroStage.ts`: Canvas 2D, no image files, nothing drawn while the lobby is hidden, one still drawing under reduced motion). Under it: three hero buttons, the hero's role and one line, then **one main button, Play solo**, on screen with no scrolling and no nickname. A new player gets one line under it (the first solo match is a short lesson) with **Skip lesson**; the Start lesson button is gone, because Play solo starts the lesson. **Play with friends** (nickname, Create room, code and Join room) follows, in carved stone. A friend who opens an invite link (`?room=CODE`) gets the nickname and Join first, with **Join room** as the main button. This replaces "Create room is the main button, Play solo is a stone button in a dock" (Decision Log, 1 and 3 Oct 2026). **In review:** `npm test`, `npm run build` and the browser suite were not run in the build session, which could not install the packages (Han's call, 10 Oct 2026: CI and the Vercel preview are the check). What was checked there is in the pull request. The first load on a throttled phone (`docs/PRESS.md` §5) is not re-measured yet. | Team | ◐ |
+| V-02 | **The second screen.** The solo pick and the room card still show three text cards per hero and a long form. Give them the home card's look (the hero stage, the short hero buttons). **Proposed, for Han to decide:** a new player's Play solo goes straight into the lesson with the hero on the stage, because the lesson locks the mode, the difficulty and the modifiers anyway, so the solo pick offers a new player nothing but a second tap. | Han, then Team | ☐ |
+| V-03 | **Depth in the match.** Empty build pads recede (a quieter stone until a tower stands on one), towers and units cast shadows down-right, towers get height, so the map stops reading as grey squares on green. Art only: `docs/ART.md`, the atlas and the ground painter. Check 60 FPS with 150 creeps and 30 FPS with 300 (`docs/MOBILE.md` §7), then regenerate the link card (`npm run og -w @tdt/client`) and the press screenshots. | Han, then Team | ☐ |
+| V-04 | **Bigger on a phone.** Heroes and creeps drawn larger, or a closer view of the lanes in play. This touches two locked decisions (the whole Spire map fits the screen; the camera is locked on phones), so **Han decides how first**. | Han, then Team | ☐ |
 
 ### T-00 · CI and branch protection · NEW · Team, then Han · ☑
 
