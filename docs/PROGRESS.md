@@ -17,6 +17,6 @@ Open pull requests and CI are the Ops Dashboard’s live feed. This page does no
 
 ## Now, for overnight bots
 
-Open **Team** to-dos in the **Now** section of `TASKS.md`, top to bottom, are the auto-pull order. Skip Han rows and anything already done. The page repeats that sentence. The order lives only in `TASKS.md`.
+Open **Team** to-dos in the **Now** section of `TASKS.md`, top to bottom, are the auto-pull order. Skip Han rows, rows that are Han's first (`Han, then Team` in `TASKS.md`, `Both` here: the presentation pass waits for his go) and anything already done. The page repeats that sentence. The order lives only in `TASKS.md`.
 
 Filters on the page: All, Now, Han, Team, Done, Later. `status` is `done`, `todo`, `in_progress`, or `blocked`. `owner` is `Han`, `Team`, or `Both`.

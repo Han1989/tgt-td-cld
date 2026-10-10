@@ -11,8 +11,8 @@ import { TUNING } from '@tdt/sim';
 import { Container } from 'pixi.js';
 import type { ArtKit } from '../kit';
 import { box, circle, ellipse, pathLine, poly } from '../paint';
-import { registerArt, type Draw, type HeroPose } from '../registry';
-import { clamp01, hold, HeroRigBase, smooth } from '../rigs';
+import { registerArt, type Draw, type HeroPose, type StandPose } from '../registry';
+import { breath, clamp01, hold, HeroRigBase, smooth } from '../rigs';
 
 const ID = 'arcanist';
 
@@ -169,11 +169,25 @@ class ArcanistRig extends HeroRigBase {
   }
 }
 
+/** The rig's rest pose (ArcanistRig.pose with nothing going on): the staff upright at REST, swaying a little. */
+function stand(to: StandPose, now: number): void {
+  const bob = breath(now);
+  to.part('foot', 3, FEET);
+  to.part('body', 0, 1 - bob);
+  to.part('foot', -3, FEET);
+  to.part('head', 0.5, -7 - bob);
+  to.push(SHOULDER.x, SHOULDER.y - bob, REST + Math.sin(now / 1100) * 0.03);
+  to.part('staff', GRIP_X, 0);
+  to.pop();
+  to.part('hand', 1, 2 - bob);
+}
+
 registerArt({
   id: ID,
   name: 'Arcanist',
   category: 'hero',
   kind: 'arcanist',
+  feet: FEET,
   frames: {
     body: { w: 24, h: 20, draw: robe, flash: true },
     head: { w: 26, h: 24, draw: head, flash: true },
@@ -183,4 +197,5 @@ registerArt({
     flare: { w: 24, h: 24, draw: flare },
   },
   rig: (kit, mine) => new ArcanistRig(kit, mine),
+  stand,
 });

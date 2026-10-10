@@ -46,7 +46,7 @@ The client finds the server through the build-time variable `VITE_SERVER_URL`. I
 1. Open your project on Vercel → **Settings → Environment Variables**.
 2. Add **`VITE_SERVER_URL`** = `wss://<service-name>.onrender.com`. Use the same host as your `/health` URL, but with `wss://` and no path. Tick **Production** and **Preview**. Optionally add it to **Development** with `ws://localhost:8080`.
 3. **Redeploy.** Vite bakes the variable into the build, so existing deployments don't pick it up. Go to *Deployments → ⋯ → Redeploy* on the latest production deployment, or push a commit.
-4. Open the production site. You should see the lobby (nickname, **Create room**, **Join room**, **Play solo offline**) instead of going straight into a solo match.
+4. Open the production site. You should see the lobby (a hero on a stage, **Play solo**, then nickname, **Create room** and **Join room**) instead of going straight into a solo match.
 5. **Build stamp:** solo match reports carry the client's commit from Vercel's system variable `VERCEL_GIT_COMMIT_SHA` (read by `vite.config.ts` at build time). It needs **Settings → Environment Variables → "Automatically expose System Environment Variables"** on (the default); otherwise solo reports say `build dev`.
 
 ## 3. `ALLOWED_ORIGINS`

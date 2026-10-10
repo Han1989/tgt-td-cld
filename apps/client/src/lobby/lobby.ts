@@ -1,7 +1,8 @@
-// Online lobby screens (HTML): home (nickname, hero, create / join, solo), room
-// (code + invite link, players, hero, mode, ready / start) and a busy state.
+// Online lobby screens (HTML): home (the hero stage, Play solo, then nickname and create / join for
+// friends), room (code + invite link, players, hero, mode, ready / start) and a busy state.
 
 import {
+  HERO_KINDS,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
   normalizeName,
@@ -20,6 +21,7 @@ import { sharedSettings } from '../settings';
 import { homeLessonControls, lessonStatus } from '../tutorial/logic';
 import { DifficultyPicker } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
+import { HeroStage } from './heroStage';
 import { renderModifierLobby } from './modifierPicker';
 import { ModePicker } from './modePicker';
 
@@ -82,6 +84,10 @@ export class LobbyUi {
   private readonly error = $('lobby-error');
   private readonly name = $('lobby-name') as HTMLInputElement;
   private readonly code = $('lobby-code') as HTMLInputElement;
+  private readonly offline = $('lobby-offline');
+  private readonly joinBtn = $('lobby-join');
+  private readonly role = $('lobby-hero-role');
+  private readonly blurb = $('lobby-hero-blurb');
   private readonly roomCode = $('lobby-room-code');
   private readonly players = $('lobby-players');
   private readonly playersCount = $('lobby-players-count');
@@ -94,6 +100,9 @@ export class LobbyUi {
   private readonly setModifiers: (action: ModifierAction) => void;
 
   private hero: HeroKind = storedHero();
+  /** The page was opened from an invite link (`?room=CODE`): Join is the main button, not Play solo. */
+  private readonly invited: boolean;
+  private readonly stage: HeroStage;
   private readonly homePicker: HeroPicker;
   private readonly roomPicker: HeroPicker;
   private readonly modePicker: ModePicker;
@@ -107,6 +116,12 @@ export class LobbyUi {
     this.name.maxLength = MAX_NAME_LENGTH;
     const invited = normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? '');
     if (invited) this.code.value = invited;
+    // One main (rune-teal) button on the home card: Play solo, or Join for a friend who came by an invite link,
+    // whose nickname and code then come before Play solo (style.css `#lobby-home.invited`).
+    this.invited = !!invited;
+    this.home.classList.toggle('invited', this.invited);
+    this.joinBtn.classList.toggle('big', this.invited);
+    this.offline.classList.toggle('big', !this.invited);
 
     $('lobby-create').addEventListener('click', () => {
       const name = this.validName();
@@ -119,12 +134,12 @@ export class LobbyUi {
       if (!code) return this.showError('Room codes are 5 letters');
       actions.join(code, name, this.hero);
     };
-    $('lobby-join').addEventListener('click', join);
+    this.joinBtn.addEventListener('click', join);
     this.code.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') join();
     });
-    $('lobby-offline').addEventListener('click', () => actions.playOffline());
-    $('tutorial-offer-start').addEventListener('click', () => actions.playOffline());
+    // A new player's Play solo is the lesson (the solo pick says so); the offer under it only lets them skip it.
+    this.offline.addEventListener('click', () => actions.playOffline());
     $('tutorial-offer-skip').addEventListener('click', () => {
       sharedSettings().set({ tutorial: lessonStatus('skip') });
       this.syncLesson();
@@ -142,9 +157,11 @@ export class LobbyUi {
         () => this.flash(link),
       );
     });
+    this.stage = new HeroStage($('lobby-stage'), HERO_KINDS, this.hero);
     this.homePicker = new HeroPicker($('lobby-heroes-home'), this.hero, (hero) => {
       this.hero = hero;
       storeHero(hero);
+      this.syncStage();
     });
     this.roomPicker = new HeroPicker($('lobby-heroes-room'), this.hero, (hero) => {
       this.hero = hero;
@@ -157,7 +174,15 @@ export class LobbyUi {
     );
   }
 
-  /** A new player can start or skip the lesson. Replay stays in Settings. */
+  /** The home card's stage and the line under the hero buttons show the picked hero. */
+  private syncStage(): void {
+    const info = HERO_INFO[this.hero];
+    this.stage.show(this.hero);
+    this.role.textContent = info.role;
+    this.blurb.textContent = info.blurb;
+  }
+
+  /** A new player is told the first solo match is a lesson, and can skip it. Replay stays in Settings. */
   private syncLesson(): void {
     const { offer } = homeLessonControls(sharedSettings().get().tutorial);
     $('tutorial-offer').classList.toggle('hidden', !offer);
@@ -170,6 +195,7 @@ export class LobbyUi {
 
   hide(): void {
     this.root.classList.add('hidden');
+    this.stage.stop();
   }
 
   showHome(error = ''): void {
@@ -181,10 +207,14 @@ export class LobbyUi {
     this.solo.classList.add('hidden');
     this.refresh.classList.add('hidden');
     this.homePicker.select(this.hero);
+    this.syncStage();
+    this.stage.start();
     this.syncLesson();
     this.showError(error);
-    const focus = !this.name.value ? this.name : this.code.value ? $('lobby-join') : $('lobby-create');
-    focus.focus();
+    // Keyboard focus starts on the main button (with a mouse or trackpad; a phone shows no ring on it), or on
+    // the nickname an invited friend still has to type. Never scroll the card for it.
+    const focus = this.invited ? (this.name.value ? this.joinBtn : this.name) : this.offline;
+    if (this.invited || matchMedia('(pointer: fine)').matches) focus.focus({ preventScroll: true });
   }
 
   /** The server runs another protocol version: ask for a reload. */
@@ -195,6 +225,7 @@ export class LobbyUi {
   }
 
   showBusy(text: string): void {
+    this.stage.stop();
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.room.classList.add('hidden');
@@ -206,6 +237,7 @@ export class LobbyUi {
 
   showRoom(lobby: LobbyState, me: PlayerId | null): void {
     this.current = lobby;
+    this.stage.stop();
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.busy.classList.add('hidden');

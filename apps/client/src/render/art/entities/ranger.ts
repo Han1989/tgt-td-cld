@@ -11,8 +11,8 @@ import { TUNING } from '@tdt/sim';
 import { Container, Sprite, Texture } from 'pixi.js';
 import type { ArtKit } from '../kit';
 import { box, circle, ellipse, pathLine, poly, rrect } from '../paint';
-import { registerArt, type Draw, type HeroPose } from '../registry';
-import { CAST_MS, clamp01, hold, HeroRigBase, smooth } from '../rigs';
+import { registerArt, type Draw, type HeroPose, type StandPose } from '../registry';
+import { breath, CAST_MS, clamp01, hold, HeroRigBase, smooth } from '../rigs';
 import { RL } from '../tokens';
 
 const ID = 'ranger';
@@ -92,6 +92,15 @@ const RELEASE_MS = 110;
 /** Cast: where the bow points (radians, facing +x), and when in the cast it looses. */
 const CAST_AIM: Partial<Record<SkillSlot, number>> = { Q: -0.45, W: 0.75, R: -1.2 };
 const CAST_LOOSE = 0.55;
+/** Bowstring width, px. */
+const STRING_PX = 0.9;
+/**
+ * Standing (`stand`): the bow held out in front (px further than in a match, so the string clears the face at
+ * a large size), a little above level (radians), the string barely drawn (0..1 of DRAW_PX).
+ */
+const STAND_REACH = 5;
+const STAND_AIM = -0.12;
+const STAND_DRAW = 0.12;
 
 class RangerRig extends HeroRigBase {
   private readonly torso: Container;
@@ -118,7 +127,7 @@ class RangerRig extends HeroRigBase {
     this.stringB = new Sprite(Texture.WHITE);
     for (const s of [this.stringA, this.stringB]) {
       s.anchor.set(0, 0.5);
-      s.height = 0.9;
+      s.height = STRING_PX;
       s.tint = RL.string;
     }
     this.arrow = this.part('arrow');
@@ -181,11 +190,30 @@ class RangerRig extends HeroRigBase {
   }
 }
 
+/** The rig's rest pose (RangerRig.pose with nothing going on), with the bow held out and raised a little. */
+function stand(to: StandPose, now: number): void {
+  const bob = breath(now);
+  to.part('cloak', -2, 1 - bob * 0.8, Math.sin(now / 1300) * 0.025);
+  to.part('foot', 3.2, FEET);
+  to.part('body', 0, 1 - bob);
+  to.part('foot', -3.2, FEET);
+  to.part('head', 0.5, -8 - bob);
+  to.push(SHOULDER.x + STAND_REACH, SHOULDER.y - bob, STAND_AIM);
+  to.part('bow', BOW_X, 0);
+  const tipX = BOW_X + BOW_TIP.x;
+  const nockX = tipX - STAND_DRAW * DRAW_PX;
+  to.line(tipX, -BOW_TIP.y, nockX, 0, RL.string, STRING_PX);
+  to.line(tipX, BOW_TIP.y, nockX, 0, RL.string, STRING_PX);
+  to.part('arrow', nockX + 12, 0);
+  to.pop();
+}
+
 registerArt({
   id: ID,
   name: 'Ranger',
   category: 'hero',
   kind: 'ranger',
+  feet: FEET,
   frames: {
     cloak: { w: 26, h: 30, draw: cloak, flash: true },
     body: { w: 22, h: 20, draw: torso, flash: true },
@@ -195,4 +223,5 @@ registerArt({
     arrow: { w: 28, h: 8, draw: arrow },
   },
   rig: (kit, mine) => new RangerRig(kit, mine),
+  stand,
 });

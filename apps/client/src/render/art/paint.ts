@@ -17,7 +17,11 @@ export const LINE = {
   detail: 1.1,
 } as const;
 
-/** Glow radius of accents (px of blur at world scale). */
+/**
+ * Glow radius of accents: px of blur on the canvas. A canvas blur ignores the drawing's scale, so this
+ * is sized for the atlas (frames baked at 2×, atlas.ts); a drawing at another scale passes `glow` to
+ * `createPainter` to keep the same look.
+ */
 const GLOW_BLUR = 7;
 
 export function css(hex: number, a = 1): string {
@@ -160,7 +164,12 @@ function linear(c: Ctx, b: Box, stops: [number, string][], diag = 0.2): CanvasGr
   return g;
 }
 
-export function createPainter(lighting: Lighting = LIGHTING.normal): Painter {
+/**
+ * `glow` multiplies the accents' blur: the drawing's scale ÷ the atlas's (1 for the atlas and the icons).
+ * `weight` multiplies the ink outlines' width: 1 at match size, less for a figure drawn several times
+ * larger (the lobby's hero stage), where the full width would swallow the shapes.
+ */
+export function createPainter(lighting: Lighting = LIGHTING.normal, glow = 1, weight = 1): Painter {
   const ink = css(RL.ink);
   return {
     lighting,
@@ -187,7 +196,7 @@ export function createPainter(lighting: Lighting = LIGHTING.normal): Painter {
       }
       if (!opts.noOutline) {
         c.lineJoin = 'round';
-        c.lineWidth = LINE.part * (opts.line ?? 1);
+        c.lineWidth = LINE.part * (opts.line ?? 1) * weight;
         c.strokeStyle = ink;
         c.stroke(path);
       }
@@ -196,7 +205,7 @@ export function createPainter(lighting: Lighting = LIGHTING.normal): Painter {
       c.fillStyle = css(color);
       c.fill(path);
       if (outline) {
-        c.lineWidth = LINE.detail;
+        c.lineWidth = LINE.detail * weight;
         c.strokeStyle = ink;
         c.stroke(path);
       }
@@ -204,7 +213,7 @@ export function createPainter(lighting: Lighting = LIGHTING.normal): Painter {
     accent(c, path, color) {
       c.save();
       c.shadowColor = css(color, 0.95);
-      c.shadowBlur = GLOW_BLUR;
+      c.shadowBlur = GLOW_BLUR * glow;
       c.fillStyle = css(shade(color, 0.35));
       c.fill(path);
       c.fill(path);

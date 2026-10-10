@@ -249,6 +249,9 @@ export class CreepRig {
 /** How long a cast pose lasts, ms (hero files shape it; the effect itself is in render/fx). */
 export const CAST_MS = 480;
 
+/** A standing hero's slow breath (px, at most 0.35 up or down): the rigs' idle bob, and the standing poses'. */
+export const breath = (now: number): number => Math.sin(now / 500) * 0.35;
+
 export abstract class HeroRigBase implements HeroRig {
   readonly body = new Container();
   /** Everything that flips with the facing, flinches and falls over; pivots at the feet. */
@@ -376,7 +379,7 @@ export abstract class HeroRigBase implements HeroRig {
 
   /** Walk bob (px): a bounce each step when walking, a slow breath (≤ 0.5 px) when standing. */
   protected bob(walking: boolean, now: number, px: number): number {
-    return walking ? Math.abs(Math.sin(this.phase)) * px : Math.sin(now / 500) * 0.35;
+    return walking ? Math.abs(Math.sin(this.phase)) * px : breath(now);
   }
 
   /** Places the two feet for the walk cycle (together when standing). */

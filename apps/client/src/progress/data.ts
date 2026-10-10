@@ -6,7 +6,8 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
- * 9 Oct 2026, 12:30). Production protocol is 19. This page only reports status.
+ * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026. Production protocol
+ * is 19. This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -22,6 +23,12 @@ const sections: ProgressSection[] = [
     id: 'order',
     title: 'Now · the order from here',
     blurb: 'Han’s plan of 8 Oct 2026, top to bottom: the friends retest, the cold test, one fix round, page opens and failed starts counted with no id (D-10), then one Reddit post at a time and the gate (D-06). On hold until D-06 is called: nothing in Phase 6 or later and no new feature; bug fixes and these rows are the only work. While a post is live, no merge that changes the sim or the protocol (each one restarts the game server).',
+    group: 'now',
+  },
+  {
+    id: 'visual',
+    title: 'Presentation pass · Han, 10 Oct 2026',
+    blurb: 'Han compared the game with store games on 10 Oct 2026 and chose a presentation pass: drawn in code, client only, no new spend. The one exception to the hold. Not on the overnight auto-pull list: the open rows are Han’s first; each starts when he says go, after he has looked at the row before it on a phone. Paid art was reviewed the same day and is not started.',
     group: 'now',
   },
   {
@@ -205,6 +212,39 @@ const items: ProgressItem[] = [
     status: 'todo',
     section: 'order',
     note: 'This round’s bar is the first session, read per link: started a match, finished it, started a second one, and the rating. Day-1 returns are noted; day-7 is not the bar yet, because no progress is saved between visits. Gate 2 keeps its day-1 and day-7 bar. Friends-only signal is not enough to go.',
+  },
+  {
+    id: 'V-01',
+    title: 'The first screen: a hero on a stage and one main button',
+    owner: 'Team',
+    status: 'in_progress',
+    section: 'visual',
+    note: 'Client only, protocol stays 19. The home card was a form. Now the picked hero stands large on a moonlit clearing under the title, drawn from its own art in code, with three hero buttons, its role and one line. One main button, Play solo, on screen with no scrolling and no nickname; a new player gets one line about the lesson and Skip lesson. Play with friends follows; a friend who opens an invite link gets the nickname and Join first, with Join as the main button. In review: the build session could not install the packages, so the unit tests, the build and the browser suite run on CI and Han looks at the Vercel preview (his call, 10 Oct 2026). The first load on a throttled phone is not re-measured yet. Built by Claude Code.',
+    proof: pr(100),
+  },
+  {
+    id: 'V-02',
+    title: 'The second screen: the solo pick and the room card',
+    owner: 'Both',
+    status: 'todo',
+    section: 'visual',
+    note: 'Starts when Han says go. The solo pick and the room card still show three text cards per hero and a long form: give them the home card’s look. Proposed, for Han to decide: a new player’s Play solo goes straight into the lesson, because the lesson locks the mode, the difficulty and the modifiers anyway.',
+  },
+  {
+    id: 'V-03',
+    title: 'Depth in the match: pads recede, shadows, tower height',
+    owner: 'Both',
+    status: 'todo',
+    section: 'visual',
+    note: 'Starts when Han says go. Empty build pads recede until a tower stands on one, towers and units cast shadows, towers get height, so the map stops reading as grey squares on green. Art only. Check the frame-rate targets, then regenerate the link card and the press screenshots.',
+  },
+  {
+    id: 'V-04',
+    title: 'Bigger heroes and creeps on a phone',
+    owner: 'Both',
+    status: 'todo',
+    section: 'visual',
+    note: 'Han decides how first: larger units or a closer view of the lanes in play. It touches two locked decisions (the whole Spire map fits the screen; the camera is locked on phones).',
   },
   {
     id: 'g1-render',
@@ -923,7 +963,7 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '9 Oct 2026',
+  asOf: '10 Oct 2026',
   protocol: 19,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
