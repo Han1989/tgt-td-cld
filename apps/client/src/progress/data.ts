@@ -6,7 +6,7 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
- * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026. Production protocol
+ * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01 done. Production protocol
  * is 19. This page only reports status.
  */
 
@@ -217,9 +217,9 @@ const items: ProgressItem[] = [
     id: 'V-01',
     title: 'The first screen: a hero on a stage and one main button',
     owner: 'Team',
-    status: 'in_progress',
+    status: 'done',
     section: 'visual',
-    note: 'Client only, protocol stays 19. The home card was a form. Now the picked hero stands large on a moonlit clearing under the title, drawn from its own art in code, with three hero buttons, its role and one line. One main button, Play solo, on screen with no scrolling and no nickname; a new player gets one line about the lesson and Skip lesson. Play with friends follows; a friend who opens an invite link gets the nickname and Join first, with Join as the main button. In review: the build session could not install the packages, so the unit tests, the build and the browser suite run on CI and Han looks at the Vercel preview (his call, 10 Oct 2026). The first load on a throttled phone is not re-measured yet. Built by Claude Code.',
+    note: 'Client only, protocol stays 19. The home card was a form. Now the picked hero stands large on a moonlit clearing under the title, drawn from its own art in code, with three hero buttons, its role and one line. One main button, Play solo, on screen with no scrolling and no nickname; a new player gets one line about the lesson and Skip lesson. Play with friends follows; a friend who opens an invite link gets the nickname and Join first, with Join as the main button. Merged 10 Oct 2026 (PR #100); the browser suite passed on CI. The first load on a throttled phone is not re-measured yet. Built by Claude Code.',
     proof: pr(100),
   },
   {
@@ -228,7 +228,7 @@ const items: ProgressItem[] = [
     owner: 'Both',
     status: 'todo',
     section: 'visual',
-    note: 'Starts when Han says go. The solo pick and the room card still show three text cards per hero and a long form: give them the home card’s look. Proposed, for Han to decide: a new player’s Play solo goes straight into the lesson, because the lesson locks the mode, the difficulty and the modifiers anyway.',
+    note: 'Starts when Han says go. The solo pick and the room card still show three text cards per hero and a long form: give them the home card’s look. Han, 13 Oct 2026: Play solo never sends a player straight into the lesson; the lesson is the player’s choice, never forced. Whether it becomes something a player picks, off by default, is open for Han.',
   },
   {
     id: 'V-03',
@@ -963,7 +963,7 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '10 Oct 2026',
+  asOf: '13 Oct 2026',
   protocol: 19,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
