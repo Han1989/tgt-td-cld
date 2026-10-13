@@ -735,11 +735,13 @@ test.describe('portrait phone layout', () => {
     await ctx.close();
   });
 
-  test('the lesson card stays off the controls, Move advances, and Skip dismisses it', async ({ page }) => {
+  test('Learn to play starts the lesson; its card stays off the controls, Move advances, and Skip dismisses it', async ({ page }) => {
     await page.goto('/?lab');
     await waitForReady(page, 'solo');
-    await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
-    await page.locator('#lobby-solo-play').click();
+    // The line sits under the docked Play, on screen with no scrolling.
+    const learn = await box(page, '#lobby-solo-learn-btn');
+    expect(learn.bottom).toBeLessThanOrEqual(page.viewportSize()!.height);
+    await page.locator('#lobby-solo-learn-btn').click();
     await expect(page.locator('#tutorial-title')).toHaveText('Move');
     await expect(page.locator('#tutorial-body')).toContainText('joystick');
 

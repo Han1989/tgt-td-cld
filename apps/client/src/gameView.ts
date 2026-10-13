@@ -65,8 +65,8 @@ export class GameView {
   onLeave: () => void = () => {};
   /** Called when the player clicks "Change hero" on the solo end screen. */
   onChangeHero: () => void = () => {};
-  /** Settings → Replay tutorial, after the lesson flag is set back to new. */
-  onReplayTutorial: () => void = () => {};
+  /** ⚙ → Learn to play: the host starts the lesson at once (leaving an online room or ending a solo match). */
+  onLearnToPlay: () => void = () => {};
 
   private transport: Transport | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -273,7 +273,7 @@ export class GameView {
       return { left: a.x / TILE_PX, top: a.y / TILE_PX, right: b.x / TILE_PX, bottom: b.y / TILE_PX };
     };
 
-    new SettingsPanel(settings, () => audio.game.tap(performance.now()), () => view.onReplayTutorial());
+    new SettingsPanel(settings, () => audio.game.tap(performance.now()), () => view.onLearnToPlay());
     installPressFeedback(document, () => audio.game.tap(performance.now()));
     const marks = new MarkerLayer();
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
@@ -625,8 +625,9 @@ export class GameView {
   }
 
   /**
-   * Solo only: show the first-match lesson. Online matches never call this.
-   * A new match (the tick counter restarting) starts the card again while the lesson is still new.
+   * Solo only: run the lesson on this match (Learn to play; Play never does). Online matches never call this.
+   * A new match (the tick counter restarting, Play again) starts the card again while the lesson is still on:
+   * Skip and the closing card's Got it turn it off.
    */
   setLesson(on: boolean): void {
     this.lesson = on;
@@ -677,8 +678,7 @@ export class GameView {
   }
 
   private syncLesson(): void {
-    const run = this.lesson && sharedSettings().get().tutorial === 'new';
-    if (run) this.coach.begin();
+    if (this.lesson) this.coach.begin();
     else this.coach.stop();
   }
 

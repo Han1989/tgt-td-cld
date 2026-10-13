@@ -246,16 +246,18 @@ test('end screen: "Save match report" downloads the report and the replay as one
   await expect(page.locator('#end-save')).toBeHidden();
 });
 
-test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, Settings can replay it', async ({ page }) => {
+test('Learn to play on the solo pick starts the Quick lesson: Move advances, Skip dismisses it, Settings starts it again', async ({ page }) => {
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
-  await expect(page.locator('#tutorial-solo-note')).toBeVisible();
-  await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
-  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
-  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
-  await expect(page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]')).toBeDisabled();
+  // A build with no game server opens on the solo pick: no Back, and the line under Play for a new player.
+  await expect(page.locator('#lobby-solo-back')).toBeHidden();
+  await expect(page.locator('#lobby-solo-learn')).toBeVisible();
+  await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
+  // Nothing is locked: the lesson is a choice, and Play keeps whatever is picked here.
+  await expect(page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]')).toBeEnabled();
+  await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
-  await page.locator('#lobby-solo-play').click();
+  await page.locator('#lobby-solo-learn-btn').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual([]);
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
@@ -276,21 +278,25 @@ test('a new player gets a solo Quick lesson: Move advances, Skip dismisses it, S
 
   await page.locator('#tutorial-skip').click();
   await expect(page.locator('#tutorial')).toBeHidden();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).tutorial)).toBe('skipped');
 
+  // ⚙ → Learn to play starts the lesson again at once, in place of this match (no solo pick in between).
   await page.locator('#settings-btn').click();
-  await expect(page.locator('#settings-tutorial')).toBeVisible();
+  await expect(page.locator('#settings-tutorial')).toHaveText('Learn to play');
+  const before = await page.evaluate(() => window.__tdt.latest()!.tick);
   await page.locator('#settings-tutorial').click();
-  await expect(page.locator('#tutorial-solo-note')).toBeVisible();
-  await expect(page.locator('#lobby-solo-play')).toHaveText('Start lesson');
-  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
-  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeDisabled();
+  await expect(page.locator('#lobby')).toBeHidden();
+  await expect(page.locator('#tutorial-title')).toHaveText('Move');
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.tick ?? Infinity)).toBeLessThan(before);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
+  // Full stays the player's pick for Play.
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('full');
 });
 
-test('Skip lesson on the hero pick keeps the chosen mode and hides the card', async ({ page }) => {
+test('Play on the solo pick is the match picked, never the lesson: the mode and the modifier draw are kept', async ({ page }) => {
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
-  await page.locator('#tutorial-solo-skip').click();
-  await expect(page.locator('#tutorial-solo-note')).toBeHidden();
+  await expect(page.locator('#lobby-solo-learn')).toBeVisible();
   await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
   await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText('No modifiers');
   const beforeReroll = await page.locator('#lobby-modifiers-solo .mod-names').innerText();
@@ -304,6 +310,7 @@ test('Skip lesson on the hero pick keeps the chosen mode and hides the card', as
   await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText(afterReroll);
   await page.locator('#lobby-modifiers-solo .mod-none').click();
   await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
+  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toBeVisible();
   await expect(page.locator('#lobby-modifiers-solo button.mod-offer')).toBeVisible();
   await expect(page.locator('#lobby-modifiers-solo .mod-offer-label')).toHaveText('Offered');
   await expect(page.locator('#lobby-modifiers-solo .mod-chip.offered')).not.toHaveCount(0);
@@ -319,7 +326,6 @@ test('Skip lesson on the hero pick keeps the chosen mode and hides the card', as
 test('the match strip shows the same modifier chips as the lobby', async ({ page }) => {
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
-  await page.locator('#tutorial-solo-skip').click();
   const ids = await page.locator('#lobby-modifiers-solo .mod-chips .mod-chip').evaluateAll((els) =>
     els.map((el) => el.getAttribute('data-modifier')),
   );

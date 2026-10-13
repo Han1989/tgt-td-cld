@@ -1,5 +1,5 @@
-// The home card's hero stage (docs/ART.md §12): the picked hero drawn large on a moonlit clearing,
-// breathing. Canvas 2D from the hero's own art: its frames are drawn once at the stage's size (vector
+// The lobby's hero stage (docs/ART.md §12): the picked hero drawn large on a moonlit clearing, breathing,
+// on the home card and (shorter) on the solo pick. Canvas 2D from the hero's own art: its frames are drawn once at the stage's size (vector
 // paths, so they stay sharp at any size) and placed each frame by its standing pose (`HeroArt.stand`).
 // No image files and no WebGL; nothing is drawn while the stage is hidden, and under reduced motion
 // it is one still drawing. The clearing itself is CSS (style.css `.hero-stage`).
@@ -30,6 +30,9 @@ const OUTLINE = 0.5;
 /** The pool of light under the hero (world px, around its feet), and the contact shadow on it. */
 const LIGHT = { rx: 30, ry: 8, alpha: 0.42 } as const;
 const SHADOW = { rx: 15, ry: 5.5 } as const;
+
+/** The one stage whose loop may run: starting a stage stops any other (one loop at most on the page). */
+let live: HeroStage | null = null;
 
 function allHeroArt(kinds: readonly HeroKind[]): HeroArt[] {
   return kinds.map((kind) => {
@@ -97,16 +100,29 @@ export class HeroStage {
 
   /** Draws the stage and keeps it breathing while it is on screen (one still drawing under reduced motion). */
   start(): void {
+    if (live && live !== this) live.stop();
+    live = this;
     this.running = true;
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
+    this.cancel();
     this.resized();
   }
 
   stop(): void {
+    if (live === this) live = null;
     this.running = false;
+    this.cancel();
+  }
+
+  /** Asks for the next frame. `data-live` on the stage marks a running loop (the browser tests count them). */
+  private schedule(): void {
+    this.raf = requestAnimationFrame(this.tick);
+    this.root.dataset.live = '';
+  }
+
+  private cancel(): void {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
+    delete this.root.dataset.live;
   }
 
   /** The stage is laid out (not inside a hidden screen). */
@@ -117,12 +133,15 @@ export class HeroStage {
   private readonly tick = (now: number): void => {
     this.raf = 0;
     // The lobby was hidden (a match started, another lobby screen is up): stop until start() is called again.
-    if (!this.running || !this.shown()) return;
+    if (!this.running || !this.shown()) {
+      delete this.root.dataset.live;
+      return;
+    }
     if (now - this.last >= FRAME_MS - 1) {
       this.last = now;
       this.draw(now);
     }
-    this.raf = requestAnimationFrame(this.tick);
+    this.schedule();
   };
 
   /** Sizes the canvas to its box and the hero to the canvas, then draws. */
@@ -143,7 +162,7 @@ export class HeroStage {
     this.fit = fitStand(this.art(), this.room, { w: box.width, h: box.height, ground, top: Math.max(0, top), side: SIDE_PX });
     this.draw(this.still.matches ? 0 : performance.now());
     // One loop at most. It also picks the breath back up when the stage is laid out again after being hidden.
-    if (this.running && !this.raf && !this.still.matches) this.raf = requestAnimationFrame(this.tick);
+    if (this.running && !this.raf && !this.still.matches) this.schedule();
   }
 
   private art(): HeroArt {

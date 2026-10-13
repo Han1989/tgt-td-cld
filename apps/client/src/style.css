@@ -2003,8 +2003,10 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 /* The home card (docs/ART.md §12): the picked hero on a moonlit clearing, the hero buttons, one main
    button (Play solo; Join for a friend who came by an invite link), then the friends' controls. */
 
-/* The card's own title is the stage's on the home card. */
-.lobby-card:has(> #lobby-home:not(.hidden)) > .logo {
+/* The card's own title is the stage's on the home card and the solo pick; the room card leads with its code. */
+.lobby-card:has(> #lobby-home:not(.hidden)) > .logo,
+.lobby-card:has(> #lobby-solo:not(.hidden)) > .logo,
+.lobby-card:has(> #lobby-room:not(.hidden)) > .logo {
   display: none;
 }
 
@@ -2118,11 +2120,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   font-size: 14px;
 }
 
-.hero-tabs .hero-pick-role,
-.hero-tabs .hero-pick-desc {
-  display: none;
-}
-
 /* The picked hero's role and one line about it. Room for the longest line, so the main button does
    not move when the hero changes. */
 .hero-blurb {
@@ -2193,7 +2190,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 /* A friend who came by an invite link: the nickname and Join come first, Join is the main button. */
 #lobby-home.invited .solo-dock,
-#lobby-home.invited .tutorial-offer {
+#lobby-home.invited .learn-line {
   order: 1;
 }
 
@@ -2237,6 +2234,447 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   }
 }
 
+/* "New here? Learn to play": one quiet line under the main button, until the first solo match (tutorial/logic.ts). */
+.learn-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--muted);
+}
+
+.learn-link {
+  position: relative;
+  padding: 0;
+  font-weight: 600;
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+/* A finger-sized hit area that does not move the line. */
+.learn-link::after {
+  content: '';
+  position: absolute;
+  inset: -13px -10px;
+}
+
+/* The second screen (docs/ART.md §12): the solo pick and the room card in the home card's look. Rows of picks,
+   then one main button docked at the bottom of the card, on screen with no scrolling. */
+.hero-stage.compact {
+  /* Shorter than the home card's: the picks under it and the docked Play keep their room. */
+  height: 200px;
+  height: clamp(150px, calc(100dvh - 620px), 230px);
+}
+
+.lobby-card .hero-stage.compact .stage-logo {
+  margin-top: 13px;
+  font-size: 17px;
+}
+
+.hero-stage.compact .stage-logo span {
+  display: inline;
+  font-size: inherit;
+}
+
+/* Back to the home card: a stone medallion at the top left of the stage, the twin of the sound button on the right. */
+.stage-back {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+.stage-back::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-left: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  border-radius: 1px;
+  transform: translate(-30%, -50%) rotate(45deg);
+}
+
+.pick-blurb {
+  min-height: calc(3 * 1.35em);
+}
+
+.pick-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* A pick: its label on the left, the control on the right, one line for the picked choice under it. */
+.pick-row {
+  display: grid;
+  grid-template-columns: 5.6rem minmax(0, 1fr);
+  /* The label sits on the line of the control's first text (Full, Normal, the first modifier). */
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.pick-label {
+  font-family: var(--title-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* A guest's "(the host picks)". */
+.pick-label small {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.pick-line {
+  grid-column: 2;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* One segmented stone control: a carved trough with a stone segment per choice; the pick glows rune-teal. */
+.segmented {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--ink);
+  border-radius: 10px;
+  background: rgba(8, 6, 12, 0.6);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 8, 0.8), 0 0 0 1px rgba(207, 230, 255, 0.08);
+}
+
+/* A plain button box centres its line; the name and the waves share its baseline. */
+.seg {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.seg-name {
+  font-family: var(--title-font);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.seg-sub {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.seg.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: linear-gradient(180deg, #33544c, #1c2a2a);
+  box-shadow: var(--stone-rim), 0 0 12px rgba(127, 252, 216, 0.25);
+}
+
+.seg.selected .seg-sub {
+  color: var(--accent);
+}
+
+/* A guest sees the host's picks: the pick stays lit, the other choice is greyed. */
+.seg:disabled.selected {
+  opacity: 1;
+}
+
+/* The modifiers, compact: the draw's names, the chips on one wrapping line, the buttons small. */
+.pick-row .mod-picks {
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.pick-row .mod-names {
+  flex: 1 1 100%;
+  font-size: 14px;
+}
+
+/* The chips already name the draw: the names line shows only when there are none ("No modifiers"). */
+.pick-row .mod-picks:has(> .mod-chips) > .mod-names {
+  display: none;
+}
+
+.pick-row .mod-note,
+.pick-row .mod-chips,
+.pick-row .mod-offered {
+  flex: 1 1 100%;
+}
+
+.pick-row .mod-note {
+  font-size: 12px;
+}
+
+.pick-row .mod-chips {
+  flex-flow: row wrap;
+  gap: 5px;
+}
+
+.pick-row .mod-offered {
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.pick-row .mod-chip {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 8px;
+  border-left-width: 3px;
+  box-shadow: none;
+  line-height: 1.25;
+}
+
+.pick-row .mod-chip b {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pick-row .mod-chip span {
+  font-size: 12px;
+}
+
+.pick-row .mod-actions {
+  gap: 6px;
+}
+
+.pick-row .mod-actions .btn {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+/* The one main button, docked at the bottom of the card: it stays on screen while the picks scroll under it. */
+.pick-dock {
+  position: sticky;
+  z-index: 2;
+  /* Down to the card's edge: a sticky box stops at the card's padding, and the picks would show through it. */
+  bottom: -18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 -26px;
+  padding: 16px 26px 14px;
+  /* The card's own bottom colour, fading in above the button, so the picks scroll out of sight under it. */
+  background: linear-gradient(180deg, rgba(15, 14, 23, 0), rgb(15, 14, 23) 20px);
+}
+
+.pick-dock .btn.big {
+  min-height: 50px;
+  font-size: 19px;
+  letter-spacing: 0.03em;
+}
+
+/* "Waiting for players…": dimmed but solid, so the picks scrolling under the dock do not show through. */
+.pick-dock .btn.big:disabled {
+  opacity: 1;
+  filter: saturate(0.35) brightness(0.62);
+}
+
+.practice-btn {
+  min-height: 44px;
+}
+
+.practice-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--gold);
+}
+
+/* The room card: the code to share, large, with Copy invite link beside it (clear of the sound button). */
+.room-code-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding-right: 46px;
+}
+
+.room-code-label {
+  font-family: var(--title-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.room-code {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: 0.16em;
+  color: var(--rune);
+  text-shadow: 0 0 12px rgba(127, 252, 216, 0.4), 0 2px 0 var(--ink);
+}
+
+#lobby-copy {
+  margin-bottom: 3px;
+}
+
+.seats-row,
+.hero-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* The seats, one per lane: the hero's emblem, the name and the hero, then Host, Ready, Not ready or reconnecting. */
+.seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 5px 12px 5px 8px;
+  border-radius: 9px;
+  border-left: 3px solid var(--seat, var(--panel-edge));
+  background: linear-gradient(90deg, rgba(8, 6, 12, 0.7), rgba(8, 6, 12, 0.45));
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.08), 0 0 0 1px var(--ink);
+  font-size: 14px;
+}
+
+.seat .hero-ico {
+  width: 32px;
+  height: 32px;
+}
+
+.seat-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.seat .name {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-hero {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.seat .state {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.seat .state.ready {
+  color: var(--accent);
+}
+
+.seat .state.host {
+  font-family: var(--title-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.seat.away {
+  opacity: 0.55;
+}
+
+.seat.open {
+  justify-content: center;
+  border: 1px dashed rgba(207, 230, 255, 0.24);
+  background: rgba(8, 6, 12, 0.25);
+  box-shadow: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Leave is carved stone beside the main button. */
+.room-actions {
+  flex-direction: row;
+}
+
+.room-actions #lobby-leave {
+  flex: none;
+  min-height: 50px;
+}
+
+.room-actions .big {
+  flex: 1;
+}
+
+.btn.big.waiting {
+  background: var(--stone);
+  color: var(--text);
+  box-shadow: var(--stone-rim);
+}
+
+@media (max-width: 520px) {
+  /* A phone: each label over its control, so the control and its line get the card's width. */
+  .pick-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pick-line {
+    grid-column: 1;
+  }
+
+  .pick-label small {
+    display: inline;
+    margin: 0 0 0 4px;
+  }
+
+  .pick-dock {
+    bottom: -14px;
+    margin: 0 -16px;
+    padding: 16px 16px 12px;
+  }
+
+  /* Copy invite link stays beside the code on a 390 px phone (it wraps under it on a narrower one). */
+  .room-code-row {
+    column-gap: 10px;
+    padding-right: 40px;
+  }
+
+  .room-code {
+    font-size: 33px;
+    letter-spacing: 0.14em;
+  }
+}
+
 .hero-picks {
   display: flex;
   gap: 8px;
@@ -2274,18 +2712,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   color: var(--text);
 }
 
-.hero-pick-role {
-  font-size: 11px;
-  color: var(--accent);
-}
-
-.hero-pick-desc {
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--muted);
-  font-weight: 400;
-}
-
 .hero-pick.selected {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
@@ -2293,11 +2719,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   box-shadow: var(--stone-rim), 0 0 14px rgba(127, 252, 216, 0.25);
 }
 
-/* Guests see the host's mode and difficulty picks without being able to change them. */
-.mode-pick:disabled.selected,
-.difficulty-pick:disabled.selected {
-  opacity: 1;
-}
+
 
 .stat.wave.hard .label {
   color: var(--trim);
@@ -2392,116 +2814,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   padding: 4px 12px;
   white-space: nowrap;
   pointer-events: auto;
-}
-
-/* Under Play solo, for a new player: one line, Skip lesson beside it. */
-.tutorial-offer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 5px 5px 12px;
-  border: 1px solid var(--panel-edge);
-  border-radius: 12px;
-  background: rgba(16, 12, 22, 0.35);
-}
-
-.tutorial-offer p {
-  flex: 1;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.3;
-}
-
-.tutorial-offer .btn {
-  flex: none;
-  white-space: nowrap;
-}
-
-.tutorial-solo-note {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--gold);
-}
-
-.room-code-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.room-code {
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: var(--rune);
-  text-shadow: 0 0 12px rgba(127, 252, 216, 0.4), 0 2px 0 var(--ink);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.small {
-  font-size: 12px;
-}
-
-.players {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.players li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: rgba(8, 6, 12, 0.55);
-  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.08), 0 0 0 1px var(--ink);
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.players li.away {
-  opacity: 0.5;
-}
-
-.players .name {
-  flex: 1;
-  font-weight: 600;
-}
-
-.players .tag {
-  font-size: 11px;
-  color: var(--gold);
-}
-
-.players .state {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.players .state.ready {
-  color: var(--accent);
-}
-
-.room-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.room-actions .big {
-  flex: 1;
-}
-
-.btn.big.waiting {
-  background: var(--stone);
-  color: var(--text);
-  box-shadow: var(--stone-rim);
 }
 
 .busy {
@@ -2632,11 +2944,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 }
 
 
-@media (max-width: 520px) {
-  .hero-picks {
-    flex-direction: column;
-  }
-}
 
 /* ======================================================================== */
 /* Layouts (docs/MOBILE.md §4). body.layout-tall: phones held upright;       */

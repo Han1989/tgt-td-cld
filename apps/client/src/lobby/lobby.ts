@@ -1,5 +1,6 @@
 // Online lobby screens (HTML): home (the hero stage, Play solo, then nickname and create / join for
-// friends), room (code + invite link, players, hero, mode, ready / start) and a busy state.
+// friends), room (code + invite link, the seats, your hero, the host's picks, ready / start) and a busy state.
+// The solo pick is solo.ts.
 
 import {
   HERO_KINDS,
@@ -15,10 +16,11 @@ import {
   type PlayerId,
 } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
+import { heroIcon, iconVar } from '../render/art/icons';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
 import { sharedSettings } from '../settings';
-import { homeLessonControls, lessonStatus } from '../tutorial/logic';
+import { lessonOffer } from '../tutorial/logic';
 import { DifficultyPicker } from './difficultyPicker';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
@@ -31,6 +33,8 @@ export interface LobbyActions {
   create(name: string, hero: HeroKind): void;
   join(code: string, name: string, hero: HeroKind): void;
   playOffline(): void;
+  /** "New here? Learn to play": the lesson with this hero, straight away. */
+  learnToPlay(hero: HeroKind): void;
   setHero(hero: HeroKind): void;
   /** Host only: the match mode. */
   setMode(mode: GameMode): void;
@@ -88,6 +92,8 @@ export class LobbyUi {
   private readonly joinBtn = $('lobby-join');
   private readonly role = $('lobby-hero-role');
   private readonly blurb = $('lobby-hero-blurb');
+  private readonly roomRole = $('lobby-room-role');
+  private readonly roomBlurb = $('lobby-room-blurb');
   private readonly roomCode = $('lobby-room-code');
   private readonly players = $('lobby-players');
   private readonly playersCount = $('lobby-players-count');
@@ -138,12 +144,9 @@ export class LobbyUi {
     this.code.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') join();
     });
-    // A new player's Play solo is the lesson (the solo pick says so); the offer under it only lets them skip it.
+    // Play solo opens the solo pick and never starts the lesson; the line under it is how a new player picks the lesson.
     this.offline.addEventListener('click', () => actions.playOffline());
-    $('tutorial-offer-skip').addEventListener('click', () => {
-      sharedSettings().set({ tutorial: lessonStatus('skip') });
-      this.syncLesson();
-    });
+    $('lobby-learn-btn').addEventListener('click', () => actions.learnToPlay(this.hero));
     // Through the service worker, so a cached old app shell can't survive the refresh.
     this.refresh.addEventListener('click', () => void updateAndReload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
@@ -166,12 +169,22 @@ export class LobbyUi {
     this.roomPicker = new HeroPicker($('lobby-heroes-room'), this.hero, (hero) => {
       this.hero = hero;
       storeHero(hero);
+      this.syncRoomHero();
       actions.setHero(hero);
     });
-    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => actions.setMode(mode));
-    this.difficultyPicker = new DifficultyPicker($('lobby-difficulty-room'), 'normal', (difficulty) =>
-      actions.setDifficulty(difficulty),
+    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => actions.setMode(mode), $('lobby-mode-room-line'));
+    this.difficultyPicker = new DifficultyPicker(
+      $('lobby-difficulty-room'),
+      'normal',
+      (difficulty) => actions.setDifficulty(difficulty),
+      $('lobby-difficulty-room-line'),
     );
+  }
+
+  /** The room card's line under the hero buttons. */
+  private syncRoomHero(): void {
+    this.roomRole.textContent = HERO_INFO[this.hero].role;
+    this.roomBlurb.textContent = HERO_INFO[this.hero].blurb;
   }
 
   /** The home card's stage and the line under the hero buttons show the picked hero. */
@@ -182,10 +195,9 @@ export class LobbyUi {
     this.blurb.textContent = info.blurb;
   }
 
-  /** A new player is told the first solo match is a lesson, and can skip it. Replay stays in Settings. */
+  /** "New here? Learn to play" until the first solo match; it does not come back on its own (⚙ → Lesson stays). */
   private syncLesson(): void {
-    const { offer } = homeLessonControls(sharedSettings().get().tutorial);
-    $('tutorial-offer').classList.toggle('hidden', !offer);
+    $('lobby-learn').classList.toggle('hidden', !lessonOffer(sharedSettings().get().tutorial));
   }
 
   /** True if the page was opened from an invite link. */
@@ -206,6 +218,8 @@ export class LobbyUi {
     this.busy.classList.add('hidden');
     this.solo.classList.add('hidden');
     this.refresh.classList.add('hidden');
+    // The hero may have been picked on the solo pick or in a room since (every picker stores it).
+    this.hero = storedHero();
     this.homePicker.select(this.hero);
     this.syncStage();
     this.stage.start();
@@ -250,39 +264,22 @@ export class LobbyUi {
     this.amReady = !!self?.ready;
     if (self) this.hero = self.hero;
     this.roomPicker.select(this.hero);
+    this.syncRoomHero();
     this.modePicker.select(lobby.mode);
     this.modePicker.setEnabled(isHost);
-    this.modeLabel.textContent = isHost ? 'Mode' : 'Mode (the host picks)';
+    hostLabel(this.modeLabel, 'Mode', isHost);
     this.difficultyPicker.select(lobby.difficulty);
     this.difficultyPicker.setEnabled(isHost);
-    this.difficultyLabel.textContent = isHost ? 'Difficulty' : 'Difficulty (the host picks)';
-    this.modifiersLabel.textContent = isHost ? 'Modifiers' : 'Modifiers (the host picks)';
+    hostLabel(this.difficultyLabel, 'Difficulty', isHost);
+    hostLabel(this.modifiersLabel, 'Modifiers', isHost);
     renderModifierLobby($('lobby-modifiers-room'), lobby, isHost, (action) => this.setModifiers(action));
 
     const seats = lobby.players.length;
-    this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS}${seats < MAX_PLAYERS ? ' (one per lane)' : ' (full)'}`;
-    this.players.innerHTML = '';
-    for (const p of lobby.players) {
-      const li = document.createElement('li');
-      li.classList.toggle('away', !p.connected);
-      const dot = document.createElement('span');
-      dot.className = 'hero-dot';
-      dot.style.background = toCss(HERO_COLORS[p.hero].fill);
-      const name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = p.name + (p.id === me ? ' (you)' : '');
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = p.id === lobby.hostId ? 'HOST' : '';
-      const hero = document.createElement('span');
-      hero.className = 'state';
-      hero.textContent = HERO_INFO[p.hero].name;
-      const state = document.createElement('span');
-      state.className = `state${p.ready ? ' ready' : ''}`;
-      state.textContent = !p.connected ? 'reconnecting…' : p.id === lobby.hostId ? '' : p.ready ? 'Ready' : 'Not ready';
-      li.append(dot, name, tag, hero, state);
-      this.players.appendChild(li);
-    }
+    this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS} · one per lane`;
+    this.players.replaceChildren(
+      ...lobby.players.map((p) => seat(p, p.id === me, p.id === lobby.hostId)),
+      ...Array.from({ length: Math.max(0, MAX_PLAYERS - seats) }, openSeat),
+    );
 
     this.ready.classList.toggle('hidden', isHost);
     this.ready.textContent = this.amReady ? 'Not ready' : 'Ready';
@@ -318,4 +315,47 @@ export class LobbyUi {
     store(NAME_KEY, name);
     return name;
   }
+}
+
+/** A pick's label on the room card; a guest sees "(the host picks)" with it. */
+function hostLabel(el: HTMLElement, name: string, host: boolean): void {
+  el.textContent = name;
+  if (host) return;
+  const note = document.createElement('small');
+  note.textContent = '(the host picks)';
+  el.append(note);
+}
+
+/** One seat on the room card: the hero's emblem, the name, the hero, and Host, Ready, Not ready or reconnecting. */
+function seat(p: LobbyState['players'][number], you: boolean, host: boolean): HTMLLIElement {
+  const li = document.createElement('li');
+  li.className = 'seat';
+  li.classList.toggle('away', !p.connected);
+  li.classList.toggle('you', you);
+  li.dataset.hero = p.hero;
+  li.style.setProperty('--seat', toCss(HERO_COLORS[p.hero].fill));
+  const emblem = document.createElement('i');
+  emblem.className = 'ico hero-ico';
+  emblem.style.setProperty('--ico', iconVar(heroIcon(p.hero)));
+  const who = document.createElement('span');
+  who.className = 'seat-who';
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = p.name + (you ? ' (you)' : '');
+  const hero = document.createElement('span');
+  hero.className = 'seat-hero';
+  hero.textContent = HERO_INFO[p.hero].name;
+  who.append(name, hero);
+  const state = document.createElement('span');
+  state.className = `state${!p.connected ? '' : host ? ' host' : p.ready ? ' ready' : ''}`;
+  state.textContent = !p.connected ? 'reconnecting…' : host ? 'Host' : p.ready ? 'Ready' : 'Not ready';
+  li.append(emblem, who, state);
+  return li;
+}
+
+function openSeat(): HTMLLIElement {
+  const li = document.createElement('li');
+  li.className = 'seat open';
+  li.textContent = 'Open seat: send the invite link';
+  return li;
 }

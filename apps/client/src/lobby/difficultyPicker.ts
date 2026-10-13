@@ -1,5 +1,5 @@
-// Normal / Hard cards for the online lobby (host only) and the solo pick.
-// The last solo pick is remembered in localStorage. Sits next to Full / Quick.
+// Normal / Hard for the online lobby (host only) and the solo pick: one segmented stone control and one
+// line under it for the picked difficulty. The last solo pick is remembered in localStorage. Sits under Full / Quick.
 
 import { DIFFICULTIES, type Difficulty } from '@tdt/protocol';
 
@@ -27,22 +27,28 @@ export function storeDifficulty(difficulty: Difficulty): void {
   }
 }
 
-/** A row of difficulty cards; clicking one selects it and calls `onPick`. Disabled cards only show the pick. */
+/**
+ * Normal | Hard as one segmented control; tapping one selects it and calls `onPick`. `line` (when given) shows the
+ * picked difficulty's sentence. Disabled segments only show the pick.
+ */
 export class DifficultyPicker {
   constructor(
     private readonly container: HTMLElement,
     private selected: Difficulty,
     onPick: (difficulty: Difficulty) => void,
+    private readonly line: HTMLElement | null = null,
   ) {
     container.innerHTML = '';
+    container.classList.add('segmented');
+    container.setAttribute('role', 'group');
     for (const difficulty of DIFFICULTIES) {
       const info = DIFFICULTY_INFO[difficulty];
       const btn = document.createElement('button');
-      btn.className = 'btn hero-pick difficulty-pick';
+      btn.type = 'button';
+      btn.className = 'btn seg difficulty-pick';
       btn.dataset.difficulty = difficulty;
-      btn.innerHTML =
-        `<span class="hero-pick-name">${info.name}</span>` +
-        `<span class="hero-pick-desc">${info.blurb}</span>`;
+      btn.title = info.blurb;
+      btn.innerHTML = `<span class="seg-name">${info.name}</span>`;
       btn.addEventListener('click', () => {
         this.select(difficulty);
         onPick(difficulty);
@@ -59,8 +65,11 @@ export class DifficultyPicker {
   select(difficulty: Difficulty): void {
     this.selected = difficulty;
     for (const btn of this.container.querySelectorAll<HTMLButtonElement>('.difficulty-pick')) {
-      btn.classList.toggle('selected', btn.dataset.difficulty === difficulty);
+      const on = btn.dataset.difficulty === difficulty;
+      btn.classList.toggle('selected', on);
+      btn.setAttribute('aria-pressed', String(on));
     }
+    if (this.line) this.line.textContent = DIFFICULTY_INFO[difficulty].blurb;
   }
 
   /** Only the host may change the difficulty of an online room. */

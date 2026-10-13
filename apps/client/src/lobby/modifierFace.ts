@@ -47,20 +47,18 @@ export interface ModifierLobbyFace {
 }
 
 /**
- * Lobby cards for the solo pick and the online room.
- * `buttons` is true for the solo player and the online host. `locked` is the lesson (none, no changes).
+ * Lobby cards for the solo pick and the online room. `buttons` is true for the solo player and the online host.
+ * The lesson starts with none (`soloMatch`), so nothing here is ever locked.
  */
 export function modifierLobbyFace(
   state: { modifiers: readonly Modifier[]; modifierOffer: readonly Modifier[] },
-  opts: { buttons: boolean; locked: boolean },
+  opts: { buttons: boolean },
 ): ModifierLobbyFace {
-  const live = opts.buttons && !opts.locked;
-  const on = !opts.locked && state.modifiers.length > 0;
+  const on = state.modifiers.length > 0;
   const active = on ? state.modifiers.map(modifierChip) : [];
-  const offered = !opts.locked && state.modifiers.length === 0 ? state.modifierOffer.map(modifierChip) : [];
+  const offered = on ? [] : state.modifierOffer.map(modifierChip);
   let note = '';
-  if (opts.locked) note = 'The lesson has none.';
-  else if (!on && opts.buttons) note = 'An even match. You can turn the draw back on.';
+  if (!on && opts.buttons) note = 'An even match. You can turn the draw back on.';
   else if (!on) note = 'The host chose no modifiers.';
   const buttons = opts.buttons
     ? [
@@ -68,22 +66,22 @@ export function modifierLobbyFace(
           action: 'reroll' as const,
           label: 'Reroll',
           title: 'Reroll for a different draw.',
-          enabled: live,
+          enabled: true,
           hidden: false,
         },
         {
           action: 'none' as const,
           label: 'No modifiers',
           title: 'Start with no modifiers.',
-          enabled: live && on,
+          enabled: on,
           hidden: false,
         },
         {
           action: 'offer' as const,
           label: 'Use modifiers',
           title: 'Use the offered draw.',
-          enabled: live && !on,
-          hidden: !live || on,
+          enabled: !on,
+          hidden: on,
         },
       ]
     : null;

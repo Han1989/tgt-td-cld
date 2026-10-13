@@ -6,7 +6,7 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
- * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01 done. Production protocol
+ * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01 and V-02 done. Production protocol
  * is 19. This page only reports status.
  */
 
@@ -224,11 +224,12 @@ const items: ProgressItem[] = [
   },
   {
     id: 'V-02',
-    title: 'The second screen: the solo pick and the room card',
-    owner: 'Both',
-    status: 'todo',
+    title: 'The second screen: the solo pick and the room card, and the lesson by choice',
+    owner: 'Team',
+    status: 'done',
     section: 'visual',
-    note: 'Starts when Han says go. The solo pick and the room card still show three text cards per hero and a long form: give them the home card’s look. Han, 13 Oct 2026: Play solo never sends a player straight into the lesson; the lesson is the player’s choice, never forced. Whether it becomes something a player picks, off by default, is open for Han.',
+    note: 'Client only, protocol stays 19. Han, 13 Oct 2026: the lesson is the player’s choice, never forced. Play solo and Play always start the match the player picked; Learn to play starts the lesson (Quick, Normal, no modifiers, the picked hero). It is one quiet line, “New here? Learn to play”, under the main button on the home card and the solo pick, only before a player’s first solo match, and Settings → Learn to play starts it at once. The solo pick and the room card now have the home card’s look: the hero on a shorter stage, the short hero buttons, Mode and Difficulty as segmented stone rows, seats with hero emblems on the room card, and one main button docked at the bottom of the card. The lesson steps of the first-session funnel now count only players who chose the lesson. Built by Claude Code (PR #102, the roadmap’s copy of 14 Oct 2026, 00:40).',
+    proof: pr(102),
   },
   {
     id: 'V-03',

@@ -17,8 +17,8 @@ export function freshSeed(): number {
 }
 
 /**
- * Solo pick: owns a seed and the draw, and tells the host what to start with.
- * Locked during the lesson (no modifiers). Online rooms use `renderModifierLobby` instead.
+ * Solo pick: owns a seed and the draw, and tells the host what to start with (the lesson starts with none,
+ * `soloMatch`). Online rooms use `renderModifierLobby` instead.
  */
 export class SoloModifierPicker {
   private seed = freshSeed();
@@ -26,7 +26,6 @@ export class SoloModifierPicker {
   /** How many rerolls this pick has taken. The current draw is `modifierDraw(seed, roll)`. */
   private roll = 0;
   private modifiers: Modifier[];
-  private locked = false;
 
   constructor(private readonly container: HTMLElement) {
     this.offer = modifierDraw(this.seed, 0);
@@ -34,19 +33,12 @@ export class SoloModifierPicker {
     this.paint();
   }
 
-  /** The lesson runs with none. Skipping it shows the draw again. */
-  setLocked(locked: boolean): void {
-    this.locked = locked;
-    this.paint();
-  }
-
   /** What the match should start with. A new seed each time the pick is opened. */
   deal(): ModifierDeal {
-    return { seed: this.seed, modifiers: this.locked ? [] : this.modifiers.slice() };
+    return { seed: this.seed, modifiers: this.modifiers.slice() };
   }
 
   private onAction(action: ModifierAction): void {
-    if (this.locked) return;
     if (action === 'reroll') {
       this.roll += 1;
       this.offer = modifierDraw(this.seed, this.roll);
@@ -60,10 +52,7 @@ export class SoloModifierPicker {
   }
 
   private paint(): void {
-    const face = modifierLobbyFace(
-      { modifiers: this.modifiers, modifierOffer: this.offer },
-      { buttons: true, locked: this.locked },
-    );
+    const face = modifierLobbyFace({ modifiers: this.modifiers, modifierOffer: this.offer }, { buttons: true });
     renderModifierFace(this.container, face, (action) => this.onAction(action));
   }
 }
@@ -75,7 +64,7 @@ export function renderModifierLobby(
   host: boolean,
   onAction: (action: ModifierAction) => void,
 ): void {
-  renderModifierFace(container, modifierLobbyFace(state, { buttons: host, locked: false }), onAction);
+  renderModifierFace(container, modifierLobbyFace(state, { buttons: host }), onAction);
 }
 
 function renderModifierFace(

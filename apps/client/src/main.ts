@@ -1,10 +1,10 @@
-import { COMBO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
+import { COMBO_KINDS } from '@tdt/protocol';
 import './style.css';
 import { countBootFailure, currentAnalytics, installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
-import type { ModifierDeal } from './lobby/modifierPicker';
-import { showSoloPick } from './lobby/solo';
-import { endSolo, OnlineController, playSolo } from './online';
+import { showSoloPick, storedPick, type SoloStarter } from './lobby/solo';
+import { OnlineController, playSolo } from './online';
+import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
@@ -106,15 +106,12 @@ async function main(): Promise<void> {
     return;
   }
   if (localSolo) {
-    // No game server configured: local solo mode, after a hero, mode and difficulty pick.
-    const practiceEntry = params.get('practice') === 'meteor-rain';
-    const solo = (hero: HeroKind, mode: GameMode, difficulty: Difficulty, deal: ModifierDeal, practice: boolean) =>
-      playSolo(view, hero, mode, difficulty, deal, practice);
-    view.onReplayTutorial = () => {
-      endSolo(view);
-      showSoloPick(solo, practiceEntry);
-    };
-    showSoloPick(solo, practiceEntry);
+    // No game server configured: local solo mode, after the solo pick (its first screen, so no Back).
+    const practice = params.get('practice') === 'meteor-rain';
+    const solo: SoloStarter = (start, pick, seed) => playSolo(view, start, pick, seed);
+    // ⚙ → Learn to play: the lesson at once, in place of the match running.
+    view.onLearnToPlay = () => ageGate(() => playSolo(view, 'lesson', storedPick()));
+    showSoloPick(solo, { practice });
     ready('solo');
     return;
   }
