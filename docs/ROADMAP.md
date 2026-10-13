@@ -1,6 +1,6 @@
 # Tower Defense Together: Roadmap
 
-**As of 10 Oct 2026** (the roadmap's copy of 9 Oct 2026, 10:35, plus Han's graphics review of 10 Oct). Vision and locked decisions are copied from [`HANDOVER.md`](../HANDOVER.md) §2. Phase order and status follow [`TASKS.md`](../TASKS.md), which is the tracker. Design detail stays in [`GAME_DESIGN.md`](GAME_DESIGN.md). Do not treat this file as a second design bible.
+**As of 13 Oct 2026** (the roadmap's copy of 9 Oct 2026, 10:35, plus Han's graphics review of 10 Oct and his answer on the lesson of 13 Oct). Vision and locked decisions are copied from [`HANDOVER.md`](../HANDOVER.md) §2. Phase order and status follow [`TASKS.md`](../TASKS.md), which is the tracker. Design detail stays in [`GAME_DESIGN.md`](GAME_DESIGN.md). Do not treat this file as a second design bible.
 
 ## Vision
 
@@ -14,7 +14,7 @@
 
 **Graphics review and the presentation pass (Han, 10 Oct 2026).** Han compared the game with store games: the rules and the group play hold up, the look does not yet. A review of the live build found that the gap is less the art than where it shows: the first screen was a form, a hero is about 25 px tall on a phone, and a match is flat, seen from straight above. The benchmark is the 2D stylised tower defense games on the stores (Kingdom Rush), not studio 3D. Four options were set out:
 
-- **A · A presentation pass, drawn in code.** The first screen becomes a scene with the hero large and one main button; then the second screen, depth in the match (pads that recede, shadows, tower height) and bigger units on a phone. No new spend. **Han chose A.** It is the one exception to the hold below, client only, one slice at a time, each after Han has looked at the one before on a phone (`TASKS.md` → Presentation pass, V-01–V-04). V-01, the first screen, is in review (PR #100) and comes before the cold test.
+- **A · A presentation pass, drawn in code.** The first screen becomes a scene with the hero large and one main button; then the second screen, depth in the match (pads that recede, shadows, tower height) and bigger units on a phone. No new spend. **Han chose A.** It is the one exception to the hold below, client only, one slice at a time, each after Han has looked at the one before on a phone (`TASKS.md` → Presentation pass, V-01–V-04). V-01, the first screen, is merged (PR #100, 10 Oct 2026), before the cold test.
 - **B · Illustrated art where the eye rests** (hero portraits, boss cards, key art, the store icon): an artist or a paid image tool, wired in by the team. Not started.
 - **C · Image sprites in the match**, for heroes and bosses only. One route is a 3D model rendered once in Blender into 2D frames that drop into the atlas; a one-hero trial was proposed, not decided. Not started.
 - **D · Real 3D in the match.** A rewrite of the renderer that would not show at 25 px. Not planned.
@@ -23,8 +23,8 @@
 
 | ID | Slice | Status |
 |---|---|---|
-| **V-01** | **The first screen.** The picked hero stands large on a moonlit clearing under the title; three hero buttons; one main button (Play solo, or Join room for a friend who came by an invite link); then the friends' controls | In review (PR #100). Comes before the cold test |
-| **V-02** | **The second screen.** The solo pick and the room card in the same look. Proposed, for Han to decide: a new player's Play solo goes straight into the lesson | Waits for Han's go |
+| **V-01** | **The first screen.** The picked hero stands large on a moonlit clearing under the title; three hero buttons; one main button (Play solo, or Join room for a friend who came by an invite link); then the friends' controls | Merged 10 Oct 2026 (PR #100), before the cold test |
+| **V-02** | **The second screen.** The solo pick and the room card in the same look. **Han, 13 Oct 2026:** Play solo never sends a player straight into the lesson; the lesson is the player's choice | Waits for Han's go |
 | **V-03** | **Depth in the match.** Empty build pads recede, towers and units cast shadows, towers get height | Waits for Han's go |
 | **V-04** | **Bigger on a phone.** Heroes and creeps drawn larger, or a closer view of the lanes in play. Touches two locked decisions (the whole Spire map fits the screen; the camera is locked on phones) | Han decides how first |
 
@@ -73,7 +73,7 @@ The hook-test branch `claude/loving-hawking-7fvsu7` (combo ultimates, boss shiel
 | **5 · Replayability** | Tower branches; lane surges, match modifiers, more maps (`docs/REPLAYABILITY.md`) | Branches, lane surges and match modifiers are done. More maps are backlog |
 | **Gate 1 · Friends** | 2–3 friends, saved match reports, unprompted "play again" | **Passed 2 Oct 2026.** Friends played on Android, PC, and iPhone Safari (g1-render, g1-play, g1-watch, g1-tune, g1-gate) |
 | **Playtest 2** | Touch controls, air waves and unspent gold, kit rework and sim balance, ultimate presentation, tower repair, phone controls, start-up watchdog, calm battle sound, retest | Work orders P2-01–P2-09 done. The retest with friends (P2-05, `?src=friends`) is step 3 of the order in `TASKS.md` → Now |
-| **Presentation pass** | The first screen (a hero on a stage, one main button), the second screen, depth in the match, bigger units on a phone. Drawn in code, client only (Han, 10 Oct 2026) | V-01, the first screen, is in review (PR #100). V-02–V-04 each wait for Han's go (`TASKS.md` → Presentation pass) |
+| **Presentation pass** | The first screen (a hero on a stage, one main button), the second screen, depth in the match, bigger units on a phone. Drawn in code, client only (Han, 10 Oct 2026) | V-01, the first screen, is merged (PR #100). V-02–V-04 each wait for Han's go (`TASKS.md` → Presentation pass) |
 | **Cold test and fix round** | Three to five people who have never seen the game, no help, `?src=cold` (H-09); then one fix round with the rebalance (T-07) | Next, after the retest |
 | **Discovery** | Reddit posts one at a time: r/PlayMyGame, r/WebGames, r/TowerDefense; playtime, D1/D7, repeat visits and a first-visit funnel per link (`docs/ANALYTICS.md`) | Measurement is in (D-01, D-09) and survives deploys (H-08). Posts and the gate are Han (D-02–D-04, D-06), after the fix round. D-06 reads the first session per link |
 | **Later · after D-06 passes** | A bot teammate in solo (L-01), progress saved in the browser (L-02), then Phase 6a. No matchmaking yet | On hold until D-06 passes (Han, 9 Oct 2026) |
