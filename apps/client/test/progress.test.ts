@@ -32,14 +32,14 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    expect(summary.done).toBe(55);
-    // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100) and V-02
-    // (the second screen, PR #102) are done; the rest of the presentation pass (V-03, V-04) is to do.
-    expect(summary.open).toBe(42);
+    expect(summary.done).toBe(56);
+    // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
+    // (the second screen, PR #102) and V-04 (bigger units, PR #104) are done; V-03 is to do.
+    expect(summary.open).toBe(41);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
-    // The presentation pass's open rows (V-03, V-04) each wait for Han's go.
-    expect(summary.hanOpen).toBe(11);
+    // The presentation pass's open row (V-03) waits for Han's go.
+    expect(summary.hanOpen).toBe(10);
     expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(97);
     expect(summary.total).toBe(summary.done + summary.open);
@@ -149,9 +149,12 @@ describe('progress dashboard data', () => {
     expect(byId('V-02')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/102' } });
     expect(byId('V-02').note).toContain('the lesson is the player’s choice');
     expect(byId('V-02').note).toContain('Learn to play');
-    for (const id of ['V-03', 'V-04']) expect(byId(id).status).toBe('todo');
-    // Han's first (his go, or his decision), so the overnight bots skip them.
-    for (const id of ['V-03', 'V-04']) expect(byId(id).owner).toBe('Both');
+    // Han, 14 Oct 2026, 19:00: heroes and creeps drawn larger on the same view. V-04 (bigger units) is done.
+    expect(byId('V-04')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/104' } });
+    expect(byId('V-04').note).toContain('14 Oct 2026');
+    expect(byId('V-03').status).toBe('todo');
+    // Han's first (his go), so the overnight bots skip it.
+    expect(byId('V-03').owner).toBe('Both');
     expect(matchesFilter(PROGRESS, byId('V-03'), 'now')).toBe(true);
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');

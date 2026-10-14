@@ -6,7 +6,7 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
- * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01 and V-02 done. Production protocol
+ * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done. Production protocol
  * is 19. This page only reports status.
  */
 
@@ -242,10 +242,11 @@ const items: ProgressItem[] = [
   {
     id: 'V-04',
     title: 'Bigger heroes and creeps on a phone',
-    owner: 'Both',
-    status: 'todo',
+    owner: 'Team',
+    status: 'done',
     section: 'visual',
-    note: 'Han decides how first: larger units or a closer view of the lanes in play. It touches two locked decisions (the whole Spire map fits the screen; the camera is locked on phones).',
+    note: 'Client only, protocol stays 19. Han, 14 Oct 2026: heroes and creeps are drawn larger on the same view; the whole Spire map stays on screen and the camera stays still on phones. Heroes are drawn 1.4 times and creeps 1.2 times larger than before on a phone (towers unchanged; nothing changes where a tile is 25 px or more), and their HP bars, hit and death effects, damage numbers and tap area follow. Tower ranges, aura radii, skill areas, pads and the Heart keep their true size. Checked at 412 × 839 and 360 × 640 in a wave-12 Quick match and the 300-creep stress scene. Built by Claude Code (PR #104, the roadmap’s copy of 14 Oct 2026, 19:00).',
+    proof: pr(104),
   },
   {
     id: 'g1-render',

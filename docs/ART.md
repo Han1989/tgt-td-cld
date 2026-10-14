@@ -123,15 +123,23 @@ Scatter decorations with `hash()` (deterministic), never `Math.random()`: the ar
 
 ## 6. Size and readability at phone size
 
-On the reference phone (412 × 839, Spire's 26 tiles across the width) a tile is **15.85 px**. The renderer scales creeps and heroes by up to 1.6 and towers by up to 1.2, so on a phone:
+On the reference phone (412 × 839, Spire's 26 tiles across the width) a tile is **15.85 px**. Units are drawn larger than their map size so they stay readable, each kind with its own scale (`render/entityScale.ts`, `entityScales(tilePx)`, a pure function of the tile size, unit-tested). **Where a tile is 25 px or more (desktop, tablet) every scale is 1.** The camera is not part of it: the whole Spire map stays on screen and the camera stays still on phones (`docs/MOBILE.md` §4; Han, 14 Oct 2026, V-04).
 
-| Thing | World px → phone px | Example |
+- **Base scale** = `clamp(25 / tilePx, 1, 1.6)`: what every unit had before V-04 (1.58 on the reference phone, 1.6 from a 15.6 px tile down).
+- **Towers** = the base scale, at most 1.2 (unchanged: they must stay inside their pad).
+- **Creeps** (bosses and flyers with them, so a boss keeps its size relative to other creeps) = base × `CREEP_BOOST` (1.2); **heroes** = base × `HERO_BOOST` (1.4). The boost grows linearly as tiles shrink from 25 px and is whole at 16 px, so nothing jumps between a tablet and a phone. Largest: heroes 2.24, creeps 1.92 (a 360 px wide phone, 13.85 px tiles).
+- Everything that follows a unit's drawn size uses its scale: HP bars and their offsets (they are children of the unit), hit flashes, the contact shadow and the hero's ground ring, hit and death effects (`fx.bitScale` = the creep scale; a hero's death passes its own), meteors (`meteors.bitScale`), where damage numbers start, the Iron Vow ring's reach, and where a tap lands on a creep (`WorldRenderer.drawnCreepRadius`, so a tap hits what is drawn). Shots and the Snare Trap's coil follow the creeps. **Nothing that shows a game rule changes size:** tower ranges, aura radii (the Bulwark Aura's true radius), rain and skill areas, the trap's root ring, pads and the Heart stay at their true size.
+
+| Thing | World px → phone px (412 wide) | Example |
 |---|---|---|
-| Creeps, heroes | × 0.78 | a Grunt frame 32 × 36 → 25 × 28 px |
+| Heroes | × 1.09 (was × 0.78) | a hero ~25 px tall, weapon and all → ~35 px |
+| Creeps, bosses | × 0.94 (was × 0.78) | a Grunt frame 32 × 36 → 30 × 34 px |
 | Towers | × 0.59 | an 84 px tower frame → 50 px |
 | Heart, portals, pads | × 0.50 | a 96 px pad → 48 px |
-| Projectiles, trap coil | × 0.78 | a bolt ~28 px long → ~22 px; same scale as creeps |
+| Projectiles, trap coil | × 0.94 | a bolt ~28 px long → ~26 px; same scale as creeps |
 | Trap root ring | × 0.50 | the root radius in tiles, not scaled up with creeps |
+
+Checked by eye at 412 × 839 and 360 × 640 in `/?stress=300` and in a Quick match at wave 12 with towers built (`docs/screenshots/bigger-units/`): lanes (2 tiles wide) still read as lanes, a Brute (radius 0.5) fills its lane and no more, and HP bars stay clear. A boss (Shardback, radius 0.95) edges onto the neighbouring pad's border, as it did a little at the old size.
 
 Rules:
 - **Silhouette first.** Each entity must be recognisable from its outline alone at phone size (`?showcase` shows each at that size, bottom right of its card). Different creeps need different silhouettes, not just different colours.
@@ -144,7 +152,7 @@ Rules:
 
 Shots and the Snare Trap are their own categories (`projectile`, `trap` in `registry.ts`). They are baked sprites, not per-frame `Graphics`.
 
-**Projectiles** are one `body` frame, drawn pointing **+x** around (0, 0), with no ground shadow (they are in flight). The renderer rotates that sprite to the direction of travel and scales the whole shot with `entityScale`, the same scale as creeps, so a bolt does not shrink to a dot when a phone's tiles are ~16 px. One frame per snapshot style. Branch shots keep their tower's body; the trail colour (`shotColor`) still marks the branch. At most one glow. The Archer's arrow does not glow (warm wood and bone); player shots may.
+**Projectiles** are one `body` frame, drawn pointing **+x** around (0, 0), with no ground shadow (they are in flight). The renderer rotates that sprite to the direction of travel and scales the whole shot with the creep scale (`entityScales`, §6), the same as creeps, so a bolt does not shrink to a dot when a phone's tiles are ~16 px. One frame per snapshot style. Branch shots keep their tower's body; the trail colour (`shotColor`) still marks the branch. At most one glow. The Archer's arrow does not glow (warm wood and bone); player shots may.
 
 | Style | Silhouette |
 |---|---|
@@ -160,7 +168,7 @@ Shots and the Snare Trap are their own categories (`projectile`, `trap` in `regi
 | `fireball` | Coal with three tongues |
 | `archer` | Short crude arrow, orange vanes, no glow |
 
-**The Snare Trap** is seen from above. `idle` is a closed wooden coil (stakes inside the outline, no glow) while it arms. `armed` springs four stakes outward, so the outline becomes a star, and lights one rune. `ring` is the root-radius rope in `snare` (the root colour). The renderer scales the ring to the snapshot radius (`ringRadius` is the circle's radius in the frame) and does **not** apply `entityScale` to it, so the rooted area stays true to tuning. Arming only changes alpha.
+**The Snare Trap** is seen from above. `idle` is a closed wooden coil (stakes inside the outline, no glow) while it arms. `armed` springs four stakes outward, so the outline becomes a star, and lights one rune. `ring` is the root-radius rope in `snare` (the root colour). The renderer scales the ring to the snapshot radius (`ringRadius` is the circle's radius in the frame) and does **not** apply the unit scale to it, so the rooted area stays true to tuning. Arming only changes alpha.
 
 ### Falling meteors (Meteor, Meteor Rain, Shockwave)
 
@@ -262,8 +270,8 @@ The 300-creep stress scene (`?stress=300`) must stay **≥ 30 FPS** (MOBILE §7;
    - **creep**: `body` with contact shadow and weapon baked in, `flash` set (the silhouette without the shadow), `feet`, a `gait` from `GAITS`. A flyer draws its shadow as its own `shadow` frame instead (the registry refuses a flyer without one). Other looks go in `variants` (frames the size of `body`, each with a flash).
    - **tower**: `base1..3` and `top1..3` (top points +x), optional `<branch>.base` / `<branch>.top` for its two branches (`TOWER_BRANCHES`), `turret`.
    - **hero**: any frames (each with `flash: true` for the hit flash), `feet`, a `stand(to, now)` (the rig's rest pose as plain placements, for the lobby's hero stage, §12: the same parts, order and offsets as `pose()` standing still, breathing with `breath(now)`; `test/stand.test.ts` checks it) plus a `rig(kit, mine)` returning a `HeroRig`: extend `HeroRigBase`, make parts with `this.part(frame)` and pose them in `pose()` (walk, attack from `shotAt`, cast from `casting()`); see `ranger.ts`, `warden.ts`, `arcanist.ts`.
-   - **projectile**: `body`, pointing +x, no shadow. `kind` is the snapshot style. The renderer rotates it along its travel and scales it with creeps (`entityScale`). See §6.
-   - **trap**: `idle`, `armed` and `ring`, from above, plus `ringRadius` (the ring circle's radius in world px). The ring is scaled to the snapshot radius; the coil uses `entityScale`. See §6.
+   - **projectile**: `body`, pointing +x, no shadow. `kind` is the snapshot style. The renderer rotates it along its travel and scales it with creeps (the creep scale). See §6.
+   - **trap**: `idle`, `armed` and `ring`, from above, plus `ringRadius` (the ring circle's radius in world px). The ring is scaled to the snapshot radius; the coil uses the creep scale. See §6.
 4. Use **tokens only** (`k.<token>`; add new ones to `RL` and to §2), the **painter** calls (§3), light from the upper left, glow only on emitters.
 5. Follow the **camera** (§5) and **size** (§6) rules; check the phone-size copy in `?showcase` in both Normal and Bright.
 6. Animate with transforms, tint and alpha only (§7, §9).

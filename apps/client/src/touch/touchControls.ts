@@ -794,7 +794,7 @@ export class TouchControls {
       out.push({ kind: 'tower', id: t.id, at: this.toScreen(t.x, t.y), half: (map.padSize / 2) * px, shape: 'box' });
     }
     for (const cr of this.renderer.drawnCreepList()) {
-      const r = TUNING.creeps[cr.kind].radius * px * this.renderer.entityScale;
+      const r = this.renderer.drawnCreepRadius(cr.kind) * px;
       out.push({ kind: 'creep', id: cr.id, at: this.toScreen(cr.x, cr.y), half: r, shape: 'circle' });
     }
     return out;

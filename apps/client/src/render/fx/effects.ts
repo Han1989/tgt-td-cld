@@ -496,9 +496,9 @@ export class Effects {
     });
   }
 
-  /** A creep died: a pop of bits in its colour and a puff. */
-  death(x: number, y: number, color: number, radius: number, boss: boolean): void {
-    const k = this.bitScale;
+  /** A creep died: a pop of bits in its colour and a puff. `scale` is how much larger it was drawn (a hero's, not the creeps'). */
+  death(x: number, y: number, color: number, radius: number, boss: boolean, scale = this.bitScale): void {
+    const k = scale;
     const r = radius * S * k;
     this.ring(x, y, radius * (boss ? 3 : 1.6) * k, boss ? FX.hot : color, boss ? 500 : 260, 0.3, 'shock');
     if (!this.particles) return;
