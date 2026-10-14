@@ -12,11 +12,11 @@ import {
 import { currentAnalytics } from './analytics/install';
 import type { GameView } from './gameView';
 import { LobbyUi } from './lobby/lobby';
-import type { ModifierDeal } from './lobby/modifierPicker';
-import { showSoloPick } from './lobby/solo';
+import { freshSeed } from './lobby/modifierPicker';
+import { showSoloPick, storedPick, type SoloPickOptions } from './lobby/solo';
 import { ageGate } from './privacy/ageCheck';
 import { sharedSettings } from './settings';
-import { shouldStartLesson, tutorialMatch } from './tutorial/logic';
+import { beginSolo, type SoloPick, type SoloStart } from './tutorial/logic';
 import { LocalTransport } from './transport/localTransport';
 import { NetworkTransport, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
 
@@ -41,6 +41,7 @@ export class OnlineController {
       join: (code, name, hero) =>
         gated(() => this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`)),
       playOffline: () => gated(() => this.playOffline()),
+      learnToPlay: (hero) => gated(() => this.learnToPlay(hero)),
       setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
       setMode: (mode: GameMode) => this.transport?.send({ t: 'mode', mode }),
       setDifficulty: (difficulty: Difficulty) => this.transport?.send({ t: 'difficulty', difficulty }),
@@ -50,10 +51,8 @@ export class OnlineController {
       leave: () => this.leave(),
     });
     view.onLeave = () => this.leave();
-    view.onReplayTutorial = () => {
-      this.leave();
-      this.playOffline();
-    };
+    // ⚙ → Learn to play: the lesson at once, leaving an online room or ending a solo match first.
+    view.onLearnToPlay = () => ageGate(() => this.learnToPlay(storedPick().hero));
   }
 
   start(): void {
@@ -153,17 +152,35 @@ export class OnlineController {
     this.view.hud.setReconnecting(false);
   }
 
-  /** "Play solo offline": the solo pick (hero and mode), then a local match. */
+  /** Play solo: the solo pick (hero, mode, difficulty, modifiers), then a local match. Back returns home. */
   private playOffline(): void {
     this.transport?.close();
     this.drop();
-    showSoloPick((hero, mode, difficulty, deal, practice) => playSolo(this.view, hero, mode, difficulty, deal, practice));
+    showSoloPick((start, pick, seed) => playSolo(this.view, start, pick, seed, this.soloOptions), this.soloOptions);
   }
+
+  /** Learn to play: the lesson with `hero`, straight from the home card or ⚙ (no solo pick). */
+  private learnToPlay(hero: HeroKind): void {
+    const inRoom = this.transport !== null;
+    this.transport?.close();
+    this.drop();
+    if (inRoom) history.replaceState(null, '', location.pathname);
+    this.ui.hide();
+    playSolo(this.view, 'lesson', storedPick(hero), freshSeed(), this.soloOptions);
+  }
+
+  /** The solo pick's Back (also after "Change hero / mode"): end the solo match and return to the home card. */
+  private readonly soloOptions: SoloPickOptions = {
+    back: () => {
+      endSolo(this.view);
+      this.ui.showHome();
+    },
+  };
 }
 
 let soloTransport: LocalTransport | null = null;
 
-/** Stops the local match, if one is running (Replay tutorial returns to the hero pick). */
+/** Stops the local match, if one is running (⚙ → Learn to play starts the lesson in its place). */
 export function endSolo(view: GameView): void {
   soloTransport?.close();
   soloTransport = null;
@@ -171,40 +188,26 @@ export function endSolo(view: GameView): void {
 }
 
 /**
- * Starts a local solo match (simulation in a Web Worker) with `hero` in `mode` at `difficulty`.
- * A new player's lesson forces Quick and Normal for this match only.
- * "Change hero / mode" on the end screen reopens the solo pick; the local host starts a new match
- * with the new picks.
+ * Starts a local solo match (simulation in a Web Worker). `start` says how: Play and Practice run `pick` as it is;
+ * Learn to play runs the lesson (Quick, Normal, no modifiers, the picked hero). Never the lesson otherwise, whatever
+ * is stored (`beginSolo`). "Change hero / mode" on the end screen reopens the solo pick (with `opts`); the local host
+ * starts a new match with the new picks.
  */
-export function playSolo(
-  view: GameView,
-  hero: HeroKind,
-  mode: GameMode,
-  difficulty: Difficulty,
-  deal?: ModifierDeal,
-  practice = false,
-): void {
+export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, seed = freshSeed(), opts: SoloPickOptions = {}): void {
   endSolo(view);
   const transport = new LocalTransport();
   soloTransport = transport;
   view.attach(transport);
-  const start = (
-    h: HeroKind,
-    m: GameMode,
-    d: Difficulty,
-    next: ModifierDeal | undefined = deal,
-    nextPractice = practice,
-  ) => {
-    const status = sharedSettings().get().tutorial;
-    const lesson = nextPractice ? null : tutorialMatch(status);
+  const begin = (s: SoloStart, p: SoloPick, sd: number) => {
+    const match = beginSolo(sharedSettings(), s, p);
     // Pin the draw before hero / mode / difficulty, each of which starts the match.
-    transport.setPractice(nextPractice);
-    if (next) transport.setDeal(next.seed, lesson ? [] : next.modifiers);
-    transport.send({ t: 'difficulty', difficulty: lesson?.difficulty ?? d });
-    transport.send({ t: 'mode', mode: lesson?.mode ?? m });
-    transport.send({ t: 'hero', hero: h });
-    view.setLesson(shouldStartLesson(status, true) && !nextPractice);
+    transport.setPractice(match.practice);
+    transport.setDeal(sd, match.modifiers);
+    transport.send({ t: 'difficulty', difficulty: match.difficulty });
+    transport.send({ t: 'mode', mode: match.mode });
+    transport.send({ t: 'hero', hero: match.hero });
+    view.setLesson(match.lesson);
   };
-  view.onChangeHero = () => showSoloPick(start);
-  start(hero, mode, difficulty, deal, practice);
+  view.onChangeHero = () => showSoloPick(begin, { back: opts.back });
+  begin(start, pick, seed);
 }

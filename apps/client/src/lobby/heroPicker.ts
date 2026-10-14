@@ -1,5 +1,5 @@
-// Hero cards (name, role, short description) used by the online lobby and
-// the solo hero pick. The last pick is remembered in localStorage.
+// The short hero buttons (an emblem and a name) of the home card, the solo pick and the room card; the
+// line under them says the role and what the hero does. The last pick is remembered in localStorage.
 
 import { HERO_KINDS, type HeroKind } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
@@ -24,7 +24,7 @@ export function storeHero(hero: HeroKind): void {
   }
 }
 
-/** A row of hero cards; clicking one selects it and calls `onPick`. */
+/** A row of hero buttons; clicking one selects it and calls `onPick`. The title lists the hero's skills. */
 export class HeroPicker {
   constructor(
     private readonly container: HTMLElement,
@@ -40,8 +40,7 @@ export class HeroPicker {
       btn.title = (['Q', 'W', 'E', 'R'] as const).map((s) => `${s}: ${info.skills[s].name}`).join(' · ');
       btn.innerHTML =
         `<span class="hero-pick-head"><i class="ico hero-ico" style="--ico: ${iconVar(heroIcon(kind))}"></i>` +
-        `<span class="hero-pick-name">${info.name}</span></span>` +
-        `<span class="hero-pick-role">${info.role}</span><span class="hero-pick-desc">${info.blurb}</span>`;
+        `<span class="hero-pick-name">${info.name}</span></span>`;
       btn.addEventListener('click', () => {
         this.select(kind);
         onPick(kind);

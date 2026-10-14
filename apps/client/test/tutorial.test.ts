@@ -3,21 +3,25 @@ import { TUNING, towerTier, tuningForMode } from '@tdt/sim';
 import {
   absorbTutorial,
   advanceTutorial,
+  beginSolo,
   continueTutorial,
   freshTutorial,
   heroMoved,
-  homeLessonControls,
+  learnToPlayPatch,
+  lessonOffer,
   lessonStatus,
   parseTutorialStatus,
-  shouldStartLesson,
+  soloMatch,
+  statusAfterStart,
   stepSatisfied,
-  tutorialMatch,
   tutorialMayAdvance,
   tutorialPrompt,
   TUTORIAL_HOLD_MS,
   TUTORIAL_MOVE_TILES,
+  type SoloPick,
   type TutorialRun,
   type TutorialSample,
+  type TutorialStatus,
 } from '../src/tutorial/logic';
 
 function sample(patch: Partial<TutorialSample> = {}): TutorialSample {
@@ -35,28 +39,96 @@ function started(patch: Partial<TutorialSample> = {}): TutorialRun {
   return absorbTutorial(freshTutorial(), sample(patch));
 }
 
+const STATUSES: readonly TutorialStatus[] = ['new', 'completed', 'skipped'];
+
+/** Every pick a player can make on the solo pick, with and without modifiers. */
+const PICKS: readonly SoloPick[] = (['ranger', 'warden', 'arcanist'] as const).flatMap((hero) =>
+  (['full', 'quick'] as const).flatMap((mode) =>
+    (['normal', 'hard'] as const).flatMap((difficulty) =>
+      [[], ['fog'], ['swift', 'goldRush']].map((modifiers) => ({ hero, mode, difficulty, modifiers }) as SoloPick),
+    ),
+  ),
+);
+
+/** A settings store in memory, as `SettingsStore` keeps it. */
+function store(tutorial: TutorialStatus) {
+  let value = { tutorial, airLesson: 'seen', repairHint: 'seen' } as Record<string, string>;
+  return {
+    get: () => value as { tutorial: TutorialStatus; airLesson: string; repairHint: string },
+    set: (patch: object) => void (value = { ...value, ...patch }),
+  };
+}
+
 describe('tutorial status', () => {
-  it('runs once, for a new player, and only in solo', () => {
+  it('parses the stored status, new by default', () => {
     expect(parseTutorialStatus(undefined)).toBe('new');
     expect(parseTutorialStatus('later')).toBe('new');
     expect(parseTutorialStatus('completed')).toBe('completed');
     expect(parseTutorialStatus('skipped')).toBe('skipped');
-    expect(shouldStartLesson('new', true)).toBe(true);
-    expect(shouldStartLesson('new', false)).toBe(false);
-    expect(shouldStartLesson('completed', true)).toBe(false);
-    expect(shouldStartLesson('skipped', true)).toBe(false);
-    expect(tutorialMatch('new')).toEqual({ mode: 'quick', difficulty: 'normal' });
-    expect(tutorialMatch('completed')).toBeNull();
-    expect(tutorialMatch('skipped')).toBeNull();
     expect(lessonStatus('skip')).toBe('skipped');
     expect(lessonStatus('complete')).toBe('completed');
-    expect(lessonStatus('replay')).toBe('new');
   });
 
-  it('offers the lesson on the online home only while it is new, and never a Replay control', () => {
-    expect(homeLessonControls('new')).toEqual({ offer: true, replay: false });
-    expect(homeLessonControls('completed')).toEqual({ offer: false, replay: false });
-    expect(homeLessonControls('skipped')).toEqual({ offer: false, replay: false });
+  it('Play (and Practice) never start the lesson, whatever is stored: the match is the pick', () => {
+    for (const status of STATUSES) {
+      for (const pick of PICKS) {
+        for (const start of ['play', 'practice'] as const) {
+          const match = beginSolo(store(status), start, pick);
+          expect(match.lesson).toBe(false);
+          expect(match).toMatchObject({ hero: pick.hero, mode: pick.mode, difficulty: pick.difficulty, practice: start === 'practice' });
+          expect(match.modifiers).toEqual(pick.modifiers);
+        }
+      }
+    }
+  });
+
+  it('Learn to play always starts the lesson: Quick, Normal, no modifiers, the picked hero', () => {
+    for (const status of STATUSES) {
+      for (const pick of PICKS) {
+        expect(beginSolo(store(status), 'lesson', pick)).toEqual({
+          hero: pick.hero,
+          mode: 'quick',
+          difficulty: 'normal',
+          modifiers: [],
+          lesson: true,
+          practice: false,
+        });
+      }
+    }
+    // The pick is not changed by the lesson's match.
+    const pick: SoloPick = { hero: 'warden', mode: 'full', difficulty: 'hard', modifiers: ['fog'] };
+    soloMatch('lesson', pick);
+    expect(pick).toEqual({ hero: 'warden', mode: 'full', difficulty: 'hard', modifiers: ['fog'] });
+  });
+
+  it('offers "Learn to play" only before the first solo match, and never brings it back on its own', () => {
+    expect(lessonOffer('new')).toBe(true);
+    expect(lessonOffer('completed')).toBe(false);
+    expect(lessonOffer('skipped')).toBe(false);
+    // Any first solo start ends the offer: Play, Practice or the lesson itself.
+    for (const start of ['play', 'practice', 'lesson'] as const) {
+      const s = store('new');
+      beginSolo(s, start, PICKS[0]!);
+      expect(s.get().tutorial).toBe('skipped');
+      expect(lessonOffer(s.get().tutorial)).toBe(false);
+    }
+    // Later starts keep what was stored: a finished lesson stays finished.
+    expect(statusAfterStart('completed')).toBe('completed');
+    expect(statusAfterStart('skipped')).toBe('skipped');
+    const done = store('completed');
+    beginSolo(done, 'play', PICKS[0]!);
+    expect(done.get().tutorial).toBe('completed');
+  });
+
+  it('Learn to play arms the Wisps note and the repair line again; Play does not', () => {
+    expect(learnToPlayPatch('completed')).toEqual({ tutorial: 'completed', airLesson: 'new', repairHint: 'new' });
+    expect(learnToPlayPatch('new')).toEqual({ tutorial: 'skipped', airLesson: 'new', repairHint: 'new' });
+    const lesson = store('skipped');
+    beginSolo(lesson, 'lesson', PICKS[0]!);
+    expect(lesson.get()).toMatchObject({ airLesson: 'new', repairHint: 'new' });
+    const play = store('skipped');
+    beginSolo(play, 'play', PICKS[0]!);
+    expect(play.get()).toMatchObject({ airLesson: 'seen', repairHint: 'seen' });
   });
 
   it('Quick can pay for an Arrow and its upgrade inside the first wave; Full cannot', () => {

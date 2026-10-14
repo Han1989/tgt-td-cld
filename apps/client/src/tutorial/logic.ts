@@ -2,11 +2,16 @@
 // words on the card. The card itself is coach.ts. Nothing here touches the sim
 // or the protocol — it only reads facts the client already has.
 
-import type { HeroKind } from '@tdt/protocol';
+import type { Difficulty, GameMode, HeroKind, Modifier } from '@tdt/protocol';
 import { TUNING, towerTier, tuningForMode } from '@tdt/sim';
 import { HERO_INFO } from '../heroInfo';
 
-/** `new` runs the lesson on the next solo match. The other two do not. */
+/**
+ * The lesson is the player's choice (Han, 13 Oct 2026): it runs only from Learn to play.
+ * `new`: no solo match started yet, so the home card and the solo pick offer "New here? Learn to play".
+ * `skipped`: a solo match was started (or the coach card's Skip was tapped) without finishing the lesson.
+ * `completed`: the lesson reached its closing card. Neither of the last two shows the line again.
+ */
 export type TutorialStatus = 'new' | 'completed' | 'skipped';
 
 /** `new` shows the Wisps card the next time flyers are on the map. `seen` does not. */
@@ -84,36 +89,79 @@ export function parseTutorialStatus(value: unknown): TutorialStatus {
   return value === 'completed' || value === 'skipped' || value === 'new' ? value : 'new';
 }
 
-/** The auto lesson is solo only. An online room never starts it. */
-export function shouldStartLesson(status: TutorialStatus, solo: boolean): boolean {
-  return solo && status === 'new';
+/**
+ * How a solo match is started: Play (the solo pick's main button), Practice Meteor Rain, or Learn to play
+ * (the line under the main button, or ⚙ → Lesson). Online rooms never start the lesson.
+ */
+export type SoloStart = 'play' | 'practice' | 'lesson';
+
+/** What the player has picked: on the solo pick, or the stored picks when the lesson starts from elsewhere. */
+export interface SoloPick {
+  hero: HeroKind;
+  mode: GameMode;
+  difficulty: Difficulty;
+  modifiers: readonly Modifier[];
 }
 
-/** Quick + Normal for that one match. Anything else keeps the player's pick. */
-export function tutorialMatch(status: TutorialStatus): { mode: 'quick'; difficulty: 'normal' } | null {
-  return status === 'new' ? { mode: 'quick', difficulty: 'normal' } : null;
-}
-
-export function lessonStatus(action: 'skip' | 'complete' | 'replay'): TutorialStatus {
-  if (action === 'skip') return 'skipped';
-  if (action === 'complete') return 'completed';
-  return 'new';
+export interface SoloMatch extends SoloPick {
+  /** The coach card runs on this match. */
+  lesson: boolean;
+  /** Meteor Rain practice: an ally that answers your ultimate. */
+  practice: boolean;
 }
 
 /**
- * What the online home screen shows for the lesson.
- * A new player gets the Start lesson / Skip card. Replay is not on that screen:
- * finishing or skipping hides it, and it is not a second control next to the card.
- * ⚙ → Replay tutorial is the way back.
+ * The match a solo start runs. Play and Practice are always the player's own pick, whatever is stored: never the
+ * lesson. Learn to play is always the lesson as it has always run: Quick, Normal, no modifiers, the picked hero.
  */
-export function homeLessonControls(status: TutorialStatus): { offer: boolean; replay: boolean } {
-  switch (status) {
-    case 'new':
-      return { offer: true, replay: false };
-    case 'completed':
-    case 'skipped':
-      return { offer: false, replay: false };
+export function soloMatch(start: SoloStart, pick: SoloPick): SoloMatch {
+  if (start === 'lesson') {
+    return { hero: pick.hero, mode: 'quick', difficulty: 'normal', modifiers: [], lesson: true, practice: false };
   }
+  return { ...pick, modifiers: pick.modifiers.slice(), lesson: false, practice: start === 'practice' };
+}
+
+/** Starting any solo match (the lesson too) ends `new`, so the line does not come back. The rest is kept. */
+export function statusAfterStart(status: TutorialStatus): TutorialStatus {
+  return status === 'new' ? 'skipped' : status;
+}
+
+/** The coach card's Skip, and its closing card. */
+export function lessonStatus(action: 'skip' | 'complete'): TutorialStatus {
+  return action === 'skip' ? 'skipped' : 'completed';
+}
+
+/** The settings a solo start reads and writes (`SettingsStore`). */
+export interface LessonStore {
+  get(): { tutorial: TutorialStatus };
+  set(patch: { tutorial?: TutorialStatus; airLesson?: AirLesson; repairHint?: RepairHint }): void;
+}
+
+/**
+ * A solo match starts (Play, Practice, or Learn to play from the home card, the solo pick or ⚙ → Lesson): stores what
+ * the start changes and returns the match to run.
+ */
+export function beginSolo(store: LessonStore, start: SoloStart, pick: SoloPick): SoloMatch {
+  const status = store.get().tutorial;
+  store.set(start === 'lesson' ? learnToPlayPatch(status) : { tutorial: statusAfterStart(status) });
+  return soloMatch(start, pick);
+}
+
+/** "New here? Learn to play" shows under the main button only before the first solo match. */
+export function lessonOffer(status: TutorialStatus): boolean {
+  return status === 'new';
+}
+
+/**
+ * What Learn to play stores as the lesson starts, wherever it is tapped: the status after a solo start, and the
+ * Wisps note and the repair line armed again for this lesson.
+ */
+export function learnToPlayPatch(status: TutorialStatus): {
+  tutorial: TutorialStatus;
+  airLesson: AirLesson;
+  repairHint: RepairHint;
+} {
+  return { tutorial: statusAfterStart(status), airLesson: 'new', repairHint: 'new' };
 }
 
 export function heroMoved(origin: { x: number; y: number }, hero: { x: number; y: number }): boolean {
@@ -200,7 +248,7 @@ export function tutorialPrompt(
     return {
       kicker: 'Lesson',
       title: "You're ready",
-      body: 'You can move, build, cast, upgrade and ping. This Quick match keeps going. The first time Wisps appear, one note explains them. Replay the lesson any time from Settings.',
+      body: 'You can move, build, cast, upgrade and ping. This Quick match keeps going. The first time Wisps appear, one note explains them. Settings → Learn to play runs the lesson again.',
       next: 'Got it',
       skip: false,
     };

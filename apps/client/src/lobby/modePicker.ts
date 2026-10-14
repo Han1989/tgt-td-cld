@@ -1,5 +1,5 @@
-// Match mode cards (Full / Quick) for the online lobby (host only) and the
-// solo pick. The last solo pick is remembered in localStorage.
+// Match mode (Full / Quick) for the online lobby (host only) and the solo pick: one segmented stone
+// control and one line under it for the picked mode. The last solo pick is remembered in localStorage.
 
 import { GAME_MODES, type GameMode } from '@tdt/protocol';
 import { TUNING, tuningForMode } from '@tdt/sim';
@@ -28,23 +28,29 @@ export function storeMode(mode: GameMode): void {
   }
 }
 
-/** A row of mode cards; clicking one selects it and calls `onPick`. Disabled cards only show the pick. */
+/**
+ * Full | Quick as one segmented control; tapping one selects it and calls `onPick`. `line` (when given) shows the
+ * picked mode's sentence. Disabled segments only show the pick.
+ */
 export class ModePicker {
   constructor(
     private readonly container: HTMLElement,
     private selected: GameMode,
     onPick: (mode: GameMode) => void,
+    private readonly line: HTMLElement | null = null,
   ) {
     container.innerHTML = '';
+    container.classList.add('segmented');
+    container.setAttribute('role', 'group');
     for (const mode of GAME_MODES) {
       const info = MODE_INFO[mode];
       const waves = tuningForMode(TUNING, mode).waves.list.length;
       const btn = document.createElement('button');
-      btn.className = 'btn hero-pick mode-pick';
+      btn.type = 'button';
+      btn.className = 'btn seg mode-pick';
       btn.dataset.mode = mode;
-      btn.innerHTML =
-        `<span class="hero-pick-name">${info.name}</span>` +
-        `<span class="hero-pick-role">${waves} waves</span><span class="hero-pick-desc">${info.blurb}</span>`;
+      btn.title = info.blurb;
+      btn.innerHTML = `<span class="seg-name">${info.name}</span><span class="seg-sub">${waves} waves</span>`;
       btn.addEventListener('click', () => {
         this.select(mode);
         onPick(mode);
@@ -61,8 +67,11 @@ export class ModePicker {
   select(mode: GameMode): void {
     this.selected = mode;
     for (const btn of this.container.querySelectorAll<HTMLButtonElement>('.mode-pick')) {
-      btn.classList.toggle('selected', btn.dataset.mode === mode);
+      const on = btn.dataset.mode === mode;
+      btn.classList.toggle('selected', on);
+      btn.setAttribute('aria-pressed', String(on));
     }
+    if (this.line) this.line.textContent = MODE_INFO[mode].blurb;
   }
 
   /** Only the host may change the mode of an online room. */

@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { effectiveQuality, FpsMonitor, resolutionFor, WINDOW_MS } from '../src/render/quality';
-import { DEFAULT_SETTINGS, parseSettings } from '../src/settings';
+import { DEFAULT_SETTINGS, parseSettings, SettingsStore } from '../src/settings';
+import { beginSolo, lessonOffer, type TutorialStatus } from '../src/tutorial/logic';
 
 describe('settings', () => {
   it('keeps known values and falls back to the defaults', () => {
@@ -66,7 +68,24 @@ describe('settings', () => {
     expect(parseSettings(JSON.stringify({ music: 'loud', sfx: null }))).toMatchObject({ music: 0.5, sfx: 0.8 });
   });
 
-  it('remembers the lesson: new until it is finished or skipped', () => {
+  it('Settings → Learn to play starts the lesson at once, whatever is stored, and a later Play is a normal match', () => {
+    // The Lesson section's one button (index.html); the panel hands it to the host, which starts the lesson.
+    const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    expect(page).toMatch(/<button id="settings-tutorial"[^>]*>Learn to play<\/button>/);
+    expect(page).not.toContain('Replay tutorial');
+    for (const tutorial of ['new', 'completed', 'skipped'] as const satisfies readonly TutorialStatus[]) {
+      // A store in memory (no localStorage in this test environment), as the page's shared one.
+      const store = new SettingsStore();
+      store.set({ tutorial, airLesson: 'seen', repairHint: 'seen' });
+      const pick = { hero: 'arcanist', mode: 'full', difficulty: 'hard', modifiers: ['fog'] } as const;
+      expect(beginSolo(store, 'lesson', pick)).toMatchObject({ lesson: true, mode: 'quick', difficulty: 'normal', modifiers: [], hero: 'arcanist' });
+      expect(store.get()).toMatchObject({ airLesson: 'new', repairHint: 'new', tutorial: tutorial === 'new' ? 'skipped' : tutorial });
+      expect(lessonOffer(store.get().tutorial)).toBe(false);
+      expect(beginSolo(store, 'play', pick)).toMatchObject({ lesson: false, mode: 'full', difficulty: 'hard', modifiers: ['fog'] });
+    }
+  });
+
+  it('remembers the lesson: new until the first solo match, then finished or skipped', () => {
     expect(DEFAULT_SETTINGS.tutorial).toBe('new');
     expect(parseSettings(null).tutorial).toBe('new');
     expect(parseSettings(JSON.stringify({ tutorial: 'completed' })).tutorial).toBe('completed');

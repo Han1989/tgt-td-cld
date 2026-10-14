@@ -38,18 +38,19 @@ export interface Settings {
   /** Mutes all sound (music and effects). */
   muted: boolean;
   /**
-   * First-match lesson. `new` runs it on the next solo match; `completed` and `skipped`
-   * do not. Replay sets it back to `new`.
+   * The lesson (tutorial/logic.ts). `new`: no solo match started yet, so "New here? Learn to play" shows; the
+   * first solo start (the lesson too) makes it `skipped`, the coach's Skip `skipped`, its closing card `completed`.
+   * Only Learn to play starts the lesson, whatever is stored.
    */
   tutorial: TutorialStatus;
   /**
    * The Wisps note. `new` shows it the next time flyers are on the map (any match).
-   * `seen` does not. Replay tutorial sets it back to `new`.
+   * `seen` does not. Learn to play sets it back to `new`.
    */
   airLesson: AirLesson;
   /**
    * The repair line. `new` shows it the first time one of your towers drops under half HP (any match).
-   * `seen` does not. Replay tutorial sets it back to `new`.
+   * `seen` does not. Learn to play sets it back to `new`.
    */
   repairHint: RepairHint;
 }

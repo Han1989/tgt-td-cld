@@ -355,8 +355,6 @@ test('under 13: play goes on, play data is forced off, nothing is sent and what 
   const mine = await catchMine(page);
   await page.goto('/?lab&analytics');
   await waitForReady(page, 'solo');
-  const skipLesson = page.locator('#tutorial-solo-skip');
-  if (await skipLesson.isVisible()) await skipLesson.click();
   await page.locator('#lobby-solo-play').click();
   await page.locator('#age-input').fill('10');
   await page.locator('#age-continue').click();

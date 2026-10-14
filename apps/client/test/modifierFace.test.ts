@@ -30,7 +30,7 @@ describe('modifier lobby face', () => {
   it('shows the draw as chips, and the offer only after No modifiers', () => {
     const on = modifierLobbyFace(
       { modifiers: ['swift', 'fog'], modifierOffer: ['swift', 'fog'] },
-      { buttons: true, locked: false },
+      { buttons: true },
     );
     expect(on.status).toBe('Swift · Fog');
     expect(on.note).toBe('');
@@ -44,7 +44,7 @@ describe('modifier lobby face', () => {
 
     const none = modifierLobbyFace(
       { modifiers: [], modifierOffer: ['goldRush'] },
-      { buttons: true, locked: false },
+      { buttons: true },
     );
     expect(none.status).toBe('No modifiers');
     expect(none.note).toContain('turn the draw back on');
@@ -62,21 +62,10 @@ describe('modifier lobby face', () => {
     });
   });
 
-  it('locks the lesson to none and gives guests no buttons', () => {
-    const lesson = modifierLobbyFace(
-      { modifiers: ['swift'], modifierOffer: ['swift'] },
-      { buttons: true, locked: true },
-    );
-    expect(lesson.status).toBe('No modifiers');
-    expect(lesson.note).toContain('lesson');
-    expect(lesson.active).toEqual([]);
-    expect(lesson.offered).toEqual([]);
-    expect(lesson.buttons?.every((button) => !button.enabled)).toBe(true);
-    expect(lesson.buttons?.find((button) => button.action === 'offer')?.hidden).toBe(true);
-
+  it('gives guests no buttons', () => {
     const guest = modifierLobbyFace(
       { modifiers: [], modifierOffer: ['ironclad', 'skyTide'] },
-      { buttons: false, locked: false },
+      { buttons: false },
     );
     expect(guest.buttons).toBeNull();
     expect(guest.status).toBe('No modifiers');

@@ -25,7 +25,6 @@ import {
   type ShakeSetting,
 } from '../settings';
 import type { StickFeelName } from '../touch/gestures';
-import { lessonStatus } from '../tutorial/logic';
 
 const PLAY_DATA_NAMES: Record<AnalyticsChoice, string> = { on: 'On', off: 'Off' };
 
@@ -57,11 +56,14 @@ export class SettingsPanel {
     { input: $('settings-sfx') as HTMLInputElement, label: $('settings-sfx-val'), key: 'sfx' as const },
   ];
 
-  /** `previewSfx` plays a sound after the effects volume changes, at the new level. `onReplay` starts the lesson again. */
+  /**
+   * `previewSfx` plays a sound after the effects volume changes, at the new level. `onLearn` (Lesson → Learn to play)
+   * starts the lesson at once; the host stores what it changes as it starts (`beginSolo`).
+   */
   constructor(
     private readonly store: SettingsStore,
     previewSfx: () => void = () => {},
-    onReplay: () => void = () => {},
+    onLearn: () => void = () => {},
   ) {
     $('settings-btn').addEventListener('click', () => this.toggle());
     for (const b of this.mutes) b.addEventListener('click', () => store.set({ muted: !store.get().muted }));
@@ -73,8 +75,7 @@ export class SettingsPanel {
     this.volumes[1]!.input.addEventListener('change', previewSfx);
     $('settings-tutorial').addEventListener('click', () => {
       this.close();
-      store.set({ tutorial: lessonStatus('replay'), airLesson: 'new', repairHint: 'new' });
-      onReplay();
+      onLearn();
     });
     // Tap anywhere else closes it.
     window.addEventListener(

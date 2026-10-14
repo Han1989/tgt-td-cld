@@ -32,14 +32,14 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    expect(summary.done).toBe(54);
-    // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100) is done;
-    // the rest of the presentation pass (V-02, V-03, V-04) is to do.
-    expect(summary.open).toBe(43);
+    expect(summary.done).toBe(55);
+    // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100) and V-02
+    // (the second screen, PR #102) are done; the rest of the presentation pass (V-03, V-04) is to do.
+    expect(summary.open).toBe(42);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
-    // The presentation pass's open rows (V-02, V-03, V-04) each wait for Han's go.
-    expect(summary.hanOpen).toBe(12);
+    // The presentation pass's open rows (V-03, V-04) each wait for Han's go.
+    expect(summary.hanOpen).toBe(11);
     expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(97);
     expect(summary.total).toBe(summary.done + summary.open);
@@ -145,12 +145,14 @@ describe('progress dashboard data', () => {
     expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04']);
     expect(byId('V-01')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/100' } });
     expect(byId('V-01').note).toContain('Merged 10 Oct 2026');
-    // Han, 13 Oct 2026: the lesson is the player's choice.
+    // Han, 13 Oct 2026: the lesson is the player's choice. V-02 (the second screen) is done.
+    expect(byId('V-02')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/102' } });
     expect(byId('V-02').note).toContain('the lesson is the player’s choice');
-    for (const id of ['V-02', 'V-03', 'V-04']) expect(byId(id).status).toBe('todo');
+    expect(byId('V-02').note).toContain('Learn to play');
+    for (const id of ['V-03', 'V-04']) expect(byId(id).status).toBe('todo');
     // Han's first (his go, or his decision), so the overnight bots skip them.
-    for (const id of ['V-02', 'V-03', 'V-04']) expect(byId(id).owner).toBe('Both');
-    expect(matchesFilter(PROGRESS, byId('V-02'), 'now')).toBe(true);
+    for (const id of ['V-03', 'V-04']) expect(byId(id).owner).toBe('Both');
+    expect(matchesFilter(PROGRESS, byId('V-03'), 'now')).toBe(true);
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
     }
