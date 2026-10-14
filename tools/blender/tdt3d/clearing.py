@@ -193,16 +193,35 @@ class Clearing:
 
     def props(self):
         p = Part('Props')
-        # Ferns: fans of flattened leaves.
+        # Ferns: fans of arched fronds, each a flat tapering blade.
         for i, (depth, lat, size) in enumerate(((10, -24, 1.0), (-14, 26, 1.1), (34, 30, 0.9), (26, -36, 1.2),
                                                 (-26, -12, 1.3), (60, 6, 1.0), (70, -60, 1.2), (52, 70, 1.1),
                                                 (-40, 48, 1.4), (-50, -45, 1.4))):
             c = self.at(depth, lat)
-            for k in range(7):
-                a = 2 * math.pi * k / 7 + _hash(i, k)
+            for k in range(9):
+                a = 2 * math.pi * k / 9 + _hash(i, k) * 0.5
                 d = V((math.cos(a), math.sin(a), 0))
-                rot = Matrix((d, Z.cross(d), Z)).transposed() @ Matrix.Rotation(-0.55, 3, 'Y')
-                blob(p, c + d * 3.6 * size + Z * 1.4 * size, (4.2 * size, 0.9 * size, 0.25 * size), 'fern' if k % 2 else 'grass', u=8, v=4, rot=rot)
+                side = Z.cross(d).normalized()
+                ln = (5.5 + 2.0 * _hash(i, k + 9)) * size
+                rise = (2.4 + 1.2 * _hash(i, k + 18)) * size
+                pts = [c + d * ln * u + Z * (rise * math.sin(math.pi * min(1.0, u * 1.25)) * (1 - 0.35 * u)) for u in (0.0, 0.3, 0.6, 0.85, 1.0)]
+                widths = [(0.12, 0.35 * size), (0.12, 0.95 * size), (0.1, 0.8 * size), (0.08, 0.45 * size), (0.05, 0.08 * size)]
+                tube(p, pts, widths, ['fern' if k % 3 else 'grass'], sides=6, n0=Z)
+        # Grass tufts over the moss: a few thin blades each, more towards the camera.
+        for i in range(90):
+            depth = -120 + 300 * _hash(i, 40) ** 1.4
+            lat = (_hash(i, 41) - 0.5) * 2 * (90 + max(0.0, depth) * 1.2)
+            if abs(lat) < 14 and -12 < depth < 18:
+                continue  # leave the hero's feet clear
+            c = self.at(depth, lat)
+            size = 0.8 + 0.6 * _hash(i, 42)
+            for k in range(5):
+                a = 2 * math.pi * _hash(i, k + 43)
+                lean = V((math.cos(a), math.sin(a), 0)) * (0.8 + 0.9 * _hash(i, k + 48)) * size
+                h = (2.2 + 1.8 * _hash(i, k + 53)) * size
+                pts = [c + lean * 0.0, c + lean * 0.35 + Z * h * 0.55, c + lean + Z * h]
+                tube(p, pts, [(0.32 * size, 0.08), (0.22 * size, 0.07), (0.03, 0.03)], ['grass' if k % 2 else 'fern'],
+                     sides=4, n0=V((-math.sin(a), math.cos(a), 0)))
         # Rocks, half sunk, with moss on top.
         for i, (depth, lat, rr) in enumerate(((22, 42, 4.5), (-8, -40, 3.2), (85, -28, 6.0), (40, -70, 5.0))):
             c = self.at(depth, lat, rr * 0.15)

@@ -140,6 +140,7 @@ def build_skeleton():
         r.bone(f'fingers.{s}', wr.lerp(tip, 0.55), tip, f'hand.{s}', roll_to=V((0, sy, 0)))
     # The quiver strap's loose end and the belt pouch swing a little.
     r.bone('pouch', V((0.7, -5.6, 8.0)), V((0.9, -5.9, 6.0)), 'hips')
+    r.bone('strap.tail', STRAP_BUCKLE, STRAP_BUCKLE + V((0.25, -0.15, -3.2)), 'chest')
     # The bow: its own bones, pinned to a control the actions place; the string's nock bone pulls the string.
     rest = BOW_REST
 
@@ -545,6 +546,7 @@ def build_eyes(r):
     return obj
 
 
+STRAP_BUCKLE = V((4.7, 0.0, 10.9))  # the quiver strap's buckle on the chest (build_strap puts it there)
 QUIVER_B = V((-6.3, 2.7, 6.6))
 QUIVER_T = V((-7.0, -2.5, 16.4))
 
@@ -635,7 +637,22 @@ def build_strap(r):
          crease=0.6)
     obj = finish(p, index=12)
     r.skin(obj, ['chest', 'spine', 'hips'], power=3.0)
-    return obj
+    # The strap's loose end, hanging from the buckle: it swings (secondary motion), its tip capped in gold.
+    t = Part('StrapTail')
+    top = STRAP_BUCKLE + V((0.25, 0, -0.35))
+    pts = [top, top + V((0.12, -0.08, -1.2)), top + V((0.22, -0.12, -2.3)), top + V((0.26, -0.15, -2.9))]
+    tube(t, pts, [(0.2, 0.52), (0.19, 0.5), (0.18, 0.47), (0.17, 0.42)], ['leather'], sides=6, n0=X)
+    tube(t, [pts[-1] + V((0, 0, 0.1)), pts[-1] + V((0.02, 0, -0.4))], [(0.24, 0.55), (0.18, 0.3)], ['gold'], sides=6, n0=X)
+    stitches(t, [pts[0] + V((0.21, 0, -0.2)), pts[-1] + V((0.21, 0, 0.3))], lambda q: X, 'thread', step=0.55, length=0.3,
+             width=0.11, lift=0.0)
+    tail = finish(t, index=24)
+
+    def tail_rule(q):
+        k = smooth((STRAP_BUCKLE.z - 0.4 - q.z) / 1.4)
+        return {'chest': 1 - k, 'strap.tail': k}
+
+    r.skin(tail, ['chest', 'strap.tail'], rule=tail_rule)
+    return obj, tail
 
 
 def build_arm(r, s):
@@ -766,7 +783,7 @@ def build():
     parts['body'].append(build_hood(r))
     parts['body'].append(build_eyes(r))
     parts['body'].extend(build_quiver(r))
-    parts['body'].append(build_strap(r))
+    parts['body'].extend(build_strap(r))
     for s in ('L', 'R'):
         parts['arms'].extend(build_arm(r, s))
     bow, runes, string, arrow = build_bow(r)
@@ -935,6 +952,9 @@ class Poser:
                 self.r.rot_world(name, Y, -cb * (0.35 + 0.65 * k), combine=False)
                 self.r.rot_world(name, X, (cs + flare * sgn) * (0.3 + 0.7 * k))
         self.r.rot_world('pouch', Y, -pouch, combine=False)
+        # The strap's loose end swings with the pouch, a beat behind and further.
+        self.r.rot_world('strap.tail', Y, -1.3 * pouch, combine=False)
+        self.r.rot_world('strap.tail', X, 0.6 * cs)
 
 
 def relaxed_right(P, swing=0.0, bend=0.0):

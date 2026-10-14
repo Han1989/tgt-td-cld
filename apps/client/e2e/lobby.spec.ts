@@ -37,6 +37,27 @@ function stagePixels(page: Page): Promise<number> {
   });
 }
 
+/** What the stage's backdrop shows (stageBackdrop.ts): 'clearing', 'poster', 'video' or 'none' (still loading). */
+function backdrop(page: Page, stage = '#lobby-stage'): Promise<string | null> {
+  return page.locator(stage).getAttribute('data-backdrop');
+}
+
+/** The stage shows its hero: the Ranger (made in 3D) as his picture, the others drawn on the canvas. */
+async function heroShown(page: Page, stage = '#lobby-stage'): Promise<boolean> {
+  const shown = await backdrop(page, stage);
+  if (shown === 'poster' || shown === 'video') {
+    return page.locator(`${stage} .stage-poster`).evaluate((img) => (img as HTMLImageElement).naturalWidth > 0 && getComputedStyle(img).opacity !== '0');
+  }
+  return (await stagePixels(page)) > 2000;
+}
+
+/** The stage videos that are playing now (not paused, past their start). */
+function playing(page: Page): Promise<string[]> {
+  return page.locator('.hero-stage video').evaluateAll((els) =>
+    els.filter((v) => !(v as HTMLVideoElement).paused && (v as HTMLVideoElement).currentTime > 0).map((v) => v.closest('.hero-stage')!.id),
+  );
+}
+
 /** Carved-stone lobby button: a fill and an outline, not an underlined text link. */
 async function stoneButton(page: Page, selector: string): Promise<{ height: number; width: number }> {
   const button = page.locator(selector);
@@ -71,7 +92,7 @@ test('a new player gets the hero on a stage, one main button (Play solo) and a q
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'ranger');
   await expect(page.locator('#lobby-stage .stage-logo')).toHaveText('Tower Defense Together');
   await expect(page.locator('.lobby-card > .logo')).toBeHidden();
-  await expect.poll(() => stagePixels(page)).toBeGreaterThan(2000);
+  await expect.poll(() => heroShown(page)).toBe(true);
   await expect(page.locator('#lobby-hero-role')).toHaveText('Ranged DPS');
 
   // The lesson is offered, never forced: one line under Play solo, with Learn to play as a link-style button.
@@ -119,16 +140,18 @@ test('a new player gets the hero on a stage, one main button (Play solo) and a q
 
 test('picking a hero puts it on the stage with its role and its line, and the pick is remembered', async ({ page }) => {
   await openHome(page, 'skipped');
+  // The Ranger stands in the clearing as his 3D picture, so nothing is drawn on the canvas.
+  await expect.poll(() => heroShown(page)).toBe(true);
   const before = await stagePixels(page);
-  expect(before).toBeGreaterThan(2000);
   const playTop = (await box(page, '#lobby-offline')).top;
   await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'warden');
   await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
   await expect(page.locator('#lobby-hero-role')).toHaveText('Melee tank');
   await expect(page.locator('#lobby-hero-blurb')).toContainText('Melee frontliner');
-  // Another figure is on the canvas, and the main button has not moved.
-  await expect.poll(() => stagePixels(page)).not.toBe(before);
+  // The Warden is drawn on the canvas, over the empty clearing, and the main button has not moved.
+  await expect.poll(() => stagePixels(page)).toBeGreaterThan(Math.max(2000, before));
+  await expect.poll(() => backdrop(page)).toBe('clearing');
   expect(Math.abs((await box(page, '#lobby-offline')).top - playTop)).toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => localStorage.getItem('tdt.hero'))).toBe('warden');
 
@@ -143,10 +166,14 @@ test('picking a hero puts it on the stage with its role and its line, and the pi
   await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
 });
 
-test('the stage is one still drawing under reduced motion', async ({ page }) => {
+test('the stage is one still picture under reduced motion: the poster, no video', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openHome(page, 'skipped');
-  await expect.poll(() => stagePixels(page)).toBeGreaterThan(2000);
+  await expect.poll(() => heroShown(page)).toBe(true);
+  // The poster stays: no video is even loaded.
+  await page.waitForTimeout(2500);
+  expect(await backdrop(page)).toBe('poster');
+  await expect(page.locator('.hero-stage video')).toHaveCount(0);
   await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Arcanist' }).click();
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'arcanist');
   expect(await page.locator('#lobby-stage canvas').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
@@ -354,6 +381,33 @@ test('a new player who taps Learn to play gets the lesson: Quick, Normal, no mod
   await expect(page.locator('#lobby-learn')).toBeHidden();
 });
 
+test('the 3D Ranger: his poster at once, then his video playing, filling the stage', async ({ page }) => {
+  await openHome(page, 'skipped');
+  // The poster first: on screen as soon as it has loaded, before any video.
+  await expect.poll(() => backdrop(page), { timeout: 5000 }).toBe('poster');
+  await expect(page.locator('#lobby-stage .stage-poster')).toHaveCSS('opacity', '1');
+  // Then the loop, once the first screen is up.
+  await expect.poll(() => backdrop(page), { timeout: 15000 }).toBe('video');
+  await expect.poll(() => playing(page)).toEqual(['lobby-stage']);
+  // The picture fills the stage: no edge of the clearing's CSS shows round it.
+  const stage = await box(page, '#lobby-stage');
+  const video = await box(page, '#lobby-stage video');
+  expect(video.left).toBeLessThanOrEqual(stage.left + 1);
+  expect(video.top).toBeLessThanOrEqual(stage.top + 1);
+  expect(video.right).toBeGreaterThanOrEqual(stage.right - 1);
+  expect(video.bottom).toBeGreaterThanOrEqual(stage.bottom - 1);
+  // Muted, inline, looping: it may autoplay everywhere, iPhones included.
+  const v = await page.locator('#lobby-stage video').evaluate((el) => {
+    const video = el as HTMLVideoElement;
+    return { muted: video.muted, inline: video.playsInline, loop: video.loop };
+  });
+  expect(v).toEqual({ muted: true, inline: true, loop: true });
+  // Another hero: the video pauses, the clearing stays where it was.
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
+  await expect.poll(() => backdrop(page)).toBe('clearing');
+  await expect.poll(() => playing(page)).toEqual([]);
+});
+
 test('the solo pick: Back returns to the home card, and one hero stage is drawing at a time', async ({ page }) => {
   await openHome(page, 'skipped');
   await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['lobby-stage']);
@@ -362,6 +416,8 @@ test('the solo pick: Back returns to the home card, and one hero stage is drawin
   await expect(page.locator('#lobby-solo-back')).toHaveAccessibleName('Back');
   // Only the stage on screen breathes: the home card's stopped when the solo pick came up.
   await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['solo-stage']);
+  // And only its video plays (the Ranger's loop, on the solo pick's shorter stage).
+  await expect.poll(() => playing(page), { timeout: 15000 }).toEqual(['solo-stage']);
   await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Arcanist' }).click();
   await expect(page.locator('#solo-stage')).toHaveAttribute('data-hero', 'arcanist');
   await page.locator('#lobby-solo-back').click();
@@ -369,11 +425,13 @@ test('the solo pick: Back returns to the home card, and one hero stage is drawin
   await expect(page.locator('#lobby-solo')).toBeHidden();
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'arcanist');
   await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['lobby-stage']);
+  expect(await playing(page)).toEqual([]);
   // A match stops it too.
   await page.locator('#lobby-offline').click();
   await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   await expect.poll(() => page.locator('.hero-stage[data-live]').count()).toBe(0);
+  expect(await playing(page)).toEqual([]);
 });
 
 interface Seat {

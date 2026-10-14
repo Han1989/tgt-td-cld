@@ -305,5 +305,42 @@
   },
   "w": 1024,
   "walkStride": 9.4
+ },
+ "stage": {
+  "feetX": 960.0,
+  "figure": {
+   "x0": 800.0,
+   "x1": 1190.0,
+   "y0": 236.0,
+   "y1": 598.0
+  },
+  "files": {
+   "clearing": {
+    "bytes": 53510,
+    "hash": "b33266d8407e",
+    "name": "clearing.webp"
+   },
+   "mp4": {
+    "bytes": 588676,
+    "hash": "9994370f48b8",
+    "name": "ranger.mp4"
+   },
+   "poster": {
+    "bytes": 52396,
+    "hash": "039ea017f67e",
+    "name": "ranger-poster.webp"
+   },
+   "webm": {
+    "bytes": 510780,
+    "hash": "8cfa2119cd4d",
+    "name": "ranger.webm"
+   }
+  },
+  "fps": 30,
+  "frames": 240,
+  "groundY": 588.0,
+  "h": 720,
+  "loopMs": 8000,
+  "w": 1920
  }
 }

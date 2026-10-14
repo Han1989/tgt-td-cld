@@ -15,7 +15,10 @@ from .palette import rgb
 
 
 def smoothstep(e0, e1, x):
-    t = np.clip((x - e0) / max(1e-6, e1 - e0), 0.0, 1.0)
+    d = e1 - e0
+    if abs(d) < 1e-6:
+        d = 1e-6
+    t = np.clip((x - e0) / d, 0.0, 1.0)
     return t * t * (3 - 2 * t)
 
 

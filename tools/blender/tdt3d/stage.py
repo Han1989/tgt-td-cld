@@ -9,6 +9,7 @@
 import hashlib
 import math
 import os
+import time
 
 import bpy
 import numpy as np
@@ -163,8 +164,16 @@ def _screen_box(cam, hero_objs, moon_dir, margin):
 
 
 def _catcher():
+    """The ground while it only catches the hero's shadow: plain white diffuse, nothing else to evaluate."""
     m = bpy.data.materials.new('Catcher')
     m.use_nodes = True
+    nt = m.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    body = nt.nodes.new('ShaderNodeBsdfDiffuse')
+    body.inputs['Color'].default_value = (1, 1, 1, 1)
+    nt.links.new(body.outputs[0], out.inputs['Surface'])
     return m
 
 
@@ -237,6 +246,7 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None):
     union = None
     todo = range(n) if frames is None else frames
     for i in todo:
+        t_frame = time.time()
         sc.frame_set(i + 1)
         x0, y0, x1, y1 = _screen_box(cam, hero_objs, moon, 30 * cam.w / W)
         sc.render.border_min_x, sc.render.border_max_x = x0 / cam.w, x1 / cam.w
@@ -244,14 +254,23 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None):
         p = scene.render(cam, os.path.join(tmp, 'passes'), samples=10 if draft else 24, motion_blur=shutter,
                          frame=i + 1, extra=['Shadow Catcher'])
         layer = npr.compose(p, look)
+        if os.environ.get('TDT_DEBUG_PASSES'):
+            np.savez_compressed(os.path.join(os.environ['TDT_DEBUG_PASSES'], f'{i:04d}.npz'), alpha=p['Alpha'][..., 0],
+                                catch=p['Shadow Catcher'][..., :3], layer_a=layer[..., 3], depth=p['Depth'][..., 0])
         # The hero's shadow on the moss: a soft cel-edged shape, the moss's lit tone turned to its shadow tone.
         catch = p['Shadow Catcher'][..., 0]
-        shadow = npr.smoothstep(0.82, 0.55, catch) * (plate_ids == GROUND_ID)
+        inside = np.zeros_like(catch)
+        # The border render (less its edge pixels, which Cycles only partly fills); outside it the pass is empty.
+        inside[int(y0) + 2:int(y1) - 2, int(x0) + 2:int(x1) - 2] = 1
+        shadow = (1 - npr.smoothstep(0.55, 0.82, catch)) * (plate_ids == GROUND_ID) * inside
         base = atmo(plate_col, i / fps)
         base = base * (1 - shadow[..., None] * (1 - lit_over_shadow))
         hero_alpha = p['Alpha'][..., 0]
         frame = layer[..., :3] + (base + plate_bloom) * (1 - layer[..., 3:4])
         frame += motes.draw(i / fps, hero_alpha, p['Depth'][..., 0])
+        if os.environ.get('TDT_DEBUG_PASSES'):
+            np.savez_compressed(os.path.join(os.environ['TDT_DEBUG_PASSES'], f'c{i:04d}.npz'), shadow=shadow,
+                                base=base, layer=layer, frame=frame, ids=plate_ids)
         rgb8 = np.clip(np.rint(np.clip(frame, 0, 1) * 255), 0, 255).astype(np.uint8)
         imageio.write_png(os.path.join(frames_dir, f'{i:04d}.png'), rgb8)
         # Where the hero is (ink and all, the flying arrow left out).
@@ -265,7 +284,7 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None):
             box = (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
             union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]),
                                                max(union[2], box[2]), max(union[3], box[3]))
-        print(f'stage frame {i + 1}/{n}', flush=True)
+        print(f'stage frame {i + 1}/{n} ({time.time() - t_frame:.1f} s)', flush=True)
     sc.render.use_border = False
     if frames is not None:
         return None
