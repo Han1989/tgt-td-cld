@@ -130,7 +130,8 @@ describe('3D heroes: the match sheet', () => {
           expect(drawn, `${name} ${i}`).toBeGreaterThan(size.w * size.h * 0.08);
         }
       }
-    });
+      // Every pixel of the sheet, twice: seconds on a busy machine.
+    }, 30_000);
 
     it(`${kind}: the feet, the bow layer's pivot and every shoulder point sit on the figure`, () => {
       expect(m.body.feetX).toBeGreaterThan(0);

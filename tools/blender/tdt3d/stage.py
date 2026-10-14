@@ -50,8 +50,7 @@ class Atmosphere:
 
     def __init__(self, plate, horizon_y, moon_px, period_s):
         depth = plate['Depth'][..., 0]
-        inv = 1 / np.maximum(plate['Alpha'][..., 0], 1e-4)
-        self.ids = np.rint(plate['id'][..., 0] * inv).astype(np.int64) // 1000
+        self.ids = npr.ids_of(plate) // 1000
         hh, ww = depth.shape
         self.k = hh / H
         self.period = period_s

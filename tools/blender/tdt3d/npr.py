@@ -55,6 +55,25 @@ def _flag_table(key, default):
     return t
 
 
+def ids_of(p):
+    """The id pass as whole numbers (1000 × object + material) per pixel. Where a pixel straddles two parts its id
+    is their average, a number that names some other material (in the opaque plate every edge pixel is one): those
+    take the id of the nearest pixel that is cleanly one part."""
+    a = p['Alpha'][..., 0]
+    raw = p['id'][..., 0] / np.maximum(a, 1e-4)
+    r = np.rint(raw)
+    clean = (np.abs(raw - r) < 0.05) & (a > 0.5)
+    known = np.isin((r % 1000).astype(np.int64), list(shading.FLAGS)) if shading.FLAGS else clean
+    same = np.zeros_like(clean)
+    for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+        same |= np.roll(np.roll(r, dy, 0), dx, 1) == r
+    pure = clean & known & same
+    if pure.all() or not pure.any():
+        return r.astype(np.int64)
+    iy, ix = ndimage.distance_transform_edt(~pure, return_distances=False, return_indices=True)
+    return r[iy, ix].astype(np.int64)
+
+
 def shade(p, look):
     """The shaded colour (unpremultiplied, h × w × 3) and the coverage (h × w) of a frame's passes."""
     a = p['Alpha'][..., 0]
@@ -69,7 +88,7 @@ def shade(p, look):
     fill = un(p['fill'][..., 0])
     sheen = un(p['sheen'][..., 0])
     grad = un(p['grad'][..., 0])
-    mat = np.rint(un(p['id'][..., 0])).astype(np.int64) % 1000
+    mat = ids_of(p) % 1000
     mat = np.clip(mat, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
     f_ao = _flag_table('ao', 1.0)[mat]
     f_shade = _flag_table('shade', 1.0)[mat]
@@ -106,7 +125,7 @@ def _seeds(p, look):
     a = p['Alpha'][..., 0]
     inv = 1.0 / np.maximum(a, 1e-4)
     depth = p['Depth'][..., 0]
-    ids = np.rint(p['id'][..., 0] * inv).astype(np.int64)
+    ids = ids_of(p)
     solid = a > 0.5
     obj = ids // 1000
     mat = np.clip(ids % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
