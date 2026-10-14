@@ -116,7 +116,7 @@ It records the **first contentful paint** (on this branch, the boot splash), mai
 | Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Transferred |
 |---|---|---|---|---|---|
 | `main` before V-05a (V-01 home card and V-02's solo stage) | 7 | median **2.13 s** | median 5.24 s | median **6.77 s** | 326 KB |
-| V-05a (`ccr-879951c4-0qeuxg`) | 7 | median **2.12 s** (1.71–2.16 s) | median 5.21 s (5.04–5.60 s) | median **6.68 s** (6.43–7.15 s) | 387 KB (+61 KB: the 59 KB poster) |
+| V-05a (`ccr-879951c4-0qeuxg`) | 7 | median **2.12 s** (1.71–2.16 s) | median 5.21 s (5.04–5.60 s) | median **6.68 s** (6.43–7.15 s) | 387 KB (+61 KB: almost all of it the stage poster, about 60 KB) |
 
 The video itself is never part of the first load (it starts loading 600 ms and an idle moment after `tdt:ready`). The rows above from 3 Oct are not comparable with these (the home card has changed since).
 

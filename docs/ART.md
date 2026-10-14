@@ -428,7 +428,7 @@ Aim at the stylised 3D heroes of the best store games of this kind: chunky, read
 The whole stage is rendered in Blender: the moonlit clearing (a night sky with the moon's halo and a few stars, a near line of oaks and pines and a far one fading into mist, lit moss with ferns, grass, rocks and glowing mushrooms, drifting motes) with the hero in it, **8 s at 30 frames a second**, seamless: idle with breathing and a weight shift, then the reach to the quiver, an arrow drawn and nocked as the bow comes up with a step, the draw to the jaw, a held breath, the loose (the arrow flies off to the right), the follow-through, the bow lowered and the weight settling back. A little motion blur (shutter 0.42).
 
 - **One wide frame for every stage size**, 1920 × 720, the hero ~330 px tall with his feet on the line at y = 588: wide and tall enough that the fit that puts the hero between the title and the ground also covers the stage from the 328 × 190 home card of a small phone to the 498 × 150 solo pick on a desktop (`fitStage`, tested at ten sizes). The client never crops the hero.
-- **Rendered as a plate plus a layer.** The clearing doesn't move, so it renders once (64 samples). Each frame renders only the hero, in the part of the frame he and his moon shadow can reach: the ground catches his shadow, the props in front are holdouts (a fern still hides a boot), the trees and sky are off. The drifting mist is painted over the plate per frame and the motes are drawn where the camera sees them, behind the hero by depth. ~21 s a frame on 4 cores; the 240-frame loop took 83 min (5,004 s), plus a minute for the plate.
+- **Rendered as a plate plus a layer.** The clearing doesn't move, so it renders once (64 samples). Each frame renders only the hero, in the part of the frame he and his moon shadow can reach: the ground catches his shadow, the props in front are holdouts (a fern still hides a boot), the trees and sky are off. The drifting mist is painted over the plate per frame and the motes are drawn where the camera sees them, behind the hero by depth. ~21 s a frame on 4 cores; the 240-frame loop took about 85 min, plus a minute for the plate (the whole build, stage and match, 5,247 s).
 - **Outputs** (`apps/client/public/stage/`): `ranger.mp4` (H.264, yuv420p, faststart, muted; every iPhone), `ranger.webm` (VP9, for browsers without H.264: open-source Chromium builds and the browser tests), `ranger-poster.webp` (the loop's first frame) and `clearing.webp` (the empty clearing at the same moment, for the 2D heroes). Each is searched to the best quality under its budget: **700 KB a video, 60 KB a poster or still**. Their sizes and a hash of their bytes go into `src/render/art3d/ranger.json`; the client asks for `?v=<hash>`.
 - **In the lobby** (`lobby/stageBackdrop.ts`, §12): the poster shows at once; the video loads after the first screen is up (600 ms and an idle moment later), as a whole file (a blob: one plain request the service worker keeps, no range requests), and fades in over the poster once it plays. Under reduced motion or data saver it never loads; when autoplay is blocked (iPhone Low Power Mode) or it fails, the poster stays. Only the live stage's video plays; it pauses when its stage stops, is hidden or scrolled away, or the page is hidden. The service worker caches the videos on first play and never precaches them; the posters are in the shell.
 
@@ -448,13 +448,13 @@ The body and head renders use holdouts, so together they are exactly the whole f
 
 | File | Size | Budget | Encoding |
 |---|---|---|---|
-| `public/stage/ranger.mp4` | 693,871 B | 700 KB | H.264 (libx264 `veryslow`, `tune animation`), CRF 24, yuv420p, faststart, 8 s, 30 fps, 1920 × 720, no audio |
-| `public/stage/ranger.webm` | 663,187 B | 700 KB | VP9 (libvpx-vp9), CRF 37, the same frames |
-| `public/stage/ranger-poster.webp` | 58,782 B | 60 KB | WebP q75, frame 0 |
-| `public/stage/clearing.webp` | 58,544 B | 60 KB | WebP q79, the empty clearing |
+| `public/stage/ranger.mp4` | 684,038 B | 700 KB | H.264 (libx264 `veryslow`, `tune animation`), CRF 23, yuv420p, faststart, 8 s, 30 fps, 1920 × 720, no audio |
+| `public/stage/ranger.webm` | 697,775 B | 700 KB | VP9 (libvpx-vp9), CRF 34, the same frames |
+| `public/stage/ranger-poster.webp` | 59,836 B | 60 KB | WebP q88, frame 0 |
+| `public/stage/clearing.webp` | 57,516 B | 60 KB | WebP q91, the empty clearing |
 | `src/render/art3d/ranger-match.png` | 267,566 B | none (loaded a second after the first screen) | PNG, RGBA, every frame and its white twin |
 
-**Re-render:** `npm run art:3d -- ranger` (about 85 minutes on 4 cores). The renders and the PNG sheet are deterministic (fixed Cycles seed and samples, no time or random input; numpy on the same machine); the video encoders run threaded, so a re-encode can differ by a few bytes while looking the same. The hashes in `ranger.json` always come from the bytes written, so the client's `?v=` follows whatever was committed.
+**Re-render:** `npm run art:3d -- ranger` (about 85 minutes on 4 cores). The renders and the PNG sheet are deterministic (fixed Cycles seed and samples, no time or random input; numpy on the same machine: two builds of the match sheet came out byte-identical); the video encoders run threaded, so a re-encode can differ by a few bytes while looking the same. The hashes in `ranger.json` always come from the bytes written, so the client's `?v=` follows whatever was committed.
 
 ### Adding a 3D hero (V-05b)
 
