@@ -31,7 +31,7 @@ HERO_IDS = (1, 99)
 GROUND_ID = 100
 
 LOOK = dict(
-    outer=2.6, inner=1.25, inner_alpha=0.8, bloom=2.2, bloom_amount=0.85,
+    outer=2.0, inner=0.9, inner_alpha=0.75, bloom=2.2, bloom_amount=0.85,
     line_ids=HERO_IDS, depth_rel=0.012, depth_abs=0.5, big_jump=4.0, pool_amount=0.55,
 )
 
@@ -163,6 +163,37 @@ def _screen_box(cam, hero_objs, moon_dir, margin):
     return (max(0, min(xs) - margin), max(0, min(ys) - margin), min(cam.w, max(xs) + margin), min(cam.h, max(ys) + margin))
 
 
+def figure_box(cam, objs, pad):
+    """The box (px) the posed figure covers this frame: every vertex of its evaluated meshes projected through the
+    camera, plus `pad` (the ink outline). From the geometry, not the passes: a shadow under a blurred arrow would
+    otherwise pass for part of the figure."""
+    s = bpy.context.scene
+    s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = cam.w, cam.h, 100
+    dg = bpy.context.evaluated_depsgraph_get()
+    proj = np.array(cam.obj.calc_matrix_camera(dg, x=cam.w, y=cam.h)) @ np.array(cam.obj.matrix_world.inverted())
+    lo = np.array([np.inf, np.inf])
+    hi = -lo
+    for o in objs:
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        n = len(me.vertices)
+        if n:
+            co = np.empty(n * 3, np.float32)
+            me.vertices.foreach_get('co', co)
+            co = np.c_[co.reshape(n, 3), np.ones(n)] @ (proj @ np.array(o.matrix_world)).T
+            xy = co[:, :2] / co[:, 3:4]
+            px = np.c_[(xy[:, 0] + 1) / 2 * cam.w, (1 - xy[:, 1]) / 2 * cam.h]
+            lo = np.minimum(lo, px.min(axis=0))
+            hi = np.maximum(hi, px.max(axis=0))
+        ev.to_mesh_clear()
+    return lo[0] - pad, lo[1] - pad, hi[0] + pad, hi[1] + pad
+
+
+def _arrow_away(fact):
+    """The arrow is not in the hero's hands this frame (hidden, or flying off): leave it out of his box."""
+    return fact == 'hidden' or (isinstance(fact, tuple) and fact[0] == 'flying')
+
+
 def _catcher():
     """The ground while it only catches the hero's shadow: plain white diffuse, nothing else to evaluate."""
     m = bpy.data.materials.new('Catcher')
@@ -254,9 +285,6 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None):
         p = scene.render(cam, os.path.join(tmp, 'passes'), samples=10 if draft else 24, motion_blur=shutter,
                          frame=i + 1, extra=['Shadow Catcher'])
         layer = npr.compose(p, look)
-        if os.environ.get('TDT_DEBUG_PASSES'):
-            np.savez_compressed(os.path.join(os.environ['TDT_DEBUG_PASSES'], f'{i:04d}.npz'), alpha=p['Alpha'][..., 0],
-                                catch=p['Shadow Catcher'][..., :3], layer_a=layer[..., 3], depth=p['Depth'][..., 0])
         # The hero's shadow on the moss: a soft cel-edged shape, the moss's lit tone turned to its shadow tone.
         catch = p['Shadow Catcher'][..., 0]
         inside = np.zeros_like(catch)
@@ -268,22 +296,12 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None):
         hero_alpha = p['Alpha'][..., 0]
         frame = layer[..., :3] + (base + plate_bloom) * (1 - layer[..., 3:4])
         frame += motes.draw(i / fps, hero_alpha, p['Depth'][..., 0])
-        if os.environ.get('TDT_DEBUG_PASSES'):
-            np.savez_compressed(os.path.join(os.environ['TDT_DEBUG_PASSES'], f'c{i:04d}.npz'), shadow=shadow,
-                                base=base, layer=layer, frame=frame, ids=plate_ids)
         rgb8 = np.clip(np.rint(np.clip(frame, 0, 1) * 255), 0, 255).astype(np.uint8)
         imageio.write_png(os.path.join(frames_dir, f'{i:04d}.png'), rgb8)
         # Where the hero is (ink and all, the flying arrow left out).
-        ids = np.rint(p['id'][..., 0] / np.maximum(hero_alpha, 1e-4)).astype(np.int64) // 1000
-        mask = (ids >= HERO_IDS[0]) & (ids <= HERO_IDS[1]) & (hero_alpha > 0.02)
-        if isinstance(facts[i].get('arrow'), tuple) and facts[i]['arrow'][0] == 'flying':
-            mask &= ids != hero.ARROW_INDEX
-        mask = ndimage.binary_dilation(mask, iterations=max(1, int(round(look['outer']))))
-        ys, xs = np.nonzero(mask)
-        if len(xs):
-            box = (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
-            union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]),
-                                               max(union[2], box[2]), max(union[3], box[3]))
+        box = figure_box(cam, [o for o in hero_objs if not (o.pass_index == hero.ARROW_INDEX and _arrow_away(facts[i].get('arrow')))],
+                         look['outer'] + 2)
+        union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]), max(union[2], box[2]), max(union[3], box[3]))
         print(f'stage frame {i + 1}/{n} ({time.time() - t_frame:.1f} s)', flush=True)
     sc.render.use_border = False
     if frames is not None:
@@ -308,3 +326,35 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None):
         data = open(os.path.join(out_dir, name), 'rb').read()
         layout['files'][k] = {'name': name, 'bytes': len(data), 'hash': hashlib.sha256(data).hexdigest()[:12]}
     return layout, sizes
+
+
+def stage_layout(hero, draft=False):
+    """The stage layout (frame, feet, the figure's box over the loop) from the posed figure alone, without rendering:
+    what render_stage writes, for fixing a layout without re-rendering an hour of frames."""
+    r, parts = hero.build()
+    P = hero.Poser(r)
+    hero_objs = [o for objs in parts.values() for o in objs]
+    springs = hero.stage_springs()
+    n = hero.STAGE_FRAMES
+    snaps, facts = [], []
+    for i in range(n):
+        facts.append(hero.stage_pose(P, i, springs))
+        snaps.append(bake.record(r.obj))
+    snaps.append(snaps[0])
+    bake.bake(r.obj, snaps, (), start=1)
+    mid = V((hero.STAGE_MID[0], hero.STAGE_MID[1], 0))
+    cam, _ = camera(hero.STAGE_HEIGHT, mid)
+    scene.detail(1 if draft else 2)
+    sc = bpy.context.scene
+    union = None
+    for i in range(n):
+        sc.frame_set(i + 1)
+        objs = [o for o in hero_objs if not (o.pass_index == hero.ARROW_INDEX and _arrow_away(facts[i].get('arrow')))]
+        box = figure_box(cam, objs, LOOK['outer'] + 2)
+        union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]), max(union[2], box[2]), max(union[3], box[3]))
+    fx, fy, _ = cam.px(mid)
+    return {
+        'w': W, 'h': H, 'fps': hero.STAGE_FPS, 'frames': n, 'loopMs': round(hero.STAGE_S * 1000),
+        'feetX': round(fx, 1), 'groundY': round(fy, 1),
+        'figure': {'x0': round(union[0], 1), 'y0': round(union[1], 1), 'x1': round(union[2], 1), 'y1': round(union[3], 1)},
+    }

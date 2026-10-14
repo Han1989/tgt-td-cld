@@ -12,6 +12,7 @@ import bpy  # noqa: F401
 from mathutils import Euler, Matrix, Quaternion, Vector
 
 from tdt3d import geom, shading
+from tdt3d.palette import mix
 from tdt3d.geom import Part, V, X, Y, Z, blob, finish, frame_matrix, lathe, lerp, loft, rbox, smooth, stitches, tube
 from tdt3d.rig import Rig, settle_loop
 
@@ -25,9 +26,11 @@ NAME = 'ranger'
 def materials():
     d = shading.define
     # Cloth has a faint weave: the token mottled a little towards its darker twin.
-    weave = shading.noise_albedo('leafDark', scale=1.6, lo=0.35, hi=0.75, detail=3.0, amount=0.16)
+    weave = shading.noise_albedo('leafDark', scale=3.2, lo=0.3, hi=0.8, detail=2.0, amount=0.08)
     d('leaf', 'leaf', albedo=weave)
-    d('leafDark', 'leafDark', albedo=shading.noise_albedo('hoodShadow', scale=1.6, lo=0.35, hi=0.75, detail=3.0, amount=0.14))
+    d('leafDark', 'leafDark', albedo=shading.noise_albedo('hoodShadow', scale=3.2, lo=0.3, hi=0.8, detail=2.0, amount=0.08))
+    # The tunic sits between the hood's green and the mantle's, so the materials separate.
+    d('tunic', color=mix('leaf', 'leafDark', 0.42), albedo=shading.noise_albedo('leafDark', scale=3.2, lo=0.3, hi=0.8, detail=2.0, amount=0.1))
     d('lining', 'leafDark', shade=0.7, rim=0.0)
     d('seam', 'leafDark', line=False, ao=0.4)
     d('hood', 'hoodShadow', shade=0.35, rim=0.0, ao=0.6)
@@ -211,14 +214,14 @@ def build_tunic(r):
     def fold(i, a):
         # Soft vertical folds that deepen towards the hem.
         k = max(0.0, (8.2 - prof[i][0]) / 3.0)
-        return 1 + k * (0.045 * math.cos(7 * a + 0.4) + 0.03 * math.cos(11 * a + 1.3))
+        return 1 + k * (0.075 * math.cos(7 * a + 0.4) + 0.045 * math.cos(11 * a + 1.3))
 
     def hem(i, a):
         if i >= n - 2:
             return -0.38 * math.cos(5 * a + math.pi / 5) - 0.1 * math.cos(9 * a)
         return 0
 
-    rings = lathe(p, prof, ['leaf'], sides=20, center=(TUNIC_CX, 0), sx=TUNIC_SX, wave=hem, rad=fold, cap0=True,
+    rings = lathe(p, prof, ['tunic'], sides=20, center=(TUNIC_CX, 0), sx=TUNIC_SX, wave=hem, rad=fold, cap0=True,
                   cap1=False)
     # Close the hem with a turned-in rim (a thickness, not a knife edge).
     p.crease(rings[-2], 0.5)
@@ -335,7 +338,7 @@ def build_cloak(r):
         for k in range(n_arc + 1):
             u = k / n_arc
             a = math.radians(a0 + (a1 - a0) * u)
-            fold = 1 + min(1.0, i / 3) * (0.055 * math.cos(u * math.pi * 7) + 0.03 * math.cos(u * math.pi * 11 + 1))
+            fold = 1 + min(1.0, i / 3) * (0.085 * math.cos(u * math.pi * 7) + 0.045 * math.cos(u * math.pi * 11 + 1))
             dz = 0.0
             if i == len(zs) - 1:
                 dz = -0.9 * abs(math.sin(u * math.pi * 3.5)) ** 1.5 + 0.35
@@ -803,7 +806,7 @@ L_HAND_DIR = V((0.75, -0.62, 0.0))  # the bow hand's bone, wrist → knuckles, i
 R_WRIST = V((-1.25, -0.55, -0.55))  # the draw hand's wrist from the nock, in the bow's frame
 R_HAND_DIR = V((0.85, 0.35, 0.45))
 CANT = 0.42        # the bow's top tilts away from the face (radians)
-ANCHOR = V((2.55, -1.75, 15.65))  # full draw: the nock at the right corner of the jaw (rest-pose head)
+ANCHOR = V((3.5, -1.55, 14.75))  # full draw: the nock under the chin, just below the hood (rest-pose head)
 
 
 def aim_bone(r, name, head, ydir, zhint):
@@ -1311,8 +1314,15 @@ def stage_pose(P, i, springs):
             facts['arrow'] = ('flying', a)
     r.update()
 
-    # The arrow.
+    # The arrow. Hidden, it waits where it next appears or last went (in the quiver before the reach, far along its
+    # flight after the loose), shrunk to nothing, so the keys never sweep it across the frame.
     if facts['arrow'] == 'hidden':
+        if t > LOOSE_AT:
+            P.arrow_at(P.nock_point(aimed, 0.0) + rot @ V((0, ARROW_SIDE, 0)) + dir_shot * 2000, dir_shot, rot @ Z)
+        else:
+            ax = (_world(r, 'chest', QUIVER_T) - _world(r, 'chest', QUIVER_B)).normalized()
+            P.arrow_at(_world(r, 'chest', QUIVER_T) - ax * 2.0, ax, Z)
+        r.update()
         P.hide_arrow()
     elif facts['arrow'] == 'string':
         P.arrow_on_string()

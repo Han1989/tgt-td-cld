@@ -418,10 +418,10 @@ Aim at the stylised 3D heroes of the best store games of this kind: chunky, read
 | Smooth, bevelled forms, no facets or raw primitives | Every part is a quad cage under a subdivision surface (level 2 on the stage and in the match sheet); creases keep soles, belt and strap edges tight |
 | Cloth with folds, leather with seams and stitching, metal with a bright edge | Tunic and cloak folds that deepen towards a leaf-cut hem, a faint weave in the greens; stitched belt, bracers, boots, quiver, pouch and strap (raised `bone` thread); gold buckle, quiver bands, bow tips and arrowhead catch the moon's sheen |
 | A silhouette you can name at 50 px tall | The big hood with its long tip, the bow and the quiver's fletchings (the contact sheet's last row is 50 px tall) |
-| Stylised proportions, arms long enough for a real draw to the cheek | About 26.5 world px tall, the hood nearly half of it; arms 10 px shoulder to fingertip, so on the stage the bow arm reaches out straight while the draw hand comes back to the jaw |
-| Light | Moonlight from the upper left in soft cel bands (a cool shadow tone, a lit tone, a narrow highlight band), AO in the creases, a soft sky fill, a rune-teal rim on the right, a moonbeam pool on the clearing; eyes, the arrowhead, the bow's runes and the motes glow with a soft bloom; a clean ink outline (2.6 px on the 1920 px stage, 0.7 world px in the match), thinner inside |
-| Face | The hood's opening and both eyes show in every frame: on the stage the draw comes to the jaw under the eyes with the bow canted away from the face; in a match the head is its own layer, drawn over the bow layer |
-| Motion | Anticipation (a dip before the reach, the draw creeping in while held), action, follow-through (the loose snaps the string, the bow rolls forward in the open hand, the draw hand flies back past the ear); the cloak, the hood's tip, the pouch and the strap's loose end swing on springs; the jog has no foot sliding (a planted foot moves back exactly as fast as the body goes forward); every loop is seamless (periodic curves, springs run over the loop until they repeat) |
+| Stylised proportions, arms long enough for a real draw to the cheek | About 26.5 world px tall, the hood nearly half of it; arms 10 px shoulder to fingertip, so on the stage the bow arm reaches out straight while the draw hand comes all the way back under the chin (the cheek itself is inside the hood's shadow, where a hand would read as something in the mouth) |
+| Light | Moonlight from the upper left in soft cel bands (a cool shadow tone, a lit tone, a narrow highlight band), AO in the creases, a soft sky fill, a rune-teal rim on the right, a moonbeam pool on the clearing; eyes, the arrowhead, the bow's runes and the motes glow with a soft bloom; a clean ink outline (2 px on the 1920 px stage, 0.62 world px in the match), thinner inside (0.9 px, 0.28 world px) |
+| Face | The hood's opening and both eyes show in every frame: on the stage the draw comes to the chin, under the hood, with the bow canted away from the face; in a match the body is seen more from the front (34°, both eyes) and the head is its own layer, drawn over the bow layer |
+| Motion | Anticipation (a dip before the reach, the draw creeping in while held), action, follow-through (the loose snaps the string, the bow rolls forward in the open hand, the draw hand flies back past the ear); the cloak, the hood's tip, the pouch and the quiver strap's loose end swing on springs; the jog has no foot sliding (a planted foot moves back exactly as fast as the body goes forward); every loop is seamless (periodic curves, springs run over the loop until they repeat) |
 
 ### The stage loop (the first screen and the solo pick)
 
@@ -438,7 +438,7 @@ One sheet per hero at **4 px per world px** (`src/render/art3d/<hero>-match.png`
 
 | Layer | View | Frames | Anchor |
 |---|---|---|---|
-| Body (no arms; the head held out) | 3/4 from the front right, 20° down (as the 2D art) | idle 8 (one breath, 3.14 s, the 2D rigs' breath), jog 12 (one stride), the cast pose 1 | the feet |
+| Body (no arms; the head held out) | 3/4 from the front right (34° round from the front, so both eyes show), 20° down | idle 8 (one breath, 3.14 s, the 2D rigs' breath), jog 12 (one stride), the cast pose 1 | the feet |
 | Head (the hood and eyes; the body held out) | the same | one per body frame | the feet |
 | Bow (both arms, the bow, the arrow) | profile, the bow broadside, aimed along +x | the string drawn in 8 steps (0 to full), loosed 1 | the bow shoulder |
 

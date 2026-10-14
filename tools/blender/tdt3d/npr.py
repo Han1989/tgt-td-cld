@@ -33,8 +33,8 @@ LOOK = dict(
     ao_blur=0.8,          # px (at render size) blur of the AO pass
     darken=0.24,          # bodies darken downwards by this much at the feet
     fill='moon', fill_amount=0.07,  # the sky's fill, strongest on what faces up
-    rim='rune', rim_at=0.26, rim_soft=0.08, rim_amount=0.75,  # the rim from behind on the right
-    sheen_at=0.55, sheen_soft=0.12, sheen_amount=0.55,  # metal's bright edge
+    rim='rune', rim_at=0.16, rim_soft=0.06, rim_amount=0.85,  # the rim from behind on the right
+    sheen_at=0.35, sheen_soft=0.12, sheen_amount=0.7,  # metal's bright edge
     pool_tint='moon', pool_amount=0.0,  # the moonbeam into the stage's clearing (scene.pool)
     glow_core=1.0,        # emissive parts at full colour
     bloom=1.4, bloom_amount=0.9,  # bloom: sigma (px at output size), strength

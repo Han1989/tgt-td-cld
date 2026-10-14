@@ -32,6 +32,7 @@ import {
 import { allSynthDefs, INSTRUMENTS, noteSample, SOUND_IDS, SOUNDS, variantId, type Instrument } from '../src/audio/sounds';
 import { BAKE_RATE, MAX_SECONDS, midiHz, PEAK, renderSound, rms, roomImpulse, soundSeconds, varyDef } from '../src/audio/synth';
 import { isMediaPath, MEDIA_CACHE, swSource } from '../src/platform/swSource';
+import { HERO_3D } from '../src/render/art3d/layout';
 
 /** How bright a sound is: RMS of its first difference over its RMS (a sine at f Hz gives 2·sin(π·f / rate)). */
 function brightness(s: Float32Array): number {
@@ -175,7 +176,9 @@ describe('synth and sound bank', () => {
       }
     };
     walk(root);
-    const allowed = [...MUSIC_FILES.map((m) => `public/music/${m}.mp3`), ...SOUND_IDS.map((id) => `public/sfx/${id}.mp3`)];
+    // The lobby stage's loops (docs/ART.md §15) are muted videos, not sound: art3d.test.ts checks they carry no audio.
+    const stageVideos = Object.values(HERO_3D).map((h) => `public/stage/${h!.stage.files.webm.name}`);
+    const allowed = [...MUSIC_FILES.map((m) => `public/music/${m}.mp3`), ...SOUND_IDS.map((id) => `public/sfx/${id}.mp3`), ...stageVideos];
     expect(found.filter((f) => !allowed.includes(f))).toEqual([]);
     // The synth itself never reaches for randomness or the clock: it bakes the same every time.
     const src = readFileSync(new URL('../src/audio/synth.ts', import.meta.url), 'utf8');

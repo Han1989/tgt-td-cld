@@ -29,6 +29,7 @@ def main():
     ap.add_argument('--draft', action='store_true', help='half size, fewer samples, no motion blur (a quick look)')
     ap.add_argument('--frames', default=None, help='stage frames to render (a preview), comma separated')
     ap.add_argument('--out', default=None, help='write here instead of the client folders (a preview)')
+    ap.add_argument('--layout-only', action='store_true', help='stage: recompute its layout from the posed figure, keep the files')
     args = ap.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:])
 
     from tdt3d import scene, stage, match
@@ -38,7 +39,14 @@ def main():
     layout = json.load(open(layout_path)) if os.path.exists(layout_path) else {}
     t0 = time.time()
     try:
-        if args.what in ('stage', 'all'):
+        if args.what == 'stage' and args.layout_only:
+            scene.reset(fps=hero.STAGE_FPS)
+            files = layout.get('stage', {}).get('files')
+            if not files:
+                raise SystemExit('--layout-only needs a stage rendered before (its files)')
+            layout['stage'] = dict(stage.stage_layout(hero), files=files)
+            print('stage layout:', json.dumps(layout['stage']['figure']))
+        elif args.what in ('stage', 'all'):
             scene.reset(fps=hero.STAGE_FPS)
             frames = [int(x) for x in args.frames.split(',')] if args.frames else None
             out = args.out or STAGE_OUT

@@ -58,19 +58,19 @@ def materials():
         return shading.mix_rgba(nt, links, r3.outputs['Result'], c, rgb('mossLight'))
 
     d('moss', 'moss', albedo=ground, grad=False, shade=0.75, rim=0.0, ao=0.8, dim=0.9)
-    d('fern', 'fern', grad=False, shade=0.6, rim=0.2, dim=0.9)
-    d('grass', 'mossLight', grad=False, shade=0.7, rim=0.4, dim=0.75)
-    d('rock', 'stoneDark', grad=False, shade=0.85, rim=0.5, dim=0.62)
-    d('rockMoss', 'mossDark', grad=False, shade=0.8, rim=0.3, dim=0.85)
-    d('trunk', 'woodDark', grad=False, shade=0.6, rim=0.2, dim=0.45)
-    d('canopy', 'canopy', grad=False, shade=0.85, rim=0.25, dim=0.58)
-    d('canopyLight', 'canopyLight', grad=False, shade=0.85, rim=0.25, dim=0.5)
-    d('pine', 'pine', grad=False, shade=0.8, rim=0.25, dim=0.6)
+    d('fern', 'canopy', grad=False, shade=0.75, rim=0.08, dim=0.85)
+    d('grass', 'mossLight', grad=False, shade=0.75, rim=0.0, dim=0.95)
+    d('rock', 'stoneDark', grad=False, shade=0.85, rim=0.12, dim=0.62)
+    d('rockMoss', 'mossDark', grad=False, shade=0.8, rim=0.05, dim=0.85)
+    d('trunk', 'woodDark', grad=False, shade=0.6, rim=0.0, dim=0.45)
+    d('canopy', 'canopy', grad=False, shade=0.85, rim=0.1, dim=0.58)
+    d('canopyLight', 'canopyLight', grad=False, shade=0.85, rim=0.1, dim=0.5)
+    d('pine', 'pine', grad=False, shade=0.8, rim=0.1, dim=0.6)
     d('farTree', 'tree', grad=False, shade=0.45, rim=0.0, ao=0.3, dim=0.8)
-    d('nearTree', 'forest', grad=False, shade=0.5, rim=0.15, dim=0.7)
-    d('cap', 'mushroom', grad=False, shade=0.9, rim=0.4, dim=0.5)
+    d('nearTree', 'forest', grad=False, shade=0.5, rim=0.04, dim=0.7)
+    d('cap', 'mushroom', grad=False, shade=0.9, rim=0.15, dim=0.5)
     d('capGlow', 'rune', emit=0.9, grad=False, line=False, rim=0.0, ao=0.0)
-    d('stem', 'bone', grad=False, shade=0.8, dim=0.4)
+    d('stem', 'bone', grad=False, shade=0.8, dim=0.4, rim=0.0)
     d('star', 'moon', emit=0.7, grad=False, line=False, rim=0.0, ao=0.0, shade=0.0)
     d('moonDisc', 'moon', emit=1.0, grad=False, line=False, rim=0.0, ao=0.0, shade=0.0)
 
@@ -95,7 +95,7 @@ class Clearing:
         self.fps = fps
         h = V((cam_dir.x, cam_dir.y, 0)).normalized()
         self.back = -h                 # away from the camera, behind the hero
-        self.side = self.back.cross(Z).normalized() * -1  # screen right
+        self.side = self.back.cross(Z).normalized()  # screen right (camera forward × up)
         self.motes = []
         self.ground()
         self.sky()
@@ -198,13 +198,13 @@ class Clearing:
                                                 (-32, -42, 1.3), (60, 6, 1.0), (70, -60, 1.2), (52, 70, 1.1),
                                                 (-40, 48, 1.4), (-50, -45, 1.4))):
             c = self.at(depth, lat)
-            for k in range(9):
-                a = 2 * math.pi * k / 9 + _hash(i, k) * 0.5
+            for k in range(7):
+                a = 2 * math.pi * k / 7 + _hash(i, k) * 0.5
                 d = V((math.cos(a), math.sin(a), 0))
                 side = Z.cross(d).normalized()
-                ln = (5.5 + 2.0 * _hash(i, k + 9)) * size
-                rise = (2.4 + 1.2 * _hash(i, k + 18)) * size
-                pts = [c + d * ln * u + Z * (rise * math.sin(math.pi * min(1.0, u * 1.25)) * (1 - 0.35 * u)) for u in (0.0, 0.3, 0.6, 0.85, 1.0)]
+                ln = (4.2 + 1.6 * _hash(i, k + 9)) * size
+                rise = (3.6 + 1.6 * _hash(i, k + 18)) * size
+                pts = [c + d * ln * u + Z * (rise * math.sin(math.pi * min(1.0, u * 0.9)) * (1 - 0.15 * u)) for u in (0.0, 0.3, 0.6, 0.85, 1.0)]
                 widths = [(0.12, 0.35 * size), (0.12, 0.95 * size), (0.1, 0.8 * size), (0.08, 0.45 * size), (0.05, 0.08 * size)]
                 tube(p, pts, widths, ['fern' if k % 3 else 'grass'], sides=6, n0=Z)
         # Grass tufts over the moss: a few thin blades each, more towards the camera.
@@ -217,10 +217,10 @@ class Clearing:
             size = 0.8 + 0.6 * _hash(i, 42)
             for k in range(5):
                 a = 2 * math.pi * _hash(i, k + 43)
-                lean = V((math.cos(a), math.sin(a), 0)) * (0.8 + 0.9 * _hash(i, k + 48)) * size
+                lean = V((math.cos(a), math.sin(a), 0)) * (0.35 + 0.5 * _hash(i, k + 48)) * size
                 h = (2.2 + 1.8 * _hash(i, k + 53)) * size
                 pts = [c + lean * 0.0, c + lean * 0.35 + Z * h * 0.55, c + lean + Z * h]
-                tube(p, pts, [(0.46 * size, 0.1), (0.32 * size, 0.09), (0.04, 0.04)], ['grass' if k % 3 else 'fern'],
+                tube(p, pts, [(0.46 * size, 0.1), (0.32 * size, 0.09), (0.04, 0.04)], ['grass'],
                      sides=4, n0=V((-math.sin(a), math.cos(a), 0)))
         # Rocks, half sunk, with moss on top.
         for i, (depth, lat, rr) in enumerate(((22, 42, 4.5), (-8, -40, 3.2), (85, -28, 6.0), (40, -70, 5.0))):

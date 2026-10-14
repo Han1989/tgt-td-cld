@@ -11,11 +11,11 @@ from . import imageio, npr, scene, shading
 
 RES = 4        # sheet px per world px
 SS = 2         # rendered at SS × RES, then averaged down (anti-aliasing for the ink and the edges)
-BODY_VIEW = (48.0, 20.0)     # azimuth, elevation: the 3/4 view from the front right (the figure faces +x)
+BODY_VIEW = (34.0, 20.0)     # azimuth, elevation: the 3/4 view from the front right (both eyes show)
 BOW_VIEW = (90.0, 8.0)       # the profile, from the figure's right
 WINDOW = 56                  # world px rendered round the anchor, each way, before cropping
 PAD = 2                      # sheet px kept round each frame's union box
-LOOK = dict(outer=0.7 * RES, inner=0.32 * RES, inner_alpha=0.75, bloom=0.55 * RES, bloom_amount=0.75,
+LOOK = dict(outer=0.62 * RES, inner=0.28 * RES, inner_alpha=0.75, bloom=0.55 * RES, bloom_amount=0.75,
             depth_rel=0.0, depth_abs=0.35, big_jump=2.0, ao_blur=0.6 * SS)
 
 

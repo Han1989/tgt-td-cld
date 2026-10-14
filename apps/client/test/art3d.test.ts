@@ -150,11 +150,21 @@ describe('3D heroes: the match sheet', () => {
           expect(s.y).toBeLessThan(-8);
           expect(s.y).toBeGreaterThan(-20);
           expect(Math.abs(s.x)).toBeLessThan(8);
+          // On the figure as the rig draws it: the body, or the head over it (the shoulders sit under the hood).
           const c = m.frames[k][i]!;
-          const px = Math.round(m.body.feetX + s.x * m.res);
-          const py = Math.round(m.body.feetY + s.y * m.res);
+          const h = m.heads[k][i]!;
+          const inside = (w: number, hh: number, x: number, y: number) => x >= 0 && y >= 0 && x < w && y < hh;
           let near = 0;
-          for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) near = Math.max(near, alphaAt(png, c.x + px + dx, c.y + py + dy));
+          for (let dy = -3; dy <= 3; dy++) {
+            for (let dx = -3; dx <= 3; dx++) {
+              const bx = Math.round(m.body.feetX + s.x * m.res) + dx;
+              const by = Math.round(m.body.feetY + s.y * m.res) + dy;
+              const hx = Math.round(m.head.feetX + s.x * m.res) + dx;
+              const hy = Math.round(m.head.feetY + s.y * m.res) + dy;
+              if (inside(m.body.w, m.body.h, bx, by)) near = Math.max(near, alphaAt(png, c.x + bx, c.y + by));
+              if (inside(m.head.w, m.head.h, hx, hy)) near = Math.max(near, alphaAt(png, h.x + hx, h.y + hy));
+            }
+          }
           expect(near, `${k} ${i} shoulder`).toBe(255);
         }
       }
@@ -192,6 +202,9 @@ describe('3D heroes: the stage', () => {
       expect(webm.readUInt32BE(0)).toBe(0x1a45dfa3);
       expect(webm.includes(Buffer.from('V_VP9'))).toBe(true);
       for (const f of [s.files.poster, s.files.clearing]) expect(webpSize(readFileSync(join(STAGE, f.name)))).toEqual({ w: s.w, h: s.h });
+      // Muted: no sound track in either (no MP4 sound handler, no WebM audio codec).
+      expect(mp4.includes(Buffer.from('soun'))).toBe(false);
+      expect(webm.includes(Buffer.from('A_OPUS')) || webm.includes(Buffer.from('A_VORBIS'))).toBe(false);
     });
 
     it(`${kind}: a loop of about 8 s at 30 frames a second, the hero's box inside the frame, the feet on the ground`, () => {

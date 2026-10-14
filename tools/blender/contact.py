@@ -112,14 +112,16 @@ def main():
 
     # 2. Every match frame as baked (sheet px: 4 per world px).
     def whole(k, i):
-        # The body with its head over it, as the rig draws them (no bow).
-        b = cell(m['frames'][k][i], m['body'])
-        h = cell(m['heads'][k][i], m['head'])
-        canvas = np.ones(b.shape[:2] + (3,), np.float32) * BG
-        pm, a = straight(b)
-        canvas = pm + canvas * (1 - a)
-        hp, ha = straight(h)
-        over(canvas, hp, ha, m['body']['feetX'] - m['head']['feetX'], m['body']['feetY'] - m['head']['feetY'])
+        # The body with its head over it, as the rig draws them (no bow), on a canvas that holds both.
+        B, Hd = m['body'], m['head']
+        up = max(B['feetY'], Hd['feetY'])
+        down = max(B['h'] - B['feetY'], Hd['h'] - Hd['feetY'])
+        left = max(B['feetX'], Hd['feetX'])
+        right = max(B['w'] - B['feetX'], Hd['w'] - Hd['feetX'])
+        canvas = np.ones((up + down, left + right, 3), np.float32) * BG
+        for c, size in ((cell(m['frames'][k][i], B), B), (cell(m['heads'][k][i], Hd), Hd)):
+            pm, a = straight(c)
+            over(canvas, pm, a, left - size['feetX'], up - size['feetY'])
         return canvas
 
     body = [whole(k, i) for k in ('idle', 'walk', 'cast') for i in range(len(m['frames'][k]))]
