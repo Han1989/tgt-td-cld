@@ -525,11 +525,22 @@ describe('service worker', () => {
     expect(isMediaPath('/music/lobby.mp3')).toBe(true);
     expect(isMediaPath('/sfx/tap.mp3')).toBe(true);
     expect(isMediaPath('/assets/index.js')).toBe(false);
-    const w = worker(['/index.html', '/assets/a.js', '/music/README.md', '/music/lobby.mp3', '/sfx/tap.mp3']);
+    // The lobby stage's videos (docs/ART.md §15) too; their posters and the empty clearing are part of the shell.
+    expect(isMediaPath('/stage/ranger.mp4')).toBe(true);
+    expect(isMediaPath('/stage/ranger.webm')).toBe(true);
+    expect(isMediaPath('/stage/ranger-poster.webp')).toBe(false);
+    const w = worker(['/index.html', '/assets/a.js', '/music/README.md', '/music/lobby.mp3', '/sfx/tap.mp3', '/stage/ranger.mp4',
+      '/stage/ranger.webm', '/stage/ranger-poster.webp', '/stage/clearing.webp']);
     let installed: Promise<unknown> | undefined;
     w.listeners.install!({ waitUntil: (p: Promise<unknown>) => (installed = p) });
     await installed;
-    expect([...w.stores.get('tdt-v1')!.keys()]).toEqual(['/index.html', '/assets/a.js']);
+    expect([...w.stores.get('tdt-v1')!.keys()]).toEqual(['/index.html', '/assets/a.js', '/stage/ranger-poster.webp', '/stage/clearing.webp']);
+    // A stage video is cached the first time the stage plays it.
+    expect(await w.get('/stage/ranger.mp4?v=c1')).toBe('net:https://td.test/stage/ranger.mp4?v=c1');
+    expect(await w.get('/stage/ranger.mp4?v=c1')).toBe('net:https://td.test/stage/ranger.mp4?v=c1');
+    expect(w.net).toEqual(['https://td.test/stage/ranger.mp4?v=c1']);
+    w.net.length = 0;
+    w.stores.delete(MEDIA_CACHE);
     expect(w.stores.has(MEDIA_CACHE)).toBe(false);
     // First play: from the network, then kept.
     expect(await w.get('/music/lobby.mp3?v=aa')).toBe('net:https://td.test/music/lobby.mp3?v=aa');

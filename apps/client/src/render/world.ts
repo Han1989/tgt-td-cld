@@ -72,6 +72,7 @@ import {
   type HeroRig,
 } from './art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
+import { heroRig3d } from './art3d';
 import { RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
@@ -1571,7 +1572,8 @@ export class WorldRenderer {
 
   private makeHero(h: HeroSnap, me: PlayerId | null, look: string): HeroSprite {
     const r = TUNING.hero[h.kind].radius * S;
-    const rig = heroArt(h.kind)?.rig(this.art, h.owner === me) ?? null;
+    // A hero made in 3D plays its pre-rendered frames once they have loaded (docs/ART.md §15); else its 2D rig.
+    const rig = heroRig3d(h.kind, this.art, h.owner === me) ?? heroArt(h.kind)?.rig(this.art, h.owner === me) ?? null;
     let body: Container;
     if (rig) body = rig.body;
     else {

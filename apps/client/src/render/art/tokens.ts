@@ -31,6 +31,11 @@ export const RL = {
   pine: 0x1f4a3e,
   mushroom: 0xd8c6ae,
 
+  // The lobby's clearing, rendered ahead of time (docs/ART.md §15): the night sky, its haze at the tree line, mist
+  sky: 0x070c12,
+  skyLow: 0x183531,
+  mist: 0x5f8c84,
+
   // Build pads: cool carved stone, lighter than the moss so they read as "build here"
   padStone: 0x6b7189,
   padStoneDark: 0x3c4052,

@@ -1,0 +1,4 @@
+# The 3D art pipeline's Python (docs/ART.md §15). Python 3.11 (bpy 4.5 is built for it):
+#   python3.11 -m venv .venv-blender && .venv-blender/bin/pip install -r tools/blender/requirements.txt
+bpy==4.5.14
+scipy==1.17.1

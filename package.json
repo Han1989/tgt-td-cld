@@ -22,7 +22,8 @@
     "replay": "tsx packages/sim/scripts/replay.ts",
     "balance:matrix": "tsx packages/sim/scripts/matrix.ts",
     "balance:matrix:targets": "tsx packages/sim/scripts/matrixTargets.ts",
-    "counterfactual": "tsx packages/sim/scripts/counterfactual.ts"
+    "counterfactual": "tsx packages/sim/scripts/counterfactual.ts",
+    "art:3d": "node tools/blender/art3d.mjs"
   },
   "engines": {
     "node": ">=22.12"

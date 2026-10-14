@@ -10,15 +10,18 @@
 //   Each one is cached the first time the game fetches it, in a cache that outlives deploys
 //   (`tdt-media`); the URL carries the file's hash (`?v=`), so a new upload is fetched fresh and
 //   replaces the old copy.
+// - The lobby stage's videos (`/stage/*.mp4`, `/stage/*.webm`, docs/ART.md §15) are media too: ~0.7 MB each, cached
+//   the first time the stage plays one, never on install. Their posters and the empty clearing are small pictures
+//   shown at once on the first screen, so they are part of the shell.
 // - The link-preview card (`/og-card.png`, docs/PRESS.md) is not precached either: only link
 //   crawlers fetch it, so a player would download it on every deploy for nothing.
 // - A page load gets index.html (the game), except another page of the shell (privacy.html), which
 //   gets itself.
 // - It only serves same-origin GET requests; the game server's WebSocket never goes through it.
 
-/** Files in the shell that are not precached: recorded sound files (cached on first play instead). */
+/** Files in the shell that are not precached: recorded sound files and stage videos (cached on first play instead). */
 export function isMediaPath(path: string): boolean {
-  return /^\/(music|sfx)\//.test(path);
+  return /^\/(music|sfx)\//.test(path) || /^\/stage\/[^/]+\.(mp4|webm)$/.test(path);
 }
 
 /** Public files for link previews only; players never load them. */
@@ -51,7 +54,7 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// A recorded sound file: from the media cache, else the network, kept for next time (older uploads
+// A recorded sound file or a stage video: from the media cache, else the network, kept for next time (older uploads
 // of the same file are dropped).
 function media(req, url) {
   return caches.open(MEDIA).then((cache) =>
@@ -78,7 +81,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   // Only this site's own files; never the game server.
   if (url.origin !== self.location.origin || url.pathname === '/sw.js') return;
-  if (/^\\/(music|sfx)\\//.test(url.pathname)) {
+  if (/^\\/(music|sfx)\\//.test(url.pathname) || /^\\/stage\\/[^/]+\\.(mp4|webm)$/.test(url.pathname)) {
     event.respondWith(media(req, url));
     return;
   }
