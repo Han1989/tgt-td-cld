@@ -20,9 +20,10 @@ import { SettingsPanel } from './hud/settingsPanel';
 import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
-import { clamp, computeLayout, followOffset, type Insets, type Layout } from './layout';
+import { computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
+import { entityScales } from './render/entityScale';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
@@ -38,9 +39,6 @@ import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
 import { createUiState } from './uiState';
 
-/** Entities are scaled up to stay readable on small tiles: 1× at 25+ px per tile, at most 1.6×. */
-const ENTITY_TILE_PX = 25;
-const MAX_ENTITY_SCALE = 1.6;
 /** Smoothing time (ms) of the vertical hero follow on shorter phones. */
 const FOLLOW_MS = 150;
 
@@ -345,7 +343,7 @@ export class GameView {
         camera.fit(layout.map, layout.tilePx / TILE_PX);
         camera.locked = layout.kind === 'tall';
       }
-      renderer.entityScale = clamp(ENTITY_TILE_PX / Math.max(1, layout.tilePx), 1, MAX_ENTITY_SCALE);
+      renderer.scales = entityScales(layout.tilePx);
       hud.setCompact(layout.kind === 'tall');
       touch.setStick(settings.get().stickFeel);
       touch.setLayout(layout);

@@ -31,6 +31,7 @@ import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
+import { UNIT_SCALES, type EntityScales } from './entityScale';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
@@ -77,8 +78,6 @@ import type { FxLevel } from './quality';
 const S = TILE_PX;
 const TOWER_SIZE = 2.4;
 const MARKER_LIFE_MS = 450;
-/** Towers are never drawn larger than this, so they stay inside their pad. */
-const MAX_TOWER_SCALE = 1.2;
 /** Off-screen margin (px) before an entity is culled. */
 const CULL_MARGIN = 48;
 /** A hit creep flashes (at most 60% towards white) for this long, and at most this often (so a creep under steady fire keeps its colour). */
@@ -338,10 +337,11 @@ export class WorldRenderer {
   private readonly art: ArtKit;
   private readonly ground: Ground;
   /**
-   * Creeps and heroes are drawn this much larger (towers up to MAX_TOWER_SCALE), so they stay
-   * readable when tiles are small on a phone. Set by the layout.
+   * Heroes, creeps and towers are drawn this much larger than their map size, so they stay readable when
+   * tiles are small on a phone (`entityScales`, docs/ART.md §6). Set by the layout. Only what is drawn follows:
+   * ranges, auras, areas, pads and the Heart stay at their true size.
    */
-  entityScale = 1;
+  scales: EntityScales = UNIT_SCALES;
   /** Called when one of my kills pays a bounty: where it happened on screen (px), for the flying coin. */
   onBounty: (screenX: number, screenY: number, bounty: number) => void = () => {};
   /** A tower fired (its projectile just appeared), for its shot sound. */
@@ -430,7 +430,7 @@ export class WorldRenderer {
     for (const s of this.heroes.values()) {
       if (!s.root.visible || s.vow.outer.alpha <= 0) continue;
       rings++;
-      reach = Math.min(reach, (s.vow.outer.scale.x * 28 - TUNING.hero[s.kind].radius * S) * this.entityScale * this.camera.zoom);
+      reach = Math.min(reach, (s.vow.outer.scale.x * 28 - TUNING.hero[s.kind].radius * S) * this.scales.hero * this.camera.zoom);
       alpha = Math.min(alpha, s.vow.outer.alpha);
     }
     return rings ? { rings, reach, alpha } : { rings: 0, reach: 0, alpha: 0 };
@@ -468,6 +468,12 @@ export class WorldRenderer {
   }
 
   /** Creeps as last drawn (interpolated positions, tile units), for touch snapping. */
+  /** A creep kind's drawn radius in tiles: what a tap on it must hit (it is drawn `scales.creep` larger, flyers a little more). */
+  drawnCreepRadius(kind: CreepKind): number {
+    const t = TUNING.creeps[kind];
+    return t.radius * this.scales.creep * flyerDrawScale(t.flying);
+  }
+
   drawnCreepList(): readonly CreepSnap[] {
     return this.drawnCreeps;
   }
@@ -493,7 +499,7 @@ export class WorldRenderer {
     this.world.scale.set(cam.zoom);
     this.world.position.set(cam.viewW / 2 - cam.x * cam.zoom + shake.x, cam.viewH / 2 - cam.y * cam.zoom + shake.y);
     this.fx.zoom = cam.zoom;
-    this.fx.bitScale = this.entityScale;
+    this.fx.bitScale = this.scales.creep;
 
     const { from, to, alpha } = view;
     const creeps = lerpEntities(from.creeps, to.creeps, alpha);
@@ -518,7 +524,7 @@ export class WorldRenderer {
     this.syncTraps(latest);
     this.syncZones(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
     this.syncRains(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
-    this.meteors.bitScale = this.entityScale;
+    this.meteors.bitScale = this.scales.creep;
     this.meteors.sync(from.zones, from.tick + (to.tick - from.tick) * alpha, from.tickRate, creeps, this.screenRect(), now, dt);
     this.lastDt = dt;
     this.updateHeart(now);
@@ -587,12 +593,14 @@ export class WorldRenderer {
     if (tick !== undefined) this.meteors.at(tick);
     // Damage numbers: everyone's in solo, only your hero's and towers' online.
     const crits = this.hits.feed(events, me, !latest || latest.players.length <= 1);
-    for (const c of crits) fx.number(c.x, c.y - 0.3, c.damage, FX.crit, true);
+    // Numbers start above the drawn creep: the offsets are tuned for creeps drawn ~1.6× and grow with their scale.
+    const lift = this.scales.creep / 1.6;
+    for (const c of crits) fx.number(c.x, c.y - 0.3 * lift, c.damage, FX.crit, true);
     for (const e of events) {
       switch (e.type) {
         case 'kill': {
           const shown = this.hits.take(e.creepId);
-          if (shown > 0) fx.number(e.x, e.y, shown, FX.number);
+          if (shown > 0) fx.number(e.x, e.y - 0.1 * lift, shown, FX.number);
           const t = TUNING.creeps[e.kind];
           fx.death(e.x, e.y, CREEP_COLORS[e.kind], t.radius, t.boss);
           this.startDeath(e.creepId, e.kind, e.x, e.y, now);
@@ -741,7 +749,7 @@ export class WorldRenderer {
           const hero = this.heroes.get(e.heroId);
           if (!hero) break;
           const color = HERO_COLORS[hero.kind].fill;
-          fx.death(hero.root.x / S, hero.root.y / S, color, TUNING.hero[hero.kind].radius, false);
+          fx.death(hero.root.x / S, hero.root.y / S, color, TUNING.hero[hero.kind].radius, false, this.scales.hero);
           if (now - hero.diedAt > DEATH.hero.ms) hero.diedAt = now;
           break;
         }
@@ -969,7 +977,7 @@ export class WorldRenderer {
       if (px < view.left || px > view.right || py < view.top || py > view.bottom) continue;
       this.fx.hit(h.x, h.y, s ? CREEP_COLORS[s.kind] : FX.spark);
     }
-    for (const n of numbers) this.fx.number(n.x, n.y - 0.2, n.damage, FX.number);
+    for (const n of numbers) this.fx.number(n.x, n.y - 0.2 * (this.scales.creep / 1.6), n.damage, FX.number);
   }
 
   // -------------------------------------------------------------------------
@@ -1190,7 +1198,7 @@ export class WorldRenderer {
       visible++;
       s.root.position.set(c.x * S, c.y * S);
       // Flyers are drawn larger than their radius so the wing badge reads on a phone. The bar scales with them.
-      s.root.scale.set(this.entityScale * flyerDrawScale(TUNING.creeps[c.kind].flying));
+      s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[c.kind].flying));
       const r = TUNING.creeps[c.kind].radius * S;
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
@@ -1274,7 +1282,7 @@ export class WorldRenderer {
       s = this.takeCreep(kind);
       s.art!.reset(live.art.facing);
       s.root.position.set(x * S, y * S);
-      s.root.scale.set(this.entityScale * flyerDrawScale(TUNING.creeps[kind].flying));
+      s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[kind].flying));
       (TUNING.creeps[kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
     }
     if (this.dying.length >= MAX_DYING) {
@@ -1397,8 +1405,7 @@ export class WorldRenderer {
         this.towers.set(t.id, s);
       }
       s.root.position.set(t.x * S, t.y * S);
-      const scale = Math.min(this.entityScale, MAX_TOWER_SCALE);
-      s.root.scale.set(scale);
+      s.root.scale.set(this.scales.tower);
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
       const statusKey = `${t.tier}${t.branch ?? ''}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
@@ -1503,7 +1510,7 @@ export class WorldRenderer {
       if (h.hp < s.lastHp - 0.5) s.art?.hit(now);
       s.lastHp = h.hp;
       s.root.position.set(h.x * S, h.y * S);
-      s.root.scale.set(this.entityScale);
+      s.root.scale.set(this.scales.hero);
       s.facing.rotation = h.facing;
       if (s.art) {
         // A melee hero winds up while an enemy it can hit is (almost) in reach.
@@ -1612,7 +1619,7 @@ export class WorldRenderer {
         this.launched(p, g, heroes);
       }
       // Same scale as creeps, so a bolt stays readable when tiles are small on a phone.
-      g.root.scale.set(this.entityScale);
+      g.root.scale.set(this.scales.creep);
       g.root.position.set(p.x * S, p.y * S);
       const dx = (p.x - g.lastX) * S;
       const dy = (p.y - g.lastY) * S;
@@ -1755,8 +1762,8 @@ export class WorldRenderer {
         this.traps.set(t.id, s);
       }
       if (s.idle && s.armed) {
-        s.idle.scale.set(this.entityScale);
-        s.armed.scale.set(this.entityScale);
+        s.idle.scale.set(this.scales.creep);
+        s.armed.scale.set(this.scales.creep);
       }
       if (s.state === t.armed) continue;
       if (s.state === false && t.armed) this.fx.sparkle(t.x, t.y, COLORS.root, 5, 0.3);
