@@ -194,8 +194,8 @@ class Clearing:
     def props(self):
         p = Part('Props')
         # Ferns: fans of arched fronds, each a flat tapering blade.
-        for i, (depth, lat, size) in enumerate(((10, -24, 1.0), (-14, 26, 1.1), (34, 30, 0.9), (26, -36, 1.2),
-                                                (-26, -12, 1.3), (60, 6, 1.0), (70, -60, 1.2), (52, 70, 1.1),
+        for i, (depth, lat, size) in enumerate(((10, -24, 1.0), (-16, 48, 1.1), (34, 30, 0.9), (26, -36, 1.2),
+                                                (-32, -42, 1.3), (60, 6, 1.0), (70, -60, 1.2), (52, 70, 1.1),
                                                 (-40, 48, 1.4), (-50, -45, 1.4))):
             c = self.at(depth, lat)
             for k in range(9):
@@ -220,7 +220,7 @@ class Clearing:
                 lean = V((math.cos(a), math.sin(a), 0)) * (0.8 + 0.9 * _hash(i, k + 48)) * size
                 h = (2.2 + 1.8 * _hash(i, k + 53)) * size
                 pts = [c + lean * 0.0, c + lean * 0.35 + Z * h * 0.55, c + lean + Z * h]
-                tube(p, pts, [(0.32 * size, 0.08), (0.22 * size, 0.07), (0.03, 0.03)], ['grass' if k % 2 else 'fern'],
+                tube(p, pts, [(0.46 * size, 0.1), (0.32 * size, 0.09), (0.04, 0.04)], ['grass' if k % 3 else 'fern'],
                      sides=4, n0=V((-math.sin(a), math.cos(a), 0)))
         # Rocks, half sunk, with moss on top.
         for i, (depth, lat, rr) in enumerate(((22, 42, 4.5), (-8, -40, 3.2), (85, -28, 6.0), (40, -70, 5.0))):

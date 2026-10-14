@@ -94,7 +94,6 @@ export class StageBackdrop {
       this.sync();
     });
     root.insertBefore(this.el, root.firstChild);
-    if (CLEARING) this.clearing.src = stageUrl(CLEARING, 'clearing');
     this.setPoster();
     this.still.addEventListener?.('change', () => this.sync());
     document.addEventListener('visibilitychange', () => this.sync());
@@ -170,8 +169,14 @@ export class StageBackdrop {
     return this.posterOk ? 'poster' : 'none';
   }
 
+  /** The empty clearing loads when a 2D hero needs it, or once the screen is up: never in the first screen's way. */
+  private loadClearing(): void {
+    if (CLEARING && !this.clearing.getAttribute('src')) this.clearing.src = stageUrl(CLEARING, 'clearing');
+  }
+
   private sync(): void {
     const shown = this.shown();
+    if (shown === 'clearing') this.loadClearing();
     this.root.dataset.backdrop = shown;
     this.el.dataset.shown = shown;
     this.clearing.classList.toggle('on', shown === 'clearing');
@@ -192,6 +197,7 @@ export class StageBackdrop {
       const go = () => {
         this.timer = 0;
         this.loadVideo();
+        this.loadClearing();
       };
       const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
       if (idle) idle(go, { timeout: 1500 });
@@ -236,6 +242,9 @@ export class StageBackdrop {
   /** The video can't play here: the poster stays. */
   private blocked(): void {
     this.videoReady = false;
-    this.root.dataset.backdrop = this.shown();
+    this.video?.classList.remove('on');
+    const shown = this.shown();
+    this.root.dataset.backdrop = shown;
+    this.el.dataset.shown = shown;
   }
 }

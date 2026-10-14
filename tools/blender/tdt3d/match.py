@@ -1,6 +1,6 @@
-# The match frames (docs/ART.md §15): a hero rendered ahead of time into one sheet at 4 px per world px, in two
-# layers as the 2D rig has them: the body in 3/4 view (no arms), and the arms with the weapon in profile, which the
-# rig turns at the shoulder towards the target. Every frame has its white twin (the hit flash). The layout (cells,
+# The match frames (docs/ART.md §15): a hero rendered ahead of time into one sheet at 4 px per world px, in three
+# layers: the body in 3/4 view (no arms), the arms with the weapon in profile, which the rig turns at the shoulder
+# towards the target, and the head over both, so the weapon never covers the face. Every frame has its white twin (the hit flash). The layout (cells,
 # feet, pivot, shoulder points, stride) goes into the hero's JSON next to the sheet.
 
 import os
@@ -67,23 +67,28 @@ def render_match(hero, out_dir, tmp, draft=False):
     side = WINDOW * 2 * px
     look = dict(npr.LOOK, **LOOK)
 
-    def show(layers):
+    def show(layers, holdout=()):
         for k, objs in parts.items():
             for o in objs:
-                o.hide_render = k not in layers
+                o.hide_render = k not in layers and k not in holdout
+                o.is_holdout = k in holdout
 
-    # Body frames: feet at the window's centre.
-    show(hero.BODY_LAYERS)
+    # Body frames, feet at the window's centre, in two layers: the body with the head held out, and the head with
+    # the body held out. Together they are exactly the whole figure (shadows and occlusion included); in a match the
+    # head goes over the bow layer, so the bow never covers the face.
     cam = scene.ortho_camera('MatchBody', BODY_VIEW[0], BODY_VIEW[1], side, side, px, (0, 0, 0), (side / 2, side / 2))
     _lights(cam)
-    body, shoulders = [], []
+    body, heads, shoulders = [], [], []
     for kind, n, pose in hero.body_frames():
         for i in range(n):
             pose(P, i)
             r.update()
             sx, sy, _ = cam.px(r.head(hero.SHOULDER_BONE))
             shoulders.append(((sx - side / 2) / px, (sy - side / 2) / px))
+            show(hero.BODY_LAYERS, holdout=hero.HEAD_LAYERS)
             body.append((kind, _shoot(cam, tmp, look)))
+            show(hero.HEAD_LAYERS, holdout=hero.BODY_LAYERS)
+            heads.append((kind, _shoot(cam, tmp, look)))
             print(f'match body {kind} {i + 1}/{n}', flush=True)
 
     # Bow frames: the shoulder (the rig's pivot) at the window's centre.
@@ -103,8 +108,10 @@ def render_match(hero, out_dir, tmp, draft=False):
     # Crop every layer to one box, so frames swap without moving; pack them and their white twins.
     half = side // SS // 2  # the anchor, in sheet px of the uncropped frame
     bx0, by0, bx1, by1 = _union([im for _, im in body])
+    hx0, hy0, hx1, hy1 = _union([im for _, im in heads])
     wx0, wy0, wx1, wy1 = _union([im for _, im in bow])
-    crops = [im[by0:by1, bx0:bx1] for _, im in body] + [im[wy0:wy1, wx0:wx1] for _, im in bow]
+    crops = ([im[by0:by1, bx0:bx1] for _, im in body] + [im[hy0:hy1, hx0:hx1] for _, im in heads]
+             + [im[wy0:wy1, wx0:wx1] for _, im in bow])
     sizes = [(c.shape[1], c.shape[0]) for c in crops]
     places, sw, sh = _pack(sizes + sizes)
     sheet = np.zeros((sh, sw, 4), np.uint8)
@@ -124,14 +131,17 @@ def render_match(hero, out_dir, tmp, draft=False):
         return [cells[offset + k] for k, (kk, _) in enumerate(layer) if kk == kind]
 
     nb = len(body)
+    nh = len(heads)
     body_kinds = [k for k, _, _ in hero.body_frames()]
     bow_kinds = [k for k, _, _ in hero.bow_frames()]
     layout = {
         'file': name, 'res': RES, 'w': int(sw), 'h': int(sh),
         'body': {'w': int(bx1 - bx0), 'h': int(by1 - by0), 'feetX': int(half - bx0), 'feetY': int(half - by0)},
+        'head': {'w': int(hx1 - hx0), 'h': int(hy1 - hy0), 'feetX': int(half - hx0), 'feetY': int(half - hy0)},
         'bow': {'w': int(wx1 - wx0), 'h': int(wy1 - wy0), 'pivotX': int(half - wx0), 'pivotY': int(half - wy0)},
         'frames': {k: group(k, body, 0) for k in body_kinds},
-        'bowFrames': {k: group(k, bow, nb) for k in bow_kinds},
+        'heads': {k: group(k, heads, nb) for k in body_kinds},
+        'bowFrames': {k: group(k, bow, nb + nh) for k in bow_kinds},
         'shoulders': {k: [{'x': round(sx, 3), 'y': round(sy, 3)} for (kk, _), (sx, sy) in zip(body, shoulders) if kk == k]
                       for k in body_kinds},
         'walkStride': hero.WALK_STRIDE,

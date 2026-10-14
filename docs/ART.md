@@ -307,6 +307,12 @@ apps/client/src/render/art/
                    matriarch, shardback, arrowTower, cannonTower, frostTower, arcaneTower, flakTower, heart, portal, pad,
                    tree, rock, mushrooms, runestone; projectiles: arrowShot, cannonShot, frostShot, arcaneShot, flakShot,
                    rangerArrow, critArrow, multishotArrow, arcanistBolt, fireball, archerArrow; traps: snareTrap)
+apps/client/src/render/art3d/ 3D heroes rendered ahead of time (§15): <hero>.json (layouts), <hero>-match.png (sheet),
+                              layout.ts (types, cycleFrame / drawStep / walkCadence / fitStage), sheet.ts (loading),
+                              rangerRig.ts (Ranger3DRig), index.ts (heroRig3d)
+apps/client/src/lobby/stageBackdrop.ts  The stage's rendered clearing, poster and video (§12, §15)
+apps/client/public/stage/     The stage files (§15): <hero>.mp4 / .webm, <hero>-poster.webp, clearing.webp
+tools/blender/                The 3D pipeline (§15)
 apps/client/src/showcase.ts   ?showcase dev page (entities, variants, UI icons, sounds)
 apps/client/src/lobby/heroStage.ts  The home card's hero stage (§12): the picked hero drawn large with Canvas 2D
 apps/client/src/ogCard.ts     ?ogcard: the link-preview card's frame (§14); scripts/ogImage.ts writes public/og-card.png
@@ -368,4 +374,83 @@ Two first impressions sit outside the match and follow the same rules.
 
 ## 15. 3D heroes, rendered ahead of time
 
-__SECTION15__
+**Han, 14 Oct 2026.** Heroes, then creeps and towers, are **3D models made by Blender scripts in the repo and rendered ahead of time** into pictures and videos. **Nothing 3D runs on the player's device**: no three.js, no glTF, no second WebGL context, no model file loaded by the client (`test/art3d.test.ts` checks the source and the shipped files). Three throwaway trials led here: the Ranger built from three.js primitives looked toy-like; the Ranger made in Blender and shown live with three.js looked clearly better, but live 3D crashed Chrome's graphics on a Pixel 10 Pro now and then and took the whole game's graphics with it; the same Blender Ranger rendered ahead of time never crashed. V-05a built the pipeline and the Ranger; V-05b does the Warden and the Arcanist, V-05c the creeps and bosses, V-05d the towers, the Heart and the portals.
+
+### The pipeline
+
+```
+tools/blender/
+  build.py         the entry: build a hero from nothing, render its outputs, write its layout (npm run art:3d)
+  art3d.mjs        npm run art:3d: finds a Python with bpy and scipy, checks ffmpeg, runs build.py
+  requirements.txt bpy 4.5.14 and scipy, for Python 3.11
+  ranger.py        the Ranger: materials, skeleton, meshes, poses, the stage loop, the match frames
+  contact.py       the contact sheet: every pose, from the shipped files, to judge against the quality bar
+  tdt3d/
+    palette.py     the Runelight tokens, read from render/art/tokens.ts (a colour is never copied by hand)
+    geom.py        quad cages smoothed by a subdivision surface: lofts, tubes, lathes, blobs; creases; stitching
+    rig.py         skeletons, IK, skin weights, posing in figure space, springs for secondary motion
+    shading.py     materials: a white diffuse body for the moon's light plus AOVs (albedo, glow, AO, rim, fill,
+                   sheen, height, id)
+    scene.py       Cycles on the CPU, the moon (a sun lamp in its own light group), cameras placed to the pixel,
+                   rendering a frame into numpy passes
+    npr.py         the painterly look in numpy: cel bands, AO, rim, sheen, glow and bloom, ink outlines
+    bake.py        a posed loop written into f-curves (motion blur needs them)
+    tracks.py      keyed curves for the stage loop, eased, periodic
+    clearing.py    the lobby's moonlit clearing (shared by every hero)
+    stage.py       the stage loop: a plate of the clearing once, the hero over it frame by frame, fog and motes
+    match.py       the match sheet: body, head and bow layers with white twins, and their layout
+    encode.py      ffmpeg: the MP4, the WebM, the WebP poster and stills, each searched to its size budget
+    imageio.py     PNG writing (deterministic) and reading
+```
+
+**Run it.** `npm run art:3d -- ranger` builds the Ranger and writes everything; `-- ranger match` or `-- ranger stage` one part; `--draft` renders the stage at half size with fewer samples and no motion blur (minutes instead of an hour); `--frames 0,165 --out DIR` writes single stage frames to look at. It needs **Python 3.11 with `tools/blender/requirements.txt`** (`python3.11 -m venv .venv-blender && .venv-blender/bin/pip install -r tools/blender/requirements.txt`, or `TDT_BLENDER_PYTHON` pointing at one) and **ffmpeg with libx264, libvpx-vp9 and libwebp** on the PATH. On a headless Linux box Blender's module also wants `libegl1` (it loads it at start-up, even for Cycles). Then `python tools/blender/contact.py ranger` writes the contact sheet (`docs/screenshots/3d-heroes/`). **CI never runs Blender**: the outputs are committed, and `test/art3d.test.ts` checks the layout data against the images.
+
+**Why Cycles and numpy.** Eevee needs a GPU context; on a headless container it falls back to software GL at ~50 s for a thumbnail. Cycles on the CPU renders the passes in seconds. Every surface is a white diffuse body, so the moon's light-group pass is exactly the light that reaches it (Lambert and cast shadows, 0..1); what it is made of goes out as AOVs; `npr.py` paints the frame from those, in display values, as the 2D painter mixes them. That gives the look exact control and outlines exact pixel widths at any output size.
+
+**Determinism.** The scripts use no randomness (scattered scenery uses a hash; noise textures are fixed), Cycles uses a fixed seed, PNGs are written byte for byte the same. ffmpeg's encoders are run with bit-exact flags; a re-render gives the same pixels on the same machine and Blender version, but the x264 and libvpx encoders are threaded, so a re-encoded video may differ in a few bytes (and its hash, so the service worker fetches it again).
+
+### The quality bar
+
+Aim at the stylised 3D heroes of the best store games of this kind: chunky, readable, lit like a painting. Original designs only, in Runelight's palette and moonlit mood.
+
+| Bar | How the Ranger meets it |
+|---|---|
+| Smooth, bevelled forms, no facets or raw primitives | Every part is a quad cage under a subdivision surface (level 2 on the stage and in the match sheet); creases keep soles, belt and strap edges tight |
+| Cloth with folds, leather with seams and stitching, metal with a bright edge | Tunic and cloak folds that deepen towards a leaf-cut hem, a faint weave in the greens; stitched belt, bracers, boots, quiver, pouch and strap (raised `bone` thread); gold buckle, quiver bands, bow tips and arrowhead catch the moon's sheen |
+| A silhouette you can name at 50 px tall | The big hood with its long tip, the bow and the quiver's fletchings (the contact sheet's last row is 50 px tall) |
+| Stylised proportions, arms long enough for a real draw to the cheek | About 26.5 world px tall, the hood nearly half of it; arms 10 px shoulder to fingertip, so on the stage the bow arm reaches out straight while the draw hand comes back to the jaw |
+| Light | Moonlight from the upper left in soft cel bands (a cool shadow tone, a lit tone, a narrow highlight band), AO in the creases, a soft sky fill, a rune-teal rim on the right, a moonbeam pool on the clearing; eyes, the arrowhead, the bow's runes and the motes glow with a soft bloom; a clean ink outline (2.6 px on the 1920 px stage, 0.7 world px in the match), thinner inside |
+| Face | The hood's opening and both eyes show in every frame: on the stage the draw comes to the jaw under the eyes with the bow canted away from the face; in a match the head is its own layer, drawn over the bow layer |
+| Motion | Anticipation (a dip before the reach, the draw creeping in while held), action, follow-through (the loose snaps the string, the bow rolls forward in the open hand, the draw hand flies back past the ear); the cloak, the hood's tip, the pouch and the strap's loose end swing on springs; the jog has no foot sliding (a planted foot moves back exactly as fast as the body goes forward); every loop is seamless (periodic curves, springs run over the loop until they repeat) |
+
+### The stage loop (the first screen and the solo pick)
+
+The whole stage is rendered in Blender: the moonlit clearing (a night sky with the moon's halo and a few stars, a near line of oaks and pines and a far one fading into mist, lit moss with ferns, grass, rocks and glowing mushrooms, drifting motes) with the hero in it, **__STAGE_SECONDS__ s at 30 frames a second**, seamless: idle with breathing and a weight shift, then the reach to the quiver, an arrow drawn and nocked as the bow comes up with a step, the draw to the jaw, a held breath, the loose (the arrow flies off to the right), the follow-through, the bow lowered and the weight settling back. A little motion blur (shutter 0.42).
+
+- **One wide frame for every stage size**, 1920 × 720, the hero ~330 px tall with his feet on the line at y = 588: wide and tall enough that the fit that puts the hero between the title and the ground also covers the stage from the 328 × 190 home card of a small phone to the 498 × 150 solo pick on a desktop (`fitStage`, tested at ten sizes). The client never crops the hero.
+- **Rendered as a plate plus a layer.** The clearing doesn't move, so it renders once (64 samples). Each frame renders only the hero, in the part of the frame he and his moon shadow can reach: the ground catches his shadow, the props in front are holdouts (a fern still hides a boot), the trees and sky are off. The drifting mist is painted over the plate per frame and the motes are drawn where the camera sees them, behind the hero by depth. ~18 s a frame on 4 cores; the loop takes about an hour.
+- **Outputs** (`apps/client/public/stage/`): `ranger.mp4` (H.264, yuv420p, faststart, muted; every iPhone), `ranger.webm` (VP9, for browsers without H.264: open-source Chromium builds and the browser tests), `ranger-poster.webp` (the loop's first frame) and `clearing.webp` (the empty clearing at the same moment, for the 2D heroes). Each is searched to the best quality under its budget: **700 KB a video, 60 KB a poster or still**. Their sizes and a hash of their bytes go into `src/render/art3d/ranger.json`; the client asks for `?v=<hash>`.
+- **In the lobby** (`lobby/stageBackdrop.ts`, §12): the poster shows at once; the video loads after the first screen is up (600 ms and an idle moment later), as a whole file (a blob: one plain request the service worker keeps, no range requests), and fades in over the poster once it plays. Under reduced motion or data saver it never loads; when autoplay is blocked (iPhone Low Power Mode) or it fails, the poster stays. Only the live stage's video plays; it pauses when its stage stops, is hidden or scrolled away, or the page is hidden. The service worker caches the videos on first play and never precaches them; the posters are in the shell.
+
+### The match frames
+
+One sheet per hero at **4 px per world px** (`src/render/art3d/<hero>-match.png`, PNG, RGBA), rendered at 8 and averaged down, with its layout in `<hero>.json`. Three layers:
+
+| Layer | View | Frames | Anchor |
+|---|---|---|---|
+| Body (no arms; the head held out) | 3/4 from the front right, 20° down (as the 2D art) | idle 8 (one breath, 3.14 s, the 2D rigs' breath), jog 12 (one stride), the cast pose 1 | the feet |
+| Head (the hood and eyes; the body held out) | the same | one per body frame | the feet |
+| Bow (both arms, the bow, the arrow) | profile, the bow broadside, aimed along +x | the string drawn in 8 steps (0 to full), loosed 1 | the bow shoulder |
+
+The body and head renders use holdouts, so together they are exactly the whole figure, shadows and occlusion included. Every frame has its **white twin** (the hit flash: the same alpha, white), every layer is cropped to one box so frames swap without moving, and the layout gives each body frame the point where the bow layer hangs (its shoulder). **`Ranger3DRig`** (`src/render/art3d/rangerRig.ts`, on `HeroRigBase`) draws body, bow layer, head; it keeps the 2D Ranger's timing exactly (the draw over the attack cooldown, the 110 ms release, the cast aims and loose point, the facing flip), shows the cast frame for the sky casts (Q, R), and steps its jog at the cadence that makes the planted foot hold the ground (`walkCadence`: the hero's speed over how much larger it is drawn, over the 16 world px stride; ~4 strides a second on a phone, capped at 5 where heroes are drawn at map size). The base gives the ring, shadow, flinch, hit and death flash and the death fall. The sheet loads one second after the first screen (`loadHeroSheets`, `main.ts`); a hero created before that, or if the sheet fails, gets its 2D rig, which also stays in `?showcase`. The hero's size on the map is unchanged (V-04's scales).
+
+### Sizes (V-05a, __DATE__)
+
+__SIZES__
+
+### Adding a 3D hero (V-05b)
+
+1. Write `tools/blender/<hero>.py` beside `ranger.py`: materials from tokens (`shading.define`), skeleton, meshes, a `Poser`, the stage loop (`stage_pose`, `stage_springs`, `STAGE_*`), `body_frames()` / `bow_frames()` (or the hero's weapon layer), `HEIGHT`, `STAGE_HEIGHT`, `STAGE_MID`, the layer sets.
+2. `npm run art:3d -- <hero> --draft`, look, iterate; then the full render and `python tools/blender/contact.py <hero>`; judge the contact sheet against the quality bar.
+3. Client: the hero's layout and sheet in `HERO_3D` and `SHEETS`, its rig in `heroRig3d`, `test/art3d.test.ts` (it reads `HERO_3D`), the lobby browser tests.
+

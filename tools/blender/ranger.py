@@ -24,8 +24,10 @@ NAME = 'ranger'
 
 def materials():
     d = shading.define
-    d('leaf', 'leaf')
-    d('leafDark', 'leafDark')
+    # Cloth has a faint weave: the token mottled a little towards its darker twin.
+    weave = shading.noise_albedo('leafDark', scale=1.6, lo=0.35, hi=0.75, detail=3.0, amount=0.16)
+    d('leaf', 'leaf', albedo=weave)
+    d('leafDark', 'leafDark', albedo=shading.noise_albedo('hoodShadow', scale=1.6, lo=0.35, hi=0.75, detail=3.0, amount=0.14))
     d('lining', 'leafDark', shade=0.7, rim=0.0)
     d('seam', 'leafDark', line=False, ao=0.4)
     d('hood', 'hoodShadow', shade=0.35, rim=0.0, ao=0.6)
@@ -773,15 +775,15 @@ def build():
     """Builds the Ranger: materials, skeleton, every mesh. Returns (rig, parts by layer)."""
     materials()
     r = build_skeleton()
-    parts = {'body': [], 'arms': [], 'bow': [], 'arrow': []}
+    parts = {'body': [], 'head': [], 'arms': [], 'bow': [], 'arrow': []}
     parts['body'].append(build_tunic(r))
     parts['body'].extend(build_belt(r))
     parts['body'].append(build_mantle(r))
     parts['body'].append(build_cloak(r))
     parts['body'].append(build_legs(r))
     parts['body'].append(build_boots(r))
-    parts['body'].append(build_hood(r))
-    parts['body'].append(build_eyes(r))
+    parts['head'].append(build_hood(r))
+    parts['head'].append(build_eyes(r))
     parts['body'].extend(build_quiver(r))
     parts['body'].extend(build_strap(r))
     for s in ('L', 'R'):
@@ -987,6 +989,9 @@ WALK_STRIDE = 2 * STRIDE_A / STANCE  # world px the body goes over one cycle
 IDLE_PERIOD_S = math.pi  # as the 2D rigs' breath (rigs.ts: sin(now / 500))
 BOW_CHEST_YAW = -1.05    # the bow layer's torso turn (radians): side-on enough for a real draw
 PROFILE_AIM = V((1, 0, 0))
+# The bow layer's draw comes to the chin, just under the hood: the head is drawn over the bow layer in a match (the
+# eyes always show), so a hand at the cheek would vanish behind it.
+PROFILE_ANCHOR = V((2.7, -1.75, 14.4))
 
 
 def idle_pose(P, t, springs=None):
@@ -1114,11 +1119,11 @@ def profile_bow_frame():
         best = 0.0
         for k in range(1, 400):
             t = k * 0.05
-            handle = ANCHOR + PROFILE_AIM * t
+            handle = PROFILE_ANCHOR + PROFILE_AIM * t
             wrist = handle + L_WRIST
             if (wrist - shoulder).length <= reach:
                 best = t
-        handle = ANCHOR + PROFILE_AIM * best
+        handle = PROFILE_ANCHOR + PROFILE_AIM * best
         _PROFILE = (bow_frame(handle, PROFILE_AIM, cant=0.0), best - BRACE)
     return _PROFILE
 
@@ -1343,6 +1348,7 @@ STAGE_MID = (2.0, 2.5)  # the middle of the figure on the stage (between the clo
 ARROW_INDEX = 23
 SHOULDER_BONE = 'upperarm.L'
 BODY_LAYERS = {'body'}
+HEAD_LAYERS = {'head'}  # drawn over the bow layer in a match, so the bow never covers the face
 BOW_LAYERS = {'arms', 'bow', 'arrow'}
 
 

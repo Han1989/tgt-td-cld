@@ -46,7 +46,7 @@ def rotate_about(pm, a, px, py, angle, out_w, out_h, ox, oy):
     (ox, oy) of an out_w × out_h canvas."""
     c, s = np.cos(angle), np.sin(angle)
     # Output (u, v) → input: rotate back by -angle round the pivot.
-    m = np.array([[c, s], [-s, c]])
+    m = np.array([[c, -s], [s, c]])
     offset = np.array([py, px]) - m @ np.array([oy, ox])
     res = []
     for ch in range(pm.shape[2]):
@@ -103,7 +103,7 @@ def main():
     for k, t in enumerate(times):
         png = os.path.join(tmp, f'{k}.png')
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-c:v', 'libvpx-vp9', '-i', video, '-vf',
-                        f"select='eq(n\\,{int(round(t * st['fps']))})',crop={x1 - x0}:{y1 - y0}:{x0}:{y0}",
+                        f"select='eq(n\\,{int(round(t * st['fps']))})',scale={st['w']}:{st['h']},crop={x1 - x0}:{y1 - y0}:{x0}:{y0}",
                         '-frames:v', '1', png], check=True)
         frames.append(imageio.read_png(png).astype(np.float32) / 255)
     half = (len(frames) + 1) // 2
@@ -111,7 +111,18 @@ def main():
     row(frames[half:])
 
     # 2. Every match frame as baked (sheet px: 4 per world px).
-    body = [on_bg(cell(c, m['body'])) for k in ('idle', 'walk', 'cast') for c in m['frames'][k]]
+    def whole(k, i):
+        # The body with its head over it, as the rig draws them (no bow).
+        b = cell(m['frames'][k][i], m['body'])
+        h = cell(m['heads'][k][i], m['head'])
+        canvas = np.ones(b.shape[:2] + (3,), np.float32) * BG
+        pm, a = straight(b)
+        canvas = pm + canvas * (1 - a)
+        hp, ha = straight(h)
+        over(canvas, hp, ha, m['body']['feetX'] - m['head']['feetX'], m['body']['feetY'] - m['head']['feetY'])
+        return canvas
+
+    body = [whole(k, i) for k in ('idle', 'walk', 'cast') for i in range(len(m['frames'][k]))]
     row(body[:11])
     row(body[11:])
     row([on_bg(cell(c, m['bow'])) for k in ('draw', 'loose') for c in m['bowFrames'][k]])
@@ -130,6 +141,8 @@ def main():
         ox, oy = fx + sh['x'] * res, fy + sh['y'] * res
         rp, ra = rotate_about(pm2, a2, m['bow']['pivotX'], m['bow']['pivotY'], aim, W, H, ox, oy)
         canvas = rp + canvas * (1 - ra)
+        hp, ha = straight(cell(m['heads'][kind][i], m['head']))
+        over(canvas, hp, ha, fx - m['head']['feetX'], fy - m['head']['feetY'])
         ys, xs = np.nonzero(np.any(np.abs(canvas - BG) > 0.01, axis=2))
         return canvas[max(0, ys.min() - 6):ys.max() + 6, max(0, xs.min() - 6):xs.max() + 6]
 

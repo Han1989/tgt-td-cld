@@ -1,6 +1,7 @@
-// The Ranger in a match, from his 3D frames (docs/ART.md §15): two layers, as the 2D rig has them. The body (3/4
-// view, no arms) shows its idle, walk or cast frame; the bow layer (both arms and the bow, in profile) hangs at the
-// shoulder of that frame and turns towards the target, showing how far the string is drawn. Everything the 2D rig
+// The Ranger in a match, from his 3D frames (docs/ART.md §15): three layers. The body (3/4 view, no arms) shows its
+// idle, walk or cast frame; the bow layer (both arms and the bow, in profile) hangs at the shoulder of that frame and
+// turns towards the target, showing how far the string is drawn; the head of that frame goes over both, so the bow
+// never covers the face. Everything the 2D rig
 // times is timed the same (entities/ranger.ts): the draw over the cooldown, the release, the cast aims and loose,
 // the facing flip; HeroRigBase gives the ring, shadow, flinch, hit flash and death fall.
 
@@ -28,10 +29,13 @@ export class Ranger3DRig extends HeroRigBase {
   private readonly bodyFlash: Sprite;
   private readonly bowSprite: Sprite;
   private readonly bowFlash: Sprite;
+  private readonly headSprite: Sprite;
+  private readonly headFlash: Sprite;
   private readonly bowArm = new Container();
   private readonly cooldownMs = TUNING.hero.ranger.attackCooldown * 1000;
   private walkPhase = 0;
   private shown: Frame | null = null;
+  private headShown: Frame | null = null;
   private bowShown: Frame | null = null;
 
   constructor(
@@ -53,14 +57,19 @@ export class Ranger3DRig extends HeroRigBase {
     const by = L.body.feetY / L.body.h;
     this.bodySprite = sprite(first, bx, by, false);
     this.bodyFlash = this.addFlash(sprite(first, bx, by, true));
-    for (const s of [this.bodySprite, this.bodyFlash]) s.position.set(0, FEET);
+    const hx = L.head.feetX / L.head.w;
+    const hy = L.head.feetY / L.head.h;
+    const head = frames.heads.idle[0]!;
+    this.headSprite = sprite(head, hx, hy, false);
+    this.headFlash = this.addFlash(sprite(head, hx, hy, true));
+    for (const s of [this.bodySprite, this.bodyFlash, this.headSprite, this.headFlash]) s.position.set(0, FEET);
     const bow = frames.draw[0]!;
     const px = L.bow.pivotX / L.bow.w;
     const py = L.bow.pivotY / L.bow.h;
     this.bowSprite = sprite(bow, px, py, false);
     this.bowFlash = this.addFlash(sprite(bow, px, py, true));
     this.bowArm.addChild(this.bowSprite, this.bowFlash);
-    this.flipper.addChild(this.bodySprite, this.bodyFlash, this.bowArm);
+    this.flipper.addChild(this.bodySprite, this.bodyFlash, this.bowArm, this.headSprite, this.headFlash);
   }
 
   protected pose(h: HeroPose, walking: boolean, now: number, dtMs: number): void {
@@ -94,24 +103,21 @@ export class Ranger3DRig extends HeroRigBase {
       twang = loose >= 0 && loose < 260 ? Math.sin(loose / 12) * (1 - loose / 260) * 1.2 : 0;
     }
 
-    let frame: Frame;
-    let shoulder: { x: number; y: number };
-    if (sky > 0.5) {
-      frame = f.cast[0]!;
-      shoulder = L.shoulders.cast[0]!;
-    } else if (walking) {
-      const i = cycleFrame(this.walkPhase, f.walk.length);
-      frame = f.walk[i]!;
-      shoulder = L.shoulders.walk[i]!;
-    } else {
-      const i = cycleFrame((now / L.idleMs) * Math.PI * 2, f.idle.length);
-      frame = f.idle[i]!;
-      shoulder = L.shoulders.idle[i]!;
-    }
+    const kind = sky > 0.5 ? 'cast' : walking ? 'walk' : 'idle';
+    const i =
+      kind === 'cast' ? 0 : kind === 'walk' ? cycleFrame(this.walkPhase, f.walk.length) : cycleFrame((now / L.idleMs) * Math.PI * 2, f.idle.length);
+    const frame = f[kind][i]!;
+    const head = f.heads[kind][i]!;
+    const shoulder = L.shoulders[kind][i]!;
     if (frame !== this.shown) {
       this.shown = frame;
       this.bodySprite.texture = frame.tex;
       this.bodyFlash.texture = frame.flash;
+    }
+    if (head !== this.headShown) {
+      this.headShown = head;
+      this.headSprite.texture = head.tex;
+      this.headFlash.texture = head.flash;
     }
     const bow = released ? f.loose[0]! : f.draw[drawStep(draw, f.draw.length)]!;
     if (bow !== this.bowShown) {

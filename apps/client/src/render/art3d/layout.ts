@@ -22,9 +22,13 @@ export interface MatchLayout {
   h: number;
   /** The body layer's cell size and where the feet are in it (sheet px). */
   body: { w: number; h: number; feetX: number; feetY: number };
+  /** The head layer's cell size and where the feet are in it (sheet px): drawn over the bow layer. */
+  head: { w: number; h: number; feetX: number; feetY: number };
   /** The bow layer's cell size and its pivot, the shoulder (sheet px). */
   bow: { w: number; h: number; pivotX: number; pivotY: number };
   frames: { idle: Cell[]; walk: Cell[]; cast: Cell[] };
+  /** The head of each body frame (the hood and the eyes), in its own layer. */
+  heads: { idle: Cell[]; walk: Cell[]; cast: Cell[] };
   bowFrames: { draw: Cell[]; loose: Cell[] };
   /** Where the bow layer hangs in each body frame: world px from the feet (x right, y down). */
   shoulders: { idle: { x: number; y: number }[]; walk: { x: number; y: number }[]; cast: { x: number; y: number }[] };

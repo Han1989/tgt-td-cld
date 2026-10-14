@@ -19,6 +19,8 @@ export interface HeroFrames {
   idle: Frame[];
   walk: Frame[];
   cast: Frame[];
+  /** The head of each body frame, drawn over the bow layer. */
+  heads: { idle: Frame[]; walk: Frame[]; cast: Frame[] };
   draw: Frame[];
   loose: Frame[];
 }
@@ -59,12 +61,14 @@ async function load(url: string, layout: MatchLayout): Promise<HeroFrames> {
     flash: new Texture({ source, frame: new Rectangle(c.fx, c.fy, w, h) }),
   });
   const body = (cs: Cell[]) => cs.map((c) => cell(c, layout.body.w, layout.body.h));
+  const head = (cs: Cell[]) => cs.map((c) => cell(c, layout.head.w, layout.head.h));
   const bow = (cs: Cell[]) => cs.map((c) => cell(c, layout.bow.w, layout.bow.h));
   return {
     layout,
     idle: body(layout.frames.idle),
     walk: body(layout.frames.walk),
     cast: body(layout.frames.cast),
+    heads: { idle: head(layout.heads.idle), walk: head(layout.heads.walk), cast: head(layout.heads.cast) },
     draw: bow(layout.bowFrames.draw),
     loose: bow(layout.bowFrames.loose),
   };

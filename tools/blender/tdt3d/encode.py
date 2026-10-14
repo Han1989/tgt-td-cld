@@ -37,7 +37,7 @@ def webm(frames_dir, fps, out, crf):
     """VP9 in WebM: for browsers without H.264 (open-source Chromium builds, the browser tests)."""
     _run(['-framerate', str(fps), '-i', os.path.join(frames_dir, '%04d.png'),
           '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', str(crf), '-pix_fmt', 'yuv420p', '-deadline', 'good',
-          '-cpu-used', '1', '-row-mt', '0', '-threads', '1', '-tile-columns', '0', '-g', '120', '-an',
+          '-cpu-used', '2', '-row-mt', '1', '-threads', '4', '-tile-columns', '2', '-g', '120', '-an',
           '-map_metadata', '-1', '-fflags', '+bitexact', '-flags:v', '+bitexact', out])
     return os.path.getsize(out)
 

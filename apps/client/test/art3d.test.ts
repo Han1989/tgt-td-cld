@@ -73,10 +73,15 @@ describe('3D heroes: the match sheet', () => {
       expect(m.shoulders.idle).toHaveLength(COUNTS.idle);
       expect(m.shoulders.walk).toHaveLength(COUNTS.walk);
       expect(m.shoulders.cast).toHaveLength(COUNTS.cast);
+      // Each body frame has its head (drawn over the bow layer, so the bow never covers the face).
+      expect(m.heads.idle).toHaveLength(COUNTS.idle);
+      expect(m.heads.walk).toHaveLength(COUNTS.walk);
+      expect(m.heads.cast).toHaveLength(COUNTS.cast);
     });
 
     const layers: [string, Cell[], { w: number; h: number }][] = [
       ['body', [...m.frames.idle, ...m.frames.walk, ...m.frames.cast], m.body],
+      ['head', [...m.heads.idle, ...m.heads.walk, ...m.heads.cast], m.head],
       ['bow', [...m.bowFrames.draw, ...m.bowFrames.loose], m.bow],
     ];
 
@@ -132,6 +137,8 @@ describe('3D heroes: the match sheet', () => {
       expect(m.body.feetX).toBeLessThan(m.body.w);
       expect(m.body.feetY).toBeGreaterThan(m.body.h * 0.7);
       expect(m.body.feetY).toBeLessThan(m.body.h);
+      // The head sits above the feet: its cell's feet point is below the cell.
+      expect(m.head.feetY).toBeGreaterThan(m.head.h);
       expect(m.bow.pivotX).toBeGreaterThan(0);
       expect(m.bow.pivotX).toBeLessThan(m.bow.w);
       expect(m.bow.pivotY).toBeGreaterThan(0);

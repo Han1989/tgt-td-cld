@@ -25,15 +25,15 @@ def smoothstep(e0, e1, x):
 LOOK = dict(
     band=0.17,            # where the terminator falls on the moon pass (0..1)
     band_soft=0.06,       # half-width of its soft edge
-    shadow=(0.50, 0.53, 0.70),  # the shadow tone: the albedo × this (cool, moonlit night)
-    lit=(1.04, 1.04, 1.06),     # the lit tone
+    shadow=(0.44, 0.47, 0.68),  # the shadow tone: the albedo × this (cool, moonlit night)
+    lit=(1.08, 1.08, 1.09),     # the lit tone
     form=0.16,            # a little continuous light inside the bands, so forms stay round
     hi=0.84, hi_soft=0.05, hi_amount=0.10,  # the narrow highlight band
     ao=0.62,              # how dark the creases get
     ao_blur=0.8,          # px (at render size) blur of the AO pass
     darken=0.24,          # bodies darken downwards by this much at the feet
     fill='moon', fill_amount=0.07,  # the sky's fill, strongest on what faces up
-    rim='rune', rim_at=0.26, rim_soft=0.08, rim_amount=0.62,  # the rim from behind on the right
+    rim='rune', rim_at=0.26, rim_soft=0.08, rim_amount=0.75,  # the rim from behind on the right
     sheen_at=0.55, sheen_soft=0.12, sheen_amount=0.55,  # metal's bright edge
     pool_tint='moon', pool_amount=0.0,  # the moonbeam into the stage's clearing (scene.pool)
     glow_core=1.0,        # emissive parts at full colour

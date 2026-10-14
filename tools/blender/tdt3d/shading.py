@@ -210,8 +210,9 @@ def material(name):
     return m
 
 
-def noise_albedo(token2, scale=0.3, lo=0.4, hi=0.6, detail=2.0, coords='Object'):
-    """An albedo that blends its token into `token2` by a noise texture (moss blotches, worn leather)."""
+def noise_albedo(token2, scale=0.3, lo=0.4, hi=0.6, detail=2.0, coords='Object', amount=1.0):
+    """An albedo that blends its token into `token2` by a noise texture (moss blotches, worn leather, the weave of
+    cloth): at most `amount` of the way."""
 
     def build(nt, links, base):
         tc = nt.nodes.new('ShaderNodeTexCoord')
@@ -222,6 +223,7 @@ def noise_albedo(token2, scale=0.3, lo=0.4, hi=0.6, detail=2.0, coords='Object')
         ramp = nt.nodes.new('ShaderNodeMapRange')
         ramp.inputs['From Min'].default_value = lo
         ramp.inputs['From Max'].default_value = hi
+        ramp.inputs['To Max'].default_value = amount
         links.new(nz.outputs['Fac'], ramp.inputs['Value'])
         return mix_rgba(nt, links, ramp.outputs['Result'], base, rgb(token2))
 
