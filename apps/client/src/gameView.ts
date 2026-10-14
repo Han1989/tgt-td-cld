@@ -382,8 +382,14 @@ export class GameView {
       renderer.setDisplay(settings.get().display);
       hud.particles = level.particles;
     };
-    settings.onChange(() => {
-      monitor.reset();
+    // Only a change of Graphics restarts the measuring: a lesson flag or a hint written at the start of a match must
+    // not, or Auto would render the first seconds of every match at full resolution on a device that is too slow for it.
+    let measuredQuality = settings.get().quality;
+    settings.onChange((s) => {
+      if (s.quality !== measuredQuality) {
+        measuredQuality = s.quality;
+        monitor.reset();
+      }
       applyQuality();
     });
     // Turning "reduce motion" on or off in the OS while a match runs changes the effects at once.
