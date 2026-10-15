@@ -124,6 +124,15 @@ export interface StageFit {
 }
 
 /**
+ * CSS px the rendered hero's top stays below the stage box's `top`. The stage lets a 2D figure's thin tip (a blade, a
+ * staff's gem) reach 8 px up behind the title's last line (heroStage.ts); a rendered hero's top is his hood, a solid
+ * shape that would sit on the letters, so it stays under the line wherever the video still covers the stage at that
+ * size (on the shortest stages, a short phone's home card and the solo picks 150 px tall, it can't, and the hood may
+ * reach up to the line, as a 2D figure may).
+ */
+export const STAGE_TITLE_CLEAR = 8;
+
+/**
  * Places the stage video so the hero stands on the stage's ground line, as large as fits between the title and the
  * ground and between the sides, the box his whole loop fills (the bow drawn, the arrow loosed) centred: the same rule
  * as the 2D figures (`fitStand`), applied to the video's figure box. Where the video is only just wide enough (the
@@ -137,7 +146,11 @@ export function fitStage(s: StageLayout, box: StageBox): StageFit {
   const up = s.groundY - fig.y0;
   const half = (fig.x1 - fig.x0) / 2;
   const mid = (fig.x0 + fig.x1) / 2;
-  const byHeight = (box.ground - box.top) / Math.max(1, up);
+  const room = (box.ground - box.top) / Math.max(1, up);
+  const clear = (box.ground - box.top - STAGE_TITLE_CLEAR) / Math.max(1, up);
+  // The least scale at which the video still covers the stage (sliding sideways as far as it may).
+  const cover = Math.max(box.w / s.w, box.ground / s.groundY, (box.h - box.ground) / Math.max(1, s.h - s.groundY));
+  const byHeight = clear >= cover ? clear : Math.min(room, cover);
   const byWidth = (box.w / 2 - box.side) / Math.max(1, half);
   const scale = Math.max(0.01, Math.min(byHeight, byWidth));
   const centred = box.w / 2 - mid * scale;

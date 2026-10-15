@@ -10,7 +10,16 @@ import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
 import { pickVideo } from '../src/lobby/stageBackdrop';
 import { isMediaPath, isStageVideo, swSource } from '../src/platform/swSource';
-import { cycleFrame, drawStep, fitStage, HERO_3D, walkCadence, type Cell, type StageLayout } from '../src/render/art3d/layout';
+import {
+  cycleFrame,
+  drawStep,
+  fitStage,
+  HERO_3D,
+  STAGE_TITLE_CLEAR,
+  walkCadence,
+  type Cell,
+  type StageLayout,
+} from '../src/render/art3d/layout';
 
 const CLIENT = join(__dirname, '..');
 const ART3D = join(CLIENT, 'src', 'render', 'art3d');
@@ -257,6 +266,8 @@ describe('3D heroes: the stage', () => {
         expect(left).toBeGreaterThanOrEqual(box.side - 0.5);
         expect(right).toBeLessThanOrEqual(w - box.side + 0.5);
         expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top - 0.5);
+        // The hood clear of the title's last line wherever there's room (all but the shortest stages, 190 px and less).
+        if (h > 190) expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top + STAGE_TITLE_CLEAR - 0.5);
         expect(fit.top + s.groundY * fit.scale).toBeCloseTo(box.ground, 3);
         // Not shrunk to a speck: the hero fills the room between the title and the ground, or the width.
         const tall = (s.groundY - f.y0) * fit.scale;

@@ -39,6 +39,7 @@ LENS = 50.0
 SHUTTER = 0.42        # motion blur, of a frame
 PLATE_SAMPLES = 20    # per render pixel (×SS² per output pixel)
 HERO_SAMPLES = 10
+HERO_SAMPLES_FAST = 18  # while the arrow and the draw hand move fast (fetched, nocked, loosed): blurred edges stay smooth
 GROUND_ID = 100
 SKY_IDS = 200         # 200 and over: the sky, the stars, the moon
 MARGIN_PX = 34        # output px kept round the hero's box: his line, the light wrap and his glows' bloom
@@ -46,9 +47,9 @@ MARGIN_PX = 34        # output px kept round the hero's box: his line, the light
 LOOK = dict(
     outer=2.4, inner=1.0, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
     line_ids=None, depth_rel=0.012, depth_abs=0.5, big_jump=4.0, pool_amount=0.52,
-    rim_amount=0.55, mrim_amount=1.3, mrim_at=0.2,
+    rim_amount=0.7, mrim_amount=1.3, mrim_at=0.2,
     # The hero's bright flat-colour tokens toned for the moonlit night, so he is lit by the scene's light, not a studio's.
-    tone_ids=(1, 99), tone_sat=0.72, tone_val=0.84,
+    tone_ids=(1, 99), tone_sat=0.72, tone_val=0.8,
 )
 BLOOM = dict(sigma=2.6, amount=0.85)  # output px
 HAZE = dict(near=0.07, depth=2600.0, far_from=360.0, far_depth=1100.0, far=0.78)
@@ -445,7 +446,8 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     look = _scaled(dict(npr.LOOK, **LOOK), k_out)
     scenery = [o for o in bpy.data.objects if o.type == 'MESH' and o not in hero_objs]
     ground = bpy.data.objects['Ground']
-    props = bpy.data.objects['Props']
+    # What stands round him and can hide part of him: the props, the moss cushions, the fallen log.
+    props = [bpy.data.objects[n] for n in ('Props', 'Moss', 'Log') if n in bpy.data.objects]
     sc = bpy.context.scene
 
     # The plate: the clearing alone, once, at SS × the output size; painted, lined, scaled down.
@@ -491,8 +493,9 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     for o in hero_objs:
         o.hide_render = False
     for o in scenery:
-        o.hide_render = o not in (ground, props)
-    props.is_holdout = True
+        o.hide_render = o is not ground and o not in props
+    for o in props:
+        o.is_holdout = True
     ground.is_shadow_catcher = True
     ground.data.materials[0] = _catcher()
     sc.view_layers[0].cycles.use_pass_shadow_catcher = True
@@ -525,7 +528,9 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         bx0, by0, bx1, by1 = _screen_box(cam, hero_objs, moon, MARGIN_PX * k_out, away=arrow_away)
         x0, y0 = int(math.floor(bx0)), int(math.floor(by0))
         x1, y1 = int(math.ceil(bx1)), int(math.ceil(by1))
-        p = scene.render(mcam, os.path.join(tmp, 'passes'), samples=4 if draft else HERO_SAMPLES, motion_blur=shutter,
+        fast = isinstance(facts[i].get('arrow'), tuple)  # ('hand' | 'nocking' | 'flying', u): a fast part, blurred
+        samples = 4 if draft else (HERO_SAMPLES_FAST if fast else HERO_SAMPLES)
+        p = scene.render(mcam, os.path.join(tmp, 'passes'), samples=samples, motion_blur=shutter,
                          frame=i + 1, extra=['Shadow Catcher'], border=(x0 * ss, y0 * ss, x1 * ss, y1 * ss))
         # The hero layer, at render size: painted, lined (his line reaches past his edge, but never over a fern in
         # front of him), then scaled down.

@@ -36,11 +36,11 @@ def materials():
     d('hood', 'hoodShadow', shade=0.35, rim=0.0, ao=0.6)
     d('eye', 'heroEye', emit=0.95, line=False, rim=0.0, ao=0.0, grad=False)
     d('trousers', 'leafDark', shade=0.9)
-    d('leather', 'woodDark', shade=1.0)
-    d('leatherLight', 'wood', shade=1.0)
+    d('leather', 'woodDark', shade=1.0, fill=0.5)
+    d('leatherLight', 'wood', shade=1.0, fill=0.5)
     # Gloves in the bracers' leather, a step lighter than the boots: a hand reads against the hood's shadow.
-    d('glove', color=mix('woodDark', 'wood', 0.35))
-    d('sole', 'gloveDark', shade=0.7)
+    d('glove', color=mix('woodDark', 'wood', 0.35), fill=0.5)
+    d('sole', 'gloveDark', shade=0.7, fill=0.5)
     d('wood', 'wood', metal=0.25)
     d('grip', 'woodDark')
     d('gold', 'gold', metal=1.0)
@@ -48,13 +48,16 @@ def materials():
     d('thread', 'bone', line=False, ao=0.5)
     d('bone', 'bone')
     d('cloth', 'cloth')
-    # The string: a light core with a thin dark edge of its own (line 0.45, in the flat ink: its own colour darkened
-    # would be no darker than the night), so it shows against the night and against the moonlit mist alike, and keeps
-    # its light core through the shadow side.
-    d('string', 'string', line=0.45, shade=0.3, rim=0.0, mrim=0.0, ao=0.0, grad=False, tint=0.0)
+    # The string: a light core with a dark edge of its own (line 0.7, in the flat ink: its own colour darkened would
+    # be no darker than the night), so it shows against the night, the moonlit mist and the glowing eyes alike, and
+    # keeps its light core through the shadow side.
+    d('string', 'string', line=0.7, shade=0.3, rim=0.0, mrim=0.0, ao=0.0, grad=False, tint=0.0)
     d('rune', 'rune', emit=1.0, metal=0.6, rim=0.0, ao=0.0, grad=False)
     d('runeMark', 'rune', emit=0.75, line=False, rim=0.0, ao=0.0, grad=False)
     d('shaft', 'wood', line=0.7)
+    # The boots' leather: the boot's toe turns up to the sky as the foot pivots into the shot, in the body's shadow,
+    # and the full sky fill and moonlit edge there paled it to a grey (it read as a hole): faint ones keep it brown.
+    d('boot', 'woodDark', shade=1.0, mrim=0.3, fill=0.3, rim=0.5)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -410,7 +413,7 @@ def build_boots(r):
         pts = [V((-0.05, y, 3.75)), V((-0.1, y, 2.6)), V((-0.15, y, 1.35)), V((0.45, y, 0.72)), V((1.5, y, 0.62)),
                V((2.55, y, 0.66)), V((3.25, y, 0.95))]
         radii = [(1.32, 1.32), (1.25, 1.25), (1.2, 1.25), (1.0, 1.32), (0.82, 1.22), (0.7, 1.02), (0.36, 0.5)]
-        rings = tube(p, pts, radii, ['leather'], sides=8, n0=X, cap0=True, cap1=True)
+        rings = tube(p, pts, radii, ['boot'], sides=8, n0=X, cap0=True, cap1=True)
         # A turned-down cuff and the sole.
         cuff = [V((-0.05, y, 4.15)), V((-0.05, y, 3.45))]
         tube(p, cuff, [1.58, 1.52], ['leatherLight'], sides=10, n0=X)
@@ -832,6 +835,9 @@ L_HAND_DIR = V((0.75, -0.62, 0.0))  # the bow hand's bone, wrist → knuckles, i
 R_WRIST = V((-1.25, -0.55, -0.55))  # the draw hand's wrist from the nock, in the bow's frame
 R_HAND_DIR = V((0.85, 0.35, 0.45))
 CANT = 0.45        # the bow's top tilts away from the face (radians)
+STAGE_CANT = 0.58  # on the stage, a little more: drawn, the string runs beside the eyes, not over the right one
+NOCK_CANT = 0.55   # and more again while the bow is held close to nock, and lower (NOCK_DROP, px): seen past his
+NOCK_DROP = 3.0    # big hood, the upper limb and the string stay in front of it, not behind its rim
 # Full draw: the nock under the jaw, the hand clear of the hood's rim, forward of it (rest-pose head): it shows against
 # the hood's lit rim and the mantle, the string runs beside the eyes, not over them, and no feather sits in front of
 # the face.
@@ -1304,7 +1310,8 @@ def stage_pose(P, i, springs):
     # Push and pull: the bow arm straightens as the string comes back, so the nock comes to the anchor at full draw.
     push = 1.0 if t >= LOOSE_AT else min(1.0, max(0.0, draw_amount(t)))
     ext = NOCK_REACH + (full - NOCK_REACH) * push
-    aimed = bow_frame(anchor + dir_now * (BRACE + ext), dir_now, cant=CANT + roll)
+    aimed = bow_frame(anchor + dir_now * (BRACE + ext) - Z * NOCK_DROP * (1 - push), dir_now,
+                      cant=STAGE_CANT + NOCK_CANT * (1 - push) + roll)
     low = low_hold(sway=0.03 * breath, lift=0.15 * breath + tr['dip'](t) + 0.15, fwd=0.2 * tr['shift'](t))
     k = tr['bowup'](t)
     q = low.to_quaternion().slerp(aimed.to_quaternion(), k)
@@ -1349,7 +1356,7 @@ def stage_pose(P, i, springs):
         else:
             a = after
             fly = smooth(a / 0.16)
-            back = rot @ V((-3.0, -0.9, -0.2)) * fly  # back along the jaw, not raised over the hood
+            back = rot @ V((-2.6, -0.7, -1.0)) * fly  # back along the jaw and down, not raised over the hood
             rel = smooth((a - 0.55) / 0.85)
             P.draw_hand(m, full, off=back, pole=pole_draw, fingers=0.95 - 0.8 * smooth(a / 0.1) + 0.5 * rel,
                         weight=1.0 - rel)
