@@ -509,30 +509,30 @@
  "stage": {
   "feetX": 1200.0,
   "figure": {
-   "x0": 955.5,
-   "x1": 1569.2,
+   "x0": 966.6,
+   "x1": 1527.5,
    "y0": 305.0,
-   "y1": 760.3
+   "y1": 777.7
   },
   "files": {
    "clearing": {
-    "bytes": 57516,
-    "hash": "1d742a971e71",
+    "bytes": 59636,
+    "hash": "290851ccabd0",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 684038,
-    "hash": "75f4a1bdc684",
+    "bytes": 1131234,
+    "hash": "9c9991ec6beb",
     "name": "ranger.mp4"
    },
    "poster": {
-    "bytes": 59836,
-    "hash": "b3a049b741d1",
+    "bytes": 58752,
+    "hash": "27763a4b4e2a",
     "name": "ranger-poster.webp"
    },
    "webm": {
-    "bytes": 697775,
-    "hash": "27a088fb288b",
+    "bytes": 1125832,
+    "hash": "e1849f8ce74d",
     "name": "ranger.webm"
    }
   },

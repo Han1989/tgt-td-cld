@@ -21,6 +21,8 @@ PASSES = ['Alpha', 'Depth', 'Combined_moon', 'Combined_pool'] + [name for name, 
 
 def reset(fps=30):
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    # The factory reset deletes every material: forget the ones made before (they are made again when next used).
+    shading.MATS.clear()
     s = bpy.context.scene
     s.render.fps = fps
     s.render.engine = 'CYCLES'

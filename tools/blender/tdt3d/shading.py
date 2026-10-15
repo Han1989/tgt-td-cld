@@ -32,11 +32,14 @@ def define(name, token=None, color=None, emit=0.0, glow=None, metal=0.0, grad=Tr
     for a pale part whose own darkened colour would be no darker than the night behind it); `bare` (1) draws no line
     round it at all, not even on the silhouette (a hero's match render sets it on a string too thin to carry one)."""
     line = float(line)
+    # A material declared again (the hero rebuilt for the match after the stage, in one run) keeps its number, so its
+    # id in the passes and its flags stay one entry.
+    number = SPECS[name]['number'] if name in SPECS else len(SPECS) + 1
     SPECS[name] = dict(token=token, color=color, emit=emit, glow=glow, metal=metal, grad=grad, line=line,
                        albedo=albedo, ao=ao, shade=shade, rim=rim, dim=dim, mrim=mrim, tint=tint, bare=bare,
-                       number=len(SPECS) + 1)
-    FLAGS[len(SPECS)] = dict(line=line, name=name, ao=ao, shade=shade, rim=rim, metal=metal, dim=dim, mrim=mrim,
-                             emit=float(emit), tint=float(tint), bare=float(bare))
+                       number=number)
+    FLAGS[number] = dict(line=line, name=name, ao=ao, shade=shade, rim=rim, metal=metal, dim=dim, mrim=mrim,
+                         emit=float(emit), tint=float(tint), bare=float(bare))
 
 
 def number(name):
