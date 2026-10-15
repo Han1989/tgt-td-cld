@@ -6,8 +6,10 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
 import { pickVideo } from '../src/lobby/stageBackdrop';
+import { isMediaPath, isStageVideo, swSource } from '../src/platform/swSource';
 import { cycleFrame, drawStep, fitStage, HERO_3D, walkCadence, type Cell, type StageLayout } from '../src/render/art3d/layout';
 
 const CLIENT = join(__dirname, '..');
@@ -70,6 +72,9 @@ describe('3D heroes: the match sheet', () => {
       expect(m.frames.cast).toHaveLength(COUNTS.cast);
       expect(m.bowFrames.draw).toHaveLength(COUNTS.draw);
       expect(m.bowFrames.loose).toHaveLength(COUNTS.loose);
+      // The draw hand of each bow frame, drawn over the head (a hand at the cheek is seen).
+      expect(m.handFrames.draw).toHaveLength(COUNTS.draw);
+      expect(m.handFrames.loose).toHaveLength(COUNTS.loose);
       expect(m.shoulders.idle).toHaveLength(COUNTS.idle);
       expect(m.shoulders.walk).toHaveLength(COUNTS.walk);
       expect(m.shoulders.cast).toHaveLength(COUNTS.cast);
@@ -83,7 +88,10 @@ describe('3D heroes: the match sheet', () => {
       ['body', [...m.frames.idle, ...m.frames.walk, ...m.frames.cast], m.body],
       ['head', [...m.heads.idle, ...m.heads.walk, ...m.heads.cast], m.head],
       ['bow', [...m.bowFrames.draw, ...m.bowFrames.loose], m.bow],
+      ['hand', [...m.handFrames.draw, ...m.handFrames.loose], m.bow],
     ];
+    /** How much of a cell a layer fills at least: a hand is a small part of the bow layer's box. */
+    const FILL: Record<string, number> = { body: 0.08, head: 0.08, bow: 0.08, hand: 0.005 };
 
     it(`${kind}: each frame and its white twin lie inside the sheet, without overlapping another`, () => {
       const rects: [number, number, number, number][] = [];
@@ -127,7 +135,7 @@ describe('3D heroes: the match sheet', () => {
               if (edge) expect(a, `${name} ${i} touches its edge at ${x},${y}`).toBe(0);
             }
           }
-          expect(drawn, `${name} ${i}`).toBeGreaterThan(size.w * size.h * 0.08);
+          expect(drawn, `${name} ${i}`).toBeGreaterThan(size.w * size.h * FILL[name]!);
         }
       }
       // Every pixel of the sheet, twice: seconds on a busy machine.
@@ -185,8 +193,8 @@ describe('3D heroes: the stage', () => {
         expect(buf.length, f.name).toBe(f.bytes);
         expect(createHash('sha256').update(buf).digest('hex').slice(0, 12), f.name).toBe(f.hash);
       }
-      expect(s.files.mp4.bytes).toBeLessThanOrEqual(700_000);
-      expect(s.files.webm.bytes).toBeLessThanOrEqual(700_000);
+      expect(s.files.mp4.bytes).toBeLessThanOrEqual(1_200_000);
+      expect(s.files.webm.bytes).toBeLessThanOrEqual(1_200_000);
       expect(s.files.poster.bytes).toBeLessThanOrEqual(60_000);
       expect(s.files.clearing.bytes).toBeLessThanOrEqual(60_000);
     });
@@ -259,6 +267,32 @@ describe('3D heroes: the stage', () => {
 });
 
 describe('3D heroes: the rig and stage rules', () => {
+  it('fitStage centres the hero, and slides the video sideways only as far as covering the stage needs', () => {
+    const files = {} as StageLayout['files'];
+    const stage = (x0: number, x1: number): StageLayout => ({
+      w: 2400, h: 900, frames: 240, fps: 30, loopMs: 8000, groundY: 735, feetX: 1200,
+      figure: { x0, x1, y0: 305, y1: 760 }, files,
+    });
+    // Centred: the box's middle on the stage's middle.
+    const wide = { w: 498, h: 320, ground: 286, top: 61, side: 14 };
+    const a = fitStage(stage(1000, 1400), wide);
+    expect(a.left + 1200 * a.scale).toBeCloseTo(249, 6);
+    expect(a.covers).toBe(true);
+    // The box right of the frame's middle on a stage the video only just spans: centring would leave the right edge
+    // bare, so the video slides left just far enough, and the hero stays between the sides.
+    const short = { w: 498, h: 150, ground: 116, top: 24, side: 14 };
+    const b = fitStage(stage(955, 1569), short);
+    expect(b.covers).toBe(true);
+    expect(b.left + 2400 * b.scale).toBeCloseTo(498, 6);
+    expect(b.left + 955 * b.scale).toBeGreaterThanOrEqual(14);
+    expect(b.left + 1569 * b.scale).toBeLessThanOrEqual(484);
+    // A video that can't cover the stage at the hero's size stays centred on him.
+    const tall = { w: 498, h: 500, ground: 466, top: 400, side: 14 };
+    const c = fitStage(stage(1000, 1400), tall);
+    expect(c.covers).toBe(false);
+    expect(c.left + 1200 * c.scale).toBeCloseTo(249, 6);
+  });
+
   it('cycleFrame walks a cycle frame by frame and wraps', () => {
     expect(cycleFrame(0, 12)).toBe(0);
     expect(cycleFrame(Math.PI, 12)).toBe(6);
@@ -288,6 +322,206 @@ describe('3D heroes: the rig and stage rules', () => {
     expect(pickVideo((t) => (t.includes('avc1') ? 'probably' : 'probably'))).toBe('mp4');
     expect(pickVideo((t) => (t.includes('vp9') ? 'probably' : ''))).toBe('webm');
     expect(pickVideo(() => '')).toBeNull();
+  });
+});
+
+describe('the fringe check (no light ring round the hero, no hard alpha step)', () => {
+  const FIXTURES = join(CLIENT, 'test', 'fixtures', 'stage-fringe');
+
+  /** A fixture: the finished frame cut to the hero's silhouette, and his mask (red: coverage, green: glow). */
+  function check(dir: string, name: string) {
+    const frame = decodePng(readFileSync(join(dir, `${name}-band.png`)));
+    const mask = decodePng(readFileSync(join(dir, `${name}-mask.png`)));
+    expect([mask.width, mask.height]).toEqual([frame.width, frame.height]);
+    const n = frame.width * frame.height;
+    const rgb = new Uint8Array(n * 3);
+    const alpha = new Uint8Array(n);
+    const glow = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      for (let c = 0; c < 3; c++) rgb[i * 3 + c] = frame.data[i * frame.channels + c]!;
+      alpha[i] = mask.data[i * mask.channels]!;
+      glow[i] = mask.data[i * mask.channels + 1]!;
+    }
+    return measureFringe(frame.width, frame.height, rgb, alpha, glow);
+  }
+
+  function results(dir: string): Record<string, { measured: number; fringe: number; crossings: number; hard: number; pass: boolean }> {
+    return JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8'));
+  }
+
+  /** A disc of coverage on a dark scene, its edge anti-aliased, with a light ring round it or not. */
+  function disc(ring: number, hardEdge = false) {
+    const w = 48;
+    const n = w * w;
+    const rgb = new Uint8Array(n * 3);
+    const alpha = new Uint8Array(n);
+    for (let y = 0; y < w; y++) {
+      for (let x = 0; x < w; x++) {
+        const d = Math.hypot(x + 0.5 - 24, y + 0.5 - 24) - 14;
+        // Anti-aliased as a render's pixel filter does it, over about a pixel and a half.
+        const cover = hardEdge ? (d < 0 ? 1 : 0) : Math.min(1, Math.max(0, 0.5 - d / 1.5));
+        const i = y * w + x;
+        alpha[i] = Math.round(cover * 255);
+        // The hero mid-grey, the scene dark; the ring lights the partly covered pixels.
+        const edge = cover > 0.04 && cover < 0.96 ? ring : 0;
+        const v = Math.round(cover * 120 + (1 - cover) * 40 + edge);
+        rgb.fill(Math.min(255, v), i * 3, i * 3 + 3);
+      }
+    }
+    return measureFringe(w, w, rgb, alpha);
+  }
+
+  it('fails a light ring round the silhouette and a hard edge, and passes a clean anti-aliased one', () => {
+    expect(disc(0).pass).toBe(true);
+    expect(disc(0).fringe).toBe(0);
+    const ringed = disc(90);
+    expect(ringed.pass).toBe(false);
+    expect(ringed.fringeShare).toBeGreaterThan(0.5);
+    const hard = disc(0, true);
+    expect(hard.pass).toBe(false);
+    expect(hard.hardShare).toBeGreaterThan(0.5);
+  });
+
+  it(`fails #105's stage frames: a light fringe round the hero`, () => {
+    const dir = join(FIXTURES, 'before-105');
+    const want = results(dir);
+    expect(Object.keys(want).length).toBeGreaterThanOrEqual(3);
+    for (const [name, py] of Object.entries(want)) {
+      const r = check(dir, name);
+      // The same numbers as the pipeline's check (fringe.py), within a pixel.
+      expect(Math.abs(r.measured - py.measured), name).toBeLessThanOrEqual(1);
+      expect(Math.abs(r.fringe - py.fringe), name).toBeLessThanOrEqual(1);
+      expect(r.pass, name).toBe(false);
+      expect(r.fringeShare, name).toBeGreaterThan(0.05);
+    }
+  });
+
+  it('passes the stage frames we ship (the hero idle, at full draw, after the loose)', () => {
+    const want = results(FIXTURES);
+    for (const frame of [0, 165, 200]) expect(Object.keys(want)).toContain(`ranger-${String(frame).padStart(4, '0')}`);
+    for (const [name, py] of Object.entries(want)) {
+      const r = check(FIXTURES, name);
+      expect(Math.abs(r.measured - py.measured), name).toBeLessThanOrEqual(1);
+      expect(Math.abs(r.fringe - py.fringe), name).toBeLessThanOrEqual(1);
+      expect(r.measured, name).toBeGreaterThan(1000);
+      expect(r.pass, name).toBe(true);
+      expect(r.fringeShare, name).toBeLessThanOrEqual(0.01);
+      expect(r.hardShare, name).toBeLessThanOrEqual(0.05);
+    }
+  });
+});
+
+describe('the service worker and the stage videos', () => {
+  /** Runs the generated worker (swSource) with the platform's own Request, Response and Blob, a fake cache and a fake
+   * network that serves `files` (and honours a Range header itself, as a static host does). */
+  function worker(files: Record<string, Uint8Array<ArrayBuffer>>) {
+    const stored = new Map<string, Response>();
+    const net: { url: string; range: string | null }[] = [];
+    const cache = {
+      match: async (req: Request | string) => stored.get(typeof req === 'string' ? req : req.url)?.clone(),
+      put: async (req: Request | string, res: Response) => void stored.set(typeof req === 'string' ? req : req.url, res),
+      keys: async () => [...stored.keys()].map((url) => ({ url })),
+      delete: async (req: { url: string }) => stored.delete(req.url),
+    };
+    const caches = { open: async () => cache, keys: async () => [], delete: async () => true, match: async () => undefined };
+    const fetch = async (input: Request | string, init?: RequestInit) => {
+      const req = new Request(input, init);
+      const range = req.headers.get('range');
+      net.push({ url: req.url, range });
+      const body = files[new URL(req.url).pathname];
+      if (!body) return new Response('missing', { status: 404 });
+      const m = range && /^bytes=(\d+)-(\d*)$/.exec(range);
+      if (m) {
+        const start = Number(m[1]);
+        const end = m[2] ? Number(m[2]) : body.length - 1;
+        return new Response(body.slice(start, end + 1), {
+          status: 206,
+          headers: { 'Content-Range': `bytes ${start}-${end}/${body.length}`, 'Content-Type': 'video/mp4' },
+        });
+      }
+      return new Response(body, { status: 200, headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(body.length) } });
+    };
+    const listeners: Record<string, (e: unknown) => void> = {};
+    const self = {
+      location: { origin: 'https://td.test' },
+      addEventListener: (type: string, f: (e: unknown) => void) => (listeners[type] = f),
+      skipWaiting: () => {},
+      clients: { claim: async () => {} },
+    };
+    new Function('self', 'caches', 'fetch', 'Response', swSource('v1', ['/index.html']))(self, caches, fetch, Response);
+    const get = async (path: string, range?: string): Promise<Response> => {
+      let responded: Promise<Response> | undefined;
+      const request = new Request(`https://td.test${path}`, { headers: range ? { Range: range } : {} });
+      listeners.fetch!({ request, respondWith: (p: Promise<Response>) => (responded = p) });
+      const res = await responded!;
+      await new Promise((ok) => setTimeout(ok, 0));
+      return res;
+    };
+    return { get, net, stored };
+  }
+
+  const bytes = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i * 7 + 3) & 0xff);
+
+  it('keeps a stage video whole on first play and answers every range from it with a 206 and its Content-Range', async () => {
+    const file = bytes(1000);
+    const w = worker({ '/stage/ranger-tall.mp4': file });
+    // A video element's first request: a range from the start. The worker fetches the whole file, without the range.
+    const first = await w.get('/stage/ranger-tall.mp4?v=abc', 'bytes=0-');
+    expect(w.net).toEqual([{ url: 'https://td.test/stage/ranger-tall.mp4?v=abc', range: null }]);
+    expect(first.status).toBe(206);
+    expect(first.headers.get('content-range')).toBe('bytes 0-999/1000');
+    expect(first.headers.get('content-length')).toBe('1000');
+    expect(first.headers.get('accept-ranges')).toBe('bytes');
+    expect(first.headers.get('content-type')).toBe('video/mp4');
+    expect(new Uint8Array(await first.arrayBuffer())).toEqual(file);
+    // Stored whole: a 200 of every byte.
+    const kept = w.stored.get('https://td.test/stage/ranger-tall.mp4?v=abc')!;
+    expect(kept.status).toBe(200);
+    expect((await kept.clone().arrayBuffer()).byteLength).toBe(1000);
+    // Later ranges come from the stored file, never the network.
+    const mid = await w.get('/stage/ranger-tall.mp4?v=abc', 'bytes=100-199');
+    expect(mid.status).toBe(206);
+    expect(mid.headers.get('content-range')).toBe('bytes 100-199/1000');
+    expect(mid.headers.get('content-length')).toBe('100');
+    expect(new Uint8Array(await mid.arrayBuffer())).toEqual(file.slice(100, 200));
+    const tail = await w.get('/stage/ranger-tall.mp4?v=abc', 'bytes=-10');
+    expect(tail.headers.get('content-range')).toBe('bytes 990-999/1000');
+    expect(new Uint8Array(await tail.arrayBuffer())).toEqual(file.slice(990));
+    // A range that runs past the end stops at the last byte; one past the end is refused (416).
+    const over = await w.get('/stage/ranger-tall.mp4?v=abc', 'bytes=900-5000');
+    expect(over.headers.get('content-range')).toBe('bytes 900-999/1000');
+    const none = await w.get('/stage/ranger-tall.mp4?v=abc', 'bytes=1000-');
+    expect(none.status).toBe(416);
+    expect(none.headers.get('content-range')).toBe('bytes */1000');
+    // A plain request gets the whole file; a request the worker can't answer as one range too.
+    const whole = await w.get('/stage/ranger-tall.mp4?v=abc');
+    expect(whole.status).toBe(200);
+    expect((await whole.arrayBuffer()).byteLength).toBe(1000);
+    const multi = await w.get('/stage/ranger-tall.mp4?v=abc', 'bytes=0-1, 5-6');
+    expect(multi.status).toBe(200);
+    expect(w.net).toHaveLength(1);
+  });
+
+  it('replaces the stored video when a new render ships (another hash)', async () => {
+    const w = worker({ '/stage/ranger.webm': bytes(64) });
+    await w.get('/stage/ranger.webm?v=old', 'bytes=0-');
+    await w.get('/stage/ranger.webm?v=new', 'bytes=0-');
+    expect([...w.stored.keys()]).toEqual(['https://td.test/stage/ranger.webm?v=new']);
+    expect(w.net.map((n) => n.range)).toEqual([null, null]);
+  });
+
+  it('a stage video is media (cached on first play, never on install); its poster and the clearing are in the shell', () => {
+    for (const hero of Object.values(HERO_3D)) {
+      const f = hero!.stage.files;
+      for (const v of [f.mp4, f.webm]) {
+        expect(isMediaPath(`/stage/${v.name}`), v.name).toBe(true);
+        expect(isStageVideo(`/stage/${v.name}`), v.name).toBe(true);
+      }
+      for (const still of [f.poster, f.clearing]) {
+        expect(isMediaPath(`/stage/${still.name}`), still.name).toBe(false);
+        expect(isStageVideo(`/stage/${still.name}`), still.name).toBe(false);
+      }
+    }
   });
 });
 

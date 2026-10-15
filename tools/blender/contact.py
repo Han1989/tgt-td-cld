@@ -128,9 +128,14 @@ def main():
     row(body[:11])
     row(body[11:])
     row([on_bg(cell(c, m['bow'])) for k in ('draw', 'loose') for c in m['bowFrames'][k]])
+    if m.get('handFrames'):
+        row([on_bg(cell(c, m['bow'])) for k in ('draw', 'loose') for c in m['handFrames'][k]])
 
-    # 3. As the rig shows them: the body frame with the bow layer hung at its shoulder, turned to an aim.
-    def composite(kind, i, bow_cell, aim):
+    # 3. As the rig shows them: the body frame with the bow layer hung at its shoulder, turned to an aim, the head
+    # over both and the draw hand over the head (turned with the bow layer).
+    def composite(kind, i, step, aim):
+        bow_kind, j = step
+        bow_cell = m['bowFrames'][bow_kind][j]
         b = cell(m['frames'][kind][i], m['body'])
         sh = m['shoulders'][kind][i]
         W, H = m['body']['w'] + 2 * m['bow']['w'], m['body']['h'] + m['bow']['h']
@@ -145,14 +150,19 @@ def main():
         canvas = rp + canvas * (1 - ra)
         hp, ha = straight(cell(m['heads'][kind][i], m['head']))
         over(canvas, hp, ha, fx - m['head']['feetX'], fy - m['head']['feetY'])
+        if m.get('handFrames'):
+            gp, ga = straight(cell(m['handFrames'][bow_kind][j], m['bow']))
+            rp, ra = rotate_about(gp, ga, m['bow']['pivotX'], m['bow']['pivotY'], aim, W, H, ox, oy)
+            canvas = rp + canvas * (1 - ra)
         ys, xs = np.nonzero(np.any(np.abs(canvas - BG) > 0.01, axis=2))
         return canvas[max(0, ys.min() - 6):ys.max() + 6, max(0, xs.min() - 6):xs.max() + 6]
 
-    draws = m['bowFrames']['draw']
-    comps = [composite('idle', 0, draws[1], 0.0), composite('idle', 2, draws[4], 0.0), composite('idle', 4, draws[-1], 0.0),
-             composite('idle', 4, m['bowFrames']['loose'][0], 0.0), composite('idle', 0, draws[-1], -0.6),
-             composite('idle', 0, draws[-1], 0.6), composite('walk', 2, draws[1], 0.0), composite('walk', 8, draws[1], 0.0),
-             composite('cast', 0, draws[-1], -1.2), composite('idle', 0, draws[-1], 0.75)]
+    full = len(m['bowFrames']['draw']) - 1
+    comps = [composite('idle', 0, ('draw', 1), 0.0), composite('idle', 2, ('draw', 4), 0.0),
+             composite('idle', 4, ('draw', full), 0.0), composite('idle', 4, ('loose', 0), 0.0),
+             composite('idle', 0, ('draw', full), -0.6), composite('idle', 0, ('draw', full), 0.6),
+             composite('walk', 2, ('draw', 1), 0.0), composite('walk', 8, ('draw', 1), 0.0),
+             composite('cast', 0, ('draw', full), -1.2), composite('idle', 0, ('draw', full), 0.75)]
     row(comps)
     # 4. The same at a phone's size (device px of a 412 px phone) and 50 px tall.
     phone = PHONE_DEVICE_PX_PER_WORLD / res

@@ -480,13 +480,16 @@ describe('service worker', () => {
     const res = (url: string, body: string) => ({ ok: true, status: 200, url, body, clone: () => res(url, body) });
     const cacheApi = (name: string) => ({
       addAll: async (urls: string[]) => urls.forEach((u) => store(name).set(u, { url: `https://td.test${u}`, body: u })),
-      match: async (req: { url: string }) => {
-        const hit = store(name).get(req.url);
+      match: async (req: { url: string } | string) => {
+        const hit = store(name).get(typeof req === 'string' ? req : req.url);
         return hit ? res(hit.url, hit.body) : undefined;
       },
       keys: async () => [...store(name).keys()].map((url) => ({ url })),
       delete: async (req: { url: string }) => store(name).delete(req.url),
-      put: async (req: { url: string }, r: { body: string }) => void store(name).set(req.url, { url: req.url, body: r.body }),
+      put: async (req: { url: string } | string, r: { body: string }) => {
+        const url = typeof req === 'string' ? req : req.url;
+        store(name).set(url, { url, body: r.body });
+      },
     });
     const listeners: Record<string, (e: unknown) => void> = {};
     const self = {
@@ -509,9 +512,10 @@ describe('service worker', () => {
         return undefined;
       },
     };
-    const fetch = async (req: { url: string }) => {
-      net.push(req.url);
-      return res(req.url, `net:${req.url}`);
+    const fetch = async (req: { url: string } | string) => {
+      const url = typeof req === 'string' ? req : req.url;
+      net.push(url);
+      return res(url, `net:${url}`);
     };
     new Function('self', 'caches', 'fetch', swSource('v1', shell))(self, caches, fetch);
     const get = async (path: string, mode = 'cors') => {

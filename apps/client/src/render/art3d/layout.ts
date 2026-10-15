@@ -30,6 +30,9 @@ export interface MatchLayout {
   /** The head of each body frame (the hood and the eyes), in its own layer. */
   heads: { idle: Cell[]; walk: Cell[]; cast: Cell[] };
   bowFrames: { draw: Cell[]; loose: Cell[] };
+  /** The draw hand of each bow frame, alone, in the bow layer's cell size and pivot: drawn over the head, so a hand
+   * drawn to the cheek is seen. */
+  handFrames: { draw: Cell[]; loose: Cell[] };
   /** Where the bow layer hangs in each body frame: world px from the feet (x right, y down). */
   shoulders: { idle: { x: number; y: number }[]; walk: { x: number; y: number }[]; cast: { x: number; y: number }[] };
   /** World px the body moves over one walk cycle (two steps) with no foot sliding. */
@@ -121,19 +124,28 @@ export interface StageFit {
 }
 
 /**
- * Places the stage video so the hero stands on the stage's ground line, centred, as large as fits between the title
- * and the ground and between the sides: the same rule as the 2D figures (`fitStand`), applied to the video's figure
- * box. The clearing still uses the same fit, so switching heroes never moves the background. If the stage is wider
- * or taller than the video at that size the fit still keeps the hero whole; the clearing's CSS shows at the edges.
+ * Places the stage video so the hero stands on the stage's ground line, as large as fits between the title and the
+ * ground and between the sides, the box his whole loop fills (the bow drawn, the arrow loosed) centred: the same rule
+ * as the 2D figures (`fitStand`), applied to the video's figure box. Where the video is only just wide enough (the
+ * short solo pick), centring the box would leave a sliver of the stage bare, so the video slides sideways as far as
+ * covering needs, never so far that the hero leaves the room between the sides. The clearing still uses the same
+ * fit, so switching heroes never moves the background. If the stage is wider or taller than the video at that size
+ * the fit still keeps the hero whole; the clearing's CSS shows at the edges.
  */
 export function fitStage(s: StageLayout, box: StageBox): StageFit {
   const fig = s.figure;
   const up = s.groundY - fig.y0;
-  const half = Math.max(s.feetX - fig.x0, fig.x1 - s.feetX);
+  const half = (fig.x1 - fig.x0) / 2;
+  const mid = (fig.x0 + fig.x1) / 2;
   const byHeight = (box.ground - box.top) / Math.max(1, up);
   const byWidth = (box.w / 2 - box.side) / Math.max(1, half);
   const scale = Math.max(0.01, Math.min(byHeight, byWidth));
-  const left = box.w / 2 - s.feetX * scale;
+  const centred = box.w / 2 - mid * scale;
+  // Slide to cover (the video's left edge at or before the stage's, its right edge at or past the stage's), then
+  // keep the hero whole between the sides, which wins.
+  const slack = box.w - s.w * scale;
+  const covering = slack <= 0 ? Math.min(0, Math.max(slack, centred)) : centred;
+  const left = Math.min(box.w - box.side - fig.x1 * scale, Math.max(box.side - fig.x0 * scale, covering));
   const top = box.ground - s.groundY * scale;
   const covers = left <= 0.5 && top <= 0.5 && left + s.w * scale >= box.w - 0.5 && top + s.h * scale >= box.h - 0.5;
   return { scale, left, top, covers };

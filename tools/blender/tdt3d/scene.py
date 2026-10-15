@@ -199,8 +199,10 @@ def detail(level):
             sub = o.modifiers.new('Subsurf', 'SUBSURF')
             sub.quality = 3
             sub.use_creases = True
-        sub.levels = level
-        sub.render_levels = level
+        # Scenery may ask for less (o['detail']: the sky needs none, the far rows one level).
+        lv = min(level, int(o.get('detail', level)))
+        sub.levels = lv
+        sub.render_levels = lv
 
 
 def _output(tmp, passes):
@@ -224,13 +226,22 @@ def _output(tmp, passes):
     tree.links.new(rl.outputs['Image'], comp.inputs['Image'])
 
 
-def render(cam, tmp, samples=24, motion_blur=0.0, frame=1, transparent=True, extra=()):
-    """Renders the frame through `cam` and returns its passes as float32 arrays (h × w × 4, rows top first)."""
+def render(cam, tmp, samples=24, motion_blur=0.0, frame=1, transparent=True, extra=(), border=None):
+    """Renders the frame through `cam` and returns its passes as float32 arrays (h × w × 4, rows top first).
+    `border` = (x0, y0, x1, y1), whole pixels of the frame (y down): renders only that box and returns passes of its
+    size."""
     s = bpy.context.scene
     s.camera = cam.obj
     s.render.resolution_x = cam.w
     s.render.resolution_y = cam.h
     s.render.resolution_percentage = 100
+    s.render.use_border = border is not None
+    s.render.use_crop_to_border = border is not None
+    if border is not None:
+        x0, y0, x1, y1 = border
+        # A quarter pixel in, so the border lands on these pixels whether Blender rounds or truncates.
+        s.render.border_min_x, s.render.border_max_x = (x0 + 0.25) / cam.w, (x1 + 0.25) / cam.w
+        s.render.border_min_y, s.render.border_max_y = (cam.h - y1 + 0.25) / cam.h, (cam.h - y0 + 0.25) / cam.h
     s.render.film_transparent = transparent
     s.cycles.samples = samples
     s.render.use_motion_blur = motion_blur > 0
@@ -257,4 +268,9 @@ def render(cam, tmp, samples=24, motion_blur=0.0, frame=1, transparent=True, ext
         bpy.data.images.remove(img)
         out[name] = a.reshape(h, w, 4)[::-1].copy()
     shutil.rmtree(tmp)
+    if border is not None:
+        want = (border[3] - border[1], border[2] - border[0])
+        got = next(iter(out.values())).shape[:2]
+        if got != want:
+            raise RuntimeError(f'Border render is {got}, wanted {want}')
     return out

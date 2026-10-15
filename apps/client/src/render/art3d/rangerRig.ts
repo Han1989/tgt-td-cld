@@ -1,7 +1,8 @@
-// The Ranger in a match, from his 3D frames (docs/ART.md §15): three layers. The body (3/4 view, no arms) shows its
+// The Ranger in a match, from his 3D frames (docs/ART.md §15): four layers. The body (3/4 view, no arms) shows its
 // idle, walk or cast frame; the bow layer (both arms and the bow, in profile) hangs at the shoulder of that frame and
 // turns towards the target, showing how far the string is drawn; the head of that frame goes over both, so the bow
-// never covers the face. Everything the 2D rig
+// never covers the face; and the draw hand goes over the head, turned with the bow layer, so the hand drawn to the
+// cheek is seen. Everything the 2D rig
 // times is timed the same (entities/ranger.ts): the draw over the cooldown, the release, the cast aims and loose,
 // the facing flip; HeroRigBase gives the ring, shadow, flinch, hit flash and death fall.
 
@@ -23,6 +24,11 @@ const CAST_LOOSE = 0.55;
 const SKY_CASTS: ReadonlySet<SkillSlot> = new Set(['Q', 'R']);
 /** The string's twang after a release (px the bow shivers along the arrow). */
 const TWANG_PX = 0.35;
+/** The bow layer (arms, bow, arrow) is drawn this much larger than the body: at a phone's size the bow must read as a
+ * bow, as the 2D Ranger's big one does. */
+const BOW_SCALE = 1.2;
+/** Aimed steeper than this (radians from level), the draw hand would land on the face: it stays under the head. */
+const HAND_MAX_AIM = 0.6;
 
 export class Ranger3DRig extends HeroRigBase {
   private readonly bodySprite: Sprite;
@@ -32,11 +38,15 @@ export class Ranger3DRig extends HeroRigBase {
   private readonly headSprite: Sprite;
   private readonly headFlash: Sprite;
   private readonly bowArm = new Container();
+  private readonly handSprite: Sprite;
+  private readonly handFlash: Sprite;
+  private readonly handArm = new Container();
   private readonly cooldownMs = TUNING.hero.ranger.attackCooldown * 1000;
   private walkPhase = 0;
   private shown: Frame | null = null;
   private headShown: Frame | null = null;
   private bowShown: Frame | null = null;
+  private handShown: Frame | null = null;
 
   constructor(
     kit: ArtKit,
@@ -69,7 +79,11 @@ export class Ranger3DRig extends HeroRigBase {
     this.bowSprite = sprite(bow, px, py, false);
     this.bowFlash = this.addFlash(sprite(bow, px, py, true));
     this.bowArm.addChild(this.bowSprite, this.bowFlash);
-    this.flipper.addChild(this.bodySprite, this.bodyFlash, this.bowArm, this.headSprite, this.headFlash);
+    const hand = frames.hands.draw[0]!;
+    this.handSprite = sprite(hand, px, py, false);
+    this.handFlash = this.addFlash(sprite(hand, px, py, true));
+    this.handArm.addChild(this.handSprite, this.handFlash);
+    this.flipper.addChild(this.bodySprite, this.bodyFlash, this.bowArm, this.headSprite, this.headFlash, this.handArm);
   }
 
   protected pose(h: HeroPose, walking: boolean, now: number, dtMs: number): void {
@@ -119,14 +133,25 @@ export class Ranger3DRig extends HeroRigBase {
       this.headSprite.texture = head.tex;
       this.headFlash.texture = head.flash;
     }
-    const bow = released ? f.loose[0]! : f.draw[drawStep(draw, f.draw.length)]!;
+    const step = drawStep(draw, f.draw.length);
+    const bow = released ? f.loose[0]! : f.draw[step]!;
+    const hand = released ? f.hands.loose[0]! : f.hands.draw[step]!;
     if (bow !== this.bowShown) {
       this.bowShown = bow;
       this.bowSprite.texture = bow.tex;
       this.bowFlash.texture = bow.flash;
     }
-    this.bowArm.position.set(shoulder.x, FEET + shoulder.y);
-    this.bowArm.rotation = aim;
-    this.bowSprite.x = this.bowFlash.x = twang * TWANG_PX;
+    if (hand !== this.handShown) {
+      this.handShown = hand;
+      this.handSprite.texture = hand.tex;
+      this.handFlash.texture = hand.flash;
+    }
+    for (const arm of [this.bowArm, this.handArm]) {
+      arm.position.set(shoulder.x, FEET + shoulder.y);
+      arm.rotation = aim;
+      arm.scale.set(BOW_SCALE);
+    }
+    this.handArm.visible = Math.abs(aim) <= HAND_MAX_AIM;
+    this.bowSprite.x = this.bowFlash.x = this.handSprite.x = this.handFlash.x = twang * TWANG_PX;
   }
 }

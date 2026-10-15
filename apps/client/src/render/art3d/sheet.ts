@@ -23,6 +23,8 @@ export interface HeroFrames {
   heads: { idle: Frame[]; walk: Frame[]; cast: Frame[] };
   draw: Frame[];
   loose: Frame[];
+  /** The draw hand of each bow frame, drawn over the head. */
+  hands: { draw: Frame[]; loose: Frame[] };
 }
 
 const loaded = new Map<HeroKind, HeroFrames>();
@@ -71,5 +73,6 @@ async function load(url: string, layout: MatchLayout): Promise<HeroFrames> {
     heads: { idle: head(layout.heads.idle), walk: head(layout.heads.walk), cast: head(layout.heads.cast) },
     draw: bow(layout.bowFrames.draw),
     loose: bow(layout.bowFrames.loose),
+    hands: { draw: bow(layout.handFrames.draw), loose: bow(layout.handFrames.loose) },
   };
 }

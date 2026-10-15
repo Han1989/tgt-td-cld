@@ -38,18 +38,22 @@ def materials():
     d('trousers', 'leafDark', shade=0.9)
     d('leather', 'woodDark', shade=1.0)
     d('leatherLight', 'wood', shade=1.0)
-    d('glove', 'gloveDark')
+    # Gloves in the bracers' leather, a step lighter than the boots: a hand reads against the hood's shadow.
+    d('glove', color=mix('woodDark', 'wood', 0.35))
     d('sole', 'gloveDark', shade=0.7)
     d('wood', 'wood', metal=0.25)
     d('grip', 'woodDark')
     d('gold', 'gold', metal=1.0)
+    d('tipGlow', 'gold', emit=0.8, glow='gold', line=0.0, rim=0.0, mrim=0.0, ao=0.0, grad=False)
     d('thread', 'bone', line=False, ao=0.5)
     d('bone', 'bone')
     d('cloth', 'cloth')
-    d('string', 'string', line=False, rim=0.0, ao=0.0, grad=False)
+    # The string: a light core with a thin dark edge of its own (line 0.45), so it shows against the night and
+    # against the moonlit mist alike, and keeps its light core through the shadow side.
+    d('string', 'string', line=0.45, shade=0.3, rim=0.0, mrim=0.0, ao=0.0, grad=False)
     d('rune', 'rune', emit=1.0, metal=0.6, rim=0.0, ao=0.0, grad=False)
     d('runeMark', 'rune', emit=0.75, line=False, rim=0.0, ao=0.0, grad=False)
-    d('shaft', 'wood', line=True)
+    d('shaft', 'wood', line=0.7)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -61,9 +65,12 @@ KNEE_Z = 4.1
 ANKLE_Z = 1.55
 LEG_Y = 1.95
 SHOULDER = V((0.2, 4.35, 13.4))  # the left shoulder joint; the right is mirrored
-ELBOW = V((0.55, 5.95, 9.45))
-WRIST = V((1.45, 6.4, 5.65))
-HAND_TIP = V((1.85, 6.55, 3.95))
+# Arms a tenth longer than the first cut (and the hands a fifth larger): a real draw to the cheek, a hand you see.
+ARM_K = 1.1
+ELBOW = SHOULDER + (V((0.55, 5.95, 9.45)) - SHOULDER) * ARM_K
+WRIST = ELBOW + (V((1.45, 6.4, 5.65)) - V((0.55, 5.95, 9.45))) * ARM_K
+HAND_TIP = WRIST + (V((1.85, 6.55, 3.95)) - V((1.45, 6.4, 5.65))) * 1.15
+HAND_K = 1.2
 NECK_Z = 14.6
 HEAD_C = V((0.55, 0, 19.0))
 HOOD_R = V((6.8, 6.55, 6.6))
@@ -74,7 +81,8 @@ OPENING_DEG = 41
 
 # The bow, in its own frame: origin at the handle, +X the arrow's way, +Z up along the limbs, +Y to its left.
 BRACE = 3.4      # the string stands this far behind the handle
-TIP = V((-BRACE - 0.15, 0, 13.6))  # where the string meets the upper limb (the lower is mirrored)
+BOW_K = 0.82     # the limbs' length, of the first cut's: raised, the bow stays level with the hood, clear of the boots
+TIP = V((-BRACE - 0.15, 0, 13.6 * BOW_K))  # where the string meets the upper limb (the lower is mirrored)
 ARROW_LEN = 15.0
 ARROW_SIDE = 0.75  # the arrow passes the handle on its left
 GRIP_IN_HAND = V((0.0, 0.0, 0.0))
@@ -517,7 +525,7 @@ def build_hood(r):
         dvec = V((math.cos(a) * 0.0 + math.sin(-a) * 0.0, 0, 0))
         dirv = (FACE_DIR * math.cos(math.radians(55 + k * 9)) + up * math.sin(math.radians(55 + k * 9))).normalized()
         seam.append(HEAD_C + V((dirv.x * HOOD_R.x, 0, dirv.z * HOOD_R.z)) * 1.02 + dvec)
-    stitches(p, seam, lambda q: (q - HEAD_C).normalized(), 'seam', step=0.7, length=0.55, width=0.2, lift=-0.04)
+    # (No stitches along it: on the crown's outline they read as a row of beads.)
     obj = finish(p, index=8)
 
     def rule(q):
@@ -674,7 +682,7 @@ def build_arm(r, s):
 
     br = Part(f'Bracer{s}')
     a, b = el.lerp(wr, 0.33), el.lerp(wr, 0.95)
-    tube(br, [a, a.lerp(b, 0.5), b], [1.3, 1.2, 1.08], ['leatherLight'], sides=10, n0=X, cap0=False, cap1=False)
+    tube(br, [a, a.lerp(b, 0.5), b], [1.3, 1.2, 1.08], ['leatherLight'], sides=10, n0=X, cap0=True, cap1=True)
     tube(br, [a - (b - a).normalized() * 0.1, a + (b - a).normalized() * 0.35], [1.38, 1.38], ['leather'], sides=10, n0=X)
     tube(br, [b - (b - a).normalized() * 0.35, b + (b - a).normalized() * 0.08], [1.18, 1.16], ['leather'], sides=10, n0=X)
     ax = (b - a).normalized()
@@ -690,11 +698,19 @@ def build_arm(r, s):
     side = hd.cross(Y * sy).normalized()
     palm = wr + (tip - wr) * 0.38
     rot = Matrix((side, hd.cross(side), hd)).transposed()
-    blob(gl, palm, (0.82, 0.95, 0.95), 'glove', u=10, v=8, rot=rot)
-    blob(gl, wr + (tip - wr) * 0.82, (0.68, 0.88, 0.78), 'glove', u=10, v=8, rot=rot)
+    k = HAND_K
+    blob(gl, palm, (0.82 * k, 0.95 * k, 0.95 * k), 'glove', u=10, v=8, rot=rot)
+    blob(gl, wr + (tip - wr) * 0.82, (0.68 * k, 0.88 * k, 0.78 * k), 'glove', u=10, v=8, rot=rot)
     # Thumb, on the side towards the figure's front.
-    thumb_base = palm + side * 0.15 + hd.cross(side).normalized() * (0.75 * sy) + hd * 0.05
-    tube(gl, [thumb_base, thumb_base + hd * 0.75 + side * 0.35], [0.36, 0.3], ['glove'], sides=6, n0=side)
+    thumb_base = palm + side * 0.15 + hd.cross(side).normalized() * (0.75 * sy * k) + hd * 0.05
+    tube(gl, [thumb_base, thumb_base + hd * 0.75 * k + side * 0.35], [0.36 * k, 0.3 * k], ['glove'], sides=6, n0=side)
+    # Three fingers past the knuckles (they curl with the fingers bone): a hand, not a ball.
+    knuckle = wr + (tip - wr) * 0.82
+    across = hd.cross(side).normalized()
+    for j in (-1, 0, 1):
+        f0 = knuckle + across * (0.3 * j * k) + hd * (0.35 * k)
+        tube(gl, [f0, f0 + hd * (0.45 * k), f0 + hd * (0.8 * k)], [0.24 * k, 0.22 * k, 0.17 * k], ['glove'], sides=6,
+             n0=side, cap1=True)
     glove = finish(gl, layer='arms', index=17 if s == 'L' else 18)
 
     def grule(q):
@@ -709,27 +725,33 @@ def build_bow(r):
     rest = BOW_REST
     p = Part('Bow')
     # A recurve: the limbs sweep back from the grip, then the tips curl forward.
-    upper = [(0, 0), (0.18, 1.6), (0.05, 3.2), (-0.6, 5.6), (-1.6, 8.2), (-2.6, 10.6), (-3.3, 12.4), (-3.45, 13.3),
-             (-3.1, 14.2), (-2.55, 14.8)]
-    radii = [(0.95, 0.75), (0.95, 0.72), (0.72, 0.62), (0.56, 0.58), (0.5, 0.52), (0.44, 0.46), (0.38, 0.4),
-             (0.34, 0.34), (0.3, 0.3), (0.22, 0.24)]
+    upper = [(x, z * BOW_K) for x, z in ((0, 0), (0.18, 1.6), (0.05, 3.2), (-0.6, 5.6), (-1.6, 8.2), (-2.6, 10.6),
+                                         (-3.3, 12.4), (-3.45, 13.3), (-3.1, 14.2), (-2.55, 14.8))]
+    # The limbs a third thicker than the first cut: the bow reads as a bow at a phone's size, in the match too.
+    radii = [(0.95, 0.75), (0.95, 0.72)] + [(x * 1.3, y * 1.15) for x, y in ((0.72, 0.62), (0.56, 0.58), (0.5, 0.52),
+                                                                         (0.44, 0.46), (0.38, 0.4), (0.34, 0.34),
+                                                                         (0.3, 0.3), (0.22, 0.24))]
     pts = [V((x, 0, -z)) for x, z in reversed(upper[1:])] + [V((x, 0, z)) for x, z in upper]
     rads = list(reversed(radii[1:])) + radii
     mats = []
     for a, b in zip(pts, pts[1:]):
         zz = min(abs(a.z), abs(b.z))
-        mats.append('grip' if max(abs(a.z), abs(b.z)) <= 1.7 else ('gold' if zz >= 13.0 else 'wood'))
+        mats.append('grip' if max(abs(a.z), abs(b.z)) <= 1.7 else ('gold' if zz >= 13.0 * BOW_K else 'wood'))
     tube(p, [rest @ q for q in pts], rads, mats, sides=8, n0=rest.to_3x3() @ X)
     # Wrapping on the grip, and a rune on each limb's belly.
     for zc in (-1.2, -0.4, 0.4, 1.2):
         tube(p, [rest @ V((0.05, 0, zc - 0.18)), rest @ V((0.08, 0, zc + 0.18))], [(1.04, 0.84), (1.04, 0.84)], ['grip'],
              sides=8, n0=rest.to_3x3() @ X)
+    # The tips catch a little light of their own (as the 2D Ranger's do): the bow's ends read at a glance.
+    for sz in (1, -1):
+        x, z = upper[-1]
+        blob(p, rest @ V((x - 0.05, 0, (z - 0.15) * sz)), (0.42, 0.42, 0.42), 'tipGlow', u=8, v=6)
     bow = finish(p, layer='bow', index=20)
 
     marks = Part('BowRunes')
     for sz in (1, -1):
-        for zc, rr in ((5.0, 0.32), (6.2, 0.22)):
-            x = -0.6 + (-1.0 + 0.6) * (zc - 5.0) / 2.6
+        for zc, rr in ((5.0 * BOW_K, 0.32), (6.2 * BOW_K, 0.22)):
+            x = -0.6 + (-1.0 + 0.6) * (zc - 5.0 * BOW_K) / 2.6
             blob(marks, rest @ V((x + 0.55, 0, zc * sz)), (0.16, 0.3, rr * 1.4), 'runeMark', u=6, v=4)
     runes = finish(marks, layer='bow', index=21)
 
@@ -747,7 +769,7 @@ def build_bow(r):
     lo = V((TIP.x, 0, -TIP.z))
     nock = V((-BRACE, 0, 0))
     pts = [TIP.lerp(nock, k / 8) for k in range(9)] + [nock.lerp(lo, k / 8) for k in range(1, 9)]
-    tube(s, [rest @ q for q in pts], [0.13] * len(pts), ['string'], sides=5, n0=rest.to_3x3() @ Y)
+    tube(s, [rest @ q for q in pts], [0.13] * len(pts), ['string'], sides=6, n0=rest.to_3x3() @ Y)
     string = finish(s, layer='bow', index=22)
 
     def string_rule(q):
@@ -768,7 +790,7 @@ def build_bow(r):
         ang = 2 * math.pi * k / 3 + 0.5
         off = V((0, math.cos(ang), math.sin(ang))) * 0.5
         rot = rest.to_3x3() @ Matrix.Rotation(ang - math.pi / 2, 3, 'X')
-        blob(a, rest @ (base + V((1.6, 0, 0)) + off), (1.35, 0.07, 0.48), mat, u=8, v=4, rot=rot)
+        blob(a, rest @ (base + V((1.5, 0, 0)) + off * 0.85), (1.15, 0.07, 0.4), mat, u=8, v=4, rot=rot)
     arrow = finish(a, layer='arrow', index=23)
     r.rigid(arrow, 'arrow')
     return bow, runes, string, arrow
@@ -778,7 +800,7 @@ def build():
     """Builds the Ranger: materials, skeleton, every mesh. Returns (rig, parts by layer)."""
     materials()
     r = build_skeleton()
-    parts = {'body': [], 'head': [], 'arms': [], 'bow': [], 'arrow': []}
+    parts = {'body': [], 'head': [], 'arms': [], 'hand': [], 'bow': [], 'arrow': []}
     parts['body'].append(build_tunic(r))
     parts['body'].extend(build_belt(r))
     parts['body'].append(build_mantle(r))
@@ -790,7 +812,10 @@ def build():
     parts['body'].extend(build_quiver(r))
     parts['body'].extend(build_strap(r))
     for s in ('L', 'R'):
-        parts['arms'].extend(build_arm(r, s))
+        sleeve, bracer, glove = build_arm(r, s)
+        parts['arms'].extend([sleeve, bracer])
+        # The draw hand is its own layer: in a match it is drawn over the head, so it shows at the cheek.
+        parts['hand' if s == 'R' else 'arms'].append(glove)
     bow, runes, string, arrow = build_bow(r)
     parts['bow'].extend([bow, runes, string])
     parts['arrow'].append(arrow)
@@ -805,8 +830,10 @@ L_WRIST = V((-0.55, 1.0, -0.05))   # the bow hand's wrist, in the bow's frame (t
 L_HAND_DIR = V((0.75, -0.62, 0.0))  # the bow hand's bone, wrist → knuckles, in the bow's frame
 R_WRIST = V((-1.25, -0.55, -0.55))  # the draw hand's wrist from the nock, in the bow's frame
 R_HAND_DIR = V((0.85, 0.35, 0.45))
-CANT = 0.42        # the bow's top tilts away from the face (radians)
-ANCHOR = V((3.5, -1.55, 14.75))  # full draw: the nock under the chin, just below the hood (rest-pose head)
+CANT = 0.45        # the bow's top tilts away from the face (radians)
+# Full draw: the nock under the chin, the hand forward of the hood's rim (rest-pose head): it shows against the hood's
+# lit rim and the mantle, the string runs under the eyes, and no feather sits in front of the face.
+ANCHOR = V((4.7, -2.2, 14.6))
 
 
 def aim_bone(r, name, head, ydir, zhint):
@@ -846,7 +873,7 @@ class Poser:
 
     # --- legs ---------------------------------------------------------------------------------------------
 
-    def feet(self, l=V((0.15, 0.1, 0)), rr=V((-0.15, -0.05, 0)), lp=0.0, rp=0.0, lyaw=0.0, ryaw=0.0):
+    def feet(self, l=V((0.15, 0.35, 0)), rr=V((-0.15, -0.3, 0)), lp=0.0, rp=0.0, lyaw=0.0, ryaw=0.0):
         """Ankle offsets from rest (figure space), toe pitch (+ = toe up) and yaw for each foot."""
         for s, off, pitch, yaw in (('L', l, lp, lyaw), ('R', rr, rp, ryaw)):
             hip, knee, ankle, toe = LEG[s]
@@ -992,9 +1019,9 @@ WALK_STRIDE = 2 * STRIDE_A / STANCE  # world px the body goes over one cycle
 IDLE_PERIOD_S = math.pi  # as the 2D rigs' breath (rigs.ts: sin(now / 500))
 BOW_CHEST_YAW = -1.05    # the bow layer's torso turn (radians): side-on enough for a real draw
 PROFILE_AIM = V((1, 0, 0))
-# The bow layer's draw comes to the chin, just under the hood: the head is drawn over the bow layer in a match (the
-# eyes always show), so a hand at the cheek would vanish behind it.
-PROFILE_ANCHOR = V((2.7, -1.75, 14.4))
+# The bow layer's draw comes to the cheek. The head is drawn over the bow layer in a match (the eyes always show),
+# and the draw hand over the head (its own layer), so the hand is seen at the cheek.
+PROFILE_ANCHOR = V((3.5, -2.6, 14.8))
 
 
 def idle_pose(P, t, springs=None):
@@ -1146,6 +1173,7 @@ STAGE_FRAMES = int(STAGE_S * STAGE_FPS)
 STAGE_AIM = math.radians(34)    # the arrow's way (figure frame: from +X towards its left = screen right)
 HEAD_SHOT_YAW = math.radians(4)  # where the face looks while drawing: just short of the arrow, so both eyes show
 LOOSE_AT = 5.75
+NOCK_FRONT = V((2.4, 0.0, 0.9))  # where the draw hand lays the arrow before nocking: in front of the string, the bow's frame
 T_PULL = (3.08, 3.42, 3.62, 4.05, 4.28)  # reach, grip, pull, nock starts, on the string
 
 
@@ -1226,8 +1254,8 @@ def stage_pose(P, i, springs):
     # Legs: the left foot steps towards the aim as the bow comes up, the right foot pivots on its ball.
     lead = tr['lead'](t)
     step = V((math.cos(STAGE_AIM + 0.35), math.sin(STAGE_AIM + 0.35), 0)) * 1.5 * lead + V((0, 0.35 * lead, 0))
-    lf = V((0.15, 0.1, 0)) + step + V((0, 0, 1.1 * tr['lift'](t)))
-    rf = V((-0.15 - 0.45 * shot, -0.05 - 0.3 * shot, 0.12 * shot))
+    lf = V((0.15, 0.35, 0)) + step + V((0, 0, 1.1 * tr['lift'](t)))
+    rf = V((-0.15 - 0.45 * shot, -0.3 - 0.3 * shot, 0.12 * shot))
     P.feet(lf, rf, lp=0.25 * tr['lift'](t), rp=-0.18 * shot, lyaw=0.45 * lead, ryaw=-0.55 * shot)
     breath = math.sin(2 * math.pi * t / (STAGE_S / 3)) * tr['breath_env'](t)
     P.hips(V((0.25 * shot, tr['shift'](t) - 0.25 * shot, tr['dip'](t) + 0.05 * breath)), yaw=-0.42 * shot,
@@ -1242,7 +1270,8 @@ def stage_pose(P, i, springs):
             head=(-0.03 * breath + 0.07 * tension, head_yaw * 0.55, 0.05 * tension + 0.02 * math.sin(2 * math.pi * t / 8)))
     hb, hs = springs['hood']
     cb, cs = springs['cloak']
-    P.secondary(hood=(0.03 + hb[i], hs[i]), cloak=(cb[i], cs[i], 0.0), pouch=springs['pouch'][i])
+    # The hood's tip swings, but never curls up over the head like a horn.
+    P.secondary(hood=(min(0.13, max(-0.04, 0.03 + hb[i])), hs[i]), cloak=(cb[i], cs[i], 0.0), pouch=springs['pouch'][i])
     r.update()
 
     # The bow: low in the left hand, then up to the aim, drawn to the jaw.
@@ -1268,7 +1297,7 @@ def stage_pose(P, i, springs):
     low = low_hold(sway=0.03 * breath, lift=0.15 * breath + tr['dip'](t) + 0.15, fwd=0.2 * tr['shift'](t))
     k = tr['bowup'](t)
     q = low.to_quaternion().slerp(aimed.to_quaternion(), k)
-    pos = low.translation.lerp(aimed.translation, k) + V((0.8, 0.6, 1.6)) * math.sin(math.pi * k) * 1.0
+    pos = low.translation.lerp(aimed.translation, k) + V((0.9, 0.6, 0.5)) * math.sin(math.pi * k)
     m = q.to_matrix().to_4x4()
     m.translation = pos
     d = draw_amount(t)
@@ -1291,10 +1320,12 @@ def stage_pose(P, i, springs):
             P.r.rot('fingers.R', pitch=0.4)
         elif t < t_nock:
             u = smooth((t - t_grip) / (t_nock - t_grip))
+            # Out of the quiver, up past the shoulder beside the jaw, then forward to lay the arrow over the bow hand
+            # in front of the string: the shaft never crosses the string before it is nocked.
             start = mouth + V((0.6, -0.9, 0.6))
-            over = anchor + V((-1.5, -1.0, 3.2))
-            a = start.lerp(over, smooth(u * 1.6))
-            wrist = a.lerp(on_string_wrist + rot @ V((0.6, 0, 0.4)), smooth((u - 0.45) / 0.55))
+            past = anchor + V((0.5, -2.5, 1.0))
+            a = start.lerp(past, smooth(u * 2.0))
+            wrist = a.lerp(on_string_wrist + rot @ NOCK_FRONT, smooth((u - 0.35) / 0.65))
             ydir = V((-0.5, 0.2, -0.8)).lerp(rot @ R_HAND_DIR, smooth(u * 1.3))
             P.ik_hand('R', wrist, ydir, V((1, 0, 0)).lerp(rot @ (-Y), u), weight=1.0,
                       pole=_world(r, 'chest', V((2, -9, 18))).lerp(pole_draw, u))
@@ -1302,7 +1333,7 @@ def stage_pose(P, i, springs):
             facts['arrow'] = ('hand', u)
         elif t < LOOSE_AT:
             u = smooth((t - t_nock) / (t_on - t_nock))
-            P.draw_hand(m, max(0.0, draw_px), off=rot @ V((0.6 * (1 - u), 0, 0.4 * (1 - u))), pole=pole_draw)
+            P.draw_hand(m, max(0.0, draw_px), off=rot @ (NOCK_FRONT * (1 - u)), pole=pole_draw)
             facts['arrow'] = 'string' if u >= 1 else ('nocking', u)
         else:
             a = after
@@ -1334,7 +1365,9 @@ def stage_pose(P, i, springs):
         else:
             fingers = r.tail('fingers.R')
             ax = (_world(r, 'chest', QUIVER_T) - _world(r, 'chest', QUIVER_B)).normalized()
-            held_dir = ax.lerp(dir_shot, smooth((u - 0.35) / 0.65) if kind == 'hand' else 1.0).normalized()
+            # Drawn from a back quiver by the nock, head down: it comes out pointing into the quiver and swings forward
+            # under the shoulder to the bow (never up past the hood).
+            held_dir = (-ax).lerp(dir_shot, smooth((u - 0.45) / 0.5) if kind == 'hand' else 1.0).normalized()
             hand_tail = fingers - held_dir * 1.0
             if kind == 'hand':
                 P.arrow_at(hand_tail, held_dir, Z)
@@ -1353,13 +1386,19 @@ def stage_pose(P, i, springs):
 
 # What the outputs need to know about the figure.
 HEIGHT = 26.5           # feet to crown (the body's darkening gradient runs over it)
-STAGE_HEIGHT = 31.0     # tallest moment of the stage loop (the bow raised), for the camera's framing
+STAGE_HEIGHT = 25.8     # tallest moment of the stage loop (the hood: the bow stays level with it), for the framing
 STAGE_MID = (2.0, 2.5)  # the middle of the figure on the stage (between the cloak and the bow), figure x / y
 ARROW_INDEX = 23
+# The match frames' bolder small parts (world px pushed out along the surface, by pass index): the bow and its tips,
+# the string, the arrow, the gloves, sleeves and bracers. A bow and a hand of the stage's thickness vanish at 16 px a
+# tile.
+MATCH_BOLD = {20: 0.42, 22: 0.3, 23: 0.14, 17: 0.22, 18: 0.26, 13: 0.12, 14: 0.12, 15: 0.1, 16: 0.1}
+CHECK_FRAMES = (0, 165, 200)  # the stage frames kept as the fringe check's fixtures: idle, full draw, follow-through
 SHOULDER_BONE = 'upperarm.L'
 BODY_LAYERS = {'body'}
 HEAD_LAYERS = {'head'}  # drawn over the bow layer in a match, so the bow never covers the face
-BOW_LAYERS = {'arms', 'bow', 'arrow'}
+BOW_LAYERS = {'arms', 'hand', 'bow', 'arrow'}
+HAND_LAYERS = {'hand'}  # the draw hand, drawn over the head in a match (the same frames, the same pivot)
 
 
 def body_frames():

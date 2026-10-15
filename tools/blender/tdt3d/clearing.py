@@ -1,19 +1,23 @@
-# The lobby's clearing (docs/ART.md §15), shared by every hero's stage: a moonlit glade at night. Lit moss under the
-# hero, a near tree line and a far one fading into mist, a night sky with the moon's halo at the upper left and a few
-# stars, ferns, rocks and glowing mushrooms round the hero's feet, and motes drifting on slow loops (periodic over the
+# The lobby's clearing (docs/ART.md §15), shared by every hero's stage: a moonlit glade at night, in clear near,
+# middle and far layers. Near: moss with a worn path through it, clumps of moss and grass, ferns with real leaflets,
+# faceted rocks capped with moss, glowing mushrooms, pebbles along the path, a fallen log, roots running from the
+# framing trees. Middle: the clearing's edge, oaks with layered canopies (each tier lit on top, dark beneath, its
+# edges silvered by the moon) and pines. Far: three rows of pines going into the mist. Above: the night sky, a few
+# stars and the moon at the upper left, where the light comes from. Motes drift on slow loops (periodic over the
 # stage loop, so it has no seam). Everything is placed relative to the camera, so it frames the hero from any angle.
 #
-# Object pass indices (npr.py draws ink outlines only on the hero, 1–99): 100 ground, 110–119 trees, 120 props,
-# 150 motes, 200 sky.
+# Object pass indices: 100 ground, 110–119 trees and roots, 120 props (round the hero; holdouts in his frames),
+# 200 and over the sky, its stars and the moon.
 
 import math
 
+import bmesh
 import bpy  # noqa: F401
 from mathutils import Matrix, Vector
 
 from . import geom, shading
 from .geom import Part, V, Z, blob, finish, lathe, tube
-from .palette import rgb
+from .palette import mix, rgb
 
 
 def _hash(i, k=0):
@@ -22,57 +26,121 @@ def _hash(i, k=0):
     return x - math.floor(x)
 
 
-def materials():
+# The worn path: its middle wanders across the clearing (lateral offset from the hero, by depth behind him).
+PATH = dict(amp=9.0, freq=0.016, phase=0.6, offset=-15.0, width=5.5, soft=2.5)
+
+
+def path_lateral(depth):
+    return PATH['offset'] + PATH['amp'] * math.sin(depth * PATH['freq'] + PATH['phase']) - depth * 0.05
+
+
+def materials(back, side):
     d = shading.define
 
     def ground(nt, links, base):
         tc = nt.nodes.new('ShaderNodeTexCoord')
-        n1 = nt.nodes.new('ShaderNodeTexNoise')
-        n1.inputs['Scale'].default_value = 0.012
-        n1.inputs['Detail'].default_value = 3.0
-        links.new(tc.outputs['Object'], n1.inputs['Vector'])
-        r1 = nt.nodes.new('ShaderNodeMapRange')
-        r1.inputs['From Min'].default_value = 0.42
-        r1.inputs['From Max'].default_value = 0.62
-        links.new(n1.outputs['Fac'], r1.inputs['Value'])
-        c = shading.mix_rgba(nt, links, r1.outputs['Result'], rgb('mossDark'), base)
-        n2 = nt.nodes.new('ShaderNodeTexNoise')
-        n2.inputs['Scale'].default_value = 0.35
-        n2.inputs['Detail'].default_value = 1.0
-        links.new(tc.outputs['Object'], n2.inputs['Vector'])
-        r2 = nt.nodes.new('ShaderNodeMapRange')
-        r2.inputs['From Min'].default_value = 0.6
-        r2.inputs['From Max'].default_value = 0.72
-        links.new(n2.outputs['Fac'], r2.inputs['Value'])
-        c = shading.mix_rgba(nt, links, r2.outputs['Result'], c, rgb('mossLight'))
-        # The clearing's moonlit pool round the hero: lighter moss near the middle.
-        sep = nt.nodes.new('ShaderNodeVectorMath')
-        sep.operation = 'LENGTH'
-        links.new(tc.outputs['Object'], sep.inputs[0])
-        r3 = nt.nodes.new('ShaderNodeMapRange')
-        r3.inputs['From Min'].default_value = 26.0
-        r3.inputs['From Max'].default_value = 120.0
-        r3.inputs['To Min'].default_value = 0.55
-        r3.inputs['To Max'].default_value = 0.0
-        links.new(sep.outputs['Value'], r3.inputs['Value'])
-        return shading.mix_rgba(nt, links, r3.outputs['Result'], c, rgb('mossLight'))
+        obj = tc.outputs['Object']
 
-    d('moss', 'moss', albedo=ground, grad=False, shade=0.75, rim=0.0, ao=0.8, dim=0.9)
-    d('fern', 'canopy', grad=False, shade=0.75, rim=0.08, dim=0.85)
-    d('grass', 'mossLight', grad=False, shade=0.75, rim=0.0, dim=0.95)
-    d('rock', 'stoneDark', grad=False, shade=0.85, rim=0.12, dim=0.62)
-    d('rockMoss', 'mossDark', grad=False, shade=0.8, rim=0.05, dim=0.85)
-    d('trunk', 'woodDark', grad=False, shade=0.6, rim=0.0, dim=0.45)
-    d('canopy', 'canopy', grad=False, shade=0.85, rim=0.1, dim=0.58)
-    d('canopyLight', 'canopyLight', grad=False, shade=0.85, rim=0.1, dim=0.5)
-    d('pine', 'pine', grad=False, shade=0.8, rim=0.1, dim=0.6)
-    d('farTree', 'tree', grad=False, shade=0.45, rim=0.0, ao=0.3, dim=0.8)
-    d('nearTree', 'forest', grad=False, shade=0.5, rim=0.04, dim=0.7)
-    d('cap', 'mushroom', grad=False, shade=0.9, rim=0.15, dim=0.5)
-    d('capGlow', 'rune', emit=0.9, grad=False, line=False, rim=0.0, ao=0.0)
-    d('stem', 'bone', grad=False, shade=0.8, dim=0.4, rim=0.0)
-    d('star', 'moon', emit=0.7, grad=False, line=False, rim=0.0, ao=0.0, shade=0.0)
-    d('moonDisc', 'moon', emit=1.0, grad=False, line=False, rim=0.0, ao=0.0, shade=0.0)
+        def noise(scale, detail, lo, hi):
+            n = nt.nodes.new('ShaderNodeTexNoise')
+            n.inputs['Scale'].default_value = scale
+            n.inputs['Detail'].default_value = detail
+            links.new(obj, n.inputs['Vector'])
+            r = nt.nodes.new('ShaderNodeMapRange')
+            r.inputs['From Min'].default_value = lo
+            r.inputs['From Max'].default_value = hi
+            links.new(n.outputs['Fac'], r.inputs['Value'])
+            return r.outputs['Result']
+
+        def m(op, a, b=None, c=None, clamp=False):
+            n = nt.nodes.new('ShaderNodeMath')
+            n.operation = op
+            n.use_clamp = clamp
+            for i, x in enumerate((a, b, c)):
+                if x is None:
+                    continue
+                if isinstance(x, (int, float)):
+                    n.inputs[i].default_value = x
+                else:
+                    links.new(x, n.inputs[i])
+            return n.outputs[0]
+
+        def dot(vec):
+            n = nt.nodes.new('ShaderNodeVectorMath')
+            n.operation = 'DOT_PRODUCT'
+            links.new(obj, n.inputs[0])
+            n.inputs[1].default_value = vec
+            return n.outputs['Value']
+
+        # Moss: dark and light patches at two scales, a few bare darker hollows.
+        c = shading.mix_rgba(nt, links, noise(0.012, 3.0, 0.42, 0.62), rgb('mossDark'), base)
+        c = shading.mix_rgba(nt, links, noise(0.09, 2.0, 0.55, 0.75), c, rgb('mossLight'))
+        c = shading.mix_rgba(nt, links, m('MULTIPLY', noise(0.035, 2.0, 0.6, 0.72), 0.6), c, rgb('fern'))
+        # The worn path: packed earth where its middle runs, its edge broken by noise, fading out far off.
+        u = dot(tuple(back))
+        v = dot(tuple(side))
+        centre = m('ADD', m('MULTIPLY', m('SINE', m('MULTIPLY_ADD', u, PATH['freq'], PATH['phase'])), PATH['amp']),
+                   m('MULTIPLY_ADD', u, -0.05, PATH['offset']))
+        dist = m('ABSOLUTE', m('SUBTRACT', v, centre))
+        jag = m('MULTIPLY_ADD', noise(0.11, 3.0, 0.2, 0.8), 3.0, -1.5)
+        edge = m('ADD', dist, jag)
+        r = nt.nodes.new('ShaderNodeMapRange')
+        r.inputs['From Min'].default_value = PATH['width']
+        r.inputs['From Max'].default_value = PATH['width'] + PATH['soft']
+        r.inputs['To Min'].default_value = 1.0
+        r.inputs['To Max'].default_value = 0.0
+        links.new(edge, r.inputs['Value'])
+        far = nt.nodes.new('ShaderNodeMapRange')
+        far.inputs['From Min'].default_value = 320.0
+        far.inputs['From Max'].default_value = 650.0
+        far.inputs['To Min'].default_value = 1.0
+        far.inputs['To Max'].default_value = 0.0
+        links.new(u, far.inputs['Value'])
+        on_path = m('MULTIPLY', r.outputs['Result'], far.outputs['Result'])
+        earth = shading.mix_rgba(nt, links, noise(0.3, 2.0, 0.45, 0.7), mix('lane', 'mossDark', 0.35), mix('lane', 'pebble', 0.4))
+        c = shading.mix_rgba(nt, links, m('MULTIPLY', on_path, 0.92), c, earth)
+        return c
+
+    def bark(nt, links, base):
+        return shading.noise_albedo('forest', scale=0.6, lo=0.4, hi=0.75, detail=3.0, amount=0.5)(nt, links, base)
+
+    def stone(nt, links, base):
+        c = shading.noise_albedo('mossDark', scale=0.45, lo=0.5, hi=0.72, detail=3.0, amount=0.55)(nt, links, base)
+        return c
+
+    # Scenery takes the hero's look (cel bands, rims, the moonlit edge), a value step darker; the haze over the frame
+    # does the rest of the depth.
+    d('moss', 'moss', albedo=ground, grad=False, shade=0.8, rim=0.0, mrim=0.0, ao=0.85, dim=0.92, line=0.0)
+    for twin in ('', '2'):
+        d('mossClump' + twin, color=mix('moss', 'mossLight', 0.55), grad=False, shade=0.85, rim=0.05, mrim=0.6, ao=0.8,
+          dim=0.92)
+    d('fern', color=mix('canopy', 'leafDark', 0.35), grad=False, shade=0.85, rim=0.15, mrim=0.6, dim=0.95, line=0.5)
+    d('fernLight', color=mix('canopyLight', 'leaf', 0.18), grad=False, shade=0.85, rim=0.15, mrim=0.6, dim=0.95, line=0.5)
+    d('grass', 'mossLight', grad=False, shade=0.75, rim=0.0, mrim=0.4, dim=0.95, line=0.0)
+    d('rock', color=mix(mix('stoneDark', 'mossDark', 0.6), 'pebble', 0.15), albedo=stone, grad=False, shade=1.0, rim=0.15,
+      mrim=0.9, dim=0.92)
+    d('rockMoss', color=mix('mossLight', 'moss', 0.4), grad=False, shade=0.9, rim=0.05, mrim=0.7, dim=0.92)
+    d('pebble', color=mix('pebble', 'stoneDark', 0.4), grad=False, shade=1.0, rim=0.1, mrim=0.8, dim=0.9, line=0.6)
+    d('trunk', 'woodDark', albedo=bark, grad=False, shade=0.85, rim=0.1, mrim=0.7, dim=0.7)
+    d('root', 'woodDark', albedo=bark, grad=False, shade=0.85, rim=0.05, mrim=0.6, dim=0.75)
+    d('logEnd', 'wood', grad=False, shade=0.9, rim=0.05, mrim=0.4, dim=0.8)
+    # Foliage in twins: the same colour under two material numbers, puffs alternating between them, so the ink
+    # draws a thin line where one clump of leaves meets the next.
+    for twin in ('', '2'):
+        d('canopy' + twin, 'canopy', grad=False, shade=1.0, rim=0.12, mrim=1.0, dim=0.82)
+        d('canopyLight' + twin, 'canopyLight', grad=False, shade=1.0, rim=0.12, mrim=1.0, dim=0.8)
+        d('canopyDark' + twin, color=mix('canopy', 'forest', 0.45), grad=False, shade=1.0, rim=0.1, mrim=1.0, dim=0.85)
+        d('nearCanopy' + twin, color=mix('canopy', 'forest', 0.7), grad=False, shade=0.9, rim=0.08, mrim=0.9, dim=0.78)
+    d('pine', 'pine', grad=False, shade=1.0, rim=0.1, mrim=1.0, dim=0.85)
+    d('farTree', color=mix('tree', 'pine', 0.4), grad=False, shade=0.6, rim=0.0, mrim=0.8, ao=0.3, dim=0.85, line=0.6)
+    d('nearTree', 'forest', grad=False, shade=0.7, rim=0.05, mrim=0.8, dim=0.75)
+    d('cap', 'mushroom', emit=0.18, glow='rune', grad=False, shade=0.9, rim=0.15, mrim=0.5, dim=0.75)
+    d('capDark', color=mix('mushroom', 'woodDark', 0.55), grad=False, shade=0.9, rim=0.1, mrim=0.5, dim=0.7)
+    d('capGlow', 'rune', emit=0.9, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
+    d('capEmber', 'ember', emit=0.85, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
+    d('stem', 'bone', grad=False, shade=0.8, dim=0.55, rim=0.0, mrim=0.3, line=0.6)
+    d('star', 'moon', emit=0.7, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0, shade=0.0)
+    d('moonDisc', 'moon', emit=1.0, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0, shade=0.0)
 
     def sky(nt, links, base):
         tc = nt.nodes.new('ShaderNodeTexCoord')
@@ -80,22 +148,61 @@ def materials():
         links.new(tc.outputs['Object'], sep.inputs[0])
         r = nt.nodes.new('ShaderNodeMapRange')
         r.inputs['From Min'].default_value = 0.0
-        r.inputs['From Max'].default_value = 650.0
+        r.inputs['From Max'].default_value = 900.0
         links.new(sep.outputs['Z'], r.inputs['Value'])
         return shading.mix_rgba(nt, links, r.outputs['Result'], rgb('skyLow'), base)
 
-    d('sky', 'sky', albedo=sky, grad=False, line=False, shade=0.0, rim=0.0, ao=0.0)
+    d('sky', 'sky', albedo=sky, grad=False, line=0.0, shade=0.0, rim=0.0, mrim=0.0, ao=0.0)
+
+
+def hull(part, pts, mat_of, crease=0.55):
+    """A faceted solid: the convex hull of `pts`, each face's material by mat_of(normal), its edges creased so the
+    facets stay crisp under the subdivision (a rock, not a pill)."""
+    tmp = bmesh.new()
+    vs = [tmp.verts.new(p) for p in pts]
+    res = bmesh.ops.convex_hull(tmp, input=vs)
+    inner = [g for g in res['geom_interior'] if isinstance(g, bmesh.types.BMVert)]
+    unused = [g for g in res['geom_unused'] if isinstance(g, bmesh.types.BMVert)]
+    if inner or unused:
+        bmesh.ops.delete(tmp, geom=inner + unused, context='VERTS')
+    bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces)
+    bm = part.bm
+    remap = {v: bm.verts.new(v.co) for v in tmp.verts}
+    for f in tmp.faces:
+        nf = bm.faces.new([remap[v] for v in f.verts])
+        nf.material_index = part.m(mat_of(f.normal))
+    for e in tmp.edges:
+        part.creases.append((remap[e.verts[0]], remap[e.verts[1]], crease))
+    tmp.free()
+
+
+def leafy(obj, cell, depth):
+    """Foliage: each crown's surface pushed out in clumps (a cellular texture in world space, after the subdivision),
+    so every puff has a broken, leafy edge and its own shadow line, not a smooth disc's."""
+    tex = bpy.data.textures.get(f'Leaves{cell}') or bpy.data.textures.new(f'Leaves{cell}', 'VORONOI')
+    tex.noise_scale = cell
+    tex.noise_intensity = 1.0
+    sub = obj.modifiers.new('Subsurf', 'SUBSURF')  # before the clumps (scene.detail sets its levels)
+    sub.quality = 3
+    sub.use_creases = True
+    mod = obj.modifiers.new('Leafy', 'DISPLACE')
+    mod.texture = tex
+    mod.texture_coords = 'GLOBAL'
+    mod.mid_level = 0.5
+    mod.strength = -depth
+    obj['detail'] = 2
+    return obj
 
 
 class Clearing:
     def __init__(self, cam_dir, period_s, fps):
         """cam_dir: from the hero towards the camera (unit). Builds the glade round the origin."""
-        materials()
         self.period = period_s
         self.fps = fps
         h = V((cam_dir.x, cam_dir.y, 0)).normalized()
         self.back = -h                 # away from the camera, behind the hero
         self.side = self.back.cross(Z).normalized()  # screen right (camera forward × up)
+        materials(self.back, self.side)
         self.motes = []
         self.ground()
         self.sky()
@@ -103,9 +210,15 @@ class Clearing:
         self.props()
         self.make_motes()
 
+    def moon_rim(self):
+        """Where the moonlit edges come from: the moon's side of the sky, up and to the left, a little behind."""
+        return (-self.side * 0.5 + Z * 0.8 + self.back * 0.35).normalized()
+
     def at(self, depth, lateral, z=0.0):
         """A point `depth` behind the hero (towards the far trees) and `lateral` to screen right."""
         return self.back * depth + self.side * lateral + Z * z
+
+    # --- the ground and the sky -------------------------------------------------------------------------------
 
     def ground(self):
         p = Part('Ground')
@@ -120,133 +233,335 @@ class Clearing:
                 ring.append(V((math.cos(a) * max(rr, 0.01), math.sin(a) * max(rr, 0.01), z)))
             rings.append(ring)
         geom.loft(p, rings, ['moss'], closed=True, cap0=False, cap1=False)
-        finish(p, layer='scene', index=100)
+        o = finish(p, layer='scene', index=100)
+        o['detail'] = 1
 
     def sky(self):
         p = Part('Sky')
-        # A tall open cylinder far behind everything, looking inwards.
         rr = 4200
         rings = []
         for z in (-200, 400, 1400, 3200):
             rings.append([V((math.cos(a) * rr, math.sin(a) * rr, z)) for a in [2 * math.pi * k / 64 for k in range(64)]])
         geom.loft(p, rings, ['sky'], closed=True, cap0=False, cap1=True)
-        finish(p, layer='scene', index=200, smooth_shade=True)
-        # Stars, mostly high, a few.
+        o = finish(p, layer='scene', index=200, smooth_shade=True)
+        o['detail'] = 0
+        # A backdrop, not a lid: the dome would otherwise shade the whole clearing from the moon.
+        o.visible_shadow = False
         s = Part('Stars')
-        for i in range(90):
+        for i in range(110):
             lat = self.side * ((_hash(i, 1) - 0.5) * 2 * 4000)
-            pos = self.back * 3900 + lat + Z * (150 + _hash(i, 2) ** 0.8 * 1400)
+            pos = self.back * 3900 + lat + Z * (250 + _hash(i, 2) ** 0.8 * 1500)
             r = 2.0 + 3.5 * _hash(i, 3) ** 3
             blob(s, pos, (r, r, r), 'star', u=6, v=4)
-        finish(s, layer='scene', index=201)
-        # The moon, high at the upper left.
+        o = finish(s, layer='scene', index=201)
+        o['detail'] = 0
+        o.visible_shadow = False
+        # The moon, at the upper left (where the light comes from), low enough to show on a phone's stage.
         m = Part('MoonDisc')
-        pos = self.back * 3800 + self.side * -1050 + Z * 330
-        blob(m, pos, (70, 70, 70), 'moonDisc', u=16, v=12)
+        pos = self.back * 3800 + self.side * -500 + Z * 200
+        blob(m, pos, (50, 50, 50), 'moonDisc', u=16, v=12)
         self.moon_pos = pos
-        finish(m, layer='scene', index=202)
+        o = finish(m, layer='scene', index=202)
+        o['detail'] = 1
+        o.visible_shadow = False
 
-    def pine(self, p, base, height, width, mat, tiers=4, jag=0.0, seed=0):
-        tube(p, [base + Z * -2, base + Z * (height * 0.3)], [width * 0.07, width * 0.06], ['trunk'], sides=6)
+    # --- trees ---------------------------------------------------------------------------------------------
+
+    def trunk(self, p, base, height, width, seed, lean=0.06, mat='trunk', fork=True):
+        """A trunk with a flared foot, a slight lean, and two boughs forking into the crown."""
+        lx = (_hash(seed, 1) - 0.5) * lean * height
+        ly = (_hash(seed, 2) - 0.5) * lean * height
+        top = base + V((lx, ly, height))
+        pts = [base + Z * -2, base + Z * (height * 0.08), base.lerp(top, 0.45), top]
+        tube(p, pts, [width * 0.62, width * 0.42, width * 0.3, width * 0.22], [mat], sides=8)
+        if fork:
+            for k, sgn in enumerate((1, -1)):
+                a = 2 * math.pi * _hash(seed, 3 + k) + k * math.pi
+                d = V((math.cos(a), math.sin(a), 0))
+                start = base.lerp(top, 0.7)
+                tube(p, [start, start + d * width * 0.9 + Z * height * 0.18, start + d * width * 1.7 + Z * height * 0.3],
+                     [width * 0.18, width * 0.12, width * 0.07], [mat], sides=6)
+        return top
+
+    def canopy(self, p, centre, radius, height, seed, mats=('canopyDark', 'canopy', 'canopyLight'), tiers=3):
+        """A crown of foliage in tiers: each tier a ring of puffs round a middle one, wider below; the top tier in the
+        lightest green. Under the cel bands each puff is lit on its upper left and dark beneath, the moon silvers the
+        crown's top edges, and the ink draws the clumps: foliage, not a blob."""
         for k in range(tiers):
-            z0 = height * (0.18 + 0.2 * k)
-            w = width * (1.0 - 0.2 * k)
-            hh = height * 0.36
-            prof = [(z0, w * 0.6), (z0 + hh * 0.08, w), (z0 + hh * 0.35, w * 0.7), (z0 + hh, 0.02)]
-            lathe(p, [(base.z + z, rr) for z, rr in prof], [mat], sides=9, center=(base.x, base.y),
-                  rad=lambda i, a, s=seed + k: 1 + jag * 0.18 * math.cos(5 * a + s) * (1 if i == 1 else 0.3),
+            u = k / max(1, tiers - 1)
+            tr = radius * (1.0 - 0.38 * u)
+            z = centre.z + height * (u - 0.35)
+            c = V((centre.x, centre.y, z))
+            n = 5 + int(_hash(seed, 10 + k) * 3)
+            mat = mats[min(len(mats) - 1, k)]
+            for j in range(n):
+                a = 2 * math.pi * j / n + _hash(seed, 20 + k) * 2
+                rr = tr * (0.55 + 0.15 * _hash(seed, 30 + j + 7 * k))
+                pr = tr * (0.42 + 0.14 * _hash(seed, 40 + j + 7 * k))
+                q = c + V((math.cos(a) * rr, math.sin(a) * rr, (_hash(seed, 50 + j + 7 * k) - 0.5) * height * 0.12))
+                blob(p, q, (pr, pr, pr * 0.72), mat + ('2' if j % 2 else ''), u=10, v=7)
+            blob(p, c + Z * height * 0.08, (tr * 0.62, tr * 0.62, tr * 0.5), mat, u=10, v=7)
+
+    def oak(self, p, base, height, width, seed, mats=('canopyDark', 'canopy', 'canopyLight'), trunk='trunk', crown=None):
+        top = self.trunk(p, base, height * 0.55, width * 0.16, seed, mat=trunk)
+        self.canopy(crown or p, V((top.x, top.y, base.z + height * 0.7)), width * 0.55, height * 0.5, seed, mats)
+
+    def pine(self, p, base, height, width, mat, tiers=5, seed=0, trunk='trunk'):
+        """A pine: a trunk and drooping skirts of needles, each tier's hem cut into points."""
+        tube(p, [base + Z * -2, base + Z * (height * 0.3)], [width * 0.07, width * 0.055], [trunk], sides=6)
+        tilt = (_hash(seed, 9) - 0.5) * 0.12
+        for k in range(tiers):
+            u = k / tiers
+            z0 = height * (0.16 + 0.78 * u)
+            w = width * (1.0 - 0.72 * u) * (0.92 + 0.16 * _hash(seed, k))
+            hh = height * (0.32 - 0.1 * u)
+            prof = [(z0 - hh * 0.12, w * 0.55), (z0, w), (z0 + hh * 0.18, w * 0.82), (z0 + hh * 0.6, w * 0.32),
+                    (z0 + hh, 0.02)]
+            ph = _hash(seed, k + 30) * 6.28
+            lathe(p, [(base.z + z, r) for z, r in prof], [mat], sides=12, center=(base.x + tilt * z0, base.y),
+                  wave=lambda i, a, ph=ph: (-0.12 * hh * max(0.0, math.cos(6 * a + ph)) ** 2) if i <= 1 else 0.0,
+                  rad=lambda i, a, ph=ph: 1 + (0.1 * math.cos(6 * a + ph) if i <= 1 else 0.0),
                   cap0=True, cap1=False)
 
-    def oak(self, p, base, height, width, mat, mat2, seed=0):
-        tube(p, [base + Z * -2, base + Z * (height * 0.45)], [width * 0.1, width * 0.08], ['trunk'], sides=7)
-        for k in range(7):
-            a = 2 * math.pi * _hash(seed, k) + k
-            rr = width * (0.45 + 0.25 * _hash(seed, k + 10))
-            c = base + V((math.cos(a) * width * 0.35, math.sin(a) * width * 0.35, height * (0.55 + 0.25 * _hash(seed, k + 20))))
-            blob(p, c, (rr, rr, rr * 0.82), mat if k % 3 else mat2, u=10, v=8)
-
     def tree_lines(self):
-        # The far line: tall pines, many, deep in the mist.
+        # The far rows: pines, smaller and fainter row by row (the haze over the frame fades them into the mist).
         far = Part('FarTrees')
-        for i in range(90):
-            lat = (i - 45) * 40 + (_hash(i, 1) - 0.5) * 30
-            depth = 900 + _hash(i, 2) * 300
-            hgt = 85 + _hash(i, 3) * 55
-            self.pine(far, self.at(depth, lat, -4), hgt, 26 + _hash(i, 4) * 12, 'farTree', tiers=4, jag=1.0, seed=i)
-        finish(far, layer='scene', index=111)
-        # The near line: oaks and pines at the clearing's edge.
+        for row, (depth0, spread, count, hgt) in enumerate(((1500, 2800, 72, 118), (1120, 2050, 66, 96),
+                                                           (820, 1550, 60, 78))):
+            for i in range(count):
+                lat = (i / (count - 1) - 0.5) * spread + (_hash(i, 1 + row * 7) - 0.5) * spread / count
+                depth = depth0 + _hash(i, 2 + row * 7) * 140
+                h = hgt * (0.7 + 0.6 * _hash(i, 3 + row * 7))
+                self.pine(far, self.at(depth, lat, -6), h, h * 0.36, 'farTree', tiers=5, seed=i + 100 * row)
+        o = finish(far, layer='scene', index=111)
+        o['detail'] = 1
+        # The clearing's edge: oaks and pines in two staggered ranks, a gap of sky behind the hero.
         mid = Part('MidTrees')
-        for i in range(40):
-            lat = (i - 20) * 30 + (_hash(i, 5) - 0.5) * 22
-            depth = 330 + _hash(i, 6) * 130
-            hgt = 52 + _hash(i, 7) * 30
-            if _hash(i, 8) < 0.45:
-                self.pine(mid, self.at(depth, lat, -2), hgt * 1.3, 22 + _hash(i, 9) * 8, 'pine', tiers=4, jag=1.0, seed=i)
+        crowns = Part('MidCrowns')
+        for i in range(48):
+            lat = (i - 23.5) * 27 + (_hash(i, 5) - 0.5) * 18
+            depth = 400 + _hash(i, 6) * 120 + (i % 2) * 60
+            hgt = 48 + _hash(i, 7) * 30
+            if abs(lat) < 90:
+                hgt *= 0.62  # lower behind the hero: his hood against the far rows and the sky
+            if _hash(i, 8) < 0.4:
+                self.pine(mid, self.at(depth, lat, -2), hgt * 1.35, hgt * 0.5, 'pine', tiers=6, seed=i)
             else:
-                self.oak(mid, self.at(depth, lat, -2), hgt, 30 + _hash(i, 10) * 12, 'canopy', 'canopyLight', seed=i)
-        finish(mid, layer='scene', index=112)
-        # Framing trunks and canopies at the far sides (seen on wide stages).
+                mats = ('canopyDark', 'canopy', 'canopyLight') if _hash(i, 11) < 0.6 else ('canopyDark', 'canopyDark', 'canopy')
+                self.oak(mid, self.at(depth, lat, -2), hgt, 40 + _hash(i, 10) * 16, seed=i, mats=mats, crown=crowns)
+        o = finish(mid, layer='scene', index=112)
+        o['detail'] = 2
+        leafy(finish(crowns, layer='scene', index=115), cell=3.2, depth=1.7)
+        # Framing trees at the far sides (seen on wide stages), with their roots running over the moss.
         near = Part('NearTrees')
-        for i, (depth, lat) in enumerate(((150, -215), (190, -280), (140, 225), (185, 290), (230, -330), (240, 340))):
-            self.oak(near, self.at(depth, lat, -2), 85 + 20 * _hash(i, 11), 44, 'nearTree', 'canopy', seed=40 + i)
-        finish(near, layer='scene', index=113)
+        near_crowns = Part('NearCrowns')
+        roots = Part('Roots')
+        for i, (depth, lat) in enumerate(((60, -150), (130, -205), (20, -235), (70, 160), (140, 215), (10, 245))):
+            base = self.at(depth, lat, -1)
+            self.oak(near, base, 125 + 25 * _hash(i, 11), 70, seed=40 + i, mats=('nearCanopy', 'nearCanopy', 'canopyDark'),
+                     crown=near_crowns)
+            for k in range(5):
+                a = 2 * math.pi * (k + _hash(i, 60 + k) * 0.5) / 5
+                d = V((math.cos(a), math.sin(a), 0))
+                ln = 10 + 9 * _hash(i, 70 + k)
+                pts = [base + d * 3 + Z * 3.5, base + d * (ln * 0.4) + Z * 1.4, base + d * ln + Z * 0.2,
+                       base + d * (ln * 1.35) + Z * -0.6]
+                tube(roots, pts, [2.2, 1.4, 0.8, 0.3], ['root'], sides=6)
+        o = finish(near, layer='scene', index=113)
+        o['detail'] = 2
+        # They stand at the clearing's sides in the moonlight; their long shadows would fall right across the hero.
+        o.visible_shadow = False
+        o = leafy(finish(near_crowns, layer='scene', index=116), cell=4.5, depth=2.4)
+        o.visible_shadow = False
+        o = finish(roots, layer='scene', index=114)
+        o['detail'] = 2
+
+    # --- round the hero -----------------------------------------------------------------------------------
+
+    def log(self, p, a, b):
+        """A fallen trunk: ridged bark along it, a root flare at its foot, a pale broken face at its top end."""
+        ax = (b - a).normalized()
+        sides = 12
+        n = 9
+        rings = []
+        for i in range(n):
+            u = i / (n - 1)
+            c = a.lerp(b, u) + Z * (0.4 * math.sin(math.pi * u))
+            r = 2.6 + 0.4 * u + (1.4 * (u - 0.8) / 0.2 if u > 0.8 else 0.0)
+            side = ax.cross(Z).normalized()
+            up = side.cross(ax).normalized()
+            ring = []
+            for k in range(sides):
+                t = 2 * math.pi * k / sides
+                ridge = 1 + 0.07 * math.cos(5 * t + 1.3 * i) + 0.04 * math.cos(9 * t)
+                ring.append(c + (side * math.cos(t) + up * math.sin(t)) * r * ridge)
+            rings.append(ring)
+        geom.loft(p, rings, ['trunk'], closed=True, cap0=False, cap1=True)
+        # The broken end: a jagged pale face.
+        face = []
+        for k in range(sides):
+            t = 2 * math.pi * k / sides
+            side = ax.cross(Z).normalized()
+            up = side.cross(ax).normalized()
+            face.append(a + (side * math.cos(t) + up * math.sin(t)) * 2.5 + ax * (0.5 * _hash(k, 3)))
+        geom.loft(p, [rings[0], face], ['logEnd'], closed=True, cap0=False, cap1=True)
+        # Roots splayed from the foot (the top end, where it broke from them).
+        for k in range(4):
+            t = 2 * math.pi * k / 4 + 0.6
+            d = (ax.cross(Z).normalized() * math.cos(t) + Z * math.sin(t) * 0.4 + ax * 0.6).normalized()
+            tube(p, [b, b + d * 3.0 - Z * 0.6, b + d * 6.0 - Z * 1.8], [1.6, 0.9, 0.3], ['root'], sides=6)
+
+    def fern(self, p, c, size, seed, fronds=8):
+        """A fern: arched fronds from one root, each a stem with leaflets in pairs, longest at the middle."""
+        for k in range(fronds):
+            a = 2 * math.pi * k / fronds + _hash(seed, k) * 0.6
+            d = V((math.cos(a), math.sin(a), 0))
+            side = Z.cross(d).normalized()
+            ln = (5.2 + 2.0 * _hash(seed, k + 9)) * size
+            rise = (3.4 + 1.6 * _hash(seed, k + 18)) * size
+            mat = 'fern' if k % 3 else 'fernLight'
+
+            def at(u):
+                return c + d * ln * u + Z * (rise * math.sin(math.pi * min(1.0, u * 0.95)) * (1 - 0.25 * u))
+
+            stem = [at(u) for u in (0.0, 0.25, 0.5, 0.75, 1.0)]
+            tube(p, stem, [0.16 * size, 0.13 * size, 0.1 * size, 0.07 * size, 0.03 * size], [mat], sides=4, n0=Z)
+            pairs = 7
+            for j in range(1, pairs + 1):
+                u = j / (pairs + 1)
+                base = at(u)
+                tang = (at(min(1.0, u + 0.02)) - at(max(0.0, u - 0.02))).normalized()
+                span = (0.4 + 1.6 * math.sin(math.pi * min(1.0, u * 1.1))) * size * (1 - 0.35 * u)
+                for sgn in (1, -1):
+                    out = (side * sgn + tang * 0.45 - Z * 0.25).normalized()
+                    tip = base + out * span
+                    tube(p, [base, base.lerp(tip, 0.5) + Z * 0.15 * size, tip],
+                         [(0.07 * size, 0.32 * size), (0.06 * size, 0.28 * size), (0.03, 0.04)], [mat], sides=4,
+                         n0=Z.cross(out).normalized().cross(out).normalized())
+
+    def rock(self, p, c, size, seed, flat=0.7):
+        """A boulder: a faceted hull, half sunk, its upward faces grown over with moss."""
+        pts = []
+        n = 16
+        yaw = _hash(seed, 1) * 6.28
+        rot = Matrix.Rotation(yaw, 3, 'Z')
+        for i in range(n):
+            # A Fibonacci sphere, each point pushed in or out a little.
+            y = 1 - 2 * (i + 0.5) / n
+            r = math.sqrt(max(0.0, 1 - y * y))
+            a = i * 2.39996 + seed
+            q = V((math.cos(a) * r, math.sin(a) * r, y))
+            k = 0.78 + 0.32 * _hash(seed, 10 + i)
+            q = V((q.x * size * k * 1.2, q.y * size * k, q.z * size * k * flat))
+            pts.append(c + rot @ q)
+        hull(p, pts, lambda nrm: 'rockMoss' if nrm.z > 0.62 else 'rock', crease=0.6)
+
+    def mushrooms(self, p, c, seed, count=4, glow='capGlow', scale=1.0):
+        """A cluster of mushrooms, tallest in the middle: pale stems, domed caps with a lip, glowing spots."""
+        for k in range(count):
+            a = 2 * math.pi * k / count + _hash(seed, k) * 1.5
+            off = V((math.cos(a), math.sin(a), 0)) * (0.0 if k == 0 else 1.6 + 1.2 * _hash(seed, k + 4)) * scale
+            h = (3.4 if k == 0 else 1.8 + 1.3 * _hash(seed, k + 8)) * scale
+            r = (2.1 if k == 0 else 1.1 + 0.6 * _hash(seed, k + 12)) * scale
+            base = c + off
+            lean = V(((_hash(seed, k + 16) - 0.5) * 0.5, (_hash(seed, k + 20) - 0.5) * 0.5, 0)) * h
+            top = base + Z * h + lean
+            tube(p, [base, base.lerp(top, 0.5) + lean * 0.1, top], [0.45 * r, 0.32 * r, 0.3 * r], ['stem'], sides=6)
+            prof = [(top.z - 0.15 * r, 0.25 * r), (top.z - 0.05 * r, 0.95 * r), (top.z + 0.2 * r, 1.05 * r),
+                    (top.z + 0.55 * r, 0.8 * r), (top.z + 0.8 * r, 0.35 * r), (top.z + 0.86 * r, 0.02)]
+            lathe(p, prof, ['capDark', 'cap', 'cap', 'cap', 'cap'], sides=12, center=(top.x, top.y), cap0=True,
+                  cap1=False)
+            for j in range(4 if k == 0 else 3):
+                b = 2 * math.pi * j / (4 if k == 0 else 3) + k
+                q = top + V((math.cos(b) * 0.6 * r, math.sin(b) * 0.6 * r, 0.55 * r))
+                blob(p, q, (0.28 * r, 0.28 * r, 0.15 * r), glow, u=6, v=4)
 
     def props(self):
         p = Part('Props')
-        # Ferns: fans of arched fronds, each a flat tapering blade.
-        for i, (depth, lat, size) in enumerate(((10, -24, 1.0), (-16, 48, 1.1), (34, 30, 0.9), (26, -36, 1.2),
-                                                (-32, -42, 1.3), (60, 6, 1.0), (70, -60, 1.2), (52, 70, 1.1),
-                                                (-40, 48, 1.4), (-50, -45, 1.4))):
-            c = self.at(depth, lat)
-            for k in range(7):
-                a = 2 * math.pi * k / 7 + _hash(i, k) * 0.5
-                d = V((math.cos(a), math.sin(a), 0))
-                side = Z.cross(d).normalized()
-                ln = (4.2 + 1.6 * _hash(i, k + 9)) * size
-                rise = (3.6 + 1.6 * _hash(i, k + 18)) * size
-                pts = [c + d * ln * u + Z * (rise * math.sin(math.pi * min(1.0, u * 0.9)) * (1 - 0.15 * u)) for u in (0.0, 0.3, 0.6, 0.85, 1.0)]
-                widths = [(0.12, 0.35 * size), (0.12, 0.95 * size), (0.1, 0.8 * size), (0.08, 0.45 * size), (0.05, 0.08 * size)]
-                tube(p, pts, widths, ['fern' if k % 3 else 'grass'], sides=6, n0=Z)
-        # Grass tufts over the moss: a few thin blades each, more towards the camera.
-        for i in range(90):
-            depth = -120 + 300 * _hash(i, 40) ** 1.4
-            lat = (_hash(i, 41) - 0.5) * 2 * (90 + max(0.0, depth) * 1.2)
-            if abs(lat) < 14 and -12 < depth < 18:
-                continue  # leave the hero's feet clear
-            c = self.at(depth, lat)
-            size = 0.8 + 0.6 * _hash(i, 42)
-            for k in range(5):
+        at = self.at
+        # Ferns round the clearing (none where his shadow falls, behind him to the right).
+        for i, (depth, lat, size) in enumerate(((14, -24, 1.0), (-22, 34, 1.15), (40, -42, 1.2), (-34, -40, 1.35),
+                                                (62, 24, 1.0), (75, -64, 1.25), (-48, 60, 1.45), (-56, -12, 1.3))):
+            self.fern(p, at(depth, lat), size, seed=i + 1)
+        # Grass in tufts, more of it towards the camera, the hero's feet and the path left clear.
+        for i in range(120):
+            depth = -110 + 290 * _hash(i, 40) ** 1.3
+            lat = (_hash(i, 41) - 0.5) * 2 * (80 + max(0.0, depth) * 1.1)
+            if abs(lat) < 16 and -14 < depth < 20:
+                continue
+            if abs(lat - path_lateral(depth)) < PATH['width'] + 1:
+                continue
+            c = at(depth, lat)
+            size = 0.8 + 0.7 * _hash(i, 42)
+            for k in range(6):
                 a = 2 * math.pi * _hash(i, k + 43)
-                lean = V((math.cos(a), math.sin(a), 0)) * (0.35 + 0.5 * _hash(i, k + 48)) * size
-                h = (2.2 + 1.8 * _hash(i, k + 53)) * size
-                pts = [c + lean * 0.0, c + lean * 0.35 + Z * h * 0.55, c + lean + Z * h]
-                tube(p, pts, [(0.46 * size, 0.1), (0.32 * size, 0.09), (0.04, 0.04)], ['grass'],
-                     sides=4, n0=V((-math.sin(a), math.cos(a), 0)))
-        # Rocks, half sunk, with moss on top.
-        for i, (depth, lat, rr) in enumerate(((22, 42, 4.5), (-8, -40, 3.2), (85, -28, 6.0), (40, -70, 5.0))):
-            c = self.at(depth, lat, rr * 0.15)
-            blob(p, c, (rr * 1.25, rr, rr * 0.75), 'rock', u=10, v=8)
-            blob(p, c + Z * rr * 0.5, (rr * 0.95, rr * 0.75, rr * 0.3), 'rockMoss', u=10, v=6)
-        # Mushrooms with glowing spots, a cluster on each side.
-        for i, (depth, lat) in enumerate(((4, -30), (-18, 34), (48, 52))):
-            for k in range(3):
-                c = self.at(depth + k * 2.2, lat + (k - 1) * 2.6)
-                h = 2.6 + 1.2 * _hash(i, k)
-                tube(p, [c, c + Z * h], [0.55, 0.45], ['stem'], sides=6)
-                blob(p, c + Z * h, (1.8, 1.8, 0.9), 'cap', u=10, v=6)
-                for j in range(3):
-                    a = 2 * math.pi * j / 3 + k
-                    blob(p, c + Z * (h + 0.55) + V((math.cos(a), math.sin(a), 0)) * 1.05, (0.42, 0.42, 0.25), 'capGlow', u=6, v=4)
-        finish(p, layer='scene', index=120)
+                lean = V((math.cos(a), math.sin(a), 0)) * (0.35 + 0.6 * _hash(i, k + 48)) * size
+                h = (2.4 + 2.0 * _hash(i, k + 53)) * size
+                pts = [c, c + lean * 0.35 + Z * h * 0.55, c + lean + Z * h]
+                tube(p, pts, [(0.44 * size, 0.1), (0.3 * size, 0.09), (0.04, 0.04)], ['grass'], sides=4,
+                     n0=V((-math.sin(a), math.cos(a), 0)))
+        # Moss clumps: lumpy mounds of a few cushions each, lighter than the ground, a tuft of grass in them.
+        for i, (depth, lat, rr) in enumerate(((30, 30, 5.0), (-18, -32, 4.2), (58, -30, 6.0), (-40, 26, 5.5),
+                                              (90, 48, 7.5), (100, -46, 6.5), (-70, -48, 7.0))):
+            c = at(depth, lat)
+            for k in range(4):
+                a = 2 * math.pi * (k / 4 + _hash(i, 90 + k) * 0.2)
+                off = V((math.cos(a), math.sin(a), 0)) * rr * (0.0 if k == 0 else 0.55 + 0.2 * _hash(i, 94 + k))
+                sz = rr * (0.85 if k == 0 else 0.5 + 0.2 * _hash(i, 98 + k))
+                blob(p, c + off, (sz, sz * 0.9, sz * 0.42), 'mossClump' if k % 2 == 0 else 'mossClump2', u=10, v=6)
+        # Rocks: a big one left of the hero, smaller ones about, all half sunk.
+        for i, (depth, lat, size, flat) in enumerate(((24, -36, 6.5, 0.8), (-14, 46, 4.2, 0.75), (85, -38, 9.0, 0.7),
+                                                     (48, 66, 6.5, 0.75), (-38, -60, 8.0, 0.7), (120, 42, 11.0, 0.65))):
+            self.rock(p, at(depth, lat, -size * 0.12), size, seed=i * 3 + 1, flat=flat)
+        # Pebbles along the path's edges.
+        for i in range(26):
+            depth = -90 + 260 * _hash(i, 80)
+            sgn = 1 if _hash(i, 81) > 0.5 else -1
+            lat = path_lateral(depth) + sgn * (PATH['width'] + 1.5 * _hash(i, 82))
+            if abs(lat) < 14 and -12 < depth < 16:
+                continue
+            self.rock(p, at(depth, lat, -0.2), 1.0 + 0.9 * _hash(i, 83), seed=200 + i, flat=0.8)
+        # A fallen log on the right, mossy on top, its cut end pale; mushrooms on it and in clusters about.
+        log0, log1 = at(52, 36, 2.2), at(70, 88, 2.6)
+        ax = (log1 - log0).normalized()
+        self.log(p, log0, log1)
+        # Moss in patches along its back, and its broken end's splinters.
+        for k, u in enumerate((0.25, 0.55, 0.8)):
+            q = log0.lerp(log1, u) + Z * 2.4
+            blob(p, q, (2.6, 1.6, 0.7), 'mossClump' if k % 2 else 'mossClump2', u=10, v=6,
+                 rot=Matrix.Rotation(math.atan2(ax.y, ax.x), 3, 'Z'))
+        for k in range(5):
+            a = 2 * math.pi * k / 5 + 0.4
+            d = (Z * math.sin(a) + ax.cross(Z).normalized() * math.cos(a)) * 1.7
+            tube(p, [log0 + d, log0 + d * 0.9 - ax * (1.2 + 0.9 * _hash(k, 7))], [0.55, 0.12], ['logEnd'], sides=5)
+        self.mushrooms(p, log0.lerp(log1, 0.3) + Z * 2.4, seed=5, count=3, scale=0.8)
+        for i, (depth, lat, glow, sc) in enumerate(((6, -30, 'capGlow', 1.0), (-20, 36, 'capEmber', 0.9),
+                                                   (44, 54, 'capGlow', 1.1), (30, -58, 'capEmber', 0.9),
+                                                   (-60, 40, 'capGlow', 1.2))):
+            self.mushrooms(p, at(depth, lat), seed=10 + i, count=4 if i % 2 == 0 else 3, glow=glow, scale=sc)
+        # An old stump left of the path, its roots running out over the moss.
+        stump = at(46, -56, -0.5)
+        tube(p, [stump, stump + Z * 4.5, stump + Z * 6.2], [4.2, 3.6, 3.4], ['trunk'], sides=10, cap0=True, cap1=True)
+        tube(p, [stump + Z * 6.0, stump + Z * 6.35], [3.2, 2.9], ['logEnd'], sides=10, cap0=False, cap1=True)
+        for k in range(6):
+            a = 2 * math.pi * (k + 0.3 * _hash(k, 9)) / 6
+            d = V((math.cos(a), math.sin(a), 0))
+            ln = 9 + 7 * _hash(k, 11)
+            tube(p, [stump + d * 3 + Z * 2.5, stump + d * (ln * 0.45) + Z * 0.9, stump + d * ln + Z * 0.1,
+                     stump + d * (ln * 1.3) + Z * -0.5], [1.5, 1.0, 0.6, 0.2], ['root'], sides=6)
+        o = finish(p, layer='scene', index=120)
+        o['detail'] = 2
 
     def make_motes(self):
         """Glowing motes on slow loops (each closes over the stage loop or a whole fraction of it). They are points of
         light, drawn by the compositor where the camera sees them each frame (stage.py), behind or in front of the
         hero by depth; the plate stays still."""
-        for i in range(14):
-            depth = -30 + 140 * _hash(i, 30)
-            lat = (_hash(i, 31) - 0.5) * 2 * (40 + depth * 0.9)
-            z = 6 + 30 * _hash(i, 32)
+        n = 18
+        for i in range(n):
+            # Spread evenly across the clearing (two motes side by side in the dark read as a creature's eyes).
+            depth = -40 + 180 * _hash(i, 30)
+            lat = ((i + 0.5) / n - 0.5 + (_hash(i, 31) - 0.5) / n) * 2 * (40 + depth * 0.9)
+            z = 5 + 34 * _hash(i, 32)
             self.motes.append(dict(centre=self.at(depth, lat, z), turns=1 + int(_hash(i, 33) * 2),
                                    phase=2 * math.pi * _hash(i, 34), radius=3 + 5 * _hash(i, 35),
                                    colour='rune' if i % 3 else 'ember', size=0.38))

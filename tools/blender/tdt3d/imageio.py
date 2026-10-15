@@ -11,8 +11,8 @@ def _chunk(kind, data):
     return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xFFFFFFFF)
 
 
-def write_png(path, img):
-    """img: h × w × 3 (RGB) or h × w × 4 (RGBA), uint8."""
+def write_png(path, img, level=9):
+    """img: h × w × 3 (RGB) or h × w × 4 (RGBA), uint8. `level`: zlib's (1 for frames only ffmpeg reads)."""
     img = np.ascontiguousarray(img, dtype=np.uint8)
     h, w, c = img.shape
     color = {3: 2, 4: 6}[c]
@@ -32,7 +32,7 @@ def write_png(path, img):
     raw = b''.join(best)
     data = b'\x89PNG\r\n\x1a\n'
     data += _chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, color, 0, 0, 0))
-    data += _chunk(b'IDAT', zlib.compress(raw, 9))
+    data += _chunk(b'IDAT', zlib.compress(raw, level))
     data += _chunk(b'IEND', b'')
     with open(path, 'wb') as f:
         f.write(data)

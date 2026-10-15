@@ -5,6 +5,7 @@
 #   emit    the glow colour × strength (eyes, runes, the arrowhead); 0 elsewhere
 #   ao      ambient occlusion: creases and the places light can't reach
 #   rim     how much a surface turns away from the camera towards the rim light (behind, on the right)
+#   mrim    the same towards the moon where it hangs in the sky (behind, upper left): moonlit edges
 #   fill    how much it faces the sky (soft fill light from above)
 #   sheen   a tight highlight from the moon, × the material's metal (a bright edge on metal and gems)
 #   grad    height on the figure (0 at the feet, 1 at the crown): bodies darken downwards, as in the 2D art
@@ -18,18 +19,21 @@ from .palette import rgb
 
 SPECS = {}
 MATS = {}
-FLAGS = {}  # material number -> dict(line=bool, ...)
+FLAGS = {}  # material number -> dict(line=weight, ...)
 
 
-def define(name, token=None, color=None, emit=0.0, glow=None, metal=0.0, grad=True, line=True, albedo=None,
-           ao=1.0, shade=1.0, rim=1.0, dim=1.0):
+def define(name, token=None, color=None, emit=0.0, glow=None, metal=0.0, grad=True, line=1.0, albedo=None,
+           ao=1.0, shade=1.0, rim=1.0, dim=1.0, mrim=1.0):
     """Declares a material. `token`/`color` is the albedo; `emit` > 0 makes it glow in `glow` (a token, else the
     albedo); `metal` adds the moon's bright edge; `albedo(nt, links) -> socket` replaces the flat colour (a texture);
-    `line=False` draws no ink outline around it (a bowstring); `ao`, `shade` and `rim` scale those terms; `dim`
-    darkens it all (a value step back for scenery, so the hero stays brightest)."""
+    `line` is its ink outline's weight (1 the full line, 0.45 the thin dark edge of a bowstring, 0 / False none);
+    `ao`, `shade`, `rim` and `mrim` (the moonlit edge) scale those terms; `dim` darkens it all (a value step back for
+    scenery, so the hero stays brightest)."""
+    line = float(line)
     SPECS[name] = dict(token=token, color=color, emit=emit, glow=glow, metal=metal, grad=grad, line=line,
-                       albedo=albedo, ao=ao, shade=shade, rim=rim, dim=dim, number=len(SPECS) + 1)
-    FLAGS[len(SPECS)] = dict(line=line, name=name, ao=ao, shade=shade, rim=rim, metal=metal, dim=dim)
+                       albedo=albedo, ao=ao, shade=shade, rim=rim, dim=dim, mrim=mrim, number=len(SPECS) + 1)
+    FLAGS[len(SPECS)] = dict(line=line, name=name, ao=ao, shade=shade, rim=rim, metal=metal, dim=dim, mrim=mrim,
+                             emit=float(emit))
 
 
 def number(name):
@@ -45,7 +49,7 @@ def globals_group():
         return bpy.data.node_groups['TDT']
     ng = bpy.data.node_groups.new('TDT', 'ShaderNodeTree')
     io = ng.interface
-    for name in ('ao', 'rim', 'fill', 'sheen', 'grad'):
+    for name in ('ao', 'rim', 'mrim', 'fill', 'sheen', 'grad'):
         io.new_socket(name, in_out='OUTPUT', socket_type='NodeSocketFloat')
     nodes, links = ng.nodes, ng.links
     out = nodes.new('NodeGroupOutput')
@@ -87,6 +91,7 @@ def globals_group():
 
     moon = vec('MoonDir', (0, 0, 1)).outputs[0]
     rimdir = vec('RimDir', (1, 0, 0)).outputs[0]
+    moonrim = vec('MoonRimDir', (0, 0, 1)).outputs[0]
     z0 = val('GradZ0', 0.0).outputs[0]
     z1 = val('GradZ1', 30.0).outputs[0]
     aod = val('AODist', 3.0).outputs[0]
@@ -104,6 +109,8 @@ def globals_group():
     facing = math('POWER', lw.outputs['Facing'], 1.6)
     towards = math('MAXIMUM', vmath('DOT_PRODUCT', geo.outputs['Normal'], rimdir), 0.0)
     links.new(math('MULTIPLY', facing, towards), out.inputs['rim'])
+    to_moon = math('MAXIMUM', vmath('DOT_PRODUCT', geo.outputs['Normal'], moonrim), 0.0)
+    links.new(math('MULTIPLY', facing, to_moon), out.inputs['mrim'])
 
     up = vmath('DOT_PRODUCT', geo.outputs['Normal'], vec('Up', (0, 0, 1)).outputs[0])
     links.new(math('MULTIPLY_ADD', up, 0.5, ), out.inputs['fill'])
@@ -122,8 +129,15 @@ def globals_group():
     return ng
 
 
-def set_globals(moon=None, rim=None, z0=None, z1=None, ao=None, shine=None):
+def set_globals(moon=None, rim=None, z0=None, z1=None, ao=None, shine=None, moon_rim=None, ao_samples=None):
     ng = globals_group()
+    if moon_rim is not None:
+        for i in range(3):
+            ng.nodes['MoonRimDir'].inputs[i].default_value = moon_rim[i]
+    if ao_samples is not None:
+        for n in ng.nodes:
+            if n.bl_idname == 'ShaderNodeAmbientOcclusion':
+                n.samples = ao_samples
     if moon is not None:
         for i in range(3):
             ng.nodes['MoonDir'].inputs[i].default_value = moon[i]
@@ -140,7 +154,7 @@ def set_globals(moon=None, rim=None, z0=None, z1=None, ao=None, shine=None):
         ng.nodes['Shine'].outputs[0].default_value = shine
 
 
-AOVS = [('albedo', 'COLOR'), ('emit', 'COLOR'), ('ao', 'VALUE'), ('rim', 'VALUE'), ('fill', 'VALUE'),
+AOVS = [('albedo', 'COLOR'), ('emit', 'COLOR'), ('ao', 'VALUE'), ('rim', 'VALUE'), ('mrim', 'VALUE'), ('fill', 'VALUE'),
         ('sheen', 'VALUE'), ('grad', 'VALUE'), ('id', 'VALUE')]
 
 
@@ -186,6 +200,7 @@ def material(name):
     grp.node_tree = globals_group()
     aov('ao', grp.outputs['ao'])
     aov('rim', grp.outputs['rim'])
+    aov('mrim', grp.outputs['mrim'])
     aov('fill', grp.outputs['fill'])
     if spec['metal'] > 0:
         mul = nodes.new('ShaderNodeMath')

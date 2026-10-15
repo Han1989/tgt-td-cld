@@ -6,8 +6,9 @@
 //   saver, autoplay blocked (iPhone Low Power Mode), an error. The video loads only after the first screen is up.
 // - Only the live stage's video plays (one stage at a time); it pauses when the stage is stopped, hidden or off
 //   screen, and when the page is hidden.
-// - The video is fetched as a whole file (a blob) rather than streamed: one plain request the service worker can
-//   keep (cached on first play, never precached), and no range requests for Safari to trip on.
+// - The video plays from its URL. The service worker (platform/swSource.ts) stores it whole on first play and
+//   answers the video element's range requests from the stored file (206 and Content-Range, as iPhones need); with
+//   no worker yet (a first visit), the host answers them.
 // - One fit (`fitStage`) places the poster, the video and the clearing, so switching heroes never moves the ground.
 
 import type { HeroKind } from '@tdt/protocol';
@@ -31,22 +32,6 @@ export function pickVideo(canPlay: (type: string) => string): 'mp4' | 'webm' | n
   if (canPlay('video/mp4; codecs="avc1.640028"')) return 'mp4';
   if (canPlay('video/webm; codecs="vp9"')) return 'webm';
   return null;
-}
-
-/** The blob URLs of loops already fetched, shared by both stages. */
-const blobs = new Map<string, Promise<string>>();
-
-function fetchVideo(url: string): Promise<string> {
-  let p = blobs.get(url);
-  if (!p) {
-    p = fetch(url).then(async (res) => {
-      if (!res.ok) throw new Error(`${res.status} ${url}`);
-      return URL.createObjectURL(await res.blob());
-    });
-    p.catch(() => blobs.delete(url));
-    blobs.set(url, p);
-  }
-  return p;
 }
 
 type Shown = 'none' | 'clearing' | 'poster' | 'video';
@@ -230,13 +215,8 @@ export class StageBackdrop {
     this.video = v;
     this.videoFor = hero;
     if (this.box) this.layout(this.box);
-    this.onChange();
-    fetchVideo(stageUrl(s, kind))
-      .then((url) => {
-        v.src = url;
-        this.sync();
-      })
-      .catch(() => this.blocked());
+    v.src = stageUrl(s, kind);
+    this.sync();
   }
 
   /** The video can't play here: the poster stays. */

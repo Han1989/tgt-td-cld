@@ -1,8 +1,11 @@
 # The painterly look, painted in numpy from a frame's passes (scene.render): lit like a painting, as docs/ART.md
 # §15 has it. Moonlight from the upper left in soft cel bands (a cool shadow tone, a lit tone and a narrow highlight
-# band), ambient occlusion in the creases, a soft sky fill, a rune-teal rim from behind on the right, a bright edge
-# on metal, glowing accents with a soft bloom, bodies darkening downwards, and a clean ink outline: thicker round the
-# silhouette, thinner inside, each in exact pixels whatever the frame's size.
+# band), ambient occlusion in the creases, a soft sky fill, a rune-teal rim from behind on the right and a moonlit
+# edge from the moon behind on the left, a bright edge on metal, glowing accents with a soft bloom, bodies darkening
+# downwards, and a clean ink outline: thicker round the silhouette, thinner inside, each in exact pixels whatever
+# the frame's size. The line is the local colour darkened (a green hood gets a deep green line, a bow a deep brown
+# one), and the silhouette's line straddles the edge: its outermost pixels are ink, so no lit edge of the figure can
+# show beyond it as a light fringe (docs/ART.md §15, the fringe check).
 #
 # Everything is in display (sRGB) values, as the 2D painter mixes them. Passes from a transparent film are
 # premultiplied by coverage; the shading works on unpremultiplied values and premultiplies again at the end.
@@ -34,16 +37,22 @@ LOOK = dict(
     darken=0.24,          # bodies darken downwards by this much at the feet
     fill='moon', fill_amount=0.07,  # the sky's fill, strongest on what faces up
     rim='rune', rim_at=0.16, rim_soft=0.06, rim_amount=0.85,  # the rim from behind on the right
+    mrim='moon', mrim_at=0.3, mrim_soft=0.1, mrim_amount=0.0,  # the moonlit edge (the moon behind, upper left)
     sheen_at=0.35, sheen_soft=0.12, sheen_amount=0.7,  # metal's bright edge
     pool_tint='moon', pool_amount=0.0,  # the moonbeam into the stage's clearing (scene.pool)
     glow_core=1.0,        # emissive parts at full colour
     bloom=1.4, bloom_amount=0.9,  # bloom: sigma (px at output size), strength
     ink='ink',
+    line_tint=0.0,        # how much of the local colour the line takes (0: flat ink; the stage's lines are tinted)
+    line_dark=0.3,        # ... darkened to this
     outer=2.0, inner=1.0,  # outline widths (px at output size): silhouette, inside
     inner_alpha=0.85,
     depth_rel=0.04, depth_abs=0.6,  # a depth jump bigger than abs + rel × depth is an edge
     big_jump=2.5,         # a jump bigger than this (world units) draws the silhouette weight
     line_ids=None,        # only objects whose pass index is in this range get outlines (None = all)
+    tone_ids=None,        # objects whose colours are toned for the scene (pass index range), and how: saturation and
+    tone_sat=1.0,         # value of their albedo (a hero's flat-colour tokens toned down for the moonlit stage)
+    tone_val=1.0,
 )
 
 
@@ -85,15 +94,23 @@ def shade(p, look):
     pool = un(p['Combined_pool'][..., 0]) if 'Combined_pool' in p else np.zeros_like(key)
     ao = un(p['ao'][..., 0])
     rim = un(p['rim'][..., 0])
+    mrim = un(p['mrim'][..., 0]) if 'mrim' in p else np.zeros_like(rim)
     fill = un(p['fill'][..., 0])
     sheen = un(p['sheen'][..., 0])
     grad = un(p['grad'][..., 0])
-    mat = ids_of(p) % 1000
-    mat = np.clip(mat, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
+    ids = ids_of(p)
+    mat = np.clip(ids % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
+    if look['tone_ids'] is not None and (look['tone_sat'] != 1.0 or look['tone_val'] != 1.0):
+        lo, hi = look['tone_ids']
+        sel = ((ids // 1000 >= lo) & (ids // 1000 <= hi))[..., None]
+        grey = (albedo * np.array([0.2126, 0.7152, 0.0722], np.float32)).sum(axis=2, keepdims=True)
+        toned = (grey + (albedo - grey) * look['tone_sat']) * look['tone_val']
+        albedo = np.where(sel, toned, albedo)
     f_ao = _flag_table('ao', 1.0)[mat]
     f_shade = _flag_table('shade', 1.0)[mat]
     f_rim = _flag_table('rim', 1.0)[mat]
     f_dim = _flag_table('dim', 1.0)[mat]
+    f_mrim = _flag_table('mrim', 1.0)[mat]
 
     if look['ao_blur'] > 0:
         ao = ndimage.gaussian_filter(ao, look['ao_blur'])
@@ -112,6 +129,10 @@ def shade(p, look):
     r = smoothstep(look['rim_at'] - look['rim_soft'], look['rim_at'] + look['rim_soft'], rim) * look['rim_amount'] * f_rim
     rc = np.array(rgb(look['rim']), np.float32)
     col = col + (rc * 0.85 + albedo * 0.3 - col * 0.5) * r[..., None]
+    if look['mrim_amount'] > 0:
+        mr = smoothstep(look['mrim_at'] - look['mrim_soft'], look['mrim_at'] + look['mrim_soft'], mrim)
+        mr = mr * look['mrim_amount'] * f_mrim
+        col = col + (np.array(rgb(look['mrim']), np.float32) * (0.55 + 0.45 * albedo) - col) * (0.5 * mr)[..., None]
     s = smoothstep(look['sheen_at'] - look['sheen_soft'], look['sheen_at'] + look['sheen_soft'], sheen)
     col += (np.array(rgb('moon'), np.float32) * 0.9) * (s * look['sheen_amount'])[..., None]
     col *= f_dim[..., None]
@@ -121,29 +142,32 @@ def shade(p, look):
 
 
 def _seeds(p, look):
-    """Pixels on the near side of an edge: (silhouette weight, inside weight) masks."""
+    """Pixels on the near side of an edge, by line weight: {weight: (silhouette mask, inside mask)}."""
     a = p['Alpha'][..., 0]
-    inv = 1.0 / np.maximum(a, 1e-4)
     depth = p['Depth'][..., 0]
     ids = ids_of(p)
     solid = a > 0.5
     obj = ids // 1000
     mat = np.clip(ids % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
-    lines = _flag_table('line', 1.0)[mat] > 0.5
+    weight = _flag_table('line', 1.0)[mat]
+    lines = weight > 0.01
+    allowed = np.ones_like(solid)
     if look['line_ids'] is not None:
         lo, hi = look['line_ids']
-        lines &= (obj >= lo) & (obj <= hi)
+        allowed = (obj >= lo) & (obj <= hi)
+        lines &= allowed
     outer = np.zeros_like(solid)
+    sil = np.zeros_like(solid)
     inner = np.zeros_like(solid)
-    h, w = a.shape
     for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
         nb = lambda x: np.roll(np.roll(x, dy, 0), dx, 1)  # noqa: E731
         nsolid = nb(solid)
         ndepth = nb(depth)
         nids = nb(ids)
         nlines = nb(lines)
-        # Silhouette against an empty film.
-        outer |= solid & ~nsolid & lines
+        # Silhouette against an empty film: every part, lined or not (a stitch or a seam on the outline must not poke
+        # out past the ink as a light fleck).
+        sil |= solid & ~nsolid & allowed
         both = solid & nsolid
         jump = ndepth - depth
         edge = both & (jump > look['depth_abs'] + look['depth_rel'] * depth) & lines
@@ -154,25 +178,82 @@ def _seeds(p, look):
         idedge = both & (nids != ids) & lines & nlines & (np.abs(jump) <= look['depth_abs'] + look['depth_rel'] * depth)
         # One side only (the lower id), so a boundary is one line, not two.
         inner |= idedge & (ids < nids)
-    outer[0, :] = outer[-1, :] = False
-    outer[:, 0] = outer[:, -1] = False
-    inner[0, :] = inner[-1, :] = False
-    inner[:, 0] = inner[:, -1] = False
-    return outer, inner
-
-
-def outline(p, look, ss):
-    """Outline coverage (h × w, at render size) for the silhouette and inside lines."""
-    outer, inner = _seeds(p, look)
-    cov = np.zeros(outer.shape, np.float32)
-    for mask, width, alpha in ((inner, look['inner'], look['inner_alpha']), (outer, look['outer'], 1.0)):
-        if not mask.any():
+    for m in (outer, inner, sil):
+        m[0, :] = m[-1, :] = False
+        m[:, 0] = m[:, -1] = False
+    # The silhouette's line is never thinner than SIL_MIN of a full one, wide enough to cover the anti-aliased rim
+    # the render leaves outside the figure (a part with no line of its own gets the full one there, unless it glows:
+    # a glow is its own edge, and its bloom spills past it anyway).
+    glows = _flag_table('emit', 0.0)[mat] > 0
+    sil_weight = np.where(weight > 0.01, np.maximum(weight, SIL_MIN), np.where(glows, 0.0, 1.0))
+    out = {}
+    for w in np.unique(np.round(np.concatenate([weight[outer | inner], sil_weight[sil]]), 2)):
+        if w <= 0.01:
             continue
-        d = ndimage.distance_transform_edt(~mask)
-        r = width * ss / 2
-        c = np.clip(r + 0.5 - d, 0, 1) * alpha
-        cov = np.maximum(cov, c)
+        sel = np.abs(weight - w) < 0.005
+        out[float(w)] = (outer & sel | sil & (np.abs(sil_weight - w) < 0.005), inner & sel)
+    return out
+
+
+SIL_MIN = 0.7  # the thinnest silhouette line, of a full line's weight
+
+
+def line_colour(albedo, look):
+    """The ink of a line drawn on a part of this colour: the flat ink, or the local colour darkened towards it."""
+    ink = np.array(rgb(look['ink']), np.float32)
+    t = look['line_tint']
+    if t <= 0:
+        return np.broadcast_to(ink, albedo.shape).astype(np.float32)
+    return ink * (1 - t) + np.clip(albedo, 0, 1) * look['line_dark'] * t
+
+
+def outline(p, look, ss, scene_depth=None, with_colour=False):
+    """Outline coverage (h × w, at render size) for the silhouette and inside lines, and (with_colour) the line's
+    colour there (h × w × 3). A line spreads from its seeds (the outermost pixels of the figure) as far out as in,
+    so a silhouette's line covers the figure's partly covered edge pixels whole once it is wider than a pixel or two
+    at render size: render at 2× and scale down, and the edge is ink, anti-aliased, with no lit fringe past it.
+    `scene_depth` (render size) keeps it off whatever of the scene is nearer than the figure there (a fern in front
+    of a boot: the boot's line stays on the boot)."""
+    seeds = _seeds(p, look)
+    shape = p['Alpha'].shape[:2]
+    cov = np.zeros(shape, np.float32)
+    colour = np.zeros(shape + (3,), np.float32) if with_colour else None
+    if with_colour:
+        a = p['Alpha'][..., 0]
+        albedo = p['albedo'][..., :3] / np.maximum(a, 1e-4)[..., None]
+        tinted = line_colour(albedo, look)
+    solid = p['Alpha'][..., 0] > 0.5
+    depth = p['Depth'][..., 0]
+    for w, (outer, inner) in seeds.items():
+        for mask, width, k in ((inner, look['inner'], look['inner_alpha']), (outer, look['outer'], 1.0)):
+            if not mask.any():
+                continue
+            d, (iy, ix) = ndimage.distance_transform_edt(~mask, return_indices=True)
+            r = width * w * ss / 2
+            c = np.clip(r + 0.5 - d, 0, 1) * k
+            if mask is outer and scene_depth is not None:
+                # Off whatever of the scene is nearer than the figure at the line's seed.
+                c = np.where(solid | (scene_depth >= depth[iy, ix] - 0.5), c, 0)
+            if with_colour:
+                win = c > cov
+                colour = np.where(win[..., None], tinted[iy, ix], colour)
+            cov = np.maximum(cov, c)
+    if with_colour:
+        return cov, colour
     return cov
+
+
+def ink_smear(p, look, col):
+    """The colour `col` (h × w × 3, straight) with the figure's thinly covered pixels (half covered or less: past
+    where its silhouette line starts) in the line's colour. A part blurred by its motion (the arrow swung to the bow)
+    spreads wider than the line reaches; its lit colour there would be a light trail outside the ink, so the trail
+    is ink too, as thin as the blur leaves it. Glowing parts keep theirs."""
+    a = p['Alpha'][..., 0]
+    albedo = p['albedo'][..., :3] / np.maximum(a, 1e-4)[..., None]
+    mat = np.clip(ids_of(p) % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
+    glows = _flag_table('emit', 0.0)[mat] > 0
+    thin = (a > 0) & (a <= 0.5) & ~glows
+    return np.where(thin[..., None], line_colour(albedo, look), col)
 
 
 def downsample(x, k):
@@ -194,8 +275,7 @@ def compose(p, look=None, ss=1, background=None, extra=None):
     col, a, emit = shade(p, look)
     if extra is not None:
         col = extra(col, a, p)
-    cov = outline(p, look, ss)
-    ink = np.array(rgb(look['ink']), np.float32)
+    cov, ink = outline(p, look, ss, with_colour=True)
     pm = col * a[..., None]
     pm = pm * (1 - cov[..., None]) + ink * cov[..., None]
     alpha = a * (1 - cov) + cov

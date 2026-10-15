@@ -33,7 +33,7 @@ describe('progress dashboard data', () => {
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
     expect(summary.done).toBe(56);
-    // D-10 (the anonymous counts, PR #99) and V-05a (the 3D Ranger) are in review: open and in progress. V-01 (the
+    // D-10 (the anonymous counts, PR #99) and V-05a (the 3D Ranger, round 2 PR #106) are in review: open and in progress. V-01 (the
     // first screen, PR #100), V-02 (the second screen, PR #102) and V-04 (bigger units, PR #104) are done; V-03 and
     // V-05b–V-05d are to do.
     expect(summary.open).toBe(45);
@@ -161,6 +161,9 @@ describe('progress dashboard data', () => {
     // the Ranger) is in review; the Warden and the Arcanist, the creeps, and the towers follow, each on Han's go.
     expect(byId('V-05a')).toMatchObject({ owner: 'Team', status: 'in_progress' });
     expect(byId('V-05a').note).toContain('nothing 3D runs on the player’s device');
+    // Round 2 (15 Oct 2026) replaces #105: the hero and his clearing as one picture.
+    expect(byId('V-05a').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/106');
+    expect(byId('V-05a').note).toContain('one picture');
     for (const id of ['V-05b', 'V-05c', 'V-05d']) expect(byId(id)).toMatchObject({ owner: 'Both', status: 'todo' });
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
