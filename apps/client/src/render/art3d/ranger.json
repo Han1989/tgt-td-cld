@@ -510,29 +510,29 @@
   "feetX": 1200.0,
   "figure": {
    "x0": 966.6,
-   "x1": 1527.5,
+   "x1": 1527.9,
    "y0": 305.0,
-   "y1": 777.7
+   "y1": 779.4
   },
   "files": {
    "clearing": {
-    "bytes": 59636,
-    "hash": "290851ccabd0",
+    "bytes": 59692,
+    "hash": "66af6820d837",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1131234,
-    "hash": "9c9991ec6beb",
+    "bytes": 1141272,
+    "hash": "dd146be8b2e9",
     "name": "ranger.mp4"
    },
    "poster": {
-    "bytes": 58752,
-    "hash": "27763a4b4e2a",
+    "bytes": 58870,
+    "hash": "fe440970397a",
     "name": "ranger-poster.webp"
    },
    "webm": {
-    "bytes": 1125832,
-    "hash": "e1849f8ce74d",
+    "bytes": 1139803,
+    "hash": "06dbe0980a3e",
     "name": "ranger.webm"
    }
   },
