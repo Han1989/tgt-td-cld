@@ -1,8 +1,10 @@
-// The lobby's hero stage (docs/ART.md §12): the picked hero drawn large on a moonlit clearing, breathing,
-// on the home card and (shorter) on the solo pick. Canvas 2D from the hero's own art: its frames are drawn once at the stage's size (vector
-// paths, so they stay sharp at any size) and placed each frame by its standing pose (`HeroArt.stand`).
-// No image files and no WebGL; nothing is drawn while the stage is hidden, and under reduced motion
-// it is one still drawing. The clearing itself is CSS (style.css `.hero-stage`).
+// The lobby's hero stage (docs/ART.md §12): the picked hero large on a moonlit clearing, on the home card and
+// (shorter) on the solo pick. The clearing and a hero made in 3D are pictures rendered ahead of time in Blender
+// (stageBackdrop.ts: a poster, then an 8 s video loop; docs/ART.md §15). A hero still drawn in 2D stands over the
+// empty clearing, breathing: Canvas 2D from the hero's own art, its frames drawn once at the stage's size (vector
+// paths, so they stay sharp at any size) and placed each frame by its standing pose (`HeroArt.stand`). No WebGL;
+// nothing is drawn while the stage is hidden, and under reduced motion it is one still drawing. Under the pictures
+// the CSS clearing (style.css `.hero-stage`) shows until they load.
 
 import type { HeroKind } from '@tdt/protocol';
 import { ART_RES } from '../render/art/atlas';
@@ -12,6 +14,7 @@ import { heroArt, type HeroArt } from '../render/art/registry';
 import { fitStand, standItems, standRoom, type StandFit, type StandRoom } from '../render/art/stand';
 import { LIGHTING, RL } from '../render/art/tokens';
 import { HERO_COLORS } from '../render/palette';
+import { StageBackdrop } from './stageBackdrop';
 
 /** The canvas is drawn at the screen's pixel density, up to this: bold shapes need no more, and the frames stay small. */
 const MAX_DPR = 2;
@@ -58,6 +61,7 @@ export class HeroStage {
   private raf = 0;
   private last = -Infinity;
   private running = false;
+  private readonly backdrop: StageBackdrop;
 
   /**
    * `root` is the stage element (index.html): it holds a canvas and a title to stay clear of (`.stage-logo`).
@@ -77,6 +81,10 @@ export class HeroStage {
     this.room = standRoom(arts);
     this.hero = hero;
     root.dataset.hero = hero;
+    this.backdrop = new StageBackdrop(root, hero);
+    this.backdrop.onChange = () => {
+      if (this.shown()) this.draw(this.still.matches ? 0 : performance.now());
+    };
 
     // The stage's size is known only once it is laid out, and changes with the window and the keyboard.
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.resized()).observe(canvas);
@@ -91,6 +99,7 @@ export class HeroStage {
     if (hero === this.hero) return;
     this.hero = hero;
     this.root.dataset.hero = hero;
+    this.backdrop.show(hero);
     // Restart the entrance (style.css `.hero-stage.swap`; none under reduced motion).
     this.root.classList.remove('swap');
     void this.root.offsetWidth;
@@ -103,6 +112,7 @@ export class HeroStage {
     if (live && live !== this) live.stop();
     live = this;
     this.running = true;
+    this.backdrop.start();
     this.cancel();
     this.resized();
   }
@@ -110,6 +120,7 @@ export class HeroStage {
   stop(): void {
     if (live === this) live = null;
     this.running = false;
+    this.backdrop.stop();
     this.cancel();
   }
 
@@ -159,7 +170,9 @@ export class HeroStage {
     // The figure stands under the title, a strip of moss in front of its feet.
     const top = this.title ? this.title.getBoundingClientRect().bottom - box.top - TITLE_OVERLAP_PX : 0;
     const ground = box.height - GROUND_PX;
-    this.fit = fitStand(this.art(), this.room, { w: box.width, h: box.height, ground, top: Math.max(0, top), side: SIDE_PX });
+    const area = { w: box.width, h: box.height, ground, top: Math.max(0, top), side: SIDE_PX };
+    this.fit = fitStand(this.art(), this.room, area);
+    this.backdrop.layout(area);
     this.draw(this.still.matches ? 0 : performance.now());
     // One loop at most. It also picks the breath back up when the stage is laid out again after being hidden.
     if (this.running && !this.raf && !this.still.matches) this.schedule();
@@ -197,7 +210,8 @@ export class HeroStage {
     const px = this.fit.scale * this.dpr;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    if (!(px > 0)) return;
+    // A hero made in 3D is in the backdrop's picture: nothing to draw.
+    if (!(px > 0) || this.backdrop.drawsHero) return;
     c.setTransform(px, 0, 0, px, this.fit.x * this.dpr, this.fit.y * this.dpr);
 
     // Accents glow as wide, for the figure's size, as they do in a match (paint.ts).

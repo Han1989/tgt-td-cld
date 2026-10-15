@@ -2055,6 +2055,29 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   pointer-events: none;
 }
 
+/* The clearing rendered ahead of time (stageBackdrop.ts, docs/ART.md §15): the empty clearing, a 3D hero's poster
+   and its video, placed by one fit. Under the vignette (::after, later in paint order) and the 2D figure. */
+.hero-stage-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hero-stage-backdrop > img,
+.hero-stage-backdrop > video {
+  position: absolute;
+  max-width: none;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+  user-select: none;
+}
+
+.hero-stage-backdrop > .on {
+  opacity: 1;
+}
+
 .hero-stage-figure {
   position: absolute;
   inset: 0;

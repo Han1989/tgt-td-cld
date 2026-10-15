@@ -10,15 +10,27 @@
 //   Each one is cached the first time the game fetches it, in a cache that outlives deploys
 //   (`tdt-media`); the URL carries the file's hash (`?v=`), so a new upload is fetched fresh and
 //   replaces the old copy.
+// - The lobby stage's videos (`/stage/*.mp4`, `/stage/*.webm`, docs/ART.md §15) are media too: up to 1.2 MB each,
+//   cached the first time the stage plays one, never on install. A video is stored whole: the first time a video
+//   element asks for it, with a byte range as video elements do, the worker fetches the whole file without the range
+//   (a 200 the cache can keep; a 206 can't be stored) and answers the range from it; every later range is answered
+//   from the stored file with a 206 and its Content-Range. iPhones play a video only from proper range answers: a
+//   whole 200 to a range request can stop it playing. Their posters and the empty clearing are small pictures shown
+//   at once on the first screen, so they are part of the shell.
 // - The link-preview card (`/og-card.png`, docs/PRESS.md) is not precached either: only link
 //   crawlers fetch it, so a player would download it on every deploy for nothing.
 // - A page load gets index.html (the game), except another page of the shell (privacy.html), which
 //   gets itself.
 // - It only serves same-origin GET requests; the game server's WebSocket never goes through it.
 
-/** Files in the shell that are not precached: recorded sound files (cached on first play instead). */
+/** Files in the shell that are not precached: recorded sound files and stage videos (cached on first play instead). */
 export function isMediaPath(path: string): boolean {
-  return /^\/(music|sfx)\//.test(path);
+  return /^\/(music|sfx)\//.test(path) || isStageVideo(path);
+}
+
+/** A stage video: stored whole, and range requests answered from it (`video` in the worker). */
+export function isStageVideo(path: string): boolean {
+  return /^\/stage\/[^/]+\.(mp4|webm)$/.test(path);
 }
 
 /** Public files for link previews only; players never load them. */
@@ -51,22 +63,85 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// A recorded sound file: from the media cache, else the network, kept for next time (older uploads
-// of the same file are dropped).
+// Keeps a whole answer (200) in the media cache, dropping older uploads of the same file (another ?v=).
+function keep(cache, href, url, res) {
+  if (!res.ok || res.status !== 200) return;
+  const copy = res.clone();
+  cache
+    .keys()
+    .then((keys) => Promise.all(keys.filter((k) => new URL(k.url).pathname === url.pathname && k.url !== href).map((k) => cache.delete(k))))
+    .then(() => cache.put(href, copy))
+    .catch(() => {});
+}
+
+// A recorded sound file: from the media cache, else the network, kept for next time.
 function media(req, url) {
   return caches.open(MEDIA).then((cache) =>
     cache.match(req).then((hit) => {
       if (hit) return hit;
       return fetch(req).then((res) => {
-        if (res.ok && res.status === 200) {
-          const copy = res.clone();
-          cache
-            .keys()
-            .then((keys) => Promise.all(keys.filter((k) => new URL(k.url).pathname === url.pathname && k.url !== req.url).map((k) => cache.delete(k))))
-            .then(() => cache.put(req, copy))
-            .catch(() => {});
-        }
+        keep(cache, req.url, url, res);
         return res;
+      });
+    }),
+  );
+}
+
+// Which bytes a Range header asks for, of a file of \`size\` bytes (RFC 9110 §14): { start, end } (inclusive), 'none'
+// when it asks for nothing the file has (416), or null when there is no single range to answer (the whole file).
+function byteRange(header, size) {
+  const m = /^bytes=(\\d*)-(\\d*)$/.exec((header || '').trim());
+  if (!m || (m[1] === '' && m[2] === '')) return null;
+  let start;
+  let end;
+  if (m[1] === '') {
+    const suffix = Number(m[2]);
+    if (suffix === 0) return 'none';
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(m[1]);
+    end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1);
+    if (m[2] !== '' && Number(m[2]) < start) return null;
+  }
+  if (start >= size || size === 0) return 'none';
+  return { start, end };
+}
+
+// Answers a request from a whole stored file: the file itself, or the range it asks for (206, Content-Range).
+function answer(req, whole) {
+  const header = req.headers && req.headers.get('range');
+  if (!header) return whole;
+  return whole.blob().then((blob) => {
+    const type = whole.headers.get('content-type') || blob.type || 'application/octet-stream';
+    const r = byteRange(header, blob.size);
+    if (r === null) {
+      return new Response(blob, { status: 200, headers: { 'Content-Type': type, 'Content-Length': String(blob.size), 'Accept-Ranges': 'bytes' } });
+    }
+    if (r === 'none') return new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */' + blob.size } });
+    return new Response(blob.slice(r.start, r.end + 1, type), {
+      status: 206,
+      statusText: 'Partial Content',
+      headers: {
+        'Content-Type': type,
+        'Content-Length': String(r.end - r.start + 1),
+        'Content-Range': 'bytes ' + r.start + '-' + r.end + '/' + blob.size,
+        'Accept-Ranges': 'bytes',
+      },
+    });
+  });
+}
+
+// A stage video: stored whole on first play, every request (a range or not) answered from the stored file.
+function video(req, url) {
+  return caches.open(MEDIA).then((cache) =>
+    cache.match(url.href).then((hit) => {
+      if (hit) return answer(req, hit);
+      // Without the Range header: the whole file, a 200 the cache can keep.
+      return fetch(url.href, { credentials: 'same-origin' }).then((res) => {
+        if (!res.ok || res.status !== 200) return res;
+        keep(cache, url.href, url, res);
+        return answer(req, res);
       });
     }),
   );
@@ -78,6 +153,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   // Only this site's own files; never the game server.
   if (url.origin !== self.location.origin || url.pathname === '/sw.js') return;
+  if (/^\\/stage\\/[^/]+\\.(mp4|webm)$/.test(url.pathname)) {
+    event.respondWith(video(req, url));
+    return;
+  }
   if (/^\\/(music|sfx)\\//.test(url.pathname)) {
     event.respondWith(media(req, url));
     return;

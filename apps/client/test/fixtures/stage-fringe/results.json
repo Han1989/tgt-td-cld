@@ -1,0 +1,23 @@
+{
+ "ranger-0000": {
+  "crossings": 2753,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 2103,
+  "pass": true
+ },
+ "ranger-0165": {
+  "crossings": 2634,
+  "fringe": 0,
+  "hard": 1,
+  "measured": 2099,
+  "pass": true
+ },
+ "ranger-0200": {
+  "crossings": 2933,
+  "fringe": 2,
+  "hard": 15,
+  "measured": 2493,
+  "pass": true
+ }
+}

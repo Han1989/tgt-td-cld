@@ -32,6 +32,7 @@ import {
 import { allSynthDefs, INSTRUMENTS, noteSample, SOUND_IDS, SOUNDS, variantId, type Instrument } from '../src/audio/sounds';
 import { BAKE_RATE, MAX_SECONDS, midiHz, PEAK, renderSound, rms, roomImpulse, soundSeconds, varyDef } from '../src/audio/synth';
 import { isMediaPath, MEDIA_CACHE, swSource } from '../src/platform/swSource';
+import { HERO_3D } from '../src/render/art3d/layout';
 
 /** How bright a sound is: RMS of its first difference over its RMS (a sine at f Hz gives 2·sin(π·f / rate)). */
 function brightness(s: Float32Array): number {
@@ -175,7 +176,9 @@ describe('synth and sound bank', () => {
       }
     };
     walk(root);
-    const allowed = [...MUSIC_FILES.map((m) => `public/music/${m}.mp3`), ...SOUND_IDS.map((id) => `public/sfx/${id}.mp3`)];
+    // The lobby stage's loops (docs/ART.md §15) are muted videos, not sound: art3d.test.ts checks they carry no audio.
+    const stageVideos = Object.values(HERO_3D).map((h) => `public/stage/${h!.stage.files.webm.name}`);
+    const allowed = [...MUSIC_FILES.map((m) => `public/music/${m}.mp3`), ...SOUND_IDS.map((id) => `public/sfx/${id}.mp3`), ...stageVideos];
     expect(found.filter((f) => !allowed.includes(f))).toEqual([]);
     // The synth itself never reaches for randomness or the clock: it bakes the same every time.
     const src = readFileSync(new URL('../src/audio/synth.ts', import.meta.url), 'utf8');
@@ -477,13 +480,16 @@ describe('service worker', () => {
     const res = (url: string, body: string) => ({ ok: true, status: 200, url, body, clone: () => res(url, body) });
     const cacheApi = (name: string) => ({
       addAll: async (urls: string[]) => urls.forEach((u) => store(name).set(u, { url: `https://td.test${u}`, body: u })),
-      match: async (req: { url: string }) => {
-        const hit = store(name).get(req.url);
+      match: async (req: { url: string } | string) => {
+        const hit = store(name).get(typeof req === 'string' ? req : req.url);
         return hit ? res(hit.url, hit.body) : undefined;
       },
       keys: async () => [...store(name).keys()].map((url) => ({ url })),
       delete: async (req: { url: string }) => store(name).delete(req.url),
-      put: async (req: { url: string }, r: { body: string }) => void store(name).set(req.url, { url: req.url, body: r.body }),
+      put: async (req: { url: string } | string, r: { body: string }) => {
+        const url = typeof req === 'string' ? req : req.url;
+        store(name).set(url, { url, body: r.body });
+      },
     });
     const listeners: Record<string, (e: unknown) => void> = {};
     const self = {
@@ -506,9 +512,10 @@ describe('service worker', () => {
         return undefined;
       },
     };
-    const fetch = async (req: { url: string }) => {
-      net.push(req.url);
-      return res(req.url, `net:${req.url}`);
+    const fetch = async (req: { url: string } | string) => {
+      const url = typeof req === 'string' ? req : req.url;
+      net.push(url);
+      return res(url, `net:${url}`);
     };
     new Function('self', 'caches', 'fetch', swSource('v1', shell))(self, caches, fetch);
     const get = async (path: string, mode = 'cors') => {
@@ -525,11 +532,22 @@ describe('service worker', () => {
     expect(isMediaPath('/music/lobby.mp3')).toBe(true);
     expect(isMediaPath('/sfx/tap.mp3')).toBe(true);
     expect(isMediaPath('/assets/index.js')).toBe(false);
-    const w = worker(['/index.html', '/assets/a.js', '/music/README.md', '/music/lobby.mp3', '/sfx/tap.mp3']);
+    // The lobby stage's videos (docs/ART.md §15) too; their posters and the empty clearing are part of the shell.
+    expect(isMediaPath('/stage/ranger.mp4')).toBe(true);
+    expect(isMediaPath('/stage/ranger.webm')).toBe(true);
+    expect(isMediaPath('/stage/ranger-poster.webp')).toBe(false);
+    const w = worker(['/index.html', '/assets/a.js', '/music/README.md', '/music/lobby.mp3', '/sfx/tap.mp3', '/stage/ranger.mp4',
+      '/stage/ranger.webm', '/stage/ranger-poster.webp', '/stage/clearing.webp']);
     let installed: Promise<unknown> | undefined;
     w.listeners.install!({ waitUntil: (p: Promise<unknown>) => (installed = p) });
     await installed;
-    expect([...w.stores.get('tdt-v1')!.keys()]).toEqual(['/index.html', '/assets/a.js']);
+    expect([...w.stores.get('tdt-v1')!.keys()]).toEqual(['/index.html', '/assets/a.js', '/stage/ranger-poster.webp', '/stage/clearing.webp']);
+    // A stage video is cached the first time the stage plays it.
+    expect(await w.get('/stage/ranger.mp4?v=c1')).toBe('net:https://td.test/stage/ranger.mp4?v=c1');
+    expect(await w.get('/stage/ranger.mp4?v=c1')).toBe('net:https://td.test/stage/ranger.mp4?v=c1');
+    expect(w.net).toEqual(['https://td.test/stage/ranger.mp4?v=c1']);
+    w.net.length = 0;
+    w.stores.delete(MEDIA_CACHE);
     expect(w.stores.has(MEDIA_CACHE)).toBe(false);
     // First play: from the network, then kept.
     expect(await w.get('/music/lobby.mp3?v=aa')).toBe('net:https://td.test/music/lobby.mp3?v=aa');

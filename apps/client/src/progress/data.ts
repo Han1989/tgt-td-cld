@@ -6,7 +6,8 @@
  * this file in that same PR. How: docs/PROGRESS.md. Do not add a third list.
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
- * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done. Production protocol
+ * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done; V-05a–V-05d (3D heroes, creeps and
+ * towers rendered ahead of time) added on 14 Oct 2026, V-05a in review (round 2, PR #106). Production protocol
  * is 19. This page only reports status.
  */
 
@@ -28,7 +29,7 @@ const sections: ProgressSection[] = [
   {
     id: 'visual',
     title: 'Presentation pass · Han, 10 Oct 2026',
-    blurb: 'Han compared the game with store games on 10 Oct 2026 and chose a presentation pass: drawn in code, client only, no new spend. The one exception to the hold. Not on the overnight auto-pull list: the open rows are Han’s first; each starts when he says go, after he has looked at the row before it on a phone. Paid art was reviewed the same day and is not started.',
+    blurb: 'Han compared the game with store games on 10 Oct 2026 and chose a presentation pass: client only, no new spend. On 14 Oct 2026 he moved heroes, then creeps and towers, to 3D models made by Blender scripts in the repo and rendered ahead of time into pictures and videos: nothing 3D runs on the device. The one exception to the hold. Not on the overnight auto-pull list: the open rows are Han’s first; each starts when he says go, after he has looked at the row before it on a phone. Paid art was reviewed the same day and is not started.',
     group: 'now',
   },
   {
@@ -247,6 +248,39 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Client only, protocol stays 19. Han, 14 Oct 2026: heroes and creeps are drawn larger on the same view; the whole Spire map stays on screen and the camera stays still on phones. Heroes are drawn 1.4 times and creeps 1.2 times larger than before on a phone (towers unchanged; nothing changes where a tile is 25 px or more), and their HP bars, hit and death effects, damage numbers and tap area follow. Tower ranges, aura radii, skill areas, pads and the Heart keep their true size. Checked at 412 × 839 and 360 × 640 in a wave-12 Quick match and the 300-creep stress scene. Built by Claude Code (PR #104, the roadmap’s copy of 14 Oct 2026, 19:00).',
     proof: pr(104),
+  },
+  {
+    id: 'V-05a',
+    title: '3D heroes, part 1: the pipeline and the Ranger',
+    owner: 'Team',
+    status: 'in_progress',
+    section: 'visual',
+    note: 'Client art and tools only, protocol stays 19. Han, 14 Oct 2026: heroes, then creeps and towers, are 3D models made by Blender scripts in the repo and rendered ahead of time; nothing 3D runs on the player’s device (live 3D crashed Chrome’s graphics on a Pixel 10 Pro in the trials). One command, npm run art:3d -- ranger, builds the Ranger from nothing and renders the first screen’s 8 s video loop in a moonlit clearing (and its poster, and the empty clearing for the Warden and the Arcanist) and his match frames (idle, a jog, the cast pose, the string drawn in 8 steps and loosed), played by a rig with the 2D Ranger’s timing; the 2D rig stays as the fallback. Round 2 (PR #106, replaces #105, after Han’s notes on his Pixel 10 Pro): the Ranger and his clearing as one picture — the same light, ink, haze, depth of field, grade and grain over hero and scene, no light fringe round his edges (a check on every frame), a string with a dark edge, the hero a quarter larger, a new clearing, the draw hand at the jaw. In review: Han judges it on his phone, on the Vercel preview. Built by Claude Code (the roadmap’s copies of 14 Oct 2026, 19:20, and 15 Oct 2026, 06:00).',
+    proof: pr(106),
+  },
+  {
+    id: 'V-05b',
+    title: '3D heroes, part 2: the Warden and the Arcanist',
+    owner: 'Both',
+    status: 'todo',
+    section: 'visual',
+    note: 'Starts when Han says go, after he has judged the Ranger (V-05a) on his phone. The same pipeline: each in the clearing as a video loop with its signature move, and its match frames on a rig with its 2D rig’s timing.',
+  },
+  {
+    id: 'V-05c',
+    title: '3D creeps and bosses',
+    owner: 'Both',
+    status: 'todo',
+    section: 'visual',
+    note: 'After V-05b, when Han says go. Every creep and the three bosses as 3D models rendered ahead of time into match frames (walk, hit, death), at the sizes V-04 set, within the 300-creep frame-rate target.',
+  },
+  {
+    id: 'V-05d',
+    title: '3D towers, the Heart and portals',
+    owner: 'Both',
+    status: 'todo',
+    section: 'visual',
+    note: 'After V-05c, when Han says go. The five towers at every tier and branch, the Heart with its damage states and the portals, rendered ahead of time from above, with turrets that still turn towards their target.',
   },
   {
     id: 'g1-render',

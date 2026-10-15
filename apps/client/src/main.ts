@@ -7,6 +7,7 @@ import { OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
+import { loadHeroSheets } from './render/art3d';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
 
@@ -47,7 +48,12 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   const boot = document.getElementById('boot');
   boot?.classList.add('done');
   setTimeout(() => boot?.remove(), 400);
+  // The 3D heroes' match frames (docs/ART.md §15) load a second after the first screen, never in its way.
+  if (screen === 'solo' || screen === 'online' || screen === 'stress') setTimeout(() => void loadHeroSheets(), SHEETS_AFTER_MS);
 }
+
+/** How long after the first screen the 3D heroes' match sheets start loading, ms. */
+const SHEETS_AFTER_MS = 1000;
 
 async function main(): Promise<void> {
   setupPwa();

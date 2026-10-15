@@ -311,6 +311,13 @@ export abstract class HeroRigBase implements HeroRig {
     return c;
   }
 
+  /** A white silhouette sprite the base flashes on hits and death, for a rig that makes its own sprites. */
+  protected addFlash(sprite: Sprite): Sprite {
+    sprite.alpha = 0;
+    this.flashes.push(sprite);
+    return sprite;
+  }
+
   shot(now: number, aim?: number): number {
     this.shotAt = now;
     this.shotAim = aim ?? NaN;
