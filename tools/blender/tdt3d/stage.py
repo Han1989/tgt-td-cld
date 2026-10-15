@@ -45,10 +45,10 @@ MARGIN_PX = 34        # output px kept round the hero's box: his line, the light
 
 LOOK = dict(
     outer=2.4, inner=1.0, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
-    line_ids=None, depth_rel=0.012, depth_abs=0.5, big_jump=4.0, pool_amount=0.65,
-    rim_amount=0.4, mrim_amount=1.3, mrim_at=0.2,
+    line_ids=None, depth_rel=0.012, depth_abs=0.5, big_jump=4.0, pool_amount=0.52,
+    rim_amount=0.55, mrim_amount=1.3, mrim_at=0.2,
     # The hero's bright flat-colour tokens toned for the moonlit night, so he is lit by the scene's light, not a studio's.
-    tone_ids=(1, 99), tone_sat=0.72, tone_val=0.9,
+    tone_ids=(1, 99), tone_sat=0.72, tone_val=0.84,
 )
 BLOOM = dict(sigma=2.6, amount=0.85)  # output px
 HAZE = dict(near=0.07, depth=2600.0, far_from=360.0, far_depth=1100.0, far=0.78)

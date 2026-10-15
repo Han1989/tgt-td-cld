@@ -123,7 +123,13 @@ def materials(back, side):
     d('pebble', color=mix('pebble', 'stoneDark', 0.4), grad=False, shade=1.0, rim=0.1, mrim=0.8, dim=0.9, line=0.6)
     d('trunk', 'woodDark', albedo=bark, grad=False, shade=0.85, rim=0.1, mrim=0.7, dim=0.7)
     d('root', 'woodDark', albedo=bark, grad=False, shade=0.85, rim=0.05, mrim=0.6, dim=0.75)
-    d('logEnd', 'wood', grad=False, shade=0.9, rim=0.05, mrim=0.4, dim=0.8)
+    # The fallen log's bark: weathered grey-brown under the moon, not a fresh warm brown (the warmest thing in the scene
+    # must be the hero's leather, not a log).
+    d('logBark', color=mix(mix('woodDark', 'stoneDark', 0.45), 'mossDark', 0.2), albedo=bark, grad=False, shade=0.9,
+      rim=0.08, mrim=0.8, dim=0.8)
+    d('litter', color=mix(mix('woodDark', 'mossDark', 0.55), 'stoneDark', 0.2), grad=False, shade=0.6, rim=0.0, mrim=0.3,
+      dim=0.85, line=0.0)
+    d('logEnd', color=mix('wood', 'bone', 0.25), grad=False, shade=0.9, rim=0.05, mrim=0.4, dim=0.75)
     # Foliage in twins: the same colour under two material numbers, puffs alternating between them, so the ink
     # draws a thin line where one clump of leaves meets the next.
     for twin in ('', '2'):
@@ -131,13 +137,16 @@ def materials(back, side):
         d('canopyLight' + twin, 'canopyLight', grad=False, shade=1.0, rim=0.12, mrim=1.0, dim=0.8)
         d('canopyDark' + twin, color=mix('canopy', 'forest', 0.45), grad=False, shade=1.0, rim=0.1, mrim=1.0, dim=0.85)
         d('nearCanopy' + twin, color=mix('canopy', 'forest', 0.7), grad=False, shade=0.9, rim=0.08, mrim=0.9, dim=0.78)
+        # A cooler, bluer green for some crowns (the rows are not one tree copied).
+        d('canopyCool' + twin, color=mix('canopy', 'pine', 0.55), grad=False, shade=1.0, rim=0.1, mrim=1.0, dim=0.84)
     d('pine', 'pine', grad=False, shade=1.0, rim=0.1, mrim=1.0, dim=0.85)
     d('farTree', color=mix('tree', 'pine', 0.4), grad=False, shade=0.6, rim=0.0, mrim=0.8, ao=0.3, dim=0.85, line=0.6)
     d('nearTree', 'forest', grad=False, shade=0.7, rim=0.05, mrim=0.8, dim=0.75)
-    d('cap', 'mushroom', emit=0.18, glow='rune', grad=False, shade=0.9, rim=0.15, mrim=0.5, dim=0.75)
+    d('cap', color=mix('mushroom', 'rune', 0.22), emit=0.3, glow='rune', grad=False, shade=0.9, rim=0.15, mrim=0.5,
+      dim=0.72)
     d('capDark', color=mix('mushroom', 'woodDark', 0.55), grad=False, shade=0.9, rim=0.1, mrim=0.5, dim=0.7)
-    d('capGlow', 'rune', emit=0.9, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
-    d('capEmber', 'ember', emit=0.85, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
+    d('capGlow', 'rune', emit=1.15, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
+    d('capEmber', 'ember', emit=1.05, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
     d('stem', 'bone', grad=False, shade=0.8, dim=0.55, rim=0.0, mrim=0.3, line=0.6)
     d('star', 'moon', emit=0.7, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0, shade=0.0)
     d('moonDisc', 'moon', emit=1.0, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0, shade=0.0)
@@ -164,7 +173,7 @@ def hull(part, pts, mat_of, crease=0.55):
     inner = [g for g in res['geom_interior'] if isinstance(g, bmesh.types.BMVert)]
     unused = [g for g in res['geom_unused'] if isinstance(g, bmesh.types.BMVert)]
     if inner or unused:
-        bmesh.ops.delete(tmp, geom=inner + unused, context='VERTS')
+        bmesh.ops.delete(tmp, geom=list({id(v): v for v in inner + unused}.values()), context='VERTS')
     bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces)
     bm = part.bm
     remap = {v: bm.verts.new(v.co) for v in tmp.verts}
@@ -302,9 +311,20 @@ class Clearing:
                 blob(p, q, (pr, pr, pr * 0.72), mat + ('2' if j % 2 else ''), u=10, v=7)
             blob(p, c + Z * height * 0.08, (tr * 0.62, tr * 0.62, tr * 0.5), mat, u=10, v=7)
 
-    def oak(self, p, base, height, width, seed, mats=('canopyDark', 'canopy', 'canopyLight'), trunk='trunk', crown=None):
+    def oak(self, p, base, height, width, seed, mats=('canopyDark', 'canopy', 'canopyLight'), trunk='trunk', crown=None,
+            tiers=3, roots=None):
         top = self.trunk(p, base, height * 0.55, width * 0.16, seed, mat=trunk)
-        self.canopy(crown or p, V((top.x, top.y, base.z + height * 0.7)), width * 0.55, height * 0.5, seed, mats)
+        self.canopy(crown or p, V((top.x, top.y, base.z + height * 0.7)), width * 0.55, height * 0.5, seed, mats,
+                    tiers=tiers)
+        if roots is not None:
+            # A root flare: three or four roots gripping the ground round the foot.
+            w = width * 0.16
+            for k in range(3 + int(_hash(seed, 80) * 2)):
+                a = 2 * math.pi * (k + 0.4 * _hash(seed, 81 + k)) / 4
+                d = V((math.cos(a), math.sin(a), 0))
+                ln = w * (1.6 + 0.9 * _hash(seed, 85 + k))
+                tube(roots, [base + d * w * 0.3 + Z * w * 0.9, base + d * ln * 0.55 + Z * w * 0.25, base + d * ln + Z * -0.4],
+                     [w * 0.34, w * 0.2, w * 0.06], [trunk], sides=5)
 
     def pine(self, p, base, height, width, mat, tiers=5, seed=0, trunk='trunk'):
         """A pine: a trunk and drooping skirts of needles, each tier's hem cut into points."""
@@ -323,6 +343,16 @@ class Clearing:
                   rad=lambda i, a, ph=ph: 1 + (0.1 * math.cos(6 * a + ph) if i <= 1 else 0.0),
                   cap0=True, cap1=False)
 
+    def under_moon(self, depth, lat, top, half_width):
+        """How much to shrink a tree whose crown would reach the sight line from the camera (about 200 in front of
+        the hero, 30 up) to the moon, so the moon stays whole above the tree line: 1 for every other tree."""
+        s = (depth + 200) / (self.moon_pos.dot(self.back) + 200)
+        line_lat = self.moon_pos.dot(self.side) * s
+        line_z = 30 + (self.moon_pos.z - 30) * s
+        if abs(lat - line_lat) > half_width + 60 * s + 6:
+            return 1.0
+        return min(1.0, max(0.4, (line_z - 60 * s - 6) / max(1.0, top)))
+
     def tree_lines(self):
         # The far rows: pines, smaller and fainter row by row (the haze over the frame fades them into the mist).
         far = Part('FarTrees')
@@ -332,6 +362,10 @@ class Clearing:
                 lat = (i / (count - 1) - 0.5) * spread + (_hash(i, 1 + row * 7) - 0.5) * spread / count
                 depth = depth0 + _hash(i, 2 + row * 7) * 140
                 h = hgt * (0.7 + 0.6 * _hash(i, 3 + row * 7))
+                k = self.under_moon(depth, lat, h, h * 0.36)
+                if k < 0.6:
+                    continue  # the moon stays whole above the far rows too
+                h *= k
                 self.pine(far, self.at(depth, lat, -6), h, h * 0.36, 'farTree', tiers=5, seed=i + 100 * row)
         o = finish(far, layer='scene', index=111)
         o['detail'] = 1
@@ -345,10 +379,38 @@ class Clearing:
             if abs(lat) < 90:
                 hgt *= 0.62  # lower behind the hero: his hood against the far rows and the sky
             if _hash(i, 8) < 0.4:
-                self.pine(mid, self.at(depth, lat, -2), hgt * 1.35, hgt * 0.5, 'pine', tiers=6, seed=i)
+                k = self.under_moon(depth, lat, hgt * 1.35, hgt * 0.25)
+                if k < 0.6:
+                    continue  # rather a gap than a stunted tree under the moon
+                hgt *= k
+                self.pine(mid, self.at(depth, lat, -2), hgt * 1.35, hgt * 0.5, 'pine', tiers=5 + int(_hash(i, 12) * 3), seed=i)
             else:
-                mats = ('canopyDark', 'canopy', 'canopyLight') if _hash(i, 11) < 0.6 else ('canopyDark', 'canopyDark', 'canopy')
-                self.oak(mid, self.at(depth, lat, -2), hgt, 40 + _hash(i, 10) * 16, seed=i, mats=mats, crown=crowns)
+                # Not one tree copied: crowns of two to four tiers, wide or narrow, in three greens.
+                pick = _hash(i, 11)
+                mats = (('canopyDark', 'canopy', 'canopyLight') if pick < 0.45 else
+                        ('canopyDark', 'canopyDark', 'canopy') if pick < 0.75 else
+                        ('canopyDark', 'canopyCool', 'canopyCool'))
+                width = (34 + _hash(i, 10) * 26) * (0.85 + 0.3 * _hash(i, 13))
+                k = self.under_moon(depth, lat, hgt * 0.7 + width * 0.55, width * 0.55)
+                if k < 0.6:
+                    continue
+                hgt, width = hgt * k, width * k
+                self.oak(mid, self.at(depth, lat, -2), hgt, width, seed=i, mats=mats, crown=crowns,
+                         tiers=2 + int(_hash(i, 14) * 2.99), roots=mid)
+        # Undergrowth along the clearing's edge: low bushes in front of the trunks, so the trees grow out of the
+        # ground rather than stand on a flat floor.
+        for i in range(44):
+            lat = (i - 21.5) * 31 + (_hash(i, 15) - 0.5) * 22
+            if abs(lat) < 70 or _hash(i, 19) < 0.22:
+                continue  # the gap behind the hero stays open, and the band has gaps of its own
+            depth = 345 + _hash(i, 16) * 95
+            c = self.at(depth, lat, -1)
+            hb = 4 + 10 * _hash(i, 17) ** 1.5
+            for k in range(1 + int(_hash(i, 20) * 2.99)):
+                off = self.side * ((k - 1) * hb * 0.9 + (_hash(i, 18 + k) - 0.5) * hb * 0.8) + self.back * (_hash(i, 24 + k) - 0.5) * hb
+                r = hb * (0.6 + 0.6 * _hash(i, 21 + k))
+                blob(crowns, c + off + Z * r * 0.35, (r * 1.2, r, r * 0.75),
+                     ('nearCanopy', 'canopyDark', 'canopyCool')[(i + k) % 3] + ('2' if k % 2 else ''), u=10, v=7)
         o = finish(mid, layer='scene', index=112)
         o['detail'] = 2
         leafy(finish(crowns, layer='scene', index=115), cell=3.2, depth=1.7)
@@ -384,9 +446,11 @@ class Clearing:
         sides = 12
         n = 9
         rings = []
+        bend = ax.cross(Z).normalized()
         for i in range(n):
             u = i / (n - 1)
-            c = a.lerp(b, u) + Z * (0.4 * math.sin(math.pi * u))
+            # A slight S-bend along it and a sag in the middle: a fallen trunk, not a turned cylinder.
+            c = a.lerp(b, u) + Z * (0.4 * math.sin(math.pi * u)) + bend * (1.6 * math.sin(2 * math.pi * u + 0.4))
             r = 2.6 + 0.4 * u + (1.4 * (u - 0.8) / 0.2 if u > 0.8 else 0.0)
             side = ax.cross(Z).normalized()
             up = side.cross(ax).normalized()
@@ -396,8 +460,13 @@ class Clearing:
                 ridge = 1 + 0.07 * math.cos(5 * t + 1.3 * i) + 0.04 * math.cos(9 * t)
                 ring.append(c + (side * math.cos(t) + up * math.sin(t)) * r * ridge)
             rings.append(ring)
-        geom.loft(p, rings, ['trunk'], closed=True, cap0=False, cap1=True)
-        # The broken end: a jagged pale face.
+        geom.loft(p, rings, ['logBark'], closed=True, cap0=False, cap1=True)
+        # Two broken boughs, stubs pointing up and out.
+        for k, (u, t) in enumerate(((0.38, 1.9), (0.66, 1.2))):
+            q = rings[int(u * (n - 1))]
+            c = sum(q, V((0, 0, 0))) / len(q)
+            d = (Z * math.sin(t) + bend * math.cos(t) + ax * 0.35).normalized()
+            tube(p, [c + d * 2.0, c + d * 4.6, c + d * 6.4 + ax * 0.8], [1.0, 0.7, 0.35], ['logBark'], sides=6, cap1=True)
         face = []
         for k in range(sides):
             t = 2 * math.pi * k / sides
@@ -409,7 +478,7 @@ class Clearing:
         for k in range(4):
             t = 2 * math.pi * k / 4 + 0.6
             d = (ax.cross(Z).normalized() * math.cos(t) + Z * math.sin(t) * 0.4 + ax * 0.6).normalized()
-            tube(p, [b, b + d * 3.0 - Z * 0.6, b + d * 6.0 - Z * 1.8], [1.6, 0.9, 0.3], ['root'], sides=6)
+            tube(p, [b, b + d * 3.0 - Z * 0.6, b + d * 6.0 - Z * 1.8], [1.6, 0.9, 0.3], ['logBark'], sides=6)
 
     def fern(self, p, c, size, seed, fronds=8):
         """A fern: arched fronds from one root, each a stem with leaflets in pairs, longest at the middle."""
@@ -442,19 +511,34 @@ class Clearing:
     def rock(self, p, c, size, seed, flat=0.7):
         """A boulder: a faceted hull, half sunk, its upward faces grown over with moss."""
         pts = []
-        n = 16
+        n = 22
         yaw = _hash(seed, 1) * 6.28
         rot = Matrix.Rotation(yaw, 3, 'Z')
+        # Lopsided: one side taller, so it reads as a broken boulder, not a slab or a pill.
+        tip = V((math.cos(seed * 1.7), math.sin(seed * 1.7), 0)) * 0.35
         for i in range(n):
-            # A Fibonacci sphere, each point pushed in or out a little.
+            # A Fibonacci sphere, each point pushed in or out (more than a little: a chunky outline).
             y = 1 - 2 * (i + 0.5) / n
             r = math.sqrt(max(0.0, 1 - y * y))
             a = i * 2.39996 + seed
             q = V((math.cos(a) * r, math.sin(a) * r, y))
-            k = 0.78 + 0.32 * _hash(seed, 10 + i)
-            q = V((q.x * size * k * 1.2, q.y * size * k, q.z * size * k * flat))
+            k = 0.66 + 0.5 * _hash(seed, 10 + i)
+            lift = 1 + max(0.0, q.dot(tip)) * (q.z > 0)
+            q = V((q.x * size * k * 1.15, q.y * size * k, q.z * size * k * flat * lift))
             pts.append(c + rot @ q)
-        hull(p, pts, lambda nrm: 'rockMoss' if nrm.z > 0.62 else 'rock', crease=0.6)
+        hull(p, pts, lambda nrm: 'rockMoss' if nrm.z > 0.66 else 'rock', crease=0.35)
+
+    def pebble(self, p, c, size, seed):
+        """A pebble: a few chunky facets (a broken stone, not a flat pill), half sunk."""
+        rot = Matrix.Rotation(_hash(seed, 1) * 6.28, 3, 'Z')
+        pts = []
+        for i in range(9):
+            y = 1 - 2 * (i + 0.5) / 9
+            r = math.sqrt(max(0.0, 1 - y * y))
+            a = i * 2.39996 + seed * 0.7
+            k = 0.7 + 0.45 * _hash(seed, 20 + i)
+            pts.append(c + rot @ V((math.cos(a) * r * size * k * 1.1, math.sin(a) * r * size * k, y * size * k * 0.85)))
+        hull(p, pts, lambda nrm: 'pebble', crease=0.25)
 
     def mushrooms(self, p, c, seed, count=4, glow='capGlow', scale=1.0):
         """A cluster of mushrooms, tallest in the middle: pale stems, domed caps with a lip, glowing spots."""
@@ -509,6 +593,29 @@ class Clearing:
                 off = V((math.cos(a), math.sin(a), 0)) * rr * (0.0 if k == 0 else 0.55 + 0.2 * _hash(i, 94 + k))
                 sz = rr * (0.85 if k == 0 else 0.5 + 0.2 * _hash(i, 98 + k))
                 blob(p, c + off, (sz, sz * 0.9, sz * 0.42), 'mossClump' if k % 2 == 0 else 'mossClump2', u=10, v=6)
+        # More moss cushions out towards the edges, and leaf litter: small dark leaves scattered over the moss (the
+        # floor is a forest's, not a lawn), thinning out with distance.
+        for i in range(10):
+            depth = -60 + 260 * _hash(i, 120)
+            lat = (_hash(i, 121) - 0.5) * 2 * (90 + max(0.0, depth))
+            if abs(lat - path_lateral(depth)) < PATH['width'] + 3 or (abs(lat) < 30 and -20 < depth < 40):
+                continue
+            c = at(depth, lat)
+            rr = 3.5 + 4 * _hash(i, 122)
+            for k in range(3):
+                a = 2 * math.pi * (k / 3 + _hash(i, 123 + k) * 0.25)
+                off = V((math.cos(a), math.sin(a), 0)) * rr * (0.0 if k == 0 else 0.6)
+                sz = rr * (0.8 if k == 0 else 0.55)
+                blob(p, c + off, (sz, sz * 0.9, sz * 0.4), 'mossClump' if k % 2 == 0 else 'mossClump2', u=10, v=6)
+        for i in range(170):
+            depth = -100 + 330 * _hash(i, 130) ** 1.4
+            lat = (_hash(i, 131) - 0.5) * 2 * (70 + max(0.0, depth) * 1.1)
+            if abs(lat) < 12 and -10 < depth < 14:
+                continue  # his feet stay on clean moss (the contact shadow reads)
+            c = at(depth, lat, 0.05)
+            sz = 0.7 + 0.7 * _hash(i, 132)
+            rot = Matrix.Rotation(_hash(i, 133) * 6.28, 3, 'Z') @ Matrix.Rotation((_hash(i, 134) - 0.5) * 0.5, 3, 'X')
+            blob(p, c, (sz * 1.6, sz * 0.8, sz * 0.18), 'litter', u=6, v=3, rot=rot)
         # Rocks: a big one left of the hero, smaller ones about, all half sunk.
         for i, (depth, lat, size, flat) in enumerate(((24, -36, 6.5, 0.8), (-14, 46, 4.2, 0.75), (85, -38, 9.0, 0.7),
                                                      (48, 66, 6.5, 0.75), (-38, -60, 8.0, 0.7), (120, 42, 11.0, 0.65))):
@@ -520,7 +627,10 @@ class Clearing:
             lat = path_lateral(depth) + sgn * (PATH['width'] + 1.5 * _hash(i, 82))
             if abs(lat) < 14 and -12 < depth < 16:
                 continue
-            self.rock(p, at(depth, lat, -0.2), 1.0 + 0.9 * _hash(i, 83), seed=200 + i, flat=0.8)
+            # None just behind him: a stone touching his outline reads as a lump on his shoulder.
+            if -24 < lat < 30 and 0 < depth < 140:
+                continue
+            self.pebble(p, at(depth, lat, -0.3), 1.1 + 0.9 * _hash(i, 83), seed=200 + i)
         # A fallen log on the right, mossy on top, its cut end pale; mushrooms on it and in clusters about.
         log0, log1 = at(52, 36, 2.2), at(70, 88, 2.6)
         ax = (log1 - log0).normalized()

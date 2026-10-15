@@ -80,6 +80,12 @@ def render_match(hero, out_dir, tmp, draft=False):
                 mod = o.modifiers.new('Bold', 'DISPLACE')
                 mod.mid_level = 0.0
                 mod.strength = amount
+    # Material flags for this size only (`MATCH_FLAGS`: a string with no ink, a bow less shaded), put back after.
+    saved = {}
+    for mat_name, over in getattr(hero, 'MATCH_FLAGS', {}).items():
+        flags = shading.FLAGS[shading.number(mat_name)]
+        saved[mat_name] = dict(flags)
+        flags.update(over)
     px = RES * SS
     side = WINDOW * 2 * px
     look = dict(npr.LOOK, **LOOK)
@@ -171,4 +177,6 @@ def render_match(hero, out_dir, tmp, draft=False):
         'walkStride': hero.WALK_STRIDE,
         'idleMs': round(hero.IDLE_PERIOD_S * 1000),
     }
+    for mat_name, flags in saved.items():
+        shading.FLAGS[shading.number(mat_name)].update(flags)
     return layout, size

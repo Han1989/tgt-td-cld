@@ -48,9 +48,10 @@ def materials():
     d('thread', 'bone', line=False, ao=0.5)
     d('bone', 'bone')
     d('cloth', 'cloth')
-    # The string: a light core with a thin dark edge of its own (line 0.45), so it shows against the night and
-    # against the moonlit mist alike, and keeps its light core through the shadow side.
-    d('string', 'string', line=0.45, shade=0.3, rim=0.0, mrim=0.0, ao=0.0, grad=False)
+    # The string: a light core with a thin dark edge of its own (line 0.45, in the flat ink: its own colour darkened
+    # would be no darker than the night), so it shows against the night and against the moonlit mist alike, and keeps
+    # its light core through the shadow side.
+    d('string', 'string', line=0.45, shade=0.3, rim=0.0, mrim=0.0, ao=0.0, grad=False, tint=0.0)
     d('rune', 'rune', emit=1.0, metal=0.6, rim=0.0, ao=0.0, grad=False)
     d('runeMark', 'rune', emit=0.75, line=False, rim=0.0, ao=0.0, grad=False)
     d('shaft', 'wood', line=0.7)
@@ -769,7 +770,7 @@ def build_bow(r):
     lo = V((TIP.x, 0, -TIP.z))
     nock = V((-BRACE, 0, 0))
     pts = [TIP.lerp(nock, k / 8) for k in range(9)] + [nock.lerp(lo, k / 8) for k in range(1, 9)]
-    tube(s, [rest @ q for q in pts], [0.13] * len(pts), ['string'], sides=6, n0=rest.to_3x3() @ Y)
+    tube(s, [rest @ q for q in pts], [0.15] * len(pts), ['string'], sides=6, n0=rest.to_3x3() @ Y)
     string = finish(s, layer='bow', index=22)
 
     def string_rule(q):
@@ -831,9 +832,10 @@ L_HAND_DIR = V((0.75, -0.62, 0.0))  # the bow hand's bone, wrist → knuckles, i
 R_WRIST = V((-1.25, -0.55, -0.55))  # the draw hand's wrist from the nock, in the bow's frame
 R_HAND_DIR = V((0.85, 0.35, 0.45))
 CANT = 0.45        # the bow's top tilts away from the face (radians)
-# Full draw: the nock under the chin, the hand forward of the hood's rim (rest-pose head): it shows against the hood's
-# lit rim and the mantle, the string runs under the eyes, and no feather sits in front of the face.
-ANCHOR = V((4.7, -2.2, 14.6))
+# Full draw: the nock under the jaw, the hand clear of the hood's rim, forward of it (rest-pose head): it shows against
+# the hood's lit rim and the mantle, the string runs beside the eyes, not over them, and no feather sits in front of
+# the face.
+ANCHOR = V((5.6, -2.4, 14.3))
 
 
 def aim_bone(r, name, head, ydir, zhint):
@@ -1174,6 +1176,10 @@ STAGE_AIM = math.radians(34)    # the arrow's way (figure frame: from +X towards
 HEAD_SHOT_YAW = math.radians(4)  # where the face looks while drawing: just short of the arrow, so both eyes show
 LOOSE_AT = 5.75
 NOCK_FRONT = V((2.4, 0.0, 0.9))  # where the draw hand lays the arrow before nocking: in front of the string, the bow's frame
+# Push and pull: the bow is nocked held this far in front of the anchor (bow's frame, px past brace: the arm bent, the
+# string in the draw hand's reach) and pushed out to the full reach as the string comes back, so the hand nocks on the
+# string's near side and the arrow never crosses the string.
+NOCK_REACH = 2.0
 T_PULL = (3.08, 3.42, 3.62, 4.05, 4.28)  # reach, grip, pull, nock starts, on the string
 
 
@@ -1183,7 +1189,9 @@ def _tracks():
         shift=T([(0.0, -0.2), (1.5, 0.22), (2.85, 0.02), (3.4, -0.12), (6.6, -0.12), (7.6, -0.2)]),
         dip=T([(0.0, -0.14), (2.9, -0.14), (3.3, -0.5), (3.9, -0.32), (5.6, -0.36), (5.85, -0.44, 'snap'),
                (6.4, -0.3), (7.3, -0.14)]),
-        turn=T([(0.0, 0.0), (3.05, 0.0), (3.35, 0.15), (4.05, 1.0, 'back'), (6.45, 1.0), (7.35, 0.0)]),
+        # Square on while the arrow is fetched and nocked (the draw hand can reach the string), then into the shot,
+        # side-on, as the string comes back.
+        turn=T([(0.0, 0.0), (3.05, 0.0), (3.35, 0.08), (4.15, 0.18), (4.85, 1.0, 'back'), (6.45, 1.0), (7.35, 0.0)]),
         lead=T([(0.0, 0.0), (3.32, 0.0), (3.62, 1.0, 'out'), (6.7, 1.0), (7.0, 0.0, 'out')]),
         lift=T([(0.0, 0.0), (3.32, 0.0), (3.46, 1.0, 'out'), (3.62, 0.0, 'in'), (6.7, 0.0), (6.84, 1.0, 'out'),
                 (7.0, 0.0, 'in')]),
@@ -1293,7 +1301,10 @@ def stage_pose(P, i, springs):
         # The bow rolls forward in the open hand after the loose, and dips.
         roll = 0.35 * math.sin(math.pi * min(1.0, after / 0.45)) * math.exp(-after / 0.5)
         dir_now = Matrix.Rotation(-0.07 * math.sin(math.pi * min(1.0, after / 0.5)), 3, aim.cross(Z).normalized()) @ dir_now
-    aimed = bow_frame(anchor + dir_now * (BRACE + full), dir_now, cant=CANT + roll)
+    # Push and pull: the bow arm straightens as the string comes back, so the nock comes to the anchor at full draw.
+    push = 1.0 if t >= LOOSE_AT else min(1.0, max(0.0, draw_amount(t)))
+    ext = NOCK_REACH + (full - NOCK_REACH) * push
+    aimed = bow_frame(anchor + dir_now * (BRACE + ext), dir_now, cant=CANT + roll)
     low = low_hold(sway=0.03 * breath, lift=0.15 * breath + tr['dip'](t) + 0.15, fwd=0.2 * tr['shift'](t))
     k = tr['bowup'](t)
     q = low.to_quaternion().slerp(aimed.to_quaternion(), k)
@@ -1323,7 +1334,7 @@ def stage_pose(P, i, springs):
             # Out of the quiver, up past the shoulder beside the jaw, then forward to lay the arrow over the bow hand
             # in front of the string: the shaft never crosses the string before it is nocked.
             start = mouth + V((0.6, -0.9, 0.6))
-            past = anchor + V((0.5, -2.5, 1.0))
+            past = anchor + V((1.5, -4.0, -0.5))  # out at the hood's side, towards the camera: hand and arrow seen
             a = start.lerp(past, smooth(u * 2.0))
             wrist = a.lerp(on_string_wrist + rot @ NOCK_FRONT, smooth((u - 0.35) / 0.65))
             ydir = V((-0.5, 0.2, -0.8)).lerp(rot @ R_HAND_DIR, smooth(u * 1.3))
@@ -1338,12 +1349,20 @@ def stage_pose(P, i, springs):
         else:
             a = after
             fly = smooth(a / 0.16)
-            back = rot @ V((-2.6, -0.9, 0.7)) * fly
+            back = rot @ V((-3.0, -0.9, -0.2)) * fly  # back along the jaw, not raised over the hood
             rel = smooth((a - 0.55) / 0.85)
             P.draw_hand(m, full, off=back, pole=pole_draw, fingers=0.95 - 0.8 * smooth(a / 0.1) + 0.5 * rel,
                         weight=1.0 - rel)
             facts['arrow'] = ('flying', a)
     r.update()
+    if facts['arrow'] == 'string' and t < LOOSE_AT:
+        # The hand pulls the string: where the arm can't reach the planned nock (turning into the shot early in the
+        # draw), the string comes back to the hand, never leaving a gap between them.
+        held = m.inverted() @ (r.head('hand.R') - rot @ R_WRIST)
+        pulled = -held.x - BRACE
+        if pulled > max(0.0, draw_px) + 0.02:
+            P.bow(m, draw=pulled)
+            r.update()
 
     # The arrow. Hidden, it waits where it next appears or last went (in the quiver before the reach, far along its
     # flight after the loose), shrunk to nothing, so the keys never sweep it across the frame.
@@ -1368,7 +1387,7 @@ def stage_pose(P, i, springs):
             # Drawn from a back quiver by the nock, head down: it comes out pointing into the quiver and swings forward
             # under the shoulder to the bow (never up past the hood).
             held_dir = (-ax).lerp(dir_shot, smooth((u - 0.45) / 0.5) if kind == 'hand' else 1.0).normalized()
-            hand_tail = fingers - held_dir * 1.0
+            hand_tail = fingers - held_dir * 0.5  # the nock pinched at the fingertips
             if kind == 'hand':
                 P.arrow_at(hand_tail, held_dir, Z)
             else:
@@ -1392,7 +1411,10 @@ ARROW_INDEX = 23
 # The match frames' bolder small parts (world px pushed out along the surface, by pass index): the bow and its tips,
 # the string, the arrow, the gloves, sleeves and bracers. A bow and a hand of the stage's thickness vanish at 16 px a
 # tile.
-MATCH_BOLD = {20: 0.42, 22: 0.3, 23: 0.14, 17: 0.22, 18: 0.26, 13: 0.12, 14: 0.12, 15: 0.1, 16: 0.1}
+MATCH_BOLD = {20: 0.42, 22: 0.45, 23: 0.14, 17: 0.22, 18: 0.26, 13: 0.12, 14: 0.12, 15: 0.1, 16: 0.1}
+# Material flags for the match only: the string bare (no ink: at 16 px a tile a lined string is all line, so it is a
+# light thread, as the 2D Ranger's is) and the bow's wood less shaded, so the limbs read against the lane.
+MATCH_FLAGS = {'string': dict(bare=1.0), 'wood': dict(shade=0.55)}
 CHECK_FRAMES = (0, 165, 200)  # the stage frames kept as the fringe check's fixtures: idle, full draw, follow-through
 SHOULDER_BONE = 'upperarm.L'
 BODY_LAYERS = {'body'}

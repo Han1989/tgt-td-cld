@@ -132,7 +132,9 @@ def shade(p, look):
     if look['mrim_amount'] > 0:
         mr = smoothstep(look['mrim_at'] - look['mrim_soft'], look['mrim_at'] + look['mrim_soft'], mrim)
         mr = mr * look['mrim_amount'] * f_mrim
-        col = col + (np.array(rgb(look['mrim']), np.float32) * (0.55 + 0.45 * albedo) - col) * (0.5 * mr)[..., None]
+        # The local colour lit by the moon (a silvered green on the hood, a lit brown on a boot), never a grey.
+        edge = np.array(rgb(look['mrim']), np.float32) * (0.3 + 0.7 * np.clip(albedo, 0, 1)) * 1.25
+        col = col + (edge - col) * (0.5 * mr)[..., None]
     s = smoothstep(look['sheen_at'] - look['sheen_soft'], look['sheen_at'] + look['sheen_soft'], sheen)
     col += (np.array(rgb('moon'), np.float32) * 0.9) * (s * look['sheen_amount'])[..., None]
     col *= f_dim[..., None]
@@ -149,7 +151,8 @@ def _seeds(p, look):
     solid = a > 0.5
     obj = ids // 1000
     mat = np.clip(ids % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
-    weight = _flag_table('line', 1.0)[mat]
+    bare = _flag_table('bare', 0.0)[mat] > 0
+    weight = np.where(bare, 0.0, _flag_table('line', 1.0)[mat])
     lines = weight > 0.01
     allowed = np.ones_like(solid)
     if look['line_ids'] is not None:
@@ -185,7 +188,7 @@ def _seeds(p, look):
     # the render leaves outside the figure (a part with no line of its own gets the full one there, unless it glows:
     # a glow is its own edge, and its bloom spills past it anyway).
     glows = _flag_table('emit', 0.0)[mat] > 0
-    sil_weight = np.where(weight > 0.01, np.maximum(weight, SIL_MIN), np.where(glows, 0.0, 1.0))
+    sil_weight = np.where(weight > 0.01, np.maximum(weight, SIL_MIN), np.where(glows | bare, 0.0, 1.0))
     out = {}
     for w in np.unique(np.round(np.concatenate([weight[outer | inner], sil_weight[sil]]), 2)):
         if w <= 0.01:
@@ -198,13 +201,20 @@ def _seeds(p, look):
 SIL_MIN = 0.7  # the thinnest silhouette line, of a full line's weight
 
 
-def line_colour(albedo, look):
-    """The ink of a line drawn on a part of this colour: the flat ink, or the local colour darkened towards it."""
+def line_colour(albedo, look, tint=None):
+    """The ink of a line drawn on a part of this colour: the flat ink, or the local colour darkened towards it.
+    `tint` (h × w, the materials' `tint` flag) scales how much of the local colour a part's line takes."""
     ink = np.array(rgb(look['ink']), np.float32)
     t = look['line_tint']
     if t <= 0:
         return np.broadcast_to(ink, albedo.shape).astype(np.float32)
+    t = t if tint is None else (t * tint)[..., None]
     return ink * (1 - t) + np.clip(albedo, 0, 1) * look['line_dark'] * t
+
+
+def _tints(p):
+    mat = np.clip(ids_of(p) % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
+    return _flag_table('tint', 1.0)[mat]
 
 
 def outline(p, look, ss, scene_depth=None, with_colour=False):
@@ -221,7 +231,7 @@ def outline(p, look, ss, scene_depth=None, with_colour=False):
     if with_colour:
         a = p['Alpha'][..., 0]
         albedo = p['albedo'][..., :3] / np.maximum(a, 1e-4)[..., None]
-        tinted = line_colour(albedo, look)
+        tinted = line_colour(albedo, look, _tints(p))
     solid = p['Alpha'][..., 0] > 0.5
     depth = p['Depth'][..., 0]
     for w, (outer, inner) in seeds.items():
@@ -253,7 +263,7 @@ def ink_smear(p, look, col):
     mat = np.clip(ids_of(p) % 1000, 0, max(shading.FLAGS) + 1 if shading.FLAGS else 1)
     glows = _flag_table('emit', 0.0)[mat] > 0
     thin = (a > 0) & (a <= 0.5) & ~glows
-    return np.where(thin[..., None], line_colour(albedo, look), col)
+    return np.where(thin[..., None], line_colour(albedo, look, _tints(p)), col)
 
 
 def downsample(x, k):

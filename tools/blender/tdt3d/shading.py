@@ -23,17 +23,20 @@ FLAGS = {}  # material number -> dict(line=weight, ...)
 
 
 def define(name, token=None, color=None, emit=0.0, glow=None, metal=0.0, grad=True, line=1.0, albedo=None,
-           ao=1.0, shade=1.0, rim=1.0, dim=1.0, mrim=1.0):
+           ao=1.0, shade=1.0, rim=1.0, dim=1.0, mrim=1.0, tint=1.0, bare=0.0):
     """Declares a material. `token`/`color` is the albedo; `emit` > 0 makes it glow in `glow` (a token, else the
     albedo); `metal` adds the moon's bright edge; `albedo(nt, links) -> socket` replaces the flat colour (a texture);
     `line` is its ink outline's weight (1 the full line, 0.45 the thin dark edge of a bowstring, 0 / False none);
     `ao`, `shade`, `rim` and `mrim` (the moonlit edge) scale those terms; `dim` darkens it all (a value step back for
-    scenery, so the hero stays brightest)."""
+    scenery, so the hero stays brightest); `tint` scales how much of its line takes its own colour (0: the flat ink,
+    for a pale part whose own darkened colour would be no darker than the night behind it); `bare` (1) draws no line
+    round it at all, not even on the silhouette (a hero's match render sets it on a string too thin to carry one)."""
     line = float(line)
     SPECS[name] = dict(token=token, color=color, emit=emit, glow=glow, metal=metal, grad=grad, line=line,
-                       albedo=albedo, ao=ao, shade=shade, rim=rim, dim=dim, mrim=mrim, number=len(SPECS) + 1)
+                       albedo=albedo, ao=ao, shade=shade, rim=rim, dim=dim, mrim=mrim, tint=tint, bare=bare,
+                       number=len(SPECS) + 1)
     FLAGS[len(SPECS)] = dict(line=line, name=name, ao=ao, shade=shade, rim=rim, metal=metal, dim=dim, mrim=mrim,
-                             emit=float(emit))
+                             emit=float(emit), tint=float(tint), bare=float(bare))
 
 
 def number(name):
