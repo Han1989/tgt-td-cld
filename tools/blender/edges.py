@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw
 DPR = 3
 # The home card's stage on a 412 × 839 phone, as heroStage.ts measures it (CSS px).
 STAGE = dict(w=378, h=321, ground=287, top=61, side=14)
+TITLE_CLEAR = 8  # STAGE_TITLE_CLEAR in layout.ts: the hood stays under the title's last line (there's room here)
 CROP = 64      # device px round each point
 ZOOM = 3
 LABELS = ('hood', 'bow arm', 'string', 'feet')
@@ -31,7 +32,7 @@ def fit_scale(stage):
     f = stage['figure']
     up = stage['groundY'] - f['y0']
     half = (f['x1'] - f['x0']) / 2
-    by_h = (STAGE['ground'] - STAGE['top']) / max(1, up)
+    by_h = (STAGE['ground'] - STAGE['top'] - TITLE_CLEAR) / max(1, up)
     by_w = (STAGE['w'] / 2 - STAGE['side']) / max(1, half)
     return min(by_h, by_w)
 

@@ -120,6 +120,15 @@ It records the **first contentful paint** (on this branch, the boot splash), mai
 
 The video itself is never part of the first load (it starts loading 600 ms and an idle moment after `tdt:ready`). The rows above from 3 Oct are not comparable with these (the home card has changed since).
 
+**Results, 15 Oct 2026** (V-05a round 2, PR #106: the Ranger and his clearing as one picture, a sharper 2400 × 900 loop; back to back with #105's head on the same 4-core VM, local `vite preview`, 7 runs each):
+
+| Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Transferred |
+|---|---|---|---|---|---|
+| #105 (`ccr-879951c4-0qeuxg`) | 7 | median **2.14 s** (1.73–2.22 s) | median 5.27 s (5.19–5.63 s) | median **7.12 s** (6.81–7.54 s) | 388 KB |
+| #106 (`ccr-f19ccefe-s6r998`) | 7 | median **2.14 s** (2.13–2.18 s) | median 5.40 s (5.15–5.51 s) | median **6.96 s** (6.66–7.25 s) | 388 KB |
+
+The same bytes on the first load (the new poster is the same size); the larger video (1.14 MB, was 0.68) still loads only after the first screen. The VM ran about 0.35 s slower to a usable lobby than on 14 Oct for both builds, so compare the rows within a day, not across.
+
 **Not re-measured for the home card of 10 Oct 2026** (V-01, PR #100: a hero stage and Play solo under it, no dock). The session that built it could not run this script. Its layout was checked another way: on a 412 × 839 and a 390 × 664 screen Play solo is on screen with no scrolling and takes the tap at its centre (`e2e/lobby.spec.ts`). The stage adds one Canvas 2D drawing of the hero after `tdt:ready`. Re-run the script and add a row here.
 
 The production row is a baseline, not a like-for-like timing: it went over the real internet to Vercel on top of the emulated network. What it shows is the layout: before this change a new player on a Pixel 7 (and an iPhone 13) had to scroll to find Play solo, and the first paint was the in-match HUD markup ("WAVE 0 / 10", a hero bar) rather than the title.
