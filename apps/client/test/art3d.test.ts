@@ -319,7 +319,7 @@ describe('3D heroes: one clearing for all three', () => {
   it('every hero stands in the same box, on the same ground line, in a frame of the same size: switching heroes never moves the clearing', () => {
     const stages = heroes.map(([, h]) => h!.stage);
     for (const s of stages) {
-      expect([s.w, s.h]).toEqual([1200, 450]);
+      expect([s.w, s.h]).toEqual([2400, 900]);
       expect(s.figure).toEqual(stages[0]!.figure);
       expect(s.groundY).toBe(stages[0]!.groundY);
       expect(s.feetX).toBe(stages[0]!.feetX);

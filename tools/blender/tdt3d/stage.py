@@ -31,17 +31,16 @@ from .geom import V, Z
 from .figure import mesh_bbox
 from .palette import rgb
 
-W, H = 1200, 450      # the video; one frame for every stage size (fitStage in the client)
-REF = 2400            # the frame width the look's pixel sizes are given for (V-05a's): every px constant scales by
-SCALE = W / REF       # SCALE, so the picture looks the same at this size (lines, glows and haze as wide on the stage)
+W, H = 2400, 900      # the video; one frame for every stage size (fitStage in the client). A 412 px phone's home
+                      # card shows ~750 of its pixels across 1140 device px on a 3x screen (1.5x; a 1200 frame was 3x)
 SS = 2                # rendered at SS × the output size and averaged down
 FRAME_H = 33.0        # world px from the ground to the top of `BOX`, the tallest hero (the Warden's helm) with room
-HERO_H_PX = 427 * SCALE  # px that FRAME_H world px take at the camera's distance
-FEET_Y = 735 * SCALE     # the ground line under the hero, video px from the top
+HERO_H_PX = 427       # px that FRAME_H world px take at the camera's distance
+FEET_Y = 735          # the ground line under the hero, video px from the top
 MID = (0.0, -2.0)     # the point between the heroes' feet the camera centres (figure x / y, world px)
 # The box every hero's loop stays inside (video px, ink included): all three share it, so fitStage places the
 # video the same for each and switching heroes never moves the clearing. The build stops if a loop leaves it.
-BOX = dict(x0=478.0, y0=154.0, x1=720.0, y1=400.0)
+BOX = dict(x0=956.0, y0=308.0, x1=1440.0, y1=800.0)
 AZIMUTH = 40.0        # degrees round from the hero's front towards its right
 ELEVATION = 4.5       # degrees above the hero's chest
 LENS = 50.0
@@ -52,19 +51,19 @@ HERO_SAMPLES_FAST = 18  # while a fast part moves (the arrow, the sword's slice)
 HERO_AO_SAMPLES = 2   # AO rays a sample on the hero (the plate takes 6)
 GROUND_ID = 100
 SKY_IDS = 200         # 200 and over: the sky, the stars, the moon
-MARGIN_PX = 34 * SCALE   # output px kept round the hero's box: his line, the light wrap and his glows' bloom
+MARGIN_PX = 34        # output px kept round the hero's box: his line, the light wrap and his glows' bloom
 ARROW_INDEX = 23      # the arrow's pass index (hero.py): left out of the hero's box while it flies off
 
 LOOK = dict(
-    outer=2.4 * SCALE, inner=1.0 * SCALE, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
+    outer=2.4, inner=1.0, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
     line_ids=None, depth_rel=0.012, depth_abs=0.5, big_jump=4.0, pool_amount=0.52,
     rim_amount=0.7, mrim_amount=1.3, mrim_at=0.2,
     # The hero's bright flat-colour tokens toned for the moonlit night, so he is lit by the scene's light, not a studio's.
     tone_ids=(1, 99), tone_sat=0.72, tone_val=0.8,
 )
-BLOOM = dict(sigma=2.6 * SCALE, amount=0.85)  # output px
+BLOOM = dict(sigma=2.6, amount=0.85)  # output px
 HAZE = dict(near=0.07, depth=2600.0, far_from=360.0, far_depth=1100.0, far=0.78)
-WRAP = dict(sigma=2.2 * SCALE, amount=0.55)
+WRAP = dict(sigma=2.2, amount=0.55)
 CONTACT = dict(foot=0.62, foot_sigma=1.25, body=0.22, body_sigma=4.2, lift=2.2)
 GRADE = dict(lift=(0.016, 0.026, 0.038), contrast=1.08, pivot=0.32, sat=1.0, shadows=(0.96, 1.0, 1.06),
              vignette=0.16, grain=1.5)
@@ -100,9 +99,9 @@ class Atmosphere:
     once from the plate; the hero gets the same haze by his own depth."""
 
     def __init__(self, depth, ids, horizon_y, moon_px, period_s, size):
-        """`horizon_y` and `moon_px`: px of a REF-wide frame (the sizes below are too)."""
+        """`horizon_y` and `moon_px`: px of the full-size video (the sizes below are too)."""
         hh, ww = depth.shape
-        self.k = ww / REF  # px of this frame per px of a REF-wide frame
+        self.k = ww / W  # px of this frame per px of the full-size video (half in a draft)
         k = self.k
         self.period = period_s
         self.depth = depth
@@ -192,7 +191,7 @@ class Motes:
     def draw(self, t, hero_alpha, hero_depth):
         cam = self.cam
         h, w = hero_alpha.shape
-        k = w / REF
+        k = w / W
         out = np.zeros((h, w, 3), np.float32)
         steps = 5 if self.shutter > 0 else 1
         right = np.array(cam.right)
@@ -410,8 +409,8 @@ def render_plate(spec, out_png, tmp, scale=0.5, samples=6):
     glade = _glade(cam, d, spec['stage']['seconds'], 30)
     scene.detail(2)
     full = scene.Cam(cam.obj, W, H)
-    horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1] / SCALE
-    moon_px = tuple(c / SCALE for c in full.px(glade.moon_pos)[:2])
+    horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1]
+    moon_px = tuple(full.px(glade.moon_pos)[:2])
     for o in fig.objects:
         o.hide_render = True
     look = _scaled(dict(npr.LOOK, **LOOK), ow / W)
@@ -479,8 +478,8 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     glade = _glade(cam, d, period, fps)
     scene.detail(1 if draft else 2)
     full = scene.Cam(cam.obj, W, H)
-    horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1] / SCALE
-    moon_px = tuple(c / SCALE for c in full.px(glade.moon_pos)[:2])
+    horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1]
+    moon_px = tuple(full.px(glade.moon_pos)[:2])
     mcam = scene.Cam(cam.obj, ow * ss, oh * ss)
     k_out = ow / W
     look = _scaled(dict(npr.LOOK, **LOOK), k_out)

@@ -1,13 +1,13 @@
 # The edge sheet (docs/ART.md §15): the hero's edges as a phone shows them, 300% crops of the hood, the bow arm, the
-# string and the feet, before and after a change. Each frame is decoded from the stage video the player gets (its
-# compression included), scaled as the 412 × 839 home card's stage scales it on a 3× screen (fitStage), and cut
-# round the points given; every crop is enlarged 3× pixel for pixel.
+# string and the feet (or what `--labels` names), before and after a change. Each frame is decoded from the stage
+# video the player gets (its compression included), scaled as the 412 × 839 home card's stage scales it on a 3×
+# screen (fitStage), and cut round the points given; every crop is enlarged 3× pixel for pixel.
 #
-#   python tools/blender/edges.py out.png "before" before.mp4 before.json F:x,y;x,y;x,y;x,y [F:...] \
-#                                          "after" after.mp4 after.json F:x,y;...
+#   python tools/blender/edges.py [--labels "hood,eyes"] out.png "before" before.mp4 before.json F:x,y;x,y;x,y;x,y \
+#                                          [F:...] "after" after.mp4 after.json F:x,y;...
 #
-# Each spec is a frame number and four points in the video's pixels (hood, bow arm, string, feet); several specs
-# cover the four from different frames (the feet idle, the string drawn).
+# Each spec is a frame number and a point in the video's pixels for each label (by default hood, bow arm, string,
+# feet); several specs cover them from different frames (the feet idle, the string drawn).
 
 import json
 import os
@@ -44,10 +44,10 @@ def frame(mp4, n, tmp):
     return Image.open(out).convert('RGB')
 
 
-def row(label, mp4, layout, specs, tmp):
+def row(label, mp4, layout, specs, tmp, n_tiles):
     stage = json.load(open(layout))['stage']
     k = fit_scale(stage) * DPR
-    tiles = [None] * 4
+    tiles = [None] * n_tiles
     for spec in specs:
         n, pts = spec.split(':')
         img = frame(mp4, int(n), tmp)
@@ -63,6 +63,10 @@ def row(label, mp4, layout, specs, tmp):
 
 def main():
     args = sys.argv[1:]
+    labels = LABELS
+    if args[0] == '--labels':
+        labels = tuple(args[1].split(','))
+        args = args[2:]
     out = args.pop(0)
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -72,13 +76,13 @@ def main():
             specs = []
             while args and ':' in args[0]:
                 specs.append(args.pop(0))
-            rows.append(row(label, mp4, layout, specs, tmp))
+            rows.append(row(label, mp4, layout, specs, tmp, len(labels)))
     t = CROP * ZOOM
     pad = 8
     head = 30
-    sheet = Image.new('RGB', (150 + 4 * (t + pad), head + len(rows) * (t + pad)), (18, 18, 22))
+    sheet = Image.new('RGB', (150 + len(labels) * (t + pad), head + len(rows) * (t + pad)), (18, 18, 22))
     d = ImageDraw.Draw(sheet)
-    for i, name in enumerate(LABELS):
+    for i, name in enumerate(labels):
         d.text((150 + i * (t + pad) + 4, 8), name, fill=(220, 220, 220))
     for r, (label, k, tiles) in enumerate(rows):
         y = head + r * (t + pad)
