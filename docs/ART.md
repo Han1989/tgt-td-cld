@@ -465,7 +465,7 @@ The V-05b round 2 render (240 stage frames a hero, every one passing):
 | Warden | 0.62% (frame 73: 4 of 647) | 0.93% (frame 124) |
 | Arcanist | 0.87% (frame 223: 5 of 576) | 0.65% (frame 124) |
 
-Measured without the flying arrow left out, the Ranger's frame 151 reads 2.10% (17 of 809). 16 of those pixels are on the arrow's streak where it crosses a lit rock, 49 px clear of him (`docs/screenshots/3d-heroes/ranger-0151-fringe.webp`). Every other frame passes either way. The first render at this size had up to 1.26% (the Ranger's frame 151, then 192 and 152). Most of those pixels were the lit line of moss under his soles, fixed by the contact rule above.
+Measured without the flying arrow left out, the Ranger's frame 151 reads 1.96% (36 of 1,835; with it 0 of 1,584); every other frame passes either way. In V-05b's first round the same frame read 2.10% there, and 16 of its 17 pixels were on the arrow's streak where it crosses a lit rock, 49 px (at 1200) clear of him (`docs/screenshots/3d-heroes/ranger-0151-fringe.webp`). Two Ranger frames failed at 1× and were rendered again at 2×: 196 and 197, as the follow-through swings the bow down (1.31% and 1.59% at 1×, every pixel on the blurred string's light core; 0.06% at 2×).
 
 ### The stage loop (the first screen and the solo pick)
 

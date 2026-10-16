@@ -524,46 +524,46 @@
   "walkStride": 15.565
  },
  "stage": {
-  "feetX": 600.0,
+  "feetX": 1200.0,
   "figure": {
-   "x0": 478.0,
-   "x1": 720.0,
-   "y0": 154.0,
-   "y1": 400.0
+   "x0": 956.0,
+   "x1": 1440.0,
+   "y0": 308.0,
+   "y1": 800.0
   },
   "files": {
    "clearing": {
-    "bytes": 56770,
-    "hash": "7ba0c5d1beca",
+    "bytes": 59248,
+    "hash": "1efabe99772f",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 556313,
-    "hash": "aa90f462b49a",
+    "bytes": 1178075,
+    "hash": "32ef79fea7d2",
     "name": "ranger.mp4"
    },
    "poster": {
-    "bytes": 55680,
-    "hash": "1609bfc7f183",
+    "bytes": 59336,
+    "hash": "195dde9aeb87",
     "name": "ranger-poster.webp"
    },
    "webm": {
-    "bytes": 555209,
-    "hash": "660c3b7aeeb2",
+    "bytes": 1126045,
+    "hash": "3d3151042aa0",
     "name": "ranger.webm"
    }
   },
   "fps": 30,
   "frames": 240,
-  "groundY": 367.5,
-  "h": 450,
+  "groundY": 735.0,
+  "h": 900,
   "loopMs": 8000,
   "own": {
-   "x0": 543.9,
-   "x1": 710.2,
-   "y0": 194.1,
-   "y1": 380.7
+   "x0": 1089.9,
+   "x1": 1418.4,
+   "y0": 390.2,
+   "y1": 759.4
   },
-  "w": 1200
+  "w": 2400
  }
 }

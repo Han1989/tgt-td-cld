@@ -3,7 +3,7 @@
 # video the player gets (its compression included), scaled as the 412 × 839 home card's stage scales it on a 3×
 # screen (fitStage), and cut round the points given; every crop is enlarged 3× pixel for pixel.
 #
-#   python tools/blender/edges.py [--labels "hood,eyes"] out.png "before" before.mp4 before.json F:x,y;x,y;x,y;x,y \
+#   python tools/blender/edges.py [--labels "hood,eyes"] [--crop 64] out.png "before" before.mp4 before.json F:x,y;... \
 #                                          [F:...] "after" after.mp4 after.json F:x,y;...
 #
 # Each spec is a frame number and a point in the video's pixels for each label (by default hood, bow arm, string,
@@ -22,7 +22,7 @@ DPR = 3
 # The home card's stage on a 412 × 839 phone, as heroStage.ts measures it (CSS px).
 STAGE = dict(w=378, h=321, ground=287, top=61, side=14)
 TITLE_CLEAR = 8  # STAGE_TITLE_CLEAR in layout.ts: the hood stays under the title's last line (there's room here)
-CROP = 64      # device px round each point
+CROP = 64      # device px round each point (--crop)
 ZOOM = 3
 LABELS = ('hood', 'bow arm', 'string', 'feet')
 
@@ -44,7 +44,7 @@ def frame(mp4, n, tmp):
     return Image.open(out).convert('RGB')
 
 
-def row(label, mp4, layout, specs, tmp, n_tiles):
+def row(label, mp4, layout, specs, tmp, n_tiles, crop):
     stage = json.load(open(layout))['stage']
     k = fit_scale(stage) * DPR
     tiles = [None] * n_tiles
@@ -56,16 +56,19 @@ def row(label, mp4, layout, specs, tmp, n_tiles):
             if not p:
                 continue
             x, y = (float(v) * k for v in p.split(','))
-            box = (round(x - CROP / 2), round(y - CROP / 2), round(x + CROP / 2), round(y + CROP / 2))
-            tiles[i] = big.crop(box).resize((CROP * ZOOM, CROP * ZOOM), Image.NEAREST)
+            box = (round(x - crop / 2), round(y - crop / 2), round(x + crop / 2), round(y + crop / 2))
+            tiles[i] = big.crop(box).resize((crop * ZOOM, crop * ZOOM), Image.NEAREST)
     return label, k, tiles
 
 
 def main():
     args = sys.argv[1:]
-    labels = LABELS
-    if args[0] == '--labels':
-        labels = tuple(args[1].split(','))
+    labels, crop = LABELS, CROP
+    while args[0] in ('--labels', '--crop'):
+        if args[0] == '--labels':
+            labels = tuple(args[1].split(','))
+        else:
+            crop = int(args[1])
         args = args[2:]
     out = args.pop(0)
     rows = []
@@ -76,8 +79,8 @@ def main():
             specs = []
             while args and ':' in args[0]:
                 specs.append(args.pop(0))
-            rows.append(row(label, mp4, layout, specs, tmp, len(labels)))
-    t = CROP * ZOOM
+            rows.append(row(label, mp4, layout, specs, tmp, len(labels), crop))
+    t = crop * ZOOM
     pad = 8
     head = 30
     sheet = Image.new('RGB', (150 + len(labels) * (t + pad), head + len(rows) * (t + pad)), (18, 18, 22))
