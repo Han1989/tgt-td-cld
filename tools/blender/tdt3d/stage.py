@@ -10,7 +10,7 @@
 # ground a shadow catcher, so his moon shadow lands on the moss). Both are lit by the same moon and painted by the
 # same look with the same ink (the scene's forms carry a line of the hero's weight, tinted dark from their own
 # colour); the plate is rendered at twice the output size and scaled down, the hero at the output size with more
-# samples (and again at twice it if a frame fails the fringe check), so every edge is anti-aliased. Then, on the
+# samples (at twice it in the fast frames, or if a frame fails the fringe check), so every edge is anti-aliased. On the
 # finished frame, not on one layer: the same depth haze over hero and scene (by each one's depth), depth of field on
 # the far trees and the sky, the drifting mist, a little of the scene's light wrapping round the hero's edges, his
 # contact shadows on the moss, the motes, one bloom, one colour grade, a vignette and one film grain. Every frame
@@ -33,7 +33,7 @@ from .figure import mesh_bbox
 from .palette import rgb
 
 W, H = 2400, 900      # the video; one frame for every stage size (fitStage in the client). A 412 px phone's home
-                      # card shows ~750 of its pixels across 1140 device px on a 3x screen (1.5x; a 1200 frame was 3x)
+                      # card shows ~750 of its pixels across 1140 device px on a 3× screen (1.5×; a 1200 frame was 3×)
 # The hero is rendered at the output size (a 2× frame took 20–35 s on 4 cores, over the 15 s a frame allowed), with
 # more samples a pixel for his edges; the plate, rendered once for all three, at PLATE_SS × and averaged down. The
 # fast frames (`fast` in hero.py: the arrow, the slice, the summon's swing) and any frame that fails the fringe check
