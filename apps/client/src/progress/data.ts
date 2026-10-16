@@ -7,8 +7,9 @@
  *
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
  * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done; V-05a–V-05d (3D heroes, creeps and
- * towers rendered ahead of time) added on 14 Oct 2026, V-05a in review (round 2, PR #106). Production protocol
- * is 19. This page only reports status.
+ * towers rendered ahead of time) added on 14 Oct 2026; V-05b done on 16 Oct 2026 (PR #108: the three heroes from the
+ * KayKit models, Han's decision of 16 Oct), V-05a closed as superseded. Production protocol is 19. This page only
+ * reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -253,18 +254,19 @@ const items: ProgressItem[] = [
     id: 'V-05a',
     title: '3D heroes, part 1: the pipeline and the Ranger',
     owner: 'Team',
-    status: 'in_progress',
+    status: 'done',
     section: 'visual',
-    note: 'Client art and tools only, protocol stays 19. Han, 14 Oct 2026: heroes, then creeps and towers, are 3D models made by Blender scripts in the repo and rendered ahead of time; nothing 3D runs on the player’s device (live 3D crashed Chrome’s graphics on a Pixel 10 Pro in the trials). One command, npm run art:3d -- ranger, builds the Ranger from nothing and renders the first screen’s 8 s video loop in a moonlit clearing (and its poster, and the empty clearing for the Warden and the Arcanist) and his match frames (idle, a jog, the cast pose, the string drawn in 8 steps and loosed), played by a rig with the 2D Ranger’s timing; the 2D rig stays as the fallback. Round 2 (PR #106, replaces #105, after Han’s notes on his Pixel 10 Pro): the Ranger and his clearing as one picture — the same light, ink, haze, depth of field, grade and grain over hero and scene, no light fringe round his edges (a check on every frame), a string with a dark edge, the hero a quarter larger, a new clearing, the draw hand at the jaw. In review: Han judges it on his phone, on the Vercel preview. Built by Claude Code (the roadmap’s copies of 14 Oct 2026, 19:20, and 15 Oct 2026, 06:00).',
+    note: 'Closed as superseded by V-05b (16 Oct 2026): Han decided the heroes are no longer modelled in code. What it built stays: Blender scripts render heroes ahead of time and nothing 3D runs on the player’s device (live 3D crashed Chrome’s graphics on a Pixel 10 Pro in the trials); the painter that turns the renders into Runelight’s moonlit cel bands, rim and ink, the clearing, one picture of hero and scene with a fringe check on every frame, the stage video and match sheet formats, and the rigs with the 2D timing. Built by Claude Code (PR #105, round 2 PR #106).',
     proof: pr(106),
   },
   {
     id: 'V-05b',
-    title: '3D heroes, part 2: the Warden and the Arcanist',
-    owner: 'Both',
-    status: 'todo',
+    title: '3D heroes from the KayKit models: the Ranger, the Warden and the Arcanist',
+    owner: 'Team',
+    status: 'done',
     section: 'visual',
-    note: 'Starts when Han says go, after he has judged the Ranger (V-05a) on his phone. The same pipeline: each in the clearing as a video loop with its signature move, and its match frames on a rig with its 2D rig’s timing.',
+    note: 'Client art and tools only, protocol stays 19. Han, 16 Oct 2026: the heroes come from the CC0 KayKit packs (Knight as the Warden, Mage as the Arcanist, Rogue_Hooded as the Ranger) with the packs’ own clips, not modelled in code. Imported, the props hung on the pack’s hand slots, each repainted in Runelight’s tokens through the same painter (no pack colour reaches a frame), the clips retimed to the 2D rigs. All three stand in the same clearing as an 8 s video loop (the Ranger’s draw and release, the Warden’s block and swing, the Arcanist’s summon), swapping cleanly on the stage, and play in a match from their own frames on one rig; the 2D rigs stay as the fallback. In review: Han judges all three on his phone, on the Vercel preview. Built by Claude Code (PR #108, the roadmap’s copy of 16 Oct 2026, 22:30).',
+    proof: pr(108),
   },
   {
     id: 'V-05c',

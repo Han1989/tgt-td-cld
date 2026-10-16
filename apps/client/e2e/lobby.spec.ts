@@ -42,7 +42,8 @@ function backdrop(page: Page, stage = '#lobby-stage'): Promise<string | null> {
   return page.locator(stage).getAttribute('data-backdrop');
 }
 
-/** The stage shows its hero: the Ranger (made in 3D) as his picture, the others drawn on the canvas. */
+/** The stage shows its hero: as its 3D picture (the poster or the video; every hero is made in 3D), or drawn on the
+ * canvas (a hero without one). */
 async function heroShown(page: Page, stage = '#lobby-stage'): Promise<boolean> {
   const shown = await backdrop(page, stage);
   if (shown === 'poster' || shown === 'video') {
@@ -142,16 +143,19 @@ test('picking a hero puts it on the stage with its role and its line, and the pi
   await openHome(page, 'skipped');
   // The Ranger stands in the clearing as his 3D picture, so nothing is drawn on the canvas.
   await expect.poll(() => heroShown(page)).toBe(true);
-  const before = await stagePixels(page);
+  expect(await stagePixels(page)).toBeLessThan(2000);
   const playTop = (await box(page, '#lobby-offline')).top;
   await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'warden');
   await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
   await expect(page.locator('#lobby-hero-role')).toHaveText('Melee tank');
   await expect(page.locator('#lobby-hero-blurb')).toContainText('Melee frontliner');
-  // The Warden is drawn on the canvas, over the empty clearing, and the main button has not moved.
-  await expect.poll(() => stagePixels(page)).toBeGreaterThan(Math.max(2000, before));
-  await expect.poll(() => backdrop(page)).toBe('clearing');
+  // The Warden stands in the same clearing as his own 3D picture (nothing on the canvas), and the main button has
+  // not moved.
+  await expect.poll(() => backdrop(page)).toMatch(/^(poster|video)$/);
+  await expect(page.locator('#lobby-stage .stage-poster')).toHaveAttribute('src', /\/stage\/warden-poster\.webp\?v=/);
+  await expect.poll(() => heroShown(page)).toBe(true);
+  expect(await stagePixels(page)).toBeLessThan(2000);
   expect(Math.abs((await box(page, '#lobby-offline')).top - playTop)).toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => localStorage.getItem('tdt.hero'))).toBe('warden');
 
@@ -402,10 +406,21 @@ test('the 3D Ranger: his poster at once, then his video playing, filling the sta
     return { muted: video.muted, inline: video.playsInline, loop: video.loop };
   });
   expect(v).toEqual({ muted: true, inline: true, loop: true });
-  // Another hero: the video pauses, the clearing stays where it was.
-  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
-  await expect.poll(() => backdrop(page)).toBe('clearing');
-  await expect.poll(() => playing(page)).toEqual([]);
+  expect(await page.locator('#lobby-stage video').getAttribute('src')).toMatch(/\/stage\/ranger\.(mp4|webm)\?v=/);
+  // Another hero: his poster, then his own loop, in the same place (one clearing, framed alike for all three).
+  for (const [name, id] of [
+    ['Warden', 'warden'],
+    ['Arcanist', 'arcanist'],
+  ] as const) {
+    await page.locator('#lobby-heroes-home .hero-pick', { hasText: name }).click();
+    await expect(page.locator('#lobby-stage .stage-poster')).toHaveAttribute('src', new RegExp(`/stage/${id}-poster\\.webp\\?v=`));
+    await expect.poll(() => backdrop(page), { timeout: 15000 }).toBe('video');
+    await expect.poll(() => page.locator('#lobby-stage video').getAttribute('src')).toMatch(new RegExp(`/stage/${id}\\.(mp4|webm)\\?v=`));
+    await expect.poll(() => playing(page)).toEqual(['lobby-stage']);
+    expect(await box(page, '#lobby-stage video')).toEqual(video);
+    // Only one video on the stage at a time.
+    await expect(page.locator('#lobby-stage video')).toHaveCount(1);
+  }
 });
 
 test('the solo pick: Back returns to the home card, and one hero stage is drawing at a time', async ({ page }) => {
@@ -425,7 +440,8 @@ test('the solo pick: Back returns to the home card, and one hero stage is drawin
   await expect(page.locator('#lobby-solo')).toBeHidden();
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'arcanist');
   await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['lobby-stage']);
-  expect(await playing(page)).toEqual([]);
+  // The solo pick's video stopped; the home card plays the Arcanist's own loop.
+  await expect.poll(() => playing(page), { timeout: 15000 }).toEqual(['lobby-stage']);
   // A match stops it too.
   await page.locator('#lobby-offline').click();
   await page.locator('#lobby-solo-play').click();

@@ -1,10 +1,13 @@
 // Heroes made in 3D and rendered ahead of time (docs/ART.md §15): what the Blender pipeline wrote for each one
-// (tools/blender, `npm run art:3d -- <hero>`), and the pure rules the rig and the lobby's stage use to play it.
-// Nothing 3D runs here: the stage is a video, the match a sheet of pictures. Generated files, not edited by hand:
-// <hero>.json (both layouts) and <hero>-match.png (the sheet) in this folder, the stage files in public/stage/.
+// (tools/blender, `npm run art:3d -- <hero>`, from the KayKit models in the hero table tools/blender/hero.py), and the
+// pure rules the rig and the lobby's stage use to play it. Nothing 3D runs here: the stage is a video, the match a
+// sheet of pictures. Generated files, not edited by hand: <hero>.json (both layouts) and <hero>-match.png (the sheet)
+// in this folder, the stage files in public/stage/.
 
 import type { HeroKind } from '@tdt/protocol';
+import arcanist from './arcanist.json';
 import ranger from './ranger.json';
+import warden from './warden.json';
 
 /** A cell of the sheet: the frame at (x, y), its white twin (the hit flash) at (fx, fy); sizes are the layer's. */
 export interface Cell {
@@ -14,31 +17,49 @@ export interface Cell {
   fy: number;
 }
 
+/** A layer's cell size and its anchor in the cell (sheet px): the feet, or the shoulder the arm layer turns about. */
+export interface LayerBox {
+  w: number;
+  h: number;
+  ax: number;
+  ay: number;
+  /** The arm layer only: which way its weapon points as rendered (radians, y down), so the rig turns it from there. */
+  aim?: number;
+}
+
+/**
+ * The layers a rig draws, back to front: the body (3/4 view; the whole figure, or for the Ranger the figure without
+ * its arms), the arm layer (the Ranger's arms and bow in profile, turned at the shoulder towards the target), the
+ * head over it (so the bow never covers the face), and the fall (the whole figure dying), shown alone.
+ */
+export type LayerName = 'body' | 'arm' | 'head' | 'fall';
+
+/** How the rig plays the frames: the 2D rig whose timing it keeps (render/art/entities/<hero>.ts). */
+export type RigStyle = 'bow' | 'melee' | 'staff';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface MatchLayout {
   file: string;
   /** Sheet px per world px. */
   res: number;
   w: number;
   h: number;
-  /** The body layer's cell size and where the feet are in it (sheet px). */
-  body: { w: number; h: number; feetX: number; feetY: number };
-  /** The head layer's cell size and where the feet are in it (sheet px): drawn over the bow layer. */
-  head: { w: number; h: number; feetX: number; feetY: number };
-  /** The bow layer's cell size and its pivot, the shoulder (sheet px). */
-  bow: { w: number; h: number; pivotX: number; pivotY: number };
-  frames: { idle: Cell[]; walk: Cell[]; cast: Cell[] };
-  /** The head of each body frame (the hood and the eyes), in its own layer. */
-  heads: { idle: Cell[]; walk: Cell[]; cast: Cell[] };
-  bowFrames: { draw: Cell[]; loose: Cell[] };
-  /** The draw hand of each bow frame, alone, in the bow layer's cell size and pivot: drawn over the head, so a hand
-   * drawn to the cheek is seen. */
-  handFrames: { draw: Cell[]; loose: Cell[] };
-  /** Where the bow layer hangs in each body frame: world px from the feet (x right, y down). */
-  shoulders: { idle: { x: number; y: number }[]; walk: { x: number; y: number }[]; cast: { x: number; y: number }[] };
+  style: RigStyle;
+  layers: Partial<Record<LayerName, LayerBox>> & { body: LayerBox; fall: LayerBox };
+  /** Each layer's frames by kind (idle, walk, hit, the hero's attack and cast poses; the head has one per body frame). */
+  frames: Partial<Record<LayerName, Record<string, Cell[]>>> & { body: Record<string, Cell[]>; fall: Record<string, Cell[]> };
+  /** Points on each body frame, world px from the feet (x right, y down): the shoulder the arm layer or the
+   * Warden's slash hangs at, the Arcanist's gem. */
+  points: Record<string, Record<string, Point[]>>;
   /** World px the body moves over one walk cycle (two steps) with no foot sliding. */
   walkStride: number;
-  /** One idle cycle (the breath), ms. */
+  /** One idle cycle (the 2D breath), ms. */
   idleMs: number;
+  timing: Record<string, number>;
 }
 
 export interface StageLayout {
@@ -51,8 +72,11 @@ export interface StageLayout {
   /** The hero's feet in the video (px): x, and the ground line under them. */
   feetX: number;
   groundY: number;
-  /** The box the hero fills over the whole loop (ink included, the flying arrow left out), video px. */
+  /** The box every hero's loop stays inside (ink included, the flying arrow left out), video px: the same for all
+   * three, so the stage places each hero's video alike and switching heroes never moves the clearing. */
   figure: { x0: number; y0: number; x1: number; y1: number };
+  /** The box this hero's own loop fills, inside `figure`. */
+  own: { x0: number; y0: number; x1: number; y1: number };
   /** The files in public/stage/: the loop (H.264 MP4, and VP9 WebM for browsers without H.264), its first frame
    * (the poster) and the empty clearing; each with its size and a hash of its bytes (the `?v=` in its URL). */
   files: Record<StageFile, { name: string; bytes: number; hash: string }>;
@@ -66,8 +90,12 @@ export interface HeroLayout {
   stage: StageLayout;
 }
 
-/** The heroes made in 3D so far. The Warden and the Arcanist follow in V-05b. */
-export const HERO_3D: Partial<Record<HeroKind, HeroLayout>> = { ranger: ranger as HeroLayout };
+/** The heroes made in 3D: all three, from the KayKit packs (V-05b). */
+export const HERO_3D: Partial<Record<HeroKind, HeroLayout>> = {
+  ranger: ranger as HeroLayout,
+  warden: warden as HeroLayout,
+  arcanist: arcanist as HeroLayout,
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // The rig's rules
@@ -82,7 +110,12 @@ export function cycleFrame(phase: number, n: number): number {
 
 /** The draw step (0..steps-1) for a string drawn `draw` (0..1) of full. */
 export function drawStep(draw: number, steps: number): number {
-  return Math.max(0, Math.min(steps - 1, Math.round(draw * (steps - 1))));
+  return progressFrame(draw, steps);
+}
+
+/** Frame `i` of `n` for progress `u` (0..1) through a pose (a wind-up, a swing, a raise). */
+export function progressFrame(u: number, n: number): number {
+  return Math.max(0, Math.min(n - 1, Math.round(u * (n - 1))));
 }
 
 /**

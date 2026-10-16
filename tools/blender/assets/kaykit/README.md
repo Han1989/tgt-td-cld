@@ -13,6 +13,8 @@ each pack are kept; the FBX/OBJ/Unity copies were left out.
 | `adventurers/samples/` | same | the pack's own renders, for reference |
 | `animations/rig_medium/` | KayKit Character Animations 1.1 | clips for Rig_Medium: `General` (Idle_A/B, Hit_A/B, Death_A/B…), `MovementBasic` (Walking_A/B/C, Running…), `CombatRanged` (Ranged_Bow_Draw, Ranged_Bow_Release, Ranged_Magic_Spellcasting, Ranged_Magic_Shoot…), `CombatMelee` (Melee_1H_Attack_Slice_*, Melee_Block…), `MovementAdvanced`, `Simulation`, `Tools`, `Special` |
 
-Hero mapping: Warden ← `Knight.glb` (+ `sword_1handed`, `shield_round`), Arcanist ← `Mage.glb` (+ `staff`),
-Ranger ← `Ranger.glb` or `Rogue_Hooded.glb` (+ `bow_withString`, `quiver`). Runelight's palette and lighting are
-applied at render time by the painter (`tools/blender/tdt3d/npr.py`), not by editing these files.
+Hero mapping (V-05b, `tools/blender/hero.py`): Warden ← `Knight.glb` (+ `sword_1handed`, `shield_round`), Arcanist ←
+`Mage.glb` (+ `staff`), Ranger ← `Rogue_Hooded.glb` (+ `bow_withString`, `arrow_bow`, `quiver`). Runelight's palette
+and lighting are applied at render time (`tools/blender/tdt3d/gltf.py` repaints every face from its palette cell to a
+token; the painter, `tools/blender/tdt3d/npr.py`, lights and inks it), not by editing these files. None of them ships
+to the client.

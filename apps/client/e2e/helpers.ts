@@ -40,7 +40,17 @@ interface Hook {
   fx(): { live: number; shaken: number; particles: boolean; shake: boolean; shakeScale: number; maxNumbers: number; calm: boolean };
   /** Coins launched to the gold counter so far. */
   coins(): number;
-  art(): { display: 'normal' | 'bright'; pads: number; creepRigs: number; towerRigs: number; heroRigs: number };
+  art(): {
+    display: 'normal' | 'bright';
+    pads: number;
+    creepRigs: number;
+    towerRigs: number;
+    heroRigs: number;
+    /** Heroes drawn from their 3D frames, the frame kinds those rigs have shown, melee blows landed. */
+    hero3d: number;
+    hero3dKinds: string[];
+    impacts: number;
+  };
   /** The Iron Vow rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
   vow(): { rings: number; reach: number; alpha: number };
   /** Falling meteors (fx/meteorShow.ts): launched, landed on a strike, strikes with none, render ticks of the firsts. */

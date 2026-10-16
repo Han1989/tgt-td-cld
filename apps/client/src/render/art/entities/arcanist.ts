@@ -72,8 +72,19 @@ const GRIP_X = 2;
 /** The staff held upright at rest (radians, facing +x; negative is up). */
 const REST = -1.2;
 /** A thrust reaches the target in this long (ms), holds, then comes back. */
-const THRUST_MS = 70;
-const METEOR_MS = 700;
+export const THRUST_MS = 70;
+/** How long the thrust holds at the target, and how long it takes back (ms). */
+export const THRUST_HOLD_MS = 80;
+export const THRUST_BACK_MS = 280;
+export const METEOR_MS = 700;
+
+/** A thrust towards the target at time `since` (ms) after it started: 0..1 of the way there (pure, as the 3D rig's). */
+export function arcanistThrust(since: number): number {
+  if (since < 0) return 0;
+  if (since < THRUST_MS) return smooth(since / THRUST_MS);
+  if (since < THRUST_MS + THRUST_HOLD_MS) return 1;
+  return 1 - smooth(clamp01((since - THRUST_MS - THRUST_HOLD_MS) / THRUST_BACK_MS));
+}
 
 class ArcanistRig extends HeroRigBase {
   private readonly robe: Container;
@@ -103,20 +114,12 @@ class ArcanistRig extends HeroRigBase {
     this.flipper.addChild(this.footB, this.robe, this.footA, this.head, this.arm, this.hand);
   }
 
-  /** A thrust towards `aim` at time `since` after it started: 0..1 of the way there. */
-  private static thrust(since: number): number {
-    if (since < 0) return 0;
-    if (since < THRUST_MS) return smooth(since / THRUST_MS);
-    if (since < THRUST_MS + 80) return 1;
-    return 1 - smooth(clamp01((since - THRUST_MS - 80) / 280));
-  }
-
   protected pose(h: HeroPose, walking: boolean, now: number): void {
     const cd = this.cooldownMs;
     const since = now - this.shotAt;
     const aim = this.aim(h);
     // Staff: thrust at the target on the shot; the gem charges towards the next one while fighting.
-    let t = ArcanistRig.thrust(since);
+    let t = arcanistThrust(since);
     let angle = REST + (aim - REST) * t;
     let reach = t * 3;
     let lift = 0;
@@ -131,7 +134,7 @@ class ArcanistRig extends HeroRigBase {
       const w = hold(c, 0.2, 0.75);
       if (this.castSlot === 'Q') {
         // Fireball: a big thrust, the free hand pushing forward.
-        t = ArcanistRig.thrust(c * 480 - 60);
+        t = arcanistThrust(c * 480 - 60);
         angle = REST + (aim - REST) * t;
         reach = t * 4.5;
         flare = Math.max(flare, w);

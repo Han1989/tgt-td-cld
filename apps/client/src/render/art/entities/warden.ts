@@ -143,14 +143,14 @@ const STRUCK = 1.0;
  */
 export const WARDEN_SWING = { windMs: 180, quickWindMs: 110, strikeMs: 150, contact: 0.47, holdMs: 90, recoverMs: 260 } as const;
 /** A wind-up with nothing to hit sinks back over this long (ms)... */
-const RELAX_MS = 300;
+export const RELAX_MS = 300;
 /** ...once it has been held ready this long (ms). */
-const HOLD_READY_MS = 350;
+export const HOLD_READY_MS = 350;
 /** How far the Warden lunges towards the target (px), and how much bigger the arm swings. */
-const LUNGE_PX = 5;
+export const LUNGE_PX = 5;
 const SWING_SCALE = 0.3;
 /** How much of the way to the target (above or below) the swing turns: all of it would swing up-side down. */
-const AIM_TURN = 0.6;
+export const AIM_TURN = 0.6;
 
 /**
  * The sword arm during a swing, `s` ms after it started (pure, tested): the arm's angle, how far the

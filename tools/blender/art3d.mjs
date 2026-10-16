@@ -1,5 +1,5 @@
-// `npm run art:3d -- <hero> [stage|match|all] [--draft] [--frames 0,120] [--out DIR]` (docs/ART.md §15): builds the
-// hero in Blender from nothing and renders every output the game uses. Finds a Python that has Blender's module
+// `npm run art:3d -- <hero>|heroes [stage|match|all|plate] [--draft] [--frames 0,120] [--out DIR] [--work DIR]`
+// (docs/ART.md §15): imports the heroes from the KayKit packs in Blender and renders every output the game uses. Finds a Python that has Blender's module
 // (bpy) and scipy, checks ffmpeg, and runs tools/blender/build.py with it.
 //
 // Python, in this order: $TDT_BLENDER_PYTHON; .venv-blender/bin/python at the repo root (see
@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..');
 const args = process.argv.slice(2);
 if (args.length === 0 || args[0].startsWith('-')) {
-  console.error('Usage: npm run art:3d -- <hero> [stage|match|all] [--draft] [--frames 0,120] [--out DIR]');
+  console.error('Usage: npm run art:3d -- <hero>|heroes [stage|match|all|plate] [--draft] [--frames 0,120] [--out DIR] [--work DIR]');
   process.exit(2);
 }
 

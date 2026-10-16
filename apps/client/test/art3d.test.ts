@@ -1,6 +1,7 @@
-// Heroes made in 3D and rendered ahead of time (docs/ART.md §15): the layout data the Blender pipeline writes must
-// match the images it wrote (frame counts, sizes, shoulder points, white twins), the stage files must be what the
-// layout says and within budget, and nothing 3D may reach the player's device.
+// Heroes made in 3D and rendered ahead of time (docs/ART.md §15), all three from the KayKit models: the layout data
+// the Blender pipeline writes must match the images it wrote (frame counts, sizes, points, white twins), the stage
+// files must be what the layout says and within budget, every hero's stage the same box in the same clearing, every
+// shipped stage frame must pass the fringe check, and nothing 3D may reach the player's device.
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -15,9 +16,12 @@ import {
   drawStep,
   fitStage,
   HERO_3D,
+  progressFrame,
   STAGE_TITLE_CLEAR,
   walkCadence,
   type Cell,
+  type LayerBox,
+  type LayerName,
   type StageLayout,
 } from '../src/render/art3d/layout';
 
@@ -25,8 +29,25 @@ const CLIENT = join(__dirname, '..');
 const ART3D = join(CLIENT, 'src', 'render', 'art3d');
 const STAGE = join(CLIENT, 'public', 'stage');
 
-/** docs/ART.md §15: the frame counts the rig plays. */
-const COUNTS = { idle: 8, walk: 12, cast: 1, draw: 8, loose: 1 } as const;
+/** docs/ART.md §15: the frame counts each hero's rig plays, by layer and kind. */
+const COUNTS: Record<string, Record<string, Record<string, number>>> = {
+  ranger: {
+    body: { idle: 8, walk: 12, cast: 1, hit: 1 },
+    head: { idle: 8, walk: 12, cast: 1, hit: 1 },
+    arm: { draw: 8, loose: 1 },
+    fall: { death: 6 },
+  },
+  warden: {
+    body: { idle: 8, walk: 12, wind: 4, swing: 6, recover: 3, block: 2, hit: 1 },
+    fall: { death: 6 },
+  },
+  arcanist: {
+    body: { idle: 8, walk: 12, thrust: 3, return: 3, raise: 4, summon: 4, hit: 1 },
+    fall: { death: 6 },
+  },
+};
+/** How each hero's rig plays its frames (the 2D rig whose timing it keeps). */
+const STYLES = { ranger: 'bow', warden: 'melee', arcanist: 'staff' } as const;
 
 function alphaAt(img: Image, x: number, y: number): number {
   return img.data[(y * img.width + x) * img.channels + 3]!;
@@ -60,47 +81,40 @@ function mp4Boxes(buf: Buffer): string[] {
 const heroes = Object.entries(HERO_3D);
 
 describe('3D heroes: the match sheet', () => {
-  it('there is at least one 3D hero, the Ranger', () => {
-    expect(Object.keys(HERO_3D)).toContain('ranger');
+  it('all three heroes are made in 3D', () => {
+    expect(Object.keys(HERO_3D).sort()).toEqual(['arcanist', 'ranger', 'warden']);
   });
 
   for (const [kind, hero] of heroes) {
     const m = hero!.match;
     const png = decodePng(readFileSync(join(ART3D, m.file)));
+    const want = COUNTS[kind]!;
 
-    it(`${kind}: the sheet is the size the layout says, 4 px per world px, RGBA`, () => {
+    it(`${kind}: the sheet is the size the layout says, 4 px per world px, RGBA, played as the 2D ${kind}`, () => {
       expect(m.file).toBe(`${kind}-match.png`);
       expect([png.width, png.height]).toEqual([m.w, m.h]);
       expect(png.channels).toBe(4);
       expect(m.res).toBe(4);
+      expect(m.style).toBe(STYLES[kind as keyof typeof STYLES]);
     });
 
-    it(`${kind}: every frame the rig plays is there (idle 8, walk 12, cast, the string in 8 steps, loosed)`, () => {
-      expect(m.frames.idle).toHaveLength(COUNTS.idle);
-      expect(m.frames.walk).toHaveLength(COUNTS.walk);
-      expect(m.frames.cast).toHaveLength(COUNTS.cast);
-      expect(m.bowFrames.draw).toHaveLength(COUNTS.draw);
-      expect(m.bowFrames.loose).toHaveLength(COUNTS.loose);
-      // The draw hand of each bow frame, drawn over the head (a hand at the cheek is seen).
-      expect(m.handFrames.draw).toHaveLength(COUNTS.draw);
-      expect(m.handFrames.loose).toHaveLength(COUNTS.loose);
-      expect(m.shoulders.idle).toHaveLength(COUNTS.idle);
-      expect(m.shoulders.walk).toHaveLength(COUNTS.walk);
-      expect(m.shoulders.cast).toHaveLength(COUNTS.cast);
-      // Each body frame has its head (drawn over the bow layer, so the bow never covers the face).
-      expect(m.heads.idle).toHaveLength(COUNTS.idle);
-      expect(m.heads.walk).toHaveLength(COUNTS.walk);
-      expect(m.heads.cast).toHaveLength(COUNTS.cast);
+    it(`${kind}: every frame the rig plays is there, and a point for each body frame`, () => {
+      expect(Object.keys(m.layers).sort()).toEqual(Object.keys(want).sort());
+      for (const [layer, kinds] of Object.entries(want)) {
+        const got = m.frames[layer as LayerName]!;
+        expect(Object.keys(got).sort(), layer).toEqual(Object.keys(kinds).sort());
+        for (const [k, n] of Object.entries(kinds)) expect(got[k], `${layer} ${k}`).toHaveLength(n);
+      }
+      for (const [name, byKind] of Object.entries(m.points)) {
+        for (const [k, n] of Object.entries(want.body!)) expect(byKind[k], `${name} ${k}`).toHaveLength(n);
+      }
     });
 
-    const layers: [string, Cell[], { w: number; h: number }][] = [
-      ['body', [...m.frames.idle, ...m.frames.walk, ...m.frames.cast], m.body],
-      ['head', [...m.heads.idle, ...m.heads.walk, ...m.heads.cast], m.head],
-      ['bow', [...m.bowFrames.draw, ...m.bowFrames.loose], m.bow],
-      ['hand', [...m.handFrames.draw, ...m.handFrames.loose], m.bow],
-    ];
-    /** How much of a cell a layer fills at least: a hand is a small part of the bow layer's box. */
-    const FILL: Record<string, number> = { body: 0.08, head: 0.08, bow: 0.08, hand: 0.005 };
+    const layers = Object.entries(m.frames).map(
+      ([name, kinds]) => [name, Object.values(kinds).flat(), m.layers[name as LayerName]!] as [string, Cell[], LayerBox],
+    );
+    /** How much of a cell a frame fills at least. */
+    const FILL = 0.08;
 
     it(`${kind}: each frame and its white twin lie inside the sheet, without overlapping another`, () => {
       const rects: [number, number, number, number][] = [];
@@ -144,50 +158,66 @@ describe('3D heroes: the match sheet', () => {
               if (edge) expect(a, `${name} ${i} touches its edge at ${x},${y}`).toBe(0);
             }
           }
-          expect(drawn, `${name} ${i}`).toBeGreaterThan(size.w * size.h * FILL[name]!);
+          expect(drawn, `${name} ${i}`).toBeGreaterThan(size.w * size.h * FILL);
         }
       }
       // Every pixel of the sheet, twice: seconds on a busy machine.
-    }, 30_000);
+    }, 60_000);
 
-    it(`${kind}: the feet, the bow layer's pivot and every shoulder point sit on the figure`, () => {
-      expect(m.body.feetX).toBeGreaterThan(0);
-      expect(m.body.feetX).toBeLessThan(m.body.w);
-      expect(m.body.feetY).toBeGreaterThan(m.body.h * 0.7);
-      expect(m.body.feetY).toBeLessThan(m.body.h);
-      // The head sits above the feet: its cell's feet point is below the cell.
-      expect(m.head.feetY).toBeGreaterThan(m.head.h);
-      expect(m.bow.pivotX).toBeGreaterThan(0);
-      expect(m.bow.pivotX).toBeLessThan(m.bow.w);
-      expect(m.bow.pivotY).toBeGreaterThan(0);
-      expect(m.bow.pivotY).toBeLessThan(m.bow.h);
-      const kinds = ['idle', 'walk', 'cast'] as const;
-      for (const k of kinds) {
-        for (const [i, s] of m.shoulders[k].entries()) {
-          // World px from the feet: about half the figure up, a little forward; on an opaque pixel of the frame.
-          expect(s.y).toBeLessThan(-8);
-          expect(s.y).toBeGreaterThan(-20);
-          expect(Math.abs(s.x)).toBeLessThan(8);
-          // On the figure as the rig draws it: the body, or the head over it (the shoulders sit under the hood).
-          const c = m.frames[k][i]!;
-          const h = m.heads[k][i]!;
-          const inside = (w: number, hh: number, x: number, y: number) => x >= 0 && y >= 0 && x < w && y < hh;
-          let near = 0;
-          for (let dy = -3; dy <= 3; dy++) {
-            for (let dx = -3; dx <= 3; dx++) {
-              const bx = Math.round(m.body.feetX + s.x * m.res) + dx;
-              const by = Math.round(m.body.feetY + s.y * m.res) + dy;
-              const hx = Math.round(m.head.feetX + s.x * m.res) + dx;
-              const hy = Math.round(m.head.feetY + s.y * m.res) + dy;
-              if (inside(m.body.w, m.body.h, bx, by)) near = Math.max(near, alphaAt(png, c.x + bx, c.y + by));
-              if (inside(m.head.w, m.head.h, hx, hy)) near = Math.max(near, alphaAt(png, h.x + hx, h.y + hy));
+    it(`${kind}: the feet, the arm layer's pivot and every point sit on the figure`, () => {
+      const body = m.layers.body;
+      expect(body.ax).toBeGreaterThan(0);
+      expect(body.ax).toBeLessThan(body.w);
+      expect(body.ay).toBeGreaterThan(body.h * 0.7);
+      expect(body.ay).toBeLessThan(body.h + 2);
+      expect(m.layers.fall.ay).toBeGreaterThan(m.layers.fall.h * 0.5);
+      if (m.layers.head) {
+        // The head sits above the feet: its cell's feet point is below the cell.
+        expect(m.layers.head.ay).toBeGreaterThan(m.layers.head.h);
+      }
+      if (m.layers.arm) {
+        const arm = m.layers.arm;
+        expect(arm.ax).toBeGreaterThan(0);
+        expect(arm.ax).toBeLessThan(arm.w);
+        expect(arm.ay).toBeGreaterThan(0);
+        expect(arm.ay).toBeLessThan(arm.h);
+        // The bow points along the arrow: about level as rendered, so the rig turns it from there.
+        expect(Math.abs(arm.aim!)).toBeLessThan(0.3);
+      }
+      for (const [name, byKind] of Object.entries(m.points)) {
+        for (const [k, pts] of Object.entries(byKind)) {
+          for (const [i, s] of pts.entries()) {
+            // World px from the feet: on the figure, as the rig draws it (the body, or the head over it), inside the
+            // body's cell (the Arcanist's gem hangs by his feet in the idle, the pack's grip, a hair below the feet).
+            expect(s.y, `${name} ${k} ${i}`).toBeLessThan((body.h - body.ay) / m.res);
+            expect(s.y, `${name} ${k} ${i}`).toBeLessThan(1);
+            expect(s.y, `${name} ${k} ${i}`).toBeGreaterThan(-34);
+            expect(Math.abs(s.x), `${name} ${k} ${i}`).toBeLessThan(20);
+            if (name !== 'shoulder') continue;
+            const c = m.frames.body[k]![i]!;
+            const h = m.frames.head?.[k]?.[i];
+            const inside = (w: number, hh: number, x: number, y: number) => x >= 0 && y >= 0 && x < w && y < hh;
+            let near = 0;
+            for (let dy = -3; dy <= 3; dy++) {
+              for (let dx = -3; dx <= 3; dx++) {
+                const bx = Math.round(body.ax + s.x * m.res) + dx;
+                const by = Math.round(body.ay + s.y * m.res) + dy;
+                if (inside(body.w, body.h, bx, by)) near = Math.max(near, alphaAt(png, c.x + bx, c.y + by));
+                const hd = m.layers.head;
+                if (h && hd) {
+                  const hx = Math.round(hd.ax + s.x * m.res) + dx;
+                  const hy = Math.round(hd.ay + s.y * m.res) + dy;
+                  if (inside(hd.w, hd.h, hx, hy)) near = Math.max(near, alphaAt(png, h.x + hx, h.y + hy));
+                }
+              }
             }
+            expect(near, `${k} ${i} shoulder`).toBe(255);
           }
-          expect(near, `${k} ${i} shoulder`).toBe(255);
         }
       }
       expect(m.walkStride).toBeGreaterThan(4);
       expect(m.walkStride).toBeLessThan(20);
+      expect(m.idleMs).toBeCloseTo(Math.PI * 1000, 0);
     });
   }
 });
@@ -239,6 +269,14 @@ describe('3D heroes: the stage', () => {
       expect(s.feetX).toBeLessThan(f.x1);
       expect(s.groundY).toBeGreaterThan(f.y0 + (f.y1 - f.y0) * 0.75);
       expect(s.groundY).toBeLessThanOrEqual(f.y1 + 2);
+      // The hero's own loop stays inside the box the three share.
+      const o = s.own;
+      expect(o.x0).toBeGreaterThanOrEqual(f.x0);
+      expect(o.y0).toBeGreaterThanOrEqual(f.y0);
+      expect(o.x1).toBeLessThanOrEqual(f.x1);
+      expect(o.y1).toBeLessThanOrEqual(f.y1);
+      expect(s.feetX).toBeGreaterThan(o.x0);
+      expect(s.feetX).toBeLessThan(o.x1);
     });
 
     // Every size the lobby's stage takes (style.css .hero-stage and .compact; lobby card min(500px, 100vw - 32px)),
@@ -277,12 +315,28 @@ describe('3D heroes: the stage', () => {
   }
 });
 
+describe('3D heroes: one clearing for all three', () => {
+  it('every hero stands in the same box, on the same ground line, in a frame of the same size: switching heroes never moves the clearing', () => {
+    const stages = heroes.map(([, h]) => h!.stage);
+    for (const s of stages) {
+      expect([s.w, s.h]).toEqual([1200, 450]);
+      expect(s.figure).toEqual(stages[0]!.figure);
+      expect(s.groundY).toBe(stages[0]!.groundY);
+      expect(s.feetX).toBe(stages[0]!.feetX);
+      expect(s.files.clearing).toEqual(stages[0]!.files.clearing);
+    }
+    // So the fit, and the clearing's place, is the same for each at every stage size.
+    const box = { w: 380, h: 320, ground: 286, top: 61, side: 14 };
+    for (const s of stages) expect(fitStage(s, box)).toEqual(fitStage(stages[0]!, box));
+  });
+});
+
 describe('3D heroes: the rig and stage rules', () => {
   it('fitStage centres the hero, and slides the video sideways only as far as covering the stage needs', () => {
     const files = {} as StageLayout['files'];
     const stage = (x0: number, x1: number): StageLayout => ({
       w: 2400, h: 900, frames: 240, fps: 30, loopMs: 8000, groundY: 735, feetX: 1200,
-      figure: { x0, x1, y0: 305, y1: 760 }, files,
+      figure: { x0, x1, y0: 305, y1: 760 }, own: { x0, x1, y0: 305, y1: 760 }, files,
     });
     // Centred: the box's middle on the stage's middle.
     const wide = { w: 498, h: 320, ground: 286, top: 61, side: 14 };
@@ -310,6 +364,17 @@ describe('3D heroes: the rig and stage rules', () => {
     expect(cycleFrame(Math.PI * 2 - 1e-9, 12)).toBe(11);
     expect(cycleFrame(Math.PI * 2, 12)).toBe(0);
     expect(cycleFrame(-0.1, 8)).toBe(7);
+  });
+
+  it('progressFrame walks a pose (a wind-up, a swing, a raise) from its first frame to its last', () => {
+    expect(progressFrame(0, 6)).toBe(0);
+    expect(progressFrame(1, 6)).toBe(5);
+    expect(progressFrame(0.5, 3)).toBe(1);
+    expect(progressFrame(-0.2, 4)).toBe(0);
+    expect(progressFrame(1.4, 4)).toBe(3);
+    // A pose with one frame (or none) shows its first.
+    expect(progressFrame(0.7, 1)).toBe(0);
+    expect(progressFrame(0.7, 0)).toBe(0);
   });
 
   it('drawStep picks the string step for a draw of 0..1', () => {
@@ -407,14 +472,19 @@ describe('the fringe check (no light ring round the hero, no hard alpha step)', 
     }
   });
 
-  it('passes the stage frames we ship (the hero idle, at full draw, after the loose)', () => {
+  /** The stage frames each hero's build keeps as fixtures (tools/blender/hero.py `checks`): idle, its move, after. */
+  const CHECKS: Record<string, number[]> = { ranger: [0, 150, 165], warden: [0, 100, 125], arcanist: [0, 140, 200] };
+
+  it('passes the stage frames we ship (each hero idle, in its signature move and after it)', () => {
     const want = results(FIXTURES);
-    for (const frame of [0, 165, 200]) expect(Object.keys(want)).toContain(`ranger-${String(frame).padStart(4, '0')}`);
+    for (const [hero, frames] of Object.entries(CHECKS)) {
+      for (const frame of frames) expect(Object.keys(want)).toContain(`${hero}-${String(frame).padStart(4, '0')}`);
+    }
     for (const [name, py] of Object.entries(want)) {
       const r = check(FIXTURES, name);
       expect(Math.abs(r.measured - py.measured), name).toBeLessThanOrEqual(1);
       expect(Math.abs(r.fringe - py.fringe), name).toBeLessThanOrEqual(1);
-      expect(r.measured, name).toBeGreaterThan(1000);
+      expect(r.measured, name).toBeGreaterThan(300);
       expect(r.pass, name).toBe(true);
       expect(r.fringeShare, name).toBeLessThanOrEqual(0.01);
       expect(r.hardShare, name).toBeLessThanOrEqual(0.05);

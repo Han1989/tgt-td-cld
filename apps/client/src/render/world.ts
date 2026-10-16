@@ -72,7 +72,7 @@ import {
   type HeroRig,
 } from './art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
-import { heroRig3d } from './art3d';
+import { Hero3DRig, heroRig3d } from './art3d';
 import { RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
@@ -306,6 +306,8 @@ export class WorldRenderer {
   private dying: CreepSprite[] = [];
   /** Melee blows waiting for the swing to land (the rig finishes its wind-up first): when, and the target's position. */
   private impacts: { at: number; heroId: number; x: number; y: number }[] = [];
+  /** Melee blows landed so far (browser tests). */
+  private impactsLanded = 0;
   private readonly projectilePool = new Map<string, ProjectileSprite[]>();
   private readonly towers = new Map<number, TowerSprite>();
   private readonly heroes = new Map<number, HeroSprite>();
@@ -408,14 +410,28 @@ export class WorldRenderer {
   }
 
   /** What the art layer shows right now (browser tests). */
-  artStats(): { display: Display; pads: number; creepRigs: number; towerRigs: number; heroRigs: number } {
+  artStats(): {
+    display: Display;
+    pads: number;
+    creepRigs: number;
+    towerRigs: number;
+    heroRigs: number;
+    hero3d: number;
+    hero3dKinds: string[];
+    impacts: number;
+  } {
     const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
+    const rigs3d = [...this.heroes.values()].map((s) => s.art).filter((a): a is Hero3DRig => a instanceof Hero3DRig);
     return {
       display: this.art.display,
       pads: this.pads.size,
       creepRigs: count(this.creeps.values()),
       towerRigs: count(this.towers.values()),
       heroRigs: count(this.heroes.values()),
+      // Heroes drawn from their 3D frames, the frame kinds those rigs have shown, melee blows landed.
+      hero3d: rigs3d.length,
+      hero3dKinds: [...new Set(rigs3d.flatMap((r) => [...r.shownKinds]))].sort(),
+      impacts: this.impactsLanded,
     };
   }
 
@@ -878,6 +894,7 @@ export class WorldRenderer {
     const due = this.impacts.filter((i) => i.at <= now);
     if (due.length === 0) return;
     this.impacts = this.impacts.filter((i) => i.at > now);
+    this.impactsLanded += due.length;
     for (const i of due) {
       // The creep has moved on a little since the hit: find it near where it was.
       let x = i.x;

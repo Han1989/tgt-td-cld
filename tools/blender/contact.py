@@ -1,8 +1,9 @@
-# The contact sheet (docs/ART.md §15): every pose of a 3D hero, from the files the game ships, to judge against the
-# quality bar. Stage key moments are cut from the video; the match frames are shown as baked and as the rig puts
-# them together (body + bow layer turned to an aim), at full size, at a phone's size and 50 px tall.
+# The contact sheet (docs/ART.md §15): the three heroes side by side, from the files the game ships, to judge against
+# the quality bar. Each hero's stage key moments are cut from its video (in the box all three share); its match poses
+# are put together as the rig draws them (the Ranger's body, his bow layer turned to an aim at its shoulder, his head
+# over it; the Warden and the Arcanist whole) at full size, at a phone's size and 50 px tall.
 #
-#   python tools/blender/contact.py <hero> [out.png]      (any Python with numpy and scipy; ffmpeg on the PATH)
+#   python tools/blender/contact.py [out.png] [hero,hero,…]   (any Python with numpy and scipy; ffmpeg on the PATH)
 
 import json
 import os
@@ -18,9 +19,20 @@ sys.path.insert(0, HERE)
 from tdt3d import imageio  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
+ART3D = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'art3d')
+STAGE = os.path.join(ROOT, 'apps', 'client', 'public', 'stage')
 BG = np.array([0.16, 0.25, 0.21], np.float32)  # moss, as in a match
 # A hero on a 412 px phone: 15.85 CSS px a tile, drawn ×2.21 (docs/ART.md §6), at 2.625 device px per CSS px.
 PHONE_DEVICE_PX_PER_WORLD = 15.85 / 32 * 2.21 * 2.625
+BOW_SCALE = 1.2  # the arm layer, drawn larger than the body (art3d/heroRig.ts)
+# The stage moments (the build's fringe fixtures: idle, the move, after it), and the match poses shown per hero:
+# (body kind, frame, arm kind, arm frame, aim).
+POSES = {
+    'ranger': [('idle', 0, 'draw', 0, 0.0), ('idle', 4, 'draw', -1, 0.0), ('walk', 3, 'draw', 1, 0.0),
+               ('idle', 2, 'draw', -1, -0.6), ('cast', 0, 'draw', -1, -1.2), ('idle', 0, 'loose', 0, 0.0)],
+    'warden': [('idle', 0), ('walk', 3), ('wind', 3), ('swing', 3), ('swing', 5), ('block', 1)],
+    'arcanist': [('idle', 0), ('walk', 3), ('thrust', 2), ('raise', 3), ('summon', 3), ('hit', 0)],
+}
 
 
 def straight(img):
@@ -41,137 +53,113 @@ def over(dst, src_pm, src_a, x, y):
     dst[y0:y1, x0:x1] = sp + dst[y0:y1, x0:x1] * (1 - sa)
 
 
-def rotate_about(pm, a, px, py, angle, out_w, out_h, ox, oy):
-    """Turns a premultiplied layer by `angle` (radians, y down) about its pivot (px, py), placing the pivot at
-    (ox, oy) of an out_w × out_h canvas."""
+def transform_about(pm, a, px, py, angle, scale, out_w, out_h, ox, oy):
+    """Turns (and scales) a premultiplied layer about its pivot (px, py), placing the pivot at (ox, oy) of an
+    out_w × out_h canvas."""
     c, s = np.cos(angle), np.sin(angle)
-    # Output (u, v) → input: rotate back by -angle round the pivot.
-    m = np.array([[c, -s], [s, c]])
+    m = np.array([[c, -s], [s, c]]) / scale
     offset = np.array([py, px]) - m @ np.array([oy, ox])
-    res = []
-    for ch in range(pm.shape[2]):
-        res.append(ndimage.affine_transform(pm[..., ch], m, offset=offset, output_shape=(out_h, out_w), order=1))
+    res = [ndimage.affine_transform(pm[..., ch], m, offset=offset, output_shape=(out_h, out_w), order=1) for ch in range(3)]
     ra = ndimage.affine_transform(a[..., 0], m, offset=offset, output_shape=(out_h, out_w), order=1)
     return np.stack(res, axis=2), ra[..., None]
 
 
 def scaled(img, k):
-    if k == 1:
-        return img
     return np.stack([ndimage.zoom(img[..., i], k, order=1) for i in range(img.shape[2])], axis=2)
 
 
-def main():
-    hero = sys.argv[1] if len(sys.argv) > 1 else 'ranger'
-    out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'docs', 'screenshots', '3d-heroes', f'{hero}-contact-sheet.png')
-    art3d = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'art3d')
-    layout = json.load(open(os.path.join(art3d, f'{hero}.json')))
-    m = layout['match']
-    sheet = imageio.read_png(os.path.join(art3d, m['file']))
-    res = m['res']
+def crop_bg(canvas, pad=6):
+    ys, xs = np.nonzero(np.any(np.abs(canvas - BG) > 0.01, axis=2))
+    return canvas[max(0, ys.min() - pad):ys.max() + pad, max(0, xs.min() - pad):xs.max() + pad]
 
-    def cell(c, size):
-        return sheet[c['y']:c['y'] + size['h'], c['x']:c['x'] + size['w']]
 
-    rows = []
-    gap = 12
-
-    def row(images, height=None):
-        h = height or max(i.shape[0] for i in images)
-        w = sum(i.shape[1] for i in images) + gap * (len(images) + 1)
-        r = np.ones((h + 2 * gap, w, 3), np.float32) * BG
-        x = gap
-        for im in images:
-            r[gap + (h - im.shape[0]):gap + h, x:x + im.shape[1]] = im
-            x += im.shape[1] + gap
-        rows.append(r)
-
-    def on_bg(img):
-        pm, a = straight(img)
-        return pm + BG * (1 - a)
-
-    # 1. The stage's key moments, cut from the video (the hero's box, as rendered).
+def stage_moments(hero, layout, tmp):
     st = layout['stage']
-    video = os.path.join(ROOT, 'apps', 'client', 'public', 'stage', st['files']['webm']['name'])
+    video = os.path.join(STAGE, st['files']['webm']['name'])
     f = st['figure']
-    pad = 30
-    x0, y0 = int(max(0, f['x0'] - pad)), int(max(0, f['y0'] - pad))
-    x1, y1 = int(min(st['w'], f['x1'] + pad)), int(min(st['h'], f['y1'] + 10))
-    tmp = tempfile.mkdtemp(prefix='contact-')
-    times = [0.0, 1.5, 3.25, 3.55, 3.85, 4.15, 4.6, 5.3, 5.78, 5.9, 6.2, 6.9, 7.6]
-    frames = []
-    for k, t in enumerate(times):
-        png = os.path.join(tmp, f'{k}.png')
+    x0, y0 = int(max(0, f['x0'] - 12)), int(max(0, f['y0'] - 12))
+    x1, y1 = int(min(st['w'], f['x1'] + 12)), int(min(st['h'], f['y1'] + 6))
+    checks = json.load(open(os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'stage-fringe', 'results.json')))
+    frames = sorted(int(k.split('-')[1]) for k in checks if k.startswith(f'{hero}-'))
+    out = []
+    for n in frames:
+        png = os.path.join(tmp, f'{hero}-{n}.png')
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-c:v', 'libvpx-vp9', '-i', video, '-vf',
-                        f"select='eq(n\\,{int(round(t * st['fps']))})',scale={st['w']}:{st['h']},crop={x1 - x0}:{y1 - y0}:{x0}:{y0}",
-                        '-frames:v', '1', png], check=True)
-        frames.append(imageio.read_png(png).astype(np.float32) / 255)
-    half = (len(frames) + 1) // 2
-    row(frames[:half])
-    row(frames[half:])
+                        f"select='eq(n\\,{n})',crop={x1 - x0}:{y1 - y0}:{x0}:{y0}", '-frames:v', '1', png], check=True)
+        out.append(imageio.read_png(png).astype(np.float32) / 255)
+    return out
 
-    # 2. Every match frame as baked (sheet px: 4 per world px).
-    def whole(k, i):
-        # The body with its head over it, as the rig draws them (no bow), on a canvas that holds both.
-        B, Hd = m['body'], m['head']
-        up = max(B['feetY'], Hd['feetY'])
-        down = max(B['h'] - B['feetY'], Hd['h'] - Hd['feetY'])
-        left = max(B['feetX'], Hd['feetX'])
-        right = max(B['w'] - B['feetX'], Hd['w'] - Hd['feetX'])
-        canvas = np.ones((up + down, left + right, 3), np.float32) * BG
-        for c, size in ((cell(m['frames'][k][i], B), B), (cell(m['heads'][k][i], Hd), Hd)):
-            pm, a = straight(c)
-            over(canvas, pm, a, left - size['feetX'], up - size['feetY'])
-        return canvas
 
-    body = [whole(k, i) for k in ('idle', 'walk', 'cast') for i in range(len(m['frames'][k]))]
-    row(body[:11])
-    row(body[11:])
-    row([on_bg(cell(c, m['bow'])) for k in ('draw', 'loose') for c in m['bowFrames'][k]])
-    if m.get('handFrames'):
-        row([on_bg(cell(c, m['bow'])) for k in ('draw', 'loose') for c in m['handFrames'][k]])
+def match_poses(hero, layout):
+    m = layout['match']
+    sheet = imageio.read_png(os.path.join(ART3D, m['file']))
+    L = m['layers']
 
-    # 3. As the rig shows them: the body frame with the bow layer hung at its shoulder, turned to an aim, the head
-    # over both and the draw hand over the head (turned with the bow layer).
-    def composite(kind, i, step, aim):
-        bow_kind, j = step
-        bow_cell = m['bowFrames'][bow_kind][j]
-        b = cell(m['frames'][kind][i], m['body'])
-        sh = m['shoulders'][kind][i]
-        W, H = m['body']['w'] + 2 * m['bow']['w'], m['body']['h'] + m['bow']['h']
+    def cell(layer, kind, i):
+        c = m['frames'][layer][kind][i]
+        box = L[layer]
+        return sheet[c['y']:c['y'] + box['h'], c['x']:c['x'] + box['w']]
+
+    out = []
+    for pose in POSES[hero]:
+        kind, i = pose[0], pose[1]
+        B = L['body']
+        W, H = B['w'] * 3, B['h'] * 2
         canvas = np.ones((H, W, 3), np.float32) * BG
-        fx, fy = W // 2 - m['body']['feetX'] + m['body']['feetX'], H - (m['body']['h'] - m['body']['feetY']) - 4
-        pm, a = straight(b)
-        over(canvas, pm, a, fx - m['body']['feetX'], fy - m['body']['feetY'])
-        bw = cell(bow_cell, m['bow'])
-        pm2, a2 = straight(bw)
-        ox, oy = fx + sh['x'] * res, fy + sh['y'] * res
-        rp, ra = rotate_about(pm2, a2, m['bow']['pivotX'], m['bow']['pivotY'], aim, W, H, ox, oy)
-        canvas = rp + canvas * (1 - ra)
-        hp, ha = straight(cell(m['heads'][kind][i], m['head']))
-        over(canvas, hp, ha, fx - m['head']['feetX'], fy - m['head']['feetY'])
-        if m.get('handFrames'):
-            gp, ga = straight(cell(m['handFrames'][bow_kind][j], m['bow']))
-            rp, ra = rotate_about(gp, ga, m['bow']['pivotX'], m['bow']['pivotY'], aim, W, H, ox, oy)
+        fx, fy = W // 2, H - (B['h'] - B['ay']) - 6
+        pm, a = straight(cell('body', kind, i))
+        over(canvas, pm, a, fx - B['ax'], fy - B['ay'])
+        if 'arm' in L and len(pose) > 2:
+            A = L['arm']
+            arm_kind, j, aim = pose[2], pose[3], pose[4]
+            j = j if j >= 0 else len(m['frames']['arm'][arm_kind]) + j
+            sh = m['points']['shoulder'][kind][i]
+            pm2, a2 = straight(cell('arm', arm_kind, j))
+            ox, oy = fx + sh['x'] * m['res'], fy + sh['y'] * m['res']
+            rp, ra = transform_about(pm2, a2, A['ax'], A['ay'], aim - A.get('aim', 0.0), BOW_SCALE, W, H, ox, oy)
             canvas = rp + canvas * (1 - ra)
-        ys, xs = np.nonzero(np.any(np.abs(canvas - BG) > 0.01, axis=2))
-        return canvas[max(0, ys.min() - 6):ys.max() + 6, max(0, xs.min() - 6):xs.max() + 6]
+        if 'head' in L:
+            Hd = L['head']
+            hp, ha = straight(cell('head', kind, i))
+            over(canvas, hp, ha, fx - Hd['ax'], fy - Hd['ay'])
+        out.append(crop_bg(canvas))
+    return out, m['res']
 
-    full = len(m['bowFrames']['draw']) - 1
-    comps = [composite('idle', 0, ('draw', 1), 0.0), composite('idle', 2, ('draw', 4), 0.0),
-             composite('idle', 4, ('draw', full), 0.0), composite('idle', 4, ('loose', 0), 0.0),
-             composite('idle', 0, ('draw', full), -0.6), composite('idle', 0, ('draw', full), 0.6),
-             composite('walk', 2, ('draw', 1), 0.0), composite('walk', 8, ('draw', 1), 0.0),
-             composite('cast', 0, ('draw', full), -1.2), composite('idle', 0, ('draw', full), 0.75)]
-    row(comps)
-    # 4. The same at a phone's size (device px of a 412 px phone) and 50 px tall.
-    phone = PHONE_DEVICE_PX_PER_WORLD / res
-    row([scaled(c, phone) for c in comps])
-    tall = 50 / (m['body']['h'] * 0.85)
-    row([scaled(c, tall) for c in comps])
 
-    width = max(r.shape[1] for r in rows)
-    img = np.concatenate([np.pad(r, ((0, 0), (0, width - r.shape[1]), (0, 0)), constant_values=0) for r in rows], axis=0)
+def main():
+    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'docs', 'screenshots', '3d-heroes', 'heroes-contact-sheet.png')
+    heroes = sys.argv[2].split(',') if len(sys.argv) > 2 else ['ranger', 'warden', 'arcanist']
+    tmp = tempfile.mkdtemp(prefix='contact-')
+    gap = 12
+    columns = []
+    for hero in heroes:
+        layout = json.load(open(os.path.join(ART3D, f'{hero}.json')))
+        stage = stage_moments(hero, layout, tmp)
+        poses, res = match_poses(hero, layout)
+        phone = [scaled(p, PHONE_DEVICE_PX_PER_WORLD / res) for p in poses]
+        tall = [scaled(p, 50 / max(1, p.shape[0])) for p in poses]
+        columns.append([stage, poses, phone, tall])
+
+    def strip(images):
+        h = max(i.shape[0] for i in images)
+        w = sum(i.shape[1] for i in images) + gap * (len(images) - 1)
+        r = np.ones((h, w, 3), np.float32) * BG
+        x = 0
+        for im in images:
+            r[h - im.shape[0]:, x:x + im.shape[1]] = im
+            x += im.shape[1] + gap
+        return r
+
+    # One block a hero, side by side: its stage moments, then its match poses at full size, a phone's and 50 px.
+    blocks = []
+    for col in columns:
+        rows = [strip(r) for r in col]
+        w = max(r.shape[1] for r in rows)
+        rows = [np.pad(r, ((gap, 0), (0, w - r.shape[1]), (0, 0)), constant_values=0) for r in rows]
+        blocks.append(np.concatenate(rows, axis=0))
+    h = max(b.shape[0] for b in blocks)
+    blocks = [np.pad(b, ((0, h - b.shape[0]), (gap, gap), (0, 0)), constant_values=0) for b in blocks]
+    img = np.concatenate(blocks, axis=1)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     imageio.write_png(out, np.clip(np.rint(img * 255), 0, 255).astype(np.uint8))
     print(out, img.shape)

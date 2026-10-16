@@ -621,6 +621,36 @@ test.describe('portrait phone layout', () => {
     });
   }
 
+  test('the 3D Warden: his rig is drawn from its frames, winds up and swings, and the blow lands on the creep', async ({ page }) => {
+    // The match frames load a second after the first screen; a hero made after that gets its 3D rig.
+    await page.goto('/?lab');
+    await waitForReady(page, 'solo');
+    await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 15_000 });
+    await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Warden' }).click();
+    await page.locator('#lobby-mode-solo .mode-pick[data-mode="quick"]').click();
+    await page.locator('#lobby-solo-play').click();
+    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+    await expect.poll(() => page.evaluate(() => window.__tdt.art().hero3d)).toBe(1);
+    expect(await page.evaluate(() => window.__tdt.art().hero3dKinds)).toContain('idle');
+
+    // Bring creeps: call the first wave and walk up the Mid lane until one is near; the Warden steps in and fights.
+    const finger = await Finger.on(page);
+    await page.locator('#call-early').tap();
+    const joy = centre(await box(page, '#joystick'));
+    await finger.drag(joy, { x: joy.x, y: joy.y - 45 }, 0, false);
+    // Cleave is cast round him (its range is next to nothing): a creep within 2 tiles more, close enough for his
+    // auto-engage (2.5 tiles once he stands) to step in.
+    await waitForCreepsNearHero(page, { count: 1, offset: 2, still: false, seconds: 40 });
+    await finger.up();
+
+    // A blow lands (the renderer plays the impact when the 3D swing reaches its contact frame), and the rig showed
+    // its wind-up and its swing on the way.
+    await expect.poll(() => page.evaluate(() => window.__tdt.art().impacts), { timeout: 30_000 }).toBeGreaterThan(0);
+    const kinds = await page.evaluate(() => window.__tdt.art().hero3dKinds);
+    expect(kinds).toEqual(expect.arrayContaining(['swing', 'walk']));
+    expect(await page.evaluate(() => window.__tdt.art().hero3d)).toBe(1);
+  });
+
   test('touch only, solo Quick match: smart cast, nothing in range, drag to aim, and cancel', async ({ page }) => {
     await startSolo(page);
     const finger = await Finger.on(page);
