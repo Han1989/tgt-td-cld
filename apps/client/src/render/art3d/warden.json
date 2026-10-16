@@ -463,46 +463,46 @@
   "walkStride": 15.942
  },
  "stage": {
-  "feetX": 600.0,
+  "feetX": 1200.0,
   "figure": {
-   "x0": 478.0,
-   "x1": 720.0,
-   "y0": 154.0,
-   "y1": 400.0
+   "x0": 956.0,
+   "x1": 1440.0,
+   "y0": 308.0,
+   "y1": 800.0
   },
   "files": {
    "clearing": {
-    "bytes": 56770,
-    "hash": "7ba0c5d1beca",
+    "bytes": 59248,
+    "hash": "1efabe99772f",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 619369,
-    "hash": "da5937edf2db",
+    "bytes": 1071284,
+    "hash": "949684bb457a",
     "name": "warden.mp4"
    },
    "poster": {
-    "bytes": 57714,
-    "hash": "abffad72b882",
+    "bytes": 59944,
+    "hash": "88f9fb2278d0",
     "name": "warden-poster.webp"
    },
    "webm": {
-    "bytes": 663205,
-    "hash": "e5f68ff3d992",
+    "bytes": 1157373,
+    "hash": "d946903853b0",
     "name": "warden.webm"
    }
   },
   "fps": 30,
   "frames": 240,
-  "groundY": 367.5,
-  "h": 450,
+  "groundY": 735.0,
+  "h": 900,
   "loopMs": 8000,
   "own": {
-   "x0": 482.1,
-   "x1": 715.2,
-   "y0": 158.8,
-   "y1": 374.3
+   "x0": 966.3,
+   "x1": 1428.3,
+   "y0": 319.7,
+   "y1": 746.7
   },
-  "w": 1200
+  "w": 2400
  }
 }
