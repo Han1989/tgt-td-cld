@@ -451,46 +451,46 @@
   "walkStride": 13.462
  },
  "stage": {
-  "feetX": 600.0,
+  "feetX": 1200.0,
   "figure": {
-   "x0": 478.0,
-   "x1": 720.0,
-   "y0": 154.0,
-   "y1": 400.0
+   "x0": 956.0,
+   "x1": 1440.0,
+   "y0": 308.0,
+   "y1": 800.0
   },
   "files": {
    "clearing": {
-    "bytes": 56770,
-    "hash": "7ba0c5d1beca",
+    "bytes": 59248,
+    "hash": "1efabe99772f",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 690454,
-    "hash": "21611a143c02",
+    "bytes": 1156844,
+    "hash": "217016deb0a1",
     "name": "arcanist.mp4"
    },
    "poster": {
-    "bytes": 57012,
-    "hash": "ac5fdb5a1a33",
+    "bytes": 59842,
+    "hash": "74f232e732ce",
     "name": "arcanist-poster.webp"
    },
    "webm": {
-    "bytes": 740661,
-    "hash": "589e7633b299",
+    "bytes": 1132613,
+    "hash": "81d98925c062",
     "name": "arcanist.webm"
    }
   },
   "fps": 30,
   "frames": 240,
-  "groundY": 367.5,
-  "h": 450,
+  "groundY": 735.0,
+  "h": 900,
   "loopMs": 8000,
   "own": {
-   "x0": 529.3,
-   "x1": 698.9,
-   "y0": 183.9,
-   "y1": 393.5
+   "x0": 1060.7,
+   "x1": 1395.8,
+   "y0": 369.8,
+   "y1": 784.9
   },
-  "w": 1200
+  "w": 2400
  }
 }
