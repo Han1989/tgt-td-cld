@@ -461,20 +461,21 @@ The V-05b round 2 render (240 stage frames a hero, every one passing):
 
 | Hero | Worst fringe (limit 1%) | Worst hard steps (limit 5%) |
 |---|---|---|
-| Ranger | 0.59% (frame 94: 3 of 505 pixels) | 0.28% (frame 153) |
-| Warden | 0.62% (frame 73: 4 of 647) | 0.93% (frame 124) |
-| Arcanist | 0.87% (frame 223: 5 of 576) | 0.65% (frame 124) |
+| Ranger | 0.77% (frame 198: 15 of 1,953 pixels) | 1.94% (frame 158) |
+| Warden | 0.58% (frame 79: 11 of 1,888) | 2.14% (frame 124) |
+| Arcanist | 0.35% (frame 209: 5 of 1,439) | 1.52% (frame 151) |
 
-Measured without the flying arrow left out, the Ranger's frame 151 reads 1.96% (36 of 1,835; with it 0 of 1,584); every other frame passes either way. In V-05b's first round the same frame read 2.10% there, and 16 of its 17 pixels were on the arrow's streak where it crosses a lit rock, 49 px (at 1200) clear of him (`docs/screenshots/3d-heroes/ranger-0151-fringe.webp`). Two Ranger frames failed at 1× and were rendered again at 2×: 196 and 197, as the follow-through swings the bow down (1.31% and 1.59% at 1×, every pixel on the blurred string's light core; 0.06% at 2×).
+Measured without the flying arrow left out, the Ranger's frames 151 and 152 read 2.38% (37 of 1,557) and 1.39% (23 of 1,650); with it, 0 and 0.23%. Every other frame passes either way. All 37 of frame 151's pixels lie in a band 4 px high on the arrow's streak (x 1501–1571, y 570–573), about 170 px clear of him, as V-05b's first round found at 1200 (`docs/screenshots/3d-heroes/ranger-0151-fringe.webp`). Two Ranger frames failed at 1× and were rendered again at 2×: 196 and 197, as the follow-through swings the bow down (1.31% and 1.59% at 1×, every pixel on the blurred string's light core; 0 at 2×).
 
 ### The stage loop (the first screen and the solo pick)
 
 The whole stage is rendered in Blender: the moonlit clearing with the hero in it, **8 s at 30 frames a second**, seamless: the idle (`Idle_A`, played at the rate that fits whole cycles in the loop, so it has no seam), then the signature move eased in over it (`hero.py` `stage`: each move a clip from one time to another, eased in over the one before it, eased out into the idle), and back. The Ranger draws (`Ranged_Bow_Draw`), holds (`Ranged_Bow_Aiming_Idle`) and looses (`Ranged_Bow_Release`; the arrow flies off along its line and the string snaps back); the Warden raises his shield (`Melee_Block`, held with `Melee_Blocking`) and swings (`Melee_1H_Attack_Slice_Horizontal`); the Arcanist summons (`Ranged_Magic_Summon`). A little motion blur (shutter 0.42).
 
-- **One frame for every stage size, 2400 × 900, for 3× phones**, feet on the ground line at y = 735. The fit (`fitStage`) crops the frame to the room between the title and the ground, so a stage never shows the whole frame: a 412 px phone's home card (378 × 321) shows about 750 of its pixels across, on a 3× screen 1140 device px, so each video pixel is drawn 1.5 device px wide. V-05b's first round rendered 1200 × 450, which that stage magnifies 3×, before H.264 halves its colour detail again: on a Pixel 10 Pro the hero's edges went soft, the eyes' glow weak and the ink thin (Han, 17 Oct 2026). At 2400 the same stage magnifies 1.5×, as V-05a's Ranger did. **One camera, one clearing and one box for all three** (`stage.BOX`, x 956–1440, y 308–800): the box every hero's loop stays inside, ink included, so `fitStage` places every hero's video the same and switching heroes swaps the hero, never the ground. The Warden's helm is its top, his slice its left edge; the Arcanist's staff its bottom, its gem swung down into the moss in front of his feet as the summon starts (y ⟨GEM⟩, below the ground line; `fitStage` fits by the top, the sides and the ground line, so the bottom moves nobody); the Ranger stands a little smaller in it, as he does in a match.
+- **One frame for every stage size, 2400 × 900, for 3× phones**, feet on the ground line at y = 735. The fit (`fitStage`) crops the frame to the room between the title and the ground, so a stage never shows the whole frame: a 412 px phone's home card (378 × 321) shows about 750 of its pixels across, on a 3× screen 1140 device px, so each video pixel is drawn 1.5 device px wide. V-05b's first round rendered 1200 × 450, which that stage magnifies 3×, before H.264 halves its colour detail again: on a Pixel 10 Pro the hero's edges went soft, the eyes' glow weak and the ink thin (Han, 17 Oct 2026). At 2400 the same stage magnifies 1.5×, as V-05a's Ranger did. **One camera, one clearing and one box for all three** (`stage.BOX`, x 956–1440, y 308–800): the box every hero's loop stays inside, ink included, so `fitStage` places every hero's video the same and switching heroes swaps the hero, never the ground. The Warden's helm is its top, his slice its left edge; the Arcanist's staff its bottom, its gem swung down into the moss in front of his feet as the summon starts (y 785, below the ground line; `fitStage` fits by the top, the sides and the ground line, so the bottom moves nobody); the Ranger stands a little smaller in it, as he does in a match.
 - **Render time** (V-05b round 2's build, 4 CPU cores, no GPU):
-  - ⟨TIMES⟩
-  - The plate takes 6.6 min, once (4800 × 1800); a hero's encode about ⟨ENC⟩; his match sheet 40–50 s.
+  - A 1× frame takes 12.9 s for the Ranger and 15.1 s for the Arcanist on average, each measured with nothing else running (the Warden's 15.8 s median was measured beside other renders). Cycles is most of it; the painting in numpy the rest.
+  - A 2× frame takes 36–47 s. 89 of the 720 frames are rendered at 2×: the 87 fast frames (35 of the Ranger's, 18 of the Warden's, 33 of the Arcanist's) and the Ranger's 196 and 197, which failed the fringe check at 1×.
+  - The plate takes 6.6 min, once (4800 × 1800); a hero's encode about 4.5 min (the MP4, the WebM and the poster, each searched to its budget); his match sheet 40–50 s.
   - `--work DIR` keeps every finished frame, so a render cut short resumes where it stopped.
 - **Outputs** (`apps/client/public/stage/`): `<hero>.mp4` (H.264 high profile, level 4.2, yuv420p, `-tune animation`, one keyframe a loop, faststart, muted; every iPhone), `<hero>.webm` (VP9, for browsers without H.264: open-source Chromium builds and the browser tests), `<hero>-poster.webp` (the loop's first frame) and `clearing.webp` (the empty clearing, the same for all three). Each is searched to the best quality under its budget: **1.2 MB a video, 60 KB a poster or still**. Their sizes and a hash of their bytes go into `src/render/art3d/<hero>.json`; the client asks for `?v=<hash>`.
 - **In the lobby** (`lobby/stageBackdrop.ts`, §12): the poster shows at once; the video loads after the first screen is up (600 ms and an idle moment later), playing from its URL, and fades in over the poster once it plays. Picking another hero drops the last hero's video: the empty clearing (the same in all three, in the same place) shows for the moment the next poster takes to decode, then that poster, then that hero's own video, loaded the same way. Under reduced motion or data saver no video loads; when autoplay is blocked (iPhone Low Power Mode) or it fails, the poster stays. Only the live stage's video plays; it pauses when its stage stops, is hidden or scrolled away, or the page is hidden.
@@ -499,15 +500,18 @@ The Ranger's body leaves out his arms (the pack's figures have their arms as sep
 
 | Hero | Stage MP4 | Stage WebM | Poster | Match sheet |
 |---|---|---|---|---|
-⟨SIZES⟩
+| Ranger | 1,158 KB | 1,173 KB | 59.3 KB | 323 KB (1024 × 1127) |
+| Warden | 1,071 KB | 1,157 KB | 59.9 KB | 570 KB (1024 × 1946) |
+| Arcanist | 1,157 KB | 1,133 KB | 59.8 KB | 473 KB (1024 × 1418) |
 
-- **The empty clearing** is ⟨CLEARING⟩.
-- **Encoding:** ⟨ENCODING⟩ Each file is the best quality under its budget (1.2 MB a video, 60 KB a still). V-05a's Ranger loop at 2400 × 900 was 1.14 MB; V-05b's first round, at 1200 × 450, 556–690 KB.
+- **The empty clearing** is 59.2 KB.
+- **The match sheets** are V-05b's, not re-rendered (4 px per world px).
+- **Encoding:** H.264 at CRF 19 (the Ranger) and 21 (the Warden, the Arcanist), VP9 at CRF 25, 29 and 31, the posters at quality 63–66, the clearing at 74. Each file is the best quality under its budget (1.2 MB a video, 60 KB a still). V-05a's Ranger loop at 2400 × 900 was 1.14 MB; V-05b's first round, at 1200 × 450, 556–690 KB.
 - **When the files load:**
   - The three sheets load a second after the first screen and are part of the precached shell.
   - A video loads only when its stage plays it.
 
-**Re-render:** `npm run art:3d -- heroes` (about ⟨TOTAL⟩ for all three on 4 CPU cores; after a change, render only the heroes it touches, `-- warden` about ⟨ONE⟩, in a fresh working folder: `--work` reuses every frame it finds, changed or not). The renders and the PNG sheets are repeatable (fixed Cycles seed and samples, no time or random input; numpy on the same machine), up to a few hundred edge pixels Cycles' threads can flip; the video encoders run threaded, so a re-encode can differ by a few bytes while looking the same. The hashes in `<hero>.json` always come from the bytes written, so the client's `?v=` follows whatever was committed.
+**Re-render:** `npm run art:3d -- heroes` (about 4 hours for all three on 4 CPU cores, worked out from the frame times above: V-05b round 2's build ran in resumed parts; after a change, render only the heroes it touches, about 1 h 15 min a hero, in a fresh working folder: `--work` reuses every frame it finds, changed or not). The renders and the PNG sheets are repeatable (fixed Cycles seed and samples, no time or random input; numpy on the same machine), up to a few hundred edge pixels Cycles' threads can flip; the video encoders run threaded, so a re-encode can differ by a few bytes while looking the same. The hashes in `<hero>.json` always come from the bytes written, so the client's `?v=` follows whatever was committed.
 
 ### Adding a 3D hero
 
