@@ -33,7 +33,10 @@ from .palette import rgb
 
 W, H = 2400, 900      # the video; one frame for every stage size (fitStage in the client). A 412 px phone's home
                       # card shows ~750 of its pixels across 1140 device px on a 3x screen (1.5x; a 1200 frame was 3x)
-SS = 2                # rendered at SS × the output size and averaged down
+# The hero is rendered at the output size (a 2× frame took 20–35 s on 4 cores, over the 15 s a frame allowed), with
+# more samples a pixel for his edges; the plate, rendered once for all three, at PLATE_SS × and averaged down.
+SS = 1
+PLATE_SS = 2
 FRAME_H = 33.0        # world px from the ground to the top of `BOX`, the tallest hero (the Warden's helm) with room
 HERO_H_PX = 427       # px that FRAME_H world px take at the camera's distance
 FEET_Y = 735          # the ground line under the hero, video px from the top
@@ -45,9 +48,9 @@ AZIMUTH = 40.0        # degrees round from the hero's front towards its right
 ELEVATION = 4.5       # degrees above the hero's chest
 LENS = 50.0
 SHUTTER = 0.42        # motion blur, of a frame
-PLATE_SAMPLES = 20    # per render pixel (×SS² per output pixel)
-HERO_SAMPLES = 10
-HERO_SAMPLES_FAST = 18  # while a fast part moves (the arrow, the sword's slice): blurred edges stay smooth
+PLATE_SAMPLES = 20    # per render pixel (×PLATE_SS² per output pixel)
+HERO_SAMPLES = 24     # per render pixel (×SS² per output pixel)
+HERO_SAMPLES_FAST = 24  # while a fast part moves (the arrow, the sword's slice): blurred edges stay smooth
 HERO_AO_SAMPLES = 2   # AO rays a sample on the hero (the plate takes 6)
 GROUND_ID = 100
 SKY_IDS = 200         # 200 and over: the sky, the stars, the moon
@@ -469,6 +472,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     hero_objs = fig.objects
     shutter = 0.0 if draft else SHUTTER
     ss = 1 if draft else SS
+    pss = 1 if draft else PLATE_SS
     ow, oh = (W // 2, H // 2) if draft else (W, H)
     facts, contacts = _pose_loop(spec, fig, fps)
 
@@ -481,6 +485,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1]
     moon_px = tuple(full.px(glade.moon_pos)[:2])
     mcam = scene.Cam(cam.obj, ow * ss, oh * ss)
+    pcam = scene.Cam(cam.obj, ow * pss, oh * pss)
     k_out = ow / W
     look = _scaled(dict(npr.LOOK, **LOOK), k_out)
     scenery = [o for o in bpy.data.objects if o.type == 'MESH' and o not in hero_objs]
@@ -489,7 +494,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     props = [bpy.data.objects[n] for n in ('Props', 'Moss', 'Log') if n in bpy.data.objects]
     sc = bpy.context.scene
 
-    # The plate: the clearing alone, once, at SS × the output size; painted, lined, scaled down.
+    # The plate: the clearing alone, once, at PLATE_SS × the output size; painted, lined, scaled down.
     t0 = time.time()
     for o in hero_objs:
         o.hide_render = True
@@ -497,20 +502,27 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         z = np.load(plate_cache)
         base_col, base_emit, plate_depth, plate_ids = z['col'], z['emit'], z['depth'], z['ids']
     else:
-        plate = scene.render(mcam, os.path.join(tmp, 'passes'), samples=6 if draft else PLATE_SAMPLES, frame=1)
+        plate = scene.render(pcam, os.path.join(tmp, 'passes'), samples=6 if draft else PLATE_SAMPLES, frame=1)
         pcol, pa, pemit = npr.shade(plate, look)
-        pcov, pink = npr.outline(plate, look, ss, with_colour=True)
+        pcov, pink = npr.outline(plate, look, pss, with_colour=True)
         pcomp = pcol * (1 - pcov[..., None]) + pink * pcov[..., None]
         plate_depth = plate['Depth'][..., 0].copy()
         plate_ids = npr.ids_of(plate) // 1000
         del plate, pcol, pcov, pink
-        base_col = npr.downsample(pcomp, ss)
-        base_emit = npr.downsample(pemit * pa[..., None], ss)
+        base_col = npr.downsample(pcomp, pss)
+        base_emit = npr.downsample(pemit * pa[..., None], pss)
         del pcomp, pemit
         if plate_cache:
             np.savez(plate_cache, col=base_col, emit=base_emit, depth=plate_depth, ids=plate_ids)
-    depth_o = npr.downsample(plate_depth, ss)
-    ids_o = plate_ids[::ss, ::ss]
+    depth_o = npr.downsample(plate_depth, pss)
+    ids_o = plate_ids[::pss, ::pss]
+    # The plate's depth and parts at the hero's render size: the nearest surface of each block (a fern in front of a
+    # boot stays in front), and its parts as sampled.
+    f = pss // ss
+    if f > 1:
+        hh, ww = plate_depth.shape[0] // f, plate_depth.shape[1] // f
+        plate_depth = plate_depth[:hh * f, :ww * f].reshape(hh, f, ww, f).min(axis=(1, 3))
+        plate_ids = plate_ids[:hh * f:f, :ww * f:f]
     atmo = Atmosphere(depth_o, ids_o, horizon, moon_px, period, (ow, oh))
     still = atmo.static(base_col)
     bloom_static = _bloom(base_emit, BLOOM['sigma'] * k_out, BLOOM['amount'])
