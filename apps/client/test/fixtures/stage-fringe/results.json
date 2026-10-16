@@ -42,24 +42,24 @@
   "pass": true
  },
  "warden-0000": {
-  "crossings": 717,
+  "crossings": 1536,
   "fringe": 1,
-  "hard": 0,
-  "measured": 708,
+  "hard": 12,
+  "measured": 1532,
   "pass": true
  },
  "warden-0100": {
-  "crossings": 701,
+  "crossings": 1515,
   "fringe": 0,
-  "hard": 0,
-  "measured": 693,
+  "hard": 18,
+  "measured": 1512,
   "pass": true
  },
  "warden-0125": {
-  "crossings": 736,
+  "crossings": 1625,
   "fringe": 0,
-  "hard": 4,
-  "measured": 786,
+  "hard": 12,
+  "measured": 1891,
   "pass": true
  }
 }
