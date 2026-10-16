@@ -35,7 +35,8 @@ describe('progress dashboard data', () => {
     expect(summary.done).toBe(58);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-04 (bigger units, PR #104) and V-05b (the three heroes from the KayKit models,
-    // PR #108) are done, and V-05a (PR #106) is closed as superseded by V-05b; V-03, V-05c and V-05d are to do.
+    // PR #109, round 2 of #108) are done, and V-05a (PR #106) is closed as superseded by V-05b; V-03, V-05c and V-05d
+    // are to do.
     expect(summary.open).toBe(43);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
@@ -160,14 +161,15 @@ describe('progress dashboard data', () => {
     // Han, 14 Oct 2026, 19:20: heroes, then creeps and towers, in 3D rendered ahead of time. Han, 16 Oct 2026: the
     // heroes come from the KayKit packs, not modelled in code, so V-05a (the code-built Ranger) is closed as
     // superseded and V-05b (all three heroes from the KayKit models) is done; the creeps and the towers follow, each
-    // on Han's go.
+    // on Han's go. Han, 17 Oct 2026: V-05b's round 2 (the stage back at 2400 × 900) replaces its first pull request.
     expect(byId('V-05a')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05a').note).toContain('Closed as superseded by V-05b');
     expect(byId('V-05a').note).toContain('nothing 3D runs on the player’s device');
     expect(byId('V-05a').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/106');
-    expect(byId('V-05b')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/108' } });
+    expect(byId('V-05b')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/109' } });
     expect(byId('V-05b').note).toContain('KayKit');
     expect(byId('V-05b').note).toContain('16 Oct 2026');
+    expect(byId('V-05b').note).toContain('2400 × 900');
     for (const id of ['V-05c', 'V-05d']) expect(byId(id)).toMatchObject({ owner: 'Both', status: 'todo' });
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
