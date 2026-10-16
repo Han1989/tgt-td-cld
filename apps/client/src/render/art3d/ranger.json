@@ -538,8 +538,8 @@
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1178075,
-    "hash": "32ef79fea7d2",
+    "bytes": 1158453,
+    "hash": "96da85ee86b8",
     "name": "ranger.mp4"
    },
    "poster": {
@@ -548,8 +548,8 @@
     "name": "ranger-poster.webp"
    },
    "webm": {
-    "bytes": 1126045,
-    "hash": "3d3151042aa0",
+    "bytes": 1173488,
+    "hash": "80a54612e5eb",
     "name": "ranger.webm"
    }
   },
