@@ -8,7 +8,8 @@
  * Seeded from main as of 2 Oct 2026; moved to Han's plan of 8–9 Oct 2026 (the roadmap's copy of
  * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done; V-05a–V-05d (3D heroes, creeps and
  * towers rendered ahead of time) added on 14 Oct 2026; V-05b done on 16 Oct 2026 (PR #108: the three heroes from the
- * KayKit models, Han's decision of 16 Oct), V-05a closed as superseded. Production protocol is 19. This page only
+ * KayKit models, Han's decision of 16 Oct; round 2 PR #109 on 17 Oct: the stage back at 2400 × 900), V-05a closed as
+ * superseded. Production protocol is 19. This page only
  * reports status.
  */
 
@@ -265,8 +266,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'visual',
-    note: 'Client art and tools only, protocol stays 19. Han, 16 Oct 2026: the heroes come from the CC0 KayKit packs (Knight as the Warden, Mage as the Arcanist, Rogue_Hooded as the Ranger) with the packs’ own clips, not modelled in code. Imported, the props hung on the pack’s hand slots, each repainted in Runelight’s tokens through the same painter (no pack colour reaches a frame), the clips retimed to the 2D rigs. All three stand in the same clearing as an 8 s video loop (the Ranger’s draw and release, the Warden’s block and swing, the Arcanist’s summon), swapping cleanly on the stage, and play in a match from their own frames on one rig; the 2D rigs stay as the fallback. In review: Han judges all three on his phone, on the Vercel preview. Built by Claude Code (PR #108, the roadmap’s copy of 16 Oct 2026, 22:30).',
-    proof: pr(108),
+    note: 'Client art and tools only, protocol stays 19. Han, 16 Oct 2026: the heroes come from the CC0 KayKit packs (Knight as the Warden, Mage as the Arcanist, Rogue_Hooded as the Ranger) with the packs’ own clips, not modelled in code. Imported, the props hung on the pack’s hand slots, each repainted in Runelight’s tokens through the same painter (no pack colour reaches a frame), the clips retimed to the 2D rigs. All three stand in the same clearing as an 8 s video loop (the Ranger’s draw and release, the Warden’s block and swing, the Arcanist’s summon), swapping cleanly on the stage, and play in a match from their own frames on one rig; the 2D rigs stay as the fallback. Round 2 (17 Oct 2026, Han’s note from a Pixel 10 Pro): the stage is back at 2400 × 900 with the sharper ink and glow of the first 3D Ranger, since the 1200 × 450 loop looked blurry on a 3× phone. In review: Han judges all three on his phone, on the Vercel preview. Built by Claude Code (PR #108, the roadmap’s copy of 16 Oct 2026, 22:30; round 2 PR #109, the roadmap’s copy of 17 Oct 2026, 03:20).',
+    proof: pr(109),
   },
   {
     id: 'V-05c',
