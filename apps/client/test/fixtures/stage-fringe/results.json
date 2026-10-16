@@ -21,24 +21,24 @@
   "pass": true
  },
  "ranger-0000": {
-  "crossings": 733,
+  "crossings": 1539,
   "fringe": 0,
-  "hard": 0,
-  "measured": 706,
+  "hard": 7,
+  "measured": 1513,
   "pass": true
  },
  "ranger-0150": {
-  "crossings": 595,
+  "crossings": 1470,
   "fringe": 0,
-  "hard": 1,
-  "measured": 600,
+  "hard": 10,
+  "measured": 1490,
   "pass": true
  },
  "ranger-0165": {
-  "crossings": 556,
+  "crossings": 1201,
   "fringe": 0,
-  "hard": 0,
-  "measured": 521,
+  "hard": 7,
+  "measured": 1201,
   "pass": true
  },
  "warden-0000": {
