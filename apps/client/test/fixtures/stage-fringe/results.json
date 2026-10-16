@@ -1,23 +1,23 @@
 {
  "arcanist-0000": {
-  "crossings": 503,
+  "crossings": 1247,
   "fringe": 0,
-  "hard": 1,
-  "measured": 508,
+  "hard": 3,
+  "measured": 1242,
   "pass": true
  },
  "arcanist-0140": {
-  "crossings": 584,
+  "crossings": 1352,
   "fringe": 0,
-  "hard": 2,
-  "measured": 570,
+  "hard": 11,
+  "measured": 1310,
   "pass": true
  },
  "arcanist-0200": {
-  "crossings": 618,
+  "crossings": 1374,
   "fringe": 1,
-  "hard": 0,
-  "measured": 588,
+  "hard": 8,
+  "measured": 1387,
   "pass": true
  },
  "ranger-0000": {
