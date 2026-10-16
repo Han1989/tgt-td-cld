@@ -35,7 +35,9 @@ from .palette import rgb
 W, H = 2400, 900      # the video; one frame for every stage size (fitStage in the client). A 412 px phone's home
                       # card shows ~750 of its pixels across 1140 device px on a 3x screen (1.5x; a 1200 frame was 3x)
 # The hero is rendered at the output size (a 2× frame took 20–35 s on 4 cores, over the 15 s a frame allowed), with
-# more samples a pixel for his edges; the plate, rendered once for all three, at PLATE_SS × and averaged down.
+# more samples a pixel for his edges; the plate, rendered once for all three, at PLATE_SS × and averaged down. The
+# fast frames (`fast` in hero.py: the arrow, the slice, the summon's swing) and any frame that fails the fringe check
+# at 1× are rendered at PLATE_SS × instead, below.
 SS = 1
 PLATE_SS = 2
 FRAME_H = 33.0        # world px from the ground to the top of `BOX`, the tallest hero (the Warden's helm) with room
@@ -51,13 +53,14 @@ LENS = 50.0
 SHUTTER = 0.42        # motion blur, of a frame
 PLATE_SAMPLES = 20    # per render pixel (×PLATE_SS² per output pixel)
 HERO_SAMPLES = 24     # per render pixel (×SS² per output pixel)
-HERO_SAMPLES_FAST = 24  # while a fast part moves (the arrow, the sword's slice): blurred edges stay smooth
 HERO_AO_SAMPLES = 2   # AO rays a sample on the hero (the plate takes 6)
-# A frame that fails the fringe check at 1× is rendered again at PLATE_SS × with these samples (V-05a's, at 2×) and
-# that one is kept: fine detail that aliases at 1× (a string's light core between its own ink, blurred by its motion,
-# breaks into light dots) is smooth from four times the pixels.
-RETRY_SAMPLES = 10
-RETRY_SAMPLES_FAST = 18
+# Rendered at PLATE_SS ×, with V-05a's samples a render pixel: the fast frames, where a part blurred by its motion at
+# 1× breaks into specks (its coverage is noisy at 24 samples and the painter turns thinly covered pixels to ink one by
+# one: the Warden's slice was a dotted trail), at 18; and a frame that fails the fringe check at 1× (fine detail that
+# aliases there: the Ranger's string, blurred in the follow-through, its light core between its own ink breaking
+# into light dots), rendered again at 10 and kept. Both are smooth from four times the pixels.
+SAMPLES_2X = 10
+SAMPLES_2X_FAST = 18
 GROUND_ID = 100
 SKY_IDS = 200         # 200 and over: the sky, the stars, the moon
 MARGIN_PX = 34        # output px kept round the hero's box: his line, the light wrap and his glows' bloom
@@ -579,7 +582,8 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         if os.path.exists(done) and os.path.exists(os.path.join(frames_dir, f'{i:04d}.png')):
             # Rendered by an earlier run in this working folder (resume after an interruption).
             prev = json.load(open(done))
-            if prev['check']['pass'] or prev.get('ss', SS) >= pss:
+            at = prev.get('ss', SS)
+            if at >= pss or (prev['check']['pass'] and not facts[i]['fast']):
                 checks.append(prev['check'])
                 if prev.get('fixture'):
                     fixtures[f'{name}-{i:04d}'] = prev['fixture']
@@ -587,7 +591,8 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
                 union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]),
                                                    max(union[2], box[2]), max(union[3], box[3]))
                 continue
-            first = prev['check']  # failed at 1× in an earlier run: straight to 2×
+            if not prev['check']['pass']:
+                first = prev['check']  # failed at 1× in an earlier run: straight to 2×
         sc.frame_set(i + 1)
         arrow_away = _away(fig, facts[i]['arrow'])
         bx0, by0, bx1, by1 = _screen_box(cam, [o for o in hero_objs if not o.hide_render or o in arrow_away], moon,
@@ -681,15 +686,14 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
                 glow8[max(0, fy0):max(0, fy1), max(0, fx0):max(0, fx1)] = 255
             return out8, mask8, glow8, strict, fringe.measure(out8, mask8, glow8)
 
-        used = ss
-        if first is None:
-            samples = 4 if draft else (HERO_SAMPLES_FAST if fast else HERO_SAMPLES)
-            out8, mask8, glow8, strict, res = finished(ss, samples)
+        used = pss if fast or first is not None else ss
+        if used == ss:
+            out8, mask8, glow8, strict, res = finished(ss, 4 if draft else HERO_SAMPLES)
             if not res['pass'] and ss < pss:
                 first = res
-        if first is not None:
-            used = pss
-            out8, mask8, glow8, strict, res = finished(pss, RETRY_SAMPLES_FAST if fast else RETRY_SAMPLES)
+                used = pss
+        if used != ss:
+            out8, mask8, glow8, strict, res = finished(pss, SAMPLES_2X_FAST if fast else SAMPLES_2X)
         imageio.write_png(os.path.join(frames_dir, f'{i:04d}.png'), out8, level=1)
         res['frame'] = i
         checks.append(res)
@@ -710,7 +714,8 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         with open(done, 'w') as f:
             json.dump({'check': res, 'strict': strict, 'box': list(box), 'fixture': fixtures.get(f'{name}-{i:04d}'),
                        'ss': used, 'first': first}, f)
-        again = f' (at {used}×; at {ss}×: fringe {first["fringe"]}/{first["measured"]})' if first else ''
+        again = (f' (at {used}×; at {ss}×: fringe {first["fringe"]}/{first["measured"]})' if first else
+                 f' (at {used}×: fast)' if used != ss else '')
         print(f'stage frame {i + 1}/{n} ({time.time() - t_frame:.1f} s) fringe {res["fringe"]}/{res["measured"]} '
               f'hard {res["hard"]}/{res["crossings"]}{again}', flush=True)
     sc.render.use_border = False
