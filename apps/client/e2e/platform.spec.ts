@@ -312,3 +312,77 @@ test('Settings → Sound: music and effects volume and mute, remembered; the lob
   expect(await stored()).toMatchObject({ music: 0.2, sfx: 0.65, muted: false });
   await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
 });
+
+/**
+ * The ground as drawn at a few world points (tiles) on the open moss and the roads, next to the map plate's own
+ * pixels there (both averaged over a few px): the screen must show the plate (docs/ART.md §16), and in Bright the
+ * plate under the same "screen" wash the painted ground bakes in.
+ */
+async function groundVsPlate(page: Page): Promise<{ screen: number[]; plate: number[] }[]> {
+  const points: [number, number][] = [
+    [6, 18],
+    [20, 18],
+    [17.5, 25.5],
+    [9.5, 31.5],
+    [13, 22],
+  ];
+  const at = await page.evaluate((pts) => pts.map(([x, y]) => window.__tdt.camera.worldToScreen(x * 32, y * 32)), points);
+  const shot = await page.screenshot();
+  return page.evaluate(
+    async ({ png, pts, at, dpr }) => {
+      const load = async (src: string) => {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const g = c.getContext('2d')!;
+        g.drawImage(img, 0, 0);
+        return g;
+      };
+      const mean = (g: CanvasRenderingContext2D, x: number, y: number, r: number) => {
+        const d = g.getImageData(Math.round(x - r), Math.round(y - r), r * 2 + 1, r * 2 + 1).data;
+        const sum = [0, 0, 0];
+        for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) sum[k]! += d[i + k]!;
+        return sum.map((v) => v / (d.length / 4));
+      };
+      const screen = await load(`data:image/png;base64,${png}`);
+      const plate = await load('/map/spire.webp');
+      return pts.map(([x, y], i) => ({
+        screen: mean(screen, at[i]!.x * dpr, at[i]!.y * dpr, 4),
+        plate: mean(plate, x! * 64, y! * 64, 6),
+      }));
+    },
+    { png: shot.toString('base64'), pts: points, at, dpr: await page.evaluate(() => window.devicePixelRatio) },
+  );
+}
+
+test('the map plate decodes, draws as the ground in one texture, and Bright lays its wash over it', async ({ page }) => {
+  await startSolo(page);
+  await expect(page.locator('html')).toHaveAttribute('data-plate', 'ready');
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().ground)).toBe('plate');
+  const gpu = await page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl2') ?? document.createElement('canvas').getContext('webgl');
+    return gl!.getParameter(gl!.MAX_TEXTURE_SIZE) as number;
+  });
+  expect(gpu).toBeGreaterThanOrEqual(3200);
+  // Normal: the screen shows the plate's own pixels.
+  for (const { screen, plate } of await groundVsPlate(page)) {
+    for (let k = 0; k < 3; k++) expect(Math.abs(screen[k]! - plate[k]!)).toBeLessThan(14);
+  }
+  // Bright: the same pixels under the "screen" wash (tokens.ts LIGHTING.bright.groundLift: #9fb8c8 at 32%).
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('tdt.settings') ?? '{}');
+    localStorage.setItem('tdt.settings', JSON.stringify({ ...s, display: 'bright' }));
+  });
+  await startSolo(page);
+  await expect.poll(() => page.evaluate(() => [window.__tdt.art().ground, window.__tdt.art().display])).toEqual(['plate', 'bright']);
+  const wash = [0x9f, 0xb8, 0xc8].map((c) => (c / 255) * 0.32);
+  for (const { screen, plate } of await groundVsPlate(page)) {
+    for (let k = 0; k < 3; k++) {
+      const lifted = 255 * (1 - (1 - plate[k]! / 255) * (1 - wash[k]!));
+      expect(Math.abs(screen[k]! - lifted)).toBeLessThan(14);
+    }
+  }
+});

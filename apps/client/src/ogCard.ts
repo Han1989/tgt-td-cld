@@ -1,18 +1,20 @@
 // `?ogcard` (dev server only): the link-preview card (public/og-card.png, docs/ART.md §14). One still
-// frame of a landscape clearing drawn with the game's own art: the ground painter, the baked atlas
-// and the real rigs, posed at fixed times so every run draws the same frame. Three lanes run from
+// frame of a landscape clearing drawn with the game's own art: its map plate (rendered in Blender like
+// Spire's, docs/ART.md §16), the baked atlas and the real rigs, posed at fixed times so every run draws the same frame. Three lanes run from
 // violet portals into the Heart; the heroes hold one lane each; the logo sits on the forest shade.
 // `npm run og -w @tdt/client` screenshots it at 2× and writes the PNG (scripts/ogImage.ts).
 
 import type { CreepKind, HeroKind, TowerBranch, TowerKind } from '@tdt/protocol';
-import { buildMap, TILE_PX, TUNING, type MapData, type PadData } from '@tdt/sim';
-import { Application, Container, Sprite } from 'pixi.js';
-import { createGround } from './render/art/ground';
+import { buildMap, TILE_PX, TUNING } from '@tdt/sim';
+import { Application, Assets, Container, Sprite, type Texture } from 'pixi.js';
 import { ArtKit } from './render/art/kit';
 import { creepArt, heartArt, heroArt, padArt, portalArt, projectileArt, towerArt, type HeroRig } from './render/art/registry';
 import { CreepRig, TowerRig } from './render/art/rigs';
 import { createFxAtlas, DISC_PX } from './render/fx/atlas';
 import { COLORS, FX, mixColor, PLAYER_COLORS } from './render/palette';
+import { CARD_MAP, HEART } from './ogMap';
+import cardPlate from './render/plate/card.json';
+import cardPlateUrl from './render/plate/card.webp?url';
 import { flyerDrawScale } from './teach/cues';
 
 /** The card in CSS px (Open Graph's recommended 1200 × 630); the generator screenshots it at 2×. */
@@ -24,45 +26,6 @@ const ZOOM = CARD.w / (30 * S);
 const UNIT_SCALE = 1.45;
 const HERO_SCALE = 1.8;
 const TOWER_SCALE = 1.15;
-
-const HEART = { x: 15, y: 9.6 };
-
-/** A quadratic curve sampled into waypoints: down from a portal, then sweeping into the Heart from the side. */
-function sweep(x: number): { x: number; y: number }[] {
-  const p0 = { x, y: 0.5 };
-  const p1 = { x, y: HEART.y };
-  const p2 = { x: HEART.x + Math.sign(x - HEART.x) * 1.2, y: HEART.y };
-  const pts = [];
-  for (let i = 0; i <= 16; i++) {
-    const t = i / 16;
-    const a = (1 - t) * (1 - t);
-    const b = 2 * t * (1 - t);
-    const c = t * t;
-    pts.push({ x: a * p0.x + b * p1.x + c * p2.x, y: a * p0.y + b * p1.y + c * p2.y });
-  }
-  return [...pts, HEART];
-}
-
-/** Left-hand pads (top-left tiles; the outer column is West, the inner one Mid); the right mirrors them. */
-const LEFT_PADS: PadData[] = [
-  { tx: 1, ty: 2, zone: 'west' },
-  { tx: 1, ty: 6, zone: 'west' },
-  { tx: 9, ty: 1, zone: 'mid' },
-  { tx: 10, ty: 5, zone: 'mid' },
-];
-
-const CARD_MAP: MapData = {
-  name: 'Card',
-  width: 30,
-  height: 16,
-  heart: HEART,
-  heroSpawn: { x: HEART.x, y: HEART.y - 2 },
-  laneHalfWidth: 1,
-  lanes: [sweep(6), [{ x: 15, y: 0.5 }, HEART], sweep(24)],
-  padSize: 3,
-  pads: [...LEFT_PADS, ...LEFT_PADS.map((p): PadData => ({ tx: 30 - p.tx - 3, ty: p.ty, zone: p.zone === 'west' ? 'east' : 'mid' }))],
-  safeFromY: 12,
-};
 
 interface TowerSpot {
   pad: number;
@@ -193,7 +156,10 @@ export async function runOgCard(): Promise<void> {
   const shots = layer();
   const sparks = layer();
 
-  ground.addChild(new Sprite(createGround(map, 'normal').texture));
+  // The card's map plate: its ground, lanes, pads and trees as one rendered picture (plate px at 1 / res).
+  const plate = new Sprite((await Assets.load(cardPlateUrl)) as Texture);
+  plate.scale.set(1 / cardPlate.res);
+  ground.addChild(plate);
 
   const glow = (x: number, y: number, radius: number, tint: number, alpha: number, into = glows) => {
     const s = new Sprite(fx.frames.glow);
@@ -218,7 +184,8 @@ export async function runOgCard(): Promise<void> {
     rim.tint = wash.tint = PLAYER_COLORS[p.zone === 'west' ? 0 : p.zone === 'mid' ? 1 : 2];
     rim.alpha = 0.8;
     wash.alpha = 0.14;
-    c.addChild(kit.sprite(pad.id, 'slab'), wash, rim);
+    // The pad's stone is in the plate; its zone tint goes over it, as in a match.
+    c.addChild(wash, rim);
     pads.addChild(c);
   }
 
