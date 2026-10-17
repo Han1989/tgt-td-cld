@@ -66,11 +66,13 @@ async function loadArt(): Promise<void> {
   const html = document.documentElement.dataset;
   const plate = await loadPlate();
   html.plate = plate ? 'ready' : 'failed';
-  await loadStructureSheet();
+  // Browser-test builds: `?towers2d` keeps the 2D towers, Heart and portals and `?creeps2d` the 2D creeps, to compare
+  // the two in the same build (e2e/perf.spec.ts's numbers, docs/ART.md §15).
+  const keep2d = (what: string) => import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has(what);
+  if (!keep2d('towers2d')) await loadStructureSheet();
   html.structures = 'ready';
   performance.mark('tdt:structures');
-  // Browser-test builds: `?creeps2d` keeps the 2D creeps, to compare the two in the same build.
-  if (!(import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('creeps2d'))) await loadCreepSheets();
+  if (!keep2d('creeps2d')) await loadCreepSheets();
   html.creepSheets = 'ready';
   performance.mark('tdt:creep-sheets');
   await loadHeroSheets();

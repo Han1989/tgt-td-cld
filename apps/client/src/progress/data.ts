@@ -14,6 +14,7 @@
  * modifiers removed, every match Normal and the lobby on one screen on 17 Oct 2026 (PR #116, Han's decisions of 17 Oct);
  * V-05d done on 17 Oct 2026 (PR #118: the towers, the Heart and the portals kitbashed from the CC0 KayKit pieces);
  * V-05c round 2 on 17 Oct 2026 (PR #120: the Ironhorn the horned Demon, the creep sheets lossless WebP).
+ * V-05e on 17 Oct 2026 (PR #121: the stress test's budget after the 3D sprites).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -291,6 +292,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Client art and tools only, no protocol change. Han, 17 Oct 2026: the five towers at every tier and branch, the Heart in its three damage states and the portals are pre-rendered 3D pictures, kitbashed from the CC0 KayKit pieces in the repo (never modelled in code), repainted in Runelight’s tokens and lit by the map’s moon. Towers are seen straight down so their turrets turn truly: a crossbow, a catapult, an ice lance, a staff and a rotor aimed at the sky, each with three recoil frames; tier 1 unlit, tier 2 two runes, tier 3 four and gold, every branch its own outline. The Heart is a castle keeping a glowing chest, cracked and then ruined and burning as it takes damage; the portals are gatehouses with torches and the swirl in their arch. One sheet on one texture page, loaded after the map and before the creeps and heroes; the 2D art stays as the fallback. In review: Han judges the contact sheet and the game on his phone. Built by Claude Code (PR #116).',
     proof: pr(118),
+  },
+  {
+    id: 'V-05e',
+    title: 'The stress budget after the 3D sprites',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Client only, no sim, protocol or art change. After the 3D towers, the 300-creep stress test failed on GitHub: not on its budget (14–20 ms of JavaScript a frame against 33.3 ms) but on its 240 s time limit, since the software GPU there drew the scene at about one frame a second. The scene drew 4.9 screens of pixels a frame in 136 draw calls; a seventh of the pixels were parts waiting invisible (every creep’s hit flash between hits, the Heart’s hidden stages, rings between casts), and every projectile broke the batch. Hidden parts now leave the draw (a creep’s flash shrinks to nothing, so the draw list is not rebuilt at every hit) and the trails draw together: 3.5 screens in 22 draw calls, the test 18% faster on the session container. Not taken: switching off antialiasing, about a quarter of a frame on the software GPU, which only smooths the drawn rings (Han’s call). Built by Claude Code (PR #121).',
+    proof: pr(121),
   },
   {
     id: 'g1-render',

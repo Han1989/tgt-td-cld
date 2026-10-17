@@ -1,10 +1,13 @@
 // Shared rigs (docs/ART.md §7): styled entities are atlas sprites animated by moving parts only
 // (position, rotation, scale, tint, alpha). Nothing is redrawn per frame and nothing toggles
 // `visible` per frame (in Pixi v8 that rebuilds the draw list); flashes and hidden parts use alpha.
+// An alpha-0 sprite still costs its whole quad, so a part at 0 leaves the draw (`fade`) when it changes
+// rarely, and a creep's hit flash, which comes and goes many times a second, shrinks to nothing.
 
 import type { CreepSnap, SkillSlot, TowerBranch } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import { Container, Graphics, type ColorSource, type Sprite } from 'pixi.js';
+import { fade } from '../fade';
 import type { ArtKit } from './kit';
 import type { CreepArt, CreepRigView, Gait, HeroPose, HeroRig, TowerArt } from './registry';
 
@@ -124,7 +127,7 @@ export class CreepRig implements CreepRigView {
     this.flash = kit.sprite(art.id, 'body.flash', 0.5, ay);
     this.flash.alpha = 0;
     this.body.position.set(0, art.feet);
-    this.flash.position.set(0, art.feet);
+    this.copyToFlash();
     this.shadow = art.frames.shadow ? kit.sprite(art.id, 'shadow') : null;
     this.shadow?.position.set(0, art.feet);
     this.death = TUNING.creeps[art.kind].boss ? DEATH.boss : DEATH.creep;
@@ -212,9 +215,10 @@ export class CreepRig implements CreepRigView {
 
   /** Flash strength 0..1 (alpha of the white silhouette); the body flinches with it. */
   setFlash(f: number): void {
+    const was = this.flash.alpha > 0;
     this.flash.alpha = f;
     this.flinch = f / HIT_FLASH.alpha;
-    if (f > 0) this.copyToFlash();
+    if (f > 0 || was) this.copyToFlash();
   }
 
   /** Whole-rig tint (frost). */
@@ -240,7 +244,15 @@ export class CreepRig implements CreepRigView {
     this.copyToFlash();
   }
 
+  /**
+   * The flash follows the body while it shows. At alpha 0 it is a zero-size quad: no pixels, and no change to the draw
+   * list (a creep is hit many times a second; `renderable` would rebuild the list at each hit).
+   */
   private copyToFlash(): void {
+    if (this.flash.alpha <= 0) {
+      this.flash.scale.set(0);
+      return;
+    }
     const b = this.body;
     this.flash.rotation = b.rotation;
     this.flash.position.copyFrom(b.position);
@@ -312,7 +324,7 @@ export abstract class HeroRigBase implements HeroRig {
     c.addChild(this.kit.sprite(this.id, frame, ax, ay));
     if (this.kit.has(this.id, `${frame}.flash`)) {
       const f = this.kit.sprite(this.id, `${frame}.flash`, ax, ay);
-      f.alpha = 0;
+      fade(f, 0);
       c.addChild(f);
       this.flashes.push(f);
     }
@@ -321,7 +333,7 @@ export abstract class HeroRigBase implements HeroRig {
 
   /** A white silhouette sprite the base flashes on hits and death, for a rig that makes its own sprites. */
   protected addFlash(sprite: Sprite): Sprite {
-    sprite.alpha = 0;
+    fade(sprite, 0);
     this.flashes.push(sprite);
     return sprite;
   }
@@ -408,7 +420,7 @@ export abstract class HeroRigBase implements HeroRig {
   private setFlash(a: number): void {
     if (a === this.flashShown) return;
     this.flashShown = a;
-    for (const f of this.flashes) f.alpha = a;
+    for (const f of this.flashes) fade(f, a);
   }
 
   private standUp(): void {

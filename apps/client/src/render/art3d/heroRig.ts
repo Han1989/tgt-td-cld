@@ -22,6 +22,7 @@ import { AIM_TURN, HOLD_READY_MS, LUNGE_PX, RELAX_MS, WARDEN_SWING, wardenStrike
 import type { ArtKit } from '../art/kit';
 import type { HeroPose } from '../art/registry';
 import { CAST_MS, clamp01, HIT_FLASH, hold, HeroRigBase, smooth } from '../art/rigs';
+import { fade } from '../fade';
 import { cycleFrame, drawStep, progressFrame, walkCadence, type LayerBox, type MatchLayout, type Point } from './layout';
 import type { Frame, Frames, HeroFrames } from './sheet';
 
@@ -134,12 +135,12 @@ export class Hero3DRig extends HeroRigBase {
     if (L.style === 'melee' && kit.has(kind, 'slash')) {
       this.smear = kit.sprite(kind, 'slash');
       this.smear.blendMode = 'add';
-      this.smear.alpha = 0;
+      fade(this.smear, 0);
     }
     if (L.style === 'staff' && kit.has(kind, 'flare')) {
       this.flare = kit.sprite(kind, 'flare');
       this.flare.blendMode = 'add';
-      this.flare.alpha = 0;
+      fade(this.flare, 0);
     }
     const order = [this.torso.holder, this.arm?.holder, this.head?.holder, this.smear, this.flare, this.fall.holder];
     this.flipper.addChild(...order.filter((c): c is Container => !!c));
@@ -218,11 +219,11 @@ export class Hero3DRig extends HeroRigBase {
       this.smear.rotation = this.aim(h) * AIM_TURN;
       const s = pick.scale * (0.92 + 0.12 * pick.smear);
       this.smear.scale.set(s, s * SMEAR_FLAT);
-      this.smear.alpha = pick.smear;
+      fade(this.smear, pick.smear);
     }
     if (this.flare) {
       this.flare.position.set(gem.x, this.feetPx + gem.y);
-      this.flare.alpha = Math.round(pick.flare * 10) / 10;
+      fade(this.flare, Math.round(pick.flare * 10) / 10);
       this.flare.scale.set(1 + pick.flare * 0.5);
     }
   }
