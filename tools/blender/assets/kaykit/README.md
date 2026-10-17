@@ -18,3 +18,15 @@ Hero mapping (V-05b, `tools/blender/hero.py`): Warden ← `Knight.glb` (+ `sword
 and lighting are applied at render time (`tools/blender/tdt3d/gltf.py` repaints every face from its palette cell to a
 token; the painter, `tools/blender/tdt3d/npr.py`, lights and inks it), not by editing these files. None of them ships
 to the client.
+
+## Skeletons (added 17 Oct 2026)
+
+| Folder | From | What |
+|---|---|---|
+| `skeletons/characters/` | KayKit Character Pack: Skeletons 1.1 (FREE), CC0 | `Skeleton_Minion.glb`, `Skeleton_Rogue.glb`, `Skeleton_Warrior.glb`, `Skeleton_Mage.glb`: rigged (Rig_Medium), no clips |
+| `skeletons/assets/` | same | props: `Skeleton_Blade`, `Skeleton_Axe`, `Skeleton_Crossbow`, `Skeleton_Staff`, `Skeleton_Arrow*`, `Skeleton_Quiver`, four shields |
+| `skeletons/textures/`, `skeletons/samples/` | same | the palette texture and the pack's own renders |
+
+They share Rig_Medium with the Adventurers, so the clips in `animations/rig_medium/` fit them, including the `Special` pack's skeleton set (`Skeletons_Walking`, `Skeletons_Awaken_*`, `Skeletons_Death`, `Skeletons_Taunt`, `Skeletons_Spawn_Ground`).
+
+Creep mapping (V-05c): Grunt ← Minion, Runner ← Rogue, Archer ← Minion + crossbow, Brute ← Warrior scaled up with axe and shield. The Wisps (flyers) and the three bosses are not in this pack.
