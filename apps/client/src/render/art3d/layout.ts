@@ -160,16 +160,16 @@ export interface StageFit {
  * CSS px the rendered hero's top stays below the stage box's `top`. The stage lets a 2D figure's thin tip (a blade, a
  * staff's gem) reach 8 px up behind the title's last line (heroStage.ts); a rendered hero's top is his hood, a solid
  * shape that would sit on the letters, so it stays under the line wherever the video still covers the stage at that
- * size (on the shortest stages, a short phone's home card and the solo picks 150 px tall, it can't, and the hood may
- * reach up to the line, as a 2D figure may).
+ * size (on the shortest stages, a short phone's home card 190 px tall, it can't, and the hood may reach up to the
+ * line, as a 2D figure may).
  */
 export const STAGE_TITLE_CLEAR = 8;
 
 /**
  * Places the stage video so the hero stands on the stage's ground line, as large as fits between the title and the
  * ground and between the sides, the box his whole loop fills (the bow drawn, the arrow loosed) centred: the same rule
- * as the 2D figures (`fitStand`), applied to the video's figure box. Where the video is only just wide enough (the
- * short solo pick), centring the box would leave a sliver of the stage bare, so the video slides sideways as far as
+ * as the 2D figures (`fitStand`), applied to the video's figure box. Where the video is only just wide enough (a short,
+ * wide stage), centring the box would leave a sliver of the stage bare, so the video slides sideways as far as
  * covering needs, never so far that the hero leaves the room between the sides. The clearing still uses the same
  * fit, so switching heroes never moves the background. If the stage is wider or taller than the video at that size
  * the fit still keeps the hero whole; the clearing's CSS shows at the edges.

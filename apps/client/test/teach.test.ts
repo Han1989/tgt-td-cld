@@ -22,7 +22,6 @@ import {
   kindFlies,
   readAir,
   readGold,
-  skyTideLive,
   waveListsFlyers,
   type AirSample,
   type GoldMemory,
@@ -34,7 +33,6 @@ function air(patch: Partial<AirSample> = {}): AirSample {
   return {
     mode: 'quick',
     wave: 1,
-    modifiers: [],
     flyers: false,
     builtGround: false,
     haveAir: false,
@@ -115,9 +113,6 @@ describe('anti-air teaching', () => {
     expect(airRelevant(air({ mode: 'quick', wave: 2 }))).toBe(true);
     expect(airRelevant(air({ mode: 'quick', wave: 1 }))).toBe(false);
     expect(airRelevant(air({ mode: 'full', wave: 4 }))).toBe(true);
-    expect(airRelevant(air({ modifiers: ['skyTide'], wave: 1 }))).toBe(true);
-    expect(skyTideLive(['skyTide'], 1)).toBe(true);
-    expect(skyTideLive([], 8)).toBe(false);
 
     const early = readAir(freshAir(), air({ wave: 1, builtGround: true }));
     expect(early.beat.toast).toBeNull();

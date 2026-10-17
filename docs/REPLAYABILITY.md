@@ -21,28 +21,21 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 - The choice is made at the moment of upgrading, in the tower ring (two buttons) or the desktop panel. It can't be changed afterwards, except by selling.
 - The balance bot picks branches from the wave list and its team's needs.
 
-## 2. Lane surges and match modifiers
+## 2. Lane surges
 
-> **Done.** Numbers in `tuning.ts` (`surges`, `modifierStats`). `PROTOCOL_VERSION` 15. Mechanics in the Decision Log in `GAME_DESIGN.md`. More maps (§3) are not started.
+> **Done.** Numbers in `tuning.ts` (`surges`). `PROTOCOL_VERSION` 15 brought surges (with match modifiers); 20 removed the modifiers (below). Mechanics in the Decision Log in `GAME_DESIGN.md`. More maps (§3) are not started.
 
 **Lane surges**
 - From wave 6, about one wave in nine concentrates walking creeps onto one lane. Two players put 60% of that wave's walking creeps there (`surges.share`). Three players put 40% (`surges.trioShare`). Solo uses 34% (`surges.soloShare`), a nudge over an even split.
 - Wisps stay on the portal they were listed on (they fly straight to the Heart). Boss waves and the last two waves do not surge. Bosses stay on the lane they were listed on, still one per lane. The spawn gap tightens only on a surged lane, so the last creep still leaves before the next wave.
 - A surge is **announced a wave ahead**: the `surge` event raises a toast (the lane from `laneName` and the wave number on the event), a chip stays under the top of the map (`Surge next`, and `Surge now` once that wave starts), and that lane's portal flares. The wave banner still names the surge when it starts, so the toast does not replace it. Reconnects read `snapshot.surgeLane` and `snapshot.nextSurge`.
 - The schedule comes from the match seed (not the match RNG), so a replay repeats it.
-- The casual balance bot answers: it prefers a free pad on the surged lane, a teammate may gift up to 20 gold (keeping 60), and a hero whose post is clear walks to that lane. Under Swift the hero stays on its post. The expert bot does not move its pads, gift, or walk for a surge.
+- The casual balance bot answers: it prefers a free pad on the surged lane, a teammate may gift up to 20 gold (keeping 60), and a hero whose post is clear walks to that lane. The expert bot does not move its pads, gift, or walk for a surge.
 
-**Match modifiers**
-- A match runs 1–2 modifiers, or none. Each draw comes from the match seed (`modifierDraw`): the opening offer, then a new draw on every reroll. The same seed and the same number of rerolls reproduce the current set. The host may reroll until the match starts. Choosing none does not advance the draw; "Use modifiers" turns the current draw back on.
-- Online: the room rolls them when it is created (and again on Back to lobby). The host sends `{ t: 'modifiers', action: 'reroll' | 'none' | 'offer' }`. Guests see the draw and cannot change it.
-- Solo: the hero pick shows the draw. The lesson locks it to none. Play again keeps the chosen modifiers and takes a new seed.
-- Shown in the lobby as one chip per modifier (name and sentence; the offered draw stays visible, labelled Offered, after "No modifiers") and as a wrapping banner before the first wave. The match keeps a short chip per modifier under the top of the map. The match report and the server log name them (`swift+fog`, or `plain`).
-- **Swift:** creeps +15% speed, bounty +10%.
-- **Ironclad:** from wave 1, every 88th spread slot of eligible ground creeps becomes a Brute (`ironclad.every`). Brutes, bosses and flyers are not converted. The slot mixes wave, lane and index, so the lead creep of every lane is not always the one that changes.
-- **Sky Tide:** every 11th eligible ground creep becomes a Wisp. Brutes stay Brutes. With both, the two replacements take different slots of one combined span.
-- **Fog:** tower range −10%, hero XP +20%.
-- **Gold Rush:** starting gold and wave income +10%, bounty +10%, non-boss count +6%. Swift bounty and Gold Rush bounty stack.
-- The modifier balance sample is solo Full Ironclad, Sky Tide and Gold Rush, solo Quick Ironclad, and Full 3-player Sky Tide (Heart 40–80, curve not asserted). Swift and Fog stay at these rates and are outside that sample. 2-player modifiers and Quick teams are outside it too; the no-modifier team gates still cover 2 and 3 players with surges on.
+**Match modifiers: removed (Han, 17 Oct 2026; `PROTOCOL_VERSION` 20)**
+- Swift, Ironclad, Sky Tide, Fog and Gold Rush (protocol 15–19: a seeded draw of one or two per match, rerolled by the host in the lobby, shown as chips in the lobby, a banner before the first wave and chips in the match) are gone from the game: they changed a match's numbers, not what the player does, so they never brought anyone back. The sim, the protocol, the lobby, the match HUD, the reports and the balance sample (`balanceModifiers*.test.ts`) dropped them. Lane surges stay exactly as above: always on, announced a wave ahead, the chip and the portal flare; the surge schedule still mixes the match seed on its own (`surges.ts` `mix32`), so it follows the seed as before.
+- A replay saved with modifiers set is refused with a message naming the build to check out; one saved with none (or before modifiers existed) re-runs as before.
+- What replaces them for replayability: more maps (§3), and later a Daily run and Endless (after the gate; Decision Log, 17 Oct 2026), which will use Hard, chosen by the game, never by a row of buttons.
 
 ## 3. More maps over time
 
@@ -55,7 +48,7 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 ## 4. Done when
 
 - The balance bot uses branches and handles surges. **Done.**
-- The balance gates for 1, 2 and 3 players pass on Spire with no modifiers, and with a fixed sample of modifier combinations. **Done** (no-modifier gates in `balance*.test.ts`; the sample in `balanceModifiers.test.ts` and `balanceModifiersTeams.test.ts`). Surges are always on, so the solo gates are the "surges enabled" check.
+- The balance gates for 1, 2 and 3 players pass on Spire. **Done** (`balance*.test.ts`). Surges are always on, so the solo gates are the "surges enabled" check. (A modifier sample, `balanceModifiers*.test.ts`, ran until the modifiers were removed on 17 Oct 2026.)
 - A second map ships and passes its own gates. **Not started** (§3).
 - `npm test` and `npm run build` pass.
 

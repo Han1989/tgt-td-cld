@@ -102,7 +102,6 @@ describe('tower ring helpers', () => {
     expect(chip).toContain(`Rng ${t.range}`);
     expect(chip).toContain('Ground + air');
     expect(buildPreviewChip('flak', TOWER_NAMES)).toContain('Air only');
-    expect(buildPreviewChip('arrow', TOWER_NAMES, TUNING, 2)).toContain(`Rng ${t.range * 2}`);
     expect(chip).not.toContain('Tap again');
   });
 

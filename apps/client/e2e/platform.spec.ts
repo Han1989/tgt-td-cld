@@ -44,7 +44,7 @@ test('the service worker caches the app shell, so solo starts offline', async ({
   await context.setOffline(true);
   await page.reload();
   await waitForReady(page, 'solo');
-  await page.locator('#lobby-solo-play').click();
+  await page.locator('#lobby-offline').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   await context.setOffline(false);
 });
@@ -89,7 +89,7 @@ test('the canvas owns every gesture: no scrolling, pinch-zoom, selection or cont
 test('the ready signal comes once the first screen and the debug hook exist, with a cold-start mark', async ({ page }) => {
   await page.goto('/');
   await waitForReady(page, 'solo');
-  await expect(page.locator('#lobby-solo-play')).toBeVisible();
+  await expect(page.locator('#lobby-offline')).toBeVisible();
   const at = await page.evaluate(() => ({
     hook: typeof window.__tdt?.latest === 'function',
     ready: performance.getEntriesByName('tdt:ready').length,
@@ -172,12 +172,12 @@ test('sound starts on the first tap, plays the lobby then the match, and pauses 
   await waitForReady(page, 'solo');
   // Nothing plays (no AudioContext) before a gesture: iOS would refuse it anyway.
   expect(await audio(page)).toMatchObject({ state: 'locked', scene: 'lobby' });
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).tap();
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Ranger' }).tap();
   await expect.poll(async () => (await audio(page)).state).toBe('running');
   // Every sound is baked (in a worker) and the lobby music plays.
   await expect.poll(async () => { const a = await audio(page); return a.total > 100 && a.baked === a.total; }).toBe(true);
   await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
-  await page.locator('#lobby-solo-play').tap();
+  await page.locator('#lobby-offline').tap();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   await expect.poll(async () => (await audio(page)).scene).toBe('build');
   await page.locator('#call-early').tap();
@@ -246,7 +246,7 @@ test.describe('recorded sound files', () => {
     await waitForReady(page, 'solo');
     // Nothing is fetched before the first tap.
     expect(fetched).toEqual([]);
-    await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Warden' }).tap();
+    await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).tap();
     await expect.poll(async () => (await audio(page)).source).toBe('lobby');
     const file = (await audio(page)).musicFile!;
     expect(file.name).toBe('lobby');
@@ -255,10 +255,10 @@ test.describe('recorded sound files', () => {
     expect(file.end).toBeCloseTo(2.1, 2);
     expect(file.gain).toBeGreaterThan(0);
     await expect.poll(async () => (await audio(page)).sfxFiles).toBe(1);
-    await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).tap();
+    await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Ranger' }).tap();
     await expect.poll(async () => (await audio(page)).filePlays).toBeGreaterThan(0);
     // No match file in this build: the match plays the code-made music; match.mp3 is never asked for.
-    await page.locator('#lobby-solo-play').tap();
+    await page.locator('#lobby-offline').tap();
     await expect.poll(async () => (await audio(page)).scene).toBe('build');
     await expect.poll(async () => (await audio(page)).source).toBe('code');
     await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);

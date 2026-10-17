@@ -1,5 +1,5 @@
-// The short hero buttons (an emblem and a name) of the home card, the solo pick and the room card; the
-// line under them says the role and what the hero does. The last pick is remembered in localStorage.
+// The short hero buttons (an emblem and a name) of the home card and the room card; the line under them says the
+// role and what the hero does. The last pick is remembered in localStorage.
 
 import { HERO_KINDS, type HeroKind } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';

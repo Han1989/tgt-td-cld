@@ -21,7 +21,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, repairCost, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/sim';
+import { getMap, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
@@ -938,7 +938,7 @@ export class TouchControls {
         b.classList.toggle('previewing', this.ui.preview?.padId === m.padId && this.ui.preview.tower === kind);
       }
       const preview = this.ui.preview?.tower;
-      chip = preview ? buildPreviewChip(preview, TOWER_NAMES, TUNING, towerRangeScale(snap.modifiers, TUNING)) : 'Tap to build · hold to preview';
+      chip = preview ? buildPreviewChip(preview, TOWER_NAMES, TUNING) : 'Tap to build · hold to preview';
     } else {
       const tower = snap.towers.find((t) => t.id === m.towerId);
       if (!tower || tower.owner !== this.actions.me() || this.ui.selectedTowerId !== m.towerId) return this.actions.clearSelection();
@@ -963,7 +963,7 @@ export class TouchControls {
       if (choices.length > 0) chip = branchOfferChip(choices);
       else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
       else
-        chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier, TUNING, 2, towerRangeScale(snap.modifiers, TUNING)) || 'max tier'}`;
+        chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier, TUNING, 2) || 'max tier'}`;
     }
     // The ring stays around its pad or tower; the chip goes above it, or below it when there is no room above.
     const bounds = this.bounds();

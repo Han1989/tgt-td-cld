@@ -89,7 +89,7 @@ export class UltHud {
     window.setTimeout(() => chip.li.classList.remove('healed'), HEAL_MS);
   }
 
-  /** One chip per other hero in the match (a teammate, or the solo practice ally): its icon in the seat colour and its health. */
+  /** One chip per teammate's hero: its icon in the seat colour and its health. */
   sync(snap: Snapshot, me: PlayerId | null): void {
     const others = snap.heroes.filter((h) => h.owner !== me);
     const key = others.map((h) => `${h.id}:${h.kind}:${h.owner}`).join('|');

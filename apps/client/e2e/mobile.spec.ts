@@ -626,9 +626,9 @@ test.describe('portrait phone layout', () => {
     await page.goto('/?lab');
     await waitForReady(page, 'solo');
     await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 15_000 });
-    await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Warden' }).click();
-    await page.locator('#lobby-mode-solo .mode-pick[data-mode="quick"]').click();
-    await page.locator('#lobby-solo-play').click();
+    await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
+    await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+    await page.locator('#lobby-offline').click();
     await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
     await expect.poll(() => page.evaluate(() => window.__tdt.art().hero3d)).toBe(1);
     expect(await page.evaluate(() => window.__tdt.art().hero3dKinds)).toContain('idle');
@@ -768,10 +768,10 @@ test.describe('portrait phone layout', () => {
   test('Learn to play starts the lesson; its card stays off the controls, Move advances, and Skip dismisses it', async ({ page }) => {
     await page.goto('/?lab');
     await waitForReady(page, 'solo');
-    // The line sits under the docked Play, on screen with no scrolling.
-    const learn = await box(page, '#lobby-solo-learn-btn');
+    // The line sits under Play solo on the home card, on screen with no scrolling.
+    const learn = await box(page, '#lobby-learn-btn');
     expect(learn.bottom).toBeLessThanOrEqual(page.viewportSize()!.height);
-    await page.locator('#lobby-solo-learn-btn').click();
+    await page.locator('#lobby-learn-btn').click();
     await expect(page.locator('#tutorial-title')).toHaveText('Move');
     await expect(page.locator('#tutorial-body')).toContainText('joystick');
 

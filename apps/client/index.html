@@ -145,18 +145,22 @@
         <h1 class="logo">Tower Defense <span>Together</span></h1>
 
         <section id="lobby-home">
-          <!-- The first screen (docs/ART.md §12): the picked hero on a moonlit clearing, then one main button. -->
+          <!-- The first screen (docs/ART.md §12): the picked hero on a moonlit clearing, the mode, then one main button. -->
           <div id="lobby-stage" class="hero-stage">
             <h1 class="logo stage-logo">Tower Defense <span>Together</span></h1>
             <canvas class="hero-stage-figure" aria-hidden="true"></canvas>
           </div>
           <div id="lobby-heroes-home" class="hero-picks hero-tabs" role="group" aria-label="Hero"></div>
           <p class="hero-blurb" aria-live="polite"><b id="lobby-hero-role" class="hero-role"></b><span id="lobby-hero-blurb"></span></p>
+          <div class="pick-row mode-row">
+            <span class="pick-label">Mode</span>
+            <div id="lobby-mode-home" class="segmented"></div>
+          </div>
           <div class="solo-dock">
             <button id="lobby-offline" class="btn big" type="button">Play solo</button>
           </div>
           <p id="lobby-learn" class="learn-line hidden">New here? <button id="lobby-learn-btn" class="link learn-link" type="button">Learn to play</button></p>
-          <div class="friends">
+          <div id="lobby-friends" class="friends">
             <h2 class="friends-title">Play with friends</h2>
             <label class="field">
               <span>Nickname</span>
@@ -171,7 +175,7 @@
         </section>
 
         <section id="lobby-room" class="hidden">
-          <!-- The room card (docs/ART.md §12): the code to share, the seats, your hero, the host's picks, one main button. -->
+          <!-- The room card (docs/ART.md §12): the code to share, the seats, your hero, the host's mode, one main button. -->
           <div class="room-code-row">
             <div class="room-code-box">
               <div class="room-code-label">Room code</div>
@@ -188,59 +192,14 @@
             <div id="lobby-heroes-room" class="hero-picks hero-tabs" role="group" aria-label="Your hero"></div>
             <p class="hero-blurb pick-blurb" aria-live="polite"><b id="lobby-room-role" class="hero-role"></b><span id="lobby-room-blurb"></span></p>
           </div>
-          <div class="pick-rows">
-            <div class="pick-row">
-              <span id="lobby-mode-room-label" class="pick-label">Mode</span>
-              <div id="lobby-mode-room" class="segmented"></div>
-              <p id="lobby-mode-room-line" class="pick-line"></p>
-            </div>
-            <div class="pick-row">
-              <span id="lobby-difficulty-room-label" class="pick-label">Difficulty</span>
-              <div id="lobby-difficulty-room" class="segmented"></div>
-              <p id="lobby-difficulty-room-line" class="pick-line"></p>
-            </div>
-            <div class="pick-row">
-              <span id="lobby-modifiers-room-label" class="pick-label">Modifiers</span>
-              <div id="lobby-modifiers-room" class="mod-picks"></div>
-            </div>
+          <div class="pick-row mode-row">
+            <span id="lobby-mode-room-label" class="pick-label">Mode</span>
+            <div id="lobby-mode-room" class="segmented"></div>
           </div>
           <div class="pick-dock room-actions">
             <button id="lobby-leave" class="btn" type="button">Leave</button>
             <button id="lobby-ready" class="btn big" type="button">Ready</button>
             <button id="lobby-start" class="btn big hidden" type="button">Start match</button>
-          </div>
-        </section>
-
-        <section id="lobby-solo" class="hidden">
-          <!-- The solo pick (docs/ART.md §12): the picked hero on a shorter stage, the match's picks, one main button. -->
-          <div id="solo-stage" class="hero-stage compact">
-            <button id="lobby-solo-back" class="btn stage-back hidden" type="button" aria-label="Back" title="Back to the home screen"></button>
-            <h1 class="logo stage-logo">Tower Defense <span>Together</span></h1>
-            <canvas class="hero-stage-figure" aria-hidden="true"></canvas>
-          </div>
-          <div id="lobby-heroes-solo" class="hero-picks hero-tabs" role="group" aria-label="Hero"></div>
-          <p class="hero-blurb pick-blurb" aria-live="polite"><b id="lobby-solo-role" class="hero-role"></b><span id="lobby-solo-blurb"></span></p>
-          <div class="pick-rows">
-            <div class="pick-row">
-              <span class="pick-label">Mode</span>
-              <div id="lobby-mode-solo" class="segmented"></div>
-              <p id="lobby-mode-solo-line" class="pick-line"></p>
-            </div>
-            <div class="pick-row">
-              <span class="pick-label">Difficulty</span>
-              <div id="lobby-difficulty-solo" class="segmented"></div>
-              <p id="lobby-difficulty-solo-line" class="pick-line"></p>
-            </div>
-            <div class="pick-row">
-              <span class="pick-label">Modifiers</span>
-              <div id="lobby-modifiers-solo" class="mod-picks"></div>
-            </div>
-          </div>
-          <p id="practice-solo-note" class="practice-note hidden">Meteor Rain practice: you and an ally start at level 6. Learn R, cast it, and the ally casts onto yours. Pick Ranger or Arcanist. Quick wave 10 is the two-lane shield.</p>
-          <button id="lobby-solo-practice" class="btn practice-btn" type="button">Practice Meteor Rain</button>
-          <div class="pick-dock">
-            <button id="lobby-solo-play" class="btn big" type="button">Play</button>
-            <p id="lobby-solo-learn" class="learn-line hidden">New here? <button id="lobby-solo-learn-btn" class="link learn-link" type="button">Learn to play</button></p>
           </div>
         </section>
 

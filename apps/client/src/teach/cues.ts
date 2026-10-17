@@ -2,7 +2,7 @@
 // snapshots and events the client already has. Nothing here changes the sim,
 // the protocol, or a balance number. The card, the toasts and the chip are the HUD's.
 
-import type { CreepKind, GameMode, Modifier, TowerBranch, TowerKind } from '@tdt/protocol';
+import type { CreepKind, GameMode, TowerBranch, TowerKind } from '@tdt/protocol';
 import { TOWER_KINDS } from '@tdt/protocol';
 import { TICK_RATE, TUNING, towerStats, tuningForMode, type Tuning } from '@tdt/sim';
 import { branchChoices, buildCost, upgradeCost } from '../hud/towerInfo';
@@ -34,21 +34,11 @@ export function waveListsFlyers(mode: GameMode, wave: number, tuning: Tuning = T
   return groups.some((g) => tuning.creeps[g.kind].flying);
 }
 
-/** Sky Tide can turn ground creeps into Wisps from its first wave. */
-export function skyTideLive(modifiers: readonly Modifier[], wave: number, tuning: Tuning = TUNING): boolean {
-  return modifiers.includes('skyTide') && wave >= tuning.modifierStats.skyTide.fromWave;
-}
-
-/** Flyers are on the map, listed in this wave, or about to be (the next wave, or Sky Tide). */
-export function airRelevant(
-  sample: { mode: GameMode; wave: number; modifiers: readonly Modifier[]; flyers: boolean },
-  tuning: Tuning = TUNING,
-): boolean {
+/** Flyers are on the map, listed in this wave, or about to be (the next wave). */
+export function airRelevant(sample: { mode: GameMode; wave: number; flyers: boolean }, tuning: Tuning = TUNING): boolean {
   if (sample.flyers) return true;
   if (waveListsFlyers(sample.mode, sample.wave, tuning)) return true;
-  if (waveListsFlyers(sample.mode, sample.wave + 1, tuning)) return true;
-  const tideWave = Math.max(sample.wave, 1);
-  return skyTideLive(sample.modifiers, tideWave, tuning);
+  return waveListsFlyers(sample.mode, sample.wave + 1, tuning);
 }
 
 export const AIR_ARRIVAL = 'Wisps are flying — Arrow, Frost, Arcane or Flak';
@@ -80,7 +70,6 @@ export function freshAir(): AirMemory {
 export interface AirSample {
   mode: GameMode;
   wave: number;
-  modifiers: readonly Modifier[];
   /** A flying creep is on the map right now. */
   flyers: boolean;
   /** I just built a tower that cannot hit air. */

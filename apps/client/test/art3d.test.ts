@@ -291,7 +291,7 @@ describe('3D heroes: the stage', () => {
       expect(s.feetX).toBeLessThan(o.x1);
     });
 
-    // Every size the lobby's stage takes (style.css .hero-stage and .compact; lobby card min(500px, 100vw - 32px)),
+    // Every size the lobby's stage takes (style.css .hero-stage; lobby card min(500px, 100vw - 32px)),
     // with the title's bottom and the ground line as heroStage.ts measures them.
     const SIZES: [string, number, number, number][] = [
       ['home card, 412 × 839 phone', 380, 320, 61],
@@ -300,10 +300,6 @@ describe('3D heroes: the stage', () => {
       ['home card, short phone', 328, 190, 61],
       ['home card, desktop', 498, 320, 61],
       ['home card, short desktop', 498, 220, 61],
-      ['solo pick, 412 × 839 phone', 380, 219, 24],
-      ['solo pick, 390 × 664 phone', 358, 150, 24],
-      ['solo pick, desktop', 498, 230, 24],
-      ['solo pick, short desktop', 498, 150, 24],
     ];
     for (const [name, w, h, top] of SIZES) {
       it(`${kind}: fills the ${name} stage (${w} × ${h}) with the hero whole, under the title`, () => {

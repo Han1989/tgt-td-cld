@@ -41,13 +41,9 @@ function started(patch: Partial<TutorialSample> = {}): TutorialRun {
 
 const STATUSES: readonly TutorialStatus[] = ['new', 'completed', 'skipped'];
 
-/** Every pick a player can make on the solo pick, with and without modifiers. */
+/** Every pick a player can make on the home card: a hero and a mode. */
 const PICKS: readonly SoloPick[] = (['ranger', 'warden', 'arcanist'] as const).flatMap((hero) =>
-  (['full', 'quick'] as const).flatMap((mode) =>
-    (['normal', 'hard'] as const).flatMap((difficulty) =>
-      [[], ['fog'], ['swift', 'goldRush']].map((modifiers) => ({ hero, mode, difficulty, modifiers }) as SoloPick),
-    ),
-  ),
+  (['full', 'quick'] as const).map((mode) => ({ hero, mode })),
 );
 
 /** A settings store in memory, as `SettingsStore` keeps it. */
@@ -69,44 +65,32 @@ describe('tutorial status', () => {
     expect(lessonStatus('complete')).toBe('completed');
   });
 
-  it('Play (and Practice) never start the lesson, whatever is stored: the match is the pick', () => {
+  it('Play solo never starts the lesson, whatever is stored: the match is the pick', () => {
     for (const status of STATUSES) {
       for (const pick of PICKS) {
-        for (const start of ['play', 'practice'] as const) {
-          const match = beginSolo(store(status), start, pick);
-          expect(match.lesson).toBe(false);
-          expect(match).toMatchObject({ hero: pick.hero, mode: pick.mode, difficulty: pick.difficulty, practice: start === 'practice' });
-          expect(match.modifiers).toEqual(pick.modifiers);
-        }
+        expect(beginSolo(store(status), 'play', pick)).toEqual({ hero: pick.hero, mode: pick.mode, lesson: false });
       }
     }
   });
 
-  it('Learn to play always starts the lesson: Quick, Normal, no modifiers, the picked hero', () => {
+  it('Learn to play always starts the lesson: Quick, the picked hero', () => {
     for (const status of STATUSES) {
       for (const pick of PICKS) {
-        expect(beginSolo(store(status), 'lesson', pick)).toEqual({
-          hero: pick.hero,
-          mode: 'quick',
-          difficulty: 'normal',
-          modifiers: [],
-          lesson: true,
-          practice: false,
-        });
+        expect(beginSolo(store(status), 'lesson', pick)).toEqual({ hero: pick.hero, mode: 'quick', lesson: true });
       }
     }
     // The pick is not changed by the lesson's match.
-    const pick: SoloPick = { hero: 'warden', mode: 'full', difficulty: 'hard', modifiers: ['fog'] };
+    const pick: SoloPick = { hero: 'warden', mode: 'full' };
     soloMatch('lesson', pick);
-    expect(pick).toEqual({ hero: 'warden', mode: 'full', difficulty: 'hard', modifiers: ['fog'] });
+    expect(pick).toEqual({ hero: 'warden', mode: 'full' });
   });
 
   it('offers "Learn to play" only before the first solo match, and never brings it back on its own', () => {
     expect(lessonOffer('new')).toBe(true);
     expect(lessonOffer('completed')).toBe(false);
     expect(lessonOffer('skipped')).toBe(false);
-    // Any first solo start ends the offer: Play, Practice or the lesson itself.
-    for (const start of ['play', 'practice', 'lesson'] as const) {
+    // Any first solo start ends the offer: Play solo or the lesson itself.
+    for (const start of ['play', 'lesson'] as const) {
       const s = store('new');
       beginSolo(s, start, PICKS[0]!);
       expect(s.get().tutorial).toBe('skipped');

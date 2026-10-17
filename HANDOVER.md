@@ -171,7 +171,7 @@ Anything in "Locked decisions". Money: Render plans, paid services, store accoun
 | `docs/MOBILE.md` | Spire map, touch controls, layouts, Quick mode | Touch, layout or map work |
 | `docs/MOBILE_TESTING.md` | The real-device checklist Han runs on phones | Adding steps for Han to check |
 | `docs/ART.md` | Runelight art guide (§1–12) and sound (§13) | Any art, effect or sound work |
-| `docs/REPLAYABILITY.md` | Phase 5: tower branches (done); lane surges, match modifiers, more maps (not started) | Replayability work |
+| `docs/REPLAYABILITY.md` | Phase 5: tower branches and lane surges (done; match modifiers removed 17 Oct 2026); more maps (not started) | Replayability work |
 | `docs/DEPLOY.md` | Render and Vercel setup, environment variables, operations, scaling by shard | Server or deploy changes |
 | `docs/SOUND_FILES.md` | Dropping in recorded music and effects | Sound files |
 | `docs/HOOK_SPIKE.md` (spike branch only) | Combos, the boss shield, the bot ally, the spike server | Phase 6c (combos and raids) |

@@ -36,7 +36,7 @@ The four:
 |---|---|---|
 | 1 | Solo, **Quick**, Normal, wave 3–4 (build phase between waves) | The whole Spire map: towers on your pads, your hero by a lane, gold and the wave timer in the top bar. Tap a tower so its ring shows. |
 | 2 | Same match, **wave 5 or 10** (a boss wave) | The boss on a lane with its banner, towers firing, the hero fighting. Wave 5 also brings the first Wisps. |
-| 3 | `/?practice=meteor-rain` → **Practice Meteor Rain** (Ranger or Arcanist) | Cast R as a wave arrives: the ally casts onto yours and the lanes fill with the **Meteor Rain** strikes and the combo ribbon. Capture as the strikes land. |
+| 3 | A room of 2: a Ranger and an Arcanist at level 6 (Practice Meteor Rain was removed on 17 Oct 2026) | Both cast R within 2 s as a wave arrives: the lanes fill with the **Meteor Rain** strikes and the combo ribbon. Capture as the strikes land. |
 | 4 | The **end screen** of a won Quick match | The beating Heart emblem, "Victory!" and the match stats. |
 
 **The current set** (17 Oct 2026, the map plate of V-03, `docs/ART.md` §16) is in `docs/screenshots/map/press/`: 1–3 taken from the e2e build in headless Chromium at Pixel 7 size (412 × 915, DPR 2.625) by a script, so they show the build's own frames; take them again on a real phone for a store page. The end screen (4) is its card over the dimmed match; it was not retaken (it needs a won Quick match).
@@ -51,7 +51,7 @@ One take from a real match, about 15 s, portrait, sound on (Reddit and X autopla
 
 - **0–4 s:** build phase: place a tower and upgrade one (the radial menu on a phone).
 - **4–10 s:** a wave hits: towers firing, the hero fighting on a lane (a boss wave if you can).
-- **10–15 s:** the ultimate: Arrow Storm or Meteor raining on all three lanes, or the Meteor Rain combo from `/?practice=meteor-rain`, with the kill count.
+- **10–15 s:** the ultimate: Arrow Storm or Meteor raining on all three lanes, or the Meteor Rain combo in a room of a Ranger and an Arcanist, with the kill count.
 
 **Recording:**
 

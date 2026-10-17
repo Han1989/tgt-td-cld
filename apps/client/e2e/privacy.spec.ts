@@ -281,9 +281,9 @@ test('the age question comes at the first Play, not on load, and only one anonym
   await page.locator('#age-input').fill('34');
   await page.locator('#age-input').press('Enter');
   await expect(page.locator('#age-check')).toHaveCount(0);
-  // Straight on to the solo pick: no second tap of Play solo.
-  await expect(page.locator('#lobby-solo')).toBeVisible();
-  await expect.poll(() => posts.map((p) => p.t)).toEqual(['session_start', 'funnel']);
+  // Straight on to the match: no second tap of Play solo.
+  await expect(page.locator('#lobby')).toBeHidden();
+  await expect.poll(() => posts.map((p) => p.t).slice(0, 2)).toEqual(['session_start', 'funnel']);
   expect(posts[0]).toMatchObject({ channel: 'cold' });
   expect(posts[1]).toMatchObject({ step: 'lobby' });
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem('tdt.age')))!)).toMatchObject({ age: 34 });
@@ -294,7 +294,7 @@ test('the age question comes at the first Play, not on load, and only one anonym
   await page.reload();
   await waitForReady(page, 'online');
   await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await expect(page.locator('#lobby')).toBeHidden();
   await expect(page.locator('#age-check')).toHaveCount(0);
   await expect.poll(() => counts.map((c) => c.what)).toEqual(['open', 'open']);
   await expect.poll(() => posts.filter((p) => p.t === 'session_start').length).toBe(2);
@@ -309,7 +309,7 @@ test('a browser that sends Do Not Track sends nothing at all before the age answ
   await tick(page);
   // Play data is off, so the age is not even asked: Play solo goes straight on.
   await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await expect(page.locator('#lobby')).toBeHidden();
   await expect(page.locator('#age-check')).toHaveCount(0);
   await tick(page);
   await page.waitForTimeout(500);
@@ -326,12 +326,12 @@ test('after an under-13 answer nothing more is sent, not even the count of the n
   await page.locator('#lobby-offline').click();
   await page.locator('#age-input').fill('10');
   await page.locator('#age-continue').click();
-  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await expect(page.locator('#lobby')).toBeHidden();
   await tick(page);
   await page.reload();
   await waitForReady(page, 'online');
   await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-solo')).toBeVisible();
+  await expect(page.locator('#lobby')).toBeHidden();
   await tick(page);
   await page.waitForTimeout(500);
   expect(counts.map((c) => c.what)).toEqual(['open']);
@@ -355,7 +355,7 @@ test('under 13: play goes on, play data is forced off, nothing is sent and what 
   const mine = await catchMine(page);
   await page.goto('/?lab&analytics');
   await waitForReady(page, 'solo');
-  await page.locator('#lobby-solo-play').click();
+  await page.locator('#lobby-offline').click();
   await page.locator('#age-input').fill('10');
   await page.locator('#age-continue').click();
   // Play is not blocked.

@@ -22,14 +22,12 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
     ],
     towers: [],
     pads: [],
-    modifiers: [],
     surgeLane: null,
     nextSurge: null,
     projectiles: [],
     traps: [],
     zones: [],
     events,
-    practice: null,
   };
 }
 

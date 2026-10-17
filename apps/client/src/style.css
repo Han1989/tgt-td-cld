@@ -1342,7 +1342,7 @@ body.layout-tall #lane-roles {
   top: 44%;
 }
 
-/* Modifiers and the surge chip, just under the top of the map. The wave banner still names
+/* The surge chips, just under the top of the map. The wave banner still names
    the surge wave itself; the toast announces the next one. */
 .match-flags {
   position: absolute;
@@ -1365,7 +1365,7 @@ body.layout-tall:has(#tutorial:not(.hidden)) .match-flags {
   top: calc(var(--map-top, 48px) + 112px);
 }
 
-/* "Air" while Wisps are on the map. Sits with the modifier chips, under them when both show. */
+/* "Air" while Wisps are on the map. Sits with the surge chips, under them when both show. */
 .air-flag {
   position: absolute;
   top: calc(var(--map-top, 48px) + 6px);
@@ -1410,7 +1410,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   top: calc(var(--map-top, 48px) + 164px);
 }
 
-.mod-chip,
 .surge-flag {
   display: flex;
   flex-direction: column;
@@ -1428,14 +1427,12 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   line-height: 1.15;
 }
 
-.mod-chip b,
 .surge-flag b {
   font-size: clamp(14px, 3.8vw, 16px);
   font-weight: 800;
   letter-spacing: 0.03em;
 }
 
-.mod-chip span,
 .surge-flag span {
   font-size: clamp(12px, 3.2vw, 13px);
   font-weight: 700;
@@ -1446,30 +1443,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   font-family: var(--title-font);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.mod-chip[data-modifier='swift'] {
-  border-left-color: var(--accent);
-}
-
-.mod-chip[data-modifier='ironclad'] {
-  border-left-color: var(--moon);
-}
-
-.mod-chip[data-modifier='skyTide'] {
-  border-left-color: var(--mana);
-}
-
-.mod-chip[data-modifier='fog'] {
-  border-left-color: var(--xp);
-}
-
-.mod-chip[data-modifier='goldRush'] {
-  border-left-color: var(--gold);
-}
-
-.mod-chip.offered {
-  opacity: 0.72;
 }
 
 .surge-flag.lane-0 {
@@ -1527,75 +1500,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 .toast.surge.lane-2 {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.mod-picks {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  /* The lobby field is uppercase. Modifier sentences stay in sentence case. */
-  text-transform: none;
-  letter-spacing: normal;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.mod-names {
-  font-family: var(--title-font);
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: 0.04em;
-  color: var(--gold);
-}
-
-.mod-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.mod-chips {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mod-picks .mod-chip span {
-  font-weight: 500;
-  color: var(--muted);
-  line-height: 1.35;
-}
-
-.mod-offered {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.mod-offer-label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.mod-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.banner.mods {
-  max-width: calc(100% - 24px);
-  font-size: clamp(22px, 6.4vw, 36px);
-}
-
-.banner.mods .title {
-  white-space: normal;
-  line-height: 1.05;
 }
 
 .banner {
@@ -2000,12 +1904,11 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   flex: 1;
 }
 
-/* The home card (docs/ART.md §12): the picked hero on a moonlit clearing, the hero buttons, one main
+/* The home card (docs/ART.md §12): the picked hero on a moonlit clearing, the hero buttons, Mode, one main
    button (Play solo; Join for a friend who came by an invite link), then the friends' controls. */
 
-/* The card's own title is the stage's on the home card and the solo pick; the room card leads with its code. */
+/* The card's own title is the stage's on the home card; the room card leads with its code. */
 .lobby-card:has(> #lobby-home:not(.hidden)) > .logo,
-.lobby-card:has(> #lobby-solo:not(.hidden)) > .logo,
 .lobby-card:has(> #lobby-room:not(.hidden)) > .logo {
   display: none;
 }
@@ -2021,10 +1924,11 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  /* Up to the card's top and side edges. As tall as the screen allows with Play solo still on it. */
+  /* Up to the card's top and side edges. As tall as the screen allows with Mode, Play solo and the friends' controls
+     still on it (a 1280 × 800 desktop shows the whole card). */
   margin: -26px -26px 0;
   height: 260px;
-  height: clamp(190px, calc(100dvh - 500px), 320px);
+  height: clamp(190px, calc(100dvh - 530px), 320px);
   overflow: hidden;
   border-bottom: 1px solid var(--ink);
   border-radius: 15px 15px 0 0;
@@ -2212,6 +2116,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 }
 
 /* A friend who came by an invite link: the nickname and Join come first, Join is the main button. */
+#lobby-home.invited .mode-row,
 #lobby-home.invited .solo-dock,
 #lobby-home.invited .learn-line {
   order: 1;
@@ -2281,64 +2186,17 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   inset: -13px -10px;
 }
 
-/* The second screen (docs/ART.md §12): the solo pick and the room card in the home card's look. Rows of picks,
-   then one main button docked at the bottom of the card, on screen with no scrolling. */
-.hero-stage.compact {
-  /* Shorter than the home card's: the picks under it and the docked Play keep their room. */
-  height: 200px;
-  height: clamp(150px, calc(100dvh - 620px), 230px);
-}
-
-.lobby-card .hero-stage.compact .stage-logo {
-  margin-top: 13px;
-  font-size: 17px;
-}
-
-.hero-stage.compact .stage-logo span {
-  display: inline;
-  font-size: inherit;
-}
-
-/* Back to the home card: a stone medallion at the top left of the stage, the twin of the sound button on the right. */
-.stage-back {
-  position: absolute;
-  z-index: 3;
-  top: 10px;
-  left: 10px;
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
-  padding: 0;
-}
-
-.stage-back::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 10px;
-  height: 10px;
-  border-left: 3px solid currentColor;
-  border-bottom: 3px solid currentColor;
-  border-radius: 1px;
-  transform: translate(-30%, -50%) rotate(45deg);
-}
-
+/* The room card (docs/ART.md §12) in the home card's look: rows of picks, then one main button docked at the
+   bottom of the card. Both cards fit one phone screen (412 × 839) with no scrolling. */
 .pick-blurb {
   min-height: calc(3 * 1.35em);
 }
 
-.pick-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* A pick: its label on the left, the control on the right, one line for the picked choice under it. */
+/* A pick: its label on the left, the control on the right. */
 .pick-row {
   display: grid;
   grid-template-columns: 5.6rem minmax(0, 1fr);
-  /* The label sits on the line of the control's first text (Full, Normal, the first modifier). */
+  /* The label sits on the line of the control's first text (Full). */
   align-items: baseline;
   gap: 4px 10px;
 }
@@ -2361,14 +2219,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: none;
-}
-
-.pick-line {
-  grid-column: 2;
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--muted);
 }
 
 /* One segmented stone control: a carved trough with a stone segment per choice; the pick glows rune-teal. */
@@ -2422,73 +2272,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   opacity: 1;
 }
 
-/* The modifiers, compact: the draw's names, the chips on one wrapping line, the buttons small. */
-.pick-row .mod-picks {
-  flex-flow: row wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.pick-row .mod-names {
-  flex: 1 1 100%;
-  font-size: 14px;
-}
-
-/* The chips already name the draw: the names line shows only when there are none ("No modifiers"). */
-.pick-row .mod-picks:has(> .mod-chips) > .mod-names {
-  display: none;
-}
-
-.pick-row .mod-note,
-.pick-row .mod-chips,
-.pick-row .mod-offered {
-  flex: 1 1 100%;
-}
-
-.pick-row .mod-note {
-  font-size: 12px;
-}
-
-.pick-row .mod-chips {
-  flex-flow: row wrap;
-  gap: 5px;
-}
-
-.pick-row .mod-offered {
-  flex-flow: row wrap;
-  align-items: center;
-  gap: 5px;
-}
-
-.pick-row .mod-chip {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 5px;
-  padding: 3px 8px;
-  border-left-width: 3px;
-  box-shadow: none;
-  line-height: 1.25;
-}
-
-.pick-row .mod-chip b {
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.pick-row .mod-chip span {
-  font-size: 12px;
-}
-
-.pick-row .mod-actions {
-  gap: 6px;
-}
-
-.pick-row .mod-actions .btn {
-  padding: 5px 11px;
-  font-size: 12px;
-}
-
 /* The one main button, docked at the bottom of the card: it stays on screen while the picks scroll under it. */
 .pick-dock {
   position: sticky;
@@ -2514,17 +2297,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 .pick-dock .btn.big:disabled {
   opacity: 1;
   filter: saturate(0.35) brightness(0.62);
-}
-
-.practice-btn {
-  min-height: 44px;
-}
-
-.practice-note {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--gold);
 }
 
 /* The room card: the code to share, large, with Copy invite link beside it (clear of the sound button). */
@@ -2669,10 +2441,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   /* A phone: each label over its control, so the control and its line get the card's width. */
   .pick-row {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pick-line {
-    grid-column: 1;
   }
 
   .pick-label small {
@@ -3262,12 +3030,6 @@ body.layout-tall .notice {
 body.layout-tall .banner {
   font-size: 28px;
   white-space: nowrap;
-}
-
-body.layout-tall .banner.mods,
-body.layout-tall .banner.mods .title {
-  white-space: normal;
-  font-size: clamp(22px, 6.2vw, 28px);
 }
 
 body.layout-tall .settings {

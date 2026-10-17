@@ -9,32 +9,25 @@ import {
   freshSocialClock,
   normalizeBuild,
   type Command,
-  type Difficulty,
   type GameMode,
   type HeroKind,
-  type Modifier,
   type PlayerId,
   type SocialClock,
 } from '@tdt/protocol';
 import {
   createMatch,
-  createPracticeAlly,
   matchCommand,
   matchOver,
   matchReplay,
   matchReport,
   matchStep,
-  practicePartner,
-  normalizeModifiers,
   snapshot,
-  type Bot,
   type GameState,
   type Match,
   type Tuning,
 } from '@tdt/sim';
 
 export const LOCAL_PLAYER_ID: PlayerId = 'local';
-const PRACTICE_ALLY_ID: PlayerId = 'practice-ally';
 
 export class SimHost {
   private match!: Match;
@@ -43,17 +36,6 @@ export class SimHost {
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
   private mode: GameMode = 'full';
-  private difficulty: Difficulty = 'normal';
-  /** Modifiers for the next match. Empty is none. */
-  private modifiers: Modifier[] = [];
-  /**
-   * Seed chosen on the solo pick, so the lobby draw and the match are the same.
-   * Cleared on "Play again", which takes a fresh seed and keeps the chosen modifiers.
-   */
-  private pinnedSeed: number | null = null;
-  /** Solo Meteor Rain practice: the next match adds an ally that answers R. */
-  private practice = false;
-  private ally: Bot | null = null;
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
   /** Same ping / emote gap the game server enforces. */
@@ -70,18 +52,10 @@ export class SimHost {
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
-    const partner = this.practice ? practicePartner(this.hero) : null;
-    this.ally = partner ? createPracticeAlly(PRACTICE_ALLY_ID, LOCAL_PLAYER_ID) : null;
+    // Every match a player starts is Normal (Han, 17 Oct 2026).
     this.match = createMatch(
-      {
-        players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }],
-        mode: this.mode,
-        difficulty: this.difficulty,
-        modifiers: this.modifiers,
-        tuning: this.tuning,
-        ...(partner ? { practice: { allyId: PRACTICE_ALLY_ID, allyHero: partner, allyName: 'Ally' } } : {}),
-      },
-      this.pinnedSeed ?? this.nextSeed(),
+      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode, difficulty: 'normal', tuning: this.tuning },
+      this.nextSeed(),
       normalizeBuild(this.build),
     );
     this.reported = false;
@@ -97,16 +71,12 @@ export class SimHost {
     if (!msg) return;
     const over = this.state.phase === 'victory' || this.state.phase === 'defeat';
     if (msg.t === 'restart') {
-      if (over) {
-        this.pinnedSeed = null;
-        this.reset();
-      }
-    } else if (msg.t === 'hero' || msg.t === 'mode' || msg.t === 'difficulty') {
-      // Solo hero / mode / difficulty pick: starts a new match with it, unless waves are already running.
+      if (over) this.reset();
+    } else if (msg.t === 'hero' || msg.t === 'mode') {
+      // Solo hero / mode pick: starts a new match with it, unless waves are already running.
       if (this.state.phase !== 'waves') {
         if (msg.t === 'hero') this.hero = msg.hero;
-        else if (msg.t === 'mode') this.mode = msg.mode;
-        else this.difficulty = msg.difficulty;
+        else this.mode = msg.mode;
         this.reset();
       }
     } else if (msg.t === 'cmd') {
@@ -115,21 +85,6 @@ export class SimHost {
       this.queue.push(cmd);
     }
     // Other room and lobby messages only mean something to the online server.
-  }
-
-  /**
-   * Solo pick: the seed and modifiers the player is looking at. The next `reset` (hero / mode / difficulty)
-   * starts the match with them. Online rooms do not use this; the server owns the draw.
-   */
-  /** Next solo match is Meteor Rain practice when `on` and the hero has a combo partner. */
-  setPractice(on: boolean): void {
-    this.practice = on;
-  }
-
-  setDeal(seed: number, modifiers: readonly string[]): void {
-    if (!Number.isSafeInteger(seed) || seed < 0) return;
-    this.pinnedSeed = seed;
-    this.modifiers = normalizeModifiers(modifiers);
   }
 
   /** Browser tests only (the worker's e2e `lose` control): the Heart drops to 0, so the match ends next tick. */
@@ -151,9 +106,6 @@ export class SimHost {
    * replay (for "Save match report").
    */
   tick(): void {
-    if (this.ally && this.state.phase !== 'victory' && this.state.phase !== 'defeat') {
-      for (const cmd of this.ally.decide(snapshot(this.state))) matchCommand(this.match, PRACTICE_ALLY_ID, cmd);
-    }
     for (const cmd of this.queue) matchCommand(this.match, LOCAL_PLAYER_ID, cmd);
     this.queue = [];
     matchStep(this.match);

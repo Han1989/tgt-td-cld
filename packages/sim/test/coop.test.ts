@@ -1,26 +1,18 @@
-// Lane-rain ultimates, the three combos, the wave-10 two-lane shield, and solo practice. Always on.
+// Lane-rain ultimates, the three combos and the wave-10 two-lane shield. Always on.
 
 import { R_OVERLAP_SECONDS } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import { damageCreep } from '../src/combat';
-import { comboOf, comboPartners, heroHitLane, hitFrom, shieldStandPoint, teamSize } from '../src/coop';
-import { createGame, snapshot, step } from '../src/game';
+import { comboOf, comboPartners, heroHitLane, hitFrom, shieldStandPoint } from '../src/coop';
+import { createGame, snapshot } from '../src/game';
 import { getMap } from '../src/map';
-import { createPracticeAlly } from '../src/practiceAlly';
 import type { GameState } from '../src/state';
 import type { GameEvent } from '@tdt/protocol';
 import { secondsToTicks, TUNING, type Tuning } from '../src/tuning';
 import { spawnCreep } from '../src/waves';
 import { dist } from '../src/vec';
 import { labGame, placeCreep, run, runCollect } from './helpers';
-
-function learnR(state: GameState, playerId: string): void {
-  const hero = state.heroes.find((h) => h.owner === playerId)!;
-  hero.level = Math.max(hero.level, 6);
-  hero.skillPoints = Math.max(hero.skillPoints, 1);
-  expect(applyCommand(state, playerId, { type: 'learn', slot: 'R' })).toBe(true);
-}
 
 /** A point on the straight part of `lane`, `3 k` tiles from its portal. */
 function onLane(lane: 0 | 1 | 2, k = 3): { x: number; y: number } {
@@ -290,61 +282,6 @@ describe('wave-10 shield', () => {
     const matriarch = spawnCreep(quick, 'matriarch', 1, 10);
     expect(quick.shields.map((s) => s.creepId)).toEqual([matriarch.id]);
     expect(snapshot(quick).creeps.find((c) => c.id === matriarch.id)?.shield).toBe('up');
-  });
-});
-
-describe('solo practice', () => {
-  it('adds a level-6 ally that does not change pads, team size or bounty', () => {
-    const solo = createGame({ players: [{ id: 'p1', name: 'P', hero: 'ranger' }] }, 4);
-    const state = createGame(
-      {
-        players: [{ id: 'p1', name: 'P', hero: 'ranger' }],
-        practice: { allyId: 'practice-ally', allyHero: 'arcanist' },
-      },
-      4,
-    );
-    expect(state.pads).toEqual(solo.pads);
-    expect(teamSize(state)).toBe(1);
-    expect(state.heroes.map((h) => h.level)).toEqual([6, 6]);
-    expect(state.players.find((p) => p.id === 'practice-ally')!.gold).toBe(0);
-    const creep = placeCreep(state, 'grunt', state.heroes[0]!.x, state.heroes[0]!.y);
-    const leader = state.players[0]!;
-    const before = leader.gold;
-    damageCreep(state, creep, 10_000, 'physical', 'practice-ally');
-    expect(creep.dead).toBe(true);
-    expect(leader.gold).toBeGreaterThan(before);
-    expect(state.players.find((p) => p.id === 'practice-ally')!.gold).toBe(0);
-    expect(state.heroes[1]!.xp).toBe(state.tuning.hero.xpForLevel[5]);
-    expect(state.heroes[0]!.xp).toBeGreaterThan(state.tuning.hero.xpForLevel[5]!);
-  });
-
-  it('the ally answers your R inside the window, and the two fuse', () => {
-    for (const [leader, ally, combo] of [
-      ['ranger', 'arcanist', 'meteorRain'],
-      ['ranger', 'warden', 'stunStorm'],
-      ['arcanist', 'warden', 'shockwave'],
-    ] as const) {
-      const state = createGame(
-        {
-          players: [{ id: 'p1', name: 'P', hero: leader }],
-          practice: { allyId: 'practice-ally', allyHero: ally },
-        },
-        2,
-      );
-      learnR(state, 'p1');
-      learnR(state, 'practice-ally');
-      const bot = createPracticeAlly('practice-ally', 'p1');
-      const me = state.heroes[0]!;
-      void me;
-      expect(applyCommand(state, 'p1', R)).toBe(true);
-      let fused = false;
-      for (let i = 0; i < 120 && !fused; i++) {
-        step(state);
-        for (const cmd of bot.decide(snapshot(state))) applyCommand(state, 'practice-ally', cmd);
-        fused = state.zones.some((z) => z.kind === combo);
-      }
-      expect(fused).toBe(true);
-    }
   });
 });
 

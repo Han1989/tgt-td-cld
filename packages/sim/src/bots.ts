@@ -20,8 +20,8 @@ import {
   type TowerSnap,
 } from '@tdt/protocol';
 import { shieldStandPoint } from './coop';
-import { mix32 } from './modifiers';
 import { getMap, type BuildPad } from './map';
+import { mix32 } from './surges';
 import { repairCost, tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
 
@@ -387,11 +387,9 @@ export function createBalanceBot(
           : null;
       const heart = getMap().heroSpawn;
       // Own lane is clear during a surge: walk over and help. A creep near the post keeps the hero home.
-      // Swift creeps outrun a hero that leaves its lane. Stay on the post unless the map is quiet.
       const surgeHelp =
         style !== 'expert' &&
         snap.surgeLane != null &&
-        !snap.modifiers.includes('swift') &&
         nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS).length === 0
           ? lanePoint(snap.surgeLane, GUARD_DISTANCE)
           : null;
@@ -806,7 +804,7 @@ function spendRepair(cmds: Command[], mine: TowerSnap[], tuning: Tuning, gold: n
   return 0;
 }
 
-/** Pads ordered by how much lane (and wisp flight line) they cover. `rangeScale` is Fog's shorter reach. */
+/** Pads ordered by how much lane (and wisp flight line) they cover. */
 function rankPads(tuning: Tuning): BuildPad[] {
   const map = getMap();
   const range = Math.min(...Object.values(tuning.towers).map((t) => t.tiers[0]!.range));
