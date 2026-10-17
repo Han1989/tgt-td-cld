@@ -101,6 +101,8 @@ export class GameAudio {
   private endedAt = -Infinity;
   private sceneTick = -1;
   private scene: MusicScene = 'none';
+  /** A match is being created and its first snapshot hasn't come yet (`matchStarting`). */
+  private starting = false;
   private readonly takes = new Takes();
   /** Effects played and skipped (by the mix or the gate), and plays by id (browser tests). */
   readonly stats = { played: 0, skipped: 0, byId: {} as Record<string, number> };
@@ -118,9 +120,10 @@ export class GameAudio {
     if (latest && (latest.phase === 'victory' || latest.phase === 'defeat') && this.endedAt === -Infinity) this.endedAt = now;
     // The scene only changes with a new snapshot, or while the end's quiet runs out.
     const tick = latest?.tick ?? -1;
+    if (latest) this.starting = false;
     if (tick !== this.sceneTick || this.scene === 'none' || !latest) {
       this.sceneTick = tick;
-      this.scene = musicScene(latest, now, this.endedAt);
+      this.scene = !latest && this.starting ? 'build' : musicScene(latest, now, this.endedAt);
       this.music.setScene(this.scene);
     }
   }
@@ -129,7 +132,19 @@ export class GameAudio {
   reset(): void {
     this.endedAt = -Infinity;
     this.sceneTick = -1;
+    this.starting = false;
     this.gate.reset();
+  }
+
+  /**
+   * A match is being created (Play solo, or a room's match starting): the music moves to the match now, before its
+   * first snapshot, so the match's file starts downloading at once (and the lobby's, if still on its way, stops).
+   * Until the snapshot comes (or `reset`) the scene stays the match's building.
+   */
+  matchStarting(): void {
+    this.starting = true;
+    this.scene = 'build';
+    this.music.setScene('build');
   }
 
   events(events: GameEvent[], now: number): void {

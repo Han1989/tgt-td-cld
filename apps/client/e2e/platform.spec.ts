@@ -165,9 +165,16 @@ test('the old on / off shake setting carries over', async ({ page }) => {
 
 const audio = (page: Page) => page.evaluate(() => window.__tdt.audio());
 
+/** A build with no recorded music or effects (e2e builds only): the code-made music plays, and its notes can be counted. */
+const codeMadeSound = (page: Page) =>
+  page.addInitScript(() => {
+    (window as unknown as { __tdtSoundFiles: unknown }).__tdtSoundFiles = [];
+  });
+
 test('sound starts on the first tap, plays the lobby then the match, and pauses in the background', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  await codeMadeSound(page);
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
   // Nothing plays (no AudioContext) before a gesture: iOS would refuse it anyway.
@@ -233,8 +240,12 @@ test.describe('recorded sound files', () => {
       ];
     });
     const fetched: string[] = [];
-    await page.route(/\/music\/lobby\.mp3\?v=t1$/, (route) => {
+    // The lobby's file is held, as on a first visit's slow download, until the test lets it through.
+    let arrive!: () => void;
+    const held = new Promise<void>((resolve) => (arrive = resolve));
+    await page.route(/\/music\/lobby\.mp3\?v=t1$/, async (route) => {
       fetched.push('lobby');
+      await held;
       return route.fulfill({ body: wav(0.1, 2, 220), contentType: 'audio/mpeg' });
     });
     await page.route(/\/sfx\/tap\.mp3\?v=t2$/, (route) => {
@@ -247,7 +258,17 @@ test.describe('recorded sound files', () => {
     // Nothing is fetched before the first tap.
     expect(fetched).toEqual([]);
     await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).tap();
+    // The first tap starts the file's download, and while it comes there is silence: no code-made music, only one
+    // koto pluck answering the tap.
+    await expect.poll(() => fetched.includes('lobby')).toBe(true);
+    await expect.poll(async () => { const a = await audio(page); return a.total > 100 && a.baked === a.total; }).toBe(true);
+    await expect.poll(async () => (await audio(page)).cues).toBe(1);
+    await page.waitForTimeout(500);
+    expect(await audio(page)).toMatchObject({ state: 'running', scene: 'lobby', source: 'none', notes: 0, cues: 1, musicFetched: ['lobby'] });
+    arrive();
     await expect.poll(async () => (await audio(page)).source).toBe('lobby');
+    // The code-made music never played.
+    expect((await audio(page)).notes).toBe(0);
     const file = (await audio(page)).musicFile!;
     expect(file.name).toBe('lobby');
     // The loop runs from the end of the leading silence to the start of the trailing one.
@@ -267,6 +288,7 @@ test.describe('recorded sound files', () => {
 });
 
 test('Settings → Sound: music and effects volume and mute, remembered; the lobby has a mute button too', async ({ page }) => {
+  await codeMadeSound(page);
   await startSolo(page);
   await page.locator('#settings-btn').tap();
   // Defaults: effects 80%, music 50%.

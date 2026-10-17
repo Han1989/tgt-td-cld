@@ -8,6 +8,7 @@
 //
 // Recorded effects (`public/sfx/<id>.mp3`, docs/SOUND_FILES.md) are fetched and decoded after the
 // first tap too; once one is ready it plays instead of its synth sound, trimmed and levelled to it.
+// The music's file for the scene starts downloading inside that tap (`onUnlock`, music.ts).
 //
 // Mobile:
 // - iPhone: the audio session is set to "ambient" where Safari has `navigator.audioSession`
@@ -123,6 +124,7 @@ export class AudioEngine {
   private readonly fileSfx = new Map<string, FileSfx>();
   private mix: Mix = { music: 0.5, sfx: 0.8, muted: false };
   private readonly listeners: (() => void)[] = [];
+  private readonly unlockListeners: (() => void)[] = [];
   /** For the browser tests and the sound check. */
   readonly stats = { played: 0, baked: 0, bakeMs: 0, total: 0, files: 0, filePlays: 0 };
 
@@ -155,7 +157,12 @@ export class AudioEngine {
   }
 
   get musicOn(): boolean {
-    return this.running && !this.mix.muted && this.mix.music > 0;
+    return this.running && this.musicWanted;
+  }
+
+  /** The player wants music (not muted, the Music volume above 0), whether or not the context runs yet. */
+  get musicWanted(): boolean {
+    return !this.mix.muted && this.mix.music > 0;
   }
 
   get muted(): boolean {
@@ -165,6 +172,11 @@ export class AudioEngine {
   /** Called when the context starts, stops or the mix changes. */
   onChange(listener: () => void): void {
     this.listeners.push(listener);
+  }
+
+  /** Called once, inside the first tap, right after the context is created (before it runs: `resume` is async). */
+  onUnlock(listener: () => void): void {
+    this.unlockListeners.push(listener);
   }
 
   /**
@@ -199,6 +211,7 @@ export class AudioEngine {
       ctx.addEventListener('statechange', () => this.changed());
       this.startBake();
       this.loadFileSfx();
+      for (const l of this.unlockListeners) l();
     }
     const ctx = this.ctx;
     if (ctx.state !== 'running') {
@@ -420,9 +433,9 @@ export function channelsOf(buf: AudioBuffer): Float32Array[] {
   return Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i));
 }
 
-/** Fetches and decodes a sound file, or null if it can't (missing, offline and not cached, not audio). */
-export function decodeFile(ctx: BaseAudioContext, url: string): Promise<AudioBuffer | null> {
-  return fetch(url)
+/** Fetches and decodes a sound file, or null if it can't (missing, offline and not cached, not audio, aborted). */
+export function decodeFile(ctx: BaseAudioContext, url: string, signal?: AbortSignal): Promise<AudioBuffer | null> {
+  return fetch(url, signal ? { signal } : undefined)
     .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
     .then((data) => ctx.decodeAudioData(data))
     .catch(() => null);

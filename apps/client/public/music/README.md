@@ -12,7 +12,9 @@ as soon as it's in this folder (after the next deploy; no code change):
 - Each file loops. The game trims the encoder's silence at both ends, so a file cut on the beat
   loops without a gap, and it levels every file to the same loudness.
 - Stereo, 44.1 kHz, 128 kbps, a loop of 1–2 minutes: 1–2 MB (a warning at build time above 4.5 MB).
-- Files aren't downloaded when the app installs: each one is fetched the first time it plays and then
-  kept for offline play. Until it has arrived, the code-made music plays.
+- Files aren't downloaded when the app installs: each one is fetched the first time it's needed (the
+  lobby's on the first tap, the match's when a match is created) and then kept for offline play. Until
+  it has arrived there is quiet (one koto pluck answers the first tap), then it fades in; the code-made
+  music plays only if the file can't be downloaded or isn't audio.
 
 Step by step, with where to get music you may use in a paid game: `docs/SOUND_FILES.md`.

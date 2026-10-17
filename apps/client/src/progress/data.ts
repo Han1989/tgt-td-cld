@@ -15,6 +15,7 @@
  * V-05d done on 17 Oct 2026 (PR #118: the towers, the Heart and the portals kitbashed from the CC0 KayKit pieces);
  * V-05c round 2 on 17 Oct 2026 (PR #120: the Ironhorn the horned Demon, the creep sheets lossless WebP).
  * V-05e on 17 Oct 2026 (PR #121: the stress test's budget after the 3D sprites).
+ * P2-10 on 17 Oct 2026 (PR #122: silence, not the code-made score, while a music file downloads).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -162,7 +163,7 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'todo',
     section: 'order',
-    note: 'Friends retest the new phone controls and the rest of Playtest 2 (P2-01 through P2-09, P2-04b included) on the link tagged ?src=friends. Everyone saves the match report.',
+    note: 'Friends retest the new phone controls and the rest of Playtest 2 (P2-01 through P2-10, P2-04b included) on the link tagged ?src=friends. Everyone saves the match report.',
   },
   {
     id: 'H-09',
@@ -445,6 +446,15 @@ const items: ProgressItem[] = [
     section: 'playtest2',
     note: 'Client audio only, protocol stays 19. A friend on 8 Oct: the music is great but tower and hero attacks sound like a car workshop. Measured and fixed: the room reverb is the same at every sample rate and 14 dB quieter; tower shots, creep deaths and coins share one budget (half the plays), shots at half their level, deaths and coins at 0.7, your hero’s attacks and Q / W a quarter louder; the Frost shot loses its bell, the coin is one soft clink, the Warden’s hit is a thud. In late waves the effects sit 11 dB under the music instead of 3. Sliders unchanged. Merged 9 Oct 2026. Built by Claude Code.',
     proof: pr(96),
+  },
+  {
+    id: 'P2-10',
+    title: 'Silence while a music file downloads',
+    owner: 'Team',
+    status: 'done',
+    section: 'playtest2',
+    note: 'Client audio only, protocol stays 20. Han, 17 Oct 2026: on a first visit the lobby opened with 3–5 s of harsh, loud sound before the recorded lobby music. It was the code-made score playing while lobby.mp3 (2.7 MB) downloaded; a second visit never had it, because the phone keeps the file, and every Reddit tester is a first visit. Now a scene with a music file plays nothing until the file is in, and the code-made score only when there is no file or it can’t be downloaded. The lobby’s file starts downloading on the first tap, the match’s the moment a match is created (a download no longer needed stops, so the one needed gets the whole connection), the boss’s after it. A file fades in over a second, and the first tap gets one soft koto pluck so it isn’t silent. Built by Claude Code (PR #122).',
+    proof: pr(122),
   },
   {
     id: 'H-01',
