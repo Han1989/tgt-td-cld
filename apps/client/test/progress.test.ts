@@ -174,6 +174,7 @@ describe('progress dashboard data', () => {
     expect(byId('V-05b').note).toContain('2400 × 900');
     expect(byId('V-05c')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05c').note).toContain('17 Oct 2026');
+    expect(byId('V-05c').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/115');
     expect(byId('V-05d')).toMatchObject({ owner: 'Both', status: 'todo' });
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
