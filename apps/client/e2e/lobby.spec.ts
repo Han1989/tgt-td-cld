@@ -1,6 +1,7 @@
-// Online home card (the hero stage, Play solo, then nickname and Create / Join), the solo pick and the room card
-// (V-02). The e2e build has no game server; `?lobby` shows the home card anyway (main.ts), and the room card's
-// tests answer the room's WebSocket themselves. The lesson is the player's choice: Learn to play, never Play.
+// Online home card (the hero stage, the hero buttons, Mode, Play solo, then nickname and Create / Join) and the room
+// card, each one phone screen (Han, 17 Oct 2026). The e2e build has no game server; `?lobby` shows the home card anyway
+// (main.ts), and the room card's tests answer the room's WebSocket themselves. The lesson is the player's choice:
+// Learn to play, never Play solo.
 
 import { expect, test, type Page } from '@playwright/test';
 import { box, waitForReady } from './helpers';
@@ -18,6 +19,8 @@ async function openHome(page: Page, tutorial?: 'new' | 'completed' | 'skipped', 
 
 /** The main action: rune-teal (rgb(157, 255, 230) at the top of its fill), at least a thumb tall. */
 async function mainButton(page: Page, selector: string): Promise<void> {
+  // Off the button: the tap that opened this card may have left the pointer where the button is now (its hover face).
+  await page.mouse.move(0, 0);
   const button = page.locator(selector);
   await expect(button).toHaveClass(/\bbtn\b/);
   await expect(button).toHaveClass(/\bbig\b/);
@@ -108,10 +111,11 @@ test('a new player gets the hero on a stage, one main button (Play solo) and a q
   await stoneButton(page, '#lobby-create');
   await stoneButton(page, '#lobby-join');
 
-  // Reading order: the stage, the hero buttons, Play solo, the line, then the friends' controls.
+  // Reading order: the stage, the hero buttons, Mode, Play solo, the line, then the friends' controls.
   await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
   const stage = await box(page, '#lobby-stage');
   const heroes = await box(page, '#lobby-heroes-home');
+  const mode = await box(page, '#lobby-mode-home');
   const offline = await box(page, '#lobby-offline');
   const learn = await box(page, '#lobby-learn');
   const name = await box(page, '#lobby-name');
@@ -119,7 +123,8 @@ test('a new player gets the hero on a stage, one main button (Play solo) and a q
   const join = await box(page, '#lobby-join');
   const vp = page.viewportSize()!;
   expect(heroes.top).toBeGreaterThanOrEqual(stage.bottom - 1);
-  expect(offline.top).toBeGreaterThanOrEqual(heroes.bottom - 1);
+  expect(mode.top).toBeGreaterThanOrEqual(heroes.bottom - 1);
+  expect(offline.top).toBeGreaterThanOrEqual(mode.bottom - 1);
   expect(learn.top).toBeGreaterThanOrEqual(offline.bottom - 1);
   expect(learn.bottom).toBeLessThanOrEqual(vp.height);
   expect(name.top).toBeGreaterThanOrEqual(learn.bottom - 1);
@@ -130,6 +135,7 @@ test('a new player gets the hero on a stage, one main button (Play solo) and a q
   expect(offline.right).toBeLessThanOrEqual(vp.width + 0.5);
   const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
   if (coarse) {
+    expect(mode.bottom - mode.top).toBeGreaterThanOrEqual(44);
     expect(join.bottom - join.top).toBeGreaterThanOrEqual(44);
     expect(create.bottom - create.top).toBeGreaterThanOrEqual(44);
     for (const tab of await page.locator('#lobby-heroes-home .hero-pick').all()) {
@@ -159,11 +165,7 @@ test('picking a hero puts it on the stage with its role and its line, and the pi
   expect(Math.abs((await box(page, '#lobby-offline')).top - playTop)).toBeLessThanOrEqual(1);
   expect(await page.evaluate(() => localStorage.getItem('tdt.hero'))).toBe('warden');
 
-  // The solo pick opens on that hero, on its own stage, and the home card comes back with it.
-  await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-heroes-solo .hero-pick.selected')).toContainText('Warden');
-  await expect(page.locator('#solo-stage')).toHaveAttribute('data-hero', 'warden');
-  await expect(page.locator('#lobby-solo-role')).toHaveText('Melee tank');
+  // The home card comes back with it.
   await page.reload();
   await waitForReady(page, 'online');
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'warden');
@@ -234,10 +236,10 @@ for (const tutorial of [undefined, 'skipped'] as const) {
     const touch = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
     if (touch) await page.touchscreen.tap(spot.x, spot.y);
     else await page.mouse.click(spot.x, spot.y);
-    await expect(page.locator('#lobby-solo')).toBeVisible();
-    await expect(page.locator('#lobby-solo-play')).toBeVisible();
-    await expect(page.locator('#lobby-home')).toBeHidden();
-    await expect(page.locator('#lobby-error')).toHaveText('');
+    // The match starts at once with the card's hero and mode (Full and the Ranger for a new player): no second screen.
+    await expect(page.locator('#lobby')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(30);
+    expect(await page.evaluate(() => window.__tdt.latest()!.heroes.map((h) => h.kind))).toEqual(['ranger']);
   });
 }
 
@@ -277,17 +279,16 @@ test('the splash keeps still under reduced motion', async ({ page }) => {
 });
 
 for (const status of ['completed', 'skipped'] as const) {
-  test(`a player who ${status} the lesson sees no Learn to play line, on the home card or the solo pick`, async ({ page }) => {
+  test(`a player who ${status} the lesson sees no Learn to play line, and Play solo still starts the match`, async ({ page }) => {
     await openHome(page, status);
     await expect(page.locator('#lobby-learn')).toBeHidden();
     await expect(page.locator('#lobby-create')).toBeVisible();
     await expect(page.locator('#lobby-join')).toBeVisible();
     await mainButton(page, '#lobby-offline');
     await page.locator('#lobby-offline').click();
-    await expect(page.locator('#lobby-solo')).toBeVisible();
-    await expect(page.locator('#lobby-home')).toBeHidden();
-    await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
-    await expect(page.locator('#lobby-solo-learn')).toBeHidden();
+    await expect(page.locator('#lobby')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+    await expect(page.locator('#tutorial')).toBeHidden();
   });
 }
 
@@ -316,68 +317,82 @@ async function onScreen(page: Page, id: string): Promise<void> {
   expect(spot.hit).toBe(id);
 }
 
-test('a new player who taps Play solo, then Play, gets the match they picked, with no lesson', async ({ page }) => {
-  await openHome(page);
-  await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-solo')).toBeVisible();
-  // The solo pick in the home card's look: the hero on its own stage, the hero buttons, two segmented rows.
-  await expect(page.locator('#solo-stage')).toHaveAttribute('data-hero', 'ranger');
-  await expect(page.locator('.lobby-card > .logo')).toBeHidden();
-  await expect(page.locator('#lobby-heroes-solo')).toHaveClass(/\bhero-tabs\b/);
-  await expect(page.locator('#lobby-mode-solo .mode-pick')).toHaveCount(2);
-  await expect(page.locator('#lobby-difficulty-solo .difficulty-pick')).toHaveCount(2);
-  await expect(page.locator('#lobby-mode-solo-line')).toHaveText(/Bosses on waves 10, 20 and 30/);
-  // Mode and Difficulty are free: nothing is locked for a new player.
-  await expect(page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]')).toBeEnabled();
-  await expect(page.locator('#lobby-difficulty-solo .difficulty-pick[data-difficulty="hard"]')).toBeEnabled();
-  await expect(page.locator('#lobby-solo-learn')).toBeVisible();
-  await mainButton(page, '#lobby-solo-play');
-  await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
-  // Practice Meteor Rain is carved stone, not a second glowing button.
-  await stoneButton(page, '#lobby-solo-practice');
-  await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
-  await onScreen(page, 'lobby-solo-play');
+/** How far the lobby card scrolls (0: it fits the screen). */
+function overflow(page: Page): Promise<number> {
+  return page.locator('.lobby-card').evaluate((el) => el.scrollHeight - el.clientHeight);
+}
 
-  await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
-  await page.locator('#lobby-difficulty-solo .difficulty-pick[data-difficulty="hard"]').click();
-  await expect(page.locator('#lobby-difficulty-solo-line')).toContainText('More creeps');
-  await page.locator('#lobby-solo-play').click();
-  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(30);
-  expect(await page.evaluate(() => (window.__tdt.latest() as unknown as { difficulty: string }).difficulty)).toBe('hard');
+test('the home card: Mode is one segmented row, remembered, and the first screen holds it all down to the lesson line', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 839 });
+  await openHome(page);
+  // One row of two stone segments, Full by default; no difficulty and no modifiers anywhere in the lobby.
+  await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(2);
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
+  await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="full"]')).toHaveText('Full30 waves');
+  await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]')).toHaveText('Quick15 waves');
+  await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip, #lobby-solo, #lobby-solo-practice')).toHaveCount(0);
+  // The stage, the hero buttons, the line, Mode, Play solo and "New here? Learn to play" fit the screen, unscrolled;
+  // only the friends' controls are under the fold.
+  await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+  expect((await box(page, '#lobby-learn')).bottom).toBeLessThanOrEqual(839);
+  await onScreen(page, 'lobby-offline');
+  // Quick is remembered (tdt.mode) for the next visit; Play solo then starts a Quick match.
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('quick');
+  await page.reload();
+  await waitForReady(page, 'online');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a new player who picks a hero and a mode and taps Play solo gets that match on Normal, with no lesson', async ({ page }) => {
+  await openHome(page);
+  await expect(page.locator('#lobby-learn')).toBeVisible();
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Arcanist' }).click();
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+  await page.locator('#lobby-offline').click();
+  await expect(page.locator('#lobby')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(15);
+  const snap = await page.evaluate(() => window.__tdt.latest()!);
+  expect(snap.difficulty).toBe('normal');
+  expect(snap).not.toHaveProperty('modifiers');
+  expect(snap.heroes.map((h) => h.kind)).toEqual(['arcanist']);
   // No coach card, now or a few seconds in.
   await page.waitForTimeout(1500);
   await expect(page.locator('#tutorial')).toBeHidden();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).tutorial)).toBe('skipped');
 
-  // After that one match the line is gone, on the home card and on the solo pick, and does not come back.
-  await page.goto('/?lobby');
-  await waitForReady(page, 'online');
+  // The end screen's Change hero / mode is the home card, with both picks as they were and no lesson line any more.
+  await page.evaluate(() => window.__tdt.lose());
+  await page.locator('#end-change-hero').click();
   await expect(page.locator('#lobby-home')).toBeVisible();
   await expect(page.locator('#lobby-learn')).toBeHidden();
-  await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-solo-learn')).toBeHidden();
+  await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'arcanist');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+  await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['lobby-stage']);
 });
 
-test('a new player who taps Learn to play gets the lesson: Quick, Normal, no modifiers, the coach\'s first card', async ({ page }) => {
+test('a new player who taps Learn to play gets the lesson: Quick, Normal, the coach\'s first card', async ({ page }) => {
   await page.addInitScript(() => {
     if (!sessionStorage.getItem('tdt.e2e.picked')) {
       sessionStorage.setItem('tdt.e2e.picked', '1');
       localStorage.setItem('tdt.mode', 'full');
+      // The difficulty a player picked before protocol 20: read once and dropped, never written again.
       localStorage.setItem('tdt.difficulty', 'hard');
       localStorage.setItem('tdt.hero', 'arcanist');
     }
   });
   await openHome(page);
+  expect(await page.evaluate(() => localStorage.getItem('tdt.difficulty'))).toBeNull();
   await page.locator('#lobby-learn-btn').click();
   await expect(page.locator('#lobby')).toBeHidden();
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(15);
-  const snap = await page.evaluate(() => window.__tdt.latest() as unknown as { difficulty: string; modifiers: string[]; heroes: { kind: string }[] });
+  const snap = await page.evaluate(() => window.__tdt.latest()!);
   expect(snap.difficulty).toBe('normal');
-  expect(snap.modifiers).toEqual([]);
   expect(snap.heroes.map((h) => h.kind)).toEqual(['arcanist']);
-  // The player's own picks are left as they were.
-  expect(await page.evaluate(() => [localStorage.getItem('tdt.mode'), localStorage.getItem('tdt.difficulty')])).toEqual(['full', 'hard']);
+  // The player's own mode is left as it was, and no difficulty is stored.
+  expect(await page.evaluate(() => [localStorage.getItem('tdt.mode'), localStorage.getItem('tdt.difficulty')])).toEqual(['full', null]);
 
   // Starting the lesson was the first solo match: the line does not come back.
   await page.goto('/?lobby');
@@ -423,28 +438,12 @@ test('the 3D Ranger: his poster at once, then his video playing, filling the sta
   }
 });
 
-test('the solo pick: Back returns to the home card, and one hero stage is drawing at a time', async ({ page }) => {
+test('one hero stage draws, the home card\'s, and a match stops it', async ({ page }) => {
   await openHome(page, 'skipped');
+  await expect(page.locator('.hero-stage')).toHaveCount(1);
   await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['lobby-stage']);
-  await page.locator('#lobby-offline').click();
-  await expect(page.locator('#lobby-solo-back')).toBeVisible();
-  await expect(page.locator('#lobby-solo-back')).toHaveAccessibleName('Back');
-  // Only the stage on screen breathes: the home card's stopped when the solo pick came up.
-  await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['solo-stage']);
-  // And only its video plays (the Ranger's loop, on the solo pick's shorter stage).
-  await expect.poll(() => playing(page), { timeout: 15000 }).toEqual(['solo-stage']);
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Arcanist' }).click();
-  await expect(page.locator('#solo-stage')).toHaveAttribute('data-hero', 'arcanist');
-  await page.locator('#lobby-solo-back').click();
-  await expect(page.locator('#lobby-home')).toBeVisible();
-  await expect(page.locator('#lobby-solo')).toBeHidden();
-  await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'arcanist');
-  await expect.poll(() => page.locator('.hero-stage[data-live]').evaluateAll((els) => els.map((el) => el.id))).toEqual(['lobby-stage']);
-  // The solo pick's video stopped; the home card plays the Arcanist's own loop.
   await expect.poll(() => playing(page), { timeout: 15000 }).toEqual(['lobby-stage']);
-  // A match stops it too.
   await page.locator('#lobby-offline').click();
-  await page.locator('#lobby-solo-play').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   await expect.poll(() => page.locator('.hero-stage[data-live]').count()).toBe(0);
   expect(await playing(page)).toEqual([]);
@@ -476,10 +475,6 @@ async function fakeRoom(page: Page, me: string, players: Seat[]): Promise<void> 
             phase: 'lobby',
             hostId: players[0]!.id,
             mode: 'quick',
-            difficulty: 'hard',
-            modifiers: ['fog'],
-            modifierOffer: ['fog'],
-            modifiersRerolled: false,
             players,
           },
         }),
@@ -490,11 +485,22 @@ async function fakeRoom(page: Page, me: string, players: Seat[]): Promise<void> 
 
 const HOST: Seat = { id: 'p1', name: 'Han', hero: 'ranger', ready: false, connected: true };
 const GUEST: Seat = { id: 'p2', name: 'Mya', hero: 'warden', ready: false, connected: true };
+const THIRD: Seat = { id: 'p3', name: 'Kai', hero: 'arcanist', ready: true, connected: true };
+
+/** The room card fits a 412 × 839 phone with nothing to scroll: all three seats, your hero, Mode and the dock. */
+async function fitsOneScreen(page: Page, viewport: { width: number; height: number } | null): Promise<void> {
+  if (!viewport) return;
+  expect(await overflow(page)).toBeLessThanOrEqual(0);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollHeight - innerHeight)).toBeLessThanOrEqual(0);
+  for (const id of ['lobby-room-code', 'lobby-players', 'lobby-heroes-room', 'lobby-mode-room']) {
+    expect((await box(page, `#${id}`)).bottom).toBeLessThanOrEqual(viewport.height);
+  }
+}
 
 for (const viewport of [null, { width: 412, height: 839 }]) {
-  test(`the room card: the code, seats with emblems, the host's picks and one docked main button${viewport ? ' at 412 × 839' : ''}`, async ({ page }) => {
+  test(`the room card: the code, seats with emblems, the host's mode and one docked main button${viewport ? ', one screen at 412 × 839' : ''}`, async ({ page }) => {
     if (viewport) await page.setViewportSize(viewport);
-    await fakeRoom(page, 'p1', [HOST, GUEST]);
+    await fakeRoom(page, 'p1', [HOST, GUEST, THIRD]);
     await openHome(page, 'skipped');
     await page.locator('#lobby-name').fill('Han');
     await page.locator('#lobby-create').click();
@@ -503,27 +509,30 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await expect(page.locator('#lobby-copy')).toBeVisible();
     await expect(page.locator('.lobby-card > .logo')).toBeHidden();
 
-    // One seat per lane: the two players with their hero's emblem, then an open seat.
+    // One seat per lane, all three taken, each with its hero's emblem.
     const seats = page.locator('#lobby-players .seat');
     await expect(seats).toHaveCount(3);
+    await expect(page.locator('#lobby-players .seat.open')).toHaveCount(0);
+    await expect(page.locator('#lobby-players-count')).toHaveText('Players 3 / 3 · one per lane');
     await expect(seats.nth(0)).toHaveAttribute('data-hero', 'ranger');
     await expect(seats.nth(0).locator('.name')).toHaveText('Han (you)');
     await expect(seats.nth(0).locator('.state')).toHaveText('Host');
     await expect(seats.nth(1).locator('.name')).toHaveText('Mya');
     await expect(seats.nth(1).locator('.state')).toHaveText('Not ready');
-    for (const i of [0, 1]) {
+    await expect(seats.nth(2).locator('.state')).toHaveText('Ready');
+    for (const i of [0, 1, 2]) {
       const emblem = await seats.nth(i).locator('.hero-ico').evaluate((el) => getComputedStyle(el).backgroundImage);
       expect(emblem).toContain('data:image/png');
     }
-    await expect(seats.nth(2)).toHaveText('Open seat: send the invite link');
 
-    // Your hero, as on the home card; the host's picks as on the solo pick.
+    // Your hero, as on the home card; the mode as one row. No difficulty, no modifiers.
     await expect(page.locator('#lobby-heroes-room')).toHaveClass(/\bhero-tabs\b/);
     await expect(page.locator('#lobby-room-role')).toHaveText('Ranged DPS');
     await expect(page.locator('#lobby-mode-room .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
-    await expect(page.locator('#lobby-difficulty-room .difficulty-pick.selected')).toHaveAttribute('data-difficulty', 'hard');
     await expect(page.locator('#lobby-mode-room .mode-pick[data-mode="full"]')).toBeEnabled();
     await expect(page.locator('#lobby-mode-room-label')).toHaveText('Mode');
+    await expect(page.locator('#lobby-room .pick-row')).toHaveCount(3);
+    await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip')).toHaveCount(0);
 
     // The host's main button is Start match (waiting for the guest here); Leave is carved stone.
     await expect(page.locator('#lobby-ready')).toBeHidden();
@@ -535,26 +544,26 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     expect(start.scrolled).toBe(0);
     expect(start.bottom).toBeLessThanOrEqual(vp.height);
     expect(start.hit).toBe('lobby-start');
+    await fitsOneScreen(page, viewport);
   });
 
-  test(`a guest's room card: the host's picks read-only and Ready as the docked main button${viewport ? ' at 412 × 839' : ''}`, async ({ page }) => {
+  test(`a guest's room card: the host's mode read-only and Ready as the docked main button${viewport ? ', one screen at 412 × 839' : ''}`, async ({ page }) => {
     if (viewport) await page.setViewportSize(viewport);
-    await fakeRoom(page, 'p2', [HOST, GUEST]);
+    await fakeRoom(page, 'p2', [HOST, GUEST, THIRD]);
     await openHome(page, 'skipped', '&room=kqxyz');
     await page.locator('#lobby-name').fill('Mya');
     await page.locator('#lobby-join').click();
     await expect(page.locator('#lobby-room')).toBeVisible();
     await expect(page.locator('#lobby-players .seat').nth(1).locator('.name')).toHaveText('Mya (you)');
     await expect(page.locator('#lobby-heroes-room .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
-    for (const id of ['lobby-mode-room', 'lobby-difficulty-room', 'lobby-modifiers-room']) {
-      await expect(page.locator(`#${id}-label`)).toContainText('(the host picks)');
-    }
+    await expect(page.locator('#lobby-mode-room-label')).toContainText('(the host picks)');
     await expect(page.locator('#lobby-mode-room .mode-pick[data-mode="full"]')).toBeDisabled();
-    await expect(page.locator('#lobby-difficulty-room .difficulty-pick.selected')).toHaveAttribute('data-difficulty', 'hard');
-    await expect(page.locator('#lobby-modifiers-room .mod-actions')).toHaveCount(0);
+    await expect(page.locator('#lobby-mode-room .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+    await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip')).toHaveCount(0);
     await expect(page.locator('#lobby-start')).toBeHidden();
     await mainButton(page, '#lobby-ready');
     await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
     await onScreen(page, 'lobby-ready');
+    await fitsOneScreen(page, viewport);
   });
 }

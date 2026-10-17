@@ -127,8 +127,6 @@ describe('match reports', () => {
     const [host, guest] = await fullRoom(url, 2);
     host!.send({ t: 'mode', mode: 'quick' });
     await guest!.waitFor(() => guest!.lobby?.mode === 'quick');
-    host!.send({ t: 'modifiers', action: 'none' });
-    await guest!.waitFor(() => guest!.lobby?.modifiers.length === 0);
     host!.send({ t: 'start' });
     await guest!.waitFor(() => (guest!.snap?.tick ?? 0) > 40);
     guest!.close();
@@ -149,7 +147,7 @@ describe('match reports', () => {
     expect(report.heroes.map((h) => h.player)).toEqual(['p1', 'p2']);
     expect(replay.players.map((p) => p.hero)).toEqual(['ranger', 'warden']);
     expect(replay.log.some((e) => e[1] === 1 && e[2] === 'drop')).toBe(true);
-    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick normal plain seed ${report.seed} `))).toHaveLength(1);
+    expect(lines.filter((l) => l.startsWith(`match ${host!.code} quick normal seed ${report.seed} `))).toHaveLength(1);
     expect(lines[0]).toContain(' build abc1234 defeat ');
 
     // A player who comes back after the end gets it too.
@@ -203,96 +201,23 @@ describe('match mode', () => {
 });
 
 describe('difficulty', () => {
-  it('lets only the host pick Hard, shows it to everyone, and starts the match on it', async () => {
+  it('starts every room on Normal: the lobby offers no difficulty and no modifiers (protocol 20)', async () => {
     const { server, url } = await start();
     const [host, guest] = await fullRoom(url, 2);
     host!.acting = false;
     guest!.acting = false;
-    expect(host!.lobby!.difficulty).toBe('normal');
-
-    guest!.send({ t: 'difficulty', difficulty: 'hard' });
-    await guest!.waitFor(() => guest!.errors.length > 0);
-    expect(guest!.errors[0]).toMatchObject({ code: 'not_host' });
-    expect(host!.lobby!.difficulty).toBe('normal');
-
-    host!.send({ t: 'difficulty', difficulty: 'hard' });
-    await guest!.waitFor(() => guest!.lobby?.difficulty === 'hard');
+    expect(Object.keys(host!.lobby!).sort()).toEqual(['code', 'hostId', 'mode', 'phase', 'players']);
     host!.send({ t: 'start' });
     await guest!.waitFor(() => guest!.snap !== null);
-    expect(guest!.snap!.difficulty).toBe('hard');
-    expect(server.rooms.get(host!.code!)!.state!.difficulty).toBe('hard');
-
-    host!.send({ t: 'difficulty', difficulty: 'normal' });
-    await host!.waitFor(() => host!.errors.length > 0);
-    expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
-
+    expect(guest!.snap!.difficulty).toBe('normal');
+    expect(guest!.snap).not.toHaveProperty('modifiers');
+    expect(server.rooms.get(host!.code!)!.state!.difficulty).toBe('normal');
     server.rooms.get(host!.code!)!.state!.heartHp = 0;
     // The defeat snapshot is sent, then the report, as two messages of the same tick.
     await host!.waitFor(() => host!.snap?.phase === 'defeat' && host!.report !== null);
-    expect(host!.report?.report.difficulty).toBe('hard');
-    expect(host!.report?.replay.difficulty).toBe('hard');
-    host!.send({ t: 'restart' });
-    await guest!.waitFor(() => guest!.lobby?.phase === 'lobby');
-    expect(guest!.lobby!.difficulty).toBe('hard');
-  });
-});
-
-describe('modifiers', () => {
-  it('lets only the host reroll until the match starts, or choose none', async () => {
-    const { server, url } = await start();
-    const [host, guest] = await fullRoom(url, 2);
-    host!.acting = false;
-    guest!.acting = false;
-    const offer = host!.lobby!.modifiers.slice();
-    expect(offer.length).toBeGreaterThanOrEqual(1);
-    expect(offer.length).toBeLessThanOrEqual(2);
-    expect(host!.lobby!.modifiersRerolled).toBe(false);
-    expect(guest!.lobby!.modifierOffer).toEqual(offer);
-
-    guest!.send({ t: 'modifiers', action: 'reroll' });
-    await guest!.waitFor(() => guest!.errors.length > 0);
-    expect(guest!.errors[0]).toMatchObject({ code: 'not_host' });
-    expect(host!.lobby!.modifiers).toEqual(offer);
-
-    let previous = offer.join('+');
-    for (let i = 0; i < 3; i++) {
-      host!.send({ t: 'modifiers', action: 'reroll' });
-      await host!.waitFor(() => (host!.lobby?.modifiers.join('+') ?? '') !== previous);
-      await guest!.waitFor(() => guest!.lobby?.modifiers.join('+') === host!.lobby?.modifiers.join('+'));
-      expect(host!.lobby!.modifiersRerolled).toBe(false);
-      expect(host!.lobby!.modifiers).toEqual(host!.lobby!.modifierOffer);
-      expect(host!.errors).toEqual([]);
-      previous = host!.lobby!.modifiers.join('+');
-    }
-
-    const rolled = host!.lobby!.modifiers.slice();
-    host!.send({ t: 'modifiers', action: 'none' });
-    await guest!.waitFor(() => guest!.lobby?.modifiers.length === 0);
-    expect(guest!.lobby!.modifierOffer).toEqual(rolled);
-    host!.send({ t: 'modifiers', action: 'offer' });
-    await guest!.waitFor(() => (guest!.lobby?.modifiers.length ?? 0) > 0);
-    expect(guest!.lobby!.modifiers).toEqual(rolled);
-
-    host!.send({ t: 'modifiers', action: 'reroll' });
-    await host!.waitFor(() => host!.lobby?.modifiers.join('+') !== rolled.join('+'));
-    await guest!.waitFor(() => guest!.lobby?.modifiers.join('+') === host!.lobby?.modifiers.join('+'));
-    expect(host!.lobby!.modifiersRerolled).toBe(false);
-    const started = host!.lobby!.modifiers.slice();
-
-    host!.send({ t: 'start' });
-    await guest!.waitFor(() => guest!.snap !== null);
-    expect(guest!.snap!.modifiers).toEqual(started);
-    expect(server.rooms.get(host!.code!)!.state!.modifiers).toEqual(started);
-
-    host!.send({ t: 'modifiers', action: 'none' });
-    await host!.waitFor(() => host!.errors.length > 0);
-    expect(host!.errors.at(-1)).toMatchObject({ code: 'bad_request' });
-
-    server.rooms.get(host!.code!)!.state!.heartHp = 0;
-    await host!.waitFor(() => host!.snap?.phase === 'defeat');
-    host!.send({ t: 'restart' });
-    await guest!.waitFor(() => guest!.lobby?.phase === 'lobby' && guest!.lobby.modifiersRerolled === false);
-    expect(guest!.lobby!.modifiers.length).toBeGreaterThanOrEqual(1);
+    expect(host!.report?.report.difficulty).toBe('normal');
+    expect(host!.report?.replay.difficulty).toBe('normal');
+    expect(host!.report?.replay).not.toHaveProperty('modifiers');
   });
 });
 

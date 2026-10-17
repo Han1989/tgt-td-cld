@@ -10,9 +10,9 @@
  * towers rendered ahead of time) added on 14 Oct 2026; V-05b done on 16 Oct 2026 (PR #108: the three heroes from the
  * KayKit models, Han's decision of 16 Oct; round 2 PR #109 on 17 Oct: the stage back at 2400 × 900), V-05a closed as
  * superseded; V-03 done on 17 Oct 2026 (PR #114: the map as a rendered picture, Han's decision of 17 Oct); V-05c done
- * on 17 Oct 2026 (PR #115: every creep and boss from the CC0 KayKit Skeletons and Quaternius monsters). Production
- * protocol is 19. This page only
- * reports status.
+ * on 17 Oct 2026 (PR #115: every creep and boss from the CC0 KayKit Skeletons and Quaternius monsters); match
+ * modifiers removed, every match Normal and the lobby on one screen on 17 Oct 2026 (PR #116, Han's decisions of 17 Oct).
+ * Protocol is 20 (PR #116). This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -233,7 +233,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'visual',
-    note: 'Client only, protocol stays 19. Han, 13 Oct 2026: the lesson is the player’s choice, never forced. Play solo and Play always start the match the player picked; Learn to play starts the lesson (Quick, Normal, no modifiers, the picked hero). It is one quiet line, “New here? Learn to play”, under the main button on the home card and the solo pick, only before a player’s first solo match, and Settings → Learn to play starts it at once. The solo pick and the room card now have the home card’s look: the hero on a shorter stage, the short hero buttons, Mode and Difficulty as segmented stone rows, seats with hero emblems on the room card, and one main button docked at the bottom of the card. The lesson steps of the first-session funnel now count only players who chose the lesson. Built by Claude Code (PR #102, the roadmap’s copy of 14 Oct 2026, 00:40).',
+    note: 'Client only, protocol stays 19. Han, 13 Oct 2026: the lesson is the player’s choice, never forced. Play solo and Play always start the match the player picked; Learn to play starts the lesson (Quick, Normal, no modifiers, the picked hero). It is one quiet line, “New here? Learn to play”, under the main button on the home card and the solo pick, only before a player’s first solo match, and Settings → Learn to play starts it at once. The solo pick and the room card now have the home card’s look: the hero on a shorter stage, the short hero buttons, Mode and Difficulty as segmented stone rows, seats with hero emblems on the room card, and one main button docked at the bottom of the card. The lesson steps of the first-session funnel now count only players who chose the lesson. Built by Claude Code (PR #102, the roadmap’s copy of 14 Oct 2026, 00:40). On 17 Oct 2026 the solo pick was folded into the home card and Difficulty and the modifiers went (PR #116).',
     proof: pr(102),
   },
   {
@@ -457,7 +457,7 @@ const items: ProgressItem[] = [
     owner: 'Han',
     status: 'todo',
     section: 'han',
-    note: 'Solo practice is on main: ?practice=meteor-rain, then Practice Meteor Rain. The spike URL is retired. Then one online match with a friend on the production server.',
+    note: 'Solo practice (?practice=meteor-rain) was removed on 17 Oct 2026 with the solo pick (PR #116): try Meteor Rain in a room of two, a Ranger and an Arcanist casting R within 2 seconds. The spike URL is retired. Then one online match with a friend on the production server.',
   },
   {
     id: 'H-04',
@@ -980,12 +980,21 @@ const items: ProgressItem[] = [
   },
   {
     id: 'p5-surges',
-    title: 'Lane surges and match modifiers',
+    title: 'Lane surges',
     owner: 'Team',
     status: 'done',
     section: 'earlier',
-    note: 'Protocol 15. From wave 6 some waves pile onto one lane, announced a wave ahead by a lane toast. The lobby and the match show one chip per modifier. The host can reroll until the match starts, or choose none. Solo surges are milder.',
+    note: 'Protocol 15. From wave 6 some waves pile onto one lane, announced a wave ahead by a lane toast, a chip under the top of the map and that lane’s portal flaring. Solo surges are milder. The match modifiers that shipped with them were removed on 17 Oct 2026 (PR #116).',
     proof: pr(39),
+  },
+  {
+    id: 'p5-one-screen',
+    title: 'No modifiers, Normal only, the lobby on one screen',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Protocol 20. Han, 17 Oct 2026: match modifiers (Swift, Ironclad, Sky Tide, Fog, Gold Rush) are removed from the game, since they changed a match’s numbers, not what the player does; lane surges stay as they are. Nobody picks a difficulty: every match a player starts, solo or in a room, is Normal, and Hard stays in the sim and the balance gates for the Daily run and Endless later. The lobby fits one phone screen: the home card carries the mode (Full or Quick) over Play solo, which starts the match at once (the solo pick and Practice Meteor Rain are gone), and the room card fits 412 × 839 with three seats, for the host and a guest. No tuning number changed. Built by Claude Code (PR #116).',
+    proof: pr(116),
   },
   {
     id: 'p5-rest',
@@ -993,7 +1002,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'todo',
     section: 'backlog',
-    note: 'The rest of Phase 5. Lane surges, match modifiers, and tower branches (tier 4) are already shipped. See docs/REPLAYABILITY.md.',
+    note: 'The rest of Phase 5. Lane surges and tower branches (tier 4) are already shipped; match modifiers were removed on 17 Oct 2026. See docs/REPLAYABILITY.md.',
   },
   {
     id: 'p5-quick',
@@ -1006,8 +1015,8 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '13 Oct 2026',
-  protocol: 19,
+  asOf: '17 Oct 2026',
+  protocol: 20,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

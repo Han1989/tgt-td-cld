@@ -1,8 +1,8 @@
 export { createGame, step, snapshot } from './game';
 export { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
 export { TUNING, TICK_RATE, secondsToTicks, towerTier, towerStats, branchTier, repairCost, tuningForMode } from './tuning';
-export type { SurgeTuning, ModifierStats } from './tuning';
-export { modifierDraw, modifierRolls, normalizeModifiers, planSurgeLanes, surgeCounts, towerRangeScale } from './modifiers';
+export type { SurgeTuning } from './tuning';
+export { planSurgeLanes, surgeCounts } from './surges';
 export type {
   Tuning,
   CreepStats,
@@ -42,9 +42,9 @@ export {
   matchReplay,
   replayMatch,
   replayProblem,
+  replayRefusal,
   reportSummary,
   R_OVERLAP_SECONDS,
 } from './match';
 export type { Match, Presence } from './match';
-export { comboOf, comboPartners, heroHitLane, practicePartner, shieldStandPoint } from './coop';
-export { createPracticeAlly } from './practiceAlly';
+export { comboOf, comboPartners, heroHitLane, shieldStandPoint } from './coop';

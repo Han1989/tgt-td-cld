@@ -246,20 +246,21 @@ test('end screen: "Save match report" downloads the report and the replay as one
   await expect(page.locator('#end-save')).toBeHidden();
 });
 
-test('Learn to play on the solo pick starts the Quick lesson: Move advances, Skip dismisses it, Settings starts it again', async ({ page }) => {
+test('Learn to play on the home card starts the Quick lesson: Move advances, Skip dismisses it, Settings starts it again', async ({ page }) => {
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
-  // A build with no game server opens on the solo pick: no Back, and the line under Play for a new player.
-  await expect(page.locator('#lobby-solo-back')).toBeHidden();
-  await expect(page.locator('#lobby-solo-learn')).toBeVisible();
-  await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
-  // Nothing is locked: the lesson is a choice, and Play keeps whatever is picked here.
-  await expect(page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]')).toBeEnabled();
-  await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
-  await page.locator('#lobby-solo-learn-btn').click();
+  // A build with no game server opens on the home card with no friends' controls, and the line under Play solo for a
+  // new player.
+  await expect(page.locator('#lobby-home')).toBeVisible();
+  await expect(page.locator('#lobby-friends')).toBeHidden();
+  await expect(page.locator('#lobby-learn')).toBeVisible();
+  await expect(page.locator('#lobby-offline')).toHaveText('Play solo');
+  // The lesson is a choice, and Play solo keeps whatever is picked here.
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-learn-btn').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
-  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual([]);
+  expect(await page.evaluate(() => window.__tdt.latest()!.difficulty)).toBe('normal');
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
   await expect(page.locator('#tutorial-body')).toContainText('Right-click');
 
@@ -280,7 +281,7 @@ test('Learn to play on the solo pick starts the Quick lesson: Move advances, Ski
   await expect(page.locator('#tutorial')).toBeHidden();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).tutorial)).toBe('skipped');
 
-  // ⚙ → Learn to play starts the lesson again at once, in place of this match (no solo pick in between).
+  // ⚙ → Learn to play starts the lesson again at once, in place of this match (no home card in between).
   await page.locator('#settings-btn').click();
   await expect(page.locator('#settings-tutorial')).toHaveText('Learn to play');
   const before = await page.evaluate(() => window.__tdt.latest()!.tick);
@@ -289,56 +290,38 @@ test('Learn to play on the solo pick starts the Quick lesson: Move advances, Ski
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.tick ?? Infinity)).toBeLessThan(before);
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
-  // Full stays the player's pick for Play.
+  // Full stays the player's pick for Play solo.
   expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('full');
 });
 
-test('Play on the solo pick is the match picked, never the lesson: the mode and the modifier draw are kept', async ({ page }) => {
+test('Play solo on the home card is the match picked, never the lesson; Change hero / mode comes back to the card', async ({ page }) => {
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
-  await expect(page.locator('#lobby-solo-learn')).toBeVisible();
-  await expect(page.locator('#lobby-solo-play')).toHaveText('Play');
-  await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText('No modifiers');
-  const beforeReroll = await page.locator('#lobby-modifiers-solo .mod-names').innerText();
-  await page.locator('#lobby-modifiers-solo .mod-reroll').click();
-  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeEnabled();
-  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toHaveText('Reroll');
-  const afterReroll = await page.locator('#lobby-modifiers-solo .mod-names').innerText();
-  expect(afterReroll).not.toBe(beforeReroll);
-  await page.locator('#lobby-modifiers-solo .mod-reroll').click();
-  await expect(page.locator('#lobby-modifiers-solo .mod-reroll')).toBeEnabled();
-  await expect(page.locator('#lobby-modifiers-solo .mod-names')).not.toHaveText(afterReroll);
-  await page.locator('#lobby-modifiers-solo .mod-none').click();
-  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toHaveText('No modifiers');
-  await expect(page.locator('#lobby-modifiers-solo .mod-names')).toBeVisible();
-  await expect(page.locator('#lobby-modifiers-solo button.mod-offer')).toBeVisible();
-  await expect(page.locator('#lobby-modifiers-solo .mod-offer-label')).toHaveText('Offered');
-  await expect(page.locator('#lobby-modifiers-solo .mod-chip.offered')).not.toHaveCount(0);
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
-  await page.locator('#lobby-mode-solo .mode-pick[data-mode="full"]').click();
-  await page.locator('#lobby-solo-play').click();
+  await expect(page.locator('#lobby-learn')).toBeVisible();
+  // One segmented row for the mode, and no difficulty or modifier picks anywhere.
+  await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(2);
+  await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip')).toHaveCount(0);
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
+  await page.locator('#lobby-offline').click();
+  await expect(page.locator('#lobby')).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(30);
-  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual([]);
+  const snap = await page.evaluate(() => window.__tdt.latest()!);
+  expect(snap.difficulty).toBe('normal');
+  expect(snap).not.toHaveProperty('modifiers');
+  expect(snap.heroes.map((h) => h.kind)).toEqual(['warden']);
   await expect(page.locator('#tutorial')).toBeHidden();
   await expect(page.locator('#match-flags')).toBeHidden();
-});
 
-test('the match strip shows the same modifier chips as the lobby', async ({ page }) => {
-  await page.goto('/?lab');
-  await waitForReady(page, 'solo');
-  const ids = await page.locator('#lobby-modifiers-solo .mod-chips .mod-chip').evaluateAll((els) =>
-    els.map((el) => el.getAttribute('data-modifier')),
-  );
-  expect(ids.length).toBeGreaterThan(0);
-  expect(ids.length).toBeLessThanOrEqual(2);
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
-  await page.locator('#lobby-mode-solo .mode-pick[data-mode="quick"]').click();
-  await page.locator('#lobby-solo-play').click();
-  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.modifiers ?? null)).toEqual(ids);
-  for (const id of ids) {
-    const chip = page.locator(`#match-flags .mod-chip[data-modifier="${id}"]`);
-    await expect(chip).toBeVisible();
-    await expect(chip.locator('b')).not.toBeEmpty();
-    await expect(chip.locator('span')).not.toBeEmpty();
-  }
+  // The end screen's Change hero / mode is the home card again, with the picks as they were.
+  await page.evaluate(() => window.__tdt.lose());
+  await expect(page.locator('#end-change-hero')).toBeVisible();
+  await page.locator('#end-change-hero').click();
+  await expect(page.locator('#lobby-home')).toBeVisible();
+  await expect(page.locator('#lobby-learn')).toBeHidden();
+  await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+  await page.locator('#lobby-offline').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
 });

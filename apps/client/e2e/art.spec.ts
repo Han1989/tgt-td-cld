@@ -71,9 +71,9 @@ test('in a match the creeps are drawn from their 3D frames once the sheets are i
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
   await expect(page.locator('html')).toHaveAttribute('data-creep-sheets', 'ready', { timeout: 30_000 });
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
-  await page.locator('#lobby-mode-solo .mode-pick[data-mode="quick"]').click();
-  await page.locator('#lobby-solo-play').click();
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+  await page.locator('#lobby-offline').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   // The first wave (Grunts), called at once.
   await page.locator('#call-early').tap();

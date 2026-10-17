@@ -4,7 +4,7 @@
 import type { CreepKind, LaneId } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { createGame, step } from '../src/game';
-import { planSurgeLanes, surgeCounts, surgeShare } from '../src/modifiers';
+import { planSurgeLanes, surgeCounts, surgeShare } from '../src/surges';
 import type { GameState } from '../src/state';
 import { TUNING } from '../src/tuning';
 

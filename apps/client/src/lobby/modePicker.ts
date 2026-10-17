@@ -1,10 +1,12 @@
-// Match mode (Full / Quick) for the online lobby (host only) and the solo pick: one segmented stone
-// control and one line under it for the picked mode. The last solo pick is remembered in localStorage.
+// Match mode (Full / Quick) for the home card and the room card (host only): one segmented stone row. The home
+// card's pick is remembered in localStorage.
 
 import { GAME_MODES, type GameMode } from '@tdt/protocol';
 import { TUNING, tuningForMode } from '@tdt/sim';
 
 const MODE_KEY = 'tdt.mode';
+/** The solo difficulty pick's memory before protocol 20 (Han, 17 Oct 2026: nobody picks a difficulty). */
+const OLD_DIFFICULTY_KEY = 'tdt.difficulty';
 
 const MODE_INFO: Record<GameMode, { name: string; blurb: string }> = {
   full: { name: 'Full', blurb: 'About 25 minutes. Bosses on waves 10, 20 and 30.' },
@@ -28,16 +30,24 @@ export function storeMode(mode: GameMode): void {
   }
 }
 
+/** Every match is Normal now: a remembered difficulty pick is dropped once and never written again. */
+export function dropStoredDifficulty(): void {
+  try {
+    localStorage.removeItem(OLD_DIFFICULTY_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 /**
- * Full | Quick as one segmented control; tapping one selects it and calls `onPick`. `line` (when given) shows the
- * picked mode's sentence. Disabled segments only show the pick.
+ * Full | Quick as one segmented control; tapping one selects it and calls `onPick`. Each segment's title is the
+ * mode's sentence. Disabled segments only show the pick.
  */
 export class ModePicker {
   constructor(
     private readonly container: HTMLElement,
     private selected: GameMode,
     onPick: (mode: GameMode) => void,
-    private readonly line: HTMLElement | null = null,
   ) {
     container.innerHTML = '';
     container.classList.add('segmented');
@@ -71,7 +81,6 @@ export class ModePicker {
       btn.classList.toggle('selected', on);
       btn.setAttribute('aria-pressed', String(on));
     }
-    if (this.line) this.line.textContent = MODE_INFO[mode].blurb;
   }
 
   /** Only the host may change the mode of an online room. */

@@ -2,7 +2,9 @@ import { COMBO_KINDS } from '@tdt/protocol';
 import './style.css';
 import { countBootFailure, currentAnalytics, installAnalytics } from './analytics/install';
 import { GameView } from './gameView';
-import { showSoloPick, storedPick, type SoloStarter } from './lobby/solo';
+import { storedHero } from './lobby/heroPicker';
+import { LobbyUi } from './lobby/lobby';
+import { storedMode } from './lobby/modePicker';
 import { OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
@@ -109,8 +111,7 @@ async function main(): Promise<void> {
   const stress = Number(params.get('stress'));
   const e2eLobby = import.meta.env.MODE === 'e2e' && params.has('lobby');
   const serverUrl = (import.meta.env.VITE_SERVER_URL ?? '').trim();
-  // ?practice=meteor-rain is a local solo path even when a game server is configured.
-  const localSolo = !serverUrl || params.get('practice') === 'meteor-rain';
+  const localSolo = !serverUrl;
   // Before the game view, so a page that cannot start (no WebGL) still counts: its open and its reason as anonymous
   // counts, and, once the age is known, as a visit with its error.
   // Analytics needs the server (docs/ANALYTICS.md); local solo sends nothing. Browser tests (`?analytics`,
@@ -136,12 +137,27 @@ async function main(): Promise<void> {
     return;
   }
   if (localSolo) {
-    // No game server configured: local solo mode, after the solo pick (its first screen, so no Back).
-    const practice = params.get('practice') === 'meteor-rain';
-    const solo: SoloStarter = (start, pick, seed) => playSolo(view, start, pick, seed);
+    // No game server configured: local solo mode, from the home card with no friends' controls. The age question
+    // comes at the first start.
+    const home = () => lobby.showHome();
+    const lobby: LobbyUi = new LobbyUi(
+      {
+        playSolo: (pick) =>
+          ageGate(() => {
+            lobby.hide();
+            playSolo(view, 'play', pick, home);
+          }),
+        learnToPlay: (hero) =>
+          ageGate(() => {
+            lobby.hide();
+            playSolo(view, 'lesson', { hero, mode: storedMode() }, home);
+          }),
+      },
+      null,
+    );
     // ⚙ → Learn to play: the lesson at once, in place of the match running.
-    view.onLearnToPlay = () => ageGate(() => playSolo(view, 'lesson', storedPick()));
-    showSoloPick(solo, { practice });
+    view.onLearnToPlay = () => ageGate(() => playSolo(view, 'lesson', { hero: storedHero(), mode: storedMode() }, home));
+    lobby.showHome();
     ready('solo');
     return;
   }

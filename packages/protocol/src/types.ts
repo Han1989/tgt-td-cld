@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 20;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -129,21 +129,11 @@ export type GameMode = (typeof GAME_MODES)[number];
 
 /**
  * How hard the creeps are. Normal is the tuned baseline. Hard raises creep HP and how many spawn
- * (not HP alone), picked in the lobby next to Full / Quick. Orthogonal to match length.
+ * (not HP alone). Orthogonal to match length. Nobody picks it (Han, 17 Oct 2026): every match a player
+ * starts is Normal; Hard is for the game to choose later (the Daily run, Endless).
  */
 export const DIFFICULTIES = ['normal', 'hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
-
-/**
- * Match modifiers (docs/REPLAYABILITY.md §2). A match runs one or two of these, or none when the host
- * turns them off. The set is drawn from the match seed; the host may reroll that draw until the match starts.
- */
-export const MODIFIERS = ['swift', 'ironclad', 'skyTide', 'fog', 'goldRush'] as const;
-export type Modifier = (typeof MODIFIERS)[number];
-
-/** What the host may do to the lobby's modifier draw, before the match starts. */
-export const MODIFIER_ACTIONS = ['reroll', 'none', 'offer'] as const;
-export type ModifierAction = (typeof MODIFIER_ACTIONS)[number];
 
 /** A lane surge announced a wave ahead. `lane` is 0 West, 1 Mid, 2 East (`laneName`). */
 export interface SurgeNotice {
@@ -492,17 +482,10 @@ export interface Snapshot {
   mode: GameMode;
   /** Creep difficulty (fixed for the whole match). Normal is the baseline. */
   difficulty: Difficulty;
-  /** Modifiers in force for the whole match. Empty when the host chose none. */
-  modifiers: Modifier[];
   /** This wave's surge lane, or null when the wave is spread across the lanes. */
   surgeLane: LaneId | null;
   /** The next wave's surge, announced a wave ahead, or null. */
   nextSurge: SurgeNotice | null;
-  /**
-   * Solo Meteor Rain practice, or null. `allyId` is the bot ally (not a team-size player).
-   * Both heroes started at `startLevel` so R can be learned at once.
-   */
-  practice: { allyId: PlayerId; startLevel: number } | null;
   phase: GamePhase;
   heartHp: number;
   heartMaxHp: number;
@@ -604,8 +587,6 @@ export interface MatchReport {
   mode: GameMode;
   /** Creep difficulty (Normal is the tuned baseline). */
   difficulty: Difficulty;
-  /** Modifiers in force. Empty when the host chose none. */
-  modifiers: Modifier[];
   seed: number;
   result: 'victory' | 'defeat';
   /** Waves started (the last one reached on a defeat) and the match's total. */
@@ -665,16 +646,19 @@ export interface Replay {
   mode: GameMode;
   /** Absent on replays saved before Hard existed: those matches were Normal. */
   difficulty?: Difficulty;
-  /** Absent on replays saved before modifiers existed: those matches had none. */
-  modifiers?: Modifier[];
+  /**
+   * Only on replays saved before protocol 20, when matches could run modifiers. An empty list re-runs as before;
+   * a replay with modifiers set is refused (`replayMatch`): the rules that played it are gone.
+   */
+  modifiers?: string[];
   players: { id: PlayerId; name: string; hero: HeroKind }[];
   /** Inputs in the order the host applied them. */
   log: ReplayEntry[];
   /** How the match ended; a re-run must end the same way. */
   end: { tick: number; result: GamePhase; wave: number; heartHp: number };
   /**
-   * Solo Meteor Rain practice. Absent on every other replay (including ones saved before protocol 16).
-   * The ally is also listed in `players`; a re-run must not count them toward team size.
+   * Only on solo Meteor Rain practice replays saved before protocol 20 (the bot ally was also in `players`).
+   * They are refused (`replayMatch`): practice is gone.
    */
   practice?: { allyId: PlayerId; startLevel: number };
 }
@@ -703,19 +687,8 @@ export interface LobbyState {
   /** 'lobby' while picking heroes; 'playing' once the host started the match. */
   phase: 'lobby' | 'playing';
   hostId: PlayerId;
-  /** Match mode the host picked; used when the match starts. */
+  /** Match mode the host picked; used when the match starts. Every room's match is Normal. */
   mode: GameMode;
-  /** Creep difficulty the host picked; used when the match starts. */
-  difficulty: Difficulty;
-  /** Modifiers the match will use. Empty when the host chose none. */
-  modifiers: Modifier[];
-  /** The seed's current draw (one or two). Restored by the `offer` action after "No modifiers". */
-  modifierOffer: Modifier[];
-  /**
-   * Kept so protocol 15's lobby shape does not change. Always false: rerolls are not capped,
-   * and the Reroll button stays available until the match starts.
-   */
-  modifiersRerolled: boolean;
   players: LobbyPlayer[];
 }
 
@@ -789,17 +762,6 @@ export type ClientMessage =
    * in that mode, like `hero`.
    */
   | { t: 'mode'; mode: GameMode }
-  /**
-   * Lobby: pick Normal or Hard (online: host only, before the start). Local solo: start a new match
-   * at that difficulty, like `mode`.
-   */
-  | { t: 'difficulty'; difficulty: Difficulty }
-  /**
-   * Lobby: change the modifier draw (online: host only, before the start).
-   * `reroll` advances to the next seed draw (no cap), `none` clears them without advancing,
-   * `offer` restores the current draw.
-   */
-  | { t: 'modifiers'; action: ModifierAction }
   /** Lobby: toggle ready. */
   | { t: 'ready'; ready: boolean }
   /** Lobby: host starts the match. */

@@ -23,8 +23,8 @@ describe('progress dashboard data', () => {
     expect(PROGRESS.items.some((item) => item.status === 'todo')).toBe(true);
   });
 
-  it('seeds protocol 19, a finished polish path, and D-06 as the next gate', () => {
-    expect(PROGRESS.protocol).toBe(19);
+  it('seeds protocol 20, a finished polish path, and D-06 as the next gate', () => {
+    expect(PROGRESS.protocol).toBe(20);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -32,7 +32,8 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    expect(summary.done).toBe(60);
+    // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116) is done.
+    expect(summary.done).toBe(61);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108) and V-05c (the creeps and bosses in 3D) are
@@ -43,7 +44,7 @@ describe('progress dashboard data', () => {
     // The presentation pass's open row (V-05d) waits for Han's go.
     expect(summary.hanOpen).toBe(10);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(101);
+    expect(summary.total).toBe(102);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -236,7 +237,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('D-06');
-    expect(summary).toContain('19');
+    expect(summary).toContain('20');
     expect(summary).toContain('Complete');
   });
 
