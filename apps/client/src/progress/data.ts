@@ -9,7 +9,7 @@
  * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done; V-05a–V-05d (3D heroes, creeps and
  * towers rendered ahead of time) added on 14 Oct 2026; V-05b done on 16 Oct 2026 (PR #108: the three heroes from the
  * KayKit models, Han's decision of 16 Oct; round 2 PR #109 on 17 Oct: the stage back at 2400 × 900), V-05a closed as
- * superseded; V-03 done on 17 Oct 2026 (PR #113: the map as a rendered picture, Han's decision of 17 Oct). Production
+ * superseded; V-03 done on 17 Oct 2026 (PR #114: the map as a rendered picture, Han's decision of 17 Oct). Production
  * protocol is 19. This page only
  * reports status.
  */
@@ -241,8 +241,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'visual',
-    note: 'Client art and tools only, protocol stays 19. Han, 17 Oct 2026: the Spire map is one rendered picture. Its ground, lanes, cliffs, trees, rocks, moss and build pads are built in Blender from the map’s own data and rendered once from straight above, lit by the same moon as the 3D heroes and painted in the same look: a worn road sunk into the moss, stone pads exactly their tiles, raised with a lit edge and a shadow, low trees on the border and the safe zone’s canopy sinking into deep shade. Nothing 3D runs on the phone: it is one picture under the sprites, and the layout, the pads and where taps land are unchanged; the zone tints and Bright go over it, and the painted ground stays as the fallback until it has loaded. The link card is regenerated from its own rendered map. In review: Han looks at the map on his phone, on the Vercel preview. Built by Claude Code (PR #113, the roadmap’s copy of 17 Oct 2026, 09:30).',
-    proof: pr(113),
+    note: 'Client art and tools only, protocol stays 19. Han, 17 Oct 2026: the Spire map is one rendered picture. Its ground, lanes, cliffs, trees, rocks, moss and build pads are built in Blender from the map’s own data and rendered once from straight above, lit by the same moon as the 3D heroes and painted in the same look: a worn road sunk into the moss, stone pads exactly their tiles, raised with a lit edge and a shadow, low trees on the border and the safe zone’s canopy sinking into deep shade. Nothing 3D runs on the phone: it is one picture under the sprites, and the layout, the pads and where taps land are unchanged; the zone tints and Bright go over it, and the painted ground stays as the fallback until it has loaded. The link card is regenerated from its own rendered map. In review: Han looks at the map on his phone, on the Vercel preview. Built by Claude Code (PR #114, the roadmap’s copy of 17 Oct 2026, 09:30).',
+    proof: pr(114),
   },
   {
     id: 'V-04',

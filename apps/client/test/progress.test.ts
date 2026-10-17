@@ -34,7 +34,7 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('Soft launch');
     expect(summary.done).toBe(59);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
-    // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #113), V-04 (bigger units, PR #104) and
+    // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104) and
     // V-05b (the three heroes from the KayKit models, PR #109, round 2 of #108) are done, and V-05a (PR #106) is closed
     // as superseded by V-05b; V-05c and V-05d are to do.
     expect(summary.open).toBe(42);
@@ -155,7 +155,7 @@ describe('progress dashboard data', () => {
     expect(byId('V-04')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/104' } });
     expect(byId('V-04').note).toContain('14 Oct 2026');
     // Han, 17 Oct 2026: the Spire map is one rendered picture. V-03 (the map plate) is done.
-    expect(byId('V-03')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/113' } });
+    expect(byId('V-03')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/114' } });
     expect(byId('V-03').note).toContain('17 Oct 2026');
     expect(byId('V-03').note).toContain('Nothing 3D runs on the phone');
     expect(matchesFilter(PROGRESS, byId('V-03'), 'now')).toBe(true);

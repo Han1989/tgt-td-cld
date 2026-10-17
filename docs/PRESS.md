@@ -131,7 +131,7 @@ The video itself is never part of the first load (it starts loading 600 ms and a
 
 The same bytes on the first load (the new poster is the same size); the larger video (1.14 MB, was 0.68) still loads only after the first screen. The VM ran about 0.35 s slower to a usable lobby than on 14 Oct for both builds, so compare the rows within a day, not across.
 
-**Results, 17 Oct 2026** (V-03, PR #113: the map plate; back to back on the same 4-core VM, local `vite preview`, 5 runs each; `main` is #112's head, with V-05b round 2's stage):
+**Results, 17 Oct 2026** (V-03, PR #114: the map plate; back to back on the same 4-core VM, local `vite preview`, 5 runs each; `main` is #112's head, with V-05b round 2's stage):
 
 | Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Transferred |
 |---|---|---|---|---|---|
