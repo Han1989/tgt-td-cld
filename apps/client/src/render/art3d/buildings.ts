@@ -8,9 +8,11 @@
 // - a portal: a gatehouse with two torches, their glow flickering (additive); the renderer's swirl, glow and flare
 //   go in the gate's opening.
 //
-// Everything is a sprite anchored at the building's point on the map; layers change by alpha and texture only.
+// Everything is a sprite anchored at the building's point on the map; layers change by alpha and texture only, the
+// ones at 0 (the stages not shown, the flashes between hits) out of the draw (`fade`).
 
 import { Container, Sprite } from 'pixi.js';
+import { fade } from '../fade';
 import type { StructureFrame, StructureFrames } from './structureSheet';
 import { flameFrame, type StructurePoint } from './structures';
 import { show } from './towerRig';
@@ -18,7 +20,7 @@ import { show } from './towerRig';
 function sprite(f: StructureFrame | undefined, blend?: 'add'): Sprite {
   const s = new Sprite();
   if (f) show(s, f);
-  else s.alpha = 0;
+  else fade(s, 0);
   if (blend) s.blendMode = blend;
   return s;
 }
@@ -47,7 +49,7 @@ export class Heart3DView {
     this.fireFrames = [0, 1, 2].map((i) => f(`fire${i}`)).filter((x): x is StructureFrame => x !== undefined);
     this.fire = sprite(this.fireFrames[0], 'add');
     this.flashes = [0, 1, 2].map((i) => sprite(f(`flash${i}`)));
-    for (const s of this.flashes) s.alpha = 0;
+    for (const s of this.flashes) fade(s, 0);
     this.root.addChild(...this.bodies, ...this.rubble, this.glow, this.fire, ...this.flashes);
     this.setStage(0);
   }
@@ -62,23 +64,23 @@ export class Heart3DView {
   setStage(stage: number): void {
     if (stage === this.stage) return;
     this.stage = stage;
-    this.bodies.forEach((s, i) => (s.alpha = i === stage ? 1 : 0));
-    this.rubble.forEach((s, i) => (s.alpha = i + 1 === stage ? 1 : 0));
-    for (const s of this.flashes) s.alpha = 0;
-    this.fire.alpha = stage === 2 ? 1 : 0;
+    this.bodies.forEach((s, i) => fade(s, i === stage ? 1 : 0));
+    this.rubble.forEach((s, i) => fade(s, i + 1 === stage ? 1 : 0));
+    for (const s of this.flashes) fade(s, 0);
+    fade(this.fire, stage === 2 ? 1 : 0);
   }
 
   /** Each frame: the beat (0..1), the hit flash (0..1), and the time for the flames. */
   update(now: number, beat: number, hit: number): void {
     this.glow.alpha = Math.min(1, 0.55 + beat * 0.45 + hit * 0.3);
-    this.flashes[this.stage]!.alpha = hit * 0.85;
+    fade(this.flashes[this.stage]!, hit * 0.85);
     if (this.stage === 2 && this.fireFrames.length) {
       const { i, alpha } = flameFrame(now);
       if (i !== this.flameShown) {
         this.flameShown = i;
         show(this.fire, this.fireFrames[i % this.fireFrames.length]!);
       }
-      this.fire.alpha = alpha;
+      fade(this.fire, alpha);
     }
   }
 }

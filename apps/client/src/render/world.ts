@@ -75,6 +75,7 @@ import {
   type HeroRig,
 } from './art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig, type TowerRigBase } from './art/rigs';
+import { fade } from './fade';
 import {
   creepRig3d,
   creepSheetsVersion,
@@ -204,7 +205,10 @@ interface HeroSprite extends EntitySprite {
 
 interface ProjectileSprite {
   root: Container;
+  /** In the trail layer, not under `root`: the additive trails draw together, one batch under the bodies'. */
   trail: Sprite;
+  /** The trail's width for its style (its scale across, before the creep scale). */
+  trailY: number;
   /** Baked art pointing +x, or the old shape when a style has none. Turned to the heading. */
   body: Container;
   style: string;
@@ -325,6 +329,8 @@ export class WorldRenderer {
   private readonly groundLayer = new Container();
   private readonly heroLayer = new Container();
   private readonly airLayer = new Container();
+  /** Every projectile's additive trail, under the projectiles: trails and bodies would break the batch at each shot. */
+  private readonly trailLayer = new Container();
   private readonly projectileLayer = new Container();
   private readonly fxLayer = new Container();
   private readonly textLayer = new Container();
@@ -437,6 +443,7 @@ export class WorldRenderer {
       this.airLayer,
       this.meteors.wash,
       this.meteors.air,
+      this.trailLayer,
       this.projectileLayer,
       this.fxLayer,
       this.textLayer,
@@ -1138,7 +1145,7 @@ export class WorldRenderer {
       core.scale.set(((S * 0.8) / DISC_PX) * k);
       const flare = this.art.sprite(art.id, 'flare');
       flare.blendMode = 'add';
-      flare.alpha = 0;
+      fade(flare, 0);
       if (view) {
         for (const s of [swirl, core, flare]) s.position.set(view.opening.x, view.opening.y);
         swirl.scale.set(k);
@@ -1183,7 +1190,7 @@ export class WorldRenderer {
         p.root.scale.set(swell);
       }
       p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
-      p.flare.alpha = burst;
+      fade(p.flare, burst);
       if (burst > 0) {
         p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? 1.35 : 1) * (p.view ? PORTAL_FLARE : 1));
         p.flare.rotation = t * 0.6 + i;
@@ -1223,16 +1230,16 @@ export class WorldRenderer {
     warn.tint = FX.heartWarn;
     warn.blendMode = 'add';
     warn.scale.set((S * 2.6) / RING_PX);
-    warn.alpha = 0;
+    fade(warn, 0);
     const blaze = new Sprite(this.atlas.frames.glow);
     blaze.anchor.set(0.5);
     blaze.tint = FX.heartBlaze;
     blaze.blendMode = 'add';
-    blaze.alpha = 0;
+    fade(blaze, 0);
     blaze.position.set(0, art.gemY);
     if (view) {
       // The castle (render/art3d): its chest's light where the gem's was, its blaze over the keep.
-      glow.alpha = 0;
+      fade(glow, 0);
       glow.scale.set(0.6);
       glow.position.set(view.chest.x, view.chest.y);
       warn.position.set(0, view.chest.y * 0.5);
@@ -1247,7 +1254,7 @@ export class WorldRenderer {
     const cracks1 = this.art.sprite(art.id, 'cracks1');
     const cracks2 = this.art.sprite(art.id, 'cracks2');
     const flash = this.art.sprite(art.id, 'gem.flash');
-    for (const s of [flash, cracks1, cracks2]) s.alpha = 0;
+    for (const s of [flash, cracks1, cracks2]) fade(s, 0);
     for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
     root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
     this.heartLayer.addChild(root);
@@ -1277,16 +1284,16 @@ export class WorldRenderer {
         s.scale.copyFrom(gem.body.scale);
         s.y = gem.body.y;
       }
-      gem.flash.alpha = hit * 0.85;
+      fade(gem.flash, hit * 0.85);
       h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5 + (low ? 0.25 : 0);
       h.blaze.y = gem.body.y;
     } else if (h.view) {
       // The castle: the chest's light beats, the castle flashes white when hit, the flames flicker.
       h.view.setStage(stage);
       h.view.update(now, beat, hit);
-      h.glow.alpha = hit * 0.45 + (low ? 0.15 + beat * 0.1 : 0);
+      fade(h.glow, hit * 0.45 + (low ? 0.15 + beat * 0.1 : 0));
     }
-    h.warn.alpha = low ? 0.35 + 0.35 * Math.sin(now / 160) : 0;
+    fade(h.warn, low ? 0.35 + 0.35 * Math.sin(now / 160) : 0);
     h.warn.scale.set(((S * 2.6) / RING_PX) * (1 + (low ? beat * 0.12 : 0)));
 
     // Damage states: cracks under 60% HP; under 30% it splits open and blazes.
@@ -1299,12 +1306,12 @@ export class WorldRenderer {
       }
       this.heartShown = stage;
       if (gem) {
-        gem.cracks1.alpha = stage >= 1 ? 1 : 0;
-        gem.cracks2.alpha = stage >= 2 ? 1 : 0;
+        fade(gem.cracks1, stage >= 1 ? 1 : 0);
+        fade(gem.cracks2, stage >= 2 ? 1 : 0);
       }
     }
     // Under 30% the gem blazes; the castle's flames have their own light, so its blaze is a lower glow over the keep.
-    h.blaze.alpha = low ? (gem ? 1 : 0.5) * (0.55 + beat * 0.35 + 0.1 * Math.sin(now / 110)) : 0;
+    fade(h.blaze, low ? (gem ? 1 : 0.5) * (0.55 + beat * 0.35 + 0.1 * Math.sin(now / 110)) : 0);
     if (low) {
       h.blaze.scale.set(((S * (gem ? 2.4 : 2.8)) / DISC_PX) * (1 + beat * 0.15));
       // Embers rising from the split gem, or from the burning castle.
@@ -1362,7 +1369,7 @@ export class WorldRenderer {
       s.rim.tint = zone ?? RL.moon;
       s.rim.alpha = zone === null ? 0.35 : mine ? 0.95 : 0.5;
       s.wash.tint = zone ?? RL.moon;
-      s.wash.alpha = zone === null ? 0 : mine ? 0.2 : 0.08;
+      fade(s.wash, zone === null ? 0 : mine ? 0.2 : 0.08);
     }
     for (const [id, s] of this.pads) {
       if (seen.has(id)) continue;
@@ -1458,7 +1465,8 @@ export class WorldRenderer {
     s ??= makeCreepSprite(kind, this.art);
     s.art?.reset();
     s.root.visible = true;
-    s.hpBg.alpha = s.hpFill.alpha = 1;
+    fade(s.hpBg, 1);
+    fade(s.hpFill, 1);
     s.tintKey = -1;
     return s;
   }
@@ -1518,7 +1526,8 @@ export class WorldRenderer {
       return;
     }
     // The bar and status marks go at once; the body falls.
-    s.hpBg.alpha = s.hpFill.alpha = 0;
+    fade(s.hpBg, 0);
+    fade(s.hpFill, 0);
     s.status.clear();
     s.statusKey = '';
     s.goneAt = now;
@@ -1721,7 +1730,7 @@ export class WorldRenderer {
       }
       if (!h.alive) {
         // A dead hero wears no Iron Vow ring (and blooms it again if it respawns while the vow still lasts).
-        s.vow.glow.alpha = s.vow.inner.alpha = s.vow.outer.alpha = 0;
+        for (const v of [s.vow.glow, s.vow.inner, s.vow.outer]) fade(v, 0);
         s.vowOnAt = -1;
         s.vowShown = false;
         // Death reaction: the rig falls over and fades, then the hero is hidden until it respawns. It
@@ -1736,7 +1745,7 @@ export class WorldRenderer {
             s.barKey = '';
             s.status.clear();
             s.statusKey = '';
-            s.aura.alpha = 0;
+            fade(s.aura, 0);
             s.auraOn = false;
           }
         }
@@ -1783,9 +1792,9 @@ export class WorldRenderer {
       else if (!vowOn) s.vowOnAt = -1;
       if (vowOn || s.vowShown) {
         const v = vowLook(vowOn ? h.shieldFor : 0, vowOn ? now - s.vowOnAt : 0, now, this.fx.calm);
-        s.vow.glow.alpha = v.glow;
-        s.vow.inner.alpha = v.inner;
-        s.vow.outer.alpha = v.outer;
+        fade(s.vow.glow, v.glow);
+        fade(s.vow.inner, v.inner);
+        fade(s.vow.outer, v.outer);
         s.vow.outer.rotation = v.spin;
         s.vow.glow.scale.set(((r + VOW_GLOW) / 32) * v.scale);
         s.vow.inner.scale.set(((r + VOW_INNER) / RING_PX) * v.scale);
@@ -1796,7 +1805,7 @@ export class WorldRenderer {
       const auraOn = h.kind !== 'ranger' && (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) > 0;
       if (auraOn !== s.auraOn) {
         s.auraOn = auraOn;
-        s.aura.alpha = auraOn ? 0.55 : 0;
+        fade(s.aura, auraOn ? 0.55 : 0);
       }
       if (auraOn) {
         s.aura.rotation = (now / 1800) * (h.kind === 'warden' ? 1 : -1);
@@ -1826,7 +1835,7 @@ export class WorldRenderer {
     aura.anchor.set(0.5);
     aura.scale.set((r + 12) / 28);
     aura.tint = h.kind === 'warden' ? FX.wardenAura : FX.arcanistAura;
-    aura.alpha = 0;
+    fade(aura, 0);
     sprite.root.addChildAt(aura, 0);
     const vow = this.makeVow(r);
     sprite.root.addChildAt(vow.outer, 0);
@@ -1854,12 +1863,14 @@ export class WorldRenderer {
         g.lastX = p.x;
         g.lastY = p.y;
         this.projectileLayer.addChild(g.root);
+        this.trailLayer.addChild(g.trail);
         this.projectiles.set(p.id, g);
         this.launched(p, g, heroes);
       }
       // Same scale as creeps, so a bolt stays readable when tiles are small on a phone.
       g.root.scale.set(this.scales.creep);
       g.root.position.set(p.x * S, p.y * S);
+      g.trail.position.copyFrom(g.root.position);
       const dx = (p.x - g.lastX) * S;
       const dy = (p.y - g.lastY) * S;
       const d = Math.hypot(dx, dy);
@@ -1868,7 +1879,7 @@ export class WorldRenderer {
         // The trail points back along the way it came; its length follows the speed.
         if (d > 0.01) {
           g.trail.rotation = g.heading;
-          g.trail.scale.x = Math.min(1.1, 0.25 + (d / Math.max(1, dtMs)) * 0.9);
+          g.trail.scale.set(Math.min(1.1, 0.25 + (d / Math.max(1, dtMs)) * 0.9) * this.scales.creep, g.trailY * this.scales.creep);
           g.trail.alpha = 0.85;
         }
         if (p.style === 'fireball' && chance(45, dtMs) > 0) this.fx.mote(p.x, p.y, FX.fire, 0.15, -10, 0.45);
@@ -1881,10 +1892,14 @@ export class WorldRenderer {
       if (seen.has(id)) continue;
       this.projectiles.delete(id);
       g.root.removeFromParent();
+      g.trail.removeFromParent();
       let pool = this.projectilePool.get(g.style);
       if (!pool) this.projectilePool.set(g.style, (pool = []));
       if (pool.length < 200) pool.push(g);
-      else g.root.destroy({ children: true });
+      else {
+        g.root.destroy({ children: true });
+        g.trail.destroy();
+      }
     }
   }
 
@@ -1894,11 +1909,11 @@ export class WorldRenderer {
     trail.anchor.set(1, 0.5);
     trail.tint = SHOT_COLORS[style as TowerKind] ?? PROJECTILE_COLORS[style] ?? FX.moonLight;
     trail.blendMode = 'add';
-    trail.scale.y = style === 'fireball' ? 1.6 : style === 'cannon' || style === 'flak' ? 1.1 : 0.7;
+    const trailY = style === 'fireball' ? 1.6 : style === 'cannon' || style === 'flak' ? 1.1 : 0.7;
     const art = projectileArt(style);
     const body: Container = art ? this.art.sprite(art.id, 'body') : projectileBody(style);
-    root.addChild(trail, body);
-    return { root, trail, body, style, lastX: 0, lastY: 0, heading: 0 };
+    root.addChild(body);
+    return { root, trail, trailY, body, style, lastX: 0, lastY: 0, heading: 0 };
   }
 
   /** Point the body along (dx, dy). The art is drawn pointing +x. */
@@ -2059,10 +2074,10 @@ export class WorldRenderer {
         const h = (1 - f) * S * 7;
         if (s.head && s.tail) {
           s.head.position.set(h * 0.55, -h);
-          s.head.alpha = f > 0 ? 1 : 0;
+          fade(s.head, f > 0 ? 1 : 0);
           s.head.scale.set((S * (0.35 + f * 0.35)) / DISC_PX);
           s.tail.position.copyFrom(s.head.position);
-          s.tail.alpha = f > 0 ? 0.9 : 0;
+          fade(s.tail, f > 0 ? 0.9 : 0);
           s.tail.scale.x = 1 + f * 1.5;
         }
       } else {
@@ -2154,7 +2169,7 @@ export class WorldRenderer {
     outer.anchor.set(0.5);
     outer.tint = FX.gold;
     outer.scale.set((r + VOW_OUTER) / 28);
-    glow.alpha = inner.alpha = outer.alpha = 0;
+    for (const s of [glow, inner, outer]) fade(s, 0);
     return { glow, inner, outer };
   }
 
@@ -2175,7 +2190,7 @@ export class WorldRenderer {
     inner.anchor.set(0.5);
     inner.tint = FX.hot;
     inner.scale.set(r / RING_PX);
-    inner.alpha = z.kind === 'meteor' ? 0.8 : 0;
+    fade(inner, z.kind === 'meteor' ? 0.8 : 0);
     root.addChild(fill, ring, inner);
     let head: Sprite | null = null;
     let tail: Sprite | null = null;
@@ -2187,12 +2202,12 @@ export class WorldRenderer {
       // Pointing back up the fall line (from the upper right).
       tail.rotation = Math.atan2(1, -0.55) + Math.PI;
       tail.scale.y = 2.2;
-      tail.alpha = 0;
+      fade(tail, 0);
       head = new Sprite(this.atlas.frames.glow);
       head.anchor.set(0.5);
       head.tint = FX.emberLight;
       head.blendMode = 'add';
-      head.alpha = 0;
+      fade(head, 0);
       root.addChild(tail, head);
     }
     this.zoneLayer.addChild(root);
