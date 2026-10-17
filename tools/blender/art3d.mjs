@@ -1,7 +1,8 @@
 // `npm run art:3d -- <hero>|heroes|<creep>|creeps [stage|match|all|plate] [--draft] [--frames 0,120] [--out DIR] [--work DIR]`
 // (docs/ART.md §15): imports the heroes and creeps from the CC0 packs in Blender and renders every output the game uses;
-// `npm run art:3d -- map [spire|card] [--draft]` renders the map plates (docs/ART.md §16). Finds a Python that has
-// Blender's module (bpy) and scipy, checks ffmpeg, and runs tools/blender/build.py with it.
+// `npm run art:3d -- map [spire|card] [--draft]` renders the map plates (docs/ART.md §16);
+// `npm run art:3d -- structures` the towers, the Heart and the portals into one sheet (`-- arrow,heart` some of them).
+// Finds a Python that has Blender's module (bpy) and scipy, checks ffmpeg, and runs tools/blender/build.py with it.
 //
 // Python, in this order: $TDT_BLENDER_PYTHON; .venv-blender/bin/python at the repo root (see
 // tools/blender/requirements.txt); python3.11 or python3 on the PATH if it can import bpy.
@@ -16,7 +17,8 @@ const root = resolve(here, '..', '..');
 const args = process.argv.slice(2);
 if (args.length === 0 || args[0].startsWith('-')) {
   console.error('Usage: npm run art:3d -- <hero>|heroes|<creep>|creeps [stage|match|all|plate] [--draft] [--frames 0,120] [--out DIR] [--work DIR]\n' +
-    '       npm run art:3d -- map [spire|card] [--draft] [--out DIR]');
+    '       npm run art:3d -- map [spire|card] [--draft] [--out DIR]\n' +
+    '       npm run art:3d -- structures | <tower kind>|heart|portal[,…] [--draft] [--out DIR] [--work DIR]');
   process.exit(2);
 }
 

@@ -31,7 +31,9 @@ import { ArtKit } from './render/art/kit';
 import {
   allArt,
   creepArt,
+  heartArt,
   heroArt,
+  portalArt,
   PROJECTILE_STYLES,
   projectileArt,
   towerArt,
@@ -39,8 +41,20 @@ import {
   type ArtEntry,
   type HeroRig,
 } from './render/art/registry';
-import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './render/art/rigs';
-import { creepRig3d, loadCreepSheets, type Creep3DRig } from './render/art3d';
+import { CreepRig, DEATH, HIT_FLASH, TowerRig, type TowerRigBase } from './render/art/rigs';
+import {
+  creepRig3d,
+  heartView3d,
+  loadCreepSheets,
+  loadStructureSheet,
+  PORTAL_FLARE,
+  PORTAL_OPENING,
+  portalView3d,
+  towerRig3d,
+  type Creep3DRig,
+  type Heart3DView,
+  type Portal3DView,
+} from './render/art3d';
 import { CREEP_3D } from './render/art3d/creepData';
 import { liftColor, RL, type Display } from './render/art/tokens';
 import { createFxAtlas, type FxAtlas } from './render/fx/atlas';
@@ -251,6 +265,42 @@ export async function runShowcase(): Promise<void> {
       addCard(grid3d, e, label, 'lane', () => creep3dActor(creepRig3d(kind, kit)!, hide === 'ether'), big, PHONE.entity, kind);
     }
     shown3d.push(kind);
+  }
+
+  // The towers, the Heart and the portals made in 3D (docs/ART.md §15, V-05d): the structures sheet, then a card for
+  // every tier and branch, each damage stage and the portal, next to the 2D cards above (the 2D art is the fallback).
+  await loadStructureSheet();
+  const gridBuildings = section('Towers, the Heart and the portals in 3D (rendered ahead of time)');
+  for (const kind of TOWER_KINDS) {
+    const e = towerArt(kind);
+    if (!e || !towerRig3d(kind, kit)) continue;
+    const variants: [number, TowerBranch | null, string][] = [
+      [1, null, 'tier 1'],
+      [2, null, 'tier 2'],
+      [3, null, 'tier 3'],
+      ...TOWER_BRANCHES[kind].map((b): [number, TowerBranch, string] => [4, b, `branch · ${b}`]),
+    ];
+    for (const [tier, branch, label] of variants) {
+      addCard(gridBuildings, e, `tower 3D · ${label}`, 'moss', () => towerActor(towerRig3d(kind, kit)!, kind, tier, branch), 1.2, PHONE.tower, e.id);
+    }
+    shown3d.push(e.id);
+  }
+  const heart = heartArt();
+  if (heartView3d()) {
+    for (const [label, stage] of [
+      ['the Heart', 0],
+      ['under 60% HP: cracked', 1],
+      ['under 30% HP: ruined, burning', 2],
+    ] as const) {
+      addCard(gridBuildings, heart, `heart 3D · ${label}`, 'moss', () => heart3dActor(heartView3d()!, stage), 0.6, PHONE.world, heart.id);
+    }
+    shown3d.push(heart.id);
+  }
+  const portal = portalArt();
+  if (portalView3d()) {
+    addCard(gridBuildings, portal, 'portal 3D', 'moss', () => portal3dActor(kit, portal.id, portalView3d()!, false), 1, PHONE.world, portal.id);
+    addCard(gridBuildings, portal, 'portal 3D · wave start: flare', 'moss', () => portal3dActor(kit, portal.id, portalView3d()!, true), 1, PHONE.world, portal.id);
+    shown3d.push(portal.id);
   }
 
   // Kinds with no art yet keep their shapes in the game.
@@ -553,7 +603,7 @@ function creep3dActor(rig: Creep3DRig, ether: boolean): Actor {
 }
 
 /** The turret sweeps round and fires every 1.2 s: a recoil, or for a pulse (Blizzard) a swell all round. */
-function towerActor(rig: TowerRig, kind: TowerKind, tier: number, branch: TowerBranch | null): Actor {
+function towerActor(rig: TowerRigBase, kind: TowerKind, tier: number, branch: TowerBranch | null): Actor {
   rig.setTier(tier, branch);
   const pulses = towerStats(TUNING, kind, tier, branch).pulse;
   // The card scales the view after creating it; the pulse multiplies whatever that scale is.
@@ -598,6 +648,44 @@ function heartActor(kit: ArtKit, id: string, baseY: number, gemScale: number, ge
         s.y = gemY + Math.sin(now / 650) * floatPx;
       }
       flash.alpha = hit * 0.85;
+    },
+  };
+}
+
+/** The 3D Heart in a damage stage, beating, hit every 3 s, its flames flickering. */
+function heart3dActor(view: Heart3DView, stage: number): Actor {
+  view.setStage(stage);
+  const period = stage === 2 ? 650 : 1400;
+  return {
+    view: view.root,
+    animate(now) {
+      const t = (now % period) / period;
+      const beat = Math.max(0, Math.sin(t * Math.PI * 4)) * (t < 0.25 ? 1 : t < 0.5 ? 0.6 : 0);
+      view.update(now, beat, Math.max(0, 1 - (now % 3000) / 420));
+    },
+  };
+}
+
+/** The 3D gatehouse with the 2D swirl in its opening, as in a match; with `flare`, it flares every 2 s. */
+function portal3dActor(kit: ArtKit, id: string, gate: Portal3DView, flare: boolean): Actor {
+  const view = new Container();
+  const swirl = kit.sprite(id, 'swirl');
+  const burst = kit.sprite(id, 'flare');
+  burst.blendMode = 'add';
+  burst.alpha = 0;
+  for (const s of [swirl, burst]) s.position.set(gate.opening.x, gate.opening.y);
+  swirl.scale.set(PORTAL_OPENING);
+  view.addChild(gate.root, swirl, burst);
+  return {
+    view,
+    animate: (now) => {
+      swirl.rotation = -now / 500;
+      gate.update(now, 0);
+      if (!flare) return;
+      const t = Math.min(1, (now % 2000) / 1100);
+      burst.alpha = t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
+      burst.scale.set((0.55 + t * 0.7) * PORTAL_FLARE);
+      burst.rotation = t * 0.6;
     },
   };
 }

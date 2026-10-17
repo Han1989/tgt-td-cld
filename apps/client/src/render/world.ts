@@ -74,8 +74,23 @@ import {
   type HeartArt,
   type HeroRig,
 } from './art/registry';
-import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
-import { creepRig3d, creepSheetsVersion, hasCreep3d, Hero3DRig, heroRig3d, type Creep3DRig } from './art3d';
+import { CreepRig, DEATH, HIT_FLASH, TowerRig, type TowerRigBase } from './art/rigs';
+import {
+  creepRig3d,
+  creepSheetsVersion,
+  hasCreep3d,
+  heartView3d,
+  Hero3DRig,
+  heroRig3d,
+  PORTAL_FLARE,
+  PORTAL_OPENING,
+  portalView3d,
+  structuresVersion,
+  towerRig3d,
+  type Creep3DRig,
+  type Heart3DView,
+  type Portal3DView,
+} from './art3d';
 import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
@@ -158,7 +173,9 @@ interface TowerSprite extends EntitySprite {
   born: number;
   /** The body is offset or scaled right now (needs resetting when the animation ends). */
   animating: boolean;
-  art: TowerRig | null;
+  art: TowerRigBase | null;
+  /** `structuresVersion()` when it was made: a 2D tower made before the 3D sheet came in is swapped. */
+  gen: number;
   /** Direction of the last shot (radians) and until when the turret keeps facing it. */
   aimAt: number;
   aimUntil: number;
@@ -237,6 +254,16 @@ interface HeartSprite {
   warn: Sprite;
   /** Strong additive glow under 30% HP. */
   blaze: Sprite;
+  /** The 2D Heart (a gem over its pedestal), or null when it is drawn from the 3D sheet (`view`). */
+  gem: HeartGem | null;
+  /** The 3D Heart (a castle keeping a glowing chest, render/art3d), or null. */
+  view: Heart3DView | null;
+  /** Where its effects start (shards, flash, embers: the gem or the chest), px from its point; the blaze's place. */
+  fxY: number;
+  blazeY: number;
+}
+
+interface HeartGem {
   /** The gem (beats and floats) and its white silhouette (alpha only). */
   body: Container;
   flash: Container;
@@ -267,6 +294,10 @@ interface PortalSprite {
   flare: Sprite;
   x: number;
   y: number;
+  /** The 3D gatehouse (render/art3d), or null for the 2D well: then the swirl, glow and flare sit in its opening at
+   * `k` of their size, and the gate itself never swells. */
+  view: Portal3DView | null;
+  k: number;
 }
 
 /** Rare text (level up, hide shift): real Text objects, destroyed when done. */
@@ -328,7 +359,9 @@ export class WorldRenderer {
   private readonly trapPool: TrapSprite[] = [];
   private readonly zones = new Map<number, ZoneSprite>();
   private readonly portals: PortalSprite[] = [];
-  private readonly heart: HeartSprite;
+  private heart: HeartSprite;
+  /** `structuresVersion()` the Heart and the portals were made with: when the 3D sheet comes in they are made again. */
+  private structGen = 0;
   private texts: TextFx[] = [];
   private heartHitAt = -Infinity;
   /** Last time a Heart hit kicked the screen. */
@@ -444,6 +477,10 @@ export class WorldRenderer {
     pads: number;
     creepRigs: number;
     towerRigs: number;
+    /** Towers drawn from the 3D sheet, and whether the Heart and every portal are. */
+    tower3d: number;
+    heart3d: boolean;
+    portals3d: number;
     heroRigs: number;
     hero3d: number;
     hero3dKinds: string[];
@@ -462,6 +499,9 @@ export class WorldRenderer {
       pads: this.pads.size,
       creepRigs: count(this.creeps.values()),
       towerRigs: count(this.towers.values()),
+      tower3d: [...this.towers.values()].filter((s) => s.art?.is3d).length,
+      heart3d: this.heart.view !== null,
+      portals3d: this.portals.filter((p) => p.view).length,
       heroRigs: count(this.heroes.values()),
       // Heroes drawn from their 3D frames, the frame kinds those rigs have shown, melee blows landed.
       hero3d: rigs3d.length,
@@ -585,6 +625,7 @@ export class WorldRenderer {
     this.meteors.bitScale = this.scales.creep;
     this.meteors.sync(from.zones, from.tick + (to.tick - from.tick) * alpha, from.tickRate, creeps, this.screenRect(), now, dt);
     this.lastDt = dt;
+    if (structuresVersion() !== this.structGen) this.remakeBuildings();
     this.updateHeart(now);
     this.updatePortals(now, dt);
     this.updateTexts(now);
@@ -1077,27 +1118,49 @@ export class WorldRenderer {
     this.padKey = '';
   }
 
-  /** Portals: a stone rim with a glowing swirl that turns, and an additive glow in the middle. */
+  /**
+   * Portals: a stone rim with a glowing swirl that turns, and an additive glow in the middle; once the 3D sheet is in,
+   * a gatehouse with two torches (render/art3d) with the swirl, glow and flare in its opening.
+   */
   private makePortals(): void {
     const art = portalArt();
     for (const lane of this.map.lanes) {
       const p = lane.waypoints[0]!;
       const root = new Container();
       root.position.set(p.x * S, (p.y + 1) * S);
-      const rim = this.art.sprite(art.id, 'rim');
+      const view = portalView3d();
+      const k = view ? PORTAL_OPENING : 1;
       const swirl = this.art.sprite(art.id, 'swirl');
       const core = new Sprite(this.atlas.frames.glow);
       core.anchor.set(0.5);
       core.tint = art.coreTint;
       core.blendMode = 'add';
-      core.scale.set((S * 0.8) / DISC_PX);
+      core.scale.set(((S * 0.8) / DISC_PX) * k);
       const flare = this.art.sprite(art.id, 'flare');
       flare.blendMode = 'add';
       flare.alpha = 0;
-      root.addChild(rim, core, swirl, flare);
+      if (view) {
+        for (const s of [swirl, core, flare]) s.position.set(view.opening.x, view.opening.y);
+        swirl.scale.set(k);
+        root.addChild(view.root, core, swirl, flare);
+      } else {
+        root.addChild(this.art.sprite(art.id, 'rim'), core, swirl, flare);
+      }
       this.portalLayer.addChild(root);
-      this.portals.push({ root, swirl, core, flare, x: p.x, y: p.y + 1 });
+      this.portals.push({ root, swirl, core, flare, x: p.x, y: p.y + 1, view, k });
     }
+  }
+
+  /** The 3D sheet came in (or a new one): the Heart and the portals are made again from it. */
+  private remakeBuildings(): void {
+    this.structGen = structuresVersion();
+    for (const p of this.portals) p.root.destroy({ children: true });
+    this.portals.length = 0;
+    this.makePortals();
+    this.heart.root.destroy({ children: true });
+    this.heart = this.makeHeart();
+    // The stage is shown again on the next frame, with no crack effect.
+    this.heartShown = -1;
   }
 
   private updatePortals(now: number, dtMs: number): void {
@@ -1111,22 +1174,30 @@ export class WorldRenderer {
       const t = mine ? tAll : 1;
       const burst = !mine || t >= 1 ? 0 : Math.min(1, t * 8) * (1 - t) * (1 - t);
       p.swirl.rotation = -now / (500 - flare * 250) - i;
-      p.root.scale.set(1 + 0.05 * Math.sin(now / 400 + i) + flare * 0.25);
+      // The 2D well swells as a whole; a gatehouse stands still and only its opening's swirl swells.
+      const swell = 1 + 0.05 * Math.sin(now / 400 + i) + flare * 0.25;
+      if (p.view) {
+        p.swirl.scale.set(p.k * swell);
+        p.view.update(now, i);
+      } else {
+        p.root.scale.set(swell);
+      }
       p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
       p.flare.alpha = burst;
       if (burst > 0) {
-        p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? 1.35 : 1));
+        p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? 1.35 : 1) * (p.view ? PORTAL_FLARE : 1));
         p.flare.rotation = t * 0.6 + i;
       }
       if (!this.fx.particles) continue;
       // Motes drawn into the portal.
+      const oy = p.view ? p.view.opening.y + S : 0;
       for (let n = chance(4 + flare * 20, dtMs); n > 0; n--) {
         const a = Math.random() * Math.PI * 2;
-        const d = S * (1.4 + Math.random() * 0.8);
+        const d = S * (1.4 + Math.random() * 0.8) * (p.view ? 0.7 : 1);
         this.fx.emit({
           frame: 'dot',
-          x: p.x * S + Math.cos(a) * d,
-          y: p.y * S + Math.sin(a) * d,
+          x: p.x * S + Math.cos(a) * d + (p.view?.opening.x ?? 0),
+          y: p.y * S + Math.sin(a) * d + oy,
           speed: [d / 0.6, d / 0.6],
           angle: [a + Math.PI + 0.5, a + Math.PI + 0.5],
           drag: 1.5,
@@ -1145,6 +1216,7 @@ export class WorldRenderer {
     const art = heartArt();
     const root = new Container();
     root.position.set(x * S, y * S);
+    const view = heartView3d();
     const glow = new Graphics().circle(0, 0, S * 2.2).fill({ color: COLORS.heart, alpha: 0.35 });
     const warn = new Sprite(this.atlas.frames.shock);
     warn.anchor.set(0.5);
@@ -1158,6 +1230,17 @@ export class WorldRenderer {
     blaze.blendMode = 'add';
     blaze.alpha = 0;
     blaze.position.set(0, art.gemY);
+    if (view) {
+      // The castle (render/art3d): its chest's light where the gem's was, its blaze over the keep.
+      glow.alpha = 0;
+      glow.scale.set(0.6);
+      glow.position.set(view.chest.x, view.chest.y);
+      warn.position.set(0, view.chest.y * 0.5);
+      blaze.position.set(view.keep.x, view.keep.y);
+      root.addChild(glow, warn, view.root, blaze);
+      this.heartLayer.addChild(root);
+      return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y, blazeY: view.keep.y };
+    }
     const base = this.art.sprite(art.id, 'base');
     base.position.set(0, art.baseY);
     const gem = this.art.sprite(art.id, 'gem');
@@ -1168,7 +1251,7 @@ export class WorldRenderer {
     for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
     root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
     this.heartLayer.addChild(root);
-    return { root, glow, warn, blaze, body: gem, flash, cracks1, cracks2, art };
+    return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY, blazeY: art.gemY };
   }
 
   /** Gentle heartbeat; red flash and a wobble when hit; a red warning glow and faster beat at low HP. */
@@ -1183,39 +1266,52 @@ export class WorldRenderer {
     const { x, y } = this.map.heart;
     const wobble = hit * hit * 5;
     h.root.position.set(x * S + Math.sin(now / 17) * wobble, y * S + Math.cos(now / 23) * wobble);
-    const art = h.art;
-    h.body.scale.set(art.gemScale * (1 + beat * (low ? 0.07 : 0.045) + hit * 0.12));
-    // The gem floats over its pedestal.
-    h.body.y = art.gemY + Math.sin(now / 650) * art.floatPx;
-    for (const s of [h.flash, h.cracks1, h.cracks2]) {
-      s.scale.copyFrom(h.body.scale);
-      s.y = h.body.y;
+    const stage = heartStage(this.heartFrac);
+    const gem = h.gem;
+    if (gem) {
+      const art = gem.art;
+      gem.body.scale.set(art.gemScale * (1 + beat * (low ? 0.07 : 0.045) + hit * 0.12));
+      // The gem floats over its pedestal.
+      gem.body.y = art.gemY + Math.sin(now / 650) * art.floatPx;
+      for (const s of [gem.flash, gem.cracks1, gem.cracks2]) {
+        s.scale.copyFrom(gem.body.scale);
+        s.y = gem.body.y;
+      }
+      gem.flash.alpha = hit * 0.85;
+      h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5 + (low ? 0.25 : 0);
+      h.blaze.y = gem.body.y;
+    } else if (h.view) {
+      // The castle: the chest's light beats, the castle flashes white when hit, the flames flicker.
+      h.view.setStage(stage);
+      h.view.update(now, beat, hit);
+      h.glow.alpha = hit * 0.45 + (low ? 0.15 + beat * 0.1 : 0);
     }
-    h.flash.alpha = hit * 0.85;
-    h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5 + (low ? 0.25 : 0);
     h.warn.alpha = low ? 0.35 + 0.35 * Math.sin(now / 160) : 0;
     h.warn.scale.set(((S * 2.6) / RING_PX) * (1 + (low ? beat * 0.12 : 0)));
 
     // Damage states: cracks under 60% HP; under 30% it splits open and blazes.
-    const stage = heartStage(this.heartFrac);
     if (stage !== this.heartShown) {
       if (this.heartShown >= 0 && stage > this.heartShown) {
         // It just cracked (further): shards of ruby and a flash.
-        this.fx.shards(x, y + art.gemY / S, [COLORS.heart, FX.heartShard, FX.ember], stage === 2 ? 18 : 12, 170);
-        this.fx.flash(x, y + art.gemY / S, 1.6, FX.heartBlaze, 360, 0.7);
+        this.fx.shards(x, y + h.fxY / S, [COLORS.heart, FX.heartShard, FX.ember], stage === 2 ? 18 : 12, 170);
+        this.fx.flash(x, y + h.fxY / S, 1.6, FX.heartBlaze, 360, 0.7);
         this.fx.bump(stage === 2 ? 0.3 : 0.18);
       }
       this.heartShown = stage;
-      h.cracks1.alpha = stage >= 1 ? 1 : 0;
-      h.cracks2.alpha = stage >= 2 ? 1 : 0;
+      if (gem) {
+        gem.cracks1.alpha = stage >= 1 ? 1 : 0;
+        gem.cracks2.alpha = stage >= 2 ? 1 : 0;
+      }
     }
-    h.blaze.y = h.body.y;
-    h.blaze.alpha = low ? 0.55 + beat * 0.35 + 0.1 * Math.sin(now / 110) : 0;
+    // Under 30% the gem blazes; the castle's flames have their own light, so its blaze is a lower glow over the keep.
+    h.blaze.alpha = low ? (gem ? 1 : 0.5) * (0.55 + beat * 0.35 + 0.1 * Math.sin(now / 110)) : 0;
     if (low) {
-      h.blaze.scale.set(((S * 2.4) / DISC_PX) * (1 + beat * 0.15));
-      // Embers rising from the split gem.
+      h.blaze.scale.set(((S * (gem ? 2.4 : 2.8)) / DISC_PX) * (1 + beat * 0.15));
+      // Embers rising from the split gem, or from the burning castle.
       if (this.fx.particles) {
-        for (let n = chance(9, this.lastDt); n > 0; n--) this.fx.mote(x + (Math.random() - 0.5) * 0.9, y + art.gemY / S, FX.ember, 0.2, -38, 0.8);
+        const spread = gem ? 0.9 : 2.2;
+        const from = gem ? h.fxY : h.blazeY;
+        for (let n = chance(gem ? 9 : 14, this.lastDt); n > 0; n--) this.fx.mote(x + (Math.random() - 0.5) * spread, y + from / S, FX.ember, 0.2, -38, 0.8);
       }
     }
   }
@@ -1514,12 +1610,22 @@ export class WorldRenderer {
     for (const t of towers) {
       seen.add(t.id);
       let s = this.towers.get(t.id);
+      const gen = structuresVersion();
+      let swapped = false;
+      if (s && s.gen !== gen && !s.art?.is3d) {
+        // The 3D sheet has come in: the 2D tower makes way for its 3D rig (no pop: it was already standing).
+        s.root.destroy({ children: true });
+        this.towers.delete(t.id);
+        s = undefined;
+        swapped = true;
+      }
       if (!s) {
         const art = towerArt(t.kind);
-        const rig = art ? new TowerRig(this.art, art) : null;
+        const rig: TowerRigBase | null = towerRig3d(t.kind, this.art) ?? (art ? new TowerRig(this.art, art) : null);
         s = {
           ...makeSprite(rig ? rig.body : towerBody(t.kind)),
           kind: t.kind,
+          gen,
           recoilAt: -Infinity,
           recoilX: 0,
           recoilY: 0,
@@ -1532,7 +1638,7 @@ export class WorldRenderer {
           hitsAir: true,
           hitsGround: true,
         };
-        this.startPop(s, now);
+        if (!swapped) this.startPop(s, now);
         this.towerLayer.addChild(s.root);
         this.towers.set(t.id, s);
       }

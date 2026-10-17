@@ -45,6 +45,10 @@ interface Hook {
     pads: number;
     creepRigs: number;
     towerRigs: number;
+    /** Towers drawn from the 3D sheet, and whether the Heart and how many portals are. */
+    tower3d: number;
+    heart3d: boolean;
+    portals3d: number;
     heroRigs: number;
     /** Heroes drawn from their 3D frames, the frame kinds those rigs have shown, melee blows landed. */
     hero3d: number;
