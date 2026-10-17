@@ -36,9 +36,9 @@ describe('progress dashboard data', () => {
     expect(summary.done).toBe(62);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
-    // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115)
-    // and V-05d (the towers, the Heart and the portals in 3D, PR #118) are done, and V-05a (PR #106) is closed as
-    // superseded by V-05b.
+    // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
+    // round 2 PR #120) and V-05d (the towers, the Heart and the portals in 3D, PR #118) are done, and V-05a (PR #106) is
+    // closed as superseded by V-05b.
     expect(summary.open).toBe(40);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
@@ -166,7 +166,8 @@ describe('progress dashboard data', () => {
     // superseded and V-05b (all three heroes from the KayKit models) is done; the creeps and the towers follow, each
     // on Han's go. Han, 17 Oct 2026: V-05b's round 2 (the stage back at 2400 × 900) replaces its first pull request,
     // V-05c (the creeps and bosses from the CC0 KayKit Skeletons and Quaternius monsters) is done, and V-05d (the towers,
-    // the Heart and the portals kitbashed from the KayKit pieces) is done.
+    // the Heart and the portals kitbashed from the KayKit pieces) is done. V-05c's round 2 (the Ironhorn the horned
+    // Demon, the creep sheets lossless WebP) is its proof now.
     expect(byId('V-05a')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05a').note).toContain('Closed as superseded by V-05b');
     expect(byId('V-05a').note).toContain('nothing 3D runs on the player’s device');
@@ -177,7 +178,8 @@ describe('progress dashboard data', () => {
     expect(byId('V-05b').note).toContain('2400 × 900');
     expect(byId('V-05c')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05c').note).toContain('17 Oct 2026');
-    expect(byId('V-05c').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/115');
+    expect(byId('V-05c').note).toContain('horned Demon');
+    expect(byId('V-05c').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/120');
     expect(byId('V-05d')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05d').note).toContain('17 Oct 2026');
     expect(byId('V-05d').note).toContain('KayKit');
