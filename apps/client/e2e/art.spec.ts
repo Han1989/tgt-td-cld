@@ -1,11 +1,14 @@
 // Art (docs/ART.md): Runelight is the default look, Settings → Display switches Normal / Bright,
-// ?showcase lists every art file in src/render/art/entities/ without anyone editing a list, and every creep kind made
-// in 3D (§15) gets its own card there too; in a match the creeps are drawn from their 3D frames once the sheets load.
+// ?showcase lists every art file in src/render/art/entities/ without anyone editing a list, and every hero and creep
+// kind made in 3D (§15) gets its own card there too, with each hero's lobby stage loop; in a match the creeps are
+// drawn from their 3D frames once the sheets load.
 
 import { readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { startSolo, waitForReady } from './helpers';
 
+/** The heroes, every one made in 3D (V-05b). */
+const HEROES_3D = ['arcanist', 'ranger', 'warden'];
 /** The creep kinds, every one made in 3D (V-05c). */
 const CREEPS_3D = ['archer', 'brute', 'grunt', 'hatchling', 'ironhorn', 'matriarch', 'runner', 'shardback', 'wisp'];
 
@@ -36,6 +39,13 @@ test('?showcase shows a card for every registered art file, and Bright re-bakes 
     await expect(page.locator(`.sc-card[data-art3d="${kind}"]`)).toHaveCount(kind === 'shardback' ? 2 : 1);
   }
   await expect(page.locator('.sc-card[data-art3d] .sc-label', { hasText: 'creep 3D · shardback · ether hide' })).toHaveCount(1);
+  // The heroes in 3D: their match sheets loaded (each got its 3D rig) and a card each; a stage card each with the
+  // lobby's stage loop, its poster up or its video playing.
+  expect([...(await page.evaluate(() => window.__showcase.heroes3d))].sort()).toEqual(HEROES_3D);
+  for (const kind of HEROES_3D) {
+    await expect(page.locator(`.sc-card[data-art3d="${kind}"] .sc-label`)).toHaveText(new RegExp(`hero 3D · ${kind}$`));
+    await expect(page.locator(`.sc-card[data-stage="${kind}"] .sc-hero-stage`)).toHaveAttribute('data-backdrop', /^(poster|video)$/);
+  }
   // Snare: arming, armed, and the root ring.
   await expect(page.locator('.sc-card[data-art="snareTrap"]')).toHaveCount(3);
   // Kinds without art are listed as still shapes: heroes, creeps, towers, projectiles and the snare have art now.

@@ -119,6 +119,10 @@ interface ShowcaseHook {
   ids: string[];
   /** The creep kinds with a 3D card. */
   ids3d: string[];
+  /** The heroes with a 3D card (their match sheets loaded). */
+  heroes3d: string[];
+  /** The heroes with a stage card. */
+  stages: string[];
   cards(): number;
   display(): 'normal' | 'bright';
 }
