@@ -1,20 +1,20 @@
-// The 3D creeps' match sheets (docs/ART.md §15, V-05c): loaded after the first screen (never in its way), one after
-// another in the order the kinds first come in the waves, and turned into textures. From then on a creep of that kind
-// gets its 3D rig (the renderer swaps those already on the map, `creepSheetsVersion`); until then, or if loading
-// fails, its 2D rig.
+// The 3D creeps' match sheets (docs/ART.md §15, V-05c): lossless WebP (round 2: a third smaller than the PNGs, the
+// same pixels), loaded after the first screen (never in its way), one after another in the order the kinds first
+// come in the waves, and turned into textures. From then on a creep of that kind gets its 3D rig (the renderer swaps
+// those already on the map, `creepSheetsVersion`); until then, or if loading fails, its 2D rig.
 
 import type { CreepKind } from '@tdt/protocol';
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
-import archerSheet from './archer-match.png?url';
-import bruteSheet from './brute-match.png?url';
+import archerSheet from './archer-match.webp?url';
+import bruteSheet from './brute-match.webp?url';
 import type { CreepCell, CreepMatchLayout, CreepState } from './creeps';
-import gruntSheet from './grunt-match.png?url';
-import hatchlingSheet from './hatchling-match.png?url';
-import ironhornSheet from './ironhorn-match.png?url';
-import matriarchSheet from './matriarch-match.png?url';
-import runnerSheet from './runner-match.png?url';
-import shardbackSheet from './shardback-match.png?url';
-import wispSheet from './wisp-match.png?url';
+import gruntSheet from './grunt-match.webp?url';
+import hatchlingSheet from './hatchling-match.webp?url';
+import ironhornSheet from './ironhorn-match.webp?url';
+import matriarchSheet from './matriarch-match.webp?url';
+import runnerSheet from './runner-match.webp?url';
+import shardbackSheet from './shardback-match.webp?url';
+import wispSheet from './wisp-match.webp?url';
 
 /** Each kind's sheet (a URL with its build hash). */
 export const CREEP_SHEETS: Record<CreepKind, string> = {

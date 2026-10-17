@@ -11,7 +11,7 @@
 # tools/blender/hero.py, the creeps of tools/blender/creeps.py.
 # Outputs: apps/client/public/stage/<hero>.mp4, .webm, <hero>-poster.webp and clearing.webp (the stage),
 # apps/client/src/render/art3d/<hero>-match.png (the match frame sheet) and <hero>.json (both layouts); for a creep
-# <kind>-match.png and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
+# <kind>-match.webp (lossless) and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
 # Map plates: apps/client/public/map/spire.webp and spire-extra.webp (the patches) with their layout in
 # apps/client/src/render/plate/spire.json; the link card's plate (dev only) in apps/client/src/render/plate/card.webp.
 # The towers, the Heart and the portals (tools/blender/structures.py): one sheet, structures-match.png, and its layout

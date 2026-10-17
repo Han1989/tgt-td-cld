@@ -2,7 +2,8 @@
 // models: the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
 // white twins), the stage files must be what the layout says and within budget, every hero's stage the same box in
 // the same clearing, every shipped stage frame and the creeps' kept frames must pass the fringe check, the creep sheets
-// must fit the texture budget (two 2048 × 2048 pages), and nothing 3D may reach the player's device.
+// (lossless WebP, read pixel for pixel by scripts/webp.ts) must fit the texture budget (two 2048 × 2048 pages), and
+// nothing 3D may reach the player's device.
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -12,6 +13,7 @@ import { CREEP_KINDS, TOWER_BRANCHES, TOWER_KINDS, type CreepKind, type TowerKin
 import { TUNING } from '@tdt/sim';
 import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
+import { decodeWebp } from '../scripts/webp';
 import { pickVideo } from '../src/lobby/stageBackdrop';
 import { isMediaPath, isStageVideo, swSource } from '../src/platform/swSource';
 import {
@@ -692,17 +694,23 @@ describe('3D creeps: the match sheets', () => {
   for (const kind of CREEP_KINDS) {
     const c = CREEP_3D[kind];
     const m = c.match;
-    const png = decodePng(readFileSync(join(ART3D, m.file)));
+    const img = decodeWebp(readFileSync(join(ART3D, m.file)));
     const boss = TUNING.creeps[kind].boss;
 
-    it(`${kind}: the sheet is the size the layout says, RGBA, 2048 wide, 4 px per world px (bosses 3), its own style`, () => {
+    it(`${kind}: the sheet is a lossless WebP the size the layout says, RGBA, 2048 wide, 4 px per world px (bosses 3), its own style`, () => {
       expect(c.id).toBe(kind);
-      expect(m.file).toBe(`${kind}-match.png`);
-      expect([png.width, png.height]).toEqual([m.w, m.h]);
-      expect(png.channels).toBe(4);
+      expect(m.file).toBe(`${kind}-match.webp`);
+      expect([img.width, img.height]).toEqual([m.w, m.h]);
+      expect(img.channels).toBe(4);
       expect(m.w).toBe(2048);
       expect(m.res).toBe(boss ? 3 : 4);
       expect(m.style).toBe(boss ? 'boss' : TUNING.creeps[kind].flying ? 'flyer' : 'walker');
+    });
+
+    it(`${kind}: no colour hides under a fully transparent pixel (sampling never bleeds it in, premultiplied or not)`, () => {
+      let hidden = 0;
+      for (let i = 0; i < img.data.length; i += 4) if (img.data[i + 3] === 0 && (img.data[i] || img.data[i + 1] || img.data[i + 2])) hidden++;
+      expect(hidden).toBe(0);
     });
 
     it(`${kind}: every state the rig plays has its frames, the flinch its white twin and nothing else one`, () => {
@@ -772,7 +780,7 @@ describe('3D creeps: the match sheets', () => {
         let drawn = 0;
         for (let yy = 0; yy < cell.h; yy++) {
           for (let xx = 0; xx < cell.w; xx++) {
-            const a = alphaAt(png, x + xx, y + yy);
+            const a = alphaAt(img, x + xx, y + yy);
             if (a > 0) drawn++;
             const edge = xx === 0 || yy === 0 || xx === cell.w - 1 || yy === cell.h - 1;
             if (edge) expect(a, `${what} touches its edge at ${xx},${yy}`).toBe(0);
@@ -784,13 +792,13 @@ describe('3D creeps: the match sheets', () => {
       let figure = 0;
       for (let yy = 0; yy < hit.h; yy++) {
         for (let xx = 0; xx < hit.w; xx++) {
-          const a = alphaAt(png, hit.x + xx, hit.y + yy);
-          const t = ((hit.fy! + yy) * png.width + hit.fx! + xx) * 4;
-          const ta = png.data[t + 3]!;
+          const a = alphaAt(img, hit.x + xx, hit.y + yy);
+          const t = ((hit.fy! + yy) * img.width + hit.fx! + xx) * 4;
+          const ta = img.data[t + 3]!;
           // The twin covers the figure (the frame's own alpha, line and all); the frame adds the baked shadow round it.
           expect(ta, `twin alpha at ${xx},${yy}`).toBeLessThanOrEqual(a + 1);
           if (ta > 0) {
-            expect([png.data[t], png.data[t + 1], png.data[t + 2]]).toEqual([255, 255, 255]);
+            expect([img.data[t], img.data[t + 1], img.data[t + 2]]).toEqual([255, 255, 255]);
             if (ta === 255) figure++;
           }
         }
@@ -934,7 +942,7 @@ describe('nothing 3D runs on the device', () => {
 
   it('the creeps are pictures: a sheet and its layout per kind, and nothing else of theirs under src', () => {
     const own = readdirSync(ART3D).filter((f) => CREEP_KINDS.some((k) => f.startsWith(`${k}.`) || f.startsWith(`${k}-`)));
-    expect(own.sort()).toEqual(CREEP_KINDS.flatMap((k) => [`${k}-match.png`, `${k}.json`]).sort());
+    expect(own.sort()).toEqual(CREEP_KINDS.flatMap((k) => [`${k}-match.webp`, `${k}.json`]).sort());
   });
 });
 
