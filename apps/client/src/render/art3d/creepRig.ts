@@ -7,7 +7,8 @@
 // - stand: rooted or stunned (as the 2D rig, it stands still), or between blows.
 // - attack: a creep that stops (it only stops to fight) plays its attack every attack cooldown; an Archer's from its
 //   shot (the renderer finds who fired).
-// - the hit flash: the flinch frame and its white twin, the twin's alpha the flash (docs/ART.md §7).
+// - the hit flash: the flinch frame and its white twin, the twin's alpha the flash (docs/ART.md §7); at 0 the twin is
+//   a zero-size quad (no pixels), never out of the draw: a creep is hit many times a second (docs/ART.md §15, Cost).
 // - death: the flinch while the death's flash fades, the death frames, then the fade (`creepDeathFrame`).
 // - a boss's ability (Stomp, Hatch, the hide shift) on the boss events the client already gets.
 // - the Shardback's hide: its spines lit violet (additive, `hideEther`) while the Ether hide is up.
@@ -21,6 +22,7 @@ import type { ArtKit } from '../art/kit';
 import { creepArt, type CreepRigView } from '../art/registry';
 import { GAITS, KNOCK, knockPose } from '../art/rigs';
 import { RL } from '../art/tokens';
+import { fade } from '../fade';
 import { ABILITY_MS, attackMs, CREEP_DEATH, creepCadence, creepDeathFrame, type CreepState } from './creeps';
 import type { CreepFrame, CreepFrames } from './creepSheet';
 import { cycleFrame } from './layout';
@@ -125,7 +127,7 @@ export class Creep3DRig implements CreepRigView {
       this.hideSprite.scale.set(1 / this.res);
       this.hideSprite.blendMode = 'add';
       this.hideSprite.tint = RL.hideEther;
-      this.hideSprite.alpha = 0;
+      fade(this.hideSprite, 0);
       this.body.addChild(this.sprite, this.hideSprite);
     } else {
       this.body = this.sprite;
@@ -157,7 +159,7 @@ export class Creep3DRig implements CreepRigView {
     this.body.alpha = 1;
     this.flash.alpha = 0;
     if (this.shadow) this.shadow.alpha = 1;
-    if (this.hideSprite) this.hideSprite.alpha = 0;
+    if (this.hideSprite) fade(this.hideSprite, 0);
     this.body.rotation = 0;
     this.body.position.set(0, this.feet);
     this.body.scale.set(this.flip * this.k, this.k);
@@ -175,7 +177,7 @@ export class Creep3DRig implements CreepRigView {
     const ether = c.magicResist > this.baseMr + 0.01;
     if (ether === this.ether) return;
     this.ether = ether;
-    this.hideSprite.alpha = ether ? HIDE_GLOW : 0;
+    fade(this.hideSprite, ether ? HIDE_GLOW : 0);
     this.hideShown = null;
   }
 
@@ -248,6 +250,7 @@ export class Creep3DRig implements CreepRigView {
       }
     }
     this.show(state, i);
+    const flashWas = this.flash.alpha > 0;
     this.flash.alpha = state === 'hit' ? this.flashLevel : 0;
 
     // The body moves only for a knockback, a flyer's bob or a turn (the walk is in the frames): most frames, nothing to set.
@@ -273,7 +276,7 @@ export class Creep3DRig implements CreepRigView {
       this.shownFlip = this.flip;
       this.moved = knocked;
       this.copyToFlash();
-    } else if (this.flash.alpha > 0) {
+    } else if (this.flash.alpha > 0 || flashWas) {
       this.copyToFlash();
     }
   }
@@ -282,7 +285,7 @@ export class Creep3DRig implements CreepRigView {
     if (!this.dead) {
       this.dead = true;
       this.sprite.tint = 0xffffff;
-      if (this.hideSprite) this.hideSprite.alpha = 0;
+      if (this.hideSprite) fade(this.hideSprite, 0);
       this.body.rotation = 0;
       this.body.position.set(0, this.feet);
       this.body.scale.set(this.flip * this.k, this.k);
@@ -318,7 +321,12 @@ export class Creep3DRig implements CreepRigView {
     }
   }
 
+  /** The twin follows the body while it shows; at alpha 0 it is a zero-size quad (no pixels, the draw list unchanged). */
   private copyToFlash(): void {
+    if (this.flash.alpha <= 0) {
+      this.flash.scale.set(0);
+      return;
+    }
     const b = this.body;
     this.flash.position.copyFrom(b.position);
     this.flash.rotation = b.rotation;
