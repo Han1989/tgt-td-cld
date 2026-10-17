@@ -512,7 +512,7 @@ describe('the fringe check (no light ring round the hero, no hard alpha step)', 
   });
 });
 
-describe('the service worker and the stage videos', () => {
+describe('the service worker, the stage videos and the music’s ranges', () => {
   /** Runs the generated worker (swSource) with the platform's own Request, Response and Blob, a fake cache and a fake
    * network that serves `files` (and honours a Range header itself, as a static host does). */
   function worker(files: Record<string, Uint8Array<ArrayBuffer>>) {
@@ -562,6 +562,29 @@ describe('the service worker and the stage videos', () => {
   }
 
   const bytes = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i * 7 + 3) & 0xff);
+
+  it('streams a music element’s first range from the network, keeps the decode’s whole file, then answers ranges from it', async () => {
+    const file = bytes(500);
+    const w = worker({ '/music/lobby.mp3': file });
+    // The element asks first, with a range: straight to the network as asked (the music starts with its first bytes),
+    // and a 206 isn't kept.
+    const first = await w.get('/music/lobby.mp3?v=abc', 'bytes=0-');
+    expect(first.status).toBe(206);
+    expect(w.net).toEqual([{ url: 'https://td.test/music/lobby.mp3?v=abc', range: 'bytes=0-' }]);
+    expect(w.stored.size).toBe(0);
+    // The decode's whole request: kept.
+    const whole = await w.get('/music/lobby.mp3?v=abc');
+    expect(whole.status).toBe(200);
+    expect(w.stored.has('https://td.test/music/lobby.mp3?v=abc')).toBe(true);
+    // The next visit's element: its ranges from the stored file, 206s with a Content-Range (iPhones need them).
+    const again = await w.get('/music/lobby.mp3?v=abc', 'bytes=0-');
+    expect(again.status).toBe(206);
+    expect(again.headers.get('content-range')).toBe('bytes 0-499/500');
+    expect(new Uint8Array(await again.arrayBuffer())).toEqual(file);
+    const mid = await w.get('/music/lobby.mp3?v=abc', 'bytes=100-199');
+    expect(mid.headers.get('content-range')).toBe('bytes 100-199/500');
+    expect(w.net).toHaveLength(2);
+  });
 
   it('keeps a stage video whole on first play and answers every range from it with a 206 and its Content-Range', async () => {
     const file = bytes(1000);

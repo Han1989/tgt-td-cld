@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import { listSoundFiles, MUSIC_LEVELS, readMusicLevels } from './scripts/soundFiles.ts';
 import { swSource } from './src/platform/swSource.ts';
 
 /** The site's pages: the game, and the static privacy notice (docs/ANALYTICS.md), which loads none of the game. */
@@ -49,33 +50,6 @@ function serviceWorker(): Plugin {
 const MUSIC_WARN = 4_500_000;
 const SFX_WARN = 250_000;
 
-interface SoundFile {
-  dir: 'music' | 'sfx';
-  name: string;
-  hash: string;
-  size: number;
-}
-
-/** The recorded sound files in public/music and public/sfx: name (without .mp3), a hash of the contents, size. */
-function listSoundFiles(publicDir: string): SoundFile[] {
-  const out: SoundFile[] = [];
-  for (const dir of ['music', 'sfx'] as const) {
-    let names: string[] = [];
-    try {
-      names = readdirSync(join(publicDir, dir));
-    } catch {
-      continue;
-    }
-    for (const file of names.sort()) {
-      if (!/\.mp3$/i.test(file)) continue;
-      const data = readFileSync(join(publicDir, dir, file));
-      const hash = createHash('sha256').update(data).digest('hex').slice(0, 10);
-      out.push({ dir, name: file.replace(/\.mp3$/i, ''), hash, size: data.length });
-    }
-  }
-  return out;
-}
-
 /**
  * The file names a folder's README lists (table rows starting with `` `name.mp3` ``): the names the game
  * uses (a unit test keeps them equal to `MUSIC_FILES` and `SOUND_IDS`).
@@ -94,17 +68,22 @@ function readmeNames(dir: string): Set<string> {
  * `virtual:tdt-sound-files`: the recorded sound files (docs/SOUND_FILES.md), listed when the app is
  * built or the dev server starts, so a file added to public/music or public/sfx plays with no code
  * change. A name the game doesn't know fails the build (a warning on the dev server); a file too big
- * for a phone gets a warning.
+ * for a phone gets a warning. A music file carries its level measured ahead of time
+ * (src/audio/musicLevels.json) when that measure is of this file; a file without one gets a warning
+ * (its streamed start then plays at the last decode's level, or a default: docs/ART.md §13), never an error, so an
+ * upload on GitHub's website still deploys.
  */
 function soundFiles(): Plugin {
   const ID = 'virtual:tdt-sound-files';
   const RESOLVED = `\0${ID}`;
   let publicDir = '';
+  let levelsPath = '';
   let building = false;
   return {
     name: 'tdt-sound-files',
     configResolved(config) {
       publicDir = config.publicDir;
+      levelsPath = join(config.root, MUSIC_LEVELS);
       building = config.command === 'build';
     },
     resolveId(id) {
@@ -114,6 +93,12 @@ function soundFiles(): Plugin {
       if (id !== RESOLVED) return null;
       const files = listSoundFiles(publicDir);
       const known = { music: readmeNames(join(publicDir, 'music')), sfx: readmeNames(join(publicDir, 'sfx')) };
+      this.addWatchFile(levelsPath);
+      const levels = readMusicLevels(levelsPath);
+      const gain = (f: { dir: string; name: string; hash: string }) => {
+        const level = f.dir === 'music' ? levels[f.name] : undefined;
+        return level && level.hash === f.hash ? level.gain : undefined;
+      };
       for (const f of files) {
         if (!known[f.dir].has(f.name)) {
           // A misnamed upload fails the deploy (the pull request's check turns red) rather than go live silently.
@@ -124,8 +109,14 @@ function soundFiles(): Plugin {
         if (f.size > (f.dir === 'music' ? MUSIC_WARN : SFX_WARN)) {
           this.warn(`public/${f.dir}/${f.name}.mp3 is ${(f.size / 1e6).toFixed(1)} MB: too big for a phone (docs/SOUND_FILES.md)`);
         }
+        if (f.dir === 'music' && known.music.has(f.name) && gain(f) === undefined) {
+          this.warn(
+            `public/music/${f.name}.mp3 has no level measured in ${MUSIC_LEVELS}: its streamed start may be a little ` +
+              `quieter or louder than its loop on a first visit; run npm run music-levels -w @tdt/client (docs/SOUND_FILES.md)`,
+          );
+        }
       }
-      return `export default ${JSON.stringify(files.map(({ dir, name, hash }) => ({ dir, name, hash })))};`;
+      return `export default ${JSON.stringify(files.map((f) => ({ dir: f.dir, name: f.name, hash: f.hash, ...(gain(f) ? { gain: gain(f) } : {}) })))};`;
     },
     configureServer(server) {
       // The dev server: a file added or removed reloads the list.

@@ -1,5 +1,5 @@
 // The list of recorded sound files, made by the `tdt-sound-files` plugin (vite.config.ts).
 declare module 'virtual:tdt-sound-files' {
-  const files: { dir: 'music' | 'sfx'; name: string; hash: string }[];
+  const files: { dir: 'music' | 'sfx'; name: string; hash: string; gain?: number }[];
   export default files;
 }

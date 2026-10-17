@@ -6,15 +6,20 @@
 // costs a frame; a sound asked for before its samples arrive is skipped (the lobby's instruments and
 // the UI come first).
 //
-// Recorded effects (`public/sfx/<id>.mp3`, docs/SOUND_FILES.md) are fetched and decoded after the
-// first tap too; once one is ready it plays instead of its synth sound, trimmed and levelled to it.
-// The music's file for the scene starts downloading inside that tap (`onUnlock`, music.ts).
+// The music's file for the scene starts streaming inside the first tap (`onUnlock`, music.ts): an
+// <audio> element (`audioElement`) played there and then connected to the music bus. Recorded effects
+// (`public/sfx/<id>.mp3`, docs/SOUND_FILES.md) are fetched and decoded once that music has sounded
+// (`loadEffectFiles`; at the latest 5 s after the tap, at once in a build with no music file), so
+// their requests don't hold up the music's first bytes; until one is ready its synth sound plays, and
+// then the file plays instead, trimmed and levelled to it.
 //
 // Mobile:
 // - iPhone: the audio session is set to "ambient" where Safari has `navigator.audioSession`
-//   (16.4+), so the silent switch mutes the game and other apps' music keeps playing.
+//   (16.4+), so the silent switch mutes the game and other apps' music keeps playing (the music's
+//   elements play in the same session).
 // - The context is suspended when the page is hidden (another app, the screen locks) and resumed
 //   when it comes back; if the browser refuses to resume without a gesture (iOS), the next tap does it.
+//   The music pauses its elements with it (music.ts).
 
 import { fitFile, levelGain, loudness, NO_FILES, peakOf, type FittedFile, type SoundFiles } from './files';
 import type { BakeJob } from './sounds';
@@ -108,6 +113,8 @@ interface FileSfx {
 
 /** A typical effect's loudness (dB), for a recorded effect that arrives before its synth sound is baked. */
 const TYPICAL_SFX_DB = -16;
+/** The recorded effects load at the latest this long after the first tap (ms), if the music hasn't sounded by then. */
+export const EFFECT_FILES_AFTER_MS = 5000;
 
 export class AudioEngine {
   ctx: AudioContext | null = null;
@@ -122,6 +129,7 @@ export class AudioEngine {
   private unsupported = false;
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly fileSfx = new Map<string, FileSfx>();
+  private effectFilesAsked = false;
   private mix: Mix = { music: 0.5, sfx: 0.8, muted: false };
   private readonly listeners: (() => void)[] = [];
   private readonly unlockListeners: (() => void)[] = [];
@@ -179,6 +187,15 @@ export class AudioEngine {
     this.unlockListeners.push(listener);
   }
 
+  /** A new <audio> element for a music file's streamed start (music.ts), or null if the browser can't make one. */
+  audioElement(): HTMLAudioElement | null {
+    try {
+      return document.createElement('audio');
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Creates or resumes the context. Must run inside a user gesture the first time (the window
    * listeners do that); later calls are cheap.
@@ -209,9 +226,12 @@ export class AudioEngine {
       this.build(ctx);
       this.applyMix(true);
       ctx.addEventListener('statechange', () => this.changed());
-      this.startBake();
-      this.loadFileSfx();
+      // The music's element first: its request goes out before the room's impulse is computed and the bake starts.
       for (const l of this.unlockListeners) l();
+      this.buildRoom(ctx);
+      this.startBake();
+      if (Object.keys(this.files.music).length === 0) this.loadEffectFiles();
+      else setTimeout(() => this.loadEffectFiles(), EFFECT_FILES_AFTER_MS);
     }
     const ctx = this.ctx;
     if (ctx.state !== 'running') {
@@ -231,7 +251,7 @@ export class AudioEngine {
     }
   }
 
-  /** The buses: effects and music into the master, both sending into one room. */
+  /** The buses: effects and music into the master, and their sends to the room (`buildRoom`). */
   private build(ctx: AudioContext): void {
     const compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -12;
@@ -248,6 +268,11 @@ export class AudioEngine {
     this.musicBus.connect(this.master);
     this.sfxSend = ctx.createGain();
     this.musicSend = ctx.createGain();
+  }
+
+  /** The room both sends go into: a code-made impulse in a convolver. */
+  private buildRoom(ctx: AudioContext): void {
+    if (!this.sfxSend || !this.musicSend || !this.master) return;
     try {
       const room = ctx.createConvolver();
       const [l, r] = roomImpulse(ctx.sampleRate, ROOM_SECONDS);
@@ -319,10 +344,15 @@ export class AudioEngine {
     this.stats.baked++;
   }
 
-  /** Fetches and decodes the recorded effects (small files; the service worker caches each on first fetch). */
-  private loadFileSfx(): void {
+  /**
+   * Fetches and decodes the recorded effects, once (small files; the service worker caches each on first fetch). The
+   * music calls it when its file has sounded: on a first visit on a slow phone network the effects' 18 requests,
+   * made in the first tap, held the music's stream back by more than a second.
+   */
+  loadEffectFiles(): void {
     const ctx = this.ctx;
-    if (!ctx) return;
+    if (!ctx || this.effectFilesAsked) return;
+    this.effectFilesAsked = true;
     for (const [id, url] of Object.entries(this.files.sfx)) {
       void decodeFile(ctx, url).then((buf) => {
         if (!buf) return;

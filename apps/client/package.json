@@ -13,6 +13,7 @@
     "og": "tsx scripts/ogImage.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p e2e/tsconfig.json",
     "first-load": "tsx scripts/firstLoad.ts",
+    "music-levels": "tsx scripts/musicLevels.ts",
     "creeps-contact": "tsx scripts/creepsContact.ts",
     "structures-contact": "tsx scripts/structuresContact.ts"
   },

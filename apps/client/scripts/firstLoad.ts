@@ -8,6 +8,9 @@
 //   npm run first-load -w @tdt/client -- --runs 9 --no-build
 //   npm run first-load -w @tdt/client -- --url https://tgt-td-cld.vercel.app/
 //   npm run first-load -w @tdt/client -- --sheets            also wait for the 3D match sheets
+//   npm run first-load -w @tdt/client -- --music             the first tap → the first music heard, instead
+//   npm run first-load -w @tdt/client -- --music --tap-after 12000   that tap 12 s after the lobby is usable
+//   npm run first-load -w @tdt/client -- --music --http-cache        the HTTP cache on (empty), as on a real first visit
 //
 // "Usable" = `<html data-ready>` is set (main.ts's `tdt:ready` mark), the home card is shown and the
 // Play solo button is on screen, enabled and the element a tap at its centre would hit. After that, each run waits
@@ -17,6 +20,13 @@
 // and portals', the creeps', then the heroes'), and reports when they were in (`tdt:structures`, `tdt:creep-sheets`,
 // `tdt:hero-sheets`) and their bytes (all of them, and the creeps' alone); the first screen's numbers are taken
 // before, so they don't move.
+//
+// With `--music` (docs/ART.md §13) each run taps the home card once it is usable, on a spot that is no button (the
+// first tap, which starts the sound), and reports how long from that tap until the first audible sample (above
+// −60 dBFS) leaves the music bus, and until a decoded music file starts (a buffer longer than 20 s: before the
+// streamed start, the first sound; after it, the takeover). An init script finds the bus as the engine builds it
+// (engine.ts `build`: its third gain, connected to the first, the master) and listens to it with an analyser, so
+// the tap's own click on the effects bus doesn't count; the plate and the sheets are not waited for.
 
 import { fileURLToPath } from 'node:url';
 import { chromium, devices } from '@playwright/test';
@@ -44,6 +54,9 @@ interface Run {
   creepSheets: number;
   sheetsKb: number;
   creepKb: number;
+  /** `--music`: from the first tap (ms) to the first music heard, and to a decoded file starting. */
+  heard: number;
+  loop: number;
 }
 
 function arg(name: string): string | undefined {
@@ -53,6 +66,11 @@ function arg(name: string): string | undefined {
 
 const runs = Number(arg('runs') ?? 5);
 const sheets = process.argv.includes('--sheets');
+const music = process.argv.includes('--music');
+/** `--music`: how long after the lobby is usable the first tap comes (ms). */
+const tapAfter = Number(arg('tap-after') ?? 0);
+/** Keep the (empty) HTTP cache on: a real first visit's later requests for a file it has are answered from it. */
+const httpCache = process.argv.includes('--http-cache');
 const profile = {
   latencyMs: Number(arg('latency') ?? SLOW_4G.latencyMs),
   downKbps: Number(arg('down') ?? SLOW_4G.downKbps),
@@ -61,6 +79,50 @@ const profile = {
 };
 const root = fileURLToPath(new URL('..', import.meta.url));
 const outDir = 'dist-firstload';
+
+/**
+ * `--music`'s probe, run in the page before its scripts: the tap's time, the first audible sample on the music bus and
+ * the first decoded music file's start (no named helpers: tsx would wrap them in a `__name` call the page doesn't have).
+ */
+const MUSIC_PROBE = `(() => {
+  const m = { tap: NaN, heard: NaN, loop: NaN, bus: false };
+  window.__music = m;
+  addEventListener('pointerdown', () => { if (Number.isNaN(m.tap)) m.tap = performance.now(); }, { capture: true });
+  const proto = (window.BaseAudioContext || window.AudioContext).prototype;
+  const createGain = proto.createGain;
+  const made = new WeakMap();
+  proto.createGain = function () {
+    const g = createGain.call(this);
+    const list = made.get(this) || [];
+    list.push(g);
+    made.set(this, list);
+    if (list.length === 3) {
+      const connect = g.connect;
+      g.connect = function (dest, ...rest) {
+        if (dest === list[0]) m.bus = true;
+        return connect.call(this, dest, ...rest);
+      };
+      const an = this.createAnalyser();
+      an.fftSize = 2048;
+      connect.call(g, an);
+      const data = new Float32Array(an.fftSize);
+      const poll = () => {
+        an.getFloatTimeDomainData(data);
+        let p = 0;
+        for (let i = 0; i < data.length; i++) p = Math.max(p, Math.abs(data[i]));
+        if (p > 0.001) m.heard = performance.now();
+        else setTimeout(poll, 5);
+      };
+      poll();
+    }
+    return g;
+  };
+  const start = AudioBufferSourceNode.prototype.start;
+  AudioBufferSourceNode.prototype.start = function (...args) {
+    if (this.buffer && this.buffer.duration > 20 && Number.isNaN(m.loop)) m.loop = performance.now();
+    return start.apply(this, args);
+  };
+})();`;
 
 let url = arg('url');
 let server: Awaited<ReturnType<typeof preview>> | null = null;
@@ -78,14 +140,15 @@ const browser = await chromium.launch();
 const results: Run[] = [];
 try {
   for (let i = 0; i < runs; i++) {
-    // A fresh context per run: empty HTTP cache, no storage, and service workers blocked.
+    // A fresh context per run: empty HTTP cache (off unless `--http-cache`), no storage, and service workers blocked.
     const context = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block' });
-    // Measurement visits are not players: keep them out of the rollout dashboard (docs/ANALYTICS.md).
-    await context.route('**/analytics/event', (route) => route.abort());
     const page = await context.newPage();
     const cdp = await context.newCDPSession(page);
     await cdp.send('Network.enable');
-    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+    // Measurement visits are not players: keep them out of the rollout dashboard (docs/ANALYTICS.md). Blocked here, not
+    // with a Playwright route, which would turn the HTTP cache off for the whole context (`--http-cache`).
+    await cdp.send('Network.setBlockedURLs', { urls: ['*/analytics/event*'] });
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: !httpCache });
     await cdp.send('Network.emulateNetworkConditions', {
       offline: false,
       latency: profile.latencyMs,
@@ -93,6 +156,7 @@ try {
       uploadThroughput: (profile.upKbps * 1024) / 8,
     });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
+    if (music) await page.addInitScript(MUSIC_PROBE);
     await page.goto(url, { waitUntil: 'commit', timeout: 120_000 });
     await page.waitForFunction(
       () => {
@@ -130,6 +194,56 @@ try {
       const bytes = performance.getEntriesByType('resource').reduce((s, r) => s + (r as PerformanceResourceTiming).transferSize, nav?.transferSize ?? 0);
       return { firstPaint: firstPaint!, fcp: fcp!, ready: ready!, bytes };
     });
+    if (music) {
+      // The first tap, on the home card but on no button (a button's own click goes to the effects bus anyway).
+      const spot = await page.evaluate(() => {
+        const home = document.getElementById('lobby-home')!.getBoundingClientRect();
+        for (let y = home.top + 8; y < home.bottom; y += 12) {
+          for (const x of [home.left + 12, home.left + home.width / 2, home.right - 12]) {
+            const el = document.elementFromPoint(x, y);
+            if (el && !el.closest('button, a, input, select, label, video, canvas, [role="button"], [tabindex]')) return { x, y };
+          }
+        }
+        return null;
+      });
+      if (!spot) throw new Error('no spot on the home card that is not a button');
+      if (tapAfter > 0) await page.waitForTimeout(tapAfter);
+      await page.touchscreen.tap(spot.x, spot.y);
+      const got = await page
+        .waitForFunction(
+          () => {
+            const m = (window as unknown as { __music: { tap: number; heard: number; loop: number; bus: boolean } }).__music;
+            return Number.isFinite(m.heard) && Number.isFinite(m.loop) ? m : null;
+          },
+          undefined,
+          { polling: 100, timeout: 180_000 },
+        )
+        .then((h) => h.jsonValue() as Promise<{ tap: number; heard: number; loop: number; bus: boolean }>)
+        .catch(() => page.evaluate(() => (window as unknown as { __music: { tap: number; heard: number; loop: number; bus: boolean } }).__music));
+      if (!got.bus) throw new Error('the music bus was not found (engine.ts `build` changed?)');
+      const heard = got.heard - got.tap;
+      const loop = got.loop - got.tap;
+      results.push({
+        firstPaint: timing.firstPaint,
+        fcp: timing.fcp,
+        ready: timing.ready,
+        usable: at,
+        kb: timing.bytes / 1024,
+        plate: NaN,
+        plateDecode: NaN,
+        plateKb: NaN,
+        structures: NaN,
+        heroSheets: NaN,
+        creepSheets: NaN,
+        sheetsKb: NaN,
+        creepKb: NaN,
+        heard,
+        loop,
+      });
+      console.log(`run ${i + 1}: usable ${ms(at)}, tapped ${ms(tapAfter)} later; first tap → music heard ${ms(heard)}, decoded file started ${ms(loop)}`);
+      await context.close();
+      continue;
+    }
     // The map plate, after the lobby is usable (so waiting for it changes none of the numbers above).
     const plate = await page
       .waitForFunction(() => document.documentElement.dataset.plate === 'ready', undefined, { polling: 500, timeout: 120_000 })
@@ -174,6 +288,8 @@ try {
       creepSheets: loaded.creep,
       sheetsKb: loaded.bytes / 1024,
       creepKb: loaded.creepBytes / 1024,
+      heard: NaN,
+      loop: NaN,
     });
     console.log(
       `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB; ` +
@@ -204,18 +320,28 @@ function stats(values: number[]): string {
 
 console.log(
   `\n${url} · Pixel 7 · ${profile.latencyMs} ms latency, ${profile.downKbps} kbps down, ${profile.upKbps} kbps up, ` +
-    `CPU ${profile.cpu}× slower · cold cache, no service worker · ${runs} runs`,
+    `CPU ${profile.cpu}× slower · ${httpCache ? 'empty HTTP cache' : 'cold cache'}, no service worker · ${runs} runs`,
 );
-console.log(`first contentful paint:   ${stats(results.map((r) => r.fcp))}`);
-console.log(`tdt:ready:                ${stats(results.map((r) => r.ready))}`);
-console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
-console.log(`transferred:              ${(results.reduce((s, r) => s + r.kb, 0) / results.length).toFixed(0)} KB per load`);
-console.log(`map plate ready:          ${stats(results.map((r) => r.plate))}`);
-console.log(`map plate decode:         ${stats(results.map((r) => r.plateDecode))} (${results[0]?.plateKb.toFixed(0)} KB)`);
-if (sheets) {
-  console.log(`structures sheet in:      ${stats(results.map((r) => r.structures))}`);
-  console.log(`creep sheets in:          ${stats(results.map((r) => r.creepSheets))}`);
-  console.log(`hero sheets in:           ${stats(results.map((r) => r.heroSheets))}`);
-  console.log(`match sheets:             ${(results.reduce((s, r) => s + r.sheetsKb, 0) / results.length).toFixed(0)} KB per load`);
-  console.log(`creep sheets:             ${(results.reduce((s, r) => s + r.creepKb, 0) / results.length).toFixed(0)} KB per load`);
+if (music) {
+  console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
+  console.log(`first tap → music heard:  ${stats(results.map((r) => r.heard))}`);
+  console.log(`first tap → decoded file: ${stats(results.map((r) => r.loop))}`);
+} else {
+  report();
+}
+
+function report(): void {
+  console.log(`first contentful paint:   ${stats(results.map((r) => r.fcp))}`);
+  console.log(`tdt:ready:                ${stats(results.map((r) => r.ready))}`);
+  console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
+  console.log(`transferred:              ${(results.reduce((s, r) => s + r.kb, 0) / results.length).toFixed(0)} KB per load`);
+  console.log(`map plate ready:          ${stats(results.map((r) => r.plate))}`);
+  console.log(`map plate decode:         ${stats(results.map((r) => r.plateDecode))} (${results[0]?.plateKb.toFixed(0)} KB)`);
+  if (sheets) {
+    console.log(`structures sheet in:      ${stats(results.map((r) => r.structures))}`);
+    console.log(`creep sheets in:          ${stats(results.map((r) => r.creepSheets))}`);
+    console.log(`hero sheets in:           ${stats(results.map((r) => r.heroSheets))}`);
+    console.log(`match sheets:             ${(results.reduce((s, r) => s + r.sheetsKb, 0) / results.length).toFixed(0)} KB per load`);
+    console.log(`creep sheets:             ${(results.reduce((s, r) => s + r.creepKb, 0) / results.length).toFixed(0)} KB per load`);
+  }
 }

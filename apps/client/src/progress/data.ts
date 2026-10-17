@@ -16,6 +16,7 @@
  * V-05c round 2 on 17 Oct 2026 (PR #120: the Ironhorn the horned Demon, the creep sheets lossless WebP).
  * V-05e on 17 Oct 2026 (PR #121: the stress test's budget after the 3D sprites).
  * P2-10 on 17 Oct 2026 (PR #122: silence, not the code-made score, while a music file downloads).
+ * P2-11 on 17 Oct 2026 (PR #123: the music streamed from the first tap, then its decoded loop).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -455,6 +456,15 @@ const items: ProgressItem[] = [
     section: 'playtest2',
     note: 'Client audio only, protocol stays 20. Han, 17 Oct 2026: on a first visit the lobby opened with 3–5 s of harsh, loud sound before the recorded lobby music. It was the code-made score playing while lobby.mp3 (2.7 MB) downloaded; a second visit never had it, because the phone keeps the file, and every Reddit tester is a first visit. Now a scene with a music file plays nothing until the file is in, and the code-made score only when there is no file or it can’t be downloaded. The lobby’s file starts downloading on the first tap, the match’s the moment a match is created (a download no longer needed stops, so the one needed gets the whole connection), the boss’s after it. A file fades in over a second, and the first tap gets one soft koto pluck so it isn’t silent. Built by Claude Code (PR #122).',
     proof: pr(122),
+  },
+  {
+    id: 'P2-11',
+    title: 'Lobby music within a second of the first tap',
+    owner: 'Team',
+    status: 'done',
+    section: 'playtest2',
+    note: 'Client audio only, protocol stays 20. Han, 17 Oct 2026: on a first visit the lobby must have its real music within about a second of the first tap, fading in softly; not the code-made score, not silence, no single cue note (the koto pluck is gone). A music file now plays while it downloads, from an audio element started in the first tap, fading in over 1.5 s at the level its loop will have; once the phone holds the whole file the game switches to its own seamless copy of the loop, at the loop point or in a half-second crossfade, with no second download. On a throttled phone (Slow 4G, CPU 4×) the real lobby music now starts 1.5 s after the first tap instead of 37 s. Built by Claude Code (PR #123).',
+    proof: pr(123),
   },
   {
     id: 'H-01',

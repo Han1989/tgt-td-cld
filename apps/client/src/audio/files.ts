@@ -8,6 +8,9 @@
 // code change. When a file is decoded, the encoder's silence is trimmed at both ends (MP3 encoders
 // pad a few dozen ms, which would put a gap in every loop) and its loudness is measured, so every
 // music file plays at the same level and a recorded effect as loud as the synth sound it replaces.
+// A music file's level is also measured ahead of time (`src/audio/musicLevels.json`, written by
+// `npm run music-levels -w @tdt/client`), so its streamed start (music.ts), which plays before any
+// decode, is as loud as its decoded loop.
 
 import type { MusicScene } from './score';
 
@@ -19,24 +22,30 @@ export interface FoundFile {
   dir: 'music' | 'sfx';
   name: string;
   hash: string;
+  /** Music: its levelling gain (`fitFile`), when `musicLevels.json` has a measure of this very file (its hash). */
+  gain?: number;
 }
 
 /** The files the game can use, by name: each one's URL (with its hash, so a new upload is fetched fresh). */
 export interface SoundFiles {
   music: Partial<Record<MusicFile, string>>;
   sfx: Record<string, string>;
+  /** A music file's levelling gain measured ahead of time (`musicLevels.json`), for its streamed start. */
+  gains: Partial<Record<MusicFile, number>>;
 }
 
-export const NO_FILES: SoundFiles = { music: {}, sfx: {} };
+export const NO_FILES: SoundFiles = { music: {}, sfx: {}, gains: {} };
 
 /** The usable files among those found: known music names and known effect ids; the rest is ignored. */
 export function soundFiles(found: readonly FoundFile[], soundIds: readonly string[]): SoundFiles {
-  const out: SoundFiles = { music: {}, sfx: {} };
+  const out: SoundFiles = { music: {}, sfx: {}, gains: {} };
   const ids = new Set(soundIds);
   for (const f of found) {
     const url = `/${f.dir}/${encodeURIComponent(f.name)}.mp3?v=${f.hash}`;
-    if (f.dir === 'music' && (MUSIC_FILES as readonly string[]).includes(f.name)) out.music[f.name as MusicFile] = url;
-    else if (f.dir === 'sfx' && ids.has(f.name)) out.sfx[f.name] = url;
+    if (f.dir === 'music' && (MUSIC_FILES as readonly string[]).includes(f.name)) {
+      out.music[f.name as MusicFile] = url;
+      if (f.gain !== undefined && Number.isFinite(f.gain) && f.gain > 0) out.gains[f.name as MusicFile] = f.gain;
+    } else if (f.dir === 'sfx' && ids.has(f.name)) out.sfx[f.name] = url;
   }
   return out;
 }
