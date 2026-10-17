@@ -1,6 +1,7 @@
-# The 3D art pipeline (docs/ART.md §15): heroes imported from the CC0 KayKit packs (tools/blender/assets/kaykit/,
-# one table in tools/blender/hero.py), posed by the packs' own clips and rendered ahead of time into the pictures and
-# videos the game shows, in Runelight's look; and the map plate (§16). Nothing 3D runs on the player's device.
+# The 3D art pipeline (docs/ART.md §15): heroes, creeps, towers and buildings from the CC0 packs (tools/blender/assets/,
+# one table each in tools/blender/hero.py, creeps.py and structures.py), posed by the packs' own clips or kitbashed,
+# and rendered ahead of time into the pictures and videos the game shows, in Runelight's look; and the map plate (§16).
+# Nothing 3D runs on the player's device.
 #
 #   palette.py  the Runelight tokens, read from apps/client/src/render/art/tokens.ts
 #   gltf.py     importing a character and its props (on the hand slots), repainting every face in tokens; the clips
@@ -16,5 +17,7 @@
 #   map.py      the map plate (docs/ART.md §16): a map's ground from its data, rendered straight down as one picture
 #   fringe.py   the fringe check
 #   match.py    the match sheet: the layers and their white twins, and their layout
+#   creep.py    a creep's match sheet (tools/blender/creeps.py)
+#   structure.py the towers', the Heart's and the portals' sheet, kitbashed (tools/blender/structures.py)
 #   imageio.py  PNG writing (deterministic) and reading
 #   encode.py   ffmpeg: the MP4, the WebM, the WebP poster and stills

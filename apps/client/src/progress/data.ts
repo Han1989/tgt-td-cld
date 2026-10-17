@@ -10,7 +10,8 @@
  * towers rendered ahead of time) added on 14 Oct 2026; V-05b done on 16 Oct 2026 (PR #108: the three heroes from the
  * KayKit models, Han's decision of 16 Oct; round 2 PR #109 on 17 Oct: the stage back at 2400 × 900), V-05a closed as
  * superseded; V-03 done on 17 Oct 2026 (PR #114: the map as a rendered picture, Han's decision of 17 Oct); V-05c done
- * on 17 Oct 2026 (PR #115: every creep and boss from the CC0 KayKit Skeletons and Quaternius monsters). Production
+ * on 17 Oct 2026 (PR #115: every creep and boss from the CC0 KayKit Skeletons and Quaternius monsters); V-05d done on
+ * 17 Oct 2026 (PR #116: the towers, the Heart and the portals kitbashed from the CC0 KayKit pieces). Production
  * protocol is 19. This page only
  * reports status.
  */
@@ -284,10 +285,11 @@ const items: ProgressItem[] = [
   {
     id: 'V-05d',
     title: '3D towers, the Heart and portals',
-    owner: 'Both',
-    status: 'todo',
+    owner: 'Team',
+    status: 'done',
     section: 'visual',
-    note: 'After V-05c, when Han says go. The five towers at every tier and branch, the Heart with its damage states and the portals, rendered ahead of time from above, with turrets that still turn towards their target.',
+    note: 'Client art and tools only, protocol stays 19. Han, 17 Oct 2026: the five towers at every tier and branch, the Heart in its three damage states and the portals are pre-rendered 3D pictures, kitbashed from the CC0 KayKit pieces in the repo (never modelled in code), repainted in Runelight’s tokens and lit by the map’s moon. Towers are seen straight down so their turrets turn truly: a crossbow, a catapult, an ice lance, a staff and a rotor aimed at the sky, each with three recoil frames; tier 1 unlit, tier 2 two runes, tier 3 four and gold, every branch its own outline. The Heart is a castle keeping a glowing chest, cracked and then ruined and burning as it takes damage; the portals are gatehouses with torches and the swirl in their arch. One sheet on one texture page, loaded after the map and before the creeps and heroes; the 2D art stays as the fallback. In review: Han judges the contact sheet and the game on his phone. Built by Claude Code (PR #116).',
+    proof: pr(116),
   },
   {
     id: 'g1-render',

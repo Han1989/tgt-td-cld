@@ -57,3 +57,15 @@ Kitbash mapping (V-05d; a tower is a base that never turns plus a turret that tu
 
 Tier runes stay the 2D language (no glow / 2 runes / 4 runes + gold): rune pillars and the gold accent are the
 painter's emissives, not pack colours.
+
+**As built (V-05d, `tools/blender/structures.py`, `docs/ART.md` §15).** Towers are rendered straight down (a turret
+frame can only turn truly as a plan view), so every turret is a piece that points, and a few rows of the table above
+changed: the Arrow turret is the Adventurers' `crossbow_2handed` (Sniper: the Skeletons' crossbow, longer); the Frost
+turret the Adventurers' `sword_2handed` laid flat as an ice lance; the Arcane base the Hexagon `well` without its roof,
+posts and bucket (a pool), its turret the Mage's `staff` (Prism adds `resource_stone` as a crystal, Void the Skeletons'
+blades as thorns); the Flak square is four `barrier_column` walls (the Hexagon `wall_corner_A_outside` is a curved
+piece that left the pad); the Heart is the Builder `castle` (the Hexagon castle is too tall seen from the south) and a
+portal the Builder `wall_gate`, both seen from the south at 55°. The catapult, the tower base, the windmill rotor,
+`bucket_arrows`, `barrel`, `torch_lit`, `pillar`, `column`, `candle_triple`, `pillar_decorated`, `chest_gold`,
+`rubble_half` and `rubble_large` are used as the table says. The Builder `.glb` files colour by named material, not a
+palette cell (`_repaint_named` in `tdt3d/structure.py`).
