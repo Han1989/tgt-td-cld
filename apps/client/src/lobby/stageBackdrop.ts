@@ -1,6 +1,8 @@
-// The lobby stage's backdrop (docs/ART.md §12, §15): the moonlit clearing rendered ahead of time in Blender. A hero
-// made in 3D stands in it as a video (its 8 s loop: idle, then its signature move); the others stand as their 2D
-// drawing (heroStage.ts) over the empty clearing, so the three heroes share one background. Nothing 3D runs here.
+// The lobby stage's backdrop (docs/ART.md §12, §15): the moonlit clearing rendered ahead of time in Blender. Every
+// hero is made in 3D and stands in it as a video (its 8 s loop: idle, then its signature move); a hero without one
+// would stand as its 2D drawing (heroStage.ts) over the empty clearing. All three share one clearing, framed the same
+// (one fit), so switching heroes swaps the hero and never moves the ground: the empty clearing shows while the next
+// hero's poster decodes, then the poster, then that hero's own video. Nothing 3D runs here.
 //
 // - The poster (the loop's first frame) shows at once and stays when the video can't play: reduced motion, data
 //   saver, autoplay blocked (iPhone Low Power Mode), an error. The video loads only after the first screen is up.
@@ -47,6 +49,7 @@ export class StageBackdrop {
   private visible = true;
   private posterOk = false;
   private posterFailed = false;
+  private clearingOk = false;
   private videoReady = false;
   private videoFor: HeroKind | null = null;
   private timer = 0;
@@ -69,6 +72,10 @@ export class StageBackdrop {
       this.el.appendChild(img);
     }
     this.clearing.className = 'stage-clearing';
+    this.clearing.addEventListener('load', () => {
+      this.clearingOk = true;
+      this.sync();
+    });
     this.poster.className = 'stage-poster';
     this.poster.addEventListener('load', () => {
       this.posterOk = true;
@@ -105,6 +112,8 @@ export class StageBackdrop {
   show(hero: HeroKind): void {
     if (hero === this.hero) return;
     this.hero = hero;
+    // The last hero's video goes; this one's loads as the first did (after a short wait), its poster in between.
+    this.dropVideo();
     this.setPoster();
     this.sync();
   }
@@ -151,7 +160,9 @@ export class StageBackdrop {
   private shown(): Shown {
     if (!this.stage) return CLEARING ? 'clearing' : 'none';
     if (this.videoReady && this.videoFor === this.hero && this.moving()) return 'video';
-    return this.posterOk ? 'poster' : 'none';
+    if (this.posterOk) return 'poster';
+    // Between heroes, while the next poster decodes: the clearing they share, in the same place.
+    return this.clearingOk ? 'clearing' : 'none';
   }
 
   /** The empty clearing loads when a 2D hero needs it, or once the screen is up: never in the first screen's way. */
@@ -217,6 +228,18 @@ export class StageBackdrop {
     if (this.box) this.layout(this.box);
     v.src = stageUrl(s, kind);
     this.sync();
+  }
+
+  private dropVideo(): void {
+    const v = this.video;
+    if (!v) return;
+    v.pause();
+    v.removeAttribute('src');
+    v.load();
+    v.remove();
+    this.video = null;
+    this.videoFor = null;
+    this.videoReady = false;
   }
 
   /** The video can't play here: the poster stays. */

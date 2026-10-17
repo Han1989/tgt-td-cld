@@ -113,10 +113,23 @@ def pool(location, target, size_deg=40.0, energy=1.0):
 class Cam:
     """A camera and its frame. Orthographic cameras are placed so a world point lands on a chosen pixel."""
 
+    _seen = None
+
     def __init__(self, obj, w, h):
         self.obj = obj
         self.w = w
         self.h = h
+
+    def project(self, pts):
+        """Many world points at once (n × 3): pixels (x right, y down) and depth along the view, as px() gives them."""
+        s = bpy.context.scene
+        s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = self.w, self.h, 100
+        dg = bpy.context.evaluated_depsgraph_get()
+        proj = np.array(self.obj.calc_matrix_camera(dg, x=self.w, y=self.h)) @ np.array(self.obj.matrix_world.inverted())
+        q = np.c_[np.asarray(pts, np.float64).reshape(-1, 3), np.ones(len(pts))] @ proj.T
+        xy = q[:, :2] / q[:, 3:4]
+        view = np.c_[np.asarray(pts, np.float64).reshape(-1, 3), np.ones(len(pts))] @ np.array(self.obj.matrix_world.inverted()).T
+        return (xy[:, 0] + 1) / 2 * self.w, (1 - xy[:, 1]) / 2 * self.h, -view[:, 2]
 
     @property
     def right(self):
@@ -131,11 +144,18 @@ class Cam:
         return (self.obj.matrix_world.to_3x3() @ V((0, 0, -1))).normalized()
 
     def px(self, p):
-        """Where a world point lands, in pixels (x right, y down), and its depth."""
+        """Where a world point lands, in pixels (x right, y down), and its depth (along the view)."""
         s = bpy.context.scene
-        # The projection reads the frame's aspect from the render size.
-        s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = self.w, self.h, 100
-        bpy.context.view_layer.update()
+        # The projection reads the frame's aspect from the render size; the view layer only needs an update when that
+        # or the camera changed (an update per call cost a third of a stage frame).
+        key = (self.w, self.h, tuple(map(tuple, self.obj.matrix_world)), self.obj.data.shift_x, self.obj.data.shift_y,
+               self.obj.data.lens, self.obj.data.ortho_scale, self.obj.data.type)
+        if (s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage) != (self.w, self.h, 100):
+            s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = self.w, self.h, 100
+            Cam._seen = None
+        if Cam._seen != key:
+            bpy.context.view_layer.update()
+            Cam._seen = key
         c = world_to_camera_view(s, self.obj, V(p))
         return c.x * self.w, (1 - c.y) * self.h, c.z
 

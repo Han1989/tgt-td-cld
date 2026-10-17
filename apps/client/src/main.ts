@@ -49,7 +49,10 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   boot?.classList.add('done');
   setTimeout(() => boot?.remove(), 400);
   // The 3D heroes' match frames (docs/ART.md §15) load a second after the first screen, never in its way.
-  if (screen === 'solo' || screen === 'online' || screen === 'stress') setTimeout(() => void loadHeroSheets(), SHEETS_AFTER_MS);
+  // `<html data-hero-sheets>` says they are in (browser tests start a match after it to see the 3D rigs).
+  if (screen === 'solo' || screen === 'online' || screen === 'stress') {
+    setTimeout(() => void loadHeroSheets().then(() => (document.documentElement.dataset.heroSheets = 'ready')), SHEETS_AFTER_MS);
+  }
 }
 
 /** How long after the first screen the 3D heroes' match sheets start loading, ms. */

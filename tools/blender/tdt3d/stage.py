@@ -2,15 +2,19 @@
 # poster (its first frame) and the empty clearing (for heroes still drawn in 2D). Wide enough to fill every size the
 # lobby's stage takes with the hero fully in view: the client fits the hero under the title by the layout written here.
 #
+# Every hero stands in the same clearing through the same camera, in the same box (`BOX`), so the lobby's stage swaps
+# heroes without the ground moving: the plate is rendered once for all three (`--plate-cache`).
+#
 # One picture, not a figure pasted on a backdrop. The clearing doesn't move, so it is rendered once (the plate) and
 # each frame renders only the hero (every other object a holdout, so a fern in front still hides a boot, and the
-# ground a shadow catcher, so his moon shadow lands on the moss). Both are rendered at twice the output size, lit by
-# the same moon, painted by the same look with the same ink (the scene's forms carry a line of the hero's weight,
-# tinted dark from their own colour), and scaled down, so every edge is anti-aliased. Then, on the finished frame,
-# not on one layer: the same depth haze over hero and scene (by each one's depth), depth of field on the far trees
-# and the sky, the drifting mist, a little of the scene's light wrapping round the hero's edges, his contact
-# shadows on the moss, the motes, one bloom, one colour grade, a vignette and one film grain. Every frame then goes
-# through the fringe check (fringe.py): no light ring round the hero's silhouette, no hard alpha step.
+# ground a shadow catcher, so his moon shadow lands on the moss). Both are lit by the same moon and painted by the
+# same look with the same ink (the scene's forms carry a line of the hero's weight, tinted dark from their own
+# colour); the plate is rendered at twice the output size and scaled down, the hero at the output size with more
+# samples (at twice it in the fast frames, or if a frame fails the fringe check), so every edge is anti-aliased. On the
+# finished frame, not on one layer: the same depth haze over hero and scene (by each one's depth), depth of field on
+# the far trees and the sky, the drifting mist, a little of the scene's light wrapping round the hero's edges, his
+# contact shadows on the moss, the motes, one bloom, one colour grade, a vignette and one film grain. Every frame
+# then goes through the fringe check (fringe.py): no light ring round the hero's silhouette, no hard alpha step.
 
 import hashlib
 import json
@@ -22,27 +26,45 @@ import bpy
 import numpy as np
 from scipy import ndimage
 
-from . import bake, encode, fringe, imageio, npr, scene, shading
+from . import bake, encode, figure, fringe, imageio, motion, npr, scene, shading
 from .clearing import Clearing
 from .geom import V, Z
-from .rig import mesh_bbox
+from .figure import mesh_bbox
 from .palette import rgb
 
-W, H = 2400, 900      # the video; one frame for every stage size (fitStage in the client)
-SS = 2                # rendered at SS × the output size and averaged down
-HERO_H_PX = 427       # px that the hero's STAGE_HEIGHT world px take at the camera's distance: with its line,
-                      # the figure's box is ~436 px, a 5.5th of the frame's width (fitStage covers every stage)
+W, H = 2400, 900      # the video; one frame for every stage size (fitStage in the client). A 412 px phone's home
+                      # card shows ~750 of its pixels across 1140 device px on a 3× screen (1.5×; a 1200 frame was 3×)
+# The hero is rendered at the output size (a 2× frame took 20–35 s on 4 cores, over the 15 s a frame allowed), with
+# more samples a pixel for his edges; the plate, rendered once for all three, at PLATE_SS × and averaged down. The
+# fast frames (`fast` in hero.py: the arrow, the slice, the summon's swing) and any frame that fails the fringe check
+# at 1× are rendered at PLATE_SS × instead, below.
+SS = 1
+PLATE_SS = 2
+FRAME_H = 33.0        # world px from the ground to the top of `BOX`, the tallest hero (the Warden's helm) with room
+HERO_H_PX = 427       # px that FRAME_H world px take at the camera's distance
 FEET_Y = 735          # the ground line under the hero, video px from the top
+MID = (0.0, -2.0)     # the point between the heroes' feet the camera centres (figure x / y, world px)
+# The box every hero's loop stays inside (video px, ink included): all three share it, so fitStage places the
+# video the same for each and switching heroes never moves the clearing. The build stops if a loop leaves it.
+BOX = dict(x0=956.0, y0=308.0, x1=1440.0, y1=800.0)
 AZIMUTH = 40.0        # degrees round from the hero's front towards its right
 ELEVATION = 4.5       # degrees above the hero's chest
 LENS = 50.0
 SHUTTER = 0.42        # motion blur, of a frame
-PLATE_SAMPLES = 20    # per render pixel (×SS² per output pixel)
-HERO_SAMPLES = 10
-HERO_SAMPLES_FAST = 18  # while the arrow and the draw hand move fast (fetched, nocked, loosed): blurred edges stay smooth
+PLATE_SAMPLES = 20    # per render pixel (×PLATE_SS² per output pixel)
+HERO_SAMPLES = 24     # per render pixel (×SS² per output pixel)
+HERO_AO_SAMPLES = 2   # AO rays a sample on the hero (the plate takes 6)
+# Rendered at PLATE_SS ×, with V-05a's samples a render pixel: the fast frames, where a part blurred by its motion at
+# 1× breaks into specks (its coverage is noisy at 24 samples and the painter turns thinly covered pixels to ink one by
+# one: the Warden's slice was a dotted trail), at 18; and a frame that fails the fringe check at 1× (fine detail that
+# aliases there: the Ranger's string, blurred in the follow-through, its light core between its own ink breaking
+# into light dots), rendered again at 10 and kept. Both are smooth from four times the pixels.
+SAMPLES_2X = 10
+SAMPLES_2X_FAST = 18
 GROUND_ID = 100
 SKY_IDS = 200         # 200 and over: the sky, the stars, the moon
 MARGIN_PX = 34        # output px kept round the hero's box: his line, the light wrap and his glows' bloom
+ARROW_INDEX = 23      # the arrow's pass index (hero.py): left out of the hero's box while it flies off
 
 LOOK = dict(
     outer=2.4, inner=1.0, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
@@ -89,8 +111,9 @@ class Atmosphere:
     once from the plate; the hero gets the same haze by his own depth."""
 
     def __init__(self, depth, ids, horizon_y, moon_px, period_s, size):
+        """`horizon_y` and `moon_px`: px of the full-size video (the sizes below are too)."""
         hh, ww = depth.shape
-        self.k = ww / W  # px of this frame per px of the full-size video
+        self.k = ww / W  # px of this frame per px of the full-size video (half in a draft)
         k = self.k
         self.period = period_s
         self.depth = depth
@@ -183,14 +206,17 @@ class Motes:
         k = w / W
         out = np.zeros((h, w, 3), np.float32)
         steps = 5 if self.shutter > 0 else 1
+        right = np.array(cam.right)
         for j in range(steps):
             tt = t + (j / max(1, steps - 1) - 0.5) * self.shutter / self.fps if steps > 1 else t
-            for m, pos in zip(self.glade.motes, self.glade.mote_positions(tt)):
-                x, y, depth = cam.px(pos)
+            pos = np.array([tuple(p) for p in self.glade.mote_positions(tt)], np.float64)
+            size = np.array([m['size'] for m in self.glade.motes], np.float64)
+            xs, ys, depths = cam.project(pos)
+            ex, _, _ = cam.project(pos + right[None, :] * size[:, None])
+            for m, x, y, depth, e in zip(self.glade.motes, xs, ys, depths, ex):
                 if depth <= 0:
                     continue
-                edge = cam.px(pos + cam.right * m['size'])
-                r = max(0.8 * k, abs(edge[0] - x))
+                r = max(0.8 * k, abs(e - x))
                 sigma = r * 2.2
                 x0, x1 = int(max(0, x - 4 * sigma)), int(min(w, x + 4 * sigma + 1))
                 y0, y1 = int(max(0, y - 4 * sigma)), int(min(h, y + 4 * sigma + 1))
@@ -277,21 +303,16 @@ def ground_xy(cam, w, h):
     return gx.astype(np.float32), gy.astype(np.float32)
 
 
-def _contacts(r, rest):
-    """Where the hero touches the ground this frame, for his contact shadows: each foot's sole (heel, toe, height
-    above its rest) and the hips (over the ground, for the soft shade under the whole figure)."""
+def _contacts(fig, rest):
+    """Where the hero touches the ground this frame, for his contact shadows: each foot's sole (heel to toe tip, and its
+    height above where it rests) and the hips (over the ground, for the soft shade under the whole figure)."""
     out = []
-    for s in ('L', 'R'):
-        name = f'foot.{s}'
-        if name not in r.pb:
-            continue
-        hd, tl = r.head(name), r.tail(name)
-        lift = max(0.0, min(hd.z - rest[name][0].z, tl.z - rest[name][1].z))
-        back = hd + (hd - tl).normalized() * 0.9
-        out.append(('foot', (back.x, back.y), (tl.x, tl.y), lift))
-    if 'hips' in r.pb:
-        hp = r.head('hips')
-        out.append(('body', (hp.x, hp.y), (hp.x, hp.y), 0.0))
+    for s in ('l', 'r'):
+        heel, toe = fig.world(f'foot.{s}'), fig.world(f'toes.{s}', 'tail')
+        lift = max(0.0, min(heel.z - rest[s][0].z, toe.z - rest[s][1].z))
+        out.append(('foot', (heel.x, heel.y), (toe.x, toe.y), lift))
+    hp = fig.world('hips')
+    out.append(('body', (hp.x, hp.y), (hp.x, hp.y), 0.0))
     return out
 
 
@@ -359,41 +380,50 @@ def _to8(x):
     return np.clip(np.rint(np.clip(x, 0, 1) * 255), 0, 255).astype(np.uint8)
 
 
-def _pose_loop(hero, r, P):
-    """Poses every frame of the loop once, records it and bakes it into keys (motion blur needs f-curves); returns
-    each frame's facts and contacts."""
-    springs = hero.stage_springs()
-    P.start()
-    r.update()
-    rest = {f'foot.{s}': (r.head(f'foot.{s}'), r.tail(f'foot.{s}')) for s in ('L', 'R') if f'foot.{s}' in r.pb}
-    snaps, facts, contacts = [], [], []
-    for i in range(hero.STAGE_FRAMES):
-        facts.append(hero.stage_pose(P, i, springs))
-        snaps.append(bake.record(r.obj))
-        contacts.append(_contacts(r, rest))
+def _pose_loop(spec, fig, fps):
+    """Poses every frame of the loop once (the idle and the signature move, tdt3d.motion), records it and bakes it
+    into keys (motion blur needs f-curves); returns each frame's facts and contacts."""
+    fig.apply(figure.Pose())
+    rest = {s: (fig.world(f'foot.{s}'), fig.world(f'toes.{s}', 'tail')) for s in ('l', 'r')}
+    frames = motion.stage_frames(fig, spec, fps)
+    snaps, contacts = [], []
+    for f in frames:
+        fig.apply(f['pose'], arrow=f['arrow'])
+        snaps.append(bake.record(fig))
+        contacts.append(_contacts(fig, rest))
     snaps.append(snaps[0])  # the key after the last frame is the first: motion blur at the seam flows on
-    bake.bake(r.obj, snaps, (), start=1)
-    return facts, contacts
+    bake.bake(fig, snaps, start=1)
+    return frames, contacts
 
 
-def render_plate(hero, out_png, tmp, scale=0.5, samples=6):
-    """The empty clearing alone, finished (haze, depth of field, bloom, grade), at `scale` of the video's size: a
-    quick look while working on the scenery (`build.py <hero> plate`)."""
-    r, parts = hero.build()
-    hero_objs = [o for objs in parts.values() for o in objs]
-    shading.set_globals(z0=0, z1=hero.HEIGHT, ao_samples=6)
-    ow, oh = int(W * scale), int(H * scale)
-    mid = V((hero.STAGE_MID[0], hero.STAGE_MID[1], 0))
-    cam, d = camera(hero.STAGE_HEIGHT, mid, ow, oh)
-    lights(cam)
-    glade = Clearing(d, hero.STAGE_S, hero.STAGE_FPS)
+def _build(spec, fps):
+    """The hero, the camera that frames every hero the same, the moon and the clearing."""
+    fig = figure.Figure(spec)
+    shading.set_globals(z0=0, z1=spec['height'], ao_samples=6)
+    return fig
+
+
+def _glade(cam, d, period, fps):
+    glade = Clearing(d, period, fps)
     shading.set_globals(moon_rim=glade.moon_rim())
     scene.pool(-glade.back * 60 + glade.side * -40 + Z * 420, glade.back * 25, 24.0, 6.3e6)
+    return glade
+
+
+def render_plate(spec, out_png, tmp, scale=0.5, samples=6):
+    """The empty clearing alone, finished (haze, depth of field, bloom, grade), at `scale` of the video's size: a
+    quick look while working on the scenery (`build.py <hero> plate`)."""
+    fig = _build(spec, spec['stage'].get('fps', 30))
+    ow, oh = int(W * scale), int(H * scale)
+    mid = V((MID[0], MID[1], 0))
+    cam, d = camera(FRAME_H, mid, ow, oh)
+    lights(cam)
+    glade = _glade(cam, d, spec['stage']['seconds'], 30)
     scene.detail(2)
     full = scene.Cam(cam.obj, W, H)
     horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1]
-    moon_px = full.px(glade.moon_pos)[:2]
-    for o in hero_objs:
+    moon_px = tuple(full.px(glade.moon_pos)[:2])
+    for o in fig.objects:
         o.hide_render = True
     look = _scaled(dict(npr.LOOK, **LOOK), ow / W)
     p = scene.render(cam, os.path.join(tmp, 'passes'), samples=samples, frame=1)
@@ -408,40 +438,63 @@ def render_plate(hero, out_png, tmp, scale=0.5, samples=6):
     col, a, emit = npr.shade(p, look)
     cov, ink = npr.outline(p, look, 1, with_colour=True)
     col = col * (1 - cov[..., None]) + ink * cov[..., None]
-    atmo = Atmosphere(p['Depth'][..., 0], npr.ids_of(p) // 1000, horizon, moon_px, hero.STAGE_S, (ow, oh))
+    atmo = Atmosphere(p['Depth'][..., 0], npr.ids_of(p) // 1000, horizon, moon_px, spec['stage']['seconds'], (ow, oh))
     still = atmo.mist(atmo.static(col), 0.0) + _bloom(emit * a[..., None], BLOOM['sigma'] * ow / W, BLOOM['amount'])
     vignette = np.ones((oh, ow), np.float32)
     imageio.write_png(out_png, _to8(grade(still, vignette, np.zeros((oh, ow), np.float32))))
 
 
-def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, check_frames=(), plate_cache=None):
+def _flight_box(cam, objs, frame, shutter, pad=3):
+    """The output-px box a flying arrow's motion-blurred streak covers this frame (the shutter's span, padded)."""
+    sc = bpy.context.scene
+    pts = []
+    for sub in (-shutter / 2, 0.0, shutter / 2):
+        f = frame + sub
+        sc.frame_set(int(math.floor(f)), subframe=f - math.floor(f))
+        for o in objs:
+            pts.extend(o.matrix_world @ v.co for v in o.data.vertices)
+    sc.frame_set(frame)
+    xs, ys, depth = cam.project([tuple(p) for p in pts])
+    # Only what the camera sees: points behind it (an arrow flying past) project anywhere.
+    seen = (depth > 1.0) & (xs > -cam.w) & (xs < 2 * cam.w) & (ys > -cam.h) & (ys < 2 * cam.h)
+    if not seen.any():
+        return 0, 0, 0, 0
+    xs, ys = np.clip(xs[seen], 0, cam.w), np.clip(ys[seen], 0, cam.h)
+    return (int(math.floor(xs.min())) - pad, int(math.floor(ys.min())) - pad, int(math.ceil(xs.max())) + pad,
+            int(math.ceil(ys.max())) + pad)
+
+
+def _away(fig, fact):
+    return [o for o in fig.objects if o.pass_index == ARROW_INDEX and _arrow_away(fact)]
+
+
+def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, check_frames=(), plate_cache=None):
     """Renders the hero's stage loop into out_dir: <id>.mp4 and .webm, <id>-poster.webp, clearing.webp; returns
     the layout and the encoders' report. `checks_dir`: where the fringe check's fixtures of `check_frames` go.
     `plate_cache`: a file to keep the finished plate in and take it from next time (while working on the hero only;
     delete it when the clearing changes)."""
-    r, parts = hero.build()
-    P = hero.Poser(r)
-    hero_objs = [o for objs in parts.values() for o in objs]
-    shading.set_globals(z0=0, z1=hero.HEIGHT, ao_samples=6)
-    n = hero.STAGE_FRAMES
-    fps = hero.STAGE_FPS
-    period = hero.STAGE_S
+    name = spec['name']
+    fps = spec['stage'].get('fps', 30)
+    period = spec['stage']['seconds']
+    n = int(round(period * fps))
+    fig = _build(spec, fps)
+    hero_objs = fig.objects
     shutter = 0.0 if draft else SHUTTER
     ss = 1 if draft else SS
+    pss = 1 if draft else PLATE_SS
     ow, oh = (W // 2, H // 2) if draft else (W, H)
-    facts, contacts = _pose_loop(hero, r, P)
+    facts, contacts = _pose_loop(spec, fig, fps)
 
-    mid = V((hero.STAGE_MID[0], hero.STAGE_MID[1], 0))
-    cam, d = camera(hero.STAGE_HEIGHT, mid, ow, oh)
+    mid = V((MID[0], MID[1], 0))
+    cam, d = camera(FRAME_H, mid, ow, oh)
     moon = lights(cam)
-    glade = Clearing(d, period, fps)
-    shading.set_globals(moon_rim=glade.moon_rim())
-    scene.pool(-glade.back * 60 + glade.side * -40 + Z * 420, glade.back * 25, 24.0, 6.3e6)
+    glade = _glade(cam, d, period, fps)
     scene.detail(1 if draft else 2)
     full = scene.Cam(cam.obj, W, H)
     horizon = full.px(cam.obj.location + V((cam.forward.x, cam.forward.y, 0)).normalized() * 5000)[1]
-    moon_px = full.px(glade.moon_pos)[:2]
+    moon_px = tuple(full.px(glade.moon_pos)[:2])
     mcam = scene.Cam(cam.obj, ow * ss, oh * ss)
+    pcam = scene.Cam(cam.obj, ow * pss, oh * pss)
     k_out = ow / W
     look = _scaled(dict(npr.LOOK, **LOOK), k_out)
     scenery = [o for o in bpy.data.objects if o.type == 'MESH' and o not in hero_objs]
@@ -450,7 +503,7 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     props = [bpy.data.objects[n] for n in ('Props', 'Moss', 'Log') if n in bpy.data.objects]
     sc = bpy.context.scene
 
-    # The plate: the clearing alone, once, at SS × the output size; painted, lined, scaled down.
+    # The plate: the clearing alone, once, at PLATE_SS × the output size; painted, lined, scaled down.
     t0 = time.time()
     for o in hero_objs:
         o.hide_render = True
@@ -458,20 +511,28 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         z = np.load(plate_cache)
         base_col, base_emit, plate_depth, plate_ids = z['col'], z['emit'], z['depth'], z['ids']
     else:
-        plate = scene.render(mcam, os.path.join(tmp, 'passes'), samples=6 if draft else PLATE_SAMPLES, frame=1)
+        plate = scene.render(pcam, os.path.join(tmp, 'passes'), samples=6 if draft else PLATE_SAMPLES, frame=1)
         pcol, pa, pemit = npr.shade(plate, look)
-        pcov, pink = npr.outline(plate, look, ss, with_colour=True)
+        pcov, pink = npr.outline(plate, look, pss, with_colour=True)
         pcomp = pcol * (1 - pcov[..., None]) + pink * pcov[..., None]
         plate_depth = plate['Depth'][..., 0].copy()
         plate_ids = npr.ids_of(plate) // 1000
         del plate, pcol, pcov, pink
-        base_col = npr.downsample(pcomp, ss)
-        base_emit = npr.downsample(pemit * pa[..., None], ss)
+        base_col = npr.downsample(pcomp, pss)
+        base_emit = npr.downsample(pemit * pa[..., None], pss)
         del pcomp, pemit
         if plate_cache:
             np.savez(plate_cache, col=base_col, emit=base_emit, depth=plate_depth, ids=plate_ids)
-    depth_o = npr.downsample(plate_depth, ss)
-    ids_o = plate_ids[::ss, ::ss]
+    depth_o = npr.downsample(plate_depth, pss)
+    ids_o = plate_ids[::pss, ::pss]
+    # The plate's depth and parts at the hero's render size: the nearest surface of each block (a fern in front of a
+    # boot stays in front), and its parts as sampled.
+    plate_at = {pss: (plate_depth, plate_ids)}
+    f = pss // ss
+    if f > 1:
+        hh, ww = plate_depth.shape[0] // f, plate_depth.shape[1] // f
+        plate_at[ss] = (plate_depth[:hh * f, :ww * f].reshape(hh, f, ww, f).min(axis=(1, 3)),
+                        plate_ids[:hh * f:f, :ww * f:f])
     atmo = Atmosphere(depth_o, ids_o, horizon, moon_px, period, (ow, oh))
     still = atmo.static(base_col)
     bloom_static = _bloom(base_emit, BLOOM['sigma'] * k_out, BLOOM['amount'])
@@ -492,6 +553,9 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     # plain material: only its light matters), the props in front hide what they cover, everything else is off.
     for o in hero_objs:
         o.hide_render = False
+    # The hero's AO with fewer rays a sample than the plate's: averaged over a pixel's samples it is as smooth, at a
+    # third of the frame's time.
+    shading.set_globals(ao_samples=HERO_AO_SAMPLES)
     for o in scenery:
         o.hide_render = o is not ground and o not in props
     for o in props:
@@ -514,84 +578,123 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     for i in todo:
         t_frame = time.time()
         done = os.path.join(frames_dir, f'{i:04d}.json')
+        first = None  # the frame's check at 1×, when it failed there and was rendered again at 2×
         if os.path.exists(done) and os.path.exists(os.path.join(frames_dir, f'{i:04d}.png')):
             # Rendered by an earlier run in this working folder (resume after an interruption).
             prev = json.load(open(done))
-            checks.append(prev['check'])
-            if prev.get('fixture'):
-                fixtures[f'{hero.NAME}-{i:04d}'] = prev['fixture']
-            box = prev['box']
-            union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]), max(union[2], box[2]), max(union[3], box[3]))
-            continue
+            at = prev.get('ss', SS)
+            if at >= pss or (prev['check']['pass'] and not facts[i]['fast']):
+                checks.append(prev['check'])
+                if prev.get('fixture'):
+                    fixtures[f'{name}-{i:04d}'] = prev['fixture']
+                box = prev['box']
+                union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]),
+                                                   max(union[2], box[2]), max(union[3], box[3]))
+                continue
+            if not prev['check']['pass']:
+                first = prev['check']  # failed at 1× in an earlier run: straight to 2×
         sc.frame_set(i + 1)
-        arrow_away = [o for o in hero_objs if o.pass_index == hero.ARROW_INDEX and _arrow_away(facts[i].get('arrow'))]
-        bx0, by0, bx1, by1 = _screen_box(cam, hero_objs, moon, MARGIN_PX * k_out, away=arrow_away)
+        arrow_away = _away(fig, facts[i]['arrow'])
+        bx0, by0, bx1, by1 = _screen_box(cam, [o for o in hero_objs if not o.hide_render or o in arrow_away], moon,
+                                         MARGIN_PX * k_out, away=arrow_away)
         x0, y0 = int(math.floor(bx0)), int(math.floor(by0))
         x1, y1 = int(math.ceil(bx1)), int(math.ceil(by1))
-        fast = isinstance(facts[i].get('arrow'), tuple)  # ('hand' | 'nocking' | 'flying', u): a fast part, blurred
-        samples = 4 if draft else (HERO_SAMPLES_FAST if fast else HERO_SAMPLES)
-        p = scene.render(mcam, os.path.join(tmp, 'passes'), samples=samples, motion_blur=shutter,
-                         frame=i + 1, extra=['Shadow Catcher'], border=(x0 * ss, y0 * ss, x1 * ss, y1 * ss))
-        # The hero layer, at render size: painted, lined (his line reaches past his edge, but never over a fern in
-        # front of him), then scaled down.
-        sd = plate_depth[y0 * ss:y1 * ss, x0 * ss:x1 * ss]
-        col, a, emit = npr.shade(p, look)
-        col = npr.ink_smear(p, look, col)
-        cov, ink = npr.outline(p, look, ss, scene_depth=sd, with_colour=True)
-        pm = col * a[..., None]
-        pm = pm * (1 - cov[..., None]) + ink * cov[..., None]
-        alpha = a * (1 - cov) + cov
-        glow = emit * a[..., None]
-        hdepth = np.where(a > 0.5, p['Depth'][..., 0] / np.maximum(a, 1e-4), np.inf)
-        catch = p['Shadow Catcher'][..., 0]
-        shadow = (1 - npr.smoothstep(0.55, 0.82, catch)) * (plate_ids[y0 * ss:y1 * ss, x0 * ss:x1 * ss] == GROUND_ID)
-        # The render's outermost pixels are only partly filled: nothing of the hero reaches them (the margin).
-        e = 2 * ss
-        for arr in (pm, alpha, glow, shadow):
-            arr[:e] = 0
-            arr[-e:] = 0
-            arr[:, :e] = 0
-            arr[:, -e:] = 0
-        L = npr.downsample(pm, ss)
-        A = npr.downsample(alpha, ss)
-        G = npr.downsample(glow, ss)
-        S = npr.downsample(shadow, ss)
-        D = -ndimage.maximum_filter(-hdepth, size=ss)[::ss, ::ss] if ss > 1 else hdepth
-        del p, col, a, emit, cov, ink, pm, alpha, glow, catch, shadow
         R = (slice(y0, y1), slice(x0, x1))
+        fast = facts[i]['fast']  # a fast part (the arrow, the slice): its blurred edges need more samples
 
-        # The finished frame.
-        frame = atmo.mist(still, i / fps)
-        base = frame[R]
-        base = base * (1 - S[..., None] * (1 - lit_over_shadow))
-        keep = contact_shade(gx[R], gy[R], contacts[i])
-        base = base * np.where(ground_px[R], keep, 1.0)[..., None]
-        # The same air over him as over the moss he stands on.
-        L = L * (1 - haze_hero) + mist_col * haze_hero * A[..., None]
-        comp = L + base * (1 - A[..., None])
-        # A little of the scene's light wraps round his edges (towards it, never past it).
-        edge = A * (1 - _blur(A, WRAP['sigma'] * k_out * 1.0))
-        behind = _blur(base, WRAP['sigma'] * k_out)
-        comp = comp + WRAP['amount'] * edge[..., None] * np.maximum(0.0, behind - comp)
-        frame[R] = comp
-        hero_a = np.zeros((oh, ow), np.float32)
-        hero_a[R] = A
-        hero_d = np.full((oh, ow), np.inf, np.float32)
-        hero_d[R] = D
-        mote_light = motes.draw(i / fps, hero_a, hero_d)
-        frame += mote_light
-        glow_full = np.zeros((oh, ow, 3), np.float32)
-        glow_full[R] = G
-        bloom_hero = _bloom(glow_full, BLOOM['sigma'] * k_out, BLOOM['amount'])
-        frame += bloom_static + bloom_hero
-        out8 = _to8(grade(frame, vignette, grain))
+        def finished(k, samples):
+            """The finished frame with the hero rendered at k × the output size, and its fringe check."""
+            rcam = mcam if k == ss else scene.Cam(cam.obj, ow * k, oh * k)
+            pdepth, pids = plate_at[k]
+            p = scene.render(rcam, os.path.join(tmp, 'passes'), samples=samples, motion_blur=shutter,
+                             frame=i + 1, extra=['Shadow Catcher'], border=(x0 * k, y0 * k, x1 * k, y1 * k))
+            # The hero layer, at render size: painted, lined (his line reaches past his edge, but never over a fern
+            # in front of him), then scaled down.
+            sd = pdepth[y0 * k:y1 * k, x0 * k:x1 * k]
+            col, a, emit = npr.shade(p, look)
+            col = npr.ink_smear(p, look, col)
+            cov, ink = npr.outline(p, look, k, scene_depth=sd, with_colour=True)
+            pm = col * a[..., None]
+            pm = pm * (1 - cov[..., None]) + ink * cov[..., None]
+            alpha = a * (1 - cov) + cov
+            glow = emit * a[..., None]
+            hdepth = np.where(a > 0.5, p['Depth'][..., 0] / np.maximum(a, 1e-4), np.inf)
+            catch = p['Shadow Catcher'][..., 0]
+            shadow = (1 - npr.smoothstep(0.55, 0.82, catch)) * (pids[y0 * k:y1 * k, x0 * k:x1 * k] == GROUND_ID)
+            # Where he covers part of a pixel the catcher sees less of the ground, so his own edge reads as less
+            # shadow (a lit line of moss under his soles): there the shadow is the darkest of the pixels round it.
+            near = ndimage.maximum_filter(a, size=2 * k + 1) > 0.01
+            shadow = np.where(near, np.maximum(shadow, ndimage.maximum_filter(shadow, size=2 * k + 1)), shadow)
+            # The render's outermost pixels are only partly filled: nothing of the hero reaches them (the margin).
+            e = 2 * k
+            for arr in (pm, alpha, glow, shadow):
+                arr[:e] = 0
+                arr[-e:] = 0
+                arr[:, :e] = 0
+                arr[:, -e:] = 0
+            L = npr.downsample(pm, k)
+            A = npr.downsample(alpha, k)
+            G = npr.downsample(glow, k)
+            S = npr.downsample(shadow, k)
+            if k > 1:
+                hh, ww = hdepth.shape[0] // k, hdepth.shape[1] // k
+                D = hdepth[:hh * k, :ww * k].reshape(hh, k, ww, k).min(axis=(1, 3))
+            else:
+                D = hdepth
+            del p, col, a, emit, cov, ink, pm, alpha, glow, catch, shadow
+
+            # The finished frame.
+            frame = atmo.mist(still, i / fps)
+            base = frame[R]
+            base = base * (1 - S[..., None] * (1 - lit_over_shadow))
+            keep = contact_shade(gx[R], gy[R], contacts[i])
+            base = base * np.where(ground_px[R], keep, 1.0)[..., None]
+            # The same air over him as over the moss he stands on.
+            L = L * (1 - haze_hero) + mist_col * haze_hero * A[..., None]
+            comp = L + base * (1 - A[..., None])
+            # A little of the scene's light wraps round his edges: towards it, never past it, nor past the scene
+            # right behind the edge (under his feet the blur would bring in the lit moss from beyond his contact
+            # shadow, a light line at the soles).
+            edge = A * (1 - _blur(A, WRAP['sigma'] * k_out * 1.0))
+            behind = np.minimum(_blur(base, WRAP['sigma'] * k_out), base)
+            comp = comp + WRAP['amount'] * edge[..., None] * np.maximum(0.0, behind - comp)
+            frame[R] = comp
+            hero_a = np.zeros((oh, ow), np.float32)
+            hero_a[R] = A
+            hero_d = np.full((oh, ow), np.inf, np.float32)
+            hero_d[R] = D
+            mote_light = motes.draw(i / fps, hero_a, hero_d)
+            frame += mote_light
+            glow_full = np.zeros((oh, ow, 3), np.float32)
+            glow_full[R] = G
+            bloom_hero = _bloom(glow_full, BLOOM['sigma'] * k_out, BLOOM['amount'])
+            frame += bloom_static + bloom_hero
+            out8 = _to8(grade(frame, vignette, grain))
+
+            # The fringe check, on the finished frame and the hero's coverage.
+            mask8 = _to8(hero_a)
+            # Where the hero's glow lights the frame: his glowing parts, their bloom and the motes.
+            glow8 = _to8(np.maximum(np.maximum(glow_full.max(axis=2), bloom_hero.max(axis=2)) * 4,
+                                    mote_light.max(axis=2)))
+            strict = None
+            if arrow_away and isinstance(facts[i]['arrow'], tuple):
+                # A projectile in flight is not the hero's silhouette: its blurred streak is left out, as a glow's
+                # is. The frame is also measured without that (`strict`, in the frame's notes) to show what was
+                # left out.
+                strict = fringe.measure(out8, mask8, glow8)
+                fx0, fy0, fx1, fy1 = _flight_box(cam, arrow_away, i + 1, shutter)
+                glow8[max(0, fy0):max(0, fy1), max(0, fx0):max(0, fx1)] = 255
+            return out8, mask8, glow8, strict, fringe.measure(out8, mask8, glow8)
+
+        used = pss if fast or first is not None else ss
+        if used == ss:
+            out8, mask8, glow8, strict, res = finished(ss, 4 if draft else HERO_SAMPLES)
+            if not res['pass'] and ss < pss:
+                first = res
+                used = pss
+        if used != ss:
+            out8, mask8, glow8, strict, res = finished(pss, SAMPLES_2X_FAST if fast else SAMPLES_2X)
         imageio.write_png(os.path.join(frames_dir, f'{i:04d}.png'), out8, level=1)
-
-        # The fringe check, on the finished frame and the hero's coverage.
-        mask8 = _to8(hero_a)
-        # Where the hero's glow lights the frame: his glowing parts, their bloom and the motes.
-        glow8 = _to8(np.maximum(np.maximum(glow_full.max(axis=2), bloom_hero.max(axis=2)) * 4, mote_light.max(axis=2)))
-        res = fringe.measure(out8, mask8, glow8)
         res['frame'] = i
         checks.append(res)
         if checks_dir and i in check_frames:
@@ -601,22 +704,29 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
             band, packed = fringe.band(out8[cy0:cy1, cx0:cx1], mask8[cy0:cy1, cx0:cx1], glow8[cy0:cy1, cx0:cx1])
             again = fringe.measure(band, packed[..., 0], packed[..., 1])
             assert all(again[k] == res[k] for k in ('measured', 'fringe', 'hard', 'crossings')), (again, res)
-            imageio.write_png(os.path.join(checks_dir, f'{hero.NAME}-{i:04d}-band.png'), band)
-            imageio.write_png(os.path.join(checks_dir, f'{hero.NAME}-{i:04d}-mask.png'), packed)
-            fixtures[f'{hero.NAME}-{i:04d}'] = {k: again[k] for k in ('measured', 'fringe', 'crossings', 'hard', 'pass')}
+            imageio.write_png(os.path.join(checks_dir, f'{name}-{i:04d}-band.png'), band)
+            imageio.write_png(os.path.join(checks_dir, f'{name}-{i:04d}-mask.png'), packed)
+            fixtures[f'{name}-{i:04d}'] = {k: again[k] for k in ('measured', 'fringe', 'crossings', 'hard', 'pass')}
 
         # Where the hero is (ink and all, the flying arrow left out).
-        box = figure_box(cam, [o for o in hero_objs if not (o.pass_index == hero.ARROW_INDEX and _arrow_away(facts[i].get('arrow')))],
-                         look['outer'] + 2)
+        box = figure_box(cam, [o for o in hero_objs if o not in arrow_away and not o.hide_render], look['outer'] + 2)
         union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]), max(union[2], box[2]), max(union[3], box[3]))
         with open(done, 'w') as f:
-            json.dump({'check': res, 'box': list(box), 'fixture': fixtures.get(f'{hero.NAME}-{i:04d}')}, f)
+            json.dump({'check': res, 'strict': strict, 'box': list(box), 'fixture': fixtures.get(f'{name}-{i:04d}'),
+                       'ss': used, 'first': first}, f)
+        again = (f' (at {used}×; at {ss}×: fringe {first["fringe"]}/{first["measured"]})' if first else
+                 f' (at {used}×: fast)' if used != ss else '')
         print(f'stage frame {i + 1}/{n} ({time.time() - t_frame:.1f} s) fringe {res["fringe"]}/{res["measured"]} '
-              f'hard {res["hard"]}/{res["crossings"]}', flush=True)
+              f'hard {res["hard"]}/{res["crossings"]}{again}', flush=True)
     sc.render.use_border = False
     if checks_dir and fixtures:
-        with open(os.path.join(checks_dir, 'results.json'), 'w') as f:
-            json.dump(fixtures, f, indent=1, sort_keys=True)
+        # One results file for every hero's fixtures: this hero's replace its own, the others' stay.
+        path = os.path.join(checks_dir, 'results.json')
+        known = json.load(open(path)) if os.path.exists(path) else {}
+        known = {k: v for k, v in known.items() if not k.startswith(f'{name}-')}
+        known.update(fixtures)
+        with open(path, 'w') as f:
+            json.dump(known, f, indent=1, sort_keys=True)
             f.write('\n')
     worst = max(checks, key=lambda c: c['fringeShare'])
     hardest = max(checks, key=lambda c: c['hardShare'])
@@ -632,14 +742,16 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         return {'checks': checks, 'summary': summary}
     s = W / ow
     fx, fy, _ = cam.px(mid)
+    own = {'x0': round(union[0] * s, 1), 'y0': round(union[1] * s, 1), 'x1': round(union[2] * s, 1),
+           'y1': round(union[3] * s, 1)}
     layout = {
         'w': W, 'h': H, 'fps': fps, 'frames': n, 'loopMs': round(period * 1000),
         'feetX': round(fx * s, 1), 'groundY': round(fy * s, 1),
-        'figure': {'x0': round(union[0] * s, 1), 'y0': round(union[1] * s, 1),
-                   'x1': round(union[2] * s, 1), 'y1': round(union[3] * s, 1)},
+        # The box all three heroes share (fitStage places every hero's video the same), and this hero's own.
+        'figure': dict(BOX), 'own': own,
     }
     os.makedirs(out_dir, exist_ok=True)
-    files = {'mp4': f'{hero.NAME}.mp4', 'webm': f'{hero.NAME}.webm', 'poster': f'{hero.NAME}-poster.webp',
+    files = {'mp4': f'{name}.mp4', 'webm': f'{name}.webm', 'poster': f'{name}-poster.webp',
              'clearing': 'clearing.webp'}
     sizes = encode.stage(frames_dir, fps, *(os.path.join(out_dir, files[k]) for k in ('mp4', 'webm', 'poster')))
     sizes['clearing'] = encode.still(clearing_png, os.path.join(out_dir, files['clearing']))
@@ -653,30 +765,39 @@ def render_stage(hero, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     if not summary['pass']:
         # After the encode, so the files are there to look at; the build stops here and writes no layout.
         bad = [c['frame'] for c in checks if not c['pass']]
-        raise RuntimeError(f'The fringe check failed on frames {bad}: {summary}')
+        raise CheckFailed(f'The fringe check failed on frames {bad}: {summary}')
+    if not inside(own, BOX):
+        raise CheckFailed(f'the loop leaves the heroes\' shared box: {own} is not inside {BOX} (stage.BOX)')
     return layout, sizes
 
 
-def stage_layout(hero, draft=False):
-    """The stage layout (frame, feet, the figure's box over the loop) from the posed figure alone, without rendering:
-    what render_stage writes, for fixing a layout without re-rendering the frames."""
-    r, parts = hero.build()
-    P = hero.Poser(r)
-    hero_objs = [o for objs in parts.values() for o in objs]
-    facts, _ = _pose_loop(hero, r, P)
-    mid = V((hero.STAGE_MID[0], hero.STAGE_MID[1], 0))
-    cam, _ = camera(hero.STAGE_HEIGHT, mid)
-    scene.detail(1 if draft else 2)
+class CheckFailed(RuntimeError):
+    """A stage that failed its checks (the fringe check, the shared box): its files are written, its layout is not."""
+
+
+def inside(box, outer):
+    return box['x0'] >= outer['x0'] and box['y0'] >= outer['y0'] and box['x1'] <= outer['x1'] and box['y1'] <= outer['y1']
+
+
+def stage_layout(spec, draft=False):
+    """The hero's own box over its loop (video px, ink included, the flying arrow left out) from the posed figure
+    alone, without rendering: to check it stays inside BOX, or to set BOX."""
+    fps = spec['stage'].get('fps', 30)
+    fig = _build(spec, fps)
+    facts, _ = _pose_loop(spec, fig, fps)
+    mid = V((MID[0], MID[1], 0))
+    cam, _ = camera(FRAME_H, mid)
     sc = bpy.context.scene
     union = None
-    for i in range(hero.STAGE_FRAMES):
+    for i in range(len(facts)):
         sc.frame_set(i + 1)
-        objs = [o for o in hero_objs if not (o.pass_index == hero.ARROW_INDEX and _arrow_away(facts[i].get('arrow')))]
+        away = _away(fig, facts[i]['arrow'])
+        objs = [o for o in fig.objects if o not in away and not o.hide_render]
         box = figure_box(cam, objs, LOOK['outer'] + 2)
         union = box if union is None else (min(union[0], box[0]), min(union[1], box[1]), max(union[2], box[2]), max(union[3], box[3]))
     fx, fy, _ = cam.px(mid)
     return {
-        'w': W, 'h': H, 'fps': hero.STAGE_FPS, 'frames': hero.STAGE_FRAMES, 'loopMs': round(hero.STAGE_S * 1000),
-        'feetX': round(fx, 1), 'groundY': round(fy, 1),
-        'figure': {'x0': round(union[0], 1), 'y0': round(union[1], 1), 'x1': round(union[2], 1), 'y1': round(union[3], 1)},
+        'w': W, 'h': H, 'fps': fps, 'frames': len(facts), 'loopMs': round(spec['stage']['seconds'] * 1000),
+        'feetX': round(fx, 1), 'groundY': round(fy, 1), 'figure': dict(BOX),
+        'own': {'x0': round(union[0], 1), 'y0': round(union[1], 1), 'x1': round(union[2], 1), 'y1': round(union[3], 1)},
     }

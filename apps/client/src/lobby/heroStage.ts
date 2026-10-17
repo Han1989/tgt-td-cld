@@ -100,11 +100,12 @@ export class HeroStage {
     this.hero = hero;
     this.root.dataset.hero = hero;
     this.backdrop.show(hero);
-    // Restart the entrance (style.css `.hero-stage.swap`; none under reduced motion).
+    // Restart the entrance (style.css `.hero-stage.swap`; none under reduced motion). Measured first: the entrance
+    // scales the figure's canvas, and a fit from its scaled box would move the clearing on every swap.
     this.root.classList.remove('swap');
+    this.resized();
     void this.root.offsetWidth;
     this.root.classList.add('swap');
-    this.resized();
   }
 
   /** Draws the stage and keeps it breathing while it is on screen (one still drawing under reduced motion). */

@@ -1,6 +1,6 @@
-# Geometry: every part is a cage of quads that a subdivision surface smooths at render time (no facets, no raw
-# primitives). Lofts, tubes, lathes and blobs build the cages; creases keep a bevelled edge tight where a form
-# needs one (a sole, a belt's rim); stitches are small raised dashes along a seam.
+# Geometry for the clearing's scenery (the heroes are imported, tdt3d.gltf): every part is a cage of quads that a
+# subdivision surface smooths at render time (no facets, no raw primitives). Lofts, tubes, lathes and blobs build the
+# cages; creases keep a bevelled edge tight where a form needs one.
 
 import math
 
@@ -19,11 +19,6 @@ OBJECTS = []
 def smooth(t):
     t = min(1.0, max(0.0, t))
     return t * t * (3 - 2 * t)
-
-
-def smoother(t):
-    t = min(1.0, max(0.0, t))
-    return t * t * t * (t * (t * 6 - 15) + 10)
 
 
 def lerp(a, b, t):
@@ -121,71 +116,35 @@ def lathe(part, profile, mats, sides=16, center=(0, 0), sx=1.0, sy=1.0, wave=Non
     return loft(part, rings, mats, True, cap0, cap1)
 
 
+_SPHERES = {}
+
+
+def _sphere(u, v):
+    """Blender's UV sphere of radius 1 as plain data (vertex positions, faces by index), made once per size in a bmesh
+    of its own: the operator slows down with the size of the bmesh it adds to."""
+    if (u, v) not in _SPHERES:
+        tmp = bmesh.new()
+        bmesh.ops.create_uvsphere(tmp, u_segments=u, v_segments=v, radius=1.0)
+        tmp.verts.index_update()
+        _SPHERES[(u, v)] = ([V(x.co) for x in tmp.verts], [[x.index for x in f.verts] for f in tmp.faces])
+        tmp.free()
+    return _SPHERES[(u, v)]
+
+
 def blob(part, c, r, mat, u=10, v=8, rot=None):
     """An ellipsoid cage (smooth after subdivision), radii r = (x, y, z), turned by the 3×3 `rot`."""
     bm = part.bm
-    res = bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=1.0)
-    for vert in res['verts']:
-        p = V((vert.co.x * r[0], vert.co.y * r[1], vert.co.z * r[2]))
+    pts, faces = _sphere(u, v)
+    verts = []
+    for q in pts:
+        p = V((q.x * r[0], q.y * r[1], q.z * r[2]))
         if rot is not None:
             p = rot @ p
-        vert.co = V(c) + p
-    for f in {f for vert in res['verts'] for f in vert.link_faces}:
-        f.material_index = part.m(mat)
-    return res['verts']
-
-
-def rbox(part, c, size, mat, rot=None, crease=0.0):
-    """A box cage, half-sizes `size`: a pillow after subdivision, a bevelled block with `crease`."""
-    bm = part.bm
-    res = bmesh.ops.create_cube(bm, size=2.0)
-    for vert in res['verts']:
-        p = V((vert.co.x * size[0], vert.co.y * size[1], vert.co.z * size[2]))
-        if rot is not None:
-            p = rot @ p
-        vert.co = V(c) + p
-    faces = {f for vert in res['verts'] for f in vert.link_faces}
+        verts.append(bm.verts.new(V(c) + p))
+    m = part.m(mat)
     for f in faces:
-        f.material_index = part.m(mat)
-    if crease:
-        for e in {e for vert in res['verts'] for e in vert.link_edges}:
-            part.creases.append((e.verts[0], e.verts[1], crease))
-    return res['verts']
-
-
-def frame_matrix(origin, x_axis, z_axis):
-    """A frame from its X and Z axes (orthonormalised, Z wins), as a 4×4 matrix."""
-    zz = V(z_axis).normalized()
-    xx = (V(x_axis) - zz * V(x_axis).dot(zz)).normalized()
-    yy = zz.cross(xx)
-    m = Matrix((xx, yy, zz)).transposed().to_4x4()
-    m.translation = V(origin)
-    return m
-
-
-def stitches(part, pts, out, mat, step=0.9, length=0.5, width=0.16, lift=0.08):
-    """Stitching: small raised dashes every `step` along the polyline `pts`, lying on the surface whose outward
-    normal at a point is out(p)."""
-    pts = [V(p) for p in pts]
-    seg = []
-    total = 0.0
-    for a, b in zip(pts, pts[1:]):
-        seg.append((a, b, total))
-        total += (b - a).length
-    k = step * 0.5
-    while k < total - step * 0.25:
-        for a, b, s0 in seg:
-            ln = (b - a).length
-            if s0 <= k <= s0 + ln and ln > 1e-6:
-                t = (k - s0) / ln
-                p = a.lerp(b, t)
-                d = (b - a).normalized()
-                n = out(p).normalized()
-                side = n.cross(d).normalized()
-                rot = Matrix((d, side, n)).transposed()
-                blob(part, p + n * lift, (length / 2, width / 2, width / 2), mat, u=6, v=4, rot=rot)
-                break
-        k += step
+        bm.faces.new([verts[i] for i in f]).material_index = m
+    return verts
 
 
 def finish(part, layer='body', smooth_shade=True, index=1):

@@ -4,15 +4,14 @@
 import type { HeroKind } from '@tdt/protocol';
 import type { ArtKit } from '../art/kit';
 import type { HeroRig } from '../art/registry';
-import { Ranger3DRig } from './rangerRig';
+import { Hero3DRig } from './heroRig';
 import { heroFrames } from './sheet';
 
+export { Hero3DRig } from './heroRig';
 export { loadHeroSheets } from './sheet';
 
-/** The hero's 3D rig, or null while it has none (not made in 3D yet, or its sheet not loaded). */
+/** The hero's 3D rig, or null while it has none (its sheet not loaded yet, or it failed). */
 export function heroRig3d(kind: HeroKind, kit: ArtKit, mine: boolean): HeroRig | null {
   const frames = heroFrames(kind);
-  if (!frames) return null;
-  if (kind === 'ranger') return new Ranger3DRig(kit, mine, frames);
-  return null;
+  return frames ? new Hero3DRig(kit, kind, mine, frames) : null;
 }
