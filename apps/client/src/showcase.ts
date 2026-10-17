@@ -1,10 +1,11 @@
 // `?showcase`: a dev page listing every entity registered in render/art/entities/ (docs/ART.md §9),
 // with no match running. Each entity gets a card per variant (tower tiers and branches, pad zone
-// tints…), animated by its real rig, at a big size and at the size a phone shows it in a match. The creeps made in
-// 3D (docs/ART.md §15) get a card of their own too, played by Creep3DRig next to their 2D rig's card.
-// Normal / Bright switches the Display. Kinds that have no art yet (they keep their shapes) are
-// listed at the end. Cards are DOM (so the page scrolls natively); one fixed Pixi canvas on top
-// draws the entities where their cards are.
+// tints…), animated by its real rig, at a big size and at the size a phone shows it in a match. The heroes and creeps
+// made in 3D (docs/ART.md §15) get cards of their own too, played from their match sheets by the match's Hero3DRig and
+// Creep3DRig next to their 2D rigs' cards, and each hero's lobby stage loop (its video over its poster) gets a card
+// at the size a phone's home card shows it. Normal / Bright switches the Display. Kinds that have no art yet (they
+// keep their shapes) are listed at the end. Cards are DOM (so the page scrolls natively); one fixed Pixi canvas on
+// top draws the entities where their cards are.
 
 import {
   CREEP_KINDS,
@@ -42,10 +43,13 @@ import {
   type HeroRig,
 } from './render/art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig, type TowerRigBase } from './render/art/rigs';
+import { StageBackdrop } from './lobby/stageBackdrop';
 import {
   creepRig3d,
   heartView3d,
+  heroRig3d,
   loadCreepSheets,
+  loadHeroSheets,
   loadStructureSheet,
   PORTAL_FLARE,
   PORTAL_OPENING,
@@ -56,6 +60,7 @@ import {
   type Portal3DView,
 } from './render/art3d';
 import { CREEP_3D } from './render/art3d/creepData';
+import { HERO_3D, type StageBox } from './render/art3d/layout';
 import { liftColor, RL, type Display } from './render/art/tokens';
 import { createFxAtlas, type FxAtlas } from './render/fx/atlas';
 import { Effects } from './render/fx/effects';
@@ -64,6 +69,12 @@ import { mixColor, PLAYER_COLORS, toCss } from './render/palette';
 /** How big a phone draws things in a match (Spire on a 412 px-wide phone: 15.85 px tiles, entities × 1.58, towers × 1.2). */
 const PHONE = { world: 15.85 / 32, entity: (15.85 / 32) * 1.58, tower: (15.85 / 32) * 1.2 };
 const ICE = 0xbfeaff;
+/**
+ * The lobby's hero stage on a 412 × 839 phone (docs/ART.md §15, the stage loop), as heroStage.ts measures it: the
+ * home card's stage inside its border (CSS px), the feet line 34 px over its bottom, the title's bottom (68.9 px) less
+ * the 8 px a figure may reach behind it. A stage card crops and scales the video as the lobby does.
+ */
+const LOBBY_STAGE: StageBox = { w: 378, h: 319, ground: 319 - 34, top: 61, side: 14 };
 
 interface Card {
   el: HTMLElement;
@@ -92,10 +103,17 @@ export async function runShowcase(): Promise<void> {
 
   const header = document.createElement('header');
   const entries = allArt().filter((e) => e.category !== 'common');
-  header.innerHTML =
-    `<h1>Runelight art showcase</h1>` +
-    `<p>${entries.length} registered entities (render/art/entities/). Style guide: docs/ART.md. ` +
-    `Each card shows the entity large and, bottom right, at a phone's in-match size.</p>`;
+  const counts = document.createElement('p');
+  const count = (heroes3d: number, creeps3d: number, stages: number, structures = 0) => {
+    counts.textContent =
+      `${entries.length} registered entities (render/art/entities/); in 3D (render/art3d/, docs/ART.md §15) ` +
+      `${heroes3d} heroes, ${creeps3d} creeps, ${structures} towers and buildings and ${stages} stage loops. ` +
+      `Style guide: docs/ART.md. ` +
+      `Each card shows the entity large and, bottom right, at a phone's in-match size.`;
+  };
+  header.innerHTML = `<h1>Runelight art showcase</h1>`;
+  header.appendChild(counts);
+  count(0, 0, 0);
   const displayRow = document.createElement('div');
   displayRow.className = 'sc-display';
   header.appendChild(displayRow);
@@ -108,10 +126,12 @@ export async function runShowcase(): Promise<void> {
 
   const cards: Card[] = [];
   const stages: { stage: HTMLElement; ground: 'moss' | 'lane' }[] = [];
-  const section = (title: string) => {
+  /** A section at the end of the page, or right after `after`'s section. */
+  const section = (title: string, after?: HTMLElement) => {
     const s = document.createElement('section');
     s.innerHTML = `<h2>${title}</h2><div class="sc-grid"></div>`;
-    root.insertBefore(s, app.canvas);
+    if (after?.parentElement) after.parentElement.after(s);
+    else root.insertBefore(s, app.canvas);
     return s.querySelector('.sc-grid') as HTMLElement;
   };
   const addCard = (
@@ -177,11 +197,11 @@ export async function runShowcase(): Promise<void> {
     const grid = gridFor(e.category);
     switch (e.category) {
       case 'hero':
-        addCard(grid, e, `hero · ${e.kind}`, 'lane', () => heroActor(e.rig(kit, true), e.kind), 2, PHONE.entity);
+        addCard(grid, e, `hero 2D · ${e.kind}`, 'lane', () => heroActor(e.rig(kit, true), e.kind), 2, PHONE.entity);
         // Melee heroes: a card that fights a Grunt, to check the swing, the smear, the impact and the knockback.
         if (!TUNING.hero[e.kind].ranged) {
           const dummy = creepArt('grunt');
-          if (dummy) addCard(grid, e, `hero · ${e.kind} · melee vs Grunt`, 'lane', () => meleeActor(e.rig(kit, true), e.kind, new CreepRig(kit, dummy)), 1.6, PHONE.entity);
+          if (dummy) addCard(grid, e, `hero 2D · ${e.kind} · melee vs Grunt`, 'lane', () => meleeActor(e.rig(kit, true), e.kind, new CreepRig(kit, dummy)), 1.6, PHONE.entity);
         }
         break;
       case 'creep': {
@@ -251,6 +271,27 @@ export async function runShowcase(): Promise<void> {
     }
   }
 
+  // The heroes made in 3D (docs/ART.md §15): their sheets, then a card each right after the 2D heroes, played by the
+  // match's 3D rig; then each hero's lobby stage loop.
+  await loadHeroSheets();
+  const heroes3d: HeroKind[] = [];
+  const heroGrid3d = section('Heroes in 3D (rendered ahead of time)', grids.get('hero'));
+  for (const kind of Object.keys(HERO_3D) as HeroKind[]) {
+    const e = heroArt(kind);
+    if (!e || !heroRig3d(kind, kit, true)) continue;
+    addCard(heroGrid3d, e, `hero 3D · ${kind}`, 'lane', () => hero3dActor(heroRig3d(kind, kit, true)!, kind), 2, PHONE.entity, kind);
+    heroes3d.push(kind);
+  }
+  const stageGrid = section('Stage', heroGrid3d);
+  stageGrid.classList.add('sc-stage-grid');
+  const stagesShown: HeroKind[] = [];
+  for (const kind of Object.keys(HERO_3D) as HeroKind[]) {
+    const e = heroArt(kind);
+    if (!e) continue;
+    stageCard(stageGrid, kind, e.name);
+    stagesShown.push(kind);
+  }
+
   // The creeps made in 3D (docs/ART.md §15): their sheets, then a card each, played by the match's 3D rig.
   await loadCreepSheets();
   const shown3d: string[] = [];
@@ -266,6 +307,8 @@ export async function runShowcase(): Promise<void> {
     }
     shown3d.push(kind);
   }
+  const creeps3dShown = shown3d.length;
+  count(heroes3d.length, creeps3dShown, stagesShown.length);
 
   // The towers, the Heart and the portals made in 3D (docs/ART.md §15, V-05d): the structures sheet, then a card for
   // every tier and branch, each damage stage and the portal, next to the 2D cards above (the 2D art is the fallback).
@@ -302,6 +345,7 @@ export async function runShowcase(): Promise<void> {
     addCard(gridBuildings, portal, 'portal 3D · wave start: flare', 'moss', () => portal3dActor(kit, portal.id, portalView3d()!, true), 1, PHONE.world, portal.id);
     shown3d.push(portal.id);
   }
+  count(heroes3d.length, creeps3dShown, stagesShown.length, shown3d.length - creeps3dShown);
 
   // Kinds with no art yet keep their shapes in the game.
   const missing = [
@@ -420,6 +464,8 @@ export async function runShowcase(): Promise<void> {
   (window as unknown as { __showcase: unknown }).__showcase = {
     ids: entries.map((e) => e.id),
     ids3d: shown3d,
+    heroes3d,
+    stages: stagesShown,
     cards: () => cards.length,
     display: () => kit.display,
   };
@@ -517,6 +563,86 @@ function meleeActor(rig: HeroRig, kind: HeroKind, grunt: CreepRig): Actor {
       fx.update(now, dt);
     },
   };
+}
+
+/**
+ * A 3D hero's cycle (ms): stands, walks (turning round), fights (a blow or a shot every attack cooldown, an enemy in
+ * reach), casts each active skill in turn (E is passive for every hero), is hit (the flinch and its flash), then dies
+ * (the fall frames).
+ */
+const HERO3D = { walk: 1200, fight: 3600, cast: 6000, hit: 8700, die: 9800, cycle: 10800 } as const;
+const HERO3D_CASTS: SkillSlot[] = ['Q', 'W', 'R'];
+const HERO3D_CAST_EVERY = (HERO3D.hit - HERO3D.cast) / HERO3D_CASTS.length;
+/** The first blow or shot comes this long into the fight (a Warden winds up first). */
+const HERO3D_FIRST_SHOT = 300;
+
+function hero3dActor(rig: HeroRig, kind: HeroKind): Actor {
+  // The card scales this holder, as a match scales the rig's parent: the walk's cadence follows the drawn size.
+  const view = new Container();
+  view.addChild(rig.body);
+  const pose = { x: 0, y: 0, facing: 0, stunned: false, engaged: false };
+  const speed = TUNING.hero[kind].speed;
+  const cooldown = TUNING.hero[kind].attackCooldown * 1000;
+  let shot = -1;
+  let cast = -1;
+  let hitAt = -Infinity;
+  return {
+    view,
+    animate(now, dt) {
+      const n = Math.floor(now / HERO3D.cycle);
+      const t = now % HERO3D.cycle;
+      if (t >= HERO3D.die) {
+        rig.die(Math.min(1, (t - HERO3D.die) / DEATH.hero.ms));
+        return;
+      }
+      pose.engaged = t >= HERO3D.fight && t < HERO3D.cast;
+      pose.facing = 0;
+      if (t >= HERO3D.walk && t < HERO3D.fight) {
+        const back = t >= (HERO3D.walk + HERO3D.fight) / 2;
+        pose.facing = back ? Math.PI : 0;
+        pose.x += (back ? -1 : 1) * speed * (dt / 1000);
+      } else if (pose.engaged) {
+        // The target moves a little, so the bow (or the swing) turns after it.
+        pose.facing = Math.sin(now / 700) * 0.5;
+        const k = Math.floor((t - HERO3D.fight - HERO3D_FIRST_SHOT) / cooldown);
+        if (k >= 0 && shot !== n * 100 + k) {
+          shot = n * 100 + k;
+          rig.shot(now, pose.facing);
+        }
+      } else if (t >= HERO3D.cast && t < HERO3D.hit) {
+        pose.facing = 0.3;
+        const k = Math.floor((t - HERO3D.cast) / HERO3D_CAST_EVERY);
+        if (cast !== n * HERO3D_CASTS.length + k) {
+          cast = n * HERO3D_CASTS.length + k;
+          rig.cast(now, HERO3D_CASTS[k]!);
+        }
+      } else if (t >= HERO3D.hit && now - hitAt > 450) {
+        hitAt = now;
+        rig.hit(now);
+      }
+      rig.update(pose, now, dt);
+    },
+  };
+}
+
+/**
+ * A hero's lobby stage loop (docs/ART.md §15): the lobby's own backdrop (lobby/stageBackdrop.ts) on a stage the size
+ * of a 412 px phone's home card, so it crops and scales the video as the lobby does. The poster shows at once, the
+ * video (muted, looping, inline) fades in over it once it plays, and the poster stays when it can't (reduced
+ * motion, data saver, autoplay blocked, an error). The stage says which it shows (`data-backdrop`).
+ */
+function stageCard(grid: HTMLElement, kind: HeroKind, name: string): void {
+  const el = document.createElement('div');
+  el.className = 'sc-card';
+  el.dataset.stage = kind;
+  el.innerHTML =
+    `<div class="sc-hero-stage" style="width: ${LOBBY_STAGE.w}px; height: ${LOBBY_STAGE.h}px"></div>` +
+    `<div class="sc-label"><b>${name}</b>` +
+    `<span>stage · ${kind} · ${LOBBY_STAGE.w} × ${LOBBY_STAGE.h} (a 412 px phone's home card)</span></div>`;
+  grid.appendChild(el);
+  const backdrop = new StageBackdrop(el.querySelector('.sc-hero-stage') as HTMLElement, kind);
+  backdrop.layout(LOBBY_STAGE);
+  backdrop.start();
 }
 
 let sharedFxAtlas: FxAtlas | null = null;
@@ -772,6 +898,10 @@ const CSS = `
 #showcase .sc-stage { position: relative; height: 150px; }
 #showcase .sc-label { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
 #showcase .sc-label span { color: #9fb0c2; font-size: 12px; }
+#showcase .sc-stage-grid { grid-template-columns: repeat(auto-fill, ${LOBBY_STAGE.w}px); }
+#showcase .sc-hero-stage { position: relative; overflow: hidden; background: #0f1d1a; }
+#showcase .sc-hero-stage::after { content: attr(data-backdrop); position: absolute; right: 6px; bottom: 6px; z-index: 1;
+  padding: 2px 8px; border-radius: 8px; background: rgba(11, 15, 20, 0.7); color: #c9d6e3; font-size: 11px; }
 #showcase .sc-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 #showcase .sc-icon { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px;
   background: linear-gradient(180deg, #1d2e28, #120f19); border: 1px solid #243242; }

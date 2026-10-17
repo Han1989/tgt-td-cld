@@ -1,6 +1,6 @@
-// Online lobby screens (HTML): home (the hero stage, Play solo, then nickname and create / join for
-// friends), room (code + invite link, the seats, your hero, the host's picks, ready / start) and a busy state.
-// The solo pick is solo.ts.
+// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode, Play solo, then
+// nickname and create / join for friends), the room card (code + invite link, the seats, your hero, the host's mode,
+// ready / start) and a busy state. A build with no game server shows the home card alone, with no friends' controls.
 
 import {
   HERO_KINDS,
@@ -8,11 +8,9 @@ import {
   MAX_PLAYERS,
   normalizeName,
   normalizeRoomCode,
-  type Difficulty,
   type GameMode,
   type HeroKind,
   type LobbyState,
-  type ModifierAction,
   type PlayerId,
 } from '@tdt/protocol';
 import { HERO_INFO } from '../heroInfo';
@@ -20,28 +18,28 @@ import { heroIcon, iconVar } from '../render/art/icons';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
 import { sharedSettings } from '../settings';
-import { lessonOffer } from '../tutorial/logic';
-import { DifficultyPicker } from './difficultyPicker';
+import { lessonOffer, type SoloPick } from '../tutorial/logic';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
-import { renderModifierLobby } from './modifierPicker';
-import { ModePicker } from './modePicker';
+import { dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
 
 const NAME_KEY = 'tdt.name';
 
-export interface LobbyActions {
-  create(name: string, hero: HeroKind): void;
-  join(code: string, name: string, hero: HeroKind): void;
-  playOffline(): void;
+/** The home card's solo controls (every build). */
+export interface SoloActions {
+  /** Play solo: a match with the card's hero and mode, at once. */
+  playSolo(pick: SoloPick): void;
   /** "New here? Learn to play": the lesson with this hero, straight away. */
   learnToPlay(hero: HeroKind): void;
+}
+
+/** The friends' controls and the room card (a build with a game server). */
+export interface RoomActions {
+  create(name: string, hero: HeroKind): void;
+  join(code: string, name: string, hero: HeroKind): void;
   setHero(hero: HeroKind): void;
   /** Host only: the match mode. */
   setMode(mode: GameMode): void;
-  /** Host only: Normal or Hard. */
-  setDifficulty(difficulty: Difficulty): void;
-  /** Host only: reroll, choose none, or turn the seed's draw back on. */
-  setModifiers(action: ModifierAction): void;
   setReady(ready: boolean): void;
   start(): void;
   leave(): void;
@@ -83,7 +81,6 @@ export class LobbyUi {
   private readonly home = $('lobby-home');
   private readonly room = $('lobby-room');
   private readonly busy = $('lobby-busy');
-  private readonly solo = $('lobby-solo');
   private readonly busyText = $('lobby-busy-text');
   private readonly error = $('lobby-error');
   private readonly name = $('lobby-name') as HTMLInputElement;
@@ -101,34 +98,58 @@ export class LobbyUi {
   private readonly start = $('lobby-start') as HTMLButtonElement;
   private readonly refresh = $('lobby-refresh');
   private readonly modeLabel = $('lobby-mode-room-label');
-  private readonly difficultyLabel = $('lobby-difficulty-room-label');
-  private readonly modifiersLabel = $('lobby-modifiers-room-label');
-  private readonly setModifiers: (action: ModifierAction) => void;
 
   private hero: HeroKind = storedHero();
   /** The page was opened from an invite link (`?room=CODE`): Join is the main button, not Play solo. */
   private readonly invited: boolean;
   private readonly stage: HeroStage;
   private readonly homePicker: HeroPicker;
+  private readonly homeMode: ModePicker;
   private readonly roomPicker: HeroPicker;
   private readonly modePicker: ModePicker;
-  private readonly difficultyPicker: DifficultyPicker;
   private amReady = false;
   private current: LobbyState | null = null;
 
-  constructor(actions: LobbyActions) {
-    this.setModifiers = actions.setModifiers;
+  /** `room` is null in a build with no game server: the home card has no friends' controls and no room card. */
+  constructor(solo: SoloActions, room: RoomActions | null) {
+    dropStoredDifficulty();
     this.name.value = stored(NAME_KEY);
     this.name.maxLength = MAX_NAME_LENGTH;
-    const invited = normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? '');
+    const invited = room ? normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? '') : null;
     if (invited) this.code.value = invited;
     // One main (rune-teal) button on the home card: Play solo, or Join for a friend who came by an invite link,
-    // whose nickname and code then come before Play solo (style.css `#lobby-home.invited`).
+    // whose nickname and code then come before Mode and Play solo (style.css `#lobby-home.invited`).
     this.invited = !!invited;
     this.home.classList.toggle('invited', this.invited);
     this.joinBtn.classList.toggle('big', this.invited);
     this.offline.classList.toggle('big', !this.invited);
+    $('lobby-friends').classList.toggle('hidden', !room);
 
+    // Play solo starts the match with the card's hero and mode at once, never the lesson; the line under it is how a
+    // new player picks the lesson.
+    this.homeMode = new ModePicker($('lobby-mode-home'), storedMode(), storeMode);
+    this.offline.addEventListener('click', () => solo.playSolo({ hero: this.hero, mode: this.homeMode.mode }));
+    $('lobby-learn-btn').addEventListener('click', () => solo.learnToPlay(this.hero));
+    // Through the service worker, so a cached old app shell can't survive the refresh.
+    this.refresh.addEventListener('click', () => void updateAndReload());
+    this.stage = new HeroStage($('lobby-stage'), HERO_KINDS, this.hero);
+    this.homePicker = new HeroPicker($('lobby-heroes-home'), this.hero, (hero) => {
+      this.hero = hero;
+      storeHero(hero);
+      this.syncStage();
+    });
+    this.roomPicker = new HeroPicker($('lobby-heroes-room'), this.hero, (hero) => {
+      this.hero = hero;
+      storeHero(hero);
+      this.syncRoomHero();
+      room?.setHero(hero);
+    });
+    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => room?.setMode(mode));
+    if (room) this.bindRoom(room);
+  }
+
+  /** The friends' controls on the home card, and the room card's buttons. */
+  private bindRoom(actions: RoomActions): void {
     $('lobby-create').addEventListener('click', () => {
       const name = this.validName();
       if (name) actions.create(name, this.hero);
@@ -144,11 +165,6 @@ export class LobbyUi {
     this.code.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') join();
     });
-    // Play solo opens the solo pick and never starts the lesson; the line under it is how a new player picks the lesson.
-    this.offline.addEventListener('click', () => actions.playOffline());
-    $('lobby-learn-btn').addEventListener('click', () => actions.learnToPlay(this.hero));
-    // Through the service worker, so a cached old app shell can't survive the refresh.
-    this.refresh.addEventListener('click', () => void updateAndReload());
     $('lobby-leave').addEventListener('click', () => actions.leave());
     this.ready.addEventListener('click', () => actions.setReady(!this.amReady));
     this.start.addEventListener('click', () => actions.start());
@@ -160,25 +176,6 @@ export class LobbyUi {
         () => this.flash(link),
       );
     });
-    this.stage = new HeroStage($('lobby-stage'), HERO_KINDS, this.hero);
-    this.homePicker = new HeroPicker($('lobby-heroes-home'), this.hero, (hero) => {
-      this.hero = hero;
-      storeHero(hero);
-      this.syncStage();
-    });
-    this.roomPicker = new HeroPicker($('lobby-heroes-room'), this.hero, (hero) => {
-      this.hero = hero;
-      storeHero(hero);
-      this.syncRoomHero();
-      actions.setHero(hero);
-    });
-    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => actions.setMode(mode), $('lobby-mode-room-line'));
-    this.difficultyPicker = new DifficultyPicker(
-      $('lobby-difficulty-room'),
-      'normal',
-      (difficulty) => actions.setDifficulty(difficulty),
-      $('lobby-difficulty-room-line'),
-    );
   }
 
   /** The room card's line under the hero buttons. */
@@ -216,11 +213,11 @@ export class LobbyUi {
     this.home.classList.remove('hidden');
     this.room.classList.add('hidden');
     this.busy.classList.add('hidden');
-    this.solo.classList.add('hidden');
     this.refresh.classList.add('hidden');
-    // The hero may have been picked on the solo pick or in a room since (every picker stores it).
+    // The hero may have been picked in a room since (every hero picker stores it).
     this.hero = storedHero();
     this.homePicker.select(this.hero);
+    this.homeMode.select(storedMode());
     this.syncStage();
     this.stage.start();
     this.syncLesson();
@@ -243,7 +240,6 @@ export class LobbyUi {
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.room.classList.add('hidden');
-    this.solo.classList.add('hidden');
     this.busy.classList.remove('hidden');
     this.busyText.textContent = text;
     this.showError('');
@@ -255,7 +251,6 @@ export class LobbyUi {
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.busy.classList.add('hidden');
-    this.solo.classList.add('hidden');
     this.room.classList.remove('hidden');
     this.roomCode.textContent = lobby.code;
 
@@ -268,11 +263,6 @@ export class LobbyUi {
     this.modePicker.select(lobby.mode);
     this.modePicker.setEnabled(isHost);
     hostLabel(this.modeLabel, 'Mode', isHost);
-    this.difficultyPicker.select(lobby.difficulty);
-    this.difficultyPicker.setEnabled(isHost);
-    hostLabel(this.difficultyLabel, 'Difficulty', isHost);
-    hostLabel(this.modifiersLabel, 'Modifiers', isHost);
-    renderModifierLobby($('lobby-modifiers-room'), lobby, isHost, (action) => this.setModifiers(action));
 
     const seats = lobby.players.length;
     this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS} · one per lane`;
@@ -317,7 +307,7 @@ export class LobbyUi {
   }
 }
 
-/** A pick's label on the room card; a guest sees "(the host picks)" with it. */
+/** The mode's label on the room card; a guest sees "(the host picks)" with it. */
 function hostLabel(el: HTMLElement, name: string, host: boolean): void {
   el.textContent = name;
   if (host) return;

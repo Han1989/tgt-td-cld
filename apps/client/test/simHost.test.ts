@@ -72,19 +72,16 @@ describe('SimHost (local transport backend)', () => {
     expect([snap.tick, snap.mode, snap.heroes[0]!.kind]).toEqual([0, 'quick', 'arcanist']);
   });
 
-  it('starts a new match at the picked difficulty and keeps it for "play again"', () => {
+  it('starts every match on Normal: a difficulty message is not a message any more (protocol 20)', () => {
     const { host, snaps } = harness();
     expect(snaps().at(-1)!.difficulty).toBe('normal');
-    host.receive(encodeClientMessage({ t: 'difficulty', difficulty: 'hard' }));
-    expect(snaps().at(-1)!.difficulty).toBe('hard');
-    host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'callEarly' } }));
-    host.tick();
-    host.receive(encodeClientMessage({ t: 'difficulty', difficulty: 'normal' }));
-    expect(snaps().at(-1)!.difficulty).toBe('hard');
+    const count = snaps().length;
+    host.receive(JSON.stringify({ t: 'difficulty', difficulty: 'hard' }));
+    expect(snaps()).toHaveLength(count);
     (host as unknown as { state: { heartHp: number } }).state.heartHp = 0;
     host.tick();
     host.receive(encodeClientMessage({ t: 'restart' }));
-    expect(snaps().at(-1)!.difficulty).toBe('hard');
+    expect(snaps().at(-1)!.difficulty).toBe('normal');
   });
 
   it('sends the match report and replay once, when the match ends', () => {

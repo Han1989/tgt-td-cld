@@ -3,7 +3,7 @@
 
 import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
 import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana, ironVow } from './combat';
-import { applyPracticeLevels, isPracticeAlly, shieldSnap, updateCoop } from './coop';
+import { shieldSnap, updateCoop } from './coop';
 import { updateCreeps } from './creeps';
 import { updateHeroes } from './heroes';
 import { getMap } from './map';
@@ -11,21 +11,14 @@ import { padLayout } from './pads';
 import { seedRng } from './rng';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import { emptyUltStats, type GameConfig, type GameState, type Hero } from './state';
+import { planSurgeLanes, surgeNotice } from './surges';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
-import { normalizeModifiers, planSurgeLanes, scaledTowerRange, surgeNotice, goldFactor } from './modifiers';
 import { secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
 import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
   if (config.players.length === 0) throw new Error('A game needs at least one player');
-  const practice = config.practice;
-  if (practice && config.players.length !== 1) throw new Error('Meteor Rain practice is a solo match');
-  if (practice && config.players.some((p) => p.id === practice.allyId)) {
-    throw new Error('The practice ally needs its own id');
-  }
-  const roster = practice
-    ? [...config.players, { id: practice.allyId, name: practice.allyName ?? 'Ally', hero: practice.allyHero }]
-    : config.players;
+  const roster = config.players;
   if (roster.length > MAX_PLAYERS) throw new Error(`A game holds at most ${MAX_PLAYERS} players`);
   const mode = config.mode ?? 'full';
   const tuning = tuningForMode(config.tuning ?? TUNING, mode);
@@ -34,7 +27,6 @@ export function createGame(config: GameConfig, seed: number): GameState {
     rng: seedRng(seed),
     mode,
     difficulty: config.difficulty ?? 'normal',
-    modifiers: normalizeModifiers(config.modifiers),
     surgeLanes: planSurgeLanes(seed, tuning.waves.list.length, tuning),
     surgeLane: null,
     nextSurge: null,
@@ -56,7 +48,6 @@ export function createGame(config: GameConfig, seed: number): GameState {
     events: [],
     pendingEvents: [],
     pendingDamage: {},
-    practice: practice ? { allyId: practice.allyId, startLevel: practice.startLevel ?? tuning.hero.ultimateLevels[0] ?? 6 } : null,
     recentUlts: [],
     firedCombo: null,
     shields: [],
@@ -101,12 +92,8 @@ export function createGame(config: GameConfig, seed: number): GameState {
     hero.hp = heroMaxHp(state, hero);
     hero.mana = heroMaxMana(state, hero);
     state.heroes.push(hero);
-    const goldStart = isPracticeAlly(state, p.id) ? 0 : tuning.economy.startingGold;
-    state.players.push({ id: p.id, name: p.name, gold: goldStart, heroId, kills: 0, connected: true, left: false });
+    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true, left: false });
   });
-  if (state.practice) applyPracticeLevels(state);
-  const gold = goldFactor(state);
-  if (gold !== 1) for (const p of state.players) p.gold = Math.round(p.gold * gold);
   // Wave 0 (the build): the chip can name wave 1's surge before the first step. Wave 1 is before surges start.
   state.nextSurge = surgeNotice(state.surgeLanes, 1);
   return state;
@@ -182,10 +169,8 @@ export function snapshot(state: GameState): Snapshot {
     tickRate: TICK_RATE,
     mode: state.mode,
     difficulty: state.difficulty,
-    modifiers: state.modifiers,
     surgeLane: state.surgeLane,
     nextSurge: state.nextSurge,
-    practice: state.practice ? { allyId: state.practice.allyId, startLevel: state.practice.startLevel } : null,
     phase: state.phase,
     heartHp: state.heartHp,
     heartMaxHp: t.heart.maxHp,
@@ -272,7 +257,7 @@ export function snapshot(state: GameState): Snapshot {
       maxHp: tw.maxHp,
       tier: tw.tier,
       branch: tw.branch,
-      range: scaledTowerRange(state, towerStats(t, tw.kind, tw.tier, tw.branch).range),
+      range: towerStats(t, tw.kind, tw.tier, tw.branch).range,
       spent: tw.spent,
       priority: tw.priority,
       stunned: state.tick < tw.stunUntil,

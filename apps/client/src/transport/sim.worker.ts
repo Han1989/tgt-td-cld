@@ -26,7 +26,7 @@ let next = performance.now() + TICK_MS;
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown; on?: unknown; seed?: unknown; modifiers?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
     next = performance.now() + TICK_MS;
@@ -43,19 +43,6 @@ ctx.onmessage = (e) => {
     // `?lab&ult`: heroes start with their ultimate (R) learned, so a browser test can cast it at once.
     if (data.ult === true) tuning.hero.startingSkills = [...tuning.hero.startingSkills, 'R'];
     host.tuning = tuning;
-    return;
-  }
-  if (data && typeof data === 'object' && data.ctl === 'practice' && typeof data.on === 'boolean') {
-    host.setPractice(data.on);
-    return;
-  }
-  if (data && typeof data === 'object' && data.ctl === 'deal' && typeof data.seed === 'number' && Array.isArray(data.modifiers)) {
-    const modifiers: string[] = [];
-    for (const m of data.modifiers) {
-      if (typeof m !== 'string') return;
-      modifiers.push(m);
-    }
-    host.setDeal(data.seed, modifiers);
     return;
   }
   if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'lose') {

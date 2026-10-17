@@ -12,10 +12,8 @@ import {
   type ClientMessage,
   type Command,
   type ErrorCode,
-  type Difficulty,
   type GameMode,
   type HeroKind,
-  type Modifier,
   type LobbyState,
   type PlayerId,
   type ServerMessage,
@@ -29,7 +27,6 @@ import {
   matchReplay,
   matchReport,
   matchStep,
-  modifierDraw,
   reportSummary,
   snapshot,
   type GameState,
@@ -71,16 +68,6 @@ export class Room {
   phase: 'lobby' | 'playing' = 'lobby';
   /** Match mode picked by the host in the lobby; kept for the next match after "Back to lobby". */
   mode: GameMode = 'full';
-  /** Creep difficulty picked by the host; kept for the next match after "Back to lobby". */
-  difficulty: Difficulty = 'normal';
-  /** Modifiers the next match will use. Empty when the host chose none. */
-  modifiers: Modifier[] = [];
-  /** The seed's current draw, so "No modifiers" can be undone without advancing the draw. */
-  modifierOffer: Modifier[] = [];
-  /** Seed of the draw above. The match uses this same seed, so the lobby and the replay agree. */
-  private seed = 0;
-  /** How many rerolls this deal has taken. The current draw is `modifierDraw(seed, modifierRoll)`. */
-  private modifierRoll = 0;
   /** The running match (its state, replay log and report numbers), or null in the lobby. */
   match: Match | null = null;
   /** The match report message, encoded once when the match ends (sent again to players who rejoin). */
@@ -99,21 +86,13 @@ export class Room {
   constructor(
     readonly code: string,
     private readonly config: ServerConfig,
+    /** A fresh seed for each match. */
     private readonly newSeed: () => number,
     now: number,
     /** Server log (one line per finished match). */
     private readonly log: (msg: string) => void = () => {},
   ) {
     this.emptySince = now;
-    this.rollDeal();
-  }
-
-  /** A new seed and a new 1–2 modifier draw. Rerolls stay available until the match starts. */
-  private rollDeal(): void {
-    this.seed = this.newSeed();
-    this.modifierRoll = 0;
-    this.modifierOffer = modifierDraw(this.seed, 0);
-    this.modifiers = this.modifierOffer.slice();
   }
 
   get state(): GameState | null {
@@ -239,26 +218,6 @@ export class Room {
         this.mode = msg.mode;
         this.broadcastLobby();
         return;
-      case 'difficulty':
-        if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can change the difficulty');
-        if (this.phase !== 'lobby') return this.error(member, 'bad_request', 'The difficulty is locked once the match starts');
-        this.difficulty = msg.difficulty;
-        this.broadcastLobby();
-        return;
-      case 'modifiers':
-        if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can change the modifiers');
-        if (this.phase !== 'lobby') return this.error(member, 'bad_request', 'Modifiers are locked once the match starts');
-        if (msg.action === 'reroll') {
-          this.modifierRoll += 1;
-          this.modifierOffer = modifierDraw(this.seed, this.modifierRoll);
-          this.modifiers = this.modifierOffer.slice();
-        } else if (msg.action === 'none') {
-          this.modifiers = [];
-        } else {
-          this.modifiers = this.modifierOffer.slice();
-        }
-        this.broadcastLobby();
-        return;
       case 'ready':
         if (this.phase !== 'lobby') return;
         member.ready = msg.ready;
@@ -298,11 +257,8 @@ export class Room {
 
   private startMatch(): void {
     const players = this.activeMembers.map((m) => ({ id: m.id, name: m.name, hero: m.hero }));
-    this.match = createMatch(
-      { players, mode: this.mode, difficulty: this.difficulty, modifiers: this.modifiers },
-      this.seed,
-      this.config.build,
-    );
+    // Every match a player starts is Normal (Han, 17 Oct 2026): Hard is for the game to choose later.
+    this.match = createMatch({ players, mode: this.mode, difficulty: 'normal' }, this.newSeed(), this.config.build);
     this.reportMessage = null;
     this.phase = 'playing';
     this.queue = [];
@@ -324,7 +280,6 @@ export class Room {
       else m.ready = false;
     }
     this.migrateHost();
-    this.rollDeal();
     this.broadcastLobby();
   }
 
@@ -388,10 +343,6 @@ export class Room {
       phase: this.phase,
       hostId: this.hostId,
       mode: this.mode,
-      difficulty: this.difficulty,
-      modifiers: this.modifiers,
-      modifierOffer: this.modifierOffer,
-      modifiersRerolled: false,
       players: this.activeMembers.map((m) => ({
         id: m.id,
         name: m.name,

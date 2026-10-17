@@ -1,9 +1,8 @@
 // Shared combat rules: damage reduction, kills, bounties, XP and levelling.
 
 import type { AoeEffect, DamageType, EntityId, GameEvent, HeroKind, PlayerId, SkillSlot } from '@tdt/protocol';
-import { bountyCredit, hitFrom, isPracticeAlly, shieldedDamage } from './coop';
+import { hitFrom, shieldedDamage } from './coop';
 import { getMap } from './map';
-import { bountyFactor, xpFactor } from './modifiers';
 import { nextRandom } from './rng';
 import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower, UltTag } from './state';
 import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
@@ -55,7 +54,7 @@ export function damageMultiplier(tuning: Tuning, type: DamageType, armor: number
 export function creepBounty(state: GameState, creep: Creep): number {
   const base = state.tuning.creeps[creep.kind].bounty;
   const grown = base * (1 + state.tuning.economy.bountyGrowthPerWave * (creep.wave - 1));
-  return Math.round(grown * bountyFactor(state));
+  return Math.round(grown);
 }
 
 export function heroStats(state: GameState, hero: Hero): HeroStats {
@@ -209,8 +208,7 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   creep.hp = 0;
   const stats = state.tuning.creeps[creep.kind];
   const bounty = creepBounty(state, creep);
-  const credited = bountyCredit(state, source);
-  const killer = credited === null ? undefined : state.players.find((p) => p.id === credited);
+  const killer = source === null ? undefined : state.players.find((p) => p.id === source);
   if (killer) {
     killer.gold += bounty;
     killer.kills++;
@@ -226,7 +224,7 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   });
 
   const nearby = state.heroes.filter(
-    (h) => h.alive && dist(h.x, h.y, creep.x, creep.y) <= state.tuning.combat.xpShareRadius && !isPracticeAlly(state, h.owner),
+    (h) => h.alive && dist(h.x, h.y, creep.x, creep.y) <= state.tuning.combat.xpShareRadius,
   );
   for (const hero of nearby) grantXp(state, hero, stats.xp / nearby.length);
 }
@@ -234,7 +232,7 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
 export function grantXp(state: GameState, hero: Hero, amount: number): void {
   const { xpForLevel, maxLevel } = state.tuning.hero;
   const cap = xpForLevel[maxLevel - 1] ?? 0;
-  hero.xp = Math.min(cap, hero.xp + amount * xpFactor(state));
+  hero.xp = Math.min(cap, hero.xp + amount);
   while (hero.level < maxLevel && hero.xp >= (xpForLevel[hero.level] ?? Infinity)) {
     const oldHp = heroMaxHp(state, hero);
     const oldMana = heroMaxMana(state, hero);

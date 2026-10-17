@@ -23,8 +23,8 @@ describe('progress dashboard data', () => {
     expect(PROGRESS.items.some((item) => item.status === 'todo')).toBe(true);
   });
 
-  it('seeds protocol 19, a finished polish path, and D-06 as the next gate', () => {
-    expect(PROGRESS.protocol).toBe(19);
+  it('seeds protocol 20, a finished polish path, and D-06 as the next gate', () => {
+    expect(PROGRESS.protocol).toBe(20);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -32,11 +32,12 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    expect(summary.done).toBe(61);
+    // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116) is done.
+    expect(summary.done).toBe(62);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115)
-    // and V-05d (the towers, the Heart and the portals in 3D, PR #116) are done, and V-05a (PR #106) is closed as
+    // and V-05d (the towers, the Heart and the portals in 3D, PR #118) are done, and V-05a (PR #106) is closed as
     // superseded by V-05b.
     expect(summary.open).toBe(40);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
@@ -44,7 +45,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(101);
+    expect(summary.total).toBe(102);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -180,7 +181,7 @@ describe('progress dashboard data', () => {
     expect(byId('V-05d')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05d').note).toContain('17 Oct 2026');
     expect(byId('V-05d').note).toContain('KayKit');
-    expect(byId('V-05d').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/116');
+    expect(byId('V-05d').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/118');
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
     }
@@ -241,7 +242,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('D-06');
-    expect(summary).toContain('19');
+    expect(summary).toContain('20');
     expect(summary).toContain('Complete');
   });
 

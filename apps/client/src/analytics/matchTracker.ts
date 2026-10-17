@@ -44,7 +44,7 @@ export class MatchTracker {
     const over = snap.phase === 'victory' || snap.phase === 'defeat';
     const actions: MatchAction[] = [];
     if (!over) this.live++;
-    // A second in: solo's opening hero / mode / difficulty picks restart the match at tick 0 first.
+    // A second in: solo's opening hero / mode picks restart the match at tick 0 first.
     // A match already over when first seen (a rejoin after the end) was reported before.
     if (!this.started && this.live > 0 && (over || snap.tick >= snap.tickRate)) {
       this.started = true;

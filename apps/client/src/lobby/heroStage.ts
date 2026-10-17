@@ -1,10 +1,10 @@
-// The lobby's hero stage (docs/ART.md §12): the picked hero large on a moonlit clearing, on the home card and
-// (shorter) on the solo pick. The clearing and a hero made in 3D are pictures rendered ahead of time in Blender
-// (stageBackdrop.ts: a poster, then an 8 s video loop; docs/ART.md §15). A hero still drawn in 2D stands over the
-// empty clearing, breathing: Canvas 2D from the hero's own art, its frames drawn once at the stage's size (vector
-// paths, so they stay sharp at any size) and placed each frame by its standing pose (`HeroArt.stand`). No WebGL;
-// nothing is drawn while the stage is hidden, and under reduced motion it is one still drawing. Under the pictures
-// the CSS clearing (style.css `.hero-stage`) shows until they load.
+// The lobby's hero stage (docs/ART.md §12): the picked hero large on a moonlit clearing, on the home card. The
+// clearing and a hero made in 3D are pictures rendered ahead of time in Blender (stageBackdrop.ts: a poster, then an
+// 8 s video loop; docs/ART.md §15). A hero still drawn in 2D stands over the empty clearing, breathing: Canvas 2D
+// from the hero's own art, its frames drawn once at the stage's size (vector paths, so they stay sharp at any size)
+// and placed each frame by its standing pose (`HeroArt.stand`). No WebGL; nothing is drawn while the stage is hidden,
+// and under reduced motion it is one still drawing. Under the pictures the CSS clearing (style.css `.hero-stage`)
+// shows until they load.
 
 import type { HeroKind } from '@tdt/protocol';
 import { ART_RES } from '../render/art/atlas';

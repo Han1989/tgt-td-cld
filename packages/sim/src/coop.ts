@@ -3,7 +3,6 @@
 //    window fuse, wherever the heroes stand, into one stronger rain: Meteor Rain, Stun Storm or Shockwave.
 // 2. Quick wave-10 two-lane shield — that boss takes no damage until two lanes hit it within the window.
 //    Full overrides the wave list to empty.
-// 3. Solo practice — an ally hero that does not count as a player (`practice` on GameConfig).
 
 import {
   HERO_KINDS,
@@ -16,33 +15,15 @@ import {
   type PlayerId,
   type ShieldState,
 } from '@tdt/protocol';
-import { creepsInRadius, emit, heroMaxHp, heroMaxMana, newId, stunCreep, ultimateDamage } from './combat';
+import { creepsInRadius, emit, newId, stunCreep, ultimateDamage } from './combat';
 import { getMap, laneDistance, PAD_ZONES } from './map';
 import type { BossShield, Creep, GameState, Hero, HitFrom, RecentUlt, UltKind, UltTag, Zone } from './state';
 import { secondsToTicks } from './tuning';
 import { dist } from './vec';
 
-export function isPracticeAlly(state: GameState, playerId: PlayerId): boolean {
-  return state.practice !== null && state.practice.allyId === playerId;
-}
-
-/** Players who count for pads, creep scaling and surge share. The practice ally does not. */
+/** Players who count for pads and creep scaling. */
 export function teamSize(state: GameState): number {
-  const ally = state.practice?.allyId;
-  if (!ally) return state.players.length;
-  let n = 0;
-  for (const p of state.players) if (p.id !== ally) n++;
-  return n;
-}
-
-function leaderId(state: GameState): PlayerId | null {
-  return state.players.find((p) => !isPracticeAlly(state, p.id))?.id ?? null;
-}
-
-/** A practice ally's kills pay the human. */
-export function bountyCredit(state: GameState, source: PlayerId | null): PlayerId | null {
-  if (source === null || !isPracticeAlly(state, source)) return source;
-  return leaderId(state);
+  return state.players.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +131,6 @@ export function comboOf(a: UltKind, b: UltKind): ComboKind | null {
 /** The two heroes of a pair of ultimates, as kinds: who can combo with whom. */
 export function comboPartners(kind: HeroKind): HeroKind[] {
   return HERO_KINDS.filter((k) => k !== kind);
-}
-
-/** The ally solo practice gives `kind`: Ranger and Arcanist make Meteor Rain, the Warden makes a Stun Storm with the Ranger. */
-export function practicePartner(kind: HeroKind): HeroKind {
-  return kind === 'ranger' ? 'arcanist' : kind === 'arcanist' ? 'ranger' : 'ranger';
 }
 
 /** Where a hit by `owner`'s zones comes from, for the wave-10 shield (the owner's hero). */
@@ -415,25 +391,10 @@ export function shieldSnap(state: GameState, creep: Creep): ShieldState | undefi
 }
 
 // ---------------------------------------------------------------------------
-// Practice start level and the end of each tick
+// The end of each tick
 // ---------------------------------------------------------------------------
 
-/** Both heroes start at the practice level, with the skill points those levels give, and no level-up spam. */
-export function applyPracticeLevels(state: GameState): void {
-  const practice = state.practice;
-  if (!practice || practice.startLevel <= 1) return;
-  const level = Math.min(practice.startLevel, state.tuning.hero.maxLevel);
-  const xp = state.tuning.hero.xpForLevel[level - 1] ?? 0;
-  for (const hero of state.heroes) {
-    hero.xp = xp;
-    hero.level = level;
-    hero.skillPoints = level - 1;
-    hero.hp = heroMaxHp(state, hero);
-    hero.mana = heroMaxMana(state, hero);
-  }
-}
-
-/** Forget old ultimates, drop shields of dead bosses, let a lit half fade, and keep the ally levelled with you. */
+/** Forget old ultimates, drop shields of dead bosses, and let a lit half fade. */
 export function updateCoop(state: GameState): void {
   const window = secondsToTicks(state.tuning.coop.comboWindow);
   state.recentUlts = state.recentUlts.filter((u) => state.tick - u.tick <= window);
@@ -442,26 +403,4 @@ export function updateCoop(state: GameState): void {
   state.shields = state.shields.filter((s) => alive.has(s.creepId));
   const shieldWindow = secondsToTicks(state.tuning.coop.bossShield.window);
   for (const s of state.shields) if (s.side && state.tick - s.sideTick > shieldWindow) s.side = null;
-  const practice = state.practice;
-  if (!practice) return;
-  const leader = state.heroes.find((h) => h.owner === leaderId(state));
-  const ally = state.heroes.find((h) => h.owner === practice.allyId);
-  if (!leader || !ally || ally.xp >= leader.xp) return;
-  addUnscaledXp(state, ally, leader.xp - ally.xp);
-}
-
-/** XP with no Fog multiplier: the ally copies the leader's total, which is already scaled. */
-function addUnscaledXp(state: GameState, hero: Hero, amount: number): void {
-  const { xpForLevel, maxLevel } = state.tuning.hero;
-  const cap = xpForLevel[maxLevel - 1] ?? 0;
-  hero.xp = Math.min(cap, hero.xp + amount);
-  while (hero.level < maxLevel && hero.xp >= (xpForLevel[hero.level] ?? Infinity)) {
-    const oldHp = heroMaxHp(state, hero);
-    const oldMana = heroMaxMana(state, hero);
-    hero.level++;
-    hero.skillPoints++;
-    hero.hp += heroMaxHp(state, hero) - oldHp;
-    hero.mana += heroMaxMana(state, hero) - oldMana;
-    emit(state, { type: 'levelUp', heroId: hero.id, level: hero.level });
-  }
 }

@@ -394,20 +394,6 @@ export interface SurgeTuning {
   soloShare: number;
 }
 
-/** What each match modifier changes. Swift and Fog match the replayability doc; the others are the "more". */
-export interface ModifierStats {
-  /** Creeps move this much faster, and kills pay this much more. */
-  swift: { speed: number; bounty: number };
-  /** From `fromWave`, every Nth eligible ground creep spawns as a Brute. */
-  ironclad: { every: number; fromWave: number };
-  /** From `fromWave`, every Nth eligible ground creep spawns as a Wisp. Brutes stay Brutes. */
-  skyTide: { every: number; fromWave: number };
-  /** Tower range times this. Hero experience times `xp`. */
-  fog: { towerRange: number; xp: number };
-  /** Starting gold and wave income times `gold`. Bounty times `bounty`. Creep count times `count`. */
-  goldRush: { gold: number; bounty: number; count: number };
-}
-
 export interface DifficultyScaling extends DifficultyBand {
   /**
    * Per player count (index 0 = solo), used instead of the scalars above. One multiplier cannot put a
@@ -540,8 +526,6 @@ export interface Tuning {
   difficulty: Record<Difficulty, DifficultyScaling>;
   /** Lane surges from wave 6. Solo uses `soloShare`. */
   surges: SurgeTuning;
-  /** Match modifiers. A match runs one or two, or none. */
-  modifierStats: ModifierStats;
   hero: {
     maxLevel: number;
     /** Total XP needed to reach level i+1 (index 0 = level 1). */
@@ -918,13 +902,6 @@ export const TUNING: Tuning = {
   // not surge. Bosses stay on the listed lane. Wisps stay on the portal they were listed on.
   // The spawn gap tightens only on a surged lane, so an ordinary wave keeps its natural gap.
   surges: { fromWave: 6, period: 9, share: 0.6, trioShare: 0.4, soloShare: 0.34 },
-  modifierStats: {
-    swift: { speed: 1.15, bounty: 1.1 },
-    ironclad: { every: 88, fromWave: 1 },
-    skyTide: { every: 11, fromWave: 1 },
-    fog: { towerRange: 0.9, xp: 1.2 },
-    goldRush: { gold: 1.1, bounty: 1.1, count: 1.06 },
-  },
   hero: {
     maxLevel: 10,
     xpForLevel: [0, 300, 750, 1350, 2100, 3000, 4050, 5250, 6600, 8100],

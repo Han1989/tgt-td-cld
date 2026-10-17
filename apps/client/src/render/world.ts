@@ -26,7 +26,7 @@ import {
   type TowerSnap,
   type ZoneSnap,
 } from '@tdt/protocol';
-import { getMap, padAtTile, TILE_PX, towerRangeScale, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
+import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
@@ -2220,7 +2220,6 @@ export class WorldRenderer {
     this.auraRings = { drawn: 0, covering: 0 };
     const player = snap.players.find((p) => p.id === me);
     const hero = heroes.find((h) => h.owner === me && h.alive);
-    const rangeScale = towerRangeScale(snap.modifiers, TUNING);
 
     const selected = snap.towers.find((t) => t.id === ui.selectedTowerId);
     if (selected) {
@@ -2248,8 +2247,8 @@ export class WorldRenderer {
       const cx = pad ? pad.x : hover.x;
       const cy = pad ? pad.y : hover.y;
       const color = ok ? COLORS.good : COLORS.bad;
-      g.circle(cx * S, cy * S, stats.range * rangeScale * S).fill({ color, alpha: 0.08 });
-      g.circle(cx * S, cy * S, stats.range * rangeScale * S).stroke({ width: 2, color, alpha: 0.6 });
+      g.circle(cx * S, cy * S, stats.range * S).fill({ color, alpha: 0.08 });
+      g.circle(cx * S, cy * S, stats.range * S).stroke({ width: 2, color, alpha: 0.6 });
       const half = (TOWER_SIZE / 2) * S;
       g.rect(cx * S - half, cy * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
     } else if (hover && mode.type === 'none') {
@@ -2265,8 +2264,8 @@ export class WorldRenderer {
       if (pad) {
         const stats = towerTier(TUNING, ui.preview.tower, 1);
         const color = (player?.gold ?? 0) >= stats.cost ? COLORS.good : COLORS.bad;
-        g.circle(pad.x * S, pad.y * S, stats.range * rangeScale * S).fill({ color, alpha: 0.08 });
-        g.circle(pad.x * S, pad.y * S, stats.range * rangeScale * S).stroke({ width: 2, color, alpha: 0.7 });
+        g.circle(pad.x * S, pad.y * S, stats.range * S).fill({ color, alpha: 0.08 });
+        g.circle(pad.x * S, pad.y * S, stats.range * S).stroke({ width: 2, color, alpha: 0.7 });
         const half = (TOWER_SIZE / 2) * S;
         g.rect(pad.x * S - half, pad.y * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
       }

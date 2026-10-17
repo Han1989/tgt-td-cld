@@ -3,7 +3,6 @@
 
 import { updateBoss } from './bosses';
 import { damageHero, damageTower, emit, spawnProjectile, TOWER_RADIUS } from './combat';
-import { speedFactor } from './modifiers';
 import { getMap } from './map';
 import type { Creep, GameState, Hero, Tower } from './state';
 import { secondsToTicks, TICK_RATE } from './tuning';
@@ -31,7 +30,7 @@ function updateCreep(state: GameState, c: Creep): void {
 
   const rooted = state.tick < c.rootUntil;
   const slowMult = state.tick < c.slowUntil ? 1 - c.slowPct : 1;
-  const step = rooted ? 0 : ((s.speed * speedFactor(state)) / TICK_RATE) * slowMult;
+  const step = rooted ? 0 : (s.speed / TICK_RATE) * slowMult;
 
   if (s.flying) {
     // A taunted flyer turns from the Heart and hovers over the Warden until the taunt ends.

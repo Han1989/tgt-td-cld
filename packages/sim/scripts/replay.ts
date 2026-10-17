@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { heroGiftTotals, heroRepairTotals, PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
-import { matchReport, replayMatch, replayProblem } from '../src';
+import { matchReport, replayMatch, replayProblem, replayRefusal } from '../src';
 
 const path = process.argv[2];
 if (!path) {
@@ -23,6 +23,12 @@ const saved = data.report ?? null;
 const problem = replayProblem(replay);
 if (problem) {
   console.error(`Not a replay: ${problem}`);
+  process.exit(2);
+}
+// Match modifiers and Meteor Rain practice are gone (protocol 20): this build can't re-run those matches.
+const refused = replayRefusal(replay);
+if (refused) {
+  console.error(refused);
   process.exit(2);
 }
 /** This checkout's commit (and whether it has local changes), or null outside a git checkout. */
@@ -104,11 +110,13 @@ if (state.heartHp !== end.heartHp) problems.push(`Heart ${state.heartHp}, record
 // The build is checked above (a re-run of an unstamped file gets the default one), so compare the rest.
 // Reports saved before protocol 14 omit gift totals, before 19 repair totals; those count as 0.
 const comparable = (r: MatchReport) => {
-  const body: MatchReport = {
+  const body: MatchReport & { modifiers?: unknown } = {
     ...r,
     build: '',
     heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h), ...heroRepairTotals(h) })),
   };
+  // Reports saved before protocol 20 list their modifiers (none here: a match with modifiers is refused above).
+  delete body.modifiers;
   // Reports saved before protocol 16 omit `coop`. A re-run always has it; ignore that field alone.
   if (!saved?.coop) delete body.coop;
   // Reports saved before protocol 18 omit the per-ultimate kills and the combo pairs; ignore those alone.

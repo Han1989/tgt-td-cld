@@ -2,13 +2,13 @@
 // words on the card. The card itself is coach.ts. Nothing here touches the sim
 // or the protocol — it only reads facts the client already has.
 
-import type { Difficulty, GameMode, HeroKind, Modifier } from '@tdt/protocol';
+import type { GameMode, HeroKind } from '@tdt/protocol';
 import { TUNING, towerTier, tuningForMode } from '@tdt/sim';
 import { HERO_INFO } from '../heroInfo';
 
 /**
  * The lesson is the player's choice (Han, 13 Oct 2026): it runs only from Learn to play.
- * `new`: no solo match started yet, so the home card and the solo pick offer "New here? Learn to play".
+ * `new`: no solo match started yet, so the home card offers "New here? Learn to play".
  * `skipped`: a solo match was started (or the coach card's Skip was tapped) without finishing the lesson.
  * `completed`: the lesson reached its closing card. Neither of the last two shows the line again.
  */
@@ -90,35 +90,29 @@ export function parseTutorialStatus(value: unknown): TutorialStatus {
 }
 
 /**
- * How a solo match is started: Play (the solo pick's main button), Practice Meteor Rain, or Learn to play
- * (the line under the main button, or ⚙ → Lesson). Online rooms never start the lesson.
+ * How a solo match is started: Play solo (the home card's main button, or "Play again"), or Learn to play (the line
+ * under the main button, or ⚙ → Lesson). Online rooms never start the lesson.
  */
-export type SoloStart = 'play' | 'practice' | 'lesson';
+export type SoloStart = 'play' | 'lesson';
 
-/** What the player has picked: on the solo pick, or the stored picks when the lesson starts from elsewhere. */
+/** What the player has picked on the home card: the hero and the mode. Every match a player starts is Normal. */
 export interface SoloPick {
   hero: HeroKind;
   mode: GameMode;
-  difficulty: Difficulty;
-  modifiers: readonly Modifier[];
 }
 
 export interface SoloMatch extends SoloPick {
   /** The coach card runs on this match. */
   lesson: boolean;
-  /** Meteor Rain practice: an ally that answers your ultimate. */
-  practice: boolean;
 }
 
 /**
- * The match a solo start runs. Play and Practice are always the player's own pick, whatever is stored: never the
- * lesson. Learn to play is always the lesson as it has always run: Quick, Normal, no modifiers, the picked hero.
+ * The match a solo start runs. Play solo is always the player's own pick, whatever is stored: never the lesson.
+ * Learn to play is always the lesson as it has always run: Quick (Normal, like every match), the picked hero.
  */
 export function soloMatch(start: SoloStart, pick: SoloPick): SoloMatch {
-  if (start === 'lesson') {
-    return { hero: pick.hero, mode: 'quick', difficulty: 'normal', modifiers: [], lesson: true, practice: false };
-  }
-  return { ...pick, modifiers: pick.modifiers.slice(), lesson: false, practice: start === 'practice' };
+  if (start === 'lesson') return { hero: pick.hero, mode: 'quick', lesson: true };
+  return { hero: pick.hero, mode: pick.mode, lesson: false };
 }
 
 /** Starting any solo match (the lesson too) ends `new`, so the line does not come back. The rest is kept. */
@@ -138,7 +132,7 @@ export interface LessonStore {
 }
 
 /**
- * A solo match starts (Play, Practice, or Learn to play from the home card, the solo pick or ⚙ → Lesson): stores what
+ * A solo match starts (Play solo, or Learn to play from the home card or ⚙ → Lesson): stores what
  * the start changes and returns the match to run.
  */
 export function beginSolo(store: LessonStore, start: SoloStart, pick: SoloPick): SoloMatch {

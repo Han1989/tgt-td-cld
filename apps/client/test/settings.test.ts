@@ -77,11 +77,11 @@ describe('settings', () => {
       // A store in memory (no localStorage in this test environment), as the page's shared one.
       const store = new SettingsStore();
       store.set({ tutorial, airLesson: 'seen', repairHint: 'seen' });
-      const pick = { hero: 'arcanist', mode: 'full', difficulty: 'hard', modifiers: ['fog'] } as const;
-      expect(beginSolo(store, 'lesson', pick)).toMatchObject({ lesson: true, mode: 'quick', difficulty: 'normal', modifiers: [], hero: 'arcanist' });
+      const pick = { hero: 'arcanist', mode: 'full' } as const;
+      expect(beginSolo(store, 'lesson', pick)).toEqual({ lesson: true, mode: 'quick', hero: 'arcanist' });
       expect(store.get()).toMatchObject({ airLesson: 'new', repairHint: 'new', tutorial: tutorial === 'new' ? 'skipped' : tutorial });
       expect(lessonOffer(store.get().tutorial)).toBe(false);
-      expect(beginSolo(store, 'play', pick)).toMatchObject({ lesson: false, mode: 'full', difficulty: 'hard', modifiers: ['fog'] });
+      expect(beginSolo(store, 'play', pick)).toEqual({ lesson: false, mode: 'full', hero: 'arcanist' });
     }
   });
 

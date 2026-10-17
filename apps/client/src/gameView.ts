@@ -706,7 +706,7 @@ export class GameView {
         this.trackMatch(msg.snap, transport.online === true);
         // A new match (tick counter restarted) or the first snapshot: reset the view.
         const latest = this.buffer.latest;
-        // A tick that goes backwards is a new match. The opening hero/mode/difficulty
+        // A tick that goes backwards is a new match. The opening hero/mode
         // messages also reset the counter while it is still near 0; those must not
         // restart the lesson the player has already begun.
         const restarted = latest !== undefined && msg.snap.tick < latest.tick;

@@ -10,7 +10,6 @@ import type {
   GamePhase,
   HeroKind,
   LaneId,
-  Modifier,
   SurgeNotice,
   PlayerId,
   SkillSlot,
@@ -34,16 +33,8 @@ export interface GameConfig {
   mode?: GameMode;
   /** Creep difficulty (default Normal). Normal does not change HP or counts. */
   difficulty?: Difficulty;
-  /** Match modifiers (default none). At most two; the host's lobby choice, not a fresh seed roll. */
-  modifiers?: Modifier[];
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
-  /**
-   * Solo Meteor Rain practice. Adds `allyId` as a bot hero that does not count toward team size,
-   * pad ownership, creep scaling, or wave income. Both heroes start at `startLevel` (default 6, so R
-   * can be learned at once). Online matches omit this.
-   */
-  practice?: { allyId: PlayerId; allyName?: string; allyHero: HeroKind; startLevel?: number };
 }
 
 export interface PlayerState {
@@ -292,8 +283,6 @@ export interface GameState {
   mode: GameMode;
   /** Creep difficulty. Normal leaves HP and counts exactly as the tuning states them. */
   difficulty: Difficulty;
-  /** Modifiers in force. Empty is a normal match. */
-  modifiers: Modifier[];
   /**
    * Surge lane of each wave (index 0 unused). Null spreads the wave. Fixed at the start from the seed,
    * so a replay repeats it without logging it.
@@ -327,8 +316,6 @@ export interface GameState {
   pendingEvents: GameEvent[];
   /** Damage dealt to creeps since the last step, per source ('' = no one), per creep id; becomes `damage` events. */
   pendingDamage: Record<string, Record<number, number>>;
-  /** Solo Meteor Rain practice, or null. */
-  practice: PracticeState | null;
   /** Arrow Storm and Meteor casts still inside the combo window. */
   recentUlts: RecentUlt[];
   /** The combo fired inside the window, or null. A third ultimate can only upgrade it, never fire a second one. */
@@ -355,12 +342,6 @@ export function emptyUltStats(): UltStats {
     by[tag] = { casts: 0, damage: 0, kills: 0 };
   }
   return { damage: 0, kills: 0, by };
-}
-
-/** Solo practice: the bot ally and the level both heroes started at. */
-export interface PracticeState {
-  allyId: PlayerId;
-  startLevel: number;
 }
 
 /** The three ultimates that combo (Arrow Storm, Meteor and Iron Vow, in pairs). */

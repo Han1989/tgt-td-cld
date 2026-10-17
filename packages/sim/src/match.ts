@@ -9,7 +9,6 @@ import {
   DIFFICULTIES,
   GAME_MODES,
   HERO_KINDS,
-  MODIFIERS,
   PROTOCOL_VERSION,
   R_OVERLAP_SECONDS,
   ULTIMATE_TAGS,
@@ -26,7 +25,6 @@ import {
 } from '@tdt/protocol';
 import { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
 import { createGame, step } from './game';
-import { normalizeModifiers } from './modifiers';
 import { skillInfo } from './skills';
 import type { GameConfig, GameState } from './state';
 import { TICK_RATE, type Tuning } from './tuning';
@@ -295,7 +293,6 @@ export function matchReport(match: Match): MatchReport {
     build: match.build,
     mode: state.mode,
     difficulty: state.difficulty,
-    modifiers: state.modifiers,
     seed: match.seed,
     result: state.phase === 'victory' ? 'victory' : 'defeat',
     wave: state.wave,
@@ -342,17 +339,16 @@ export function matchReplay(match: Match): Replay {
     seed: match.seed,
     mode: state.mode,
     difficulty: state.difficulty,
-    modifiers: state.modifiers,
     players: state.players.map((p) => ({ id: p.id, name: p.name, hero: state.heroes.find((h) => h.id === p.heroId)!.kind })),
     log: match.log.slice(),
     end: { tick: state.tick, result: state.phase, wave: state.wave, heartHp: state.heartHp },
-    ...(state.practice ? { practice: { allyId: state.practice.allyId, startLevel: state.practice.startLevel } } : {}),
   };
 }
 
 /**
  * Re-runs a replay with the simulation: every logged input at its tick, then steps until the match ends (or
- * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry.
+ * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry, and on a match
+ * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice).
  */
 export function replayMatch(
   replay: Replay,
@@ -363,18 +359,13 @@ export function replayMatch(
    */
   rewrite?: (command: Command, playerIndex: number, match: Match) => Command | null,
 ): Match {
-  const practice = replay.practice;
-  const ally = practice ? replay.players.find((p) => p.id === practice.allyId) : undefined;
-  const players = practice ? replay.players.filter((p) => p.id !== practice.allyId) : replay.players;
+  const refused = replayRefusal(replay);
+  if (refused) throw new Error(refused);
   const match = createMatch(
     {
-      players,
+      players: replay.players,
       mode: replay.mode,
       difficulty: replay.difficulty ?? 'normal',
-      modifiers: replayModifiersProblem(replay.modifiers) ? [] : normalizeModifiers(replay.modifiers),
-      ...(practice && ally
-        ? { practice: { allyId: practice.allyId, allyHero: ally.hero, allyName: ally.name, startLevel: practice.startLevel } }
-        : {}),
       ...(tuning ? { tuning } : {}),
     },
     replay.seed,
@@ -409,14 +400,10 @@ export function replayProblem(data: unknown): string | null {
   if (r.build !== undefined && typeof r.build !== 'string') return 'bad build';
   if (!GAME_MODES.includes(r.mode as never)) return 'bad mode';
   if (r.difficulty !== undefined && !DIFFICULTIES.includes(r.difficulty as never)) return 'bad difficulty';
-  if (r.modifiers !== undefined && replayModifiersProblem(r.modifiers)) return 'bad modifiers';
-  if (r.practice !== undefined) {
-    const p = r.practice;
-    if (typeof p !== 'object' || p === null || typeof p.allyId !== 'string' || typeof p.startLevel !== 'number') {
-      return 'bad practice';
-    }
-    if (!Array.isArray(r.players) || !r.players.some((player) => player?.id === p.allyId)) return 'practice ally missing';
+  if (r.modifiers !== undefined && (!Array.isArray(r.modifiers) || r.modifiers.some((m) => typeof m !== 'string'))) {
+    return 'bad modifiers';
   }
+  if (r.practice !== undefined && (typeof r.practice !== 'object' || r.practice === null)) return 'bad practice';
   if (!Array.isArray(r.players) || r.players.length === 0) return 'no players';
   for (const p of r.players) {
     if (typeof p?.id !== 'string' || typeof p.name !== 'string' || !HERO_KINDS.includes(p.hero)) return 'bad player';
@@ -433,20 +420,23 @@ export function replayProblem(data: unknown): string | null {
 
 const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-function modifierLabel(modifiers: readonly string[] | undefined): string {
-  return modifiers && modifiers.length > 0 ? modifiers.join('+') : 'plain';
-}
-
-/** A present list must be known ids, no duplicates, at most two. Absent means an older replay: no modifiers. */
-function replayModifiersProblem(list: unknown): boolean {
-  if (list === undefined) return false;
-  if (!Array.isArray(list) || list.length > 2) return true;
-  const seen = new Set<string>();
-  for (const id of list) {
-    if (typeof id !== 'string' || seen.has(id) || !(MODIFIERS as readonly string[]).includes(id)) return true;
-    seen.add(id);
+/**
+ * Why this build cannot re-run a replay whose rules are gone, or null. Match modifiers (Swift, Ironclad, Sky Tide,
+ * Fog, Gold Rush) and Meteor Rain practice were removed in protocol 20 (Han, 17 Oct 2026); a replay saved with no
+ * modifiers (an empty list, or none at all) re-runs as before.
+ */
+export function replayRefusal(replay: Pick<Replay, 'modifiers' | 'practice' | 'build'>): string | null {
+  const where = replay.build && replay.build !== 'dev' ? `: git checkout ${replay.build}, then re-run it` : '';
+  if (replay.modifiers && replay.modifiers.length > 0) {
+    return (
+      `This match ran match modifiers (${replay.modifiers.join(' + ')}), which were removed in protocol 20; ` +
+      `only a build from before then can re-run it${where}.`
+    );
   }
-  return false;
+  if (replay.practice) {
+    return `This was a Meteor Rain practice match, which was removed in protocol 20; only a build from before then can re-run it${where}.`;
+  }
+  return null;
 }
 
 /** A one-line summary of a report, for server logs. */
@@ -459,7 +449,7 @@ export function reportSummary(report: MatchReport, room?: string): string {
       `repairs ${h.repairs ?? 0}/${h.repairGold ?? 0}g towers lost ${h.towersDestroyed ?? 0}`,
   );
   return (
-    `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} ${modifierLabel(report.modifiers)} seed ${report.seed} v${report.protocol} build ${report.build} ` +
+    `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} seed ${report.seed} v${report.protocol} build ${report.build} ` +
     `${report.result} ` +
     `wave ${report.wave}/${report.totalWaves} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} ` +
     `towers ${report.heroes.reduce((n, h) => n + h.towersBuilt, 0)} ` +

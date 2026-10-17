@@ -25,17 +25,16 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, repairCost, TILE_PX, towerRangeScale, tuningForMode, TUNING } from '@tdt/sim';
+import { getMap, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import { currentAnalytics } from '../analytics/install';
 import { analyticsOn } from '../analytics/preference';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
-import { modifierChipEl } from '../lobby/modifierDom';
-import { matchFlagFace, modifierBannerCopy, surgeToastCopy } from '../lobby/modifierFace';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
 import { comboPairLines, ultimateLines } from '../coop/ultReport';
 import { healLines, NO_ULT_CUES, ultPops, type UltCues } from '../ult/cues';
+import { matchFlagFace, surgeToastCopy } from './surgeFace';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
@@ -211,10 +210,8 @@ export class Hud {
   private readonly banner = $('banner');
   private readonly laneRoles = $('lane-roles');
   private readonly matchFlags = $('match-flags');
-  /** Last modifiers + surge text drawn into `#match-flags`, so a tick does not rebuild it. */
+  /** Last surge text drawn into `#match-flags`, so a tick does not rebuild it. */
   private flagsKey = '';
-  /** Practice toast already shown for this match. */
-  private practiceNoted = false;
   /** Flyer and unspent-gold teaching for this match. Reset with the match. */
   private airMemory: AirMemory = freshAir();
   private goldMemory: GoldMemory = freshGold();
@@ -224,8 +221,6 @@ export class Hud {
   private airHere = false;
   private readonly airFlag = $('air-flag');
   private airFlagKey = '';
-  /** The pre-wave modifier banner has been shown for this match. */
-  private modifiersAnnounced = false;
   private laneRoleTimer = 0;
   private readonly endGifts = $('end-gifts');
   private giftKey = '';
@@ -365,11 +360,6 @@ export class Hud {
     setText(this.waveLabel, hard ? 'Hard' : 'Wave');
     setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
     this.renderFlags(snap);
-    if (!this.modifiersAnnounced && snap.wave === 0) {
-      this.modifiersAnnounced = true;
-      const copy = modifierBannerCopy(snap.modifiers);
-      if (copy) this.showBanner(copy.title, copy.sub, false, 'mods');
-    }
 
     const c = this.compact;
     if (snap.nextWaveIn < 0) {
@@ -389,10 +379,6 @@ export class Hud {
     if (hero) this.updateHero(hero, snap.tickRate);
     this.updateMenus(snap, me, player?.gold ?? 0);
 
-    if (snap.practice && !this.practiceNoted) {
-      this.practiceNoted = true;
-      this.toast('Practice: learn R, then cast it — your ally answers');
-    }
     this.updateTeam(snap, me);
     this.ults.sync(snap, me);
     this.updateNotice();
@@ -649,7 +635,7 @@ export class Hud {
       me === null ? 0 : snap.towers.filter((t) => t.owner === me && hitsAir(t.kind, t.branch)).length;
     // The build menu speaks for this wave and the next one, so a Cannon on Quick wave 2 is already the wrong buy.
     this.airHere = flyers || waveListsFlyers(snap.mode, snap.wave);
-    this.airNow = airRelevant({ mode: snap.mode, wave: snap.wave, modifiers: snap.modifiers, flyers });
+    this.airNow = airRelevant({ mode: snap.mode, wave: snap.wave, flyers });
     if (me === null) {
       this.renderAirFlag(null);
       return { flyers, myAirTowers };
@@ -663,7 +649,6 @@ export class Hud {
     const air = readAir(this.airMemory, {
       mode: snap.mode,
       wave: snap.wave,
-      modifiers: snap.modifiers,
       flyers,
       builtGround,
       haveAir: myAirTowers > 0,
@@ -776,8 +761,6 @@ export class Hud {
     this.ults.clear();
     this.setUltCues(NO_ULT_CUES);
     this.flagsKey = '';
-    this.modifiersAnnounced = false;
-    this.practiceNoted = false;
     this.airMemory = freshAir();
     this.goldMemory = freshGold();
     this.airNow = false;
@@ -789,18 +772,17 @@ export class Hud {
     this.matchFlags.replaceChildren();
   }
 
-  /** One chip per modifier, plus the surge that is on now and the one announced ahead. */
+  /** The surge that is on now and the one announced ahead. */
   private renderFlags(snap: Snapshot): void {
     const face = matchFlagFace(snap);
     const next = snap.nextSurge;
-    const key = `${snap.modifiers.join('+')}|${next ? `${next.wave}:${next.lane}` : ''}|${snap.surgeLane ?? ''}`;
+    const key = `${next ? `${next.wave}:${next.lane}` : ''}|${snap.surgeLane ?? ''}`;
     if (key === this.flagsKey) return;
     this.flagsKey = key;
     this.matchFlags.replaceChildren();
-    const empty = face.modifiers.length === 0 && face.next == null && face.now == null;
+    const empty = face.next == null && face.now == null;
     this.matchFlags.classList.toggle('hidden', empty);
     if (empty) return;
-    for (const chip of face.modifiers) this.matchFlags.appendChild(modifierChipEl(chip, 'glance'));
     if (face.next) this.matchFlags.appendChild(surgeFlag(face.next, 'next'));
     if (face.now) this.matchFlags.appendChild(surgeFlag(face.now, 'now'));
   }
@@ -910,7 +892,7 @@ export class Hud {
     this.endUlts.classList.remove('hidden');
   }
 
-  private showBanner(text: string, sub: string, boss: boolean, kind: '' | 'mods' = ''): void {
+  private showBanner(text: string, sub: string, boss: boolean): void {
     this.banner.innerHTML = '';
     const title = document.createElement('span');
     title.className = 'title';
@@ -923,7 +905,6 @@ export class Hud {
       this.banner.appendChild(s);
     }
     this.banner.classList.toggle('boss', boss);
-    this.banner.classList.toggle('mods', kind === 'mods');
     this.banner.classList.remove('hidden');
     // Restart the CSS animation.
     this.banner.style.animation = 'none';
@@ -1149,7 +1130,7 @@ export class Hud {
     const panel = this.towerPanel;
     const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? '?';
     const showNext = mine && nextCost !== null;
-    const statRows = towerStatRows(tower.kind, tower.tier, undefined, tower.branch, towerRangeScale(snap.modifiers, TUNING))
+    const statRows = towerStatRows(tower.kind, tower.tier, undefined, tower.branch)
       .map((r) => {
         const next = showNext && r.next ? ` <span class="next">→ ${r.next}</span>` : '';
         return `<div class="row"><span>${r.label}</span><span>${r.value}${next}</span></div>`;

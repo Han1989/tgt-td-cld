@@ -23,9 +23,9 @@ interface Hook {
     /** The wave running (0 before the first). */
     wave: number;
     phase: string;
-    modifiers: string[];
+    difficulty: string;
     surgeLane: number | null;
-    heroes: { owner: string; x: number; y: number; mana: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
+    heroes: { owner: string; kind: string; x: number; y: number; mana: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
     creeps: { x: number; y: number; kind: string }[];
     towers: { id: number; padId: number; owner: string; kind: string; tier: number; branch: string | null; priority: string; x: number; y: number; hp: number; maxHp: number }[];
     pads: { id: number; owner: string | null }[];
@@ -123,6 +123,10 @@ interface ShowcaseHook {
   ids: string[];
   /** The creep kinds with a 3D card. */
   ids3d: string[];
+  /** The heroes with a 3D card (their match sheets loaded). */
+  heroes3d: string[];
+  /** The heroes with a stage card. */
+  stages: string[];
   cards(): number;
   display(): 'normal' | 'bright';
 }
@@ -147,15 +151,16 @@ export async function waitForReady(
 }
 
 /**
- * Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`).
- * Play always starts the match picked, never the lesson, even on a fresh profile (Learn to play is the lesson's way in).
+ * Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`), from the
+ * home card. Play solo always starts the match picked, never the lesson, even on a fresh profile (Learn to play is
+ * the lesson's way in).
  */
 export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' = 'quick', hero = 'Ranger'): Promise<void> {
   await page.goto(`/${query}`);
   await waitForReady(page, 'solo');
-  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: hero }).click();
-  await page.locator(`#lobby-mode-solo .mode-pick[data-mode="${mode}"]`).click();
-  await page.locator('#lobby-solo-play').click();
+  await page.locator('#lobby-heroes-home .hero-pick', { hasText: hero }).click();
+  await page.locator(`#lobby-mode-home .mode-pick[data-mode="${mode}"]`).click();
+  await page.locator('#lobby-offline').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => window.__tdt.me())).not.toBeNull();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.totalWaves)).toBe(mode === 'quick' ? 15 : 30);

@@ -15,6 +15,7 @@ import {
   matchStep,
   replayMatch,
   replayProblem,
+  replayRefusal,
   reportSummary,
   type Match,
 } from '../src/match';
@@ -94,7 +95,7 @@ describe('match reports and replays', () => {
     }
     expect(report.build).toBe('dev');
     expect(reportSummary(report, 'ABCDE')).toMatch(
-      /^match ABCDE quick normal plain seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /,
+      /^match ABCDE quick normal seed 3 v\d+ build dev (victory|defeat) wave 15\/15 /,
     );
     expect(reportSummary(report)).not.toContain('\n');
   });
@@ -179,6 +180,24 @@ describe('match reports and replays', () => {
     expect(replayProblem(unstamped)).toBeNull();
     expect(() => replayMatch({ ...ok, log: [[1, 0, 'move', 'far', 3]] })).toThrow(/Malformed/);
     expect(() => replayMatch({ ...ok, log: [[1, 5, 'stop']] })).toThrow(/player 5/);
+  });
+
+  it('refuses a replay saved with match modifiers or Meteor Rain practice, and re-runs one saved with none', () => {
+    const match = createMatch({ players: [{ id: 'p1', name: 'A', hero: 'ranger' }] }, 4, '0123abcd');
+    for (let i = 0; i < 40; i++) matchStep(match);
+    const replay = matchReplay(match);
+    expect(replay).not.toHaveProperty('modifiers');
+    // Protocol 19 wrote `modifiers` on every replay: an empty list is a plain match and re-runs as before.
+    const plain = { ...replay, protocol: 19, modifiers: [] };
+    expect(replayProblem(plain)).toBeNull();
+    expect(replayRefusal(plain)).toBeNull();
+    expect(replayMatch(plain).state.tick).toBe(replay.end.tick);
+    const swift = { ...replay, protocol: 19, modifiers: ['swift', 'fog'] };
+    expect(replayProblem(swift)).toBeNull();
+    expect(() => replayMatch(swift)).toThrow(/modifiers \(swift \+ fog\), which were removed in protocol 20.*git checkout 0123abcd/);
+    const practice = { ...replay, protocol: 19, practice: { allyId: 'ally', startLevel: 6 } };
+    expect(() => replayMatch(practice)).toThrow(/Meteor Rain practice/);
+    expect(replayProblem({ ...replay, modifiers: 'swift' })).toMatch(/modifiers/);
   });
 
   it('a Full 3-player replay with every player steering 10 times a second stays small enough for a chat (< 1.5 MB)', () => {

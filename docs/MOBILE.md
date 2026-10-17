@@ -102,7 +102,7 @@ Saves from before the two rows keep what they had: One thumb → Fixed + Around 
 - **15 waves**, target length 10–12 minutes, available on every device.
 - Difficulty is compressed so wave 15 plays like wave 30. Bosses come at **waves 5, 10 and 15**.
 - More starting gold and faster XP, so heroes reach about level 8–10.
-- The host picks the mode in the lobby; solo has its own mode pick.
+- The host picks the mode on the room card; solo picks it on the home card, in the row over Play solo.
 - The mode is a new match option, so bump `PROTOCOL_VERSION`. All numbers live in `tuning.ts`.
 - **Balance gate:** bots win with 1, 2 and 3 players, ending with Heart HP 40–80; the do-nothing bot loses. (Track 3 gated 1 and 4 players; matches hold 3 players since Phase 4b.)
 

@@ -65,11 +65,11 @@ export function targetsText(kind: TowerKind, tuning: Tuning = TUNING, branch: To
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning, rangeScale = 1): StatRow[] {
+function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning): StatRow[] {
   const out: StatRow[] = [
     { label: 'Damage', value: `${t.damage} ${tuning.towers[kind].damageType}` },
     { label: 'Attacks/s', value: round(1 / t.attackCooldown) },
-    { label: 'Range', value: round(t.range * rangeScale, 1) },
+    { label: 'Range', value: round(t.range, 1) },
   ];
   if (t.splash > 0) out.push({ label: 'Splash', value: round(t.splash, 1) });
   if (t.slow > 0) out.push({ label: 'Slow', value: `${pct(t.slow)} for ${round(t.slowDuration, 1)}s` });
@@ -96,11 +96,10 @@ export function towerStatRows(
   tier: number,
   tuning: Tuning = TUNING,
   branch: TowerBranch | null = null,
-  rangeScale = 1,
 ): StatRow[] {
-  const current = rows(kind, towerStats(tuning, kind, tier, branch), tuning, rangeScale);
+  const current = rows(kind, towerStats(tuning, kind, tier, branch), tuning);
   if (branch || tier >= plainTiers(kind, tuning)) return current;
-  const next = rows(kind, towerStats(tuning, kind, tier + 1, null), tuning, rangeScale);
+  const next = rows(kind, towerStats(tuning, kind, tier + 1, null), tuning);
   return current.map((r) => {
     const n = next.find((x) => x.label === r.label);
     return n && n.value !== r.value ? { ...r, next: n.value } : r;
@@ -166,12 +165,12 @@ export function branchChip(branch: TowerBranch, tuning: Tuning = TUNING): string
  * A held build button's chip: the tower, its cost and what it does at tier 1,
  * e.g. "Arrow (60): Dmg 16 · Spd 1.43 · Rng 6 · Ground + air".
  */
-export function buildPreviewChip(kind: TowerKind, names: Record<TowerKind, string>, tuning: Tuning = TUNING, rangeScale = 1): string {
+export function buildPreviewChip(kind: TowerKind, names: Record<TowerKind, string>, tuning: Tuning = TUNING): string {
   const t = towerStats(tuning, kind, 1, null);
   return [
     `${names[kind]} (${buildCost(kind, tuning)}): Dmg ${t.damage}`,
     `Spd ${round(1 / t.attackCooldown)}`,
-    `Rng ${round(t.range * rangeScale, 1)}`,
+    `Rng ${round(t.range, 1)}`,
     targetsText(kind, tuning),
   ].join(' · ');
 }
@@ -185,9 +184,9 @@ export function branchOfferChip(choices: readonly BranchChoice[]): string {
  * The tower ring's chip: what the next tier adds, e.g. "Dmg 24→36 · Rng 6→6.5". Empty at max
  * tier. Damage drops its type word to keep the chip short.
  */
-export function upgradeChip(kind: TowerKind, tier: number, tuning: Tuning = TUNING, max = 2, rangeScale = 1): string {
+export function upgradeChip(kind: TowerKind, tier: number, tuning: Tuning = TUNING, max = 2): string {
   const strip = (v: string) => v.replace(/ (physical|magic)$/, '');
-  return towerStatRows(kind, tier, tuning, null, rangeScale)
+  return towerStatRows(kind, tier, tuning, null)
     .filter((r) => r.next && r.label !== 'Max HP')
     .slice(0, max)
     .map((r) => `${SHORT_LABELS[r.label] ?? r.label} ${strip(r.value)}→${strip(r.next!)}`)

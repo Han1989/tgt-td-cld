@@ -3,9 +3,9 @@
 import type { CreepKind, LaneId, PlayerId } from '@tdt/protocol';
 import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
-import { isPracticeAlly, onBossSpawned, teamSize } from './coop';
+import { onBossSpawned, teamSize } from './coop';
 import { getMap } from './map';
-import { countFactor, flavorKind, goldFactor, surgeCounts, surgeNotice, surgeShare } from './modifiers';
+import { surgeCounts, surgeNotice, surgeShare } from './surges';
 import type { Creep, GameState } from './state';
 import { secondsToTicks, TICK_RATE, type DifficultyBand, type WaveGroup } from './tuning';
 
@@ -15,7 +15,7 @@ export function totalWaves(state: GameState): number {
 
 export function waveIncome(state: GameState, wave: number): number {
   const e = state.tuning.economy;
-  return Math.round((e.waveIncomeBase + e.waveIncomePerWave * (wave - 1)) * goldFactor(state));
+  return Math.round(e.waveIncomeBase + e.waveIncomePerWave * (wave - 1));
 }
 
 /** Gold each player would get for calling the next wave right now. */
@@ -27,7 +27,7 @@ export function callEarlyBonus(state: GameState): number {
 
 export function callEarly(state: GameState, by: PlayerId): void {
   const bonus = callEarlyBonus(state);
-  for (const p of state.players) if (!isPracticeAlly(state, p.id)) p.gold += bonus;
+  for (const p of state.players) p.gold += bonus;
   emit(state, { type: 'callEarly', by, bonus });
   state.nextWaveTick = state.tick;
 }
@@ -47,7 +47,7 @@ function startWave(state: GameState): void {
   state.phase = 'waves';
   const wave = state.wave;
   const income = waveIncome(state, wave);
-  for (const p of state.players) if (!isPracticeAlly(state, p.id)) p.gold += income;
+  for (const p of state.players) p.gold += income;
   emit(state, { type: 'waveStart', wave, income });
 
   const t = state.tuning.waves;
@@ -104,7 +104,7 @@ function startWave(state: GameState): void {
     order.forEach((kind, i) => {
       state.spawnQueue.push({
         tick: state.tick + i * gap,
-        kind: flavorKind(state.tuning, state.modifiers, kind, i, wave, lane),
+        kind,
         lane,
         wave,
       });
@@ -189,11 +189,9 @@ function wholeExtra(extra: number, wave: number, perLane: number): number {
 /** Creeps per lane after player-count scaling (+30% per extra player by default) and difficulty. */
 export function scaledCount(state: GameState, perLane: number): number {
   const scale = difficultyScaling(state, Math.max(1, state.wave));
-  let multiplied = Math.round(
+  const multiplied = Math.round(
     perLane * scale.count * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)),
   );
-  const rush = countFactor(state);
-  if (rush !== 1) multiplied = Math.max(0, Math.round(multiplied * rush));
   return multiplied + wholeExtra(scale.extra, Math.max(1, state.wave), perLane);
 }
 
