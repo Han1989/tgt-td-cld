@@ -29,7 +29,7 @@ to the client.
 
 They share Rig_Medium with the Adventurers, so the clips in `animations/rig_medium/` fit them, including the `Special` pack's skeleton set (`Skeletons_Walking`, `Skeletons_Awaken_*`, `Skeletons_Death`, `Skeletons_Taunt`, `Skeletons_Spawn_Ground`).
 
-Creep mapping (V-05c): Grunt ← Minion, Runner ← Rogue, Archer ← Minion + crossbow, Brute ← Warrior scaled up with axe and shield. The Wisps (flyers) and the three bosses are not in this pack.
+Creep mapping (V-05c, `tools/blender/creeps.py`): Grunt ← Minion (+ `Skeleton_Blade`), Runner ← Rogue, Archer ← Minion + crossbow, Brute ← Warrior with axe and shield, each scaled to its radius in the game. The Wisps (flyers) and the three bosses are not in this pack (`../quaternius/monsters/`).
 
 ## Structures: Medieval Hexagon, Medieval Builder, Dungeon (added 17 Oct 2026)
 

@@ -1,0 +1,128 @@
+{
+ "archer-idle0": {
+  "crossings": 664,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 477,
+  "pass": true
+ },
+ "archer-walk0": {
+  "crossings": 642,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 454,
+  "pass": true
+ },
+ "brute-idle0": {
+  "crossings": 944,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 675,
+  "pass": true
+ },
+ "brute-walk0": {
+  "crossings": 894,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 623,
+  "pass": true
+ },
+ "grunt-idle0": {
+  "crossings": 616,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 449,
+  "pass": true
+ },
+ "grunt-walk0": {
+  "crossings": 566,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 392,
+  "pass": true
+ },
+ "hatchling-idle0": {
+  "crossings": 282,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 193,
+  "pass": true
+ },
+ "hatchling-walk0": {
+  "crossings": 282,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 192,
+  "pass": true
+ },
+ "ironhorn-idle0": {
+  "crossings": 1577,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 1090,
+  "pass": true
+ },
+ "ironhorn-walk0": {
+  "crossings": 1497,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 1033,
+  "pass": true
+ },
+ "matriarch-idle0": {
+  "crossings": 1502,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 1018,
+  "pass": true
+ },
+ "matriarch-walk0": {
+  "crossings": 1524,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 1056,
+  "pass": true
+ },
+ "runner-idle0": {
+  "crossings": 440,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 310,
+  "pass": true
+ },
+ "runner-walk0": {
+  "crossings": 420,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 292,
+  "pass": true
+ },
+ "shardback-idle0": {
+  "crossings": 1726,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 1174,
+  "pass": true
+ },
+ "shardback-walk0": {
+  "crossings": 1566,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 1031,
+  "pass": true
+ },
+ "wisp-idle0": {
+  "crossings": 612,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 416,
+  "pass": true
+ },
+ "wisp-walk0": {
+  "crossings": 616,
+  "fringe": 0,
+  "hard": 0,
+  "measured": 415,
+  "pass": true
+ }
+}

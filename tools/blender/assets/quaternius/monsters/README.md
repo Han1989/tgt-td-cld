@@ -20,4 +20,6 @@ Each model carries its own clips (names below). Flyers have no walk: use `Fast_F
 | `big/` | `Dino` | as BlueDemon | **Shardback** (boss, Shifting Hide): spined back = the shards; `Duck` for the hide shift |
 | `big/` | `Cactoro` | as BlueDemon | alternate Shardback (spikes) |
 
-The walking creeps (Grunt, Runner, Archer, Brute) come from the KayKit Skeletons (`../../kaykit/README.md`).
+The walking creeps (Grunt, Runner, Archer, Brute) come from the KayKit Skeletons (`../../kaykit/README.md`). The rows
+that use these models are in `tools/blender/creeps.py` (V-05c): the primary picks above, the alternates unused (Cactoro
+wears a sombrero, the cell its spikes share).

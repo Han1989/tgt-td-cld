@@ -133,14 +133,15 @@ def frame_list(fig, spec):
     return out
 
 
-def walk_stride(fig, clip, n=64):
+def walk_stride(fig, clip, n=64, feet=('toes.l', 'toes.r')):
     """World px the body goes over one cycle of a walk clip with no foot sliding: the speed a planted foot moves back
-    at (the clip walks on the spot) times the cycle's length."""
+    at (the clip walks on the spot) times the cycle's length. `feet`: the bones at the soles (Rig_Medium's toes, a
+    monster's own foot bones)."""
     s = fig.seconds(clip)
     pts = []
     for i in range(n):
         fig.apply(fig.sample(clip, s * i / n, loop=True))
-        pts.append((fig.world('toes.l'), fig.world('toes.r')))
+        pts.append((fig.world(feet[0]), fig.world(feet[1])))
     speeds = []
     for side in (0, 1):
         low = min(p[side].z for p in pts) + 0.25

@@ -32,16 +32,16 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    expect(summary.done).toBe(59);
+    expect(summary.done).toBe(60);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
-    // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104) and
-    // V-05b (the three heroes from the KayKit models, PR #109, round 2 of #108) are done, and V-05a (PR #106) is closed
-    // as superseded by V-05b; V-05c and V-05d are to do.
-    expect(summary.open).toBe(42);
+    // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
+    // (the three heroes from the KayKit models, PR #109, round 2 of #108) and V-05c (the creeps and bosses in 3D) are
+    // done, and V-05a (PR #106) is closed as superseded by V-05b; V-05d is to do.
+    expect(summary.open).toBe(41);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
-    // The presentation pass's open rows (V-05c, V-05d) wait for Han's go.
-    expect(summary.hanOpen).toBe(11);
+    // The presentation pass's open row (V-05d) waits for Han's go.
+    expect(summary.hanOpen).toBe(10);
     expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(101);
     expect(summary.total).toBe(summary.done + summary.open);
@@ -162,7 +162,8 @@ describe('progress dashboard data', () => {
     // Han, 14 Oct 2026, 19:20: heroes, then creeps and towers, in 3D rendered ahead of time. Han, 16 Oct 2026: the
     // heroes come from the KayKit packs, not modelled in code, so V-05a (the code-built Ranger) is closed as
     // superseded and V-05b (all three heroes from the KayKit models) is done; the creeps and the towers follow, each
-    // on Han's go. Han, 17 Oct 2026: V-05b's round 2 (the stage back at 2400 × 900) replaces its first pull request.
+    // on Han's go. Han, 17 Oct 2026: V-05b's round 2 (the stage back at 2400 × 900) replaces its first pull request, and
+    // V-05c (the creeps and bosses from the CC0 KayKit Skeletons and Quaternius monsters) is done.
     expect(byId('V-05a')).toMatchObject({ owner: 'Team', status: 'done' });
     expect(byId('V-05a').note).toContain('Closed as superseded by V-05b');
     expect(byId('V-05a').note).toContain('nothing 3D runs on the player’s device');
@@ -171,7 +172,10 @@ describe('progress dashboard data', () => {
     expect(byId('V-05b').note).toContain('KayKit');
     expect(byId('V-05b').note).toContain('16 Oct 2026');
     expect(byId('V-05b').note).toContain('2400 × 900');
-    for (const id of ['V-05c', 'V-05d']) expect(byId(id)).toMatchObject({ owner: 'Both', status: 'todo' });
+    expect(byId('V-05c')).toMatchObject({ owner: 'Team', status: 'done' });
+    expect(byId('V-05c').note).toContain('17 Oct 2026');
+    expect(byId('V-05c').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/115');
+    expect(byId('V-05d')).toMatchObject({ owner: 'Both', status: 'todo' });
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
     }

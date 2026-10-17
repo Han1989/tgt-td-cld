@@ -49,6 +49,10 @@ interface Hook {
     /** Heroes drawn from their 3D frames, the frame kinds those rigs have shown, melee blows landed. */
     hero3d: number;
     hero3dKinds: string[];
+    /** Live creeps drawn from their 3D frames, the kinds and the states those rigs (dying ones too) have shown. */
+    creep3d: number;
+    creep3dKinds: string[];
+    creep3dStates: string[];
     impacts: number;
     /** The ground drawn: the map plate, the painted ground until it decodes, or none before a match. */
     ground: 'plate' | 'painted' | 'none';
@@ -69,6 +73,8 @@ interface Hook {
     firstLandTick: number;
     seenBeforeFirstStrike: boolean;
   };
+  /** The textures on the GPU: how many, and their bytes (RGBA8). */
+  gpuTextures(): { count: number; bytes: number };
   /** Sound (docs/ART.md §13): the context's state, the music scene, notes queued, effects played / skipped. */
   audio(): {
     state: string;
@@ -111,6 +117,8 @@ interface Hook {
 /** The ?showcase page's hook (showcase.ts). */
 interface ShowcaseHook {
   ids: string[];
+  /** The creep kinds with a 3D card. */
+  ids3d: string[];
   cards(): number;
   display(): 'normal' | 'bright';
 }

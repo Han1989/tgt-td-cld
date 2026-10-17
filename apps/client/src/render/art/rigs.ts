@@ -6,7 +6,7 @@ import type { CreepSnap, SkillSlot, TowerBranch } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import { Container, Graphics, type ColorSource, type Sprite } from 'pixi.js';
 import type { ArtKit } from './kit';
-import type { CreepArt, Gait, HeroPose, HeroRig, TowerArt } from './registry';
+import type { CreepArt, CreepRigView, Gait, HeroPose, HeroRig, TowerArt } from './registry';
 
 /** Walk cycles for creeps (CreepArt.gait). */
 export const GAITS = {
@@ -96,7 +96,7 @@ export function deathPose(t: number, d: DeathStyle): DeathPose {
 // shadow as a second sprite on the ground, so the body can bob over it.
 // ---------------------------------------------------------------------------
 
-export class CreepRig {
+export class CreepRig implements CreepRigView {
   readonly body: Sprite;
   /** Hit flash: copies the body's transform while it shows; alpha only. */
   readonly flash: Sprite;
@@ -138,6 +138,14 @@ export class CreepRig {
   get facing(): number {
     return this.flip;
   }
+
+  /** The 2D creeps fit their radius: the HP bar keeps its place. */
+  readonly is3d = false;
+  readonly barY = null;
+
+  /** The 2D rig has no attack or ability poses. */
+  shot(): void {}
+  ability(): void {}
 
   /** A pooled rig starts a new creep (facing: carry over a dead creep's facing). */
   reset(facing = 1): void {

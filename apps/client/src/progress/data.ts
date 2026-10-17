@@ -9,7 +9,8 @@
  * 9 Oct 2026, 12:30); the presentation pass (V-01–V-04) added on 10 Oct 2026, V-01, V-02 and V-04 done; V-05a–V-05d (3D heroes, creeps and
  * towers rendered ahead of time) added on 14 Oct 2026; V-05b done on 16 Oct 2026 (PR #108: the three heroes from the
  * KayKit models, Han's decision of 16 Oct; round 2 PR #109 on 17 Oct: the stage back at 2400 × 900), V-05a closed as
- * superseded; V-03 done on 17 Oct 2026 (PR #114: the map as a rendered picture, Han's decision of 17 Oct). Production
+ * superseded; V-03 done on 17 Oct 2026 (PR #114: the map as a rendered picture, Han's decision of 17 Oct); V-05c done
+ * on 17 Oct 2026 (PR #115: every creep and boss from the CC0 KayKit Skeletons and Quaternius monsters). Production
  * protocol is 19. This page only
  * reports status.
  */
@@ -274,10 +275,11 @@ const items: ProgressItem[] = [
   {
     id: 'V-05c',
     title: '3D creeps and bosses',
-    owner: 'Both',
-    status: 'todo',
+    owner: 'Team',
+    status: 'done',
     section: 'visual',
-    note: 'After V-05b, when Han says go. Every creep and the three bosses as 3D models rendered ahead of time into match frames (walk, hit, death), at the sizes V-04 set, within the 300-creep frame-rate target.',
+    note: 'Client art and tools only, protocol stays 19. Han, 17 Oct 2026: every creep and boss is a pre-rendered 3D model, as the heroes are. The walkers come from the CC0 KayKit Skeletons (Grunt, Runner, Archer with its crossbow, Brute with axe and shield), the Wisp and the bosses from Quaternius’s Ultimate Monsters (a ghost, a mushroom brood and queen, a horned demon with a club, a spined dino), posed by the packs’ own clips and repainted in Runelight’s tokens, each sized to its radius in the game. They walk, stop to fight, flinch and flash when hit, die with the clip then fade, and the bosses play their Stomp, Hatch and hide shift; the Wisp bobs over its shadow and the Shardback’s spines light up in its Ether hide. The nine sheets fit two 2048 × 2048 textures and load after the first screen; the 2D creeps stay as the fallback. In review: Han judges the contact sheet and the game on his phone. Built by Claude Code (PR #115).',
+    proof: pr(115),
   },
   {
     id: 'V-05d',
