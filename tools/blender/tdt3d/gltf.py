@@ -11,6 +11,7 @@ import math
 import os
 
 import bpy
+import bmesh  # after bpy, which registers it
 from mathutils import Matrix
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -74,23 +75,43 @@ def face_cells(me, grid=KAYKIT_GRID):
     return out
 
 
+# A region's material for faces left out of the figure (`repaint`): the Ironhorn's halo, a piece of the pack's Demon
+# that reads as an angel over a demon at phone size.
+DROP = '-'
+
+
 def repaint(obj, colours, where, grid=KAYKIT_GRID, regions=None):
     """Gives each face of `obj` the material its palette cell maps to in `colours` ({(col, row): material name});
     raises if a face's cell isn't mapped (no pack colour may reach a frame). `regions` splits a cell that paints two
     things ({(col, row): f(centre, normal) -> material name or None}, in the mesh's own rest coordinates: the
-    Shardback's tan is its spines and its belly)."""
+    Shardback's tan is its spines and its belly); a region that names DROP leaves those faces out of the mesh."""
     from . import shading
 
     me = obj.data
-    cells = face_cells(me, grid)
-    missing = sorted({c for c in cells if c not in colours})
-    if missing:
-        raise RuntimeError(f'{where}: palette cells {missing} have no Runelight material in the table')
-    mats = [colours[c] for c in cells]
-    for k, c in enumerate(cells):
-        if regions and c in regions:
-            p = me.polygons[k]
-            mats[k] = regions[c](p.center, p.normal) or mats[k]
+
+    def materials():
+        cells = face_cells(me, grid)
+        missing = sorted({c for c in cells if c not in colours})
+        if missing:
+            raise RuntimeError(f'{where}: palette cells {missing} have no Runelight material in the table')
+        mats = [colours[c] for c in cells]
+        for k, c in enumerate(cells):
+            if regions and c in regions:
+                p = me.polygons[k]
+                mats[k] = regions[c](p.center, p.normal) or mats[k]
+        return mats
+
+    mats = materials()
+    if DROP in mats:
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bm.faces.ensure_lookup_table()
+        gone = [bm.faces[k] for k, m in enumerate(mats) if m == DROP]
+        bmesh.ops.delete(bm, geom=gone, context='FACES_ONLY')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        bm.to_mesh(me)
+        bm.free()
+        mats = materials()
     names = sorted(set(mats))
     me.materials.clear()
     for n in names:

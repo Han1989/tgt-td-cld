@@ -56,17 +56,17 @@
   "pass": true
  },
  "ironhorn-idle0": {
-  "crossings": 1577,
+  "crossings": 1910,
   "fringe": 0,
   "hard": 0,
-  "measured": 1090,
+  "measured": 1311,
   "pass": true
  },
  "ironhorn-walk0": {
-  "crossings": 1497,
+  "crossings": 1972,
   "fringe": 0,
   "hard": 0,
-  "measured": 1033,
+  "measured": 1345,
   "pass": true
  },
  "matriarch-idle0": {

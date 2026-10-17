@@ -13,12 +13,12 @@ Each model carries its own clips (names below). Flyers have no walk: use `Fast_F
 |---|---|---|---|
 | `flying/` | `Ghost` | Death Fast_Flying Flying_Idle Headbutt HitReact Punch | **Wisp** (the flyer): hooded, winged, hovers |
 | `flying/` | `Hywirl` | same | alternate Wisp |
-| `big/` | `BlueDemon` | Death Duck HitReact Idle Jump Punch Run Walk Weapon | **Ironhorn** (boss, Stomp): horned, heavy; `Jump_Land` for the Stomp |
-| `big/` | `Demon` | same | alternate Ironhorn |
+| `big/` | `Demon` | Death Duck HitReact Idle Jump Punch Run Walk Weapon | **Ironhorn** (boss, Stomp; round 2, Han, 17 Oct 2026): horned, winged, a trident; `Jump_Land` for the Stomp; its halo left out |
+| `big/` | `BlueDemon` | same | the V-05c Ironhorn, now unused: ears, not horns |
 | `big/` | `MushroomKing` | same | **Matriarch** (boss, Hatch): crowned, broad; `Weapon` or `Wave` for the Hatch |
 | `blob/` | `Mushnub` | Bite_Front Death HitRecieve Idle Jump Walk | the Matriarch's **hatchlings** (small, match the Matriarch's look) |
-| `big/` | `Dino` | as BlueDemon | **Shardback** (boss, Shifting Hide): spined back = the shards; `Duck` for the hide shift |
-| `big/` | `Cactoro` | as BlueDemon | alternate Shardback (spikes) |
+| `big/` | `Dino` | as Demon | **Shardback** (boss, Shifting Hide): spined back = the shards; `Duck` for the hide shift |
+| `big/` | `Cactoro` | as Demon | alternate Shardback (spikes) |
 
 The walking creeps (Grunt, Runner, Archer, Brute) come from the KayKit Skeletons (`../../kaykit/README.md`). The rows
 that use these models are in `tools/blender/creeps.py` (V-05c): the primary picks above, the alternates unused (Cactoro

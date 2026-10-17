@@ -2,7 +2,7 @@
 # table, one row per creep kind, in the shape of hero.py: the pack's model, the props and where they hang, the colour
 # map that repaints every face in Runelight's tokens (no pack colour reaches a frame), the clips each state of the
 # 2D rig maps to, and how many frames each state gets. tdt3d.creep renders a row into its match sheet
-# (apps/client/src/render/art3d/<kind>-match.png and <kind>.json), played by Creep3DRig.
+# (apps/client/src/render/art3d/<kind>-match.webp, lossless, and <kind>.json), played by Creep3DRig.
 #
 # The walkers are KayKit Skeletons (Rig_Medium, so the animation packs' clips play on them, the Special pack's
 # Skeletons_* set among them); the Wisp and the bosses are Quaternius Ultimate Monsters, each with its own clips.
@@ -222,24 +222,48 @@ WISP = _monster(
     walk='Fast_Flying', idle=('Flying_Idle', 0.0), hit=('HitReact', 0.15), death=('Death', 0.0, 0.67), n_death=3,
 )
 
+# The Ironhorn is the pack's Demon, the horned one (Han, 17 Oct 2026: V-05c's BlueDemon had ears, not horns). One cell
+# of its row paints its horns, its wings, the inside of its mouth, the halo over its head and its trident (`regions`).
 IRONHORN = _monster(
-    'ironhorn', 'big', 'BlueDemon.gltf', 2,
-    {0: 'pupil', 1: 'eyeWhite', 2: 'hide', 3: 'gold', 4: 'club', 5: 'claw'},
+    'ironhorn', 'big', 'Demon.gltf', 5,
+    {0: 'pupil', 1: 'eyeWhite', 2: 'hide', 3: 'horn'},
     {
         'hide': dict(token='ironhorn'),
-        'eyeWhite': dict(token='bone', fill=0.6),
-        # The pack's wooden club, in the 2D Ironhorn's bolted iron.
-        'club': dict(token='iron', metal=0.6),
-        'claw': dict(token='bone', fill=0.6),
-        'pupil': PUPIL,
+        'eyeWhite': dict(token='bone', fill=0.6),  # its eyes and its fangs
+        # The horns in iron (Han), as the 2D Ironhorn's iron brow plate; its trident in the same bolted iron, the
+        # trident's head in the bosses' gold.
+        'horn': dict(token='iron', metal=0.6),
+        'trident': dict(token='iron', metal=0.6),
         'gold': GOLD,
+        'wing': dict(color=mix('ironhorn', 'ink', 0.35)),
+        'mouth': dict(color=mix('ironhorn', 'ink', 0.55)),
+        'pupil': PUPIL,
     },
-    parts={'BlueDemon': ('body', BODY)},
+    parts={'Demon': ('body', BODY), 'Trident': ('body', PROP)},
     walk='Walk', idle=('Idle', 0.0), attack=('Punch', 0.1, 0.45), hit=('HitReact', 0.15),
     death=('Death', 0.0, 0.77), n_death=3,
     # The Stomp: up (Jump), and down hard (Jump_Land).
     ability=[('Jump', 0.2), ('Jump_Land', 0.04), ('Jump_Land', 0.16)], n_attack=3,
 )
+
+
+def _demon_accent(c, n):
+    """The Demon's accent cell, by where a face is at rest (glTF metres, Z up, facing -Y; the trident in the right
+    hand, out along +X): the trident and its head, the horns on its brow, the halo over its head, the wings on its
+    back, and the inside of its mouth. The halo is left out: at phone size it reads as an angel's over a demon, and it
+    would lift the HP bar."""
+    if abs(c.x) > 1.3:
+        return 'gold' if c.y < -0.2 else 'trident'
+    if c.z > 2.3 and c.y < -0.3:
+        return 'horn'
+    if c.z > 2.6:
+        return gltf.DROP
+    if c.y > 0.4:
+        return 'wing'
+    return 'mouth'
+
+
+IRONHORN['regions'] = {(3, 5): _demon_accent}
 
 MATRIARCH = _monster(
     'matriarch', 'big', 'MushroomKing.gltf', 10,
