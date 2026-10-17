@@ -103,6 +103,11 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   test.setTimeout(240_000);
   // High quality (Auto could drop to Low mid-measurement): particles, trails, numbers and shake all on.
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
+  // No recorded music (e2e builds only): the code-made music, whose scheduler runs on the page, plays through the
+  // measurement (with the build's files there would be silence while a file downloads, then the file).
+  await page.addInitScript(() => {
+    (window as unknown as { __tdtSoundFiles: unknown }).__tdtSoundFiles = [];
+  });
   await page.goto('/?stress=300');
   await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);

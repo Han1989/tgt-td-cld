@@ -92,6 +92,10 @@ interface Hook {
     total: number;
     /** What the music plays: a recorded file's name, the code-made music, or nothing. */
     source: string;
+    /** First-tap cues played (one koto pluck while the scene's music file downloads). */
+    cues: number;
+    /** Music files whose download started, in order. */
+    musicFetched: string[];
     /** The recorded music file playing: its loop (s, the encoder's silence trimmed) and levelling gain. */
     musicFile: { name: string; start: number; end: number; gain: number; db: number } | null;
     /** Recorded effects decoded, and plays of them. */

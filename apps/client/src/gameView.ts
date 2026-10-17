@@ -623,6 +623,8 @@ export class GameView {
           bakeMs: audio.engine.stats.bakeMs,
           total: audio.engine.stats.total,
           source: audio.music.source,
+          cues: audio.music.cues,
+          musicFetched: [...audio.music.files.fetched],
           musicFile: audio.music.files.current
             ? { name: audio.music.files.current.name, ...audio.music.files.current.fit }
             : null,
@@ -719,6 +721,14 @@ export class GameView {
         this.hud.setReport({ report: msg.report, replay: msg.replay });
       }
     });
+  }
+
+  /**
+   * A match is being created (solo: Play solo or Learn to play, after `attach`; online: the room's match starts): its
+   * music starts downloading now, not at its first snapshot (docs/ART.md §13).
+   */
+  matchStarting(): void {
+    this.audio.game.matchStarting();
   }
 
   /** Match start, wave milestones and the result, for analytics (the client drops them when play data is off). */

@@ -22,11 +22,17 @@ You can add one file or all of them. Anything without a file keeps its code-made
 - **Varies effects** a little on each play (pitch, level, a few ms of timing) and adds a little of its
   room reverb, like the code-made ones.
 - **Downloads music only when it's needed**, not when the app installs: `lobby.mp3` on the first tap,
-  `match.mp3` when a match starts, `boss.mp3` during the match. Each file is then kept on the phone
-  for offline play. While a file is still downloading, the code-made music plays. Effects (small) load
-  right after the first tap.
-- **Boss waves** play `boss.mp3`; without it, `match.mp3` keeps playing; without both, the code-made
-  boss music.
+  `match.mp3` the moment a match is created (Play solo, or a room's match starting), `boss.mp3` once
+  `match.mp3` is in. One file downloads at a time, the one the screen needs first. Each file is then
+  kept on the phone for offline play. Effects (small) load right after the first tap.
+- **Silence while a music file downloads**, never the code-made music: on a first visit the first tap
+  gets one soft koto pluck, then quiet until the file arrives, and the file fades in over a second.
+  The code-made music plays only for a scene that has no file, or when the file can't be downloaded
+  or isn't audio. (Until 17 Oct 2026 the code-made music played while the file downloaded: on a first
+  visit that was 3–5 s of loud, harsh sound before `lobby.mp3`. A second visit never had it, because
+  the phone keeps the file.) A smaller file arrives sooner, so keep music under the sizes below.
+- **Boss waves** play `boss.mp3`; without it (or until it has downloaded), `match.mp3` keeps playing;
+  without both, the code-made boss music.
 
 ## 2. File names
 

@@ -77,7 +77,8 @@ export class OnlineController {
         this.view.hud.clearNotice();
         if (msg.room) history.replaceState(null, '', `?room=${msg.room.code}`);
         break;
-      case 'lobby':
+      case 'lobby': {
+        const started = msg.lobby.phase === 'playing' && this.lobby?.phase !== 'playing';
         this.lobby = msg.lobby;
         this.view.hud.setRoom(msg.lobby);
         if (msg.lobby.phase === 'lobby') {
@@ -86,7 +87,9 @@ export class OnlineController {
         } else {
           this.ui.hide();
         }
+        if (started) this.view.matchStarting();
         break;
+      }
       case 'error':
         if (msg.code === 'version_mismatch') {
           this.versionMismatch();
@@ -180,6 +183,7 @@ export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home:
   const transport = new LocalTransport();
   soloTransport = transport;
   view.attach(transport);
+  view.matchStarting();
   const match = beginSolo(sharedSettings(), start, pick);
   // Each of these starts a new match in the local host; the last one is the match played.
   transport.send({ t: 'mode', mode: match.mode });
