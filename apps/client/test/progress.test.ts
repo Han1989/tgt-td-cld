@@ -32,9 +32,9 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116) and P2-10 (silence while a music
-    // file downloads; PR #122) are done.
-    expect(summary.done).toBe(64);
+    // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116), P2-10 (silence while a music
+    // file downloads; PR #122) and P2-11 (the music streamed from the first tap; PR #123) are done.
+    expect(summary.done).toBe(65);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -46,7 +46,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(104);
+    expect(summary.total).toBe(105);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -67,6 +67,7 @@ describe('progress dashboard data', () => {
       'P2-04c': 88,
       'P2-09': 96,
       'P2-10': 122,
+      'P2-11': 123,
       'D-09': 98,
       'H-07': 98,
     };

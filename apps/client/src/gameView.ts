@@ -623,11 +623,9 @@ export class GameView {
           bakeMs: audio.engine.stats.bakeMs,
           total: audio.engine.stats.total,
           source: audio.music.source,
-          cues: audio.music.cues,
           musicFetched: [...audio.music.files.fetched],
-          musicFile: audio.music.files.current
-            ? { name: audio.music.files.current.name, ...audio.music.files.current.fit }
-            : null,
+          musicStreamed: [...audio.music.files.streamed],
+          musicFile: audio.music.files.describe(),
           sfxFiles: audio.engine.stats.files,
           filePlays: audio.engine.stats.filePlays,
           ...audio.game.stats,

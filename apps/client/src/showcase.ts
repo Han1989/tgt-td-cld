@@ -417,7 +417,8 @@ export async function runShowcase(): Promise<void> {
   const now = sounds.querySelector('#sc-music-now')!;
   setInterval(() => {
     const src = audio.music.source;
-    now.textContent = src === 'none' ? '' : src === 'code' ? '· code-made' : `· ${src}.mp3`;
+    const streaming = audio.music.files.current?.kind === 'stream' ? ' (streaming)' : '';
+    now.textContent = src === 'none' ? '' : src === 'code' ? '· code-made' : `· ${src}.mp3${streaming}`;
   }, 400);
   root.insertBefore(sounds, app.canvas);
 

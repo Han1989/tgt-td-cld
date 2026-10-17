@@ -21,16 +21,24 @@ You can add one file or all of them. Anything without a file keeps its code-made
 - **Loops music seamlessly**, from the end of the leading silence to the start of the trailing one.
 - **Varies effects** a little on each play (pitch, level, a few ms of timing) and adds a little of its
   room reverb, like the code-made ones.
-- **Downloads music only when it's needed**, not when the app installs: `lobby.mp3` on the first tap,
-  `match.mp3` the moment a match is created (Play solo, or a room's match starting), `boss.mp3` once
-  `match.mp3` is in. One file downloads at a time, the one the screen needs first. Each file is then
-  kept on the phone for offline play. Effects (small) load right after the first tap.
-- **Silence while a music file downloads**, never the code-made music: on a first visit the first tap
-  gets one soft koto pluck, then quiet until the file arrives, and the file fades in over a second.
-  The code-made music plays only for a scene that has no file, or when the file can't be downloaded
-  or isn't audio. (Until 17 Oct 2026 the code-made music played while the file downloaded: on a first
-  visit that was 3–5 s of loud, harsh sound before `lobby.mp3`. A second visit never had it, because
-  the phone keeps the file.) A smaller file arrives sooner, so keep music under the sizes below.
+- **Streams music only when it's needed**, not when the app installs: `lobby.mp3` from the first tap,
+  `match.mp3` the moment a match is created (Play solo, or a room's match starting), `boss.mp3` at a boss
+  wave if it isn't in by then. Each file is then kept on the phone for offline play. Effects (small) load
+  once the music has started.
+- **Plays the real music within about a second of the first tap**, even on a first visit: the file
+  plays while it downloads (streamed, like a video), fading in over 1.5 s, and once the phone holds the
+  whole file the game switches to its own copy of the loop, at the loop point or in a half-second
+  crossfade, so later passes loop without a gap. (Until 17 Oct 2026 a first visit heard nothing, then one
+  koto pluck, until the whole file had arrived, about 37 s on a slow phone network; before that, the
+  code-made music played meanwhile, loud and harsh.) The code-made music plays only for a scene that has
+  no file, or when the file can't be played or downloaded at all. A smaller file still arrives sooner,
+  so keep music under the sizes below.
+- **Measures each music file's level ahead of time**, so the streamed start is exactly as loud as the
+  loop that takes over: `npm run music-levels -w @tdt/client` writes `apps/client/src/audio/musicLevels.json`
+  (it needs ffmpeg). A file uploaded without running it still plays and still deploys (the build prints a
+  warning): on a first visit its start may be a little quieter or louder than its loop until the switch,
+  and from the second visit on the phone remembers the right level. Ask whoever has a terminal to run it
+  and commit the file when you upload new music.
 - **Boss waves** play `boss.mp3`; without it (or until it has downloaded), `match.mp3` keeps playing;
   without both, the code-made boss music.
 
@@ -86,20 +94,24 @@ You don't need Git or a terminal.
 5. Under **Commit changes**, write what you added (e.g. "Add lobby music"), choose **Create a new branch
    for this commit and start a pull request**, and click **Propose changes**, then **Create pull
    request**.
-6. Wait for the **Vercel** check on the pull request. It fails if a file has a name the game doesn't use
+6. (Music only, optional.) If someone with a terminal can, ask them to run `npm run music-levels -w
+   @tdt/client` on the branch and commit `apps/client/src/audio/musicLevels.json` (section 1, "Measures
+   each music file's level"). Without it everything still works.
+7. Wait for the **Vercel** check on the pull request. It fails if a file has a name the game doesn't use
    (its build log says which file): fix it by deleting the file (open it → the ⋯ menu → *Delete file*)
    and uploading it again with the right name. When the check passes, it gives a **preview link**: open
-   it on your phone and listen (step 7). (`npm test` checks the names too, and the build warns about
+   it on your phone and listen (step 8). (`npm test` checks the names too, and the build warns about
    files above the size targets.)
-7. **Listen before you merge:** on the preview, tap once, then open `…/?showcase` and scroll to
+8. **Listen before you merge:** on the preview, tap once, then open `…/?showcase` and scroll to
    **Sounds**: effects from files are marked **file**, and the Music line says which scene plays a file
-   (`lobby.mp3`) and which is code-made. Play each music scene, and let the loop come round once or
-   twice: there must be no gap or click where it starts again. Then play a real match.
-8. Click **Merge pull request** → **Confirm merge**. Vercel deploys the game with the new files. Players
+   (`lobby.mp3`, "streaming" while it plays from the download) and which is code-made. Play each music
+   scene, and let the loop come round once or twice: there must be no gap or click where it starts again,
+   and nothing to hear when "streaming" goes (the switch to the phone's own copy). Then play a real match.
+9. Click **Merge pull request** → **Confirm merge**. Vercel deploys the game with the new files. Players
    with the installed app get the "Update available — tap to reload" banner, like any other update.
 
 **To remove a file** (back to the code-made sound): open it on GitHub → the ⋯ menu → **Delete file**,
-and commit the same way (steps 5–8).
+and commit the same way (steps 5–9).
 
 **To try files on your own computer** instead: put them in the folders, run `npm run dev` (restart it
 if it was already running), open http://localhost:5173 and `http://localhost:5173/?showcase`.

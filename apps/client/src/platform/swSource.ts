@@ -9,7 +9,10 @@
 //   music is several MB, and a player who never hears the boss music shouldn't download it on install.
 //   Each one is cached the first time the game fetches it, in a cache that outlives deploys
 //   (`tdt-media`); the URL carries the file's hash (`?v=`), so a new upload is fetched fresh and
-//   replaces the old copy.
+//   replaces the old copy. Music streams from an <audio> element first (docs/ART.md §13), which asks
+//   with byte ranges: a stored file answers them with 206s, as a stage video does; before the file is
+//   stored, a range goes to the network as it is, so the music starts with its first bytes (the
+//   decode's whole request, which comes once the element has the file, is the one kept).
 // - The lobby stage's videos (`/stage/*.mp4`, `/stage/*.webm`, docs/ART.md §15) are media too: up to 1.2 MB each,
 //   cached the first time the stage plays one, never on install. A video is stored whole: the first time a video
 //   element asks for it, with a byte range as video elements do, the worker fetches the whole file without the range
@@ -74,11 +77,12 @@ function keep(cache, href, url, res) {
     .catch(() => {});
 }
 
-// A recorded sound file: from the media cache, else the network, kept for next time.
+// A recorded sound file: from the media cache (a range, a music element's, answered from it), else the network as
+// asked, a whole answer kept for next time.
 function media(req, url) {
   return caches.open(MEDIA).then((cache) =>
     cache.match(req).then((hit) => {
-      if (hit) return hit;
+      if (hit) return answer(req, hit);
       return fetch(req).then((res) => {
         keep(cache, req.url, url, res);
         return res;

@@ -90,14 +90,20 @@ interface Hook {
     bakeMs: number;
     /** Buffers to bake in all. */
     total: number;
-    /** What the music plays: a recorded file's name, the code-made music, or nothing. */
+    /** What the music plays: a recorded file's name (streamed or decoded), the code-made music, or nothing. */
     source: string;
-    /** First-tap cues played (one koto pluck while the scene's music file downloads). */
-    cues: number;
-    /** Music files whose download started, in order. */
+    /** Music files whose decode's download started, in order. */
     musicFetched: string[];
-    /** The recorded music file playing: its loop (s, the encoder's silence trimmed) and levelling gain. */
-    musicFile: { name: string; start: number; end: number; gain: number; db: number } | null;
+    /** Music files whose stream (an <audio> element) started, in order. */
+    musicStreamed: string[];
+    /**
+     * The recorded music file playing: streamed (its level, and where that came from) or its decoded loop (the loop's
+     * points in s, the encoder's silence trimmed, and its levelling gain).
+     */
+    musicFile:
+      | { name: string; kind: 'stream'; gain: number; from: 'measured' | 'remembered' | 'default'; heard: boolean }
+      | { name: string; kind: 'loop'; start: number; end: number; gain: number; db: number }
+      | null;
     /** Recorded effects decoded, and plays of them. */
     sfxFiles: number;
     filePlays: number;

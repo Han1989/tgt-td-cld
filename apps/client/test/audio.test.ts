@@ -408,7 +408,31 @@ describe('recorded files', () => {
       ],
       SOUND_IDS,
     );
-    expect(f).toEqual({ music: { lobby: '/music/lobby.mp3?v=a1' }, sfx: { 'shot.arrow': '/sfx/shot.arrow.mp3?v=c3' } });
+    expect(f).toEqual({ music: { lobby: '/music/lobby.mp3?v=a1' }, sfx: { 'shot.arrow': '/sfx/shot.arrow.mp3?v=c3' }, gains: {} });
+  });
+
+  it('carries a music file’s level measured ahead of time (musicLevels.json, matched by the build), for its streamed start', () => {
+    const f = soundFiles(
+      [
+        { dir: 'music', name: 'lobby', hash: 'a1', gain: 1.08 },
+        { dir: 'music', name: 'match', hash: 'b2' },
+        { dir: 'music', name: 'boss', hash: 'c3', gain: Number.NaN },
+      ],
+      SOUND_IDS,
+    );
+    expect(f.gains).toEqual({ lobby: 1.08 });
+  });
+
+  it('has a well-formed measured level for each music file in the repo, of that very file (npm run music-levels)', () => {
+    const levels = JSON.parse(readFileSync(new URL('../src/audio/musicLevels.json', import.meta.url), 'utf8')) as Record<string, { hash: string; gain: number; db: number }>;
+    for (const [name, level] of Object.entries(levels)) {
+      expect(MUSIC_FILES).toContain(name);
+      expect(level.hash).toMatch(/^[0-9a-f]{10}$/);
+      // A gain the game could have picked: within ±12 dB.
+      expect(level.gain).toBeGreaterThan(0.25);
+      expect(level.gain).toBeLessThanOrEqual(4);
+      expect(Number.isFinite(level.db)).toBe(true);
+    }
   });
 
   it('plays a file for a scene when there is one; boss waves fall back to the match file, then to code', () => {

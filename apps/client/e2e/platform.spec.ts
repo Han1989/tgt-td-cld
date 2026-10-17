@@ -231,22 +231,25 @@ test.describe('recorded sound files', () => {
   // The page's own requests (no service worker in between), so the routes below answer them.
   test.use({ serviceWorkers: 'block' });
 
-  test('a music file plays instead of the code-made music, looped without its silence; an effect file replaces its sound', async ({ page }) => {
-    // What the build would list if public/music/lobby.mp3 and public/sfx/tap.mp3 existed (e2e builds only).
+  test('a music file streams from the first tap, then its decoded loop takes over without its silence; an effect file replaces its sound', async ({ page }) => {
+    // What the build would list if public/music/lobby.mp3 (with its measured level) and public/sfx/tap.mp3 existed
+    // (e2e builds only).
     await page.addInitScript(() => {
       (window as unknown as { __tdtSoundFiles: unknown }).__tdtSoundFiles = [
-        { dir: 'music', name: 'lobby', hash: 't1' },
+        { dir: 'music', name: 'lobby', hash: 't1', gain: 0.9 },
         { dir: 'sfx', name: 'tap', hash: 't2' },
       ];
     });
     const fetched: string[] = [];
-    // The lobby's file is held, as on a first visit's slow download, until the test lets it through.
+    // The element streams (its requests carry a Range header) and is answered at once; the decode's whole request is
+    // held, as on a first visit's slow second download, until the test lets it through.
     let arrive!: () => void;
     const held = new Promise<void>((resolve) => (arrive = resolve));
     await page.route(/\/music\/lobby\.mp3\?v=t1$/, async (route) => {
-      fetched.push('lobby');
-      await held;
-      return route.fulfill({ body: wav(0.1, 2, 220), contentType: 'audio/mpeg' });
+      const streamed = route.request().headers()['range'] !== undefined;
+      fetched.push(streamed ? 'lobby (stream)' : 'lobby (decode)');
+      if (!streamed) await held;
+      return route.fulfill({ body: wav(0.1, 2, 220), contentType: 'audio/wav' });
     });
     await page.route(/\/sfx\/tap\.mp3\?v=t2$/, (route) => {
       fetched.push('tap');
@@ -258,23 +261,27 @@ test.describe('recorded sound files', () => {
     // Nothing is fetched before the first tap.
     expect(fetched).toEqual([]);
     await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).tap();
-    // The first tap starts the file's download, and while it comes there is silence: no code-made music, only one
-    // koto pluck answering the tap.
-    await expect.poll(() => fetched.includes('lobby')).toBe(true);
-    await expect.poll(async () => { const a = await audio(page); return a.total > 100 && a.baked === a.total; }).toBe(true);
-    await expect.poll(async () => (await audio(page)).cues).toBe(1);
-    await page.waitForTimeout(500);
-    expect(await audio(page)).toMatchObject({ state: 'running', scene: 'lobby', source: 'none', notes: 0, cues: 1, musicFetched: ['lobby'] });
+    // The first tap plays the lobby's element: it sounds as soon as its bytes are in, at the file's measured level,
+    // with no code-made music and no cue before it.
+    await expect.poll(async () => (await audio(page)).musicFile).toEqual({ name: 'lobby', kind: 'stream', gain: 0.9, from: 'measured', heard: true });
+    expect(await audio(page)).toMatchObject({ state: 'running', scene: 'lobby', source: 'lobby', notes: 0, musicStreamed: ['lobby'] });
+    // The decode's request comes once the element holds the file, never before its stream's.
+    const lobby = () => fetched.filter((f) => f.startsWith('lobby'));
+    expect(lobby()[0]).toBe('lobby (stream)');
+    await expect.poll(() => lobby().includes('lobby (decode)')).toBe(true);
+    expect(lobby().indexOf('lobby (decode)')).toBeGreaterThan(lobby().indexOf('lobby (stream)'));
+    expect((await audio(page)).musicFetched).toEqual(['lobby']);
     arrive();
-    await expect.poll(async () => (await audio(page)).source).toBe('lobby');
-    // The code-made music never played.
-    expect((await audio(page)).notes).toBe(0);
-    const file = (await audio(page)).musicFile!;
+    // The decoded loop takes over (here at the element's loop point, two seconds round) and runs from the end of the
+    // leading silence to the start of the trailing one.
+    await expect.poll(async () => (await audio(page)).musicFile?.kind, { timeout: 10_000 }).toBe('loop');
+    const file = (await audio(page)).musicFile as { name: string; start: number; end: number; gain: number };
     expect(file.name).toBe('lobby');
-    // The loop runs from the end of the leading silence to the start of the trailing one.
     expect(file.start).toBeCloseTo(0.1, 2);
     expect(file.end).toBeCloseTo(2.1, 2);
     expect(file.gain).toBeGreaterThan(0);
+    // The code-made music never played.
+    expect((await audio(page)).notes).toBe(0);
     await expect.poll(async () => (await audio(page)).sfxFiles).toBe(1);
     await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Ranger' }).tap();
     await expect.poll(async () => (await audio(page)).filePlays).toBeGreaterThan(0);
@@ -283,7 +290,7 @@ test.describe('recorded sound files', () => {
     await expect.poll(async () => (await audio(page)).scene).toBe('build');
     await expect.poll(async () => (await audio(page)).source).toBe('code');
     await expect.poll(async () => (await audio(page)).notes).toBeGreaterThan(0);
-    expect(fetched.filter((f) => f === 'lobby')).toHaveLength(1);
+    expect(fetched.filter((f) => f === 'lobby (decode)')).toHaveLength(1);
   });
 });
 
