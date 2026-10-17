@@ -605,7 +605,9 @@ export class GameView {
         art: () => renderer.artStats(),
         /** The textures on the GPU: how many, and their bytes (RGBA8, mipmaps counted where a source has them). */
         gpuTextures: () => {
-          const list = (app.renderer as unknown as { texture: { managedTextures: readonly TextureSource[] } }).texture.managedTextures;
+          // Pixi leaves a destroyed texture's slot empty.
+          const slots = (app.renderer as unknown as { texture: { managedTextures: readonly (TextureSource | null)[] } }).texture.managedTextures;
+          const list = slots.filter((s): s is TextureSource => s !== null && s !== undefined);
           const bytes = list.reduce((a, s) => a + s.pixelWidth * s.pixelHeight * 4 * (s.autoGenerateMipmaps ? 4 / 3 : 1), 0);
           return { count: list.length, bytes: Math.round(bytes) };
         },
