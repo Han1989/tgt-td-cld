@@ -1,9 +1,13 @@
 // Art (docs/ART.md): Runelight is the default look, Settings → Display switches Normal / Bright,
-// and ?showcase lists every art file in src/render/art/entities/ without anyone editing a list.
+// ?showcase lists every art file in src/render/art/entities/ without anyone editing a list, and every creep kind made
+// in 3D (§15) gets its own card there too; in a match the creeps are drawn from their 3D frames once the sheets load.
 
 import { readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { startSolo, waitForReady } from './helpers';
+
+/** The creep kinds, every one made in 3D (V-05c). */
+const CREEPS_3D = ['archer', 'brute', 'grunt', 'hatchling', 'ironhorn', 'matriarch', 'runner', 'shardback', 'wisp'];
 
 /** Art files: one entity each, named after its registry id. */
 const ART_FILES = readdirSync(new URL('../src/render/art/entities/', import.meta.url))
@@ -26,6 +30,12 @@ test('?showcase shows a card for every registered art file, and Bright re-bakes 
   await expect(page.locator('.sc-card[data-art$="Tower"] .sc-label', { hasText: 'tier 3 art' })).toHaveCount(0);
   // Shardback: Stone and Ether hides.
   await expect(page.locator('.sc-card[data-art="shardback"]')).toHaveCount(2);
+  // The creeps in 3D: a card each, played by the match's 3D rig, the Shardback in both hides; the 2D cards stay.
+  expect([...(await page.evaluate(() => window.__showcase.ids3d))].sort()).toEqual(CREEPS_3D);
+  for (const kind of CREEPS_3D) {
+    await expect(page.locator(`.sc-card[data-art3d="${kind}"]`)).toHaveCount(kind === 'shardback' ? 2 : 1);
+  }
+  await expect(page.locator('.sc-card[data-art3d] .sc-label', { hasText: 'creep 3D · shardback · ether hide' })).toHaveCount(1);
   // Snare: arming, armed, and the root ring.
   await expect(page.locator('.sc-card[data-art="snareTrap"]')).toHaveCount(3);
   // Kinds without art are listed as still shapes: heroes, creeps, towers, projectiles and the snare have art now.
@@ -52,4 +62,28 @@ test('Runelight is the default look: pads, rigs, and Settings → Display → Br
 
   await startSolo(page);
   await expect.poll(() => page.evaluate(() => window.__tdt.art().display)).toBe('bright');
+});
+
+test('in a match the creeps are drawn from their 3D frames once the sheets are in, and walk', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  // The creep sheets load after the hero sheets, a second or so after the first screen.
+  await page.goto('/?lab');
+  await waitForReady(page, 'solo');
+  await expect(page.locator('html')).toHaveAttribute('data-creep-sheets', 'ready', { timeout: 30_000 });
+  await page.locator('#lobby-heroes-solo .hero-pick', { hasText: 'Ranger' }).click();
+  await page.locator('#lobby-mode-solo .mode-pick[data-mode="quick"]').click();
+  await page.locator('#lobby-solo-play').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+  // The first wave (Grunts), called at once.
+  await page.locator('#call-early').tap();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.creeps.length), { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().creep3dStates), { timeout: 15_000 }).toContain('walk');
+  const art = await page.evaluate(() => window.__tdt.art());
+  const live = await page.evaluate(() => window.__tdt.latest()!.creeps.length);
+  // Every creep on the map is a 3D rig (none left in 2D), and they are Grunts.
+  expect(art.creep3d).toBeGreaterThanOrEqual(Math.min(live, art.creepRigs));
+  expect(art.creep3d).toBe(art.creepRigs);
+  expect(art.creep3dKinds).toContain('grunt');
+  expect(errors).toEqual([]);
 });

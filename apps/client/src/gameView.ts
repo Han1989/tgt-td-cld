@@ -4,7 +4,7 @@
 
 import { allowSocial, freshSocialClock, laneName, type ClientMessage, type Command, type PlayerId, type Snapshot, type SocialClock, type SocialKind } from '@tdt/protocol';
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
-import { Application, isWebGLSupported, UPDATE_PRIORITY } from 'pixi.js';
+import { Application, isWebGLSupported, UPDATE_PRIORITY, type TextureSource } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import { currentAnalytics } from './analytics/install';
 import { MatchTracker } from './analytics/matchTracker';
@@ -603,6 +603,12 @@ export class GameView {
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
+        /** The textures on the GPU: how many, and their bytes (RGBA8, mipmaps counted where a source has them). */
+        gpuTextures: () => {
+          const list = (app.renderer as unknown as { texture: { managedTextures: readonly TextureSource[] } }).texture.managedTextures;
+          const bytes = list.reduce((a, s) => a + s.pixelWidth * s.pixelHeight * 4 * (s.autoGenerateMipmaps ? 4 / 3 : 1), 0);
+          return { count: list.length, bytes: Math.round(bytes) };
+        },
         vow: () => renderer.vowStats(),
         meteors: () => renderer.meteorStats(),
         audio: () => ({

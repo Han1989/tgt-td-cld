@@ -21,6 +21,8 @@
 //   No profiler runs meanwhile (it adds about 25% to every frame).
 // - Fixed-rate work: a DevTools CPU profile over PROFILE_FRAMES frames; JavaScript outside
 //   Pixi's ticker, divided by the profile's own duration.
+// - The creeps are measured as a match draws them once its sheets are in: every one from its 3D frames (docs/ART.md
+//   §15), so the test waits for the sheets (`<html data-creep-sheets>`) and for all 300 to have swapped.
 // The test used to divide the ticker's JavaScript in a 5 s CPU profile by the frames
 // counted in a 5 s requestAnimationFrame window. The profile ran 1.3–3.7 s longer (the
 // DevTools round trips), so it held 17–50% more frames than it was divided by, the most on
@@ -103,6 +105,8 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   await page.goto('/?stress=300');
   await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);
+  await expect(page.locator('html')).toHaveAttribute('data-creep-sheets', 'ready', { timeout: 60_000 });
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().creep3d)).toBe(300);
   // A key press is the first gesture: audio starts (Shift alone does nothing in the game).
   await page.keyboard.press('Shift');
   await expect.poll(() => page.evaluate(() => window.__tdt.audio().state)).toBe('running');
@@ -121,6 +125,8 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   const visible = await page.evaluate(() => window.__tdt.visibleCreeps());
   const fx = await page.evaluate(() => window.__tdt.fx());
   const sound = await page.evaluate(() => window.__tdt.audio());
+  const textures = await page.evaluate(() => window.__tdt.gpuTextures());
+  const art3d = await page.evaluate(() => window.__tdt.art());
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
   const perFrameMs = mean(measured.costs);
@@ -132,7 +138,9 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
     `${fps.toFixed(1)} FPS measured; JavaScript ${perFrameMs.toFixed(1)} ms per frame (mean of ${measured.costs.length} frames, ` +
     `thirds ${thirds.join(' / ')}; warm-up ${mean(warm.costs).toFixed(1)} over ${warm.costs.length}) + ${fixedPerSecMs.toFixed(0)} ms/s fixed ` +
     `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; ${fx.live} effect particles live; ` +
-    `sound ${sound.state}: ${sound.played} effects played, ${sound.skipped} skipped, ${sound.notes} music notes; GPU: ${gpu}`;
+    `sound ${sound.state}: ${sound.played} effects played, ${sound.skipped} skipped, ${sound.notes} music notes; ` +
+    `${textures.count} textures on the GPU, ${(textures.bytes / 2 ** 20).toFixed(1)} MiB; ${art3d.creep3d} creeps in 3D ` +
+    `(${art3d.creep3dKinds.join(', ')}); GPU: ${gpu}`;
   test.info().annotations.push({ type: 'stress', description: report });
   console.log(`Stress scene (300 creeps, 4× CPU throttling): ${report}`);
 

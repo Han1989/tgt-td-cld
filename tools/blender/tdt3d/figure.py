@@ -1,6 +1,7 @@
-# A hero imported from the KayKit packs (docs/ART.md §15), posed by the packs' clips: one class for every hero, built
-# from its row of the hero table (tools/blender/hero.py). It reads a clip's keys by bone name at any time (the clips
-# share the Rig_Medium skeleton), blends poses (an overlay clip easing in over the idle), puts a pose on the skeleton,
+# A hero or a creep imported from the CC0 packs (docs/ART.md §15), posed by the packs' clips: one class for every
+# figure, built from its row of the hero or creep table (tools/blender/hero.py, creeps.py). It reads a clip's keys by
+# bone name at any time (the KayKit clips share the Rig_Medium skeleton; a Quaternius monster plays its own), blends
+# poses (an overlay clip easing in over the idle), puts a pose on the skeleton,
 # and keeps the props the clips can't move: the bow's string (the bow's own shape key, drawn as far as the draw hand
 # has come back) and the arrow (from the draw hand through the bow hand, or flying off after the loose).
 
@@ -42,8 +43,12 @@ class Figure:
         self.spec = spec
         for name, kw in spec['materials'].items():
             shading.define(name, **kw)
+        # The clips a monster brings with it (KayKit figures have none: theirs come from the animation packs).
+        self.own_clips = {}
+        grid = spec.get('grid', gltf.KAYKIT_GRID)
         self.arm, self.parts = gltf.load_character(spec['model'], 1.0, spec['parts'], spec['colours'],
-                                                   spec.get('overrides'))
+                                                   spec.get('overrides'), folder=spec.get('folder', gltf.CHARACTERS),
+                                                   grid=grid, clips_out=self.own_clips, regions=spec.get('regions'))
         # As tall as its 2D rig: the pack's figure (at rest, props aside) scaled to the table's height in world px.
         lo, hi = mesh_bbox([o for objs in self.parts.values() for o in objs])
         self.scale = spec['height'] / (hi.z - lo.z)
@@ -53,7 +58,8 @@ class Figure:
         for p in spec.get('props', ()):
             offset = p.get('offset')
             objs = gltf.attach(self.arm, p['file'], p['bone'], p['colours'], p['layer'], p['index'],
-                               offset=offset() if callable(offset) else offset)
+                               offset=offset() if callable(offset) else offset,
+                               folder=spec.get('prop_folder', gltf.PROPS), grid=grid)
             self.parts.setdefault(p['layer'], []).extend(objs)
             self.props[p['name']] = objs
         self.pb = self.arm.pose.bones
@@ -73,15 +79,18 @@ class Figure:
 
     # --- clips ----------------------------------------------------------------------------------------------
 
+    def _action(self, name):
+        return self.own_clips[name] if name in self.own_clips else gltf.clip(name)
+
     def _channels(self, name):
         if name not in self._curves:
-            act = gltf.clip(name)
+            act = self._action(name)
             ch = {}
             for fc in act.fcurves:
                 m = _CHANNEL.match(fc.data_path)
                 if m:
                     ch.setdefault(m.group(1), {}).setdefault(m.group(2), {})[fc.array_index] = fc
-            self._curves[name] = (ch, act.frame_range[0], act.frame_range[1], gltf.clip_fps(name))
+            self._curves[name] = (ch, act.frame_range[0], act.frame_range[1], float(act['fps']))
         return self._curves[name]
 
     def sample(self, name, t, loop=False):
@@ -106,7 +115,8 @@ class Figure:
         return out
 
     def seconds(self, name):
-        return gltf.clip_seconds(name)
+        a = self._action(name)
+        return (a.frame_range[1] - a.frame_range[0]) / float(a['fps'])
 
     # --- posing ---------------------------------------------------------------------------------------------
 

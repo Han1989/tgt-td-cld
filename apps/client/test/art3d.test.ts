@@ -1,12 +1,15 @@
-// Heroes made in 3D and rendered ahead of time (docs/ART.md §15), all three from the KayKit models: the layout data
-// the Blender pipeline writes must match the images it wrote (frame counts, sizes, points, white twins), the stage
-// files must be what the layout says and within budget, every hero's stage the same box in the same clearing, every
-// shipped stage frame must pass the fringe check, and nothing 3D may reach the player's device.
+// Heroes and creeps made in 3D and rendered ahead of time (docs/ART.md §15), from the CC0 KayKit and Quaternius
+// models: the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
+// white twins), the stage files must be what the layout says and within budget, every hero's stage the same box in
+// the same clearing, every shipped stage frame and the creeps' kept frames must pass the fringe check, the creep sheets
+// must fit the texture budget (two 2048 × 2048 pages), and nothing 3D may reach the player's device.
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CREEP_KINDS, type CreepKind } from '@tdt/protocol';
+import { TUNING } from '@tdt/sim';
 import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
 import { pickVideo } from '../src/lobby/stageBackdrop';
@@ -24,6 +27,15 @@ import {
   type LayerName,
   type StageLayout,
 } from '../src/render/art3d/layout';
+import { CREEP_3D } from '../src/render/art3d/creepData';
+import {
+  attackMs,
+  CREEP_DEATH,
+  creepCadence,
+  creepDeathFrame,
+  type CreepCell,
+  type CreepState,
+} from '../src/render/art3d/creeps';
 
 const CLIENT = join(__dirname, '..');
 const ART3D = join(CLIENT, 'src', 'render', 'art3d');
@@ -606,6 +618,277 @@ describe('the service worker and the stage videos', () => {
   });
 });
 
+/** docs/ART.md §15: the frames each creep's rig plays, by state (tools/blender/creeps.py). */
+const WALKER = { walk: 8, idle: 1, attack: 4, hit: 1, death: 3 };
+const BOSS = { walk: 8, idle: 1, attack: 3, hit: 1, death: 3, ability: 3 };
+const CREEP_COUNTS: Record<CreepKind, Partial<Record<CreepState, number>>> = {
+  grunt: WALKER,
+  runner: WALKER,
+  archer: WALKER,
+  brute: WALKER,
+  wisp: { walk: 8, idle: 1, hit: 1, death: 3 },
+  hatchling: { walk: 6, idle: 1, attack: 3, hit: 1, death: 3 },
+  ironhorn: BOSS,
+  matriarch: BOSS,
+  shardback: BOSS,
+};
+
+/**
+ * Bottom-left skyline packing, tallest first, as tools/blender/tdt3d/creep.py `skyline` (one of its orders): the
+ * rectangles' places in a width × height bin, or null if one doesn't fit.
+ */
+function skyline(sizes: [number, number][], width: number, height: number): [number, number][] | null {
+  const order = sizes.map((_, i) => i).sort((a, b) => sizes[b]![1] - sizes[a]![1] || sizes[b]![0] - sizes[a]![0] || a - b);
+  let sky: [number, number, number][] = [[0, 0, width]];
+  const places: ([number, number] | null)[] = sizes.map(() => null);
+  for (const i of order) {
+    const [w, h] = sizes[i]!;
+    let best: [number, number] | null = null;
+    for (let j = 0; j < sky.length; j++) {
+      const x = sky[j]![0];
+      if (x + w > width) break;
+      let y = 0;
+      let room = 0;
+      for (let k = j; room < w; k++) {
+        y = Math.max(y, sky[k]![1]);
+        room += sky[k]![2];
+      }
+      if (y + h <= height && (!best || y + h < best[0] + h || (y + h === best[0] + h && x < best[1]))) best = [y, x];
+    }
+    if (!best) return null;
+    const [y, x] = best;
+    places[i] = [x, y];
+    const next: [number, number, number][] = [];
+    for (const [sx, sy, sw] of sky) {
+      if (sx + sw <= x || sx >= x + w) next.push([sx, sy, sw]);
+      else {
+        if (sx < x) next.push([sx, sy, x - sx]);
+        if (sx + sw > x + w) next.push([x + w, sy, sx + sw - x - w]);
+      }
+    }
+    next.push([x, y + h, w]);
+    next.sort((a, b) => a[0] - b[0]);
+    sky = [];
+    for (const seg of next) {
+      const last = sky[sky.length - 1];
+      if (last && last[1] === seg[1] && last[0] + last[2] === seg[0]) last[2] += seg[2];
+      else sky.push([...seg]);
+    }
+  }
+  return places as [number, number][];
+}
+
+describe('3D creeps: the match sheets', () => {
+  it('every creep kind is made in 3D', () => {
+    expect(Object.keys(CREEP_3D).sort()).toEqual([...CREEP_KINDS].sort());
+  });
+
+  for (const kind of CREEP_KINDS) {
+    const c = CREEP_3D[kind];
+    const m = c.match;
+    const png = decodePng(readFileSync(join(ART3D, m.file)));
+    const boss = TUNING.creeps[kind].boss;
+
+    it(`${kind}: the sheet is the size the layout says, RGBA, 2048 wide, 4 px per world px (bosses 3), its own style`, () => {
+      expect(c.id).toBe(kind);
+      expect(m.file).toBe(`${kind}-match.png`);
+      expect([png.width, png.height]).toEqual([m.w, m.h]);
+      expect(png.channels).toBe(4);
+      expect(m.w).toBe(2048);
+      expect(m.res).toBe(boss ? 3 : 4);
+      expect(m.style).toBe(boss ? 'boss' : TUNING.creeps[kind].flying ? 'flyer' : 'walker');
+    });
+
+    it(`${kind}: every state the rig plays has its frames, the flinch its white twin and nothing else one`, () => {
+      const want = CREEP_COUNTS[kind];
+      expect(Object.keys(m.frames).sort()).toEqual(Object.keys(want).sort());
+      for (const [state, n] of Object.entries(want)) expect(m.frames[state as CreepState], state).toHaveLength(n);
+      for (const [state, cells] of Object.entries(m.frames)) {
+        for (const cell of cells) expect(cell.fx !== undefined, state).toBe(state === 'hit');
+      }
+      expect(c.checks.frames).toBe(Object.values(want).reduce((a, b) => a + b, 0));
+      expect(c.checks.samples).toBe(24);
+    });
+
+    it(`${kind}: its rendered radius is its radius in the game, and the idle figure's top is above the feet`, () => {
+      const want = TUNING.creeps[kind].radius * 32;
+      expect(Math.abs(m.radius - want), `${m.radius} vs ${want}`).toBeLessThan(want * 0.03);
+      expect(m.width).toBeGreaterThan(want);
+      expect(m.top).toBeGreaterThan(m.height * 0.5);
+      expect(m.top).toBeLessThan(m.height * 1.25 + (TUNING.creeps[kind].flying ? 16 : 0));
+      // Walkers and bosses step at their stride (feet that hold the ground); the Wisp beats and the Hatchling hops at their clip's pace.
+      if (kind === 'wisp' || kind === 'hatchling') expect(m.walkStride).toBeNull();
+      else expect(m.walkStride).toBeGreaterThan(4);
+      expect(m.cycleMs).toBeGreaterThan(300);
+    });
+
+    const cells: { what: string; cell: CreepCell; x: number; y: number }[] = [];
+    for (const [state, list] of Object.entries(m.frames)) {
+      list.forEach((cell, i) => {
+        cells.push({ what: `${state} ${i}`, cell, x: cell.x, y: cell.y });
+        if (cell.fx !== undefined && cell.fy !== undefined) cells.push({ what: `${state} ${i} twin`, cell, x: cell.fx, y: cell.fy });
+      });
+    }
+    for (const [state, list] of Object.entries(m.hide ?? {})) {
+      list.forEach((cell, i) => {
+        if (cell.w > 0) cells.push({ what: `hide ${state} ${i}`, cell, x: cell.x, y: cell.y });
+      });
+    }
+
+    it(`${kind}: each frame, twin and hide mask lies inside the sheet and the frame box, without overlapping another`, () => {
+      for (const { what, cell, x, y } of cells) {
+        expect(x, what).toBeGreaterThanOrEqual(0);
+        expect(y, what).toBeGreaterThanOrEqual(0);
+        expect(x + cell.w, what).toBeLessThanOrEqual(m.w);
+        expect(y + cell.h, what).toBeLessThanOrEqual(m.h);
+        expect(cell.dx, what).toBeGreaterThanOrEqual(0);
+        expect(cell.dy, what).toBeGreaterThanOrEqual(0);
+        expect(cell.dx + cell.w, what).toBeLessThanOrEqual(m.box.w);
+        expect(cell.dy + cell.h, what).toBeLessThanOrEqual(m.box.h);
+      }
+      for (let i = 0; i < cells.length; i++) {
+        for (let j = i + 1; j < cells.length; j++) {
+          const a = cells[i]!;
+          const b = cells[j]!;
+          const overlap = a.x < b.x + b.cell.w && b.x < a.x + a.cell.w && a.y < b.y + b.cell.h && b.y < a.y + a.cell.h;
+          expect(overlap, `${a.what} and ${b.what}`).toBe(false);
+        }
+      }
+      // The feet lie in the box, low in it (a death may fall below them).
+      expect(m.box.ax).toBeGreaterThan(0);
+      expect(m.box.ax).toBeLessThan(m.box.w);
+      expect(m.box.ay).toBeGreaterThan(m.box.h * 0.6);
+      expect(m.box.ay).toBeLessThanOrEqual(m.box.h);
+    });
+
+    it(`${kind}: no frame is empty or cut at its edge, and the twin is the figure's shape in white (no shadow)`, () => {
+      for (const { what, cell, x, y } of cells) {
+        let drawn = 0;
+        for (let yy = 0; yy < cell.h; yy++) {
+          for (let xx = 0; xx < cell.w; xx++) {
+            const a = alphaAt(png, x + xx, y + yy);
+            if (a > 0) drawn++;
+            const edge = xx === 0 || yy === 0 || xx === cell.w - 1 || yy === cell.h - 1;
+            if (edge) expect(a, `${what} touches its edge at ${xx},${yy}`).toBe(0);
+          }
+        }
+        expect(drawn, what).toBeGreaterThan(what.startsWith('hide') ? 3 : cell.w * cell.h * 0.15);
+      }
+      const hit = m.frames.hit[0]!;
+      let figure = 0;
+      for (let yy = 0; yy < hit.h; yy++) {
+        for (let xx = 0; xx < hit.w; xx++) {
+          const a = alphaAt(png, hit.x + xx, hit.y + yy);
+          const t = ((hit.fy! + yy) * png.width + hit.fx! + xx) * 4;
+          const ta = png.data[t + 3]!;
+          // The twin covers the figure (the frame's own alpha, line and all); the frame adds the baked shadow round it.
+          expect(ta, `twin alpha at ${xx},${yy}`).toBeLessThanOrEqual(a + 1);
+          if (ta > 0) {
+            expect([png.data[t], png.data[t + 1], png.data[t + 2]]).toEqual([255, 255, 255]);
+            if (ta === 255) figure++;
+          }
+        }
+      }
+      expect(figure).toBeGreaterThan(hit.w * hit.h * 0.15);
+    });
+
+    it(`${kind}: ${kind === 'shardback' ? 'its hide masks follow every frame but the deaths' : 'no hide masks'}`, () => {
+      if (kind !== 'shardback') {
+        expect(m.hide).toBeUndefined();
+        return;
+      }
+      const hide = m.hide!;
+      expect(Object.keys(hide).sort()).toEqual(Object.keys(m.frames).filter((s) => s !== 'death').sort());
+      for (const [state, list] of Object.entries(hide)) expect(list, state).toHaveLength(m.frames[state as CreepState]!.length);
+      // The spines (and the horn) show in the stand: their mask is no speck.
+      expect(hide.idle![0]!.w * hide.idle![0]!.h).toBeGreaterThan(200);
+    });
+  }
+
+  it('the nine sheets fit two 2048 × 2048 pages (the texture budget)', () => {
+    const sheets = CREEP_KINDS.map((k): [number, number] => [CREEP_3D[k].match.w, CREEP_3D[k].match.h]);
+    const total = sheets.reduce((a, [w, h]) => a + w * h, 0);
+    expect(total).toBeLessThanOrEqual(2 * 2048 * 2048);
+    // Page by page, the largest first, as many as fit.
+    let left = sheets.map((_, i) => i);
+    for (let page = 0; page < 2 && left.length; page++) {
+      const chosen: number[] = [];
+      for (const i of [...left].sort((a, b) => sheets[b]![0] * sheets[b]![1] - sheets[a]![0] * sheets[a]![1])) {
+        if (skyline([...chosen, i].map((j) => sheets[j]!), 2048, 2048)) chosen.push(i);
+      }
+      left = left.filter((i) => !chosen.includes(i));
+    }
+    expect(left).toEqual([]);
+  });
+
+  it('the creep frames passed the fringe check in the build, and the kept frames pass it here with its numbers', () => {
+    const dir = join(CLIENT, 'test', 'fixtures', 'creep-fringe');
+    const want = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')) as Record<string, { measured: number; fringe: number; hard: number; pass: boolean }>;
+    for (const kind of CREEP_KINDS) {
+      const checks = CREEP_3D[kind].checks;
+      expect(checks.worstFringe, kind).toBeLessThanOrEqual(0.01);
+      expect(checks.worstHard, kind).toBeLessThanOrEqual(0.05);
+      for (const frame of ['idle0', 'walk0']) expect(Object.keys(want)).toContain(`${kind}-${frame}`);
+    }
+    for (const [name, py] of Object.entries(want)) {
+      const frame = decodePng(readFileSync(join(dir, `${name}-band.png`)));
+      const mask = decodePng(readFileSync(join(dir, `${name}-mask.png`)));
+      const n = frame.width * frame.height;
+      const rgb = new Uint8Array(n * 3);
+      const alpha = new Uint8Array(n);
+      const glow = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        for (let k = 0; k < 3; k++) rgb[i * 3 + k] = frame.data[i * frame.channels + k]!;
+        alpha[i] = mask.data[i * mask.channels]!;
+        glow[i] = mask.data[i * mask.channels + 1]!;
+      }
+      const r = measureFringe(frame.width, frame.height, rgb, alpha, glow);
+      expect(Math.abs(r.measured - py.measured), name).toBeLessThanOrEqual(1);
+      expect(Math.abs(r.fringe - py.fringe), name).toBeLessThanOrEqual(1);
+      expect(r.measured, name).toBeGreaterThan(100);
+      expect(r.pass, name).toBe(true);
+    }
+  });
+});
+
+describe('3D creeps: the rig rules', () => {
+  it('a death opens on the flinch while its flash fades, falls through the death frames, then fades out', () => {
+    expect(creepDeathFrame(0, 3)).toEqual({ state: 'hit', i: 0, alpha: 1, flash: 0.6 });
+    expect(creepDeathFrame(CREEP_DEATH.flinch / 2, 3).flash).toBeCloseTo(0.3);
+    const fall = [0.21, 0.35, 0.5, 0.6].map((t) => creepDeathFrame(t, 3));
+    expect(fall.map((f) => f.state)).toEqual(['death', 'death', 'death', 'death']);
+    expect(fall.map((f) => f.i)).toEqual([0, 1, 2, 2]);
+    expect(fall.every((f) => f.flash === 0)).toBe(true);
+    expect(creepDeathFrame(CREEP_DEATH.fadeFrom, 3).alpha).toBe(1);
+    expect(creepDeathFrame(0.8, 3).alpha).toBeGreaterThan(0);
+    expect(creepDeathFrame(0.8, 3).alpha).toBeLessThan(1);
+    expect(creepDeathFrame(1, 3).alpha).toBe(0);
+    expect(CREEP_DEATH.bossMs).toBeGreaterThan(CREEP_DEATH.creepMs);
+  });
+
+  it('creeps step at their stride (feet that hold the ground), or at their clip pace by speed; still when stopped, capped', () => {
+    // A Grunt at full speed, drawn 1.92× (a 360 px phone): 1.6 tiles/s over a ~19 px stride.
+    expect(creepCadence(1.6, 1.92, 18.8, 1600, 1.6)).toBeCloseTo((1.6 * 32) / 1.92 / 18.8, 5);
+    // Slowed to half: half the cadence.
+    expect(creepCadence(0.8, 1.92, 18.8, 1600, 1.6)).toBeCloseTo(creepCadence(1.6, 1.92, 18.8, 1600, 1.6) / 2, 5);
+    // No stride (the Wisp's beat): the clip's own pace at the kind's speed, scaled with the creep's.
+    expect(creepCadence(1.8, 1.92, null, 833, 1.8)).toBeCloseTo(1000 / 833, 5);
+    expect(creepCadence(0.9, 1.92, null, 833, 1.8)).toBeCloseTo(500 / 833, 5);
+    expect(creepCadence(0, 1.92, 18.8, 1600, 1.6)).toBe(0);
+    expect(creepCadence(50, 1, 5, 1000, 1)).toBe(4);
+    // A boss's long stride at its slow pace would be a walk in slow motion: never under half a cycle a second.
+    expect(creepCadence(0.9, 1.92, 75.2, 1000, 0.9)).toBe(0.5);
+  });
+
+  it('an attack plays up to the blow in at most half the cooldown, so the stand shows between blows', () => {
+    for (const kind of CREEP_KINDS) {
+      const cd = TUNING.creeps[kind].attackCooldown;
+      expect(attackMs(cd)).toBeLessThanOrEqual(cd * 500);
+      expect(attackMs(cd)).toBeGreaterThan(200);
+    }
+  });
+});
+
 describe('nothing 3D runs on the device', () => {
   function files(dir: string): string[] {
     const out: string[] = [];
@@ -635,5 +918,10 @@ describe('nothing 3D runs on the device', () => {
   it('a stage layout is plain data the client reads (no 3D)', () => {
     const s: StageLayout = HERO_3D.ranger!.stage;
     expect(Object.keys(s.files).sort()).toEqual(['clearing', 'mp4', 'poster', 'webm']);
+  });
+
+  it('the creeps are pictures: a sheet and its layout per kind, and nothing else of theirs under src', () => {
+    const own = readdirSync(ART3D).filter((f) => CREEP_KINDS.some((k) => f.startsWith(`${k}.`) || f.startsWith(`${k}-`)));
+    expect(own.sort()).toEqual(CREEP_KINDS.flatMap((k) => [`${k}-match.png`, `${k}.json`]).sort());
   });
 });

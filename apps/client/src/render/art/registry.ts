@@ -5,7 +5,7 @@
 
 import type { CreepKind, CreepSnap, HeroKind, SkillSlot, TowerKind } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
-import type { Container } from 'pixi.js';
+import type { ColorSource, Container } from 'pixi.js';
 import type { ArtKit } from './kit';
 import type { Ctx, Painter } from './paint';
 import type { Tokens } from './tokens';
@@ -73,6 +73,45 @@ export interface TowerArt extends ArtBase {
   kind: TowerKind;
   /** The top turns towards the target (false for tops that never turn, e.g. a crystal). */
   turret: boolean;
+}
+
+/**
+ * What the renderer drives on a creep: the 2D rig (rigs.ts `CreepRig`, one sprite rocking round its feet) or, once its
+ * sheet has loaded, the 3D one (render/art3d `Creep3DRig`, frames rendered ahead of time). `body` and `flash` go on
+ * the creep's root (the flash over the body), `shadow` under them (a flyer's, on the ground).
+ */
+export interface CreepRigView {
+  readonly body: Container;
+  readonly flash: Container;
+  readonly shadow: Container | null;
+  /** Drawn from 3D frames (Creep3DRig) rather than the 2D art. */
+  readonly is3d: boolean;
+  /** How long its death reaction lasts, ms. */
+  readonly deathMs: number;
+  /** +1 facing right, -1 left. */
+  readonly facing: number;
+  /** Where the HP bar goes (px from the creep's position, up negative) when the figure stands taller than its radius
+   * leaves room for, else null (the bar's usual place). */
+  readonly barY: number | null;
+  /** A pooled rig starts a new creep (facing: carry over a dead creep's facing). */
+  reset(facing?: number): void;
+  /** The look its state picks (Shardback's hide). */
+  setVariant(c: CreepSnap): void;
+  /** A melee blow hit it at `now`, from direction (dx, dy) (towards the creep). */
+  knock(now: number, dx: number, dy: number): void;
+  /** Each frame: where it is drawn (tiles), its id (a phase so creeps don't step in time), whether it is rooted or
+   * stunned (it stands still). */
+  update(x: number, seed: number, still: boolean, now: number, y?: number): void;
+  /** Hit flash strength (the white silhouette's alpha, docs/ART.md §7). */
+  setFlash(f: number): void;
+  /** Whole-rig tint (frost). */
+  setTint(tint: ColorSource): void;
+  /** Death reaction at progress t (0..1 of deathMs). */
+  die(t: number): void;
+  /** It fired (an Archer's shot) at `now`. */
+  shot(now: number): void;
+  /** A boss used its ability at `now` (Stomp, Hatch, the hide shift). */
+  ability(now: number): void;
 }
 
 /** What a hero rig reads each frame (a HeroSnap has all of it). */

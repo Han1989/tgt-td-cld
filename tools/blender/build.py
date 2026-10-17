@@ -1,11 +1,13 @@
-# Builds heroes from the KayKit packs in Blender and renders every output the game uses (docs/ART.md §15):
+# Builds heroes and creeps from the CC0 packs in Blender and renders every output the game uses (docs/ART.md §15):
 #
-#   python tools/blender/build.py <hero>[,<hero>…] [stage|match|all|plate] [--draft] [--frames 0,40,120] [--out DIR]
+#   python tools/blender/build.py <hero|creep>[,…] [stage|match|all|plate] [--draft] [--frames 0,40,120] [--out DIR]
 #
 # Normally run through `npm run art:3d -- <hero>` (tools/blender/art3d.mjs), which finds Blender's Python; `heroes`
-# builds all three, sharing one render of the clearing. The heroes are rows of tools/blender/hero.py.
+# builds all three, sharing one render of the clearing; `creeps` all nine creeps and bosses. The heroes are rows of
+# tools/blender/hero.py, the creeps of tools/blender/creeps.py.
 # Outputs: apps/client/public/stage/<hero>.mp4, .webm, <hero>-poster.webp and clearing.webp (the stage),
-# apps/client/src/render/art3d/<hero>-match.png (the match frame sheet) and <hero>.json (both layouts).
+# apps/client/src/render/art3d/<hero>-match.png (the match frame sheet) and <hero>.json (both layouts); for a creep
+# <kind>-match.png and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
 
 import argparse
 import json
@@ -22,11 +24,74 @@ STAGE_OUT = os.path.join(ROOT, 'apps', 'client', 'public', 'stage')
 MATCH_OUT = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'art3d')
 # The fringe check's fixtures (docs/ART.md §15): key frames of the stage, cut to the hero's silhouette, with his mask.
 CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'stage-fringe')
+# The creeps' fringe fixtures: two frames a kind (the stand and a step), cut to the silhouette, over the lane.
+CREEP_CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'creep-fringe')
+
+
+def build_creeps(names, args):
+    """Renders the creeps' match sheets (tools/blender/creeps.py), writes their layouts and fixtures, and checks the
+    texture budget: every creep sheet, these and the ones already written, inside two 2048 × 2048 pages."""
+    from tdt3d import scene, creep
+    import creeps as table
+
+    out = args.out or MATCH_OUT
+    checks = args.out or CREEP_CHECKS_OUT
+    results_path = os.path.join(checks, 'results.json')
+    results = json.load(open(results_path)) if os.path.exists(results_path) else {}
+    failed = []
+    times = {}
+    tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-creeps-')
+    try:
+        for name in names:
+            scene.reset(fps=30)
+            layout, size, notes, fixtures = creep.render_creep(table.CREEPS[name], out, os.path.join(tmp, name),
+                                                               draft=args.draft, checks_dir=checks)
+            times[name] = notes['renderS']
+            w, h = notes['worstFringe'], notes['worstHard']
+            print(f'creep {name}: sheet {layout["w"]} × {layout["h"]} ({size} bytes), {notes["frames"]} frames in '
+                  f'{notes["renderS"]} s; worst fringe {w["fringe"]}/{w["measured"]} ({w["frame"]}), worst hard '
+                  f'{h["hard"]}/{h["crossings"]} ({h["frame"]})', flush=True)
+            if notes['failed']:
+                failed.append(f'{name}: frames {", ".join(notes["failed"])} fail the fringe check')
+                continue
+            results = {k: v for k, v in results.items() if not k.startswith(f'{name}-')}
+            results.update(fixtures)
+            doc = {'id': name, 'match': layout, 'checks': {
+                'frames': notes['frames'], 'samples': notes['samples'],
+                'worstFringe': round(w['fringe'] / max(1, w['measured']), 4),
+                'worstHard': round(h['hard'] / max(1, h['crossings']), 4)}}
+            if not args.out:
+                with open(os.path.join(MATCH_OUT, f'{name}.json'), 'w') as f:
+                    f.write(json.dumps(doc, indent=1, sort_keys=True) + '\n')
+        os.makedirs(checks, exist_ok=True)
+        with open(results_path, 'w') as f:
+            f.write(json.dumps(results, indent=1, sort_keys=True) + '\n')
+    finally:
+        if not args.work:
+            shutil.rmtree(tmp, ignore_errors=True)
+    sheets = []
+    for name in table.CREEPS:
+        path = os.path.join(out if args.out else MATCH_OUT, f'{name}.json')
+        if os.path.exists(path):
+            m = json.load(open(path))['match']
+            sheets.append((name, m['w'], m['h']))
+    plan = creep.pages([(w, h) for _, w, h in sheets])
+    total = sum(w * h for _, w, h in sheets)
+    print(f'creep sheets: {len(sheets)}, {total / 1e6:.2f} M px ({total * 4 / 2 ** 20:.1f} MiB as RGBA)', flush=True)
+    if plan is None:
+        failed.append(f'the creep sheets do not fit {creep.PAGES} pages of {creep.PAGE} × {creep.PAGE}')
+    else:
+        for (name, w, h), (page, x, y) in zip(sheets, plan):
+            print(f'  page {page}: {name} at {x}, {y} ({w} × {h})')
+    for k, v in times.items():
+        print(f'{k}: {v:.0f} s')
+    return failed
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('hero', help='a hero of tools/blender/hero.py, several separated by commas, or "heroes" (all)')
+    ap.add_argument('hero', help='a hero of tools/blender/hero.py or a creep of tools/blender/creeps.py, several '
+                    'separated by commas, "heroes" (all three) or "creeps" (all nine)')
     ap.add_argument('what', nargs='?', default='all', choices=['stage', 'match', 'all', 'plate'])
     ap.add_argument('--scale', type=float, default=0.5, help='plate: its size, of the video\'s')
     ap.add_argument('--samples', type=int, default=6, help='plate: Cycles samples')
@@ -41,12 +106,27 @@ def main():
 
     import bpy  # noqa: F401 (first: it registers mathutils)
     from tdt3d import scene, stage, match
+    import creeps as creep_table
     import hero as table
 
-    names = list(table.HEROES) if args.hero == 'heroes' else args.hero.split(',')
+    names = (list(table.HEROES) if args.hero == 'heroes' else list(creep_table.CREEPS) if args.hero == 'creeps'
+             else args.hero.split(','))
+    creeps = [n for n in names if n in creep_table.CREEPS]
+    names = [n for n in names if n not in creep_table.CREEPS]
     for n in names:
         if n not in table.HEROES:
-            raise SystemExit(f'No hero "{n}" in tools/blender/hero.py (heroes: {", ".join(table.HEROES)})')
+            raise SystemExit(f'No hero or creep "{n}" in tools/blender/hero.py or creeps.py (heroes: '
+                             f'{", ".join(table.HEROES)}; creeps: {", ".join(creep_table.CREEPS)})')
+    if creeps:
+        if args.what not in ('match', 'all') or args.frames or args.layout_only:
+            raise SystemExit('Creeps have match sheets only (no stage, frames or plate)')
+        t0 = time.time()
+        failed = build_creeps(creeps, args)
+        print(f'creeps done in {time.time() - t0:.0f} s')
+        if failed:
+            raise SystemExit('The creep checks failed (no layout written for these):\n  ' + '\n  '.join(failed))
+        if not names:
+            return
     # A working folder kept between runs (--work) lets an interrupted stage render resume where it stopped: finished
     # frames are kept and skipped, and the finished plate is kept beside them. The plate is the same for every hero.
     tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-')

@@ -7,7 +7,7 @@ import { OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
-import { loadHeroSheets } from './render/art3d';
+import { loadCreepSheets, loadHeroSheets } from './render/art3d';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
 
@@ -48,14 +48,30 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   const boot = document.getElementById('boot');
   boot?.classList.add('done');
   setTimeout(() => boot?.remove(), 400);
-  // The 3D heroes' match frames (docs/ART.md §15) load a second after the first screen, never in its way.
-  // `<html data-hero-sheets>` says they are in (browser tests start a match after it to see the 3D rigs).
+  // The 3D heroes' match frames (docs/ART.md §15) load a second after the first screen, never in its way, then the
+  // creeps' one kind after another. `<html data-hero-sheets>` and `data-creep-sheets` say they are in (browser tests
+  // start a match after it to see the 3D rigs); `tdt:hero-sheets` and `tdt:creep-sheets` mark when (npm run first-load).
   if (screen === 'solo' || screen === 'online' || screen === 'stress') {
-    setTimeout(() => void loadHeroSheets().then(() => (document.documentElement.dataset.heroSheets = 'ready')), SHEETS_AFTER_MS);
+    setTimeout(
+      () =>
+        void loadHeroSheets()
+          .then(() => {
+            document.documentElement.dataset.heroSheets = 'ready';
+            performance.mark('tdt:hero-sheets');
+            // Browser-test builds: `?creeps2d` keeps the 2D creeps, to compare the two in the same build.
+            if (import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('creeps2d')) return;
+            return loadCreepSheets();
+          })
+          .then(() => {
+            document.documentElement.dataset.creepSheets = 'ready';
+            performance.mark('tdt:creep-sheets');
+          }),
+      SHEETS_AFTER_MS,
+    );
   }
 }
 
-/** How long after the first screen the 3D heroes' match sheets start loading, ms. */
+/** How long after the first screen the 3D heroes' (then the creeps') match sheets start loading, ms. */
 const SHEETS_AFTER_MS = 1000;
 
 async function main(): Promise<void> {

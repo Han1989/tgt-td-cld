@@ -68,11 +68,12 @@ import {
   projectileArt,
   towerArt,
   trapArt,
+  type CreepRigView,
   type HeartArt,
   type HeroRig,
 } from './art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
-import { Hero3DRig, heroRig3d } from './art3d';
+import { creepRig3d, creepSheetsVersion, hasCreep3d, Hero3DRig, heroRig3d, type Creep3DRig } from './art3d';
 import { RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
@@ -131,10 +132,12 @@ interface CreepSprite extends EntitySprite {
   kind: CreepKind;
   /**
    * Shapes: bosses keep their colours and flash with a white overlay; other creeps are drawn white
-   * and tinted. Art: a rig whose white silhouette flashes (alpha only).
+   * and tinted. Art: a rig (2D, or 3D once its sheet is in) whose white silhouette flashes (alpha only).
    */
   flash: Container | null;
-  art: CreepRig | null;
+  art: CreepRigView | null;
+  /** `creepSheetsVersion()` when it was made: a 2D creep made before its kind's 3D sheet came in is swapped. */
+  gen: number;
   flashUntil: number;
   flashReadyAt: number;
   /** Quantised tint / flash state last applied, so unchanged creeps cost nothing. */
@@ -418,10 +421,14 @@ export class WorldRenderer {
     heroRigs: number;
     hero3d: number;
     hero3dKinds: string[];
+    creep3d: number;
+    creep3dKinds: string[];
+    creep3dStates: string[];
     impacts: number;
   } {
     const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
     const rigs3d = [...this.heroes.values()].map((s) => s.art).filter((a): a is Hero3DRig => a instanceof Hero3DRig);
+    const creeps3d = [...this.creeps.values(), ...this.dying].map((s) => s.art).filter((a): a is Creep3DRig => a?.is3d === true);
     return {
       display: this.art.display,
       pads: this.pads.size,
@@ -431,6 +438,10 @@ export class WorldRenderer {
       // Heroes drawn from their 3D frames, the frame kinds those rigs have shown, melee blows landed.
       hero3d: rigs3d.length,
       hero3dKinds: [...new Set(rigs3d.flatMap((r) => [...r.shownKinds]))].sort(),
+      // Creeps drawn from their 3D frames (live ones), their kinds and the states those rigs have shown.
+      creep3d: [...this.creeps.values()].filter((s) => s.art?.is3d).length,
+      creep3dKinds: [...new Set(creeps3d.map((r) => r.kind))].sort(),
+      creep3dStates: [...new Set(creeps3d.flatMap((r) => [...r.shownStates]))].sort(),
       impacts: this.impactsLanded,
     };
   }
@@ -648,16 +659,19 @@ export class WorldRenderer {
           fx.splash(e.x, e.y, e.radius);
           break;
         case 'stomp':
+          this.creepAbility(this.nearestCreep('ironhorn', e.x, e.y), now);
           fx.ring(e.x, e.y, e.radius, CREEP_COLORS.ironhorn, 500, 0.2, 'shock');
           fx.dustRing(e.x, e.y, e.radius, FX.dust, 14);
           fx.bump(SHAKE_AT.stomp);
           break;
         case 'hatch':
+          this.creepAbility(e.creepId, now);
           fx.ring(e.x, e.y, 1.6, CREEP_COLORS.matriarch, 400);
           fx.shards(e.x, e.y, [FX.shell, FX.shellDark, CREEP_COLORS.matriarch], 12, 150);
           fx.bump(SHAKE_AT.hatch);
           break;
         case 'hideShift':
+          this.creepAbility(e.creepId, now);
           fx.ring(e.x, e.y, 1.8, HIDE_COLORS[e.hide], 500, 0.3, 'shock');
           fx.shards(e.x, e.y, [HIDE_COLORS[e.hide], FX.hot], 14, 200);
           fx.bump(SHAKE_AT.hideShift);
@@ -1204,6 +1218,11 @@ export class WorldRenderer {
     for (const c of creeps) {
       seen.add(c.id);
       let s = this.creeps.get(c.id);
+      if (s && s.gen !== creepSheetsVersion() && !s.art?.is3d && hasCreep3d(c.kind)) {
+        // Its kind's 3D sheet has come in: the 2D creep makes way for its 3D rig.
+        s.root.destroy({ children: true });
+        s = undefined;
+      }
       if (!s) {
         s = this.takeCreep(c.kind);
         s.root.visible = true;
@@ -1218,7 +1237,7 @@ export class WorldRenderer {
       // Flyers are drawn larger than their radius so the wing badge reads on a phone. The bar scales with them.
       s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[c.kind].flying));
       const r = TUNING.creeps[c.kind].radius * S;
-      updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), -r - 7);
+      updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), s.art?.barY ?? -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
       const shield = c.shield ?? '';
       const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${c.stunned ? 't' : ''}${hide}${shield}`;
@@ -1239,7 +1258,7 @@ export class WorldRenderer {
       this.tintCreep(s, c, now);
       if (s.art) {
         s.art.setVariant(c);
-        s.art.update(c.x, c.id, c.rooted || c.stunned, now);
+        s.art.update(c.x, c.id, c.rooted || c.stunned, now, c.y);
       }
       // Frost shimmer: icy glints drift off slowed creeps.
       if (c.slowed && glints && chance(2.5, dtMs) > 0) this.fx.frostGlint(c.x, c.y, TUNING.creeps[c.kind].radius);
@@ -1265,12 +1284,38 @@ export class WorldRenderer {
 
   /** A creep sprite from the pool (or a new one), reset for a new creep. */
   private takeCreep(kind: CreepKind): CreepSprite {
-    const s = this.creepPool.get(kind)?.pop() ?? makeCreepSprite(kind, this.art);
+    let s = this.creepPool.get(kind)?.pop();
+    if (s && !s.art?.is3d && hasCreep3d(kind)) {
+      // Pooled before its kind's 3D sheet came in.
+      s.root.destroy({ children: true });
+      s = undefined;
+    }
+    s ??= makeCreepSprite(kind, this.art);
     s.art?.reset();
     s.root.visible = true;
     s.hpBg.alpha = s.hpFill.alpha = 1;
     s.tintKey = -1;
     return s;
+  }
+
+  /** The id of the drawn creep of this kind nearest (x, y) (tiles), or -1. */
+  private nearestCreep(kind: CreepKind, x: number, y: number): number {
+    let best = -1;
+    let bestD = Infinity;
+    for (const c of this.drawnCreeps) {
+      if (c.kind !== kind) continue;
+      const d = Math.hypot(c.x - x, c.y - y);
+      if (d < bestD) {
+        best = c.id;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  /** A boss used its ability (Stomp, Hatch, the hide shift): its 3D rig plays the move. */
+  private creepAbility(id: number, now: number): void {
+    if (id >= 0) this.creeps.get(id)?.art?.ability(now);
   }
 
   /** Back to the pool (detached, reset) instead of being destroyed. */
@@ -1712,7 +1757,10 @@ export class WorldRenderer {
           creepD = d;
         }
       }
-      if (creep) this.aimProjectile(g, p.x - creep.x, p.y - creep.y);
+      if (creep) {
+        this.aimProjectile(g, p.x - creep.x, p.y - creep.y);
+        this.creeps.get(creep.id)?.art?.shot(this.lastRenderAt);
+      }
       return;
     }
     // Pooled sprites may come from another branch: start from the tower kind's glow.
@@ -2134,13 +2182,15 @@ function makeSprite(body: Container): EntitySprite {
 }
 
 function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
+  const gen = creepSheetsVersion();
+  // The 3D rig once its kind's sheet is in (docs/ART.md §15), else the 2D one.
   const art = creepArt(kind);
-  if (art) {
-    const rig = new CreepRig(kit, art);
+  const rig: CreepRigView | null = creepRig3d(kind, kit) ?? (art ? new CreepRig(kit, art) : null);
+  if (rig) {
     const s = makeSprite(rig.body);
     s.root.addChildAt(rig.flash, 1);
     if (rig.shadow) s.root.addChildAt(rig.shadow, 0);
-    return { ...s, kind, flash: rig.flash, art: rig, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
+    return { ...s, kind, flash: rig.flash, art: rig, gen, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
   }
   const boss = TUNING.creeps[kind].boss;
   const body = creepBody(kind);
@@ -2154,7 +2204,7 @@ function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
   } else {
     body.tint = CREEP_COLORS[kind];
   }
-  return { ...s, kind, flash, art: null, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
+  return { ...s, kind, flash, art: null, gen, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
 }
 
 function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y: number): void {

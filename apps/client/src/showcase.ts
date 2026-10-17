@@ -1,6 +1,7 @@
 // `?showcase`: a dev page listing every entity registered in render/art/entities/ (docs/ART.md §9),
 // with no match running. Each entity gets a card per variant (tower tiers and branches, pad zone
-// tints…), animated by its real rig, at a big size and at the size a phone shows it in a match.
+// tints…), animated by its real rig, at a big size and at the size a phone shows it in a match. The creeps made in
+// 3D (docs/ART.md §15) get a card of their own too, played by Creep3DRig next to their 2D rig's card.
 // Normal / Bright switches the Display. Kinds that have no art yet (they keep their shapes) are
 // listed at the end. Cards are DOM (so the page scrolls natively); one fixed Pixi canvas on top
 // draws the entities where their cards are.
@@ -8,6 +9,8 @@
 import {
   CREEP_KINDS,
   HERO_KINDS,
+  type CreepKind,
+  type CreepSnap,
   TOWER_BRANCHES,
   TOWER_KINDS,
   type HeroKind,
@@ -37,6 +40,8 @@ import {
   type HeroRig,
 } from './render/art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './render/art/rigs';
+import { creepRig3d, loadCreepSheets, type Creep3DRig } from './render/art3d';
+import { CREEP_3D } from './render/art3d/creepData';
 import { liftColor, RL, type Display } from './render/art/tokens';
 import { createFxAtlas, type FxAtlas } from './render/fx/atlas';
 import { Effects } from './render/fx/effects';
@@ -95,10 +100,21 @@ export async function runShowcase(): Promise<void> {
     root.insertBefore(s, app.canvas);
     return s.querySelector('.sc-grid') as HTMLElement;
   };
-  const addCard = (grid: HTMLElement, e: ArtEntry, variant: string, ground: 'moss' | 'lane', make: () => Actor, bigScale: number, smallScale: number) => {
+  const addCard = (
+    grid: HTMLElement,
+    e: ArtEntry,
+    variant: string,
+    ground: 'moss' | 'lane',
+    make: () => Actor,
+    bigScale: number,
+    smallScale: number,
+    art3d?: string,
+  ) => {
     const el = document.createElement('div');
     el.className = 'sc-card';
-    el.dataset.art = e.id;
+    // A 3D card is the kind's, not the art file's (?showcase lists every art file once in `data-art`).
+    if (art3d) el.dataset.art3d = art3d;
+    else el.dataset.art = e.id;
     el.dataset.variant = variant;
     el.innerHTML = `<div class="sc-stage"></div><div class="sc-label"><b>${e.name}</b><span>${variant}</span></div>`;
     grid.appendChild(el);
@@ -221,6 +237,22 @@ export async function runShowcase(): Promise<void> {
     }
   }
 
+  // The creeps made in 3D (docs/ART.md §15): their sheets, then a card each, played by the match's 3D rig.
+  await loadCreepSheets();
+  const shown3d: string[] = [];
+  const grid3d = section('Creeps in 3D (rendered ahead of time)');
+  for (const kind of Object.keys(CREEP_3D) as CreepKind[]) {
+    const e = creepArt(kind);
+    if (!e || !creepRig3d(kind, kit)) continue;
+    const big = TUNING.creeps[kind].boss ? 1.3 : 2;
+    const looks = kind === 'shardback' ? (['stone', 'ether'] as const) : ([null] as const);
+    for (const hide of looks) {
+      const label = `creep 3D · ${kind}${hide ? ` · ${hide} hide` : ''}`;
+      addCard(grid3d, e, label, 'lane', () => creep3dActor(creepRig3d(kind, kit)!, hide === 'ether'), big, PHONE.entity, kind);
+    }
+    shown3d.push(kind);
+  }
+
   // Kinds with no art yet keep their shapes in the game.
   const missing = [
     ...HERO_KINDS.filter((k) => !heroArt(k)).map((k) => `hero · ${k}`),
@@ -337,6 +369,7 @@ export async function runShowcase(): Promise<void> {
 
   (window as unknown as { __showcase: unknown }).__showcase = {
     ids: entries.map((e) => e.id),
+    ids3d: shown3d,
     cards: () => cards.length,
     display: () => kit.display,
   };
@@ -470,6 +503,51 @@ function creepActor(rig: CreepRig, frame: string): Actor {
       const f = cycle % 1400 < HIT_FLASH.ms ? HIT_FLASH.alpha : 0;
       rig.setFlash(f);
       rig.setTint(n % 2 === 1 ? mixColor(0xffffff, ICE, 0.8) : 0xffffff);
+    },
+  };
+}
+
+/**
+ * A 3D creep's cycle (ms): walks (turning round, flashing as if hit, frosted every other lap), stops and fights, a boss
+ * uses its ability, then it dies.
+ */
+const CREEP3D_WALK = 3000;
+const CREEP3D_ABILITY = 4300;
+const CREEP3D_DIE = 5600;
+const CREEP3D_CYCLE = 6800;
+
+function creep3dActor(rig: Creep3DRig, ether: boolean): Actor {
+  const view = new Container();
+  if (rig.shadow) view.addChild(rig.shadow);
+  view.addChild(rig.body, rig.flash);
+  // The Shardback's Ether hide raises its magic resist; that is all the rig reads.
+  const hide = { magicResist: ether ? 1 : 0 } as CreepSnap;
+  const speed = TUNING.creeps[rig.kind].speed;
+  let x = 0;
+  let round = -1;
+  let used = -1;
+  return {
+    view,
+    animate(now, dt) {
+      const n = Math.floor(now / CREEP3D_CYCLE);
+      const cycle = now % CREEP3D_CYCLE;
+      if (n !== round) {
+        round = n;
+        rig.reset();
+        rig.setVariant(hide);
+      }
+      if (cycle >= CREEP3D_DIE) {
+        rig.die(Math.min(1, (cycle - CREEP3D_DIE) / rig.deathMs));
+        return;
+      }
+      if (cycle < CREEP3D_WALK) x += (cycle < CREEP3D_WALK / 2 ? 1 : -1) * speed * dt * 0.001;
+      if (cycle >= CREEP3D_ABILITY && used !== n) {
+        used = n;
+        rig.ability(now);
+      }
+      rig.setFlash(cycle % 1400 < HIT_FLASH.ms ? HIT_FLASH.alpha : 0);
+      rig.setTint(n % 2 === 1 && cycle < CREEP3D_WALK ? mixColor(0xffffff, ICE, 0.8) : 0xffffff);
+      rig.update(x, 3, false, now, 0);
     },
   };
 }

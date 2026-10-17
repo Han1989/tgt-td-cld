@@ -7,9 +7,13 @@
 //   npm run first-load -w @tdt/client                       5 runs of a fresh build
 //   npm run first-load -w @tdt/client -- --runs 9 --no-build
 //   npm run first-load -w @tdt/client -- --url https://tgt-td-cld.vercel.app/
+//   npm run first-load -w @tdt/client -- --sheets            also wait for the 3D match sheets
 //
 // "Usable" = `<html data-ready>` is set (main.ts's `tdt:ready` mark), the home card is shown and the
-// Play solo button is on screen, enabled and the element a tap at its centre would hit.
+// Play solo button is on screen, enabled and the element a tap at its centre would hit. With `--sheets` each run
+// then waits for the 3D heroes' and creeps' match sheets, which load after the first screen (docs/ART.md §15), and
+// reports when they were in (`tdt:hero-sheets`, `tdt:creep-sheets`) and their bytes; the first screen's numbers
+// are taken before, so they don't move.
 
 import { fileURLToPath } from 'node:url';
 import { chromium, devices } from '@playwright/test';
@@ -28,6 +32,9 @@ interface Run {
   ready: number;
   usable: number;
   kb: number;
+  heroSheets: number;
+  creepSheets: number;
+  sheetsKb: number;
 }
 
 function arg(name: string): string | undefined {
@@ -36,6 +43,7 @@ function arg(name: string): string | undefined {
 }
 
 const runs = Number(arg('runs') ?? 5);
+const sheets = process.argv.includes('--sheets');
 const profile = {
   latencyMs: Number(arg('latency') ?? SLOW_4G.latencyMs),
   downKbps: Number(arg('down') ?? SLOW_4G.downKbps),
@@ -113,9 +121,31 @@ try {
       const bytes = performance.getEntriesByType('resource').reduce((s, r) => s + (r as PerformanceResourceTiming).transferSize, nav?.transferSize ?? 0);
       return { firstPaint: firstPaint!, fcp: fcp!, ready: ready!, bytes };
     });
-    results.push({ firstPaint: timing.firstPaint, fcp: timing.fcp, ready: timing.ready, usable: at, kb: timing.bytes / 1024 });
+    let loaded = { hero: NaN, creep: NaN, bytes: 0 };
+    if (sheets) {
+      await page.waitForFunction(() => document.documentElement.dataset.creepSheets === 'ready', undefined, { timeout: 300_000 });
+      loaded = await page.evaluate(() => {
+        const [hero, creep] = ['tdt:hero-sheets', 'tdt:creep-sheets'].map((name) => performance.getEntriesByName(name)[0]?.startTime ?? NaN);
+        const bytes = performance
+          .getEntriesByType('resource')
+          .filter((r) => /-match[^/]*\.png/.test(r.name))
+          .reduce((s, r) => s + (r as PerformanceResourceTiming).transferSize, 0);
+        return { hero: hero!, creep: creep!, bytes };
+      });
+    }
+    results.push({
+      firstPaint: timing.firstPaint,
+      fcp: timing.fcp,
+      ready: timing.ready,
+      usable: at,
+      kb: timing.bytes / 1024,
+      heroSheets: loaded.hero,
+      creepSheets: loaded.creep,
+      sheetsKb: loaded.bytes / 1024,
+    });
     console.log(
-      `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB`,
+      `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB` +
+        (sheets ? `; hero sheets in at ${ms(loaded.hero)}, creep sheets at ${ms(loaded.creep)} (${(loaded.bytes / 1024).toFixed(0)} KB)` : ''),
     );
     await context.close();
   }
@@ -144,3 +174,8 @@ console.log(`first contentful paint:   ${stats(results.map((r) => r.fcp))}`);
 console.log(`tdt:ready:                ${stats(results.map((r) => r.ready))}`);
 console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
 console.log(`transferred:              ${(results.reduce((s, r) => s + r.kb, 0) / results.length).toFixed(0)} KB per load`);
+if (sheets) {
+  console.log(`hero sheets in:           ${stats(results.map((r) => r.heroSheets))}`);
+  console.log(`creep sheets in:          ${stats(results.map((r) => r.creepSheets))}`);
+  console.log(`match sheets:             ${(results.reduce((s, r) => s + r.sheetsKb, 0) / results.length).toFixed(0)} KB per load`);
+}
