@@ -8,6 +8,7 @@ import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
 import { loadHeroSheets } from './render/art3d';
+import { loadPlate } from './render/plate';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
 
@@ -50,8 +51,11 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   setTimeout(() => boot?.remove(), 400);
   // The 3D heroes' match frames (docs/ART.md §15) load a second after the first screen, never in its way.
   // `<html data-hero-sheets>` says they are in (browser tests start a match after it to see the 3D rigs).
+  // The map plate (docs/ART.md §16) too: a match drawn before it has decoded shows the painted ground until it has.
+  // `<html data-plate>` says it is in ("ready") or failed.
   if (screen === 'solo' || screen === 'online' || screen === 'stress') {
     setTimeout(() => void loadHeroSheets().then(() => (document.documentElement.dataset.heroSheets = 'ready')), SHEETS_AFTER_MS);
+    setTimeout(() => void loadPlate().then((p) => (document.documentElement.dataset.plate = p ? 'ready' : 'failed')), SHEETS_AFTER_MS);
   }
 }
 

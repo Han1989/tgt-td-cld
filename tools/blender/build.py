@@ -1,11 +1,15 @@
-# Builds heroes from the KayKit packs in Blender and renders every output the game uses (docs/ART.md §15):
+# Builds heroes from the KayKit packs in Blender and renders every output the game uses (docs/ART.md §15), and the
+# map plates (docs/ART.md §16):
 #
 #   python tools/blender/build.py <hero>[,<hero>…] [stage|match|all|plate] [--draft] [--frames 0,40,120] [--out DIR]
+#   python tools/blender/build.py map [spire|card|all] [--draft] [--out DIR] [--work DIR]
 #
 # Normally run through `npm run art:3d -- <hero>` (tools/blender/art3d.mjs), which finds Blender's Python; `heroes`
 # builds all three, sharing one render of the clearing. The heroes are rows of tools/blender/hero.py.
 # Outputs: apps/client/public/stage/<hero>.mp4, .webm, <hero>-poster.webp and clearing.webp (the stage),
 # apps/client/src/render/art3d/<hero>-match.png (the match frame sheet) and <hero>.json (both layouts).
+# Map plates: apps/client/public/map/spire.webp and spire-extra.webp (the patches) with their layout in
+# apps/client/src/render/plate/spire.json; the link card's plate (dev only) in apps/client/src/render/plate/card.webp.
 
 import argparse
 import json
@@ -22,6 +26,36 @@ STAGE_OUT = os.path.join(ROOT, 'apps', 'client', 'public', 'stage')
 MATCH_OUT = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'art3d')
 # The fringe check's fixtures (docs/ART.md §15): key frames of the stage, cut to the hero's silhouette, with his mask.
 CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'stage-fringe')
+PLATE_OUT = os.path.join(ROOT, 'apps', 'client', 'public', 'map')
+PLATE_LAYOUT = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'plate')
+# Where each map's picture goes: Spire's is shipped (and precached); the link card's is only for ?ogcard (dev server).
+PLATE_DIRS = {'spire': PLATE_OUT, 'card': PLATE_LAYOUT}
+
+
+def map_main(argv):
+    ap = argparse.ArgumentParser(prog='build.py map')
+    ap.add_argument('which', nargs='?', default='all', choices=['spire', 'card', 'all'])
+    ap.add_argument('--draft', action='store_true', help='rendered at 1× with a few samples (a quick look)')
+    ap.add_argument('--out', default=None, help='write the pictures and layouts here instead (a preview)')
+    ap.add_argument('--work', default=None, help='a working folder kept after the run')
+    args = ap.parse_args(argv)
+
+    import bpy  # noqa: F401 (first: it registers mathutils)
+    from tdt3d import map as plate
+
+    tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-map-')
+    os.makedirs(tmp, exist_ok=True)
+    t0 = time.time()
+    try:
+        for which in (['spire', 'card'] if args.which == 'all' else [args.which]):
+            out = args.out or PLATE_DIRS[which]
+            plate.render_map(which, out, args.out or PLATE_LAYOUT, os.path.join(tmp, which), draft=args.draft)
+    finally:
+        if args.work:
+            print('kept:', tmp)
+        else:
+            shutil.rmtree(tmp, ignore_errors=True)
+    print(f'done in {time.time() - t0:.0f} s')
 
 
 def main():
@@ -37,7 +71,10 @@ def main():
     ap.add_argument('--keep', action='store_true', help='keep the working folder (the stage frames) and print where')
     ap.add_argument('--work', default=None, help='a working folder kept between runs: an interrupted render resumes')
     ap.add_argument('--plate-cache', default=None, help='stage: keep the finished plate in this .npz and reuse it (hero work only)')
-    args = ap.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:])
+    argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
+    if argv and argv[0] == 'map':
+        return map_main(argv[1:])
+    args = ap.parse_args(argv)
 
     import bpy  # noqa: F401 (first: it registers mathutils)
     from tdt3d import scene, stage, match

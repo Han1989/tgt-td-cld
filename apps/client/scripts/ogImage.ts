@@ -48,7 +48,9 @@ try {
   if (shot.width !== CARD.w * SS || shot.height !== CARD.h * SS) throw new Error(`screenshot is ${shot.width} × ${shot.height}`);
   const card = downsample(shot, SS);
   const full = encodePng(card, 'best');
-  const { indices, palette } = quantize(card, 256, 0.5);
+  // 176 colours and a light dither: the map plate's moss (docs/ART.md §16) has more fine detail than the painted
+  // ground had, and 256 colours left the card at 335 KB, over its 300 KB budget; 176 look the same at card size.
+  const { indices, palette } = quantize(card, 176, 0.4);
   const png = encodeIndexedPng(card.width, card.height, indices, palette);
   writeFileSync(out, png);
   console.log(`${out}: ${CARD.w} × ${CARD.h}, ${(png.length / 1024).toFixed(0)} KB (${(full.length / 1024).toFixed(0)} KB before quantizing)`);
