@@ -3,6 +3,8 @@
 #
 #   python tools/blender/build.py <hero|creep>[,…] [stage|match|all|plate] [--draft] [--frames 0,40,120] [--out DIR]
 #   python tools/blender/build.py map [spire|card|all] [--draft] [--out DIR] [--work DIR]
+#   python tools/blender/build.py structures [arrow,heart,…] [--draft] [--out DIR] [--work DIR]
+#   python tools/blender/build.py arrow,heart                 (tower kinds, heart, portal: the same)
 #
 # Normally run through `npm run art:3d -- <hero>` (tools/blender/art3d.mjs), which finds Blender's Python; `heroes`
 # builds all three, sharing one render of the clearing; `creeps` all nine creeps and bosses. The heroes are rows of
@@ -12,6 +14,8 @@
 # <kind>-match.png and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
 # Map plates: apps/client/public/map/spire.webp and spire-extra.webp (the patches) with their layout in
 # apps/client/src/render/plate/spire.json; the link card's plate (dev only) in apps/client/src/render/plate/card.webp.
+# The towers, the Heart and the portals (tools/blender/structures.py): one sheet, structures-match.png, and its layout
+# structures.json in apps/client/src/render/art3d/; rendering some keeps the sheet's other frames.
 
 import argparse
 import json
@@ -96,6 +100,73 @@ def build_creeps(names, args):
     return failed
 
 
+def structures_main(argv):
+    """`build.py structures [arrow,heart,…] [--draft] [--out DIR]`: the towers, the Heart and the portals
+    (tools/blender/structures.py) into one sheet. Rendering some keeps every other frame of the sheet already written."""
+    ap = argparse.ArgumentParser(prog='build.py structures')
+    ap.add_argument('which', nargs='?', default='all', help='tower kinds, heart, portal, comma separated (all of them)')
+    ap.add_argument('--draft', action='store_true', help='fewer samples (a quick look)')
+    ap.add_argument('--out', default=None, help='write the sheet, its layout and a preview here instead')
+    ap.add_argument('--work', default=None, help='a working folder kept after the run')
+    args = ap.parse_args(argv)
+
+    import bpy  # noqa: F401 (first: it registers mathutils)
+    from tdt3d import imageio, structure
+    import structures as table
+
+    every = list(table.TOWERS) + ['heart', 'portal']
+    names = every if args.which in ('all', 'structures') else args.which.split(',')
+    for n in names:
+        if n not in every:
+            raise SystemExit(f'No structure "{n}" in tools/blender/structures.py ({", ".join(every)})')
+    out = args.out or MATCH_OUT
+    sheet_path = os.path.join(MATCH_OUT, 'structures-match.png')
+    layout_path = os.path.join(MATCH_OUT, 'structures.json')
+    previous = None
+    if set(names) != set(every) and os.path.exists(layout_path):
+        layout = json.load(open(layout_path))
+        previous = (imageio.read_png(sheet_path), layout['match'])
+    tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-structures-')
+    os.makedirs(tmp, exist_ok=True)
+    t0 = time.time()
+    try:
+        sheet, layout, notes = structure.render_all(table, names, out, tmp, draft=args.draft, previous=previous)
+    finally:
+        if not args.work:
+            shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(out, exist_ok=True)
+    size = imageio.write_png(os.path.join(out, 'structures-match.png'), sheet)
+    # Each frame's fringe check (the shares), kept for the frames not rendered this time.
+    by_frame = {}
+    if previous:
+        by_frame = {k: v for k, v in json.load(open(layout_path))['checks'].get('byFrame', {}).items()
+                    if not any(k.startswith(f'{n}/') for n in names)}
+    for c in notes['checks']:
+        by_frame[c['frame']] = {'fringe': round(c['fringe'] / max(1, c['measured']), 4),
+                                'hard': round(c['hard'] / max(1, c['crossings']), 4)}
+    worst_f = max(by_frame.items(), key=lambda kv: kv[1]['fringe'])
+    worst_h = max(by_frame.items(), key=lambda kv: kv[1]['hard'])
+    doc = {'id': 'structures', 'match': dict(layout, file='structures-match.png'), 'checks': {
+        'frames': len(by_frame), 'samples': notes['samples'], 'worstFringe': worst_f[1]['fringe'],
+        'worstHard': worst_h[1]['hard'], 'byFrame': by_frame}}
+    with open(os.path.join(out, 'structures.json'), 'w') as f:
+        f.write(json.dumps(doc, indent=1, sort_keys=True) + '\n')
+    if args.out or args.work:
+        # A picture of every frame in place, to look at while working on the table.
+        structure.preview(sheet, layout, os.path.join(args.out or args.work, 'structures-preview.png'),
+                          {k: list(v) for k, v in table.TOWERS.items()})
+    print(f'structures: sheet {sheet.shape[1]} × {sheet.shape[0]} ({size} bytes), {len(layout["cells"])} frames; '
+          f'{len(by_frame)} checked, worst fringe {worst_f[1]["fringe"]} ({worst_f[0]}), '
+          f'worst hard {worst_h[1]["hard"]} ({worst_h[0]})', flush=True)
+    for k, v in notes['times'].items():
+        print(f'  {k}: {v} s')
+    print(f'done in {time.time() - t0:.0f} s')
+    if notes['failed']:
+        raise SystemExit('The fringe check failed on: ' + ', '.join(notes['failed']))
+    if notes['over']:
+        raise SystemExit(notes['over'])
+
+
 def map_main(argv):
     ap = argparse.ArgumentParser(prog='build.py map')
     ap.add_argument('which', nargs='?', default='all', choices=['spire', 'card', 'all'])
@@ -139,6 +210,14 @@ def main():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
     if argv and argv[0] == 'map':
         return map_main(argv[1:])
+    if argv and argv[0] == 'structures':
+        return structures_main(argv[1:])
+    import bpy  # noqa: F401 (first: it registers mathutils, which the tables use)
+    import structures as structure_table
+    every = set(structure_table.TOWERS) | {'heart', 'portal'}
+    if argv and argv[0] and set(argv[0].split(',')) <= every:
+        # Tower kinds, the Heart or the portal named directly (`-- arrow,heart`): those, into the one sheet.
+        return structures_main(argv)
     args = ap.parse_args(argv)
 
     import bpy  # noqa: F401 (first: it registers mathutils)

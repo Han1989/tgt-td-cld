@@ -9,7 +9,7 @@ import { OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
-import { loadCreepSheets, loadHeroSheets } from './render/art3d';
+import { loadCreepSheets, loadHeroSheets, loadStructureSheet } from './render/art3d';
 import { loadPlate } from './render/plate';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
@@ -51,34 +51,34 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   const boot = document.getElementById('boot');
   boot?.classList.add('done');
   setTimeout(() => boot?.remove(), 400);
-  // The 3D heroes' match frames (docs/ART.md §15) and the map plate (§16) load a second after the first screen, never
-  // in its way; the creeps' sheets after both, one kind after another (a 2D creep is a fine stand-in, the painted
-  // ground less so, so the creeps never share the line with the plate). `<html data-hero-sheets>`, `data-plate`
-  // ("ready" or "failed") and `data-creep-sheets` say they are in (browser tests start a match after them to see the
-  // 3D rigs and the plate); `tdt:hero-sheets` and `tdt:creep-sheets` mark when (npm run first-load). A match drawn
-  // before the plate has decoded shows the painted ground until it has.
+  // The map plate (docs/ART.md §16) and the 3D sheets (§15) load a second after the first screen, never in its way,
+  // one after another (Han, 17 Oct 2026): the plate first, then the towers', Heart's and portals' sheet, then the
+  // creeps' sheets (one kind after another), then the heroes'. The painted ground and the 2D art cover each until its
+  // picture is in. `<html data-plate>` ("ready" or "failed"), `data-structures`, `data-creep-sheets` and
+  // `data-hero-sheets` say they are in (browser tests start a match after them to see the 3D art and the plate);
+  // `tdt:structures`, `tdt:creep-sheets` and `tdt:hero-sheets` mark when (npm run first-load).
   if (screen === 'solo' || screen === 'online' || screen === 'stress') {
-    setTimeout(() => {
-      const heroes = loadHeroSheets().then(() => {
-        document.documentElement.dataset.heroSheets = 'ready';
-        performance.mark('tdt:hero-sheets');
-      });
-      const plate = loadPlate().then((p) => (document.documentElement.dataset.plate = p ? 'ready' : 'failed'));
-      void Promise.all([heroes, plate])
-        .then(() => {
-          // Browser-test builds: `?creeps2d` keeps the 2D creeps, to compare the two in the same build.
-          if (import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('creeps2d')) return;
-          return loadCreepSheets();
-        })
-        .then(() => {
-          document.documentElement.dataset.creepSheets = 'ready';
-          performance.mark('tdt:creep-sheets');
-        });
-    }, SHEETS_AFTER_MS);
+    setTimeout(() => void loadArt(), SHEETS_AFTER_MS);
   }
 }
 
-/** How long after the first screen the 3D heroes' match sheets and the map plate start loading (then the creeps'), ms. */
+async function loadArt(): Promise<void> {
+  const html = document.documentElement.dataset;
+  const plate = await loadPlate();
+  html.plate = plate ? 'ready' : 'failed';
+  await loadStructureSheet();
+  html.structures = 'ready';
+  performance.mark('tdt:structures');
+  // Browser-test builds: `?creeps2d` keeps the 2D creeps, to compare the two in the same build.
+  if (!(import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('creeps2d'))) await loadCreepSheets();
+  html.creepSheets = 'ready';
+  performance.mark('tdt:creep-sheets');
+  await loadHeroSheets();
+  html.heroSheets = 'ready';
+  performance.mark('tdt:hero-sheets');
+}
+
+/** How long after the first screen the map plate and then the 3D sheets start loading, ms. */
 const SHEETS_AFTER_MS = 1000;
 
 async function main(): Promise<void> {

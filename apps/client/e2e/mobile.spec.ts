@@ -625,7 +625,8 @@ test.describe('portrait phone layout', () => {
     // The match frames load a second after the first screen; a hero made after that gets its 3D rig.
     await page.goto('/?lab');
     await waitForReady(page, 'solo');
-    await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 15_000 });
+    // The hero sheets load last (after the plate, the structures and the creeps: main.ts).
+    await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 30_000 });
     await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
     await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
     await page.locator('#lobby-offline').click();

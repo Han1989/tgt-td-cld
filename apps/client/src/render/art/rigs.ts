@@ -434,32 +434,64 @@ export function hold(t: number, inEnd = 0.2, outStart = 0.75): number {
 // ---------------------------------------------------------------------------
 
 /** Turret turn rate, rad/s. */
-const TURN_RATE = 7;
+export const TURN_RATE = 7;
 
-export class TowerRig {
+/**
+ * What every tower rig has (the 2D TowerRig below, and Tower3DRig from the 3D sheet, render/art3d): a contact shadow,
+ * a base that never turns, and a turret container the rig turns towards its target at TURN_RATE. The renderer drives
+ * both alike: `setTier` on a new tier or branch, `aim` every frame, `kick` with the recoil's slide (px).
+ */
+export abstract class TowerRigBase {
   readonly body = new Container();
-  private readonly base: Sprite;
-  private readonly turret = new Container();
-  private readonly gun: Sprite;
+  protected readonly turret = new Container();
   private angle = -Math.PI / 2;
+  /** Drawn from the 3D sheet (Tower3DRig) rather than the 2D art. */
+  abstract readonly is3d: boolean;
+
+  constructor(
+    kit: ArtKit,
+    /** Whether the turret turns (every tower's does). */
+    readonly turns: boolean,
+  ) {
+    const shadow = kit.sprite('common', 'shadow');
+    shadow.scale.set(2.0, 3.2);
+    shadow.position.set(2, 4);
+    this.turret.rotation = turns ? this.angle : 0;
+    this.body.addChild(shadow);
+  }
+
+  abstract setTier(tier: number, branch: TowerBranch | null): void;
+
+  /** Turn towards `target` (radians) at a capped rate. */
+  aim(target: number, dtMs: number): void {
+    if (!this.turns) return;
+    let d = target - this.angle;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    const max = (TURN_RATE * dtMs) / 1000;
+    this.angle += Math.max(-max, Math.min(max, d));
+    this.turret.rotation = this.angle;
+  }
+
+  /** Recoil: how far the gun is kicked back along its barrel right now (px; 0 at rest). */
+  abstract kick(px: number): void;
+}
+
+/** A tower from its 2D art (render/art/entities/<kind>Tower.ts): a base frame per tier or branch, a gun that slides. */
+export class TowerRig extends TowerRigBase {
+  readonly is3d = false;
+  private readonly base: Sprite;
+  private readonly gun: Sprite;
   private key = '';
 
   constructor(
     private readonly kit: ArtKit,
     private readonly art: TowerArt,
   ) {
-    const shadow = kit.sprite('common', 'shadow');
-    shadow.scale.set(2.0, 3.2);
-    shadow.position.set(2, 4);
+    super(kit, art.turret);
     this.base = kit.sprite(art.id, 'base1');
     this.gun = kit.sprite(art.id, 'top1');
     this.turret.addChild(this.gun);
-    this.turret.rotation = art.turret ? this.angle : 0;
-    this.body.addChild(shadow, this.base, this.turret);
-  }
-
-  get turns(): boolean {
-    return this.art.turret;
+    this.body.addChild(this.base, this.turret);
   }
 
   setTier(tier: number, branch: TowerBranch | null): void {
@@ -470,16 +502,6 @@ export class TowerRig {
     const pick = (part: 'base' | 'top') => (branch && this.kit.has(this.art.id, `${branch}.${part}`) ? `${branch}.${part}` : `${part}${t}`);
     this.base.texture = this.kit.frame(this.art.id, pick('base'));
     this.gun.texture = this.kit.frame(this.art.id, pick('top'));
-  }
-
-  /** Turn towards `target` (radians) at a capped rate. */
-  aim(target: number, dtMs: number): void {
-    if (!this.art.turret) return;
-    let d = target - this.angle;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    const max = (TURN_RATE * dtMs) / 1000;
-    this.angle += Math.max(-max, Math.min(max, d));
-    this.turret.rotation = this.angle;
   }
 
   /** Recoil: the gun slides back along its barrel (px). */

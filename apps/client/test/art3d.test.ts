@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CREEP_KINDS, type CreepKind } from '@tdt/protocol';
+import { CREEP_KINDS, TOWER_BRANCHES, TOWER_KINDS, type CreepKind, type TowerKind } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
@@ -28,6 +28,16 @@ import {
   type StageLayout,
 } from '../src/render/art3d/layout';
 import { CREEP_3D } from '../src/render/art3d/creepData';
+import structuresDoc from '../src/render/art3d/structures.json';
+import {
+  flameFrame,
+  FLICKER_MS,
+  RECOIL_MAX,
+  recoilFrame,
+  towerKeys,
+  towerVariant,
+  type StructuresLayout,
+} from '../src/render/art3d/structures';
 import {
   attackMs,
   CREEP_DEATH,
@@ -916,8 +926,194 @@ describe('nothing 3D runs on the device', () => {
     expect(Object.keys(s.files).sort()).toEqual(['clearing', 'mp4', 'poster', 'webm']);
   });
 
+  it('the towers, the Heart and the portals are one picture and its layout', () => {
+    const own = readdirSync(ART3D).filter((f) => f.startsWith('structures'));
+    // The sheet, its layout, and the code that reads them (structures.ts: the layout's types and the rig rules).
+    expect(own.sort()).toEqual(['structures-match.png', 'structures.json', 'structures.ts']);
+  });
+
   it('the creeps are pictures: a sheet and its layout per kind, and nothing else of theirs under src', () => {
     const own = readdirSync(ART3D).filter((f) => CREEP_KINDS.some((k) => f.startsWith(`${k}.`) || f.startsWith(`${k}-`)));
     expect(own.sort()).toEqual(CREEP_KINDS.flatMap((k) => [`${k}-match.png`, `${k}.json`]).sort());
+  });
+});
+
+describe('3D towers, the Heart and the portals: the structures sheet', () => {
+  const doc = structuresDoc as StructuresLayout;
+  const m = doc.match;
+  const png = decodePng(readFileSync(join(ART3D, m.file)));
+  const cells = Object.entries(m.cells);
+  /** Every tower kind's variants: tiers 1–3 and its two branches (the fourth tier). */
+  const variants = (kind: TowerKind) => ['1', '2', '3', ...TOWER_BRANCHES[kind]];
+  const heartKeys = ['stage0', 'stage1', 'stage2', 'flash0', 'flash1', 'flash2', 'rubble1', 'rubble2', 'glow', 'fire0', 'fire1', 'fire2'];
+
+  it('is one RGBA sheet, at most one 2048 × 2048 page, the size the layout says, 2.75 px per world px', () => {
+    expect(doc.id).toBe('structures');
+    expect(m.file).toBe('structures-match.png');
+    expect([png.width, png.height]).toEqual([m.w, m.h]);
+    expect(png.channels).toBe(4);
+    expect(m.w).toBe(2048);
+    expect(m.h).toBeLessThanOrEqual(2048);
+    // A tower is drawn ~1.8 device px per world px on a 3× phone (docs/ART.md §6): 2.75 never magnifies.
+    expect(m.res).toBe(2.75);
+  });
+
+  it('has a base and four turret frames (at rest, three steps of recoil) for every tower kind, tier and branch', () => {
+    for (const kind of TOWER_KINDS) {
+      for (const v of variants(kind)) {
+        const k = towerKeys(kind, v);
+        expect(m.cells[k.base], k.base).toBeDefined();
+        for (const t of k.turret) expect(m.cells[t], t).toBeDefined();
+      }
+    }
+  });
+
+  it('has the Heart in its three stages (each with its white twin), its rubble, glow and flames, and the portal', () => {
+    for (const k of heartKeys) expect(m.cells[`heart/${k}`], k).toBeDefined();
+    for (const k of ['body', 'glow']) expect(m.cells[`portal/${k}`], k).toBeDefined();
+    // Nothing else: the keys are exactly those.
+    const towers = TOWER_KINDS.flatMap((kind) => variants(kind).flatMap((v) => [towerKeys(kind, v).base, ...towerKeys(kind, v).turret]));
+    expect(Object.keys(m.cells).sort()).toEqual([...towers, ...heartKeys.map((k) => `heart/${k}`), 'portal/body', 'portal/glow'].sort());
+    // The effects' points: the chest in front of the castle, below its point; the keep above it; the gate's opening.
+    expect(m.heart.points.chest.y).toBeGreaterThan(0);
+    expect(m.heart.points.keep.y).toBeLessThan(0);
+    expect(Math.abs(m.portal.points.opening.x)).toBeLessThan(4);
+  });
+
+  it('every frame lies inside the sheet without overlapping another, its anchor inside it', () => {
+    for (const [key, c] of cells) {
+      expect(c.x, key).toBeGreaterThanOrEqual(0);
+      expect(c.y, key).toBeGreaterThanOrEqual(0);
+      expect(c.x + c.w, key).toBeLessThanOrEqual(m.w);
+      expect(c.y + c.h, key).toBeLessThanOrEqual(m.h);
+      // Glow layers are kept at half the sheet's pixels (their light is soft).
+      expect([undefined, m.res / 2], key).toContain(c.res);
+      // A tower's centre and a turret's pivot lie on their frame; a building's point at least near it (the castle's
+      // point is its middle; the gate's opening is over its point).
+      if (!key.startsWith('heart/') && !key.startsWith('portal/')) {
+        expect(c.ax, key).toBeGreaterThan(0);
+        expect(c.ax, key).toBeLessThan(c.w);
+        expect(c.ay, key).toBeGreaterThan(0);
+        expect(c.ay, key).toBeLessThan(c.h);
+      }
+    }
+    const sorted = [...cells].sort((a, b) => a[1].y - b[1].y);
+    for (let i = 0; i < sorted.length; i++) {
+      const [ka, a] = sorted[i]!;
+      for (let j = i + 1; j < sorted.length && sorted[j]![1].y < a.y + a.h; j++) {
+        const [kb, b] = sorted[j]!;
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+        expect(overlap, `${ka} and ${kb}`).toBe(false);
+      }
+    }
+  });
+
+  it('no frame is empty or cut at its edge, and each Heart twin is its stage in white', () => {
+    for (const [key, c] of cells) {
+      let drawn = 0;
+      for (let yy = 0; yy < c.h; yy++) {
+        for (let xx = 0; xx < c.w; xx++) {
+          const a = alphaAt(png, c.x + xx, c.y + yy);
+          if (a > 0) drawn++;
+          if (xx === 0 || yy === 0 || xx === c.w - 1 || yy === c.h - 1) expect(a, `${key} touches its edge at ${xx},${yy}`).toBe(0);
+        }
+      }
+      expect(drawn, key).toBeGreaterThan(c.w * c.h * 0.1);
+    }
+    for (const stage of [0, 1, 2]) {
+      const t = m.cells[`heart/flash${stage}`]!;
+      let white = 0;
+      for (let yy = 0; yy < t.h; yy++) {
+        for (let xx = 0; xx < t.w; xx++) {
+          const i = ((t.y + yy) * png.width + t.x + xx) * 4;
+          if (png.data[i + 3]! > 0) {
+            expect([png.data[i], png.data[i + 1], png.data[i + 2]]).toEqual([255, 255, 255]);
+            white++;
+          }
+        }
+      }
+      expect(white).toBeGreaterThan(t.w * t.h * 0.2);
+    }
+  });
+
+  it('a tower stays on its 3 × 3 tile pad: its base inside the pad, its turret at any angle', () => {
+    const half = 48;
+    for (const kind of TOWER_KINDS) {
+      for (const v of variants(kind)) {
+        const k = towerKeys(kind, v);
+        for (const key of [k.base, ...k.turret]) {
+          const c = m.cells[key]!;
+          let reach = 0;
+          for (let yy = 0; yy < c.h; yy++) {
+            for (let xx = 0; xx < c.w; xx++) {
+              // The drawing (its soft shadow and glow aside).
+              if (alphaAt(png, c.x + xx, c.y + yy) < 200) continue;
+              const dx = (xx + 0.5 - c.ax) / m.res;
+              const dy = (yy + 0.5 - c.ay) / m.res;
+              reach = Math.max(reach, key === k.base ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy));
+            }
+          }
+          expect(reach, key).toBeLessThanOrEqual(half);
+          // And it is a tower, not a speck: a base reaches a good part of the pad, a turret past its pivot.
+          expect(reach, key).toBeGreaterThan(key === k.base ? 22 : 10);
+        }
+      }
+    }
+  });
+
+  it('every frame passed the fringe check in the build, at 24 samples', () => {
+    expect(doc.checks.samples).toBe(24);
+    // Every frame but the glow layers (light, with no silhouette) and the Heart's twins (white shapes), over the
+    // ground it stands on (a pad, the moss, the lane).
+    const checked = cells.map(([k]) => k).filter((k) => !/^heart\/(flash|glow|fire)|^portal\/glow/.test(k));
+    expect(Object.keys(doc.checks.byFrame).sort()).toEqual(checked.sort());
+    expect(doc.checks.frames).toBe(checked.length);
+    for (const [k, c] of Object.entries(doc.checks.byFrame)) {
+      expect(c.fringe, k).toBeLessThanOrEqual(0.01);
+      expect(c.hard, k).toBeLessThanOrEqual(0.05);
+    }
+    expect(doc.checks.worstFringe).toBe(Math.max(...Object.values(doc.checks.byFrame).map((c) => c.fringe)));
+    expect(doc.checks.worstHard).toBe(Math.max(...Object.values(doc.checks.byFrame).map((c) => c.hard)));
+  });
+});
+
+describe('3D towers, the Heart and the portals: the rig rules', () => {
+  it('a tier shows its variant, a branch its own; the keys name a base and four turret frames', () => {
+    expect(towerVariant(1, null)).toBe('1');
+    expect(towerVariant(3, null)).toBe('3');
+    expect(towerVariant(4, 'volley')).toBe('volley');
+    expect(towerVariant(7, null)).toBe('3');
+    expect(towerKeys('frost', 'glacier')).toEqual({
+      base: 'frost/glacier/base',
+      turret: ['frost/glacier/turret0', 'frost/glacier/turret1', 'frost/glacier/turret2', 'frost/glacier/turret3'],
+    });
+  });
+
+  it('a recoil kick steps through the turret frames: the full kick the last, and back to rest as it eases', () => {
+    expect(recoilFrame(0)).toBe(0);
+    expect(recoilFrame(RECOIL_MAX)).toBe(3);
+    expect(recoilFrame(RECOIL_MAX * 2)).toBe(3);
+    expect(recoilFrame(-1)).toBe(0);
+    // The renderer's kick after a shot: r² × RECOIL_MAX as r falls from 1 to 0 over the recoil.
+    const seen = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0].map((r) => recoilFrame(r * r * RECOIL_MAX));
+    expect(seen[0]).toBe(3);
+    expect(seen[seen.length - 1]).toBe(0);
+    for (let i = 1; i < seen.length; i++) expect(seen[i]!).toBeLessThanOrEqual(seen[i - 1]!);
+    expect(new Set(seen)).toEqual(new Set([0, 1, 2, 3]));
+  });
+
+  it(`the Heart's flames flicker: a new frame every FLICKER_MS, never the same twice in a row, bright to full`, () => {
+    let last = -1;
+    for (let step = 0; step < 200; step++) {
+      const f = flameFrame(step * FLICKER_MS + 5);
+      expect(f.i).toBeGreaterThanOrEqual(0);
+      expect(f.i).toBeLessThan(3);
+      expect(f.i).not.toBe(last);
+      expect(f.alpha).toBeGreaterThanOrEqual(0.75);
+      expect(f.alpha).toBeLessThanOrEqual(1);
+      last = f.i;
+    }
+    // The same moment, the same flame.
+    expect(flameFrame(1234)).toEqual(flameFrame(1234));
   });
 });

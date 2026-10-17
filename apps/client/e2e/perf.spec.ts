@@ -21,8 +21,9 @@
 //   No profiler runs meanwhile (it adds about 25% to every frame).
 // - Fixed-rate work: a DevTools CPU profile over PROFILE_FRAMES frames; JavaScript outside
 //   Pixi's ticker, divided by the profile's own duration.
-// - The creeps are measured as a match draws them once its sheets are in: every one from its 3D frames (docs/ART.md
-//   §15), so the test waits for the sheets (`<html data-creep-sheets>`) and for all 300 to have swapped.
+// - The creeps, the towers, the Heart and the portals are measured as a match draws them once their sheets are in:
+//   every one from its 3D frames (docs/ART.md §15), so the test waits for the sheets (`<html data-hero-sheets>`, the
+//   last of them) and for all 300 creeps and every tower to have swapped.
 // The test used to divide the ticker's JavaScript in a 5 s CPU profile by the frames
 // counted in a 5 s requestAnimationFrame window. The profile ran 1.3–3.7 s longer (the
 // DevTools round trips), so it held 17–50% more frames than it was divided by, the most on
@@ -110,6 +111,10 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   await expect.poll(() => page.evaluate(() => window.__tdt.art().ground)).toBe('plate');
   await expect(page.locator('html')).toHaveAttribute('data-creep-sheets', 'ready', { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => window.__tdt.art().creep3d)).toBe(300);
+  // The structures' sheet comes in before the creeps', the heroes' after them (main.ts).
+  await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 60_000 });
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().tower3d)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().tower3d === window.__tdt.art().towerRigs)).toBe(true);
   // A key press is the first gesture: audio starts (Shift alone does nothing in the game).
   await page.keyboard.press('Shift');
   await expect.poll(() => page.evaluate(() => window.__tdt.audio().state)).toBe('running');
@@ -143,7 +148,8 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
     `→ ${at30.toFixed(0)} ms of CPU per second at 30 FPS; ${visible} creeps drawn; ${fx.live} effect particles live; ` +
     `sound ${sound.state}: ${sound.played} effects played, ${sound.skipped} skipped, ${sound.notes} music notes; ` +
     `${textures.count} textures on the GPU, ${(textures.bytes / 2 ** 20).toFixed(1)} MiB; ${art3d.creep3d} creeps in 3D ` +
-    `(${art3d.creep3dKinds.join(', ')}); GPU: ${gpu}`;
+    `(${art3d.creep3dKinds.join(', ')}), ${art3d.tower3d} towers in 3D, the Heart ${art3d.heart3d ? 'in 3D' : 'in 2D'}, ` +
+    `${art3d.portals3d} portals in 3D; GPU: ${gpu}`;
   test.info().annotations.push({ type: 'stress', description: report });
   console.log(`Stress scene (300 creeps, 4× CPU throttling): ${report}`);
 
