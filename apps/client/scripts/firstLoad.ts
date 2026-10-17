@@ -15,7 +15,8 @@
 // bytes and how long its decode took (`tdt:decode:spire.webp`), on the same throttled phone. With `--sheets` it then
 // waits for the 3D match sheets, which load after the plate, one after another (docs/ART.md §15: the towers', Heart's
 // and portals', the creeps', then the heroes'), and reports when they were in (`tdt:structures`, `tdt:creep-sheets`,
-// `tdt:hero-sheets`) and their bytes; the first screen's numbers are taken before, so they don't move.
+// `tdt:hero-sheets`) and their bytes (all of them, and the creeps' alone); the first screen's numbers are taken
+// before, so they don't move.
 
 import { fileURLToPath } from 'node:url';
 import { chromium, devices } from '@playwright/test';
@@ -42,6 +43,7 @@ interface Run {
   heroSheets: number;
   creepSheets: number;
   sheetsKb: number;
+  creepKb: number;
 }
 
 function arg(name: string): string | undefined {
@@ -142,7 +144,7 @@ try {
         }),
       )
       .catch(() => ({ at: NaN, decode: NaN, kb: NaN }));
-    let loaded = { structures: NaN, hero: NaN, creep: NaN, bytes: 0 };
+    let loaded = { structures: NaN, hero: NaN, creep: NaN, bytes: 0, creepBytes: 0 };
     if (sheets) {
       // The hero sheets are the last in.
       await page.waitForFunction(() => document.documentElement.dataset.heroSheets === 'ready', undefined, { timeout: 300_000 });
@@ -150,11 +152,12 @@ try {
         const [structures, hero, creep] = ['tdt:structures', 'tdt:hero-sheets', 'tdt:creep-sheets'].map(
           (name) => performance.getEntriesByName(name)[0]?.startTime ?? NaN,
         );
-        const bytes = performance
-          .getEntriesByType('resource')
-          .filter((r) => /-match[^/]*\.png/.test(r.name))
-          .reduce((s, r) => s + (r as PerformanceResourceTiming).transferSize, 0);
-        return { structures: structures!, hero: hero!, creep: creep!, bytes };
+        // The creeps' are the nine kinds' (no named helper: see above).
+        const sheet = performance.getEntriesByType('resource').filter((r) => /-match[^/]*\.(png|webp)/.test(r.name)) as PerformanceResourceTiming[];
+        const creeps = sheet.filter((r) => /\/(grunt|runner|archer|brute|wisp|hatchling|ironhorn|matriarch|shardback)-match/.test(r.name));
+        const bytes = sheet.reduce((s, r) => s + r.transferSize, 0);
+        const creepBytes = creeps.reduce((s, r) => s + r.transferSize, 0);
+        return { structures: structures!, hero: hero!, creep: creep!, bytes, creepBytes };
       });
     }
     results.push({
@@ -170,13 +173,14 @@ try {
       heroSheets: loaded.hero,
       creepSheets: loaded.creep,
       sheetsKb: loaded.bytes / 1024,
+      creepKb: loaded.creepBytes / 1024,
     });
     console.log(
       `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB; ` +
         `map plate ${(plate.kb).toFixed(0)} KB, ready ${ms(plate.at)}, decoded in ${plate.decode.toFixed(0)} ms` +
         (sheets
           ? `; structures in at ${ms(loaded.structures)}, creep sheets at ${ms(loaded.creep)}, hero sheets at ${ms(loaded.hero)} ` +
-            `(${(loaded.bytes / 1024).toFixed(0)} KB)`
+            `(${(loaded.bytes / 1024).toFixed(0)} KB, the creeps' ${(loaded.creepBytes / 1024).toFixed(0)} KB)`
           : ''),
     );
     await context.close();
@@ -213,4 +217,5 @@ if (sheets) {
   console.log(`creep sheets in:          ${stats(results.map((r) => r.creepSheets))}`);
   console.log(`hero sheets in:           ${stats(results.map((r) => r.heroSheets))}`);
   console.log(`match sheets:             ${(results.reduce((s, r) => s + r.sheetsKb, 0) / results.length).toFixed(0)} KB per load`);
+  console.log(`creep sheets:             ${(results.reduce((s, r) => s + r.creepKb, 0) / results.length).toFixed(0)} KB per load`);
 }

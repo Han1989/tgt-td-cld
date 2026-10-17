@@ -1,9 +1,9 @@
-# The creeps' match frames (docs/ART.md §15, V-05c): a creep or boss rendered ahead of time into one sheet at 4 px per
-# world px, from its row of the creep table (tools/blender/creeps.py), played by Creep3DRig on the device. The same
-# camera (3/4 from the front right, 20° down), moon, rim, painter and ink as the heroes' match frames; rendered at 1×
-# with 24 samples a pixel (#109's rule for a hero's stage frames: his edges anti-aliased by the samples, the painter's
-# line covering the rim the render leaves outside the figure), and every frame goes through the fringe check
-# (fringe.py) over the lane it walks on.
+# The creeps' match frames (docs/ART.md §15, V-05c): a creep or boss rendered ahead of time into one sheet (a lossless
+# WebP) at 4 px per world px, from its row of the creep table (tools/blender/creeps.py), played by Creep3DRig on the
+# device. The same camera (3/4 from the front right, 20° down), moon, rim, painter and ink as the heroes' match frames;
+# rendered at 1× with 24 samples a pixel (#109's rule for a hero's stage frames: his edges anti-aliased by the samples,
+# the painter's line covering the rim the render leaves outside the figure), and every frame goes through the fringe
+# check (fringe.py) over the lane it walks on.
 #
 # One frame box for every frame (the feet at its anchor), each frame trimmed to what it covers and packed tightly
 # (its offset in the box kept, so frames swap without moving). The states are the 2D creep rig's: a walk cycle, a
@@ -21,7 +21,7 @@ import time
 import bpy
 import numpy as np
 
-from . import figure, fringe, imageio, match, motion, npr, scene, shading
+from . import encode, figure, fringe, imageio, match, motion, npr, scene, shading
 from .palette import rgb
 
 RES = 4            # sheet px per world px
@@ -252,7 +252,7 @@ def pages(sheets):
 
 
 def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=None):
-    """Renders the creep's match sheet into out_dir (<kind>-match.png); returns its layout, the file's size and the
+    """Renders the creep's match sheet into out_dir (<kind>-match.webp); returns its layout, the file's size and the
     build's notes (render time, the fringe check on every frame)."""
     t_start = time.time()
     name = spec['name']
@@ -368,8 +368,8 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
             hides[k] = dict(x=int(x), y=int(y), w=int(hb[2] - hb[0]), h=int(hb[3] - hb[1]),
                             dx=int(hb[0] - union[0]), dy=int(hb[1] - union[1]))
     os.makedirs(out_dir, exist_ok=True)
-    file = f'{name}-match.png'
-    size = imageio.write_png(os.path.join(out_dir, file), sheet)
+    file = f'{name}-match.webp'
+    size = encode.sheet(sheet, os.path.join(out_dir, file))
 
     frames = {}
     hide_frames = {}

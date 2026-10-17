@@ -1,11 +1,14 @@
 # Encoding with ffmpeg: the stage loop as an H.264 MP4 (yuv420p, faststart, muted: plays inline everywhere, iPhones
 # included; level 4.2 for its 2400 × 900 frame; one keyframe a loop, since a loop only ever starts at its first
 # frame), its first frame as a WebP poster, and stills. Each searches its quality setting for the best that stays
-# under the size budget (docs/ART.md §15).
+# under the size budget (docs/ART.md §15). The creeps' match sheets are lossless WebP (`sheet`).
 
 import os
 import shutil
 import subprocess
+import tempfile
+
+from . import imageio
 
 VIDEO_BUDGET = 1_200_000
 POSTER_BUDGET = 60_000
@@ -47,6 +50,19 @@ def webp(png, out, quality, w=None, h=None):
     vf = ['-vf', f'scale={w}:{h}:flags=lanczos'] if w else []
     _run(['-i', png, *vf, '-c:v', 'libwebp', '-quality', str(quality), '-compression_level', '6', '-preset', 'picture',
           '-map_metadata', '-1', '-fflags', '+bitexact', out])
+    return os.path.getsize(out)
+
+
+def sheet(img, out):
+    """A match sheet (h × w × 4 straight RGBA, uint8) as a lossless WebP: every alpha and every colour the figure
+    shows kept exactly, a third smaller than the PNG (V-05c round 2). libwebp may change the colour under a fully
+    transparent pixel; at this setting it clears it (test/art3d.test.ts checks), so sampling never bleeds it in.
+    libwebp's slowest, smallest setting; the same pixels give the same bytes."""
+    with tempfile.TemporaryDirectory(prefix='tdt3d-sheet-') as tmp:
+        png = os.path.join(tmp, 'sheet.png')
+        imageio.write_png(png, img, level=1)
+        _run(['-i', png, '-c:v', 'libwebp', '-lossless', '1', '-compression_level', '6', '-quality', '100',
+              '-map_metadata', '-1', '-fflags', '+bitexact', out])
     return os.path.getsize(out)
 
 
