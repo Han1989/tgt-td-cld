@@ -1,7 +1,8 @@
 // PixiJS renderer for the game world. It reads snapshots and UI state and never
 // touches game state.
 //
-// Art (docs/ART.md): the Runelight look. The ground is painted once into one canvas;
+// Art (docs/ART.md): the Runelight look. The ground is the map plate (docs/ART.md §16): one picture rendered ahead
+// of time in Blender, one sprite; until it has decoded, the ground painted once into one canvas (ground.ts);
 // entities with registered art (render/art/entities/) are rigs of baked atlas sprites,
 // animated by transform, tint and alpha only. Projectiles and traps are sprites too
 // (one body turned along the shot; a trap's idle / armed frames and its root ring).
@@ -58,6 +59,7 @@ import {
 import { heartStage, HEART_LOW } from './art/damage';
 import { ArtKit } from './art/kit';
 import { createGround, type Ground } from './art/ground';
+import { loadPlate, mapPlate, onPlate, padLook, plateFits, type Plate } from './plate';
 import { PAD_PX } from './art/entities/pad';
 import {
   creepArt,
@@ -74,7 +76,7 @@ import {
 } from './art/registry';
 import { CreepRig, DEATH, HIT_FLASH, TowerRig } from './art/rigs';
 import { creepRig3d, creepSheetsVersion, hasCreep3d, Hero3DRig, heroRig3d, type Creep3DRig } from './art3d';
-import { RL, type Display } from './art/tokens';
+import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
 const S = TILE_PX;
@@ -248,6 +250,13 @@ interface PadSprite {
   root: Container;
   rim: Sprite;
   wash: Sprite;
+  /** Over the map plate: the plate round a pad it was rendered without (an extra pad of bigger teams). */
+  patch?: Sprite;
+}
+
+function destroyPad(s: PadSprite): void {
+  s.root.destroy({ children: true });
+  s.patch?.destroy();
 }
 
 interface PortalSprite {
@@ -341,7 +350,14 @@ export class WorldRenderer {
   private readonly map: GameMap = getMap();
   /** Baked atlas of every registered entity's art (docs/ART.md). */
   private readonly art: ArtKit;
-  private readonly ground: Ground;
+  /** The ground's sprite: the map plate, or the painted ground until the plate has decoded. Made on the first frame. */
+  private groundSprite: Sprite | null = null;
+  /** The painted ground (ground.ts), only while the plate has not decoded. */
+  private ground: Ground | null = null;
+  /** The map plate, once it is drawn (docs/ART.md §16). */
+  private plate: Plate | null = null;
+  /** Settings → Display: Bright over the plate is a "screen" wash (the painted ground repaints itself instead). */
+  private readonly brightWash: Sprite;
   /**
    * Heroes, creeps and towers are drawn this much larger than their map size, so they stay readable when
    * tiles are small on a phone (`entityScales`, docs/ART.md §6). Set by the layout. Only what is drawn follows:
@@ -366,7 +382,14 @@ export class WorldRenderer {
     this.meteors = new MeteorShow(this.atlas, this.fx);
     this.meteors.onLaunch = (kind, finale) => this.onMeteorFall(kind, finale);
     this.art = new ArtKit('normal');
-    this.ground = createGround(this.map, 'normal');
+    this.brightWash = new Sprite(Texture.WHITE);
+    this.brightWash.width = this.map.width * S;
+    this.brightWash.height = this.map.height * S;
+    this.brightWash.tint = LIGHTING.bright.groundLift.color;
+    this.brightWash.alpha = LIGHTING.bright.groundLift.alpha;
+    this.brightWash.blendMode = 'screen';
+    this.brightWash.visible = false;
+    this.mapLayer.addChild(this.brightWash);
     this.world.addChild(
       this.mapLayer,
       this.padLayer,
@@ -389,16 +412,19 @@ export class WorldRenderer {
     this.fx.attach(this.groundFxLayer, this.fxLayer);
     this.zoneLayer.addChild(this.meteors.ground);
     app.stage.addChild(this.world);
-    this.drawMap();
     this.heart = this.makeHeart();
     this.makePortals();
   }
 
-  /** Settings → Display: re-bakes the art and repaints the ground (Bright lifts ground and shadows). */
+  /**
+   * Settings → Display: re-bakes the art (Bright lifts shadows); over the plate Bright is the same "screen" wash the
+   * painted ground bakes in, laid over it as one sprite, so switching is instant.
+   */
   setDisplay(display: Display): void {
     if (display === this.art.display) return;
     this.art.setDisplay(display);
-    this.ground.repaint(display);
+    this.ground?.repaint(display);
+    this.brightWash.visible = this.plate !== null && display === 'bright';
   }
 
   /** Where your hero is drawn (tiles), for the browser tests' latency trace. */
@@ -425,6 +451,8 @@ export class WorldRenderer {
     creep3dKinds: string[];
     creep3dStates: string[];
     impacts: number;
+    /** What the ground is: the map plate, the painted ground (until the plate decodes), or none yet (no match drawn). */
+    ground: 'plate' | 'painted' | 'none';
   } {
     const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
     const rigs3d = [...this.heroes.values()].map((s) => s.art).filter((a): a is Hero3DRig => a instanceof Hero3DRig);
@@ -443,6 +471,7 @@ export class WorldRenderer {
       creep3dKinds: [...new Set(creeps3d.map((r) => r.kind))].sort(),
       creep3dStates: [...new Set(creeps3d.flatMap((r) => [...r.shownStates]))].sort(),
       impacts: this.impactsLanded,
+      ground: this.plate ? 'plate' : this.ground ? 'painted' : 'none',
     };
   }
 
@@ -528,6 +557,7 @@ export class WorldRenderer {
     this.world.position.set(cam.viewW / 2 - cam.x * cam.zoom + shake.x, cam.viewH / 2 - cam.y * cam.zoom + shake.y);
     this.fx.zoom = cam.zoom;
     this.fx.bitScale = this.scales.creep;
+    this.ensureGround();
 
     const { from, to, alpha } = view;
     const creeps = lerpEntities(from.creeps, to.creeps, alpha);
@@ -1016,9 +1046,35 @@ export class WorldRenderer {
   // Static map, portals and the Heart
   // -------------------------------------------------------------------------
 
-  /** The painted ground (moss, lanes, forest): one sprite. */
-  private drawMap(): void {
-    this.mapLayer.addChild(new Sprite(this.ground.texture));
+  /**
+   * The ground, made on the first frame of a match: the map plate if it has decoded (docs/ART.md §16), else the
+   * painted ground (moss, lanes, forest; ground.ts) until it has, then the plate in its place.
+   */
+  private ensureGround(): void {
+    if (this.groundSprite) return;
+    const ready = mapPlate();
+    this.groundSprite = new Sprite();
+    this.mapLayer.addChildAt(this.groundSprite, 0);
+    if (ready && plateFits(ready.layout, this.map.width, this.map.height, S)) return this.usePlate(ready);
+    this.ground = createGround(this.map, this.art.display);
+    this.groundSprite.texture = this.ground.texture;
+    onPlate((p) => this.usePlate(p));
+    void loadPlate();
+  }
+
+  /** Draws the plate as the ground (one sprite, plate px at 1 / res) and the pads over it. */
+  private usePlate(p: Plate): void {
+    if (this.plate || !this.groundSprite || !plateFits(p.layout, this.map.width, this.map.height, S)) return;
+    this.plate = p;
+    this.groundSprite.texture = p.texture;
+    this.groundSprite.scale.set(1 / p.layout.res);
+    this.ground?.texture.destroy(true);
+    this.ground = null;
+    this.brightWash.visible = this.art.display === 'bright';
+    // The plate has the pads' stone: the next frame draws them again over it (zone tints, patches).
+    for (const s of this.pads.values()) destroyPad(s);
+    this.pads.clear();
+    this.padKey = '';
   }
 
   /** Portals: a stone rim with a glowing swirl that turns, and an additive glow in the middle. */
@@ -1175,6 +1231,7 @@ export class WorldRenderer {
     const art = padArt();
     const scale = (this.map.padSize * S) / PAD_PX;
     const solo = snap.players.length <= 1;
+    const plate = this.plate;
     const seen = new Set<number>();
     for (const p of snap.pads) {
       const pad = this.map.pads[p.id];
@@ -1187,9 +1244,21 @@ export class WorldRenderer {
         root.scale.set(scale);
         const rim = this.art.sprite(art.id, 'rim');
         const wash = this.art.sprite(art.id, 'wash');
-        root.addChild(this.art.sprite(art.id, 'slab'), wash, rim);
+        // Over the plate a pad's stone is in the picture (or its patch, under every pad's tints); the slab sprite
+        // only on the painted ground, or for a pad the plate was rendered without.
+        const look = plate ? padLook(plate.layout, p.id) : 'slab';
+        if (look === 'slab') root.addChild(this.art.sprite(art.id, 'slab'));
+        root.addChild(wash, rim);
         this.padLayer.addChild(root);
-        this.pads.set(p.id, (s = { root, rim, wash }));
+        s = { root, rim, wash };
+        const patch = look === 'patch' ? plate?.patches.get(p.id) : undefined;
+        if (patch && plate) {
+          s.patch = new Sprite(patch.texture);
+          s.patch.position.set(patch.x / plate.layout.res, patch.y / plate.layout.res);
+          s.patch.scale.set(1 / plate.layout.res);
+          this.padLayer.addChildAt(s.patch, 0);
+        }
+        this.pads.set(p.id, s);
       }
       const seat = snap.players.findIndex((pl) => pl.id === p.owner);
       const zone = solo || seat < 0 ? null : (PLAYER_COLORS[seat % PLAYER_COLORS.length] ?? null);
@@ -1201,7 +1270,7 @@ export class WorldRenderer {
     }
     for (const [id, s] of this.pads) {
       if (seen.has(id)) continue;
-      s.root.destroy({ children: true });
+      destroyPad(s);
       this.pads.delete(id);
     }
   }

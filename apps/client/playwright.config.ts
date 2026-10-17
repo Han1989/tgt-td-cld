@@ -48,7 +48,8 @@ export default defineConfig({
     {
       name: 'iphone',
       retries: RETRIES,
-      testMatch: /(mobile|lobby|hook|ultimates|privacy)\.spec\.ts/,
+      // platform: the PWA, effects and sound, and the map plate decoding and drawing on the iPhone's screen too.
+      testMatch: /(mobile|platform|lobby|hook|ultimates|privacy)\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
     {

@@ -8,6 +8,7 @@ import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
 import { loadCreepSheets, loadHeroSheets } from './render/art3d';
+import { loadPlate } from './render/plate';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
 
@@ -51,6 +52,8 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   // The 3D heroes' match frames (docs/ART.md §15) load a second after the first screen, never in its way, then the
   // creeps' one kind after another. `<html data-hero-sheets>` and `data-creep-sheets` say they are in (browser tests
   // start a match after it to see the 3D rigs); `tdt:hero-sheets` and `tdt:creep-sheets` mark when (npm run first-load).
+  // The map plate (docs/ART.md §16) too: a match drawn before it has decoded shows the painted ground until it has.
+  // `<html data-plate>` says it is in ("ready") or failed.
   if (screen === 'solo' || screen === 'online' || screen === 'stress') {
     setTimeout(
       () =>
@@ -68,6 +71,7 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
           }),
       SHEETS_AFTER_MS,
     );
+    setTimeout(() => void loadPlate().then((p) => (document.documentElement.dataset.plate = p ? 'ready' : 'failed')), SHEETS_AFTER_MS);
   }
 }
 

@@ -105,6 +105,9 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   await page.goto('/?stress=300');
   await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);
+  // The ground measured is the map plate (docs/ART.md §16), not the painted ground it replaces once decoded.
+  await expect(page.locator('html')).toHaveAttribute('data-plate', 'ready');
+  await expect.poll(() => page.evaluate(() => window.__tdt.art().ground)).toBe('plate');
   await expect(page.locator('html')).toHaveAttribute('data-creep-sheets', 'ready', { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => window.__tdt.art().creep3d)).toBe(300);
   // A key press is the first gesture: audio starts (Shift alone does nothing in the game).

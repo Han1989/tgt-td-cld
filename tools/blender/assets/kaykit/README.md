@@ -30,3 +30,30 @@ to the client.
 They share Rig_Medium with the Adventurers, so the clips in `animations/rig_medium/` fit them, including the `Special` pack's skeleton set (`Skeletons_Walking`, `Skeletons_Awaken_*`, `Skeletons_Death`, `Skeletons_Taunt`, `Skeletons_Spawn_Ground`).
 
 Creep mapping (V-05c, `tools/blender/creeps.py`): Grunt ← Minion (+ `Skeleton_Blade`), Runner ← Rogue, Archer ← Minion + crossbow, Brute ← Warrior with axe and shield, each scaled to its radius in the game. The Wisps (flyers) and the three bosses are not in this pack (`../quaternius/monsters/`).
+
+## Structures: Medieval Hexagon, Medieval Builder, Dungeon (added 17 Oct 2026)
+
+Three more KayKit packs, CC0 (each folder keeps the pack's own `LICENSE.txt`), for the towers, the Heart and the
+portals (V-05d). Only the pieces the game maps are here; copy more from the packs when a row needs them.
+
+| Folder | From | What |
+|---|---|---|
+| `hexagon/buildings/` | KayKit Medieval Hexagon Pack 1.0 (FREE) | `building_tower_A`, `_B`, `_base`, `_catapult` (round stone towers, a siege tower), `castle`, `windmill`, `blacksmith`, `church`, `mine`, `well` (the `_blue` variants: the painter remaps every material, so the colour does not matter), `building_destroyed`, `wall_corner_A_outside`, `wall_straight_gate`; glTF + `.bin`, UVs on `hexagon/hexagons_medieval.png` |
+| `hexagon/props/` | same | `bucket_arrows`, `target`, `weaponrack`, `flag_red`, `resource_stone`, `barrel` |
+| `builder/` | KayKit Medieval Builder Pack 1.0 (legacy) | `watchtower.glb`, `castle.glb`, `wall_gate.glb`, `wall_corner.glb` (binary glTF) |
+| `dungeon/` | KayKit Dungeon Pack 1.1 (FREE) | `pillar`, `pillar_decorated`, `column`, `barrier_column`, `torch_lit`, `torch_mounted`, `candle_triple`, `wall_arched`, `wall_archedwindow_open`, two banners, `chest_gold`, `coin_stack_large`, `rubble_large`, `rubble_half`, `sword_shield_gold`; UVs on `dungeon/dungeon_texture.png` |
+
+Kitbash mapping (V-05d; a tower is a base that never turns plus a turret that turns and recoils):
+
+| Thing | Base | Turret / top | Tier 2 / 3 | Branches |
+|---|---|---|---|---|
+| Arrow tower | `building_tower_base` | `building_tower_A` top with `bucket_arrows` | taller (`tower_B`), `weaponrack`, two then four rune pillars (`pillar`) | Volley: a second bucket; the other branch: `target` banner |
+| Cannon tower | `building_tower_base` | `building_tower_catapult` arm as the barrel | `blacksmith` chimney, braziers (`torch_lit`) | Shrapnel: `barrel`s; the other: a wider arm |
+| Frost tower | `building_tower_base` | `building_tower_B` with a `church` spire | spire grows, `column`s | Blizzard / Glacier: tint and emissive only (no crystal model in the packs: make the ice an emissive tint on the spire) |
+| Arcane tower | `pillar_decorated` ring | `church` spire, `candle_triple` | `banner_patternA_red`, `pillar_decorated` ×4 | Prism / Void: emissive colour, a second ring |
+| Flak tower | `building_tower_base` | `windmill` sails as the rotor (turns, recoils by a kick) | `watchtower` cage, `flag_red` | the two branches: sail count and tint |
+| Heart | `castle` (hexagon) on `building_tower_base` ×3 | `chest_gold` glow in the keep, `banner_shield_white` | damage: `rubble_half` under 60%, `building_destroyed` + `rubble_large` + fire under 30% | — |
+| Portal | `wall_straight_gate` or `wall_arched` | `torch_mounted` ×2, the flare at wave start | — | — |
+
+Tier runes stay the 2D language (no glow / 2 runes / 4 runes + gold): rune pillars and the gold accent are the
+painter's emissives, not pack colours.

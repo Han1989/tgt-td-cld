@@ -39,6 +39,8 @@ The four:
 | 3 | `/?practice=meteor-rain` → **Practice Meteor Rain** (Ranger or Arcanist) | Cast R as a wave arrives: the ally casts onto yours and the lanes fill with the **Meteor Rain** strikes and the combo ribbon. Capture as the strikes land. |
 | 4 | The **end screen** of a won Quick match | The beating Heart emblem, "Victory!" and the match stats. |
 
+**The current set** (17 Oct 2026, the map plate of V-03, `docs/ART.md` §16) is in `docs/screenshots/map/press/`: 1–3 taken from the e2e build in headless Chromium at Pixel 7 size (412 × 915, DPR 2.625) by a script, so they show the build's own frames; take them again on a real phone for a store page. The end screen (4) is its card over the dimmed match; it was not retaken (it needs a won Quick match).
+
 For a store page or a press post, add one from `/?showcase`: the **Heroes** cards (Ranger, Warden, Arcanist) or the **Towers** cards (tier 3 and a branch), in Normal, with the device toolbar at the same phone. The showcase is a dev page: crop to the cards, not the page header.
 
 Skip the first-match lesson (it starts on a new player's first solo match) with **Skip**, or use a browser profile that has already played.
@@ -128,6 +130,15 @@ The video itself is never part of the first load (it starts loading 600 ms and a
 | #106 (`ccr-f19ccefe-s6r998`) | 7 | median **2.14 s** (2.13–2.18 s) | median 5.40 s (5.15–5.51 s) | median **6.96 s** (6.66–7.25 s) | 388 KB |
 
 The same bytes on the first load (the new poster is the same size); the larger video (1.14 MB, was 0.68) still loads only after the first screen. The VM ran about 0.35 s slower to a usable lobby than on 14 Oct for both builds, so compare the rows within a day, not across.
+
+**Results, 17 Oct 2026** (V-03, PR #114: the map plate; back to back on the same 4-core VM, local `vite preview`, 5 runs each; `main` is #112's head, with V-05b round 2's stage):
+
+| Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Transferred |
+|---|---|---|---|---|---|
+| `main` (#112) | 5 | median **2.15 s** (2.11–2.17 s) | median 5.32 s (5.21–5.56 s) | median **6.69 s** (6.52–7.11 s) | 391 KB |
+| V-03 | 5 | median **2.13 s** (2.13–2.14 s) | median 5.09 s (5.00–5.20 s) | median **5.55 s** (5.45–5.63 s) | 393 KB |
+
+The lobby is usable about a second sooner: the game view behind it no longer paints the 2D ground at start-up (the ground is made on a match's first frame, from the plate when it has decoded). The plate is not part of the first load: it starts loading a second after `tdt:ready`, with the heroes' sheets, and on this cold Slow 4G load it was in at 22.2 s (median; 654 KB), its decode **0.16 s** (median, 0.13–0.18 s, `tdt:decode:spire.webp`) at 4× CPU. The script now waits for it after measuring the lobby and prints both. A match started before then shows the painted ground until the plate swaps in; the service worker precaches it, so every later visit has it at once.
 
 **Not re-measured for the home card of 10 Oct 2026** (V-01, PR #100: a hero stage and Play solo under it, no dock). The session that built it could not run this script. Its layout was checked another way: on a 412 × 839 and a 390 × 664 screen Play solo is on screen with no scrolling and takes the tap at its centre (`e2e/lobby.spec.ts`). The stage adds one Canvas 2D drawing of the hero after `tdt:ready`. Re-run the script and add a row here.
 

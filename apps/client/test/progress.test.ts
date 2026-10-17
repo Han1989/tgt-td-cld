@@ -32,16 +32,16 @@ describe('progress dashboard data', () => {
     expect(summary.phasesDoneLabel).toContain('4b');
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
-    expect(summary.done).toBe(59);
+    expect(summary.done).toBe(60);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
-    // (the second screen, PR #102), V-04 (bigger units, PR #104), V-05b (the three heroes from the KayKit models,
-    // PR #109, round 2 of #108) and V-05c (the creeps and bosses in 3D) are done, and V-05a (PR #106) is closed as
-    // superseded by V-05b; V-03 and V-05d are to do.
-    expect(summary.open).toBe(42);
+    // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
+    // (the three heroes from the KayKit models, PR #109, round 2 of #108) and V-05c (the creeps and bosses in 3D) are
+    // done, and V-05a (PR #106) is closed as superseded by V-05b; V-05d is to do.
+    expect(summary.open).toBe(41);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
-    // The presentation pass's open rows (V-03, V-05d) wait for Han's go.
-    expect(summary.hanOpen).toBe(11);
+    // The presentation pass's open row (V-05d) waits for Han's go.
+    expect(summary.hanOpen).toBe(10);
     expect(summary.inProgress).toBe(1);
     expect(summary.total).toBe(101);
     expect(summary.total).toBe(summary.done + summary.open);
@@ -154,9 +154,10 @@ describe('progress dashboard data', () => {
     // Han, 14 Oct 2026, 19:00: heroes and creeps drawn larger on the same view. V-04 (bigger units) is done.
     expect(byId('V-04')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/104' } });
     expect(byId('V-04').note).toContain('14 Oct 2026');
-    expect(byId('V-03').status).toBe('todo');
-    // Han's first (his go), so the overnight bots skip it.
-    expect(byId('V-03').owner).toBe('Both');
+    // Han, 17 Oct 2026: the Spire map is one rendered picture. V-03 (the map plate) is done.
+    expect(byId('V-03')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/114' } });
+    expect(byId('V-03').note).toContain('17 Oct 2026');
+    expect(byId('V-03').note).toContain('Nothing 3D runs on the phone');
     expect(matchesFilter(PROGRESS, byId('V-03'), 'now')).toBe(true);
     // Han, 14 Oct 2026, 19:20: heroes, then creeps and towers, in 3D rendered ahead of time. Han, 16 Oct 2026: the
     // heroes come from the KayKit packs, not modelled in code, so V-05a (the code-built Ranger) is closed as
