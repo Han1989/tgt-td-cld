@@ -189,7 +189,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'order',
-    note: 'Sim only, protocol stays 20; the merge restarts the game server. Han, 21 Oct 2026, from the first Reddit cold tester, who beat 30 Normal waves by leading creeps through his towers and letting them walk back through them. Now only the nearest creeps chase a hero (the rest walk on and strike him as they pass), a chase ends at a short leash or a time limit, and a creep that stops chasing joins its lane ahead, never walking back. Han’s first numbers made every team lose most of its Heart, so the balance matrix retuned them (cap 10, leash 5 tiles, 12 s, 3 s cooldown) and eased the early team waves; first-time players still win at least 87% of matches with every team.',
+    note: 'Sim only, protocol stays 20; the merge restarts the game server. Han, 21 Oct 2026, from the first Reddit cold tester, who beat 30 Normal waves by leading creeps through their towers and letting them walk back through them. Now only the nearest creeps chase a hero (the rest walk on and strike him as they pass), a chase ends at a short leash or a time limit, and a creep that stops chasing joins its lane ahead, never walking back. Han’s first numbers made every team lose most of its Heart, so the balance matrix retuned them (cap 10, leash 5 tiles, 12 s, 3 s cooldown) and eased the early team waves; first-time players still win at least 87% of matches with every team.',
     proof: pr(124),
   },
   {
