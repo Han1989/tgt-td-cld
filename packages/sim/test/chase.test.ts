@@ -4,10 +4,18 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import type { Creep, GameState, Hero } from '../src/state';
-import { secondsToTicks, TICK_RATE, TUNING } from '../src/tuning';
+import { secondsToTicks, TICK_RATE, TUNING, type Tuning } from '../src/tuning';
 import { LAB_PAD, labGame, parkHero, placeCreep, run, tuningCopy } from './helpers';
 
 const AI = TUNING.creepAi;
+
+/** The cap tests use Han's first cap of 3, so it binds in a small scene (the match's cap is larger: TUNING_LOG). */
+function capOf3(): Tuning {
+  const tuning = tuningCopy();
+  tuning.creepAi.chaseCap = 3;
+  return tuning;
+}
+const CAP = 3;
 
 /** A hero that neither walks nor fights on its own, and cannot die: the test moves it. */
 function puppet(state: GameState): Hero {
@@ -26,8 +34,8 @@ const near = (c: Creep, hero: Hero) => Math.hypot(c.x - hero.x, c.y - hero.y);
 
 describe('the chase cap', () => {
   it('a hero circling 6 tiles out draws at most 3 of 10 creeps, the nearest; the rest keep their lane progress', () => {
-    expect(AI.chaseCap).toBe(3);
-    const state = labGame();
+    const tuning = capOf3();
+    const state = labGame(tuning);
     const hero = puppet(state);
     // Ten Grunts walking down the Mid lane (x = 13), a tile apart.
     const creeps = Array.from({ length: 10 }, (_, i) => placeCreep(state, 'grunt', 13, 6 + i));
@@ -46,12 +54,12 @@ describe('the chase cap', () => {
       const before = chasers(state, hero).length;
       run(state, 1);
       const now = chasers(state, hero);
-      expect(now.length).toBeLessThanOrEqual(AI.chaseCap);
+      expect(now.length).toBeLessThanOrEqual(CAP);
       most = Math.max(most, now.length);
       for (const c of now) everChased.add(c.id);
       if (i === 0) {
         // The first chasers are the nearest creeps in aggro range.
-        const nearest = lane.sort((x, y) => near(x, hero) - near(y, hero)).slice(0, AI.chaseCap - before);
+        const nearest = lane.sort((x, y) => near(x, hero) - near(y, hero)).slice(0, CAP - before);
         expect(now.map((c) => c.id).sort()).toEqual(nearest.map((c) => c.id).sort());
       }
       // Nobody loses lane progress, chasers included (they count from where they left the lane).
@@ -60,10 +68,10 @@ describe('the chase cap', () => {
         prev[k] = c.remaining;
       });
     }
-    expect(most).toBe(AI.chaseCap);
+    expect(most).toBe(CAP);
     // The creeps that never chased walked on all the way, as if no hero were there.
     const walkers = creeps.filter((c) => !everChased.has(c.id));
-    expect(walkers.length).toBeGreaterThanOrEqual(10 - 2 * AI.chaseCap);
+    expect(walkers.length).toBeGreaterThanOrEqual(10 - 2 * CAP);
     for (const c of walkers) {
       const k = creeps.indexOf(c);
       expect(c.y - start[k]!).toBeCloseTo(speed * (ticks / TICK_RATE), 5);
@@ -71,7 +79,7 @@ describe('the chase cap', () => {
   });
 
   it('a creep left out of the cap strikes a hero in its reach as it passes, without stopping', () => {
-    const tuning = tuningCopy();
+    const tuning = capOf3();
     tuning.hero.ranger.hpRegen = 0;
     const state = labGame(tuning);
     const hero = puppet(state);
@@ -83,7 +91,7 @@ describe('the chase cap', () => {
       c.rootUntil = 1_000_000;
     }
     run(state, 1);
-    expect(chasers(state, hero)).toHaveLength(AI.chaseCap);
+    expect(chasers(state, hero)).toHaveLength(CAP);
     const walker = placeCreep(state, 'grunt', 13, 10);
     const hp = hero.hp;
     let y = walker.y;
@@ -98,7 +106,7 @@ describe('the chase cap', () => {
   });
 
   it('Taunt pulls every creep in its radius past the cap and the leash; others still take the free places', () => {
-    const state = labGame(TUNING, 1, ['warden']);
+    const state = labGame(capOf3(), 1, ['warden']);
     const warden = state.heroes[0]!;
     warden.x = 13;
     warden.y = 14;
@@ -120,7 +128,7 @@ describe('the chase cap', () => {
   });
 
   it('when a taunt ends with more than the cap on the Warden, the farthest give up', () => {
-    const state = labGame(TUNING, 1, ['warden']);
+    const state = labGame(capOf3(), 1, ['warden']);
     const warden = state.heroes[0]!;
     warden.x = 13;
     warden.y = 14;
@@ -134,7 +142,7 @@ describe('the chase cap', () => {
     const d = new Map(creeps.map((c) => [c.id, near(c, warden)]));
     run(state, 1);
     const left = chasers(state, warden);
-    expect(left).toHaveLength(AI.chaseCap);
+    expect(left).toHaveLength(CAP);
     const gone = creeps.filter((c) => !left.includes(c));
     const dists = (cs: Creep[]) => cs.map((c) => d.get(c.id)!);
     expect(Math.max(...dists(left))).toBeLessThanOrEqual(Math.min(...dists(gone)));

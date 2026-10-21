@@ -674,16 +674,19 @@ export const TUNING: Tuning = {
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
     hp: [1.04, 1.5, 1.52],
-    earlyHpBonus: [0, 0.2, 0.9],
+    // Halved with the chase cap (21 Oct 2026): heroes no longer hold the early waves of a lane.
+    earlyHpBonus: [0, 0.1, 0.5],
     earlyWaves: 20,
     lateHpBonus: [0.08, 0.5, 1.2],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
   },
   combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5, ultimateBossFactor: 0.75 },
-  // Chase cap, leash, time limit and cooldown: Han, 21 Oct 2026 (was a leash of 9 tiles and no cap; Decision Log).
+  // Chase cap, leash, time limit and cooldown: Han's rules of 21 Oct 2026 (was a leash of 9 tiles, no cap, no limit,
+  // and a walk back). His first numbers (3 / 4 / 6 s / 5 s) cost every team most of its Heart: heroes no longer stall a
+  // lane. Retuned by the matrix (docs/balance/TUNING_LOG.md, round 5).
   creepAi: {
-    aggroRange: 5, chaseCap: 3, leashRange: 4, chaseSeconds: 6, aggroCooldown: 5,
+    aggroRange: 5, chaseCap: 10, leashRange: 5, chaseSeconds: 12, aggroCooldown: 3,
     projectileSpeed: 10, towerAttackLimit: 10,
   },
   pads: { extraPerLaneZone: [0, 0, 1] },
@@ -869,9 +872,10 @@ export const TUNING: Tuning = {
       },
       playerScaling: {
         hp: [1.012, 1.5, 1.65],
-        earlyHpBonus: [0, 0.25, 0.8],
+        // No early bonus, and a smaller late one for three, since the chase cap (21 Oct 2026).
+        earlyHpBonus: [0, 0, 0],
         earlyWaves: 10,
-        lateHpBonus: [0, 0.33, 1.9],
+        lateHpBonus: [0, 0.33, 1.6],
         lateWaves: 5,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
