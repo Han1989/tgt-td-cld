@@ -17,13 +17,11 @@ function capOf3(): Tuning {
 }
 const CAP = 3;
 
-/** A hero that neither walks nor fights on its own, and cannot die: the test moves it. */
+/** A hero that neither walks nor fights on its own: the test moves it. */
 function puppet(state: GameState): Hero {
   const hero = state.heroes[0]!;
   hero.stunUntil = 1_000_000;
   hero.attackCd = 1_000_000;
-  hero.maxHp = 1_000_000;
-  hero.hp = hero.maxHp;
   return hero;
 }
 
