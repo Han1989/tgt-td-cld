@@ -1,9 +1,9 @@
 # Playtest 2 tuning log
 
-Two rounds. Round 1 (the sections below, up to "Round 2") built the aimed-circle kit; Han's review of PR #66 replaced it with instant lane rains (round 2, at the end). `final.txt` and `final-targets.txt` are round 2; round 1's are `aimed-circles-final*.txt`, and `COMPARISON.md` puts the two side by side.
+Two rounds. Round 1 (the sections below, up to "Round 2") built the aimed-circle kit; Han's review of PR #66 replaced it with instant lane rains (round 2, at the end). `rains-final.txt` and `rains-final-targets.txt` are round 2 (named `final*.txt` until round 5, the chase rules, whose matrix `final.txt` now is); round 1's are `aimed-circles-final*.txt`, and `COMPARISON.md` puts the two side by side.
 
 Every number below was tried on the balance matrix (`npm run balance:matrix`; the bots play whole matches headlessly).
-Quick probes used 8–12 seeds and one team size; every full matrix (the tables in `baseline.txt` and `final.txt`) is 30 seeds.
+Quick probes used 8–12 seeds and one team size; every full matrix (the tables in `baseline.txt` and `rains-final.txt`) is 30 seeds.
 One change at a time where the matrix allowed it. `--tuning '<json>'` tries a number without editing `tuning.ts`.
 
 ## Runs
@@ -14,7 +14,7 @@ One change at a time where the matrix allowed it. `--tuning '<json>'` tries a nu
 | v1 | First cut of the new kits (aimed ultimates at the old circle, 2× the old damage; Warden reaches flyers; Iron Vow heal and burst; three combos; no finale deduction), nothing else retuned | Warden solo 87–97 Heart against 53–61 for the others. Pairs and trios too strong; expert Hard teams 87–97 (target 40–80). Rank-1 ultimates already kill a Quick wave 8–10 pack. |
 | v2 | Hero parity, Warden sturdier, team scaling, bots answer each other's ultimates | Quick casual Normal 73–83 for every team. Full trio too hard (54, one loss) and Hard still bimodal. |
 | v3 | Ultimate cooldowns, Cleave, flat Hard multipliers | Casual Normal 75–94, expert Hard 50–88 by team. |
-| v4, v5 (final) | Hard pairs and trio (a small ramp for the trio), Full trio; the Normal rows are v4, the Hard rows v5 | `final.txt`, `final-targets.txt` |
+| v4, v5 (final) | Hard pairs and trio (a small ramp for the trio), Full trio; the Normal rows are v4, the Hard rows v5 | `aimed-circles-final.txt`, `aimed-circles-final-targets.txt` |
 
 ## Changes, in the order they were made
 
@@ -54,7 +54,7 @@ Han: no aiming. Arrow Storm and Meteor are instant casts again, rain on all thre
 | r2-b | Damage up (80 / 92 / 105, 140 / 150 / 155) so rank 1 kills the weak creeps in a trio too; fused casts no longer count as casts | `test/ultimates.test.ts` passes for 1, 2 and 3 players on waves 8–10; boss share ≤ 8% except the wave-5 Ironhorn. |
 | r2-c | Cooldowns 40 → 55 → 60 → 75 s | Ultimate share 17–30% → 11–14% (Quick) at 60 s; 75 s brings Full under 15% as well. |
 | r2-d | Team scaling retuned for the rains (Quick, then Full), bots hold a rain for a teammate | Casual Normal 70–86 in every team; combos 3–10 a match in Full. |
-| r2-e | Hard retuned (flat multipliers), novice ultimate chance, per-team novice gate | `final.txt`, `final-targets.txt`. |
+| r2-e | Hard retuned (flat multipliers), novice ultimate chance, per-team novice gate | `rains-final.txt`, `rains-final-targets.txt`. |
 
 ## Changes, in the order they were made
 
@@ -78,7 +78,7 @@ Han: no aiming. Arrow Storm and Meteor are instant casts again, rain on all thre
 
 # Round 3: tower repair (P2-06, protocol 19)
 
-Han's decision after his 4 Oct solo Quick Normal match (Arcanist, seed 1113939891, build a620c32): towers can be repaired for gold. He sold and rebuilt a damaged tier-1 tower on the same pad 11 times (at 18–232 of 500 HP) and Archers destroyed 6 more: 37 towers for about 20 pads. **No creep, tower, hero or target number changed in this round.** Every run is 30 seeds of the full matrix; the tables are `repair-*.txt` (main: `repair-main.txt`, which reproduces `final.txt` exactly).
+Han's decision after his 4 Oct solo Quick Normal match (Arcanist, seed 1113939891, build a620c32): towers can be repaired for gold. He sold and rebuilt a damaged tier-1 tower on the same pad 11 times (at 18–232 of 500 HP) and Archers destroyed 6 more: 37 towers for about 20 pads. **No creep, tower, hero or target number changed in this round.** Every run is 30 seeds of the full matrix; the tables are `repair-*.txt` (main: `repair-main.txt`, which reproduces `rains-final.txt` exactly).
 
 ## Runs
 
@@ -351,3 +351,124 @@ The balance tests that assumed towers cannot be repaired failed with repair on (
 | `balanceDuo.test.ts` (casual Full pairs) | last third | 0.25 → 0 | 0% |
 | `balanceExpertQuickTeams.test.ts` (expert Quick Hard, pairs and trio) | first third, pairs / trio | 0.45 → 0.8 / 0.55 | 57% / 45% (76% / 54%) |
 | | last third, pairs / trio | 0.25 → 0 / 0 | 4% / 7% |
+
+# Round 5: creeps that cannot be kited (Han, 21 Oct 2026)
+
+Han's decision after the first Reddit cold tester, an experienced player who beat 30 waves on Normal with 4 Meteor casts and 706 kills by kiting: creeps chased a hero up to 9 tiles from where they stood, so he gathered a wave, ran it through his towers, and each creep then walked back to its anchor through the towers again; nothing limited how many chased at once. Three rules (`creeps.ts`, `tuning.creepAi`): **a chase cap** (the nearest `chaseCap` ground creeps chase one hero; the rest keep walking their lane and strike a hero in their reach as they pass; taunted creeps do not count), **a shorter leash, a time limit and an aggro cooldown** (a chase ends `leashRange` tiles from where the creep left its lane or after `chaseSeconds`; a creep that gave up starts no chase for `aggroCooldown` seconds, but still strikes a hero in its reach), and **no walking back** (a creep that stops chasing rejoins its lane at the nearest point at or past where it left it, never behind; the `return` mode is gone, `rejoin` walks forward onto the lane). Flyers, the bosses' and Archers' tower attacks, Taunt and the Warden's auto-engage are unchanged.
+
+Every full run is 30 seeds of the whole matrix (`npm run balance:matrix`, about 25 minutes on 4 cores); probes used 10 seeds (30 for the Warden-only probes) through `--tuning`, so no number was committed before it was measured. `chase-before.txt` / `chase-before-targets.txt` is main before this round (8b75077, 40 targets missed); `final.txt` / `final-targets.txt` is what landed (34 missed).
+
+## Runs
+
+| Run | What changed | Result |
+|---|---|---|
+| Han's numbers | cap 3, leash 9 → 4, 6 s, 5 s cooldown | Every team lost most of its Heart: the novice won 0–10% of seeds as a pair or a trio in Quick and 0% as Ranger + Warden or the trio in Full; the casual Full trio ended at 13 Heart, expert Hard teams at 0–50 (0% for the trio). Heart was lost in the first third. Gates: 14 tests failed, 8 of them the novice's 80% |
+| p1–p4 (one rule at a time, novice) | no time limit / no cap / old leash / every old number with only the walk-back gone | No single rule did it: each of the first three alone still lost most pair and trio seeds. With only the walk-back gone the Full teams kept winning, but the Quick novice Ranger fell to 30% (8 Heart) |
+| pursuit only (variant, dropped) | the cap and the time limit count only creeps out of reach (fighters stay), Han's numbers | About as good as cap 8 / leash 6 below, and it contradicts rule 1 ("the rest keep walking … as they pass"): dropped |
+| creepAi sweeps A–H, then the Warden at 30 seeds | cap 5–10, leash 4–6, 6–12 s, cooldown 3–5 | Diminishing returns past cap 6–8. The Warden needs the leash: at 30 seeds leash 4 cost him 7–15 Heart against 5 or 6 (casual Quick 75 against 81; expert Full Hard 34 against 48) |
+| cand1 | cap 6, leash 5, 10 s, cooldown 5; the team early bonus halved in Full (pairs 0.2 → 0.1, trio 0.9 → 0.5) and 0 in Quick (was 0.25 / 0.8) | Normal held (novice ≥ 87% everywhere, casual 69–99), 38 targets missed; expert Quick Hard pairs and trio at 4–51 Heart (Ranger + Warden won 27%), the expert Warden 73–76 on Normal |
+| cand2 (landed) | cap 10, leash 5, 12 s, cooldown 3; the same early bonuses; the Quick trio's late bonus 1.9 → 1.6 | 34 targets missed (main 40). Tables below |
+
+## The numbers that landed
+
+| Number | Main | Han's first | Landed |
+|---|---|---|---|
+| `creepAi.chaseCap` | none | 3 | 10 |
+| `creepAi.leashRange` | 9 | 4 | 5 |
+| `creepAi.chaseSeconds` | none | 6 | 12 |
+| `creepAi.aggroCooldown` | none (a walked-back creep ignored heroes until on its lane) | 5 | 3 |
+| `playerScaling.earlyHpBonus` (Full: solo / pairs / trio) | 0 / 0.2 / 0.9 | | 0 / 0.1 / 0.5 |
+| `modes.quick.playerScaling.earlyHpBonus` | 0 / 0.25 / 0.8 | | 0 / 0 / 0 |
+| `modes.quick.playerScaling.lateHpBonus` | 0 / 0.33 / 1.9 | | 0 / 0.33 / 1.6 |
+
+No Hard number changed (`difficulty.hard`, `modes.quick.hard`): every change is a shared creep number, which Hard multiplies.
+
+## Before and after
+
+"Han's numbers" is the first run (10 seeds; the novice was not run on Hard); main and final are 30 seeds. Mean Heart (a loss counts 0), with the win rate when under 100%.
+
+**novice, normal** (mean Heart; win rate when under 100%)
+
+| mode | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A |
+|---|---|---|---|---|---|---|---|
+| Full, main | 75 | 90 | 86 | 75 | 85 | 78 | 79 |
+| Full, Han's numbers | 56 | 14 (90%) | 64 | 0 (0%) | 14 (70%) | 31 (80%) | 0 (0%) |
+| Full, final | 61 | 70 | 72 | 60 (93%) | 68 | 72 | 82 |
+| Quick, main | 28 (90%) | 53 | 50 | 41 | 49 | 44 | 47 |
+| Quick, Han's numbers | 24 (90%) | 6 (60%) | 19 (90%) | 0 (0%) | 0 (0%) | 0 (10%) | 0 (0%) |
+| Quick, final | 24 (87%) | 40 | 44 | 37 | 45 | 50 | 68 |
+
+**casual, normal** (mean Heart; win rate when under 100%)
+
+| mode | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A |
+|---|---|---|---|---|---|---|---|
+| Full, main | 96 | 97 | 97 | 91 | 94 | 96 | 97 |
+| Full, Han's numbers | 96 | 85 | 97 | 51 | 48 | 76 | 13 |
+| Full, final | 95 | 95 | 95 | 81 | 88 | 87 | 90 |
+| Quick, main | 90 | 89 | 89 | 87 | 88 | 91 | 88 |
+| Quick, Han's numbers | 82 | 51 | 86 | 42 | 54 | 57 | 25 |
+| Quick, final | 88 | 79 | 84 | 89 | 90 | 91 | 90 |
+
+**casual, hard** (mean Heart; win rate when under 100%)
+
+| mode | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A |
+|---|---|---|---|---|---|---|---|
+| Full, main | 54 | 66 | 65 | 60 | 74 | 73 | 13 (47%) |
+| Full, Han's numbers | 24 | 1 (20%) | 48 | 0 (0%) | 0 (0%) | 12 (80%) | 0 (0%) |
+| Full, final | 36 (93%) | 38 | 46 | 32 | 37 | 50 | 0 (0%) |
+| Quick, main | 48 | 51 | 45 | 15 (47%) | 27 (70%) | 22 (63%) | 0 (0%) |
+| Quick, Han's numbers | 11 (80%) | 0 (10%) | 17 (70%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| Quick, final | 10 (73%) | 24 (70%) | 15 (77%) | 0 (0%) | 0 (0%) | 0 (3%) | 0 (0%) |
+
+**expert, normal** (mean Heart; win rate when under 100%)
+
+| mode | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A |
+|---|---|---|---|---|---|---|---|
+| Full, main | 96 | 92 | 100 | 98 | 100 | 100 | 98 |
+| Full, Han's numbers | 89 | 67 | 99 | 64 | 72 | 95 | 50 |
+| Full, final | 94 | 82 | 100 | 84 | 98 | 100 | 95 |
+| Quick, main | 93 | 97 | 99 | 97 | 100 | 100 | 100 |
+| Quick, Han's numbers | 87 | 71 | 94 | 52 | 78 | 86 | 52 |
+| Quick, final | 93 | 82 | 98 | 95 | 100 | 99 | 100 |
+
+**expert, hard** (mean Heart; win rate when under 100%)
+
+| mode | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A |
+|---|---|---|---|---|---|---|---|
+| Full, main | 72 | 67 | 88 | 86 | 97 | 97 | 89 |
+| Full, Han's numbers | 47 | 3 (60%) | 72 | 1 (20%) | 34 | 50 | 0 (0%) |
+| Full, final | 62 | 54 | 84 | 52 | 72 | 79 | 60 |
+| Quick, main | 76 | 68 | 84 | 67 | 88 | 83 | 77 |
+| Quick, Han's numbers | 43 | 2 (20%) | 66 | 0 (0%) | 1 (10%) | 2 (20%) | 0 (0%) |
+| Quick, final | 68 | 40 | 78 | 18 (63%) | 55 (97%) | 59 (90%) | 38 (93%) |
+
+## Where it lands
+
+- **Novice (Normal):** at least 87% of the seeds for every team in both modes (the Quick Ranger, 90% on main; Full Ranger + Warden 93%). Its Heart fell by up to 20 for most teams (Full solo 61–72, pairs 60–72; Quick 24–50) and rose for the trios (Full 82, Quick 68: a smaller early team bonus, none in Quick).
+- **Casual (Normal):** 79–95, from 87–97 on main: about the same band, still over 90 for Full solo (provisional since repair). Solo parity Quick 87.9 / 78.7 / 83.7 (within 10), pair parity Full 81 / 88 / 87 and Quick 89 / 90 / 91 (within 12).
+- **Expert (Normal):** 82–100 (main 92–100). The expert's lead over the casual bot did not fall: both lost about 4–5 Heart in Full (expert 97.7 → 93.3 over the seven teams, casual 95.4 → 90.1). The expert bot was not more of a kiter than the casual one (below). The expert Warden ends Normal at 82 in both modes (target 85) and Full Ranger + Warden at 84.
+- **Expert (Hard):** Full 52–84 (every team wins; main 67–97), so the solo Ranger and Warden now sit in 40–80; Quick 40–78 for the solo heroes and the other two pairs, but **Quick Ranger + Warden ends at 18 Heart and wins 63% of the seeds, the trio 38 (93%)**: the Warden's pair on Hard is the weak spot. Raising its Heart without Hard alone would push the casual Quick teams (89–91 already) over 90; that call is Han's.
+- **The Warden:** no longer holds a lane's whole wave. Taunt (which ignores the cap, the leash and the time) and auto-engage work as before, but on Normal the expert Warden ends 11–18 Heart under the other heroes and the casual Quick Warden 9 under the Ranger (the parity gate's limit is 10).
+- **Curves:** the expert Quick Hard pairs and trio now pass (35 / 35 / 31% and 14 / 37 / 49%); the casual Full pairs lose 87% of their Heart in the first third (main 68%).
+
+## The bots
+
+None of the three bots leads creeps through towers on purpose. All three relied on what the old rule gave a hero who stands on a lane: every creep within 5 tiles chased it, a leashed creep walked back up the lane and, back on it, chased again, so a hero held a lane's wave as long as it stood there (the novice, which never retreats, the most). The casual and expert bots also retreat to the Heart when hurt, which pulled chasers through their own towers on the way. No bot was changed.
+
+## A pattern the rules leave (not taught to the bots)
+
+"Never behind" means a creep pulled back up its lane walks down again: a hero standing up the lane from creeps that have passed it can pull up to 10 of them back up to 5 tiles, through towers they had passed, and they walk through them again on the way down, once every 15 s (a 12 s chase, then 3 s of cooldown). It pays twice over 5 tiles instead of 9, for 10 creeps instead of a wave. The bots do not do it.
+
+## Gates that moved (provisional, listed)
+
+| Test | Bound | Old → new | 30 seeds (final) |
+|---|---|---|---|
+| `balanceExpert.test.ts` (expert Full Normal, solo) | share of seeds ≥ 85 | 0.8 → 0.6 | Warden 81.7, 25 of 30 under 85 (gate seeds 73%) |
+| `balanceExpertQuick.test.ts` (expert Quick Normal, solo) | share of seeds ≥ 85 | 0.8 → 0.6 | Warden 82.1, 22 of 30 under 85 (gate seeds 67%) |
+| `balanceDuo.test.ts` (casual Full pairs) | first third | 0.45 → 1 | 87% (main 68%) |
+
+Every other gate passes with its bound unchanged. The new rules' own tests are in `test/chase.test.ts` (the cap tests use Han's cap of 3 so it binds in a small scene).
+
+## Replays
+
+A match file saved before this round re-runs differently on this build (the creeps chase differently); `npm run replay` already warns with the commit that recorded it. Nothing else to do.

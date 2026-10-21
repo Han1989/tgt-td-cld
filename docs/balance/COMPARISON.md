@@ -1,7 +1,7 @@
 # Before and after: aimed circles (PR #66's first cut) and lane rains (Han's review)
 
 Mean Heart HP and win rate over 30 seeds, one row per bot, mode, difficulty and team (R = Ranger, W = Warden, A = Arcanist).
-The left column is `aimed-circles-final.txt` (the PR before the review), the right one `final.txt`. Heart is 0 for a lost match.
+The left column is `aimed-circles-final.txt` (the PR before the review), the right one `rains-final.txt` (then `final.txt`). Heart is 0 for a lost match.
 The first cut's own baseline (main before any change) is `baseline.txt`.
 
 | Bot · mode · difficulty | Team | PR #66 aimed circles: win% / Heart | Lane rains: win% / Heart |

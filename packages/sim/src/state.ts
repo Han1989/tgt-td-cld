@@ -148,7 +148,7 @@ export interface Creep {
   rootUntil: number;
   /** Stunned creeps neither move nor attack. */
   stunUntil: number;
-  /** A taunted creep keeps chasing its target and ignores its leash until this tick. */
+  /** A taunted creep keeps chasing its target, past its leash, the chase cap and the time limit, until this tick. */
   tauntUntil: number;
   /** Ticks spent stopped to attack towers so far (anti-stall: see `creepAi.towerAttackLimit`). */
   towerTicks: number;

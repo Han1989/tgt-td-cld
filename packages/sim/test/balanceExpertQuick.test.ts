@@ -10,7 +10,10 @@ const TIMEOUT = 60_000;
 
 describe('expert bot (Quick mode, solo)', () => {
   const hardGate = heartGate(HARD_TARGET, HARD_SHARE);
-  const normalGate = heartGate(EXPERT_NORMAL, EXPERT_NORMAL_SHARE);
+  // Provisional (the chase cap, 21 Oct 2026; docs/balance/TUNING_LOG.md, round 5): a Warden no longer holds a
+  // lane's whole wave; the expert Warden ends Quick Normal at 82.1 Heart on 30 seeds (22 of 30 under 85).
+  // Share 0.8 → 0.6.
+  const normalGate = heartGate(EXPERT_NORMAL, EXPERT_NORMAL_SHARE, 5, { share: 0.6 });
   const cases = HERO_KINDS.flatMap((hero) => SEEDS.map((seed) => [hero, seed] as const));
 
   it.each(cases)(
