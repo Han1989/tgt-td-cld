@@ -79,18 +79,30 @@ describe('Matriarch (wave 20): Hatch', () => {
     expect(total).toBeLessThanOrEqual(s.max);
   });
 
-  it('hatchlings summoned while it fights a hero head back to its lane', () => {
+  it('hatchlings summoned while it fights a hero join the lane at or past where it left it, never behind', () => {
     const state = labGame();
     parkHero(state);
     const boss = spawnMatriarch(state);
-    boss.mode = 'return';
-    boss.anchorX = boss.x + 3;
-    boss.anchorY = boss.y;
+    // It left the Mid lane (x = 13) at y = 12 and stands 3 tiles beside it, 2 tiles further up.
+    boss.mode = 'chase';
+    boss.targetId = state.heroes[0]!.id;
+    boss.chaseUntil = 1_000_000;
+    boss.anchorX = 13;
+    boss.anchorY = 12;
+    boss.x = 16;
+    boss.y = 10;
     boss.abilityCd = 1;
     run(state, 1);
-    for (const h of hatchlings(state)) {
-      expect(h.mode).toBe('return');
-      expect([h.anchorX, h.anchorY]).toEqual([boss.anchorX, boss.anchorY]);
+    const hs = hatchlings(state);
+    expect(hs.length).toBeGreaterThan(0);
+    for (const h of hs) {
+      expect(h.mode).toBe('rejoin');
+      // A point on the lane (its own line, within the lane spread) level with where the Matriarch left it: no closer
+      // to the portal, and no further from the Heart.
+      expect(Math.abs(h.anchorX - 13)).toBeLessThanOrEqual(TUNING.waves.laneSpread);
+      expect(h.anchorY).toBeGreaterThan(11.95);
+      expect(h.anchorY).toBeLessThan(12.5);
+      expect(h.remaining).toBeLessThanOrEqual(boss.remaining + 0.05);
     }
   });
 

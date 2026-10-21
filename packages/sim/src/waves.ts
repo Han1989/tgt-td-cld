@@ -249,6 +249,8 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
     anchorX: 0,
     anchorY: 0,
     targetId: -1,
+    chaseUntil: 0,
+    noAggroUntil: 0,
     attackCd: 0,
     abilityCd: 0,
     abilityUses: 0,

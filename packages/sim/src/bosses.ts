@@ -5,6 +5,7 @@
 //                       armour) and Ether hide (high magic resist).
 
 import { damageHero, emit, random, TOWER_RADIUS } from './combat';
+import { rejoinLane } from './creeps';
 import type { Creep, GameState } from './state';
 import { secondsToTicks } from './tuning';
 import { dist } from './vec';
@@ -82,10 +83,10 @@ function hatch(state: GameState, c: Creep): void {
     h.wp = c.wp;
     h.remaining = c.remaining;
     if (c.mode !== 'lane') {
-      // The Matriarch is off its lane fighting a hero: hatchlings head back to where it left the lane.
-      h.mode = 'return';
+      // The Matriarch is off its lane: hatchlings join the lane at or past the point it left (or is heading for).
       h.anchorX = c.anchorX;
       h.anchorY = c.anchorY;
+      rejoinLane(h);
     }
   }
   c.abilityUses += count;

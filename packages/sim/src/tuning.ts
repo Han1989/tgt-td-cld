@@ -486,9 +486,19 @@ export interface Tuning {
     ultimateBossFactor: number;
   };
   creepAi: {
+    /** A creep walking its lane starts chasing a hero this close (if the hero has a free chase slot). */
     aggroRange: number;
-    /** A chasing creep gives up once it is this far from where it left its lane. */
+    /**
+     * At most this many ground creeps chase one hero at a time, the nearest first; the rest keep walking their lane
+     * and strike a hero in their reach as they pass. Taunted creeps do not count.
+     */
+    chaseCap: number;
+    /** A chasing creep gives up once it is this far from where it left its lane (a taunt ignores it). */
     leashRange: number;
+    /** A chase ends after this many seconds (a taunt holds it longer). */
+    chaseSeconds: number;
+    /** A creep that gave up a chase does not start another for this many seconds (it still strikes one in reach). */
+    aggroCooldown: number;
     projectileSpeed: number;
     /**
      * Anti-stall: after this many seconds stopped to attack towers (in total), a creep stops attacking
@@ -671,7 +681,11 @@ export const TUNING: Tuning = {
     countPerExtraPlayer: 0.3,
   },
   combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5, ultimateBossFactor: 0.75 },
-  creepAi: { aggroRange: 5, leashRange: 9, projectileSpeed: 10, towerAttackLimit: 10 },
+  // Chase cap, leash, time limit and cooldown: Han, 21 Oct 2026 (was a leash of 9 tiles and no cap; Decision Log).
+  creepAi: {
+    aggroRange: 5, chaseCap: 3, leashRange: 4, chaseSeconds: 6, aggroCooldown: 5,
+    projectileSpeed: 10, towerAttackLimit: 10,
+  },
   pads: { extraPerLaneZone: [0, 0, 1] },
   bosses: {
     ironhorn: { stomp: { cooldown: 7, radius: 3, damage: 40, stun: 2 } },

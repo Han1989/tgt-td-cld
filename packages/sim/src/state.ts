@@ -103,7 +103,11 @@ export interface Hero {
   rCastTick: number;
 }
 
-export type CreepMode = 'lane' | 'chase' | 'return';
+/**
+ * `lane`: walking its lane. `chase`: fighting a hero off the lane (`creeps.ts`: at most `creepAi.chaseCap` per hero,
+ * on a leash and a time limit). `rejoin`: walking onto its lane after a chase, at or past where it left, never behind.
+ */
+export type CreepMode = 'lane' | 'chase' | 'rejoin';
 
 export interface Creep {
   id: EntityId;
@@ -124,11 +128,15 @@ export interface Creep {
   offX: number;
   offY: number;
   mode: CreepMode;
-  /** Where the creep left its lane to chase a hero. */
+  /** Chasing: where the creep left its lane. Rejoining: the lane point it is walking to. */
   anchorX: number;
   anchorY: number;
   /** Hero being chased, or -1. */
   targetId: EntityId;
+  /** Chasing: the tick its chase ends (`creepAi.chaseSeconds`), unless a taunt holds it. */
+  chaseUntil: number;
+  /** A creep that gave up a chase will not start another before this tick (`creepAi.aggroCooldown`). */
+  noAggroUntil: number;
   attackCd: number;
   /** Boss ability: ticks until the next use, and how many units it has summoned so far. */
   abilityCd: number;

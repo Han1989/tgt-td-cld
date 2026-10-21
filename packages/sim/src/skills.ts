@@ -19,6 +19,7 @@ import {
   ultimateDamage,
 } from './combat';
 import { hitFrom, onUltCast, pulseRain, startRain } from './coop';
+import { startChase } from './creeps';
 import type { GameState, Hero, Zone } from './state';
 import { secondsToTicks, TICK_RATE, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
 import { dist } from './vec';
@@ -312,8 +313,8 @@ function cleave(state: GameState, hero: Hero): string | null {
 }
 
 /**
- * Taunt: nearby ground creeps that can attack must chase the Warden, ignoring their leash; flyers within the radius
- * turn from the Heart and hover over him for as long (creeps.ts).
+ * Taunt: nearby ground creeps that can attack must chase the Warden, ignoring their leash, the chase cap and the chase
+ * time limit; flyers within the radius turn from the Heart and hover over him for as long (creeps.ts).
  */
 function taunt(state: GameState, hero: Hero): string | null {
   const s = state.tuning.hero.warden.taunt;
@@ -330,12 +331,7 @@ function taunt(state: GameState, hero: Hero): string | null {
       c.tauntUntil = Math.max(c.tauntUntil, state.tick + controlTicks(state, c, ticks));
       continue;
     }
-    if (c.mode === 'lane') {
-      c.anchorX = c.x;
-      c.anchorY = c.y;
-    }
-    c.mode = 'chase';
-    c.targetId = hero.id;
+    startChase(state, c, hero.id);
     c.tauntUntil = Math.max(c.tauntUntil, state.tick + controlTicks(state, c, ticks));
   }
   return null;

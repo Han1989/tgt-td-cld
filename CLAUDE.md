@@ -79,7 +79,8 @@ packages/sim/              @tdt/sim: pure deterministic simulation
   src/pathfinding.ts       Hero A* on the tile grid
   src/waves.ts             Wave timer, income, call-early, spawning, player-count scaling
   src/surges.ts            Lane surges: the seed's schedule (`planSurgeLanes`, its own `mix32`), the share per team size, the lane counts
-  src/creeps.ts            Lane walking, aggro/leash, taunts, stuns, tower attacks (anti-stall limit), leaks
+  src/creeps.ts            Lane walking, the chase (cap per hero, leash, time limit, aggro cooldown, rejoin ahead, never back),
+                           taunts, stuns, tower attacks (anti-stall limit), leaks
   src/bosses.ts            Boss abilities: Ironhorn Stomp, Matriarch Hatch, Shardback Shifting Hide
   src/towers.ts            Tower targeting (First/Strongest/Closest), upgrades and branches (tier 4: Volley, Blizzard pulse, Prism chains,
                            Glacier freeze, Shrapnel shred, Void pierce…), projectiles, Snare Traps
