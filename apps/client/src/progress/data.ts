@@ -18,6 +18,7 @@
  * P2-10 on 17 Oct 2026 (PR #122: silence, not the code-made score, while a music file downloads).
  * P2-11 on 17 Oct 2026 (PR #123: the music streamed from the first tap, then its decoded loop).
  * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
+ * V-06a on 22 Oct 2026 (PR #128: the heroes designed by Claude and generated in Meshy, session 1 of 2, assets only).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -313,6 +314,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Client only, no sim, protocol or art change. After the 3D towers, the 300-creep stress test failed on GitHub: not on its budget (14–20 ms of JavaScript a frame against 33.3 ms) but on its 240 s time limit, since the software GPU there drew the scene at about one frame a second. The scene drew 4.9 screens of pixels a frame in 136 draw calls; a seventh of the pixels were parts waiting invisible (every creep’s hit flash between hits, the Heart’s hidden stages, rings between casts), and every projectile broke the batch. Hidden parts now leave the draw (a creep’s flash shrinks to nothing, so the draw list is not rebuilt at every hit) and the trails draw together: 3.5 screens in 22 draw calls, the test 18% faster on the session container. Not taken: switching off antialiasing, about a quarter of a frame on the software GPU, which only smooths the drawn rings (Han’s call). Built by Claude Code (PR #121).',
     proof: pr(121),
+  },
+  {
+    id: 'V-06a',
+    title: 'The heroes designed by Claude, generated in Meshy',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Assets only, session 1 of 2: no game code changes, and the game keeps its current heroes until session 2. Han, 22 Oct 2026: the heroes from the free packs are generic and the game lost its identity, so the Ranger, the Warden and the Arcanist are original characters designed by Claude in the game’s moonlit look and generated in Meshy (Pro plan, commercial use permitted). Round 2 (Han, 22 Oct 2026): the first round came out as realistic humans, and the game’s heroes are chibi, so the same three designs are redrawn 2.5 heads tall with big round heads, stubby limbs, big hands and feet and an oversized signature piece (the Ranger’s hood, the Warden’s horned pauldron and kite shield, the Arcanist’s hat and crescent staff), then made 3D, rigged and given seven clips each (idle, walk, run, attack, cast, hit, death). The Arcanist’s staff bent with her leg in the clips, so she is made bare-handed and her staff is a separate piece. Round 1 is kept for comparison; both are on the contact sheet. In review: Han judges the heroes on his phone. Built by Claude Code (PR #128).',
+    proof: pr(128),
   },
   {
     id: 'g1-render',
