@@ -18,10 +18,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job pins ubuntu-24.04: ubuntu-latest became 26.04 on 19 Oct 2026, where Playwright 1.56 can't install Chromium.
 jobs:
   test:
     name: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +38,7 @@ jobs:
   # Browser tests run when the client, the shared packages, or the workflow change.
   changes:
     name: changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       e2e: ${{ steps.changes.outputs.run }}
@@ -79,7 +80,7 @@ jobs:
     name: e2e (${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }})
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -132,7 +133,7 @@ jobs:
     name: e2e (perf)
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +164,7 @@ jobs:
     name: ci
     needs: [test, changes, e2e, e2e-perf]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require test success and e2e success when browser tests apply
