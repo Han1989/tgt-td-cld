@@ -607,23 +607,23 @@
   },
   "files": {
    "clearing": {
-    "bytes": 59130,
-    "hash": "c0d771df5e6a",
+    "bytes": 59024,
+    "hash": "373874633240",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1169876,
-    "hash": "95f019061d47",
+    "bytes": 1145955,
+    "hash": "5c62b0b7dc2b",
     "name": "ranger.mp4"
    },
    "poster": {
-    "bytes": 59686,
-    "hash": "357c30b82a58",
+    "bytes": 59648,
+    "hash": "d9187ae28dfc",
     "name": "ranger-poster.webp"
    },
    "webm": {
-    "bytes": 1184666,
-    "hash": "78c979fd3c9e",
+    "bytes": 1138535,
+    "hash": "654626a42a98",
     "name": "ranger.webm"
    }
   },
