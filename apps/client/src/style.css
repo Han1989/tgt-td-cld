@@ -2312,6 +2312,19 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   color: var(--gold);
 }
 
+/* Under 380 px the line has under 280 px: "Yesterday's champion: Kael · 82 Heart" needs 279 px at 13 px in a wide
+   fallback font (DejaVu Sans, where system-ui has nothing narrower), so the line steps down and the tile's sides
+   give it 4 px more. */
+@media (max-width: 380px) {
+  .daily-tile {
+    padding: 6px 12px;
+  }
+
+  .daily-line {
+    font-size: 12px;
+  }
+}
+
 #lobby-home.has-daily .hero-stage {
   height: clamp(124px, calc(100dvh - 530px - var(--daily-room)), calc(320px - var(--daily-room)));
 }
