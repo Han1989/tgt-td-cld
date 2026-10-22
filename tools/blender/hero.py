@@ -14,7 +14,7 @@ from tdt3d import motion
 from tdt3d.palette import mix
 
 # Pass indices (the painter's ids: 1000 × index + material): the hero's objects are 1–99 (the stage tones those).
-BODY, HEAD, ARMS, ARROW, STAFF = 2, 10, 20, 23, 26
+BODY, HEAD, ARMS, DRAW, ARROW, STAFF = 2, 10, 20, 21, 23, 26
 
 # --- materials shared by the heroes (tdt3d.shading.define keywords) -------------------------------------------------
 
@@ -28,6 +28,8 @@ PIN = {'hit': 1.0, 'death': 1.0}
 # The Meshy skeleton's head and arm joints, for the Ranger's layers (his head over his bow, his arms and bow in profile).
 HEAD_BONES = {'neck', 'Head', 'head_end', 'headfront'}
 ARM_BONES = {'LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand'}
+# His draw arm (the stage cuts it from his arms, to draw it over his hood: V-06c).
+DRAW_BONES = {'RightArm', 'RightForeArm', 'RightHand'}
 
 
 def _bow(x, y, z):
@@ -200,9 +202,11 @@ ARCANIST = dict(
     },
     props=[
         # Her crescent staff (Meshy's own prop, staff.glb): in her right hand, upright, the crescent over her shoulder
-        # and clear of the hat's brim.
+        # and clear of the hat's brim. V-06c: its shaft through the middle of her mitt (the centre of the faces her
+        # RightHand moves alone), so the glove closes round it on every frame; V-06b's place, (-0.475, 0.95, 0.05),
+        # stood it 1.84 world px behind and inside her open hand, in every pose (both ride the hand).
         dict(name='staff', meshy=True, file='staff.glb', bone='handslot.r', layer='body', index=STAFF,
-             at=(-0.475, 0.95, 0.05), turn=(0.0, 0.0, 12.0), scale=0.85,
+             at=(-0.554, 0.932, 0.136), turn=(0.0, 0.0, 12.0), scale=0.85,
              paint=dict(clusters={'bone': ('#eae7d6', 'crescent'), 'wood': ('#3c2d2c', 'staffWood'),
                                   'binding': ('#83786a', 'binding'), 'crystal': ('#c168fc', 'crystal'),
                                   'crystalDeep': ('#b84cf7', 'crystal')})),
@@ -262,13 +266,25 @@ def _death(t0, t1):
 # arms' whole draw), holds, looses at 3.95 and lowers the bow. He shoots side-on, to his left; the arrow lies from the
 # draw hand's mitt through the bow hand. Avoided: Draw_and_Shoot_from_Back (cast.glb), whose draw holds the hand over
 # the hood's face for three seconds; the moments of Archery_Shot past 3.5 s that put the hand at the hood's mouth are
-# only on the stage, where the hand is at the cheek for a beat as an archer's anchor is.
+# left out of the match (his head layer is drawn over the hand there); on the stage the draw stops at the cheek (below).
 RANGER['draw'] = (7.0, 10.5)
+# On the stage (V-06c, Han, 22 Oct 2026: his draw hand went into his neck at full draw): the draw stops at his cheek,
+# 0.8 of the clip's pull (3.2 s; the clip's full draw is at 3.4), and holds there until the loose (3.95), when the clip
+# plays on: the loose, the arrow and the loop's timing are as before. Even so the hood hides the hand from the moment
+# it brings the arrow up to the string (from 2.05 s, all of it from 2.35, held or drawn) until just after the loose
+# (4.05 s; rays cast from the stage camera to the hand, stage frames 97 to 158), so on frames 96 to 160 his draw arm
+# and the arrow are drawn over his head (`over`; tdt3d.stage): the hand in front of the hood, his body and his bow
+# still in front of them. Only the draw arm: with the whole arms layer over the head the bow's upper limb, behind the
+# hood, crossed his eyes. On the stage his mesh is cut with the draw arm a layer of its own (`layers`); the match keeps
+# the row's layers.
 RANGER['stage'] = dict(
     seconds=STAGE_S, idle=BREATH,
-    moves=[dict(clip='attack', at=1.4, frm=0.2, to=4.7, ease_in=0.4, ease_out=0.8)],
+    moves=[dict(clip='attack', at=1.4, frm=0.2, to=4.7, ease_in=0.4, ease_out=0.8, stop=(3.2, 3.95))],
     arrow=dict(nock=2.4, loose=5.15, flight=0.45),
     fast=[(5.1, 5.7)],
+    layers={'head': HEAD_BONES, 'draw': DRAW_BONES, 'arms': ARM_BONES - DRAW_BONES},
+    index={'body': BODY, 'head': HEAD, 'arms': ARMS, 'draw': DRAW},
+    over=dict(layers=('draw',), props=('arrow',), above='head', spans=[(3.2, 5.35)]),
 )
 RANGER['match'] = dict(
     style='bow',
@@ -311,6 +327,17 @@ RANGER['match'] = dict(
 # tips the shield flat like a tray (0.4–0.6).
 WARDEN['stage'] = dict(
     seconds=STAGE_S, idle=BREATH,
+    # V-06c (Han, 22 Oct 2026: on the phone his plate showed hard edges and white moonlight everywhere, unlike the
+    # other two): on the stage his metal is lit as the cloth heroes' leather and cloth are. No moon sheen (metal 0,
+    # as their leather: V-06b's plate 0.6 and bevels 0.9 put full-white highlights on every bevel and the helm), the
+    # rune rim and the moonlit edge at 0.3, the painted bevels a step from the plate instead of near white. The ember
+    # rune and eyes stay the only glow. His match sheet keeps the row's materials (`staged` in tdt3d.stage).
+    materials={
+        'plate': dict(metal=0.0, rim=0.3, mrim=0.3, pool=0.55),
+        'shield': dict(metal=0.0, rim=0.3, mrim=0.3, pool=0.55),
+        'edge': dict(token=None, color=mix('steel', 'plate', 0.15), metal=0.0, rim=0.3, mrim=0.3, pool=0.55),
+        'mail': dict(metal=0.0, rim=0.3, mrim=0.3),
+    },
     moves=[
         dict(clip='cast', at=2.2, frm=0.3, to=0.85, ease_in=0.35, hold=0.45, ease_out=0.45),
         # The slash to the moment the blade passes his front, then back to guard: its full sweep round to his left
