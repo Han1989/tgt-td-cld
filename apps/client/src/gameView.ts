@@ -11,6 +11,7 @@ import { MatchTracker } from './analytics/matchTracker';
 import type { FunnelStep } from './analytics/session';
 import type { ViewBox } from './audio/mix';
 import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
+import type { DailyRunInfo } from './daily/endCard';
 import { EmoteMenu } from './hud/emotes';
 import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
@@ -646,6 +647,11 @@ export class GameView {
     this.syncLesson();
   }
 
+  /** Solo only: this match (and Play again) is the Daily run of `run.day` (null: any other match). */
+  setDaily(run: DailyRunInfo | null): void {
+    this.hud.setDaily(run);
+  }
+
   /** Flyer card, air toasts and the unspent-gold nudge. Client-only; the sim is unchanged. */
   private feedTeach(latest: Snapshot, events: Snapshot['events']): void {
     const settings = sharedSettings().get();
@@ -751,6 +757,7 @@ export class GameView {
     this.transport = null;
     this.me = null;
     this.lesson = false;
+    this.hud.setDaily(null);
     this.resume();
     this.resetView();
     this.coach.stop();

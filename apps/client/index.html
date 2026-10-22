@@ -156,6 +156,12 @@
             <span class="pick-label">Mode</span>
             <div id="lobby-mode-home" class="segmented"></div>
           </div>
+          <!-- The Daily run (docs/GAME_DESIGN.md "Daily run"): shown once the game server answers; it takes its height
+               from the stage, so Play solo stays where it is. -->
+          <button id="lobby-daily" class="btn daily-tile hidden" type="button" aria-describedby="lobby-daily-line">
+            <span class="daily-head"><b>Daily run</b><span class="daily-sub"> · Quick on Hard</span></span>
+            <span id="lobby-daily-line" class="daily-line"></span>
+          </button>
           <div class="solo-dock">
             <button id="lobby-offline" class="btn big" type="button">Play solo</button>
           </div>
@@ -334,6 +340,7 @@
             <button id="settings-data-delete" class="btn" type="button">Delete my data</button>
           </div>
           <p id="settings-data-state" class="settings-note" role="status" aria-live="polite">A copy of what the game server holds for this browser, or delete it. Delete also gives this browser a new id.</p>
+          <p class="settings-note">A Daily run's Post my run sends your nickname, the run's replay of your inputs and this browser's id, with play data on or off. The run shows on that day's public board under your nickname, is kept 90 days, and goes with Delete my data. <a href="/privacy.html#daily" target="_blank" rel="noopener">Privacy</a></p>
         </section>
         <section>
           <h3>Lesson</h3>
@@ -387,9 +394,29 @@
         <div class="end-card">
           <div id="end-emblem" class="end-emblem" aria-hidden="true"></div>
           <h1 id="end-title">Victory</h1>
-          <p id="end-text"></p>
-          <ul id="end-gifts" class="end-gifts hidden"></ul>
-          <ul id="end-ults" class="end-gifts end-ults hidden"></ul>
+          <!-- A Daily run (daily/endCard.ts): Post my run before the stats; once posted, the rank, then the stats. -->
+          <div id="end-daily" class="end-daily hidden">
+            <div id="end-daily-ask" class="end-daily-ask">
+              <label id="end-daily-name-row" class="end-daily-name hidden">
+                <span>Nickname for the board</span>
+                <input id="end-daily-name" maxlength="16" autocomplete="nickname" placeholder="Your name" enterkeyhint="go" />
+              </label>
+              <button id="end-daily-post" class="btn end-daily-post" type="button">Post my run</button>
+              <p class="end-daily-note">Shown on today's public board under your nickname. · <a href="/privacy.html#daily" target="_blank" rel="noopener">Privacy</a></p>
+            </div>
+            <p id="end-daily-msg" class="end-daily-msg" role="status"></p>
+            <div id="end-daily-rank" class="end-daily-rank hidden" aria-live="polite">
+              <div id="end-daily-place" class="end-daily-place"></div>
+              <div id="end-daily-gap" class="end-daily-gap"></div>
+              <div id="end-daily-best" class="end-daily-best"></div>
+              <ol id="end-daily-rows" class="end-daily-rows"></ol>
+            </div>
+          </div>
+          <div id="end-stats" class="end-stats">
+            <p id="end-text"></p>
+            <ul id="end-gifts" class="end-gifts hidden"></ul>
+            <ul id="end-ults" class="end-gifts end-ults hidden"></ul>
+          </div>
           <div id="end-feedback" class="end-feedback hidden">
             <div class="end-q">How was this match?</div>
             <div id="end-ratings" class="end-ratings" role="group" aria-label="Rate this match from 1 to 5">

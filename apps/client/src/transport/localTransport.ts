@@ -34,6 +34,11 @@ export class LocalTransport implements Transport {
     this.worker.postMessage({ ctl: 'pause', paused });
   }
 
+  /** The Daily run: every match of this worker is the run of the day whose seed this is (a control message). */
+  daily(seed: number): void {
+    this.worker.postMessage({ ctl: 'daily', seed });
+  }
+
   onMessage(handler: (msg: ServerMessage) => void): () => void {
     this.handlers.push(handler);
     return () => {

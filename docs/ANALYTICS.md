@@ -114,6 +114,8 @@ Below it, **First-match lesson (solo)**: how many first sessions reached each le
 
 **Matches.** Matches started and finished, then four small tables over the finished ones: by mode and difficulty, by team (players, and solo in the browser vs a room), by your hero, and by channel. Each row: matches, share won, average wave the match ended on, average length (match time, build phase included). Each player in a room reports the match, so a 3-player room is three rows' worth; reports from clients older than this change have no difficulty, length or hero and show as "difficulty not sent" or fall out of the hero table.
 
+**Daily run.** One row per UTC day with anything posted, newest first (30 days): **Runs posted** (posts the server re-ran and accepted, every try, not only bests), **Players** (browsers on that day's board), **Refused** (posts that failed the checks or the re-run: another day's seed, the wrong mode or difficulty, two players, a report that is not the replay's, a log that cannot be re-run) and **Report mismatches** (accepted posts whose own report or replay end disagreed with the server's re-run; the re-run's result stood). Read from the day files, not from events. See [Daily run](#daily-run). `/analytics/summary` has the same under `daily`.
+
 **Crashes and errors.** Uncaught errors and unhandled promise rejections in the page, grouped by message and the line they were thrown from: reports, sessions, browser families, builds (first 7 characters of the commit), last seen, and the newest stack under **Stack**. The header line is the share of sessions with any report. See [Crash reports](#crash-reports).
 
 **Platform.** Session counts for **Web**, **iOS** (iPhone, iPod, iPad, and iPadOS which reports as a Mac with a touch screen) and **Android**. An installed home-screen app stays in the device's bucket.
@@ -194,8 +196,8 @@ When it is asked: at the first **Play solo**, **Create room** or **Join room** t
 
 <a id="your-data"></a>**Your data: copy and deletion, by the player.** ⚙ Settings → Play data → **Your data**, and the same two buttons on the privacy page:
 
-- **Download my data** asks the server for everything it holds for this browser and saves it as `tdt-play-data-<date>.json` (the share sheet on a phone that has one): an `about` line, the time, the visitor id, its events and its retention line.
-- **Delete my data** (tap twice) deletes the same from memory, `events.jsonl` and `retention.json` at once, then clears the id, the data key and the saved channel in this browser. An open game tab forgets the old id too (it listens for the key changing). If play data is still on, the next event starts a new id.
+- **Download my data** asks the server for everything it holds for this browser and saves it as `tdt-play-data-<date>.json` (the share sheet on a phone that has one): an `about` line, the time, the visitor id, its events, its retention line and its posted Daily runs (`daily`: day, nickname, hero, result, when).
+- **Delete my data** (tap twice) deletes the same from memory, `events.jsonl`, `retention.json` and every day file at once, then clears the id, the data key and the saved channel in this browser. An open game tab forgets the old id too (it listens for the key changing). If play data is still on, the next event starts a new id.
 
 How it proves the browser is yours without accounts: every browser has a **data key**, 32 random bytes kept only in its storage (`tdt.visitorKey`) and never sent with events. Its visitor id is derived from it: the first 32 hex characters of SHA-256 of `tdt-visitor-v1:<key>` (`analytics/dataKey.ts` on both sides; a test checks they agree). The two buttons post `{"key": "<key>"}` to `POST /analytics/mine` and `POST /analytics/mine/forget`; the server derives the id itself. So:
 
@@ -211,7 +213,7 @@ Ids made before data keys (a random `tdt.visitor` with no `tdt.visitorKey`) cann
 **Requests by email** (a player who cleared the site's data, or uses another device). The visitor id is the only key. With the dashboard key set:
 
 - **Copy:** `curl -H "x-analytics-key: $KEY" "https://<render-service>.onrender.com/analytics/visitor?id=<id>"` returns that browser's events and its retention line as JSON.
-- **Delete:** `curl -X POST -H "x-analytics-key: $KEY" "https://<render-service>.onrender.com/analytics/forget?id=<id>"` removes every event with that id and its retention line, takes it out of its first day's counts, and rewrites `events.jsonl` and `retention.json` at once. It answers `{"visitor":"<id>","removedEvents":N}`. No restart is needed, and the daily prune cannot write the lines back.
+- **Delete:** `curl -X POST -H "x-analytics-key: $KEY" "https://<render-service>.onrender.com/analytics/forget?id=<id>"` removes every event with that id and its retention line, takes it out of its first day's counts, removes its posted Daily runs from every day kept, and rewrites `events.jsonl`, `retention.json` and the day files at once. It answers `{"visitor":"<id>","removedEvents":N,"removedDailyRuns":M}`. No restart is needed, and the daily prune cannot write the lines back.
 
 Without the key (dashboard off), do it by hand in Render → the game server → **Shell**, in `ANALYTICS_DIR`: `grep -v '"visitor":"<id>"' events.jsonl > events.tmp && mv events.tmp events.jsonl`, delete `retention.json` (it is rebuilt from the log at startup), then restart when nobody is playing (a restart drains rooms for up to 300 s; until then the server holds the events in memory and would write them back).
 
@@ -237,6 +239,20 @@ Both are filled in as events arrive and rebuilt from `events.jsonl` when the fil
 **What the server keeps.** Totals only (`apps/server/src/analytics/counts.ts`): per UTC day, `what`, channel, platform and browser, how many. In memory and in `counts.json` beside `retention.json` (see [Keep the numbers across deploys](#keep-the-numbers-across-deploys)), kept **90 days** like the cohort counts, pruned at startup and every 24 hours with the event log, and read back at startup. No address, no line per request, and nothing goes into `events.jsonl`. **Copy and deletion are not affected:** there is nothing per person, so a copy has none of it and a deletion has nothing to remove (a count sent before an under-13 answer stays in its day's total). The route checks the `Origin`, answers CORS and takes the same body limit and per-address rate limit as events (see [Limits](#limits)); an unknown `what`, channel, platform or browser, or any other field, is `400`.
 
 **Reading it.** The dashboard's **Before the age question** panel (see [What each panel means](#what-each-panel-means)). An open is a page load, so reloads and returning visitors count again and the share of opens that became sessions is a floor.
+
+## Daily run
+
+**Han's decision (17 Oct 2026):** a Daily run, one seed a day for everyone, solo, Quick on Hard, with a verified public board (`docs/GAME_DESIGN.md` "Daily run"). No accounts: the nickname plus this browser's data key.
+
+**What a posted run sends.** Only when the player taps **Post my run** on a Daily run's end screen, never on its own, and never under 13 (the age question is asked then if it never was): the nickname, the run's report and replay (every input with its tick: moves, builds, casts), and this browser's data key (`tdt.visitorKey`, made then if the browser has none). It goes to `POST /daily/post` on the game server (`apps/client/src/daily/api.ts`). **It does not read the Play data switch:** posting is something the player does, not something sent in the background, so it works with play data off. The privacy page ("A posted Daily run"), the end card's line under the button and ⚙ Settings → Your data say so.
+
+**What the server keeps.** It derives the visitor id from the key exactly as for "Your data" (`visitorFromKey`) and never keeps the key. It re-runs the replay and keeps, per UTC day and per browser, the best run: the id, the nickname (after `normalizeName` and a short word filter; else "Player"), the hero, and the re-run's result (won, Heart left, wave, ticks), plus when it was posted. The replay and the client's report are dropped after the re-run. Each day is one file, `daily/YYYY-MM-DD.json` beside `events.jsonl` (the same `ANALYTICS_DIR` rule), kept **90 days** and deleted at startup and every 24 hours after that. The board shows the nickname and the result to anyone who plays; the id never leaves the server.
+
+**Reading your rank back.** The home tile asks `GET /daily/today` with no key, unless this browser posted a run today or yesterday (`tdt.dailyPosted`, the last three days posted, kept in the browser): then it sends the key in `x-data-key` to show its own rank. The server keeps nothing about a read.
+
+**Copy and deletion.** The same as play data: **Download my data** includes the posted runs, **Delete my data** and the dashboard-key deletion remove them from every day kept, and a post from a just-deleted id is refused for 15 minutes. An under-13 answer deletes them with everything else.
+
+**Limits.** Posts: 448 KB at most; each address 3 at once, then one every 20 seconds; all addresses together 60 at once, then one a second; at most 20 runs waiting for their re-run (`503 busy` past that). Reads (`/daily/today`, `/daily/board`): the events' bucket, 10 at once, then one a second. Origins follow `ALLOWED_ORIGINS`. Routes and answers: `docs/DEPLOY.md` §6.
 
 ## Limits
 

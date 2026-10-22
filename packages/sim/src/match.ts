@@ -359,6 +359,26 @@ export function replayMatch(
    */
   rewrite?: (command: Command, playerIndex: number, match: Match) => Command | null,
 ): Match {
+  const run = replaySteps(replay, tuning, rewrite);
+  for (;;) {
+    const next = run.next();
+    if (next.done) return next.value;
+  }
+}
+
+/**
+ * `replayMatch` a slice at a time: yields the tick reached after every `slice` units of work (a match tick stepped or a
+ * log entry applied), and returns the match once it is over. A host that must keep ticking its rooms (the game server
+ * re-running a posted Daily run) steps it a few milliseconds at a time; `maxTicks` stops a re-run that goes on past
+ * it (throws).
+ */
+export function* replaySteps(
+  replay: Replay,
+  tuning?: Tuning,
+  rewrite?: (command: Command, playerIndex: number, match: Match) => Command | null,
+  slice = Infinity,
+  maxTicks = Infinity,
+): Generator<number, Match, void> {
   const refused = replayRefusal(replay);
   if (refused) throw new Error(refused);
   const match = createMatch(
@@ -372,8 +392,19 @@ export function replayMatch(
     replay.build,
   );
   const state = match.state;
+  let stepped = 0;
+  function* stepTo(tick: number): Generator<number, void, void> {
+    while (state.tick < tick && !matchOver(match)) {
+      if (state.tick >= maxTicks) throw new Error(`Replay runs past ${maxTicks} ticks`);
+      matchStep(match);
+      if (++stepped >= slice) {
+        stepped = 0;
+        yield state.tick;
+      }
+    }
+  }
   for (const [tick, index, what, ...args] of replay.log) {
-    while (state.tick < tick && !matchOver(match)) matchStep(match);
+    yield* stepTo(tick);
     const player = replay.players[index];
     if (!player) throw new Error(`Replay log names player ${index}, the match has ${replay.players.length}`);
     if (what === 'join' || what === 'drop' || what === 'leave') {
@@ -384,9 +415,12 @@ export function replayMatch(
       const applied = rewrite ? rewrite(cmd, index, match) : cmd;
       if (applied) matchCommand(match, player.id, applied);
     }
+    if (++stepped >= slice) {
+      stepped = 0;
+      yield state.tick;
+    }
   }
-  const limit = Math.max(replay.end.tick, state.tick);
-  while (!matchOver(match) && state.tick < limit) matchStep(match);
+  yield* stepTo(Math.max(replay.end.tick, state.tick));
   return match;
 }
 

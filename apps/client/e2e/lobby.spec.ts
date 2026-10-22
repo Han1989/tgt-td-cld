@@ -345,6 +345,79 @@ test('the home card: Mode is one segmented row, remembered, and the first screen
   await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('the Daily tile stays hidden in a build with no game server', async ({ page }) => {
+  let asked = 0;
+  await page.route('**/daily/today', (route) => {
+    asked++;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await openHome(page);
+  await expect(page.locator('#lobby-offline')).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(page.locator('#lobby-daily')).toBeHidden();
+  await expect(page.locator('#lobby-home')).not.toHaveClass(/has-daily/);
+  expect(asked).toBe(0);
+});
+
+test('the Daily tile hides when the game server does not answer', async ({ page }) => {
+  await page.route('**/daily/today', (route) => route.fulfill({ status: 503, body: 'down' }));
+  await openHome(page, undefined, '&daily');
+  await page.waitForTimeout(500);
+  await expect(page.locator('#lobby-daily')).toBeHidden();
+});
+
+for (const size of [
+  { width: 412, height: 839 },
+  { width: 360, height: 640 },
+]) {
+  test(`the Daily tile sits under Mode and fits one screen at ${size.width} × ${size.height}: Play solo does not move`, async ({ page }) => {
+    await page.setViewportSize(size);
+    let answer!: () => void;
+    const answered = new Promise<void>((ok) => (answer = ok));
+    const today = {
+      day: '2026-10-22',
+      seed: 2003471498,
+      closesAt: Date.now() + 3 * 3600_000 + 60_000,
+      runs: 212,
+      champion: { name: 'Kael', heart: 82, ticks: 13_000 },
+    };
+    await page.route('**/daily/today', async (route) => {
+      await answered;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(today) });
+    });
+    await openHome(page, undefined, '&daily');
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    const before = await box(page, '#lobby-offline');
+    const learnBefore = await overflow(page);
+    answer();
+    await expect(page.locator('#lobby-daily')).toBeVisible();
+    await expect(page.locator('#lobby-daily-line')).toHaveText("Yesterday's champion: Kael · 82 Heart");
+    await expect(page.locator('#lobby-daily .daily-head')).toHaveText('Daily run · Quick on Hard');
+    // Under Mode, over Play solo; the tile took its room from the stage.
+    const mode = await box(page, '#lobby-mode-home');
+    const tile = await box(page, '#lobby-daily');
+    const after = await box(page, '#lobby-offline');
+    expect(tile.top).toBeGreaterThanOrEqual(mode.bottom - 1);
+    expect(after.top).toBeGreaterThanOrEqual(tile.bottom - 1);
+    expect(Math.abs(after.top - before.top)).toBeLessThanOrEqual(1);
+    expect(await overflow(page)).toBeLessThanOrEqual(Math.max(0, learnBefore));
+    await onScreen(page, 'lobby-offline');
+    expect(tile.bottom - tile.top).toBeGreaterThanOrEqual(44);
+    const hit = await page.evaluate(() => {
+      const b = document.getElementById('lobby-daily')!.getBoundingClientRect();
+      return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('button')?.id;
+    });
+    expect(hit).toBe('lobby-daily');
+    // Both lines fit the tile, uncut.
+    for (const sel of ['#lobby-daily .daily-head', '#lobby-daily-line']) {
+      const fit = await page.locator(sel).evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(fit, sel).toBeLessThanOrEqual(0);
+    }
+    // The stage still shows its hero.
+    expect((await box(page, '#lobby-stage')).bottom - (await box(page, '#lobby-stage')).top).toBeGreaterThanOrEqual(120);
+  });
+}
+
 test('a new player who picks a hero and a mode and taps Play solo gets that match on Normal, with no lesson', async ({ page }) => {
   await openHome(page);
   await expect(page.locator('#lobby-learn')).toBeVisible();

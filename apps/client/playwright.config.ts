@@ -49,7 +49,7 @@ export default defineConfig({
       name: 'iphone',
       retries: RETRIES,
       // platform: the PWA, effects and sound, and the map plate decoding and drawing on the iPhone's screen too.
-      testMatch: /(mobile|platform|lobby|hook|ultimates|privacy)\.spec\.ts/,
+      testMatch: /(mobile|platform|lobby|hook|ultimates|privacy|daily)\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
     {
@@ -61,7 +61,7 @@ export default defineConfig({
     {
       name: 'desktop',
       retries: RETRIES,
-      testMatch: /(desktop|lobby|hook|ultimates|privacy)\.spec\.ts/,
+      testMatch: /(desktop|lobby|hook|ultimates|privacy|daily)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } },
     },
     {

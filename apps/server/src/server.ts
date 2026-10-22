@@ -18,6 +18,8 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { createAnalyticsHttp } from './analytics/http';
 import { AnalyticsStore } from './analytics/store';
 import type { ServerConfig } from './config';
+import { createDailyHttp } from './daily/http';
+import { DailyStore } from './daily/store';
 import { TokenBucket } from './rateLimit';
 import { CLOSE_SERVICE_RESTART, Room, type Member } from './room';
 import { generateRoomCode, shardOf } from './roomCode';
@@ -95,11 +97,21 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
   const analyticsStore = new AnalyticsStore(config.analyticsDir);
   analyticsStore.open();
   analyticsStore.startPruning();
+  // The Daily run's day files sit beside the event log, under the same directory rule (daily/store.ts).
+  const dailyStore = new DailyStore(config.analyticsDir);
+  dailyStore.open();
+  dailyStore.startPruning();
   const analyticsHttp = createAnalyticsHttp({
     store: analyticsStore,
     dashboardKey: config.analyticsDashboardKey,
     isOriginAllowed: (origin) => config.isOriginAllowed(origin),
     connectedPlayers: () => health().players,
+    daily: dailyStore,
+  });
+  const dailyHttp = createDailyHttp({
+    store: dailyStore,
+    isOriginAllowed: (origin) => config.isOriginAllowed(origin),
+    log,
   });
 
   const httpServer: Server = createServer((req, res) => {
@@ -126,6 +138,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
   async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
       if (await analyticsHttp(req, res)) return;
+      if (await dailyHttp(req, res)) return;
     } catch {
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -355,6 +368,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
     if (tickTimer) clearTimeout(tickTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     analyticsStore.stopPruning();
+    dailyStore.stopPruning();
     for (const room of rooms.values()) room.closeAll(CLOSE_SERVICE_RESTART, 'Server restarting');
     rooms.clear();
     for (const conn of conns) conn.ws.close(CLOSE_SERVICE_RESTART, 'Server restarting');
@@ -367,7 +381,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
         httpServer.closeAllConnections();
       }, 250);
     });
-    return analyticsStore.flush().then(
+    return Promise.all([analyticsStore.flush(), dailyStore.flush()]).then(
       () => closed,
       () => closed,
     );

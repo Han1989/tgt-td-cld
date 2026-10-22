@@ -111,6 +111,22 @@
         </p>
       </section>
 
+      <section aria-labelledby="daily">
+        <h2 id="daily">A posted Daily run</h2>
+        <p>
+          A Daily run is posted only when you tap <em>Post my run</em> on its end screen, never on its own, and only from 13.
+          The post sends the nickname you give, the replay of your inputs in that run (where you moved, what you built and
+          cast, and when) with the game's report of it, and this browser's secret key, from which the server works out the
+          same visitor id as above; the key itself is not kept. The server re-runs the replay to check the score, then keeps
+          the nickname, your hero, the result (Heart left, the wave reached, the time) and the visitor id, and drops the
+          replay. The result is shown on that day's <strong>public board under your nickname</strong>, which anyone who plays
+          can see, so pick one that isn't your real name. Each day's board is kept <strong>90 days</strong>. Because posting
+          is something you do rather than something sent in the background, it works whether play data is on or off.
+          <em>Download my data</em> and <em>Delete my data</em> (<a href="#mine">below</a>) include your posted runs, and so
+          does a deletion asked for by email.
+        </p>
+      </section>
+
       <section aria-labelledby="where">
         <h2 id="where">Who hosts it, and where</h2>
         <p>
@@ -162,7 +178,8 @@
           after their first visit, the server also keeps one short line per visitor id: the day of its first visit, the link
           tag of that visit, the last day it was seen, and whether it came back on day 1, 7 and 30. That line is deleted
           31 days after the last day the id was seen. Daily totals with no id in them (how many new visitors a day, how many
-          of them came back, and how many times the page was opened or failed to start) are kept for 90 days. The visitor id stays in your browser until you clear this site's data.
+          of them came back, and how many times the page was opened or failed to start) are kept for 90 days. A Daily run you
+          posted stays on that day's board for 90 days (<a href="#daily">above</a>). The visitor id stays in your browser until you clear this site's data.
         </p>
       </section>
 

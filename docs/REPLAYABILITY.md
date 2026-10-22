@@ -35,7 +35,7 @@ At the top tier, each tower **splits into one of two specialisations**. The same
 **Match modifiers: removed (Han, 17 Oct 2026; `PROTOCOL_VERSION` 20)**
 - Swift, Ironclad, Sky Tide, Fog and Gold Rush (protocol 15–19: a seeded draw of one or two per match, rerolled by the host in the lobby, shown as chips in the lobby, a banner before the first wave and chips in the match) are gone from the game: they changed a match's numbers, not what the player does, so they never brought anyone back. The sim, the protocol, the lobby, the match HUD, the reports and the balance sample (`balanceModifiers*.test.ts`) dropped them. Lane surges stay exactly as above: always on, announced a wave ahead, the chip and the portal flare; the surge schedule still mixes the match seed on its own (`surges.ts` `mix32`), so it follows the seed as before.
 - A replay saved with modifiers set is refused with a message naming the build to check out; one saved with none (or before modifiers existed) re-runs as before.
-- What replaces them for replayability: more maps (§3), and later a Daily run and Endless (after the gate; Decision Log, 17 Oct 2026), which will use Hard, chosen by the game, never by a row of buttons.
+- What replaces them for replayability: more maps (§3), a Daily run and Endless (Decision Log, 17 Oct 2026), which use Hard, chosen by the game, never by a row of buttons. The Daily run's first session is done (Quick on Hard, one seed a day, a verified board; `docs/GAME_DESIGN.md` "Daily run", Decision Log 22 Oct 2026).
 
 ## 3. More maps over time
 

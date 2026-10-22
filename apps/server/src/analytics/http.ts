@@ -4,10 +4,12 @@
 // (GET /analytics/visitor?id=) or deletion (POST /analytics/forget?id=) asked for by email.
 // A player's own copy and deletion (POST /analytics/mine, /analytics/mine/forget) take the
 // browser's data key instead (dataKey.ts): the server derives the id, so no request can name one.
+// Both kinds of copy and deletion also cover the browser's posted Daily runs (daily/store.ts).
 // Origins follow the WebSocket allow-list.
 
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { DailyStore } from '../daily/store';
 import { TokenBucket } from '../rateLimit';
 import { parseCount } from './counts';
 import { DATA_KEY, visitorFromKey } from './dataKey';
@@ -45,6 +47,8 @@ export interface AnalyticsHttpOptions {
   isOriginAllowed: (origin: string | undefined) => boolean;
   connectedPlayers: () => number;
   now?: () => number;
+  /** The Daily run's board: its entries go with a copy and a deletion, its counts on the dashboard. */
+  daily?: Pick<DailyStore, 'forget' | 'visitorRuns' | 'stats' | 'flush'>;
 }
 
 function presentedKey(req: IncomingMessage, url: URL): string {
@@ -68,13 +72,13 @@ function applyCors(req: IncomingMessage, res: ServerResponse): void {
   res.setHeader('Access-Control-Max-Age', '600');
 }
 
-function clientIp(req: IncomingMessage): string {
+export function clientIp(req: IncomingMessage): string {
   const fwd = req.headers['x-forwarded-for'];
   if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0]!.trim().slice(0, 80);
   return req.socket.remoteAddress ?? 'unknown';
 }
 
-function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
+export function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
   return new Promise((resolve) => {
     const declared = Number(req.headers['content-length'] ?? '');
     if (Number.isFinite(declared) && declared > limit) {
@@ -104,7 +108,7 @@ function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
   });
 }
 
-function send(res: ServerResponse, status: number, body: string, type: string): void {
+export function send(res: ServerResponse, status: number, body: string, type: string): void {
   res.writeHead(status, {
     'Content-Type': type,
     'Cache-Control': 'no-store',
@@ -181,12 +185,22 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
     }
     const visitor = visitorFromKey(key);
     if (forget) {
-      const removed = opts.store.forget(visitor, at);
-      await opts.store.flush();
-      send(res, 200, JSON.stringify({ visitor, removedEvents: removed }), 'application/json; charset=utf-8');
+      send(res, 200, JSON.stringify(await forgetVisitor(visitor, at)), 'application/json; charset=utf-8');
     } else {
-      send(res, 200, JSON.stringify({ visitor, ...opts.store.visitorData(visitor) }), 'application/json; charset=utf-8');
+      send(res, 200, JSON.stringify(copyOf(visitor)), 'application/json; charset=utf-8');
     }
+  }
+
+  /** Every event, the retention line and the Daily runs of an id, from memory and the files. */
+  async function forgetVisitor(visitor: string, at: number): Promise<{ visitor: string; removedEvents: number; removedDailyRuns: number }> {
+    const removed = opts.store.forget(visitor, at);
+    const removedDailyRuns = opts.daily?.forget(visitor, at) ?? 0;
+    await Promise.all([opts.store.flush(), opts.daily?.flush()]);
+    return { visitor, removedEvents: removed, removedDailyRuns };
+  }
+
+  function copyOf(visitor: string) {
+    return { visitor, ...opts.store.visitorData(visitor), daily: opts.daily?.visitorRuns(visitor) ?? [] };
   }
 
   return async (req, res) => {
@@ -296,11 +310,9 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
         return true;
       }
       if (writes) {
-        const removed = opts.store.forget(id, now());
-        await opts.store.flush();
-        send(res, 200, JSON.stringify({ visitor: id, removedEvents: removed }), 'application/json; charset=utf-8');
+        send(res, 200, JSON.stringify(await forgetVisitor(id, now())), 'application/json; charset=utf-8');
       } else {
-        send(res, 200, JSON.stringify({ visitor: id, ...opts.store.visitorData(id) }), 'application/json; charset=utf-8');
+        send(res, 200, JSON.stringify(copyOf(id)), 'application/json; charset=utf-8');
       }
       return true;
     }
@@ -315,6 +327,7 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
       },
       opts.store.retentionTable(),
       opts.store.countTable(),
+      opts.daily?.stats() ?? [],
     );
     if (path === '/analytics/summary') {
       send(res, 200, JSON.stringify(summary), 'application/json; charset=utf-8');

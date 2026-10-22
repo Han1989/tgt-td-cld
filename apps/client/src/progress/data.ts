@@ -105,7 +105,7 @@ const sections: ProgressSection[] = [
   {
     id: 'p6d',
     title: 'Phase 6d · Competition',
-    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026). Not started.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026), except the Daily run (Han, 17 Oct 2026): its first session is done; Endless and the share card come next.',
     group: 'later',
   },
   {
@@ -886,6 +886,15 @@ const items: ProgressItem[] = [
     note: 'Resources build up per hour while away, capped at 12 hours, calculated on the server.',
   },
   {
+    id: 'p6d-daily',
+    title: 'Daily run, session 1 of 3',
+    owner: 'Team',
+    status: 'done',
+    section: 'p6d',
+    note: 'Han, 17 Oct 2026: one seed a day for everyone, solo, Quick on Hard, unlimited tries, the best run counts (Heart left, then time). A tile on the home card starts it; the end screen’s Post my run (one tap, from 13, with a nickname) sends the run’s replay, and the server plays it again itself and keeps its own result, so scores are real. The rank comes first, counting up (“#14 of 212 · top 7 %”), then the gap to the next player, the best in gold and the five rows around you. No accounts; boards kept 90 days. Endless and the share card are sessions 2 and 3. Built by Claude Code (PR #126).',
+    proof: pr(126),
+  },
+  {
     id: 'p6d-weekly',
     title: 'Weekly seeded challenge',
     owner: 'Team',
@@ -1058,7 +1067,7 @@ const items: ProgressItem[] = [
 ];
 
 export const PROGRESS: ProgressData = {
-  asOf: '17 Oct 2026',
+  asOf: '22 Oct 2026',
   protocol: 20,
   polishLabel: 'T-00–T-06',
   polishComplete: true,

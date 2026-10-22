@@ -1,11 +1,12 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { CreepKind, Difficulty, GameMode, GamePhase, HeroKind } from '@tdt/protocol';
+import type { CreepKind, Difficulty, GameMode, GamePhase, HeroKind, MatchReport, Replay } from '@tdt/protocol';
 import type { Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
 import { heroManaRegen, heroMaxMana } from './combat';
+import { createMatch, matchCommand, matchReplay, matchReport, matchStep } from './match';
 import { skillInfo } from './skills';
 import type { UltStats } from './state';
 import { secondsToTicks, TICK_RATE, TUNING, type Tuning } from './tuning';
@@ -53,6 +54,8 @@ export interface HeadlessResult {
   repairs: number;
   repairGold: number;
   towersDestroyed: number;
+  /** With `record`: the match's report and replay, as a host sends them when it ends. */
+  file?: { report: MatchReport; replay: Replay };
 }
 
 export interface HeroMatchStats {
@@ -82,16 +85,20 @@ export function runHeadlessMatch(opts: {
   /** Bots think this many times per second. */
   decisionsPerSecond?: number;
   maxSeconds?: number;
+  /**
+   * Run it as a host does (`createMatch` / `matchCommand` / `matchStep`: coordinates rounded to 1/100 tile) and return
+   * its report and replay in `file`. Off for balance runs, which apply commands as the bots give them.
+   */
+  record?: boolean;
 }): HeadlessResult {
-  const state = createGame(
-    {
-      players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' })),
-      ...(opts.tuning ? { tuning: opts.tuning } : {}),
-      ...(opts.mode ? { mode: opts.mode } : {}),
-      ...(opts.difficulty ? { difficulty: opts.difficulty } : {}),
-    },
-    opts.seed,
-  );
+  const config = {
+    players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' })),
+    ...(opts.tuning ? { tuning: opts.tuning } : {}),
+    ...(opts.mode ? { mode: opts.mode } : {}),
+    ...(opts.difficulty ? { difficulty: opts.difficulty } : {}),
+  };
+  const match = opts.record ? createMatch(config, opts.seed) : null;
+  const state = match?.state ?? createGame(config, opts.seed);
   const every = Math.max(1, Math.round(TICK_RATE / (opts.decisionsPerSecond ?? 4)));
   const maxTicks = (opts.maxSeconds ?? 60 * 60) * TICK_RATE;
 
@@ -118,11 +125,15 @@ export function runHeadlessMatch(opts: {
     if (state.tick % every === 0) {
       const snap = snapshot(state);
       for (const bot of opts.bots) {
-        for (const cmd of bot.decide(snap)) applyCommand(state, bot.playerId, cmd);
+        for (const cmd of bot.decide(snap)) {
+          if (match) matchCommand(match, bot.playerId, cmd);
+          else applyCommand(state, bot.playerId, cmd);
+        }
       }
     }
     for (const c of state.creeps) kindById.set(c.id, c.kind);
-    step(state);
+    if (match) matchStep(match);
+    else step(state);
     for (const c of state.creeps) if (state.tuning.creeps[c.kind].boss) bossIds.add(c.id);
     for (const e of state.events) {
       if (e.type === 'leak' && bossIds.has(e.creepId)) bossLeaks++;
@@ -202,6 +213,7 @@ export function runHeadlessMatch(opts: {
         ultLearnedTick: u.learned,
       };
     }),
+    ...(match ? { file: { report: matchReport(match), replay: matchReplay(match) } } : {}),
   };
 }
 
