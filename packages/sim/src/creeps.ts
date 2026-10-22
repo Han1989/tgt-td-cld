@@ -1,6 +1,8 @@
-// Creep behaviour: walk the lane, fight heroes that come close (with a leash),
-// shoot towers (archers, bosses) for a limited time, leak into the Heart. Boss abilities are in bosses.ts.
+// Creep behaviour: walk the lane, fight heroes that come close (at most `creepAi.chaseCap` per hero, on a short leash
+// and a time limit, then back onto the lane ahead, never behind), shoot towers (archers, bosses) for a limited time,
+// leak into the Heart. Boss abilities are in bosses.ts.
 
+import type { EntityId } from '@tdt/protocol';
 import { updateBoss } from './bosses';
 import { damageHero, damageTower, emit, spawnProjectile, TOWER_RADIUS } from './combat';
 import { getMap } from './map';
@@ -9,6 +11,7 @@ import { secondsToTicks, TICK_RATE } from './tuning';
 import { dist, moveToward } from './vec';
 
 export function updateCreeps(state: GameState): void {
+  assignChases(state);
   // Creeps summoned during this loop (Matriarch hatchlings) start moving next tick.
   const n = state.creeps.length;
   for (let i = 0; i < n; i++) {
@@ -48,41 +51,177 @@ function updateCreep(state: GameState, c: Creep): void {
 
   if (c.mode === 'chase') {
     const hero = state.heroes.find((h) => h.id === c.targetId);
+    // A taunt holds the chase past its leash and its time limit.
     const taunted = state.tick < c.tauntUntil;
-    if (!hero || !hero.alive || (!taunted && dist(c.x, c.y, c.anchorX, c.anchorY) > t.creepAi.leashRange)) {
-      c.mode = 'return';
-      c.targetId = -1;
+    if (!hero || !hero.alive) {
+      stopChase(state, c, false);
+    } else if (
+      !taunted &&
+      (state.tick >= c.chaseUntil || dist(c.x, c.y, c.anchorX, c.anchorY) > t.creepAi.leashRange)
+    ) {
+      stopChase(state, c, true);
     } else {
-      const heroRadius = t.hero[hero.kind].radius;
-      if (dist(c.x, c.y, hero.x, hero.y) <= s.attackRange + s.radius + heroRadius) attackHero(state, c, hero);
+      if (inReach(state, c, hero)) attackHero(state, c, hero);
       else moveToward(c, hero.x, hero.y, step);
     }
   }
 
-  if (c.mode === 'return') {
+  if (c.mode === 'rejoin') {
+    strikeInReach(state, c);
     if (moveToward(c, c.anchorX, c.anchorY, step)) c.mode = 'lane';
   } else if (c.mode === 'lane') {
-    const hero = s.damage > 0 ? nearestHero(state, c, t.creepAi.aggroRange) : undefined;
-    if (hero) {
-      c.mode = 'chase';
-      c.targetId = hero.id;
-      c.anchorX = c.x;
-      c.anchorY = c.y;
+    // Chases start in `assignChases`. A creep left out (a full cap, its aggro cooldown) strikes a hero in its reach
+    // as it passes, without stopping.
+    strikeInReach(state, c);
+    // Anti-stall: a creep that has spent long enough stopped at towers ignores them from then on.
+    const stalled = c.towerTicks >= secondsToTicks(t.creepAi.towerAttackLimit);
+    const tower =
+      s.attacksTowers && !stalled ? nearestTower(state, c, s.attackRange + s.radius + TOWER_RADIUS) : undefined;
+    if (tower) {
+      c.towerTicks++;
+      attackTower(state, c, tower);
     } else {
-      // Anti-stall: a creep that has spent long enough stopped at towers ignores them from then on.
-      const stalled = c.towerTicks >= secondsToTicks(t.creepAi.towerAttackLimit);
-      const tower =
-        s.attacksTowers && !stalled ? nearestTower(state, c, s.attackRange + s.radius + TOWER_RADIUS) : undefined;
-      if (tower) {
-        c.towerTicks++;
-        attackTower(state, c, tower);
-      } else {
-        walkLane(state, c, step);
-      }
+      walkLane(state, c, step);
     }
   }
 
   if (!c.dead) updateRemaining(c);
+}
+
+/** Whether a hero stands in a creep's reach: its attack range plus both radii. */
+function inReach(state: GameState, c: Creep, hero: Hero): boolean {
+  const s = state.tuning.creeps[c.kind];
+  return dist(c.x, c.y, hero.x, hero.y) <= s.attackRange + s.radius + state.tuning.hero[hero.kind].radius;
+}
+
+/** A creep that is not chasing still strikes the nearest hero in its reach (when its attack is ready). */
+function strikeInReach(state: GameState, c: Creep): void {
+  if (c.attackCd > 0 || state.tuning.creeps[c.kind].damage <= 0) return;
+  let best: Hero | undefined;
+  let bestD = Infinity;
+  for (const h of state.heroes) {
+    if (!h.alive || !inReach(state, c, h)) continue;
+    const d = dist(c.x, c.y, h.x, h.y);
+    if (d < bestD) {
+      best = h;
+      bestD = d;
+    }
+  }
+  if (best) attackHero(state, c, best);
+}
+
+/** Whether a ground creep is chasing `heroId` on its own (a taunted one does not count against the cap). */
+function chasing(state: GameState, c: Creep, heroId: EntityId): boolean {
+  return !c.dead && c.mode === 'chase' && c.targetId === heroId && state.tick >= c.tauntUntil;
+}
+
+/**
+ * The chase cap: at most `creepAi.chaseCap` ground creeps chase one hero at a time, taunted ones aside. Free places go
+ * to the nearest creeps walking their lane within `aggroRange` of a hero (each to its nearest hero with a place);
+ * creeps that are stunned or on their aggro cooldown wait. A creep already chasing keeps its place; when a taunt ends
+ * with more than the cap chasing one hero, the farthest give up.
+ */
+function assignChases(state: GameState): void {
+  const ai = state.tuning.creepAi;
+  const free = new Map<EntityId, number>();
+  for (const h of state.heroes) {
+    if (!h.alive) continue;
+    const chasers = state.creeps.filter((c) => chasing(state, c, h.id));
+    if (chasers.length > ai.chaseCap) {
+      const far = chasers
+        .map((c) => ({ c, d: dist(c.x, c.y, h.x, h.y) }))
+        .sort((a, b) => b.d - a.d)
+        .slice(0, chasers.length - ai.chaseCap);
+      for (const { c } of far) stopChase(state, c, true);
+    }
+    free.set(h.id, Math.max(0, ai.chaseCap - chasers.length));
+  }
+  if (![...free.values()].some((n) => n > 0)) return;
+
+  const pairs: { c: Creep; h: Hero; d: number }[] = [];
+  for (const c of state.creeps) {
+    const s = state.tuning.creeps[c.kind];
+    if (c.dead || c.mode !== 'lane' || s.flying || s.damage <= 0) continue;
+    if (state.tick < c.stunUntil || state.tick < c.noAggroUntil) continue;
+    for (const h of state.heroes) {
+      if ((free.get(h.id) ?? 0) <= 0) continue;
+      const d = dist(c.x, c.y, h.x, h.y);
+      if (d <= ai.aggroRange) pairs.push({ c, h, d });
+    }
+  }
+  pairs.sort((a, b) => a.d - b.d);
+  for (const { c, h } of pairs) {
+    const n = free.get(h.id) ?? 0;
+    if (c.mode !== 'lane' || n <= 0) continue;
+    startChase(state, c, h.id);
+    free.set(h.id, n - 1);
+  }
+}
+
+/**
+ * A creep starts chasing a hero: one walking its lane leaves it here; one rejoining keeps the lane point it was
+ * heading for as where it left. The chase lasts at most `creepAi.chaseSeconds` (a chase already on keeps its end).
+ */
+export function startChase(state: GameState, c: Creep, heroId: EntityId): void {
+  if (c.mode === 'lane') {
+    c.anchorX = c.x;
+    c.anchorY = c.y;
+  }
+  if (c.mode !== 'chase') c.chaseUntil = state.tick + secondsToTicks(state.tuning.creepAi.chaseSeconds);
+  c.mode = 'chase';
+  c.targetId = heroId;
+}
+
+/**
+ * Ends a chase. The creep rejoins its lane ahead (`rejoinLane`), never walking back; one that gave up (its leash, its
+ * time limit, a full cap) starts no new chase for `creepAi.aggroCooldown` seconds.
+ */
+function stopChase(state: GameState, c: Creep, gaveUp: boolean): void {
+  c.targetId = -1;
+  c.tauntUntil = 0;
+  if (gaveUp) c.noAggroUntil = state.tick + secondsToTicks(state.tuning.creepAi.aggroCooldown);
+  rejoinLane(c);
+}
+
+/**
+ * Sends a creep onto its lane at the point of its own line (its waypoints shifted by its offset, as it walks them)
+ * nearest to it, at or past where it left the lane (`anchorX`, `anchorY`, on the leg to waypoint `wp`), never behind.
+ * That point becomes its anchor, so `remaining` counts from it at once, and its next waypoint is the end of that leg.
+ */
+export function rejoinLane(c: Creep): void {
+  const lane = getMap().lanes[c.lane]!;
+  const last = lane.waypoints.length - 1;
+  const point = (i: number) => {
+    const w = lane.waypoints[i]!;
+    if (i === last) return w;
+    // Creeps spawn at the portal no higher than its row (waves.ts).
+    return { x: w.x + c.offX, y: w.y + (i === 0 ? Math.max(0, c.offY) : c.offY) };
+  };
+  const from = Math.min(Math.max(c.wp, 1), last);
+  let best = { x: c.x, y: c.y, wp: from, d: Infinity };
+  for (let i = from; i <= last; i++) {
+    const a = point(i - 1);
+    const b = point(i);
+    const tMin = i === from ? along(c.anchorX, c.anchorY, a, b) : 0;
+    const t = Math.max(tMin, along(c.x, c.y, a, b));
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t;
+    const d = dist(c.x, c.y, x, y);
+    if (d < best.d) best = { x, y, wp: i, d };
+  }
+  c.mode = 'rejoin';
+  c.anchorX = best.x;
+  c.anchorY = best.y;
+  c.wp = best.wp;
+  updateRemaining(c);
+}
+
+/** Where the point (x, y) projects onto the leg a → b, from 0 (at a) to 1 (at b). */
+function along(x: number, y: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  return lenSq === 0 ? 1 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lenSq));
 }
 
 function walkLane(state: GameState, c: Creep, step: number): void {
@@ -120,20 +259,6 @@ function leak(state: GameState, c: Creep): void {
   c.dead = true;
   state.heartHp = Math.max(0, state.heartHp - damage);
   emit(state, { type: 'leak', creepId: c.id, damage, lane: c.lane });
-}
-
-function nearestHero(state: GameState, c: Creep, range: number): Hero | undefined {
-  let best: Hero | undefined;
-  let bestD = range;
-  for (const h of state.heroes) {
-    if (!h.alive) continue;
-    const d = dist(c.x, c.y, h.x, h.y);
-    if (d <= bestD) {
-      best = h;
-      bestD = d;
-    }
-  }
-  return best;
 }
 
 function nearestTower(state: GameState, c: Creep, range: number): Tower | undefined {

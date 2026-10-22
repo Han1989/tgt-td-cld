@@ -33,8 +33,9 @@ describe('progress dashboard data', () => {
     expect(summary.nextGate).toBe('D-06');
     expect(summary.nextGateDetail).toContain('Soft launch');
     // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116), P2-10 (silence while a music
-    // file downloads; PR #122) and P2-11 (the music streamed from the first tap; PR #123) are done.
-    expect(summary.done).toBe(65);
+    // file downloads; PR #122), P2-11 (the music streamed from the first tap; PR #123) and T-07a (creeps that cannot
+    // be kited; PR #124) are done.
+    expect(summary.done).toBe(66);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -46,7 +47,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(105);
+    expect(summary.total).toBe(106);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -68,6 +69,7 @@ describe('progress dashboard data', () => {
       'P2-09': 96,
       'P2-10': 122,
       'P2-11': 123,
+      'T-07a': 124,
       'D-09': 98,
       'H-07': 98,
     };
@@ -140,8 +142,9 @@ describe('progress dashboard data', () => {
 
   it('lists the order from here first, top to bottom, and holds the Later rows until D-06', () => {
     const order = PROGRESS.items.filter((item) => item.section === 'order').map((item) => item.id);
-    // D-10 is needed before the first post, not before the retest or the cold test.
-    expect(order).toEqual(['D-09', 'H-08', 'P2-05', 'H-09', 'T-07', 'D-10', 'D-02', 'D-03', 'D-04', 'D-06']);
+    // D-10 is needed before the first post, not before the retest or the cold test. T-07a (creeps that cannot be
+    // kited, from the first cold tester) sits with the fix round.
+    expect(order).toEqual(['D-09', 'H-08', 'P2-05', 'H-09', 'T-07', 'T-07a', 'D-10', 'D-02', 'D-03', 'D-04', 'D-06']);
     expect(PROGRESS.sections[0]!.id).toBe('order');
     expect(PROGRESS.sections[0]!.blurb).toContain('On hold until D-06 is called');
     expect(PROGRESS.items.filter((item) => item.section === 'after').map((item) => item.id)).toEqual(['L-01', 'L-02']);

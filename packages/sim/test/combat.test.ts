@@ -303,7 +303,7 @@ describe('hero', () => {
 });
 
 describe('creep aggro and leash', () => {
-  it('fights a nearby hero, then returns to the lane once leashed', () => {
+  it('fights a nearby hero, then rejoins the lane once leashed, ahead of where it left it', () => {
     const tuning = tuningCopy();
     tuning.hero.ranger.hpRegen = 0;
     const state = labGame(tuning);
@@ -317,11 +317,17 @@ describe('creep aggro and leash', () => {
     run(state, 60);
     expect(hero.hp).toBeLessThan(tuning.hero.ranger.hp);
 
-    // Hero teleports away beyond the leash; the creep gives up and walks back.
-    hero.x = 13;
-    hero.y = 10 + tuning.creepAi.leashRange + 20;
+    // Hero teleports away into the forest beyond the leash; the creep gives up and walks on down its lane, never back
+    // up it.
+    hero.x = 3.5;
+    hero.y = 46.5;
     hero.stunUntil = 1_000_000;
-    run(state, 400);
+    let y = c.y;
+    for (let i = 0; i < 400; i++) {
+      run(state, 1);
+      expect(c.y).toBeGreaterThanOrEqual(y);
+      y = c.y;
+    }
     expect(c.mode).toBe('lane');
     expect(c.y).toBeGreaterThan(10);
   });

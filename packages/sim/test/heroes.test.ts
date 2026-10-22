@@ -494,8 +494,12 @@ describe('Warden', () => {
     grunt.anchorY = grunt.y - 20;
     run(state, 5);
     expect(grunt).toMatchObject({ mode: 'chase', targetId: warden.id });
+    // The taunt over, the leash ends the chase: it rejoins its lane where it stands and walks on, not back up the lane.
+    const y = grunt.y;
     run(state, ticks);
-    expect(grunt.mode).toBe('return');
+    expect(grunt.mode).not.toBe('chase');
+    expect(grunt.targetId).toBe(-1);
+    expect(grunt.y).toBeGreaterThanOrEqual(y);
   });
 
   it('Taunt pulls flyers off the Heart to hover over the Warden until it ends', () => {
@@ -528,6 +532,7 @@ describe('Warden', () => {
     hero.hp = 200;
     const grunt = placeCreep(state, 'grunt', hero.x, hero.y - 1);
     grunt.rootUntil = 1_000_000;
+    grunt.attackCd = 1_000_000; // never strikes back
     const dealt = TUNING.hero.warden.damage * armorMultiplier(TUNING, grunt.armor);
     const before = hero.hp;
     run(state, 1);

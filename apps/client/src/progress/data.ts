@@ -17,6 +17,7 @@
  * V-05e on 17 Oct 2026 (PR #121: the stress test's budget after the 3D sprites).
  * P2-10 on 17 Oct 2026 (PR #122: silence, not the code-made score, while a music file downloads).
  * P2-11 on 17 Oct 2026 (PR #123: the music streamed from the first tap, then its decoded loop).
+ * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -181,6 +182,15 @@ const items: ProgressItem[] = [
     status: 'todo',
     section: 'order',
     note: 'From the retest and the cold test, with the rebalance in it, which ends the “provisional until Playtest 3” balance bounds. Starts after P2-05 and H-09.',
+  },
+  {
+    id: 'T-07a',
+    title: 'Creeps that cannot be kited',
+    owner: 'Team',
+    status: 'done',
+    section: 'order',
+    note: 'Sim only, protocol stays 20; the merge restarts the game server. Han, 21 Oct 2026, from the first Reddit cold tester, who beat 30 Normal waves by leading creeps through their towers and letting them walk back through them. Now only the nearest creeps chase a hero (the rest walk on and strike him as they pass), a chase ends at a short leash or a time limit, and a creep that stops chasing joins its lane ahead, never walking back. Han’s first numbers made every team lose most of its Heart, so the balance matrix retuned them (cap 10, leash 5 tiles, 12 s, 3 s cooldown) and eased the early team waves; first-time players still win at least 87% of matches with every team.',
+    proof: pr(124),
   },
   {
     id: 'D-10',
