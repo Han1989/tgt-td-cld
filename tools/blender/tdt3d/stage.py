@@ -46,7 +46,9 @@ FEET_Y = 735          # the ground line under the hero, video px from the top
 MID = (0.0, -2.0)     # the point between the heroes' feet the camera centres (figure x / y, world px)
 # The box every hero's loop stays inside (video px, ink included): all three share it, so fitStage places the
 # video the same for each and switching heroes never moves the clearing. The build stops if a loop leaves it.
-BOX = dict(x0=956.0, y0=308.0, x1=1440.0, y1=800.0)
+# V-06b: wider for the Meshy Warden (sword to shield he is as wide as he is tall, and his slash sweeps past both); the
+# stage on a 412 px phone is still fitted by its height, so no hero is drawn smaller for it.
+BOX = dict(x0=864.0, y0=308.0, x1=1516.0, y1=800.0)
 AZIMUTH = 40.0        # degrees round from the hero's front towards its right
 ELEVATION = 4.5       # degrees above the hero's chest
 LENS = 50.0

@@ -1,5 +1,5 @@
-// Heroes and creeps made in 3D and rendered ahead of time (docs/ART.md §15), from the CC0 KayKit and Quaternius
-// models: the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
+// Heroes and creeps made in 3D and rendered ahead of time (docs/ART.md §15), the heroes from the game's own Meshy
+// models (V-06b), the creeps from the CC0 KayKit and Quaternius models: the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
 // white twins), the stage files must be what the layout says and within budget, every hero's stage the same box in
 // the same clearing, every shipped stage frame and the creeps' kept frames must pass the fringe check, the creep sheets
 // (lossless WebP, read pixel for pixel by scripts/webp.ts) must fit the texture budget (two 2048 × 2048 pages), and
@@ -21,10 +21,12 @@ import {
   drawStep,
   fitStage,
   HERO_3D,
+  kindBox,
   progressFrame,
   STAGE_TITLE_CLEAR,
   walkCadence,
   type Cell,
+  type CellBox,
   type LayerBox,
   type LayerName,
   type StageLayout,
@@ -134,16 +136,21 @@ describe('3D heroes: the match sheet', () => {
       }
     });
 
+    /** Every frame with its cell box: each kind of frame is cropped to its own (V-06b), within the layer's. */
     const layers = Object.entries(m.frames).map(
-      ([name, kinds]) => [name, Object.values(kinds).flat(), m.layers[name as LayerName]!] as [string, Cell[], LayerBox],
+      ([name, kinds]) =>
+        [
+          name,
+          Object.entries(kinds).flatMap(([k, cells]) => cells.map((c) => [c, kindBox(m.layers[name as LayerName]!, k)] as const)),
+        ] as [string, (readonly [Cell, CellBox])[]],
     );
     /** How much of a cell a frame fills at least. */
     const FILL = 0.08;
 
     it(`${kind}: each frame and its white twin lie inside the sheet, without overlapping another`, () => {
       const rects: [number, number, number, number][] = [];
-      for (const [, cells, size] of layers) {
-        for (const c of cells) {
+      for (const [, cells] of layers) {
+        for (const [c, size] of cells) {
           for (const [x, y] of [
             [c.x, c.y],
             [c.fx, c.fy],
@@ -166,8 +173,8 @@ describe('3D heroes: the match sheet', () => {
     });
 
     it(`${kind}: no frame is empty or cut at its cell's edge, and each white twin is its frame's shape in white`, () => {
-      for (const [name, cells, size] of layers) {
-        for (const [i, c] of cells.entries()) {
+      for (const [name, cells] of layers) {
+        for (const [i, [c, size]] of cells.entries()) {
           let drawn = 0;
           for (let y = 0; y < size.h; y++) {
             for (let x = 0; x < size.w; x++) {
@@ -212,7 +219,7 @@ describe('3D heroes: the match sheet', () => {
         for (const [k, pts] of Object.entries(byKind)) {
           for (const [i, s] of pts.entries()) {
             // World px from the feet: on the figure, as the rig draws it (the body, or the head over it), inside the
-            // body's cell (the Arcanist's gem hangs by his feet in the idle, the pack's grip, a hair below the feet).
+            // body's cell (the Arcanist's crystal at any height she holds her staff, never below the feet).
             expect(s.y, `${name} ${k} ${i}`).toBeLessThan((body.h - body.ay) / m.res);
             expect(s.y, `${name} ${k} ${i}`).toBeLessThan(1);
             expect(s.y, `${name} ${k} ${i}`).toBeGreaterThan(-34);
@@ -220,14 +227,15 @@ describe('3D heroes: the match sheet', () => {
             if (name !== 'shoulder') continue;
             const c = m.frames.body[k]![i]!;
             const h = m.frames.head?.[k]?.[i];
+            const bb = kindBox(body, k);
             const inside = (w: number, hh: number, x: number, y: number) => x >= 0 && y >= 0 && x < w && y < hh;
             let near = 0;
             for (let dy = -3; dy <= 3; dy++) {
               for (let dx = -3; dx <= 3; dx++) {
-                const bx = Math.round(body.ax + s.x * m.res) + dx;
-                const by = Math.round(body.ay + s.y * m.res) + dy;
-                if (inside(body.w, body.h, bx, by)) near = Math.max(near, alphaAt(png, c.x + bx, c.y + by));
-                const hd = m.layers.head;
+                const bx = Math.round(bb.ax + s.x * m.res) + dx;
+                const by = Math.round(bb.ay + s.y * m.res) + dy;
+                if (inside(bb.w, bb.h, bx, by)) near = Math.max(near, alphaAt(png, c.x + bx, c.y + by));
+                const hd = m.layers.head && kindBox(m.layers.head, k);
                 if (h && hd) {
                   const hx = Math.round(hd.ax + s.x * m.res) + dx;
                   const hy = Math.round(hd.ay + s.y * m.res) + dy;
@@ -239,9 +247,23 @@ describe('3D heroes: the match sheet', () => {
           }
         }
       }
+      // A stride (two steps) about the figure's height: the Warden's in Meshy's walk (29 world px) a little more.
       expect(m.walkStride).toBeGreaterThan(4);
-      expect(m.walkStride).toBeLessThan(20);
+      expect(m.walkStride).toBeLessThan(40);
       expect(m.idleMs).toBeCloseTo(Math.PI * 1000, 0);
+    });
+
+    it(`${kind}: each kind of frame has its own cell box, inside the layer's (its anchor the same point)`, () => {
+      for (const [name, box] of Object.entries(m.layers) as [LayerName, LayerBox][]) {
+        expect(Object.keys(box.kinds ?? {}).sort(), name).toEqual(Object.keys(m.frames[name]!).sort());
+        for (const [k, b] of Object.entries(box.kinds ?? {})) {
+          // The kind's box, placed by its anchor, lies inside the layer's.
+          expect(box.ax - b.ax, `${name} ${k}`).toBeGreaterThanOrEqual(0);
+          expect(box.ay - b.ay, `${name} ${k}`).toBeGreaterThanOrEqual(0);
+          expect(box.ax - b.ax + b.w, `${name} ${k}`).toBeLessThanOrEqual(box.w);
+          expect(box.ay - b.ay + b.h, `${name} ${k}`).toBeLessThanOrEqual(box.h);
+        }
+      }
     });
   }
 });
@@ -406,11 +428,12 @@ describe('3D heroes: the rig and stage rules', () => {
   });
 
   it('walkCadence matches the steps to the ground the hero covers (no sliding), capped, and still when stopped', () => {
-    // A Ranger at 4.6 tiles/s drawn 2.21× (a 412 px phone): 66.6 rig px/s over his 16 px jogging stride.
+    // A Ranger at 4.6 tiles/s drawn 2.21× (a 412 px phone): 66.6 rig px/s over his 31 px running stride (Meshy's run).
     const stride = HERO_3D.ranger!.match.walkStride;
     expect(walkCadence(4.6, 2.21, stride)).toBeCloseTo((4.6 * 32) / 2.21 / stride, 6);
     expect(walkCadence(4.6, 2.21, stride)).toBeLessThan(5);
-    expect(walkCadence(4.6, 1, stride)).toBe(5);
+    // Drawn smaller than his map size, the steps would flicker: capped.
+    expect(walkCadence(4.6, 0.5, stride)).toBe(5);
     expect(walkCadence(0, 2, stride)).toBe(0);
   });
 
@@ -493,7 +516,7 @@ describe('the fringe check (no light ring round the hero, no hard alpha step)', 
   });
 
   /** The stage frames each hero's build keeps as fixtures (tools/blender/hero.py `checks`): idle, its move, after. */
-  const CHECKS: Record<string, number[]> = { ranger: [0, 150, 165], warden: [0, 100, 125], arcanist: [0, 140, 200] };
+  const CHECKS: Record<string, number[]> = { ranger: [0, 150, 165], warden: [0, 100, 125], arcanist: [0, 140, 160] };
 
   it('passes the stage frames we ship (each hero idle, in its signature move and after it)', () => {
     const want = results(FIXTURES);

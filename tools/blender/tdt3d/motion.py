@@ -1,6 +1,7 @@
-# Motion from the KayKit clips, retimed to the game (docs/ART.md §15). The clips are read by bone name (tdt3d.figure)
+# Motion from the heroes' clips, retimed to the game (docs/ART.md §15). The clips are read by bone name (tdt3d.figure)
 # and only sampled and blended here, never edited: the stage loop is the idle with the signature move eased in over
-# it, the match frames are clip moments picked to the 2D rigs' timing (the hero table says which).
+# it, the match frames are clip moments picked to the 2D rigs' timing (the hero table says which). An idle is a whole
+# looping clip (a KayKit Idle_A), or a span of one played there and back (Meshy's look-round idle: its calm opening).
 
 import math
 
@@ -23,14 +24,37 @@ def idle_rate(clip_s, loop_s):
     return n * clip_s / loop_s
 
 
+def breath(idle, t):
+    """The clip time of a there-and-back idle (`idle`: {clip, span, period}) `t` seconds in: eased at both ends, so
+    the turn has no seam and the loop none either."""
+    a, b = idle['span']
+    u = (1 - math.cos(2 * math.pi * t / idle['period'])) / 2
+    return a + (b - a) * u
+
+
+def breath_times(idle, n):
+    """n moments over one there-and-back breath (the match's idle frames)."""
+    return [breath(idle, idle['period'] * i / n) for i in range(n)]
+
+
+def idle_pose(fig, st, t):
+    idle = st['idle']
+    if isinstance(idle, dict):
+        if (st['seconds'] / idle['period']) % 1 > 1e-6:
+            raise ValueError('the idle\'s breath must fit the loop a whole number of times')
+        return fig.sample(idle['clip'], breath(idle, t))
+    rate = idle_rate(fig.seconds(idle), st['seconds'])
+    return fig.sample(idle, t * rate, loop=True)
+
+
 def stage_pose(fig, spec, t):
     """The stage loop's pose at `t` seconds: the idle, and over it each move of the signature (a clip played from
     `frm` to `to` seconds from `at` in the loop, eased in over `ease_in`; it holds its last frame for `hold`, then eases
-    out over `ease_out`). A move that follows another eases in over the other's held last frame, so clips chain."""
+    out over `ease_out`). A move that follows another eases in over the other's held last frame, so clips chain. A move's
+    `weight` (1 by default) is how far it takes the pose from what is under it: the Warden's slash on the stage is 0.85
+    of the clip's over his guard, so its sweep stays inside the box the three heroes share."""
     st = spec['stage']
-    idle = st['idle']
-    rate = idle_rate(fig.seconds(idle), st['seconds'])
-    pose = fig.sample(idle, t * rate, loop=True)
+    pose = idle_pose(fig, st, t)
     for m in st['moves']:
         dur = (m['to'] - m['frm']) / m.get('rate', 1.0)
         start = m['at']
@@ -41,7 +65,7 @@ def stage_pose(fig, spec, t):
         if t < start or t >= end + hold + ease_out:
             continue
         u = m['frm'] + min(t - start, dur) * m.get('rate', 1.0)
-        w = smooth((t - start) / ease_in) if ease_in > 0 else 1.0
+        w = (smooth((t - start) / ease_in) if ease_in > 0 else 1.0) * m.get('weight', 1.0)
         if t > end + hold:
             w *= 1.0 - smooth((t - end - hold) / ease_out) if ease_out > 0 else 0.0
         pose = figure.mix(pose, fig.sample(m['clip'], u), w)
@@ -51,7 +75,7 @@ def stage_pose(fig, spec, t):
 def stage_frames(fig, spec, fps):
     """Every frame of the stage loop, posed: its pose, the arrow's state and whether a fast part moves (more samples, so
     its motion blur stays smooth). The arrow is nocked from `nock` seconds until the string snaps back (after
-    `loose_after`), then flies off for `flight` seconds."""
+    `loose_after`; or, for a welded string that never draws, at `loose`), then flies off for `flight` seconds."""
     st = spec['stage']
     n = int(round(st['seconds'] * fps))
     arrow = st.get('arrow')
@@ -64,7 +88,12 @@ def stage_frames(fig, spec, fps):
         if arrow:
             if loosed is None and t >= arrow['nock']:
                 fig.apply(pose, arrow='nocked')
-                if t >= arrow['loose_after'] and fig.draw < 0.05:
+                if 'loose' in arrow:
+                    if t >= arrow['loose']:
+                        loosed = t
+                    else:
+                        state = 'nocked'
+                elif t >= arrow['loose_after'] and fig.draw < 0.05:
                     loosed = t
                 else:
                     state = 'nocked'
@@ -103,14 +132,15 @@ def mapped_times(n, keys):
     return out
 
 
-def draw_times(fig, clip, n, step=1 / 120):
+def draw_times(fig, clip, n, step=1 / 120, span=None):
     """n moments of a draw clip with the string drawn 0, 1/(n-1), … of its full draw (as far as the hand comes back):
-    the bow layer's draw steps."""
-    s = fig.seconds(clip)
-    k = int(s / step) + 1
+    the bow layer's draw steps. `span` (seconds) keeps to the draw within a longer clip (Meshy's Archery_Shot also
+    reaches for the arrow and lowers the bow)."""
+    t0, t1 = span or (0.0, fig.seconds(clip))
+    k = int((t1 - t0) / step) + 1
     curve = []
     for j in range(k):
-        t = min(s, j * step)
+        t = min(t1, t0 + j * step)
         fig.apply(fig.sample(clip, t), arrow='hidden')
         curve.append((t, fig.draw))
     full = max(d for _, d in curve)

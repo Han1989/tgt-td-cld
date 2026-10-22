@@ -19,6 +19,7 @@
  * P2-11 on 17 Oct 2026 (PR #123: the music streamed from the first tap, then its decoded loop).
  * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
  * V-06a on 22 Oct 2026 (PR #128: the heroes designed by Claude and generated in Meshy, session 1 of 2, assets only).
+ * V-06b on 22 Oct 2026 (PR #130: the Meshy heroes in the game, session 2 of 2).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -323,6 +324,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Assets only, session 1 of 2: no game code changes, and the game keeps its current heroes until session 2. Han, 22 Oct 2026: the heroes from the free packs are generic and the game lost its identity, so the Ranger, the Warden and the Arcanist are original characters designed by Claude in the game’s moonlit look and generated in Meshy (Pro plan, commercial use permitted). Round 2 (Han, 22 Oct 2026): the first round came out as realistic humans, and the game’s heroes are chibi, so the same three designs are redrawn 2.5 heads tall with big round heads, stubby limbs, big hands and feet and an oversized signature piece (the Ranger’s hood, the Warden’s horned pauldron and kite shield, the Arcanist’s hat and crescent staff), then made 3D, rigged and given seven clips each (idle, walk, run, attack, cast, hit, death). The Arcanist’s staff bent with her leg in the clips, so she is made bare-handed and her staff is a separate piece. Round 1 is kept for comparison; both are on the contact sheet. In review: Han judges the heroes on his phone. Built by Claude Code (PR #128).',
     proof: pr(128),
+  },
+  {
+    id: 'V-06b',
+    title: 'The Meshy heroes in the game',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only, session 2 of 2: no game rules, server or protocol change. Han, 22 Oct 2026: the game’s heroes are the chibi Meshy models, the game’s own designs, everywhere the free-pack heroes showed: the first screen’s stage, the match and the art page. They go through the same painter and are rendered ahead of time exactly as before (nothing 3D runs on the phone). The weapons Meshy welded into the body now move with the hand instead of bending; every colour of their textures is matched to the game’s palette, and a colour the table doesn’t expect stops the build; their own animations play with the moments where a hand, the hat or the helm passes through the face left out. The Arcanist holds her crescent staff upright, its crystal glowing beside her hat. In review: Han judges the heroes on his phone. Built by Claude Code (PR #130).',
+    proof: pr(130),
   },
   {
     id: 'g1-render',

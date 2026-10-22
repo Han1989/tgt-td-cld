@@ -18,7 +18,8 @@ RES = 4        # sheet px per world px
 SS = 2         # rendered at SS × RES, then averaged down (anti-aliasing for the ink and the edges)
 VIEWS = {
     'body': (34.0, 20.0),     # azimuth, elevation: the 3/4 view from the front right (both eyes show)
-    'profile': (90.0, 8.0),   # from the figure's right: the bow broadside
+    'profile': (90.0, 8.0),   # from the figure's right: the bow broadside (a KayKit archer, shooting forward)
+    'front': (0.0, 8.0),      # from the front: the bow broadside (the Meshy Ranger shoots side-on, to his left)
 }
 WINDOW = 56                  # world px rendered round the anchor, each way, before cropping
 PAD = 2                      # sheet px kept round each layer's union box
@@ -92,15 +93,17 @@ def _union(images):
 
 
 def _pack(cells, width=1024):
-    """Shelf-packs (w, h) cells left to right; returns their (x, y) and the sheet's size."""
+    """Shelf-packs (w, h) cells left to right, the tallest first (cells of one kind share a size, so they share a
+    shelf); returns their (x, y) in the order given and the sheet's size."""
     x = y = shelf = 0
-    out = []
-    for w, h in cells:
+    out = [None] * len(cells)
+    for k in sorted(range(len(cells)), key=lambda k: (-cells[k][1], k)):
+        w, h = cells[k]
         if x + w > width:
             x = 0
             y += shelf
             shelf = 0
-        out.append((x, y))
+        out[k] = (x, y)
         x += w
         shelf = max(shelf, h)
     return out, width, y + shelf
@@ -111,7 +114,14 @@ def _point(fig, spec):
     if kind == 'bone':
         return fig.world(spec[1])
     if kind == 'prop':
-        return fig.props[spec[1]][0].matrix_world @ figure.V(spec[2])
+        o = fig.props[spec[1]][0]
+        at = spec[2]
+        if isinstance(at, str):
+            # The middle of the prop's faces painted in that material (the Arcanist's crystal).
+            idx = [i for i, m in enumerate(o.data.materials) if m.name.split('.')[0] == at]
+            pts = [p.center for p in o.data.polygons if p.material_index in idx]
+            at = sum(pts, figure.V((0, 0, 0))) / len(pts)
+        return o.matrix_world @ figure.V(at)
     raise ValueError(spec)
 
 
@@ -129,7 +139,9 @@ def render_match(spec, out_dir, tmp, draft=False):
         flags.update(over)
     px = RES * SS
     side = WINDOW * 2 * px
-    look = dict(npr.LOOK, **LOOK)
+    # A hero's own touches over the match look (`look` in its row: a Meshy mesh's many small folds would each draw
+    # an inner line at the KayKit figures' threshold).
+    look = {**npr.LOOK, **LOOK, **m.get('look', {})}
     frames = motion.frame_list(fig, spec)
     layers = m['layers']
 
@@ -162,25 +174,32 @@ def render_match(spec, out_dir, tmp, draft=False):
                             ((x - side / 2) / px, (y - side / 2) / px))
                 show(lspec['show'], holdout=lspec.get('holdout', ()))
                 objs = [o for k in lspec['show'] for o in fig.parts.get(k, []) if not o.hide_render]
-                rendered[layer].append((kind, _shoot(cam, tmp, look, objs)))
+                rendered[layer].append((kind, _shoot(cam, tmp, {**look, **lspec.get('look', {})}, objs)))
                 if layer == 'arm' and kind == lspec.get('aim_frame', 'draw') and i == len(poses) - 1:
                     # The layer's own aim: the arrow's way (nock to grip) at full draw, in the sheet (y down).
-                    a = cam.px(fig.nock_world())
-                    g = cam.px(fig.world('handslot.l'))
+                    nock, grip = fig.aim_points()
+                    a, g = cam.px(nock), cam.px(grip)
                     anchors['aim'] = math.atan2(g[1] - a[1], g[0] - a[0])
                 print(f'match {name} {layer} {kind} {i + 1}/{len(poses)}', flush=True)
     show(set(fig.parts))
     for mat_name, flags in saved.items():
         shading.FLAGS[shading.number(mat_name)].update(flags)
 
-    # Crop every layer to one box, so frames swap without moving; pack them and their white twins.
+    # Crop each kind of frame (idle, walk, the swing…) to the box its frames fill, so they swap without moving (a
+    # kind's frames share an anchor, the feet or the shoulder); the Warden's slash needs a far wider box than his idle.
+    # Pack them and their white twins.
     half = side // SS // 2  # the anchor, in sheet px of the uncropped frame
-    boxes = {layer: _union([im for _, im in rendered[layer]]) for layer in layers}
+    boxes = {}
+    for layer in layers:
+        by_kind = {}
+        for kind, im in rendered[layer]:
+            by_kind.setdefault(kind, []).append(im)
+        boxes[layer] = {kind: _union(ims) for kind, ims in by_kind.items()}
     crops = []
     owners = []
     for layer in layers:
-        x0, y0, x1, y1 = boxes[layer]
         for kind, im in rendered[layer]:
+            x0, y0, x1, y1 = boxes[layer][kind]
             crops.append(im[y0:y1, x0:x1])
             owners.append((layer, kind))
     sizes = [(c.shape[1], c.shape[0]) for c in crops]
@@ -198,11 +217,18 @@ def render_match(spec, out_dir, tmp, draft=False):
     file = f'{name}-match.png'
     size = imageio.write_png(os.path.join(out_dir, file), sheet)
 
+    def box(b):
+        x0, y0, x1, y1 = b
+        return {'w': int(x1 - x0), 'h': int(y1 - y0), 'ax': int(half - x0), 'ay': int(half - y0)}
+
     out_layers = {}
     out_frames = {}
     for layer in layers:
-        x0, y0, x1, y1 = boxes[layer]
-        out_layers[layer] = {'w': int(x1 - x0), 'h': int(y1 - y0), 'ax': int(half - x0), 'ay': int(half - y0)}
+        kinds = boxes[layer]
+        # The layer's box: every kind's together (where the figure can reach); each kind's own beside it.
+        out_layers[layer] = box((min(b[0] for b in kinds.values()), min(b[1] for b in kinds.values()),
+                                 max(b[2] for b in kinds.values()), max(b[3] for b in kinds.values())))
+        out_layers[layer]['kinds'] = {kind: box(b) for kind, b in kinds.items()}
         if layer == 'arm' and 'aim' in anchors:
             out_layers[layer]['aim'] = round(anchors['aim'], 4)
         out_frames[layer] = {}

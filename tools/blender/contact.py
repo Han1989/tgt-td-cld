@@ -95,23 +95,26 @@ def match_poses(hero, layout):
     sheet = imageio.read_png(os.path.join(ART3D, m['file']))
     L = m['layers']
 
+    def box(layer, kind):
+        return L[layer].get('kinds', {}).get(kind, L[layer])
+
     def cell(layer, kind, i):
         c = m['frames'][layer][kind][i]
-        box = L[layer]
-        return sheet[c['y']:c['y'] + box['h'], c['x']:c['x'] + box['w']]
+        b = box(layer, kind)
+        return sheet[c['y']:c['y'] + b['h'], c['x']:c['x'] + b['w']]
 
     out = []
     for pose in POSES[hero]:
         kind, i = pose[0], pose[1]
-        B = L['body']
-        W, H = B['w'] * 3, B['h'] * 2
+        B = box('body', kind)
+        W, H = L['body']['w'] * 2, L['body']['h'] * 2
         canvas = np.ones((H, W, 3), np.float32) * BG
-        fx, fy = W // 2, H - (B['h'] - B['ay']) - 6
+        fx, fy = W // 2, H - (L['body']['h'] - L['body']['ay']) - 6
         pm, a = straight(cell('body', kind, i))
         over(canvas, pm, a, fx - B['ax'], fy - B['ay'])
         if 'arm' in L and len(pose) > 2:
-            A = L['arm']
             arm_kind, j, aim = pose[2], pose[3], pose[4]
+            A = dict(box('arm', arm_kind), aim=L['arm'].get('aim', 0.0))
             j = j if j >= 0 else len(m['frames']['arm'][arm_kind]) + j
             sh = m['points']['shoulder'][kind][i]
             pm2, a2 = straight(cell('arm', arm_kind, j))
@@ -119,7 +122,7 @@ def match_poses(hero, layout):
             rp, ra = transform_about(pm2, a2, A['ax'], A['ay'], aim - A.get('aim', 0.0), BOW_SCALE, W, H, ox, oy)
             canvas = rp + canvas * (1 - ra)
         if 'head' in L:
-            Hd = L['head']
+            Hd = box('head', kind)
             hp, ha = straight(cell('head', kind, i))
             over(canvas, hp, ha, fx - Hd['ax'], fy - Hd['ay'])
         out.append(crop_bg(canvas))

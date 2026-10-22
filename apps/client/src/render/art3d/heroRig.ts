@@ -23,7 +23,7 @@ import type { ArtKit } from '../art/kit';
 import type { HeroPose } from '../art/registry';
 import { CAST_MS, clamp01, HIT_FLASH, hold, HeroRigBase, smooth } from '../art/rigs';
 import { fade } from '../fade';
-import { cycleFrame, drawStep, progressFrame, walkCadence, type LayerBox, type MatchLayout, type Point } from './layout';
+import { cycleFrame, drawStep, progressFrame, walkCadence, type MatchLayout, type Point } from './layout';
 import type { Frame, Frames, HeroFrames } from './sheet';
 
 /** Feet (px below the hero's position) and the ground ring's radius: the 2D rigs'. */
@@ -50,7 +50,8 @@ const SMEAR_FLAT = 0.5;
 const WOUND = wardenStrike(0)!.angle;
 const STRUCK = wardenStrike(WARDEN_SWING.strikeMs)!.angle;
 
-/** A layer's sprite and its white twin, the frame shown swapped only when it changes. */
+/** A layer's sprite and its white twin, the frame shown swapped only when it changes (each kind of frame is cropped
+ * to its own box, so the anchor goes with the frame). */
 class Layer {
   readonly holder = new Container();
   readonly sprite: Sprite;
@@ -59,14 +60,13 @@ class Layer {
 
   constructor(
     readonly frames: Frames,
-    box: LayerBox,
     res: number,
     addFlash: (s: Sprite) => Sprite,
   ) {
     const first = Object.values(frames)[0]![0]!;
     const make = (tex: Frame['tex']) => {
       const s = new Sprite(tex);
-      s.anchor.set(box.ax / box.w, box.ay / box.h);
+      s.anchor.set(first.ax, first.ay);
       s.scale.set(1 / res);
       return s;
     };
@@ -81,6 +81,8 @@ class Layer {
     this.shown = f;
     this.sprite.texture = f.tex;
     this.flash.texture = f.flash;
+    this.sprite.anchor.set(f.ax, f.ay);
+    this.flash.anchor.set(f.ax, f.ay);
   }
 
   count(kind: string): number {
@@ -123,8 +125,7 @@ export class Hero3DRig extends HeroRigBase {
     const flash = (s: Sprite) => this.addFlash(s);
     const layer = (name: keyof HeroFrames['layers']): Layer | null => {
       const f = frames.layers[name];
-      const box = L.layers[name];
-      return f && box ? new Layer(f, box, L.res, flash) : null;
+      return f && L.layers[name] ? new Layer(f, L.res, flash) : null;
     };
     this.torso = layer('body')!;
     this.arm = layer('arm');
