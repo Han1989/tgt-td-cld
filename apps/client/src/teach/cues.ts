@@ -4,7 +4,7 @@
 
 import type { CreepKind, GameMode, TowerBranch, TowerKind } from '@tdt/protocol';
 import { TOWER_KINDS } from '@tdt/protocol';
-import { TICK_RATE, TUNING, towerStats, tuningForMode, type Tuning } from '@tdt/sim';
+import { TICK_RATE, TUNING, towerStats, tuningForMode, waveGroups, type Tuning } from '@tdt/sim';
 import { branchChoices, buildCost, upgradeCost } from '../hud/towerInfo';
 
 /**
@@ -26,12 +26,9 @@ export function hitsAir(kind: TowerKind, branch: TowerBranch | null, tuning: Tun
   return towerStats(tuning, kind, 1, branch).hitsAir;
 }
 
-/** 1-based wave index. Wave 0 (the opening build) and a wave past the list are false. */
+/** 1-based wave index. Wave 0 (the opening build) and a wave past the list are false (Endless's waves past it count). */
 export function waveListsFlyers(mode: GameMode, wave: number, tuning: Tuning = TUNING): boolean {
-  if (wave < 1) return false;
-  const groups = tuningForMode(tuning, mode).waves.list[wave - 1];
-  if (!groups) return false;
-  return groups.some((g) => tuning.creeps[g.kind].flying);
+  return waveGroups(tuningForMode(tuning, mode), wave).some((g) => tuning.creeps[g.kind].flying);
 }
 
 /** Flyers are on the map, listed in this wave, or about to be (the next wave). */

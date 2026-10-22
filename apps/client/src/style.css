@@ -1667,6 +1667,16 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   text-shadow: 0 0 18px rgba(255, 58, 96, 0.4), 0 2px 0 var(--ink);
 }
 
+/* Endless: "Fallen on wave 37" on one line of a phone; gold when it is the hero's new best. */
+.end-card h1.endless {
+  font-size: clamp(28px, 8.4vw, 40px);
+}
+
+.end-card h1.endless.new-best {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(255, 210, 74, 0.45), 0 2px 0 var(--ink);
+}
+
 .end-card p {
   color: var(--muted);
   margin: 0 0 16px;
@@ -2479,7 +2489,8 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   text-transform: none;
 }
 
-/* One segmented stone control: a carved trough with a stone segment per choice; the pick glows rune-teal. */
+/* One segmented stone control: a carved trough with a stone segment per choice; the pick glows rune-teal. Its width
+   sizes the labels (`cqi`): three segments fit a 360 px phone with the labels a little smaller, not wrapped. */
 .segmented {
   display: flex;
   gap: 3px;
@@ -2488,28 +2499,41 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   border-radius: 10px;
   background: rgba(8, 6, 12, 0.6);
   box-shadow: inset 0 1px 3px rgba(0, 0, 8, 0.8), 0 0 0 1px rgba(207, 230, 255, 0.08);
+  container-type: inline-size;
 }
 
-/* A plain button box centres its line; the name and the waves share its baseline. */
+/* The name and the waves share one centred baseline, on one line. The segments split the row evenly, but none is
+   narrower than its line (the flex item's automatic minimum): in a wide fallback font (DejaVu, Noto Serif) Quick's line
+   outgrows a third and takes the room from Endless's short one. Only a row too narrow for the three lines at the
+   smallest labels (a phone under about 344 px) wraps the waves under the name. */
 .seg {
   flex: 1;
-  min-width: 0;
   min-height: 38px;
-  padding: 6px 8px;
+  padding: 6px clamp(3px, 1.8cqi, 8px);
   border-radius: 7px;
-  text-align: center;
+  display: flex;
+  align-items: baseline;
+  align-content: center;
+  justify-content: center;
+  column-gap: clamp(3px, 1.4cqi, 6px);
   white-space: nowrap;
+}
+
+@container (width < 270px) {
+  .seg {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
 }
 
 .seg-name {
   font-family: var(--title-font);
-  font-size: 15px;
+  font-size: clamp(12px, 4.4cqi, 15px);
   font-weight: 700;
 }
 
 .seg-sub {
-  margin-left: 6px;
-  font-size: 11px;
+  font-size: clamp(9.5px, 3.3cqi, 11px);
   font-weight: 600;
   color: var(--muted);
 }
@@ -2528,6 +2552,11 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 /* A guest sees the host's picks: the pick stays lit, the other choice is greyed. */
 .seg:disabled.selected {
   opacity: 1;
+}
+
+/* The hero's best Endless wave, on the Mode label's line (over the Endless segment on a phone). */
+.pick-label .mode-best {
+  color: var(--gold);
 }
 
 /* The one main button, docked at the bottom of the card: it stays on screen while the picks scroll under it. */
@@ -2704,6 +2733,15 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   .pick-label small {
     display: inline;
     margin: 0 0 0 4px;
+  }
+
+  .mode-row .pick-label {
+    display: flex;
+    align-items: baseline;
+  }
+
+  .mode-row .pick-label .mode-best {
+    margin-left: auto;
   }
 
   .pick-dock {

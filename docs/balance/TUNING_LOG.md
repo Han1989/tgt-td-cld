@@ -472,3 +472,37 @@ Every other gate passes with its bound unchanged. The new rules' own tests are i
 ## Replays
 
 A match file saved before this round re-runs differently on this build (the creeps chase differently); `npm run replay` already warns with the commit that recorded it. Nothing else to do.
+
+# Endless: the loop past wave 30 (Han, 17 and 22 Oct 2026)
+
+Endless (`docs/GAME_DESIGN.md` "Endless") is Full on Hard for 30 waves, then waves 21–30 again, × `hpGrowthPerCycle` creep HP and × `countGrowthPerCycle` regular creeps per full cycle, with a boss every fifth wave past 30. Only `tuning.endless` was tuned: no shared creep number, no Hard band, no bot. The gate (`test/balanceEndless.test.ts`, solo, every hero, the five gate seeds, on the mean): the expert falls between waves 33 and 55 (every match inside it), the casual bot before 40, the novice before 30.
+
+## Runs (solo, seeds 1–5 unless said)
+
+| hpGrowthPerCycle / countGrowthPerCycle | expert fell on (mean, range) | casual fell on (mean, range) | |
+|---|---|---|---|
+| 1.35 / 1.15 (Han's start) | 66.7 (60–69) | 56.6 (37–68) | both past their bands |
+| 1.6 / 1.2 | 53.2 (51–57) | 37.7 (32–48) | casual Arcanist 42.2 |
+| 1.7 / 1.2 | 49.1 (43–53) | 36.1 (32–40) | casual Arcanist reaches 40 |
+| 1.7 / 1.25 | 49.4 (47–52) | 35.1 (32–37) | |
+| 1.9 / 1.2 | 45.4 (40–50) | 34.1 (32–37) | |
+| 2.0 / 1.25 | 43.5 (40–47) | 33.6 (32–37) | a wall at cycle 2 |
+| **1.8 / 1.25 (landed)** | **46.3 (41–49)** | **34.5 (32–37)** | |
+
+1.8 / 1.25 puts the expert in the middle of its band with room on both sides, keeps the casual bot under 40 on every seed, and still leaves a spread of a few waves between heroes and seeds (a steeper cycle ends every run on the same few waves). The novice is Hard Full's own result: it falls on 13–31 (mean 24.2 on the gate seeds) whatever `tuning.endless` says, since the loop starts at 31.
+
+## Where it lands (10 seeds, `docs/balance/endless.txt`)
+
+Mean wave the Heart fell on:
+
+| Bot | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A |
+|---|---|---|---|---|---|---|---|
+| novice | 20.9 | 26.5 | 28.0 | 25.0 | 29.9 | 29.3 | 28.7 |
+| casual | 32.7 | 33.0 | 36.8 | 34.2 | 35.5 | 36.5 | 24.1 |
+| expert | 46.0 | 45.7 | 47.9 | 41.7 | 43.7 | 44.0 | 36.2 |
+
+Gate seeds (1, 2, 3, 42, 1234), solo: expert 46.9 (43–49), casual 34.3 (32–37), novice 24.2 (13–31). Teams fall a little earlier than solo players (their late-wave team bonus is full in every repeated wave); the casual trio already loses Full on Hard (casual Hard may lose), so it never reaches the loop. Pairs and the trio are not gated.
+
+## Replays
+
+Full and Quick are unchanged: the bots time their thirds, their forward post and their branches by the list's length (the same number as `totalWaves` there), and every wave of those modes is the list's. A match file from before protocol 21 re-runs as before.

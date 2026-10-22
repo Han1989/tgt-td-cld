@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -123,14 +123,17 @@ export function bossLaneHint(kind: BossKind, lane: LaneId): string {
   return BOSS_LANE_HINTS[kind][lane];
 }
 
-/** Match length: Full (30 waves) or Quick (15 waves, compressed difficulty). A match option picked before the start. */
-export const GAME_MODES = ['full', 'quick'] as const;
+/**
+ * Match length: Full (30 waves), Quick (15 waves, compressed difficulty) or Endless (Full's waves on Hard, then the late
+ * waves again, stronger each time, until the Heart falls). A match option picked before the start.
+ */
+export const GAME_MODES = ['full', 'quick', 'endless'] as const;
 export type GameMode = (typeof GAME_MODES)[number];
 
 /**
  * How hard the creeps are. Normal is the tuned baseline. Hard raises creep HP and how many spawn
- * (not HP alone). Orthogonal to match length. Nobody picks it (Han, 17 Oct 2026): every match a player
- * starts is Normal; Hard is for the game to choose later (the Daily run, Endless).
+ * (not HP alone). Nobody picks it (Han, 17 Oct 2026): Full and Quick matches are Normal; the game chooses Hard for the
+ * Daily run and for Endless (the mode sets it).
  */
 export const DIFFICULTIES = ['normal', 'hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];

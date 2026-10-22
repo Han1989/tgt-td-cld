@@ -56,7 +56,8 @@ export class SimHost {
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
     const player = { id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero };
-    // Every match a player starts is Normal (Han, 17 Oct 2026), except the Daily run: Quick on Hard, the day's seed.
+    // Every match a player starts is Normal (Han, 17 Oct 2026), except the Daily run (Quick on Hard, the day's seed) and
+    // Endless, whose mode sets Hard whatever the config asks.
     this.match =
       this.dailySeed === null
         ? createMatch({ players: [player], mode: this.mode, difficulty: 'normal', tuning: this.tuning }, this.nextSeed(), normalizeBuild(this.build))
@@ -108,6 +109,13 @@ export class SimHost {
   /** Browser tests only (the worker's e2e `damageTowers` control): every tower drops to 30% of its HP. */
   debugDamageTowers(): void {
     for (const t of this.state.towers) t.hp = Math.floor(t.maxHp * 0.3);
+  }
+
+  /** Browser tests only (the worker's e2e `skipTo` control): wave `wave` starts on the next tick (Endless past 30). */
+  debugSkipTo(wave: number): void {
+    if (!Number.isSafeInteger(wave) || wave < 1 || this.state.phase === 'victory' || this.state.phase === 'defeat') return;
+    this.state.wave = wave - 1;
+    this.state.nextWaveTick = this.state.tick + 1;
   }
 
   private get state(): GameState {

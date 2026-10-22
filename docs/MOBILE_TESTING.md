@@ -189,6 +189,18 @@ Solo Quick on Normal is enough; Archers (from wave 3) and bosses damage towers. 
 - [ ] 12.5 Spend down until you cannot afford a repair, then tap Repair: the button **shakes**, a toast says **Not enough gold**, and no gold is spent. A teammate's tower (online) has no ring, so no Repair.
 - [ ] 12.6 Desktop: click your damaged tower; the panel has **Repair** with its price under the upgrade, and **F** repairs the selected tower too (the **Controls** list says so). A full-HP tower shows no Repair; F on it says "Tower is at full HP".
 
+## 13. Endless (protocol 21)
+
+The home card on a phone, then one Endless run (about 25 minutes to wave 30). Any hero; a room for 13.6.
+
+- [ ] 13.1 The Mode row has **three segments on one line each, Full 30 waves · Quick 15 waves · Endless ∞**, none cut or wrapped, on this phone and (rotate the browser's device toolbar or a small Android) at 360 px wide; the home card still fits one screen down to Play solo, with or without the Daily tile.
+- [ ] 13.2 Pick **Endless**, tap **Play solo**: the match starts at once, the top bar's counter reads **WAVE 0** with no "/ 30", and the creeps are Hard's (no difficulty was asked for). No lesson card, even on a fresh profile.
+- [ ] 13.3 Play past wave 30 (call waves early when the map is clear): no Victory after wave 30; wave 31 starts as usual and reads **WAVE 31**. The creeps of 31–40 are those of 21–30, tougher.
+- [ ] 13.4 Wave **35**: the banner says **"Ironhorn approaches!"** with **"Wave 35 · Boss"**, the lane roles show, the portals flare red and the boss music builds; the Ironhorn walks the Mid lane. (Then the Matriarch on 40 and the Shardback on 45, if you get there.)
+- [ ] 13.5 When the Heart falls: the end screen's title is **"Fallen on wave N"** in gold with **"New best!"** under it on your first run; Play again, fall earlier, and the title is red with **"Best: wave N."**.
+- [ ] 13.6 Back on the home card (**Change hero / mode**), the Mode label's line shows **"Best: wave N"** in gold over the Endless segment for that hero, and nothing for a hero with no Endless run. A room's host can pick Endless too; the guests see it lit on their room card.
+- [ ] 13.7 **Save match report** offers a file named `…-endless-hard-wave-N.json`.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

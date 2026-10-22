@@ -1,7 +1,7 @@
 // Strict parsing of one analytics POST. Unknown shapes are rejected whole;
 // nothing partial is stored.
 
-import { DIFFICULTIES, HERO_KINDS, type Difficulty, type HeroKind } from '@tdt/protocol';
+import { DIFFICULTIES, GAME_MODES, HERO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
 import { isBrowser, isChannel, isFunnelStep, isPlatform, type Browser, type Channel, type FunnelStep, type Platform } from './channels';
 
 export const EVENT_TYPES = [
@@ -28,7 +28,7 @@ export interface ParsedEvent {
   result?: 'victory' | 'defeat';
   heartHp?: number;
   heartMax?: number;
-  mode?: 'full' | 'quick';
+  mode?: GameMode;
   wave?: number;
   players?: number;
   difficulty?: Difficulty;
@@ -87,6 +87,10 @@ function isHero(value: unknown): value is HeroKind {
   return typeof value === 'string' && (HERO_KINDS as readonly string[]).includes(value);
 }
 
+function isMode(value: unknown): value is GameMode {
+  return typeof value === 'string' && (GAME_MODES as readonly string[]).includes(value);
+}
+
 function isDifficulty(value: unknown): value is Difficulty {
   return typeof value === 'string' && (DIFFICULTIES as readonly string[]).includes(value);
 }
@@ -106,7 +110,7 @@ function cleanText(raw: string, lines: boolean): string {
  * mode and players are (older clients sent no more). Returns false on a bad value.
  */
 function readMatch(obj: Record<string, unknown>, event: ParsedEvent, required: boolean): boolean {
-  if (obj.mode !== 'full' && obj.mode !== 'quick') return false;
+  if (!isMode(obj.mode)) return false;
   const players = intIn(obj.players, 1, 3);
   if (players === null) return false;
   event.mode = obj.mode;

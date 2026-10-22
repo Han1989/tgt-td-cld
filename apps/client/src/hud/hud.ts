@@ -25,10 +25,11 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { getMap, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
+import { getMap, repairCost, TILE_PX, tuningForMode, TUNING, waveGroups } from '@tdt/sim';
 import { currentAnalytics } from '../analytics/install';
 import { analyticsOn } from '../analytics/preference';
 import { DailyEndCard, type DailyRunInfo } from '../daily/endCard';
+import { endlessEndCopy, recordEndlessRun, type EndlessRun } from '../endless/best';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
@@ -246,6 +247,8 @@ export class Hud {
   private feedbackSent = false;
   /** The finished match's report and replay (sent by the host when it ends), for "Save match report". */
   private report: { report: MatchReport; replay: Replay } | null = null;
+  /** An Endless match that ended: the wave it fell on against this hero's best (counted once, when it ended). */
+  private endless: EndlessRun | null = null;
   /** A Daily run's Post my run and rank reveal (hidden for any other match). */
   private readonly daily = new DailyEndCard();
   private readonly team = $('team');
@@ -358,10 +361,12 @@ export class Hud {
     if (this.heartStat.classList.contains('low') !== low) this.heartStat.classList.toggle('low', low);
     this.coins.update(now);
     const hard = snap.difficulty === 'hard';
+    // Endless has no last wave to count to: "Wave 37" alone (it is always Hard).
+    const endless = snap.mode === 'endless';
     this.waveStat.classList.toggle('hard', hard);
-    this.waveStat.title = hard ? 'Hard: more creeps, and tougher' : 'Wave';
-    setText(this.waveLabel, hard ? 'Hard' : 'Wave');
-    setText(this.wave, `${snap.wave} / ${snap.totalWaves}`);
+    this.waveStat.title = endless ? 'Endless on Hard: no last wave' : hard ? 'Hard: more creeps, and tougher' : 'Wave';
+    setText(this.waveLabel, hard && !endless ? 'Hard' : 'Wave');
+    setText(this.wave, endless ? String(snap.wave) : `${snap.wave} / ${snap.totalWaves}`);
     this.renderFlags(snap);
 
     const c = this.compact;
@@ -392,6 +397,7 @@ export class Hud {
     if (!over) {
       if (this.outcomeSent) this.resetFeedback();
       this.outcomeSent = false;
+      this.endless = null;
       this.renderGifts(null);
       this.renderUlts(null);
     } else {
@@ -403,13 +409,21 @@ export class Hud {
       this.endLeave.classList.toggle('hidden', !online);
       this.endSave.classList.toggle('hidden', this.report === null);
       const won = snap.phase === 'victory';
-      setText(this.endTitle, won ? 'Victory!' : 'Defeat');
+      // An Endless match counts once toward this hero's best in this browser, when it ends (online rooms too).
+      if (snap.mode === 'endless' && !won && !this.endless && hero) this.endless = recordEndlessRun(hero.kind, snap.wave);
+      const fell = this.endless ? endlessEndCopy(this.endless) : null;
+      setText(this.endTitle, won ? 'Victory!' : (fell?.title ?? 'Defeat'));
       this.endTitle.className = won ? 'victory' : 'defeat';
       this.endEmblem.className = `end-emblem ${won ? 'victory' : 'defeat'}`;
+      this.endTitle.classList.toggle('endless', !!fell);
+      this.endTitle.classList.toggle('new-best', !!this.endless?.isNew);
       const onHard = snap.difficulty === 'hard' ? ' on Hard' : '';
+      const kills = `Kills: ${player?.kills ?? 0}.`;
       const summary = won
-        ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${snap.heartHp} HP left. Kills: ${player?.kills ?? 0}.`
-        : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. Kills: ${player?.kills ?? 0}.`;
+        ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${snap.heartHp} HP left. ${kills}`
+        : fell
+          ? `${fell.line ? `${fell.line} ` : ''}${kills}`
+          : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. ${kills}`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
       this.renderGifts(this.report?.report ?? null);
       this.renderUlts(this.report?.report ?? null);
@@ -581,8 +595,7 @@ export class Hud {
       } else if (e.type === 'rejected' && e.player === me) {
         this.toast(e.reason);
       } else if (e.type === 'waveStart') {
-        const waves = tuningForMode(TUNING, snap.mode).waves.list;
-        const boss = waves[e.wave - 1]?.map((g) => g.kind).find(isBossKind);
+        const boss = waveGroups(tuningForMode(TUNING, snap.mode), e.wave).map((g) => g.kind).find(isBossKind);
         const last = e.wave === snap.totalWaves ? 'Final wave' : `Wave ${e.wave}`;
         if (boss) {
           this.showBanner(`${CREEP_NAMES[boss]} approaches!`, `${last} · Boss`, true);

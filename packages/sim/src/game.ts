@@ -5,6 +5,7 @@ import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapsh
 import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana, ironVow } from './combat';
 import { shieldSnap, updateCoop } from './coop';
 import { updateCreeps } from './creeps';
+import { lastWave } from './endless';
 import { updateHeroes } from './heroes';
 import { getMap } from './map';
 import { padLayout } from './pads';
@@ -26,8 +27,9 @@ export function createGame(config: GameConfig, seed: number): GameState {
     tick: 0,
     rng: seedRng(seed),
     mode,
-    difficulty: config.difficulty ?? 'normal',
-    surgeLanes: planSurgeLanes(seed, tuning.waves.list.length, tuning),
+    // A mode may set its own difficulty whatever the config asks (Endless is Hard).
+    difficulty: tuning.modes[mode].difficulty ?? config.difficulty ?? 'normal',
+    surgeLanes: planSurgeLanes(seed, lastWave(tuning), tuning),
     surgeLane: null,
     nextSurge: null,
     tuning,

@@ -3,6 +3,7 @@
 // offsets, and a replay repeats it.
 
 import type { LaneId, SurgeNotice } from '@tdt/protocol';
+import { waveGroups } from './endless';
 import type { GameState } from './state';
 import type { Tuning } from './tuning';
 
@@ -28,10 +29,10 @@ export function planSurgeLanes(seed: number, waveCount: number, tuning: Tuning):
   const { fromWave, period } = tuning.surges;
   const lanes: (LaneId | null)[] = [null];
   for (let wave = 1; wave <= waveCount; wave++) {
-    const groups = tuning.waves.list[wave - 1] ?? [];
+    const groups = waveGroups(tuning, wave);
     const bossWave = groups.some((g) => tuning.creeps[g.kind].boss);
-    // Boss waves already spike. The last two waves stay on the listed lanes so the
-    // finale is the wave list, not a pile the bot rearranged for.
+    // Boss waves already spike (Endless's past the list too). The last two waves stay on the listed lanes so the
+    // finale is the wave list, not a pile the bot rearranged for (Endless: its last two before `maxWave`).
     const finale = wave > waveCount - 2;
     if (bossWave || finale || wave < fromWave || period < 2 || mix32(seed, wave * surgeMix.a + surgeMix.b) % period !== 0) {
       lanes.push(null);

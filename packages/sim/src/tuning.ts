@@ -402,7 +402,37 @@ export interface DifficultyScaling extends DifficultyBand {
   byPlayers?: DifficultyBand[];
 }
 
+/**
+ * Endless (docs/GAME_DESIGN.md "Endless"; Han, 17 and 22 Oct 2026): the waves after the list. Off in Full and Quick;
+ * `modes.endless` turns it on. Wave `n` past the list repeats the listed wave `cycleFrom + (n − list − 1) mod period`
+ * (period = list − cycleFrom + 1: waves 31–40 play 21–30 again, 41–50 again…), without its boss, at that wave's growth
+ * (HP and armour per wave) and the final wave's team and difficulty multipliers, then × the cycle's growth. `endlessWave`
+ * says it all for one wave.
+ */
+export interface EndlessTuning {
+  /** On only in Endless: the match has no last wave before `maxWave`. */
+  on: boolean;
+  /** Past the list, the waves repeat the listed waves from this one to the last, in order. */
+  cycleFrom: number;
+  /** Creep HP (bosses' too) × this per full cycle past the list: cycle 1 (waves 31–40) × it, cycle 2 × it², … */
+  hpGrowthPerCycle: number;
+  /** Non-boss creep count × this per full cycle (like the difficulty's count: bosses stay one per wave). */
+  countGrowthPerCycle: number;
+  /** A boss on every `bossEvery`-th wave past the list (5: waves 35, 40, 45, …), in the Mid lane. */
+  bossEvery: number;
+  /** The bosses in turn; a repeated wave's own boss is left out. */
+  bosses: BossKind[];
+  /** A hard stop: no wave after this one, so a match (a bot's) always ends; holding it is a victory. */
+  maxWave: number;
+}
+
 export interface ModeTuning {
+  /**
+   * The mode's difficulty, whatever the match config asks (Endless: Hard). Unset: the config's (Normal by default).
+   */
+  difficulty?: Difficulty;
+  /** Endless only: the waves after the list (`tuning.endless`), merged over the top-level table. */
+  endless?: Partial<EndlessTuning>;
   economy?: Partial<Tuning['economy']>;
   waves?: Partial<Tuning['waves']>;
   playerScaling?: Partial<Tuning['playerScaling']>;
@@ -536,6 +566,8 @@ export interface Tuning {
   difficulty: Record<Difficulty, DifficultyScaling>;
   /** Lane surges from wave 6. Solo uses `soloShare`. */
   surges: SurgeTuning;
+  /** The waves after the list, in Endless only (`on` is false here; `modes.endless` turns it on). */
+  endless: EndlessTuning;
   hero: {
     maxLevel: number;
     /** Total XP needed to reach level i+1 (index 0 = level 1). */
@@ -842,6 +874,9 @@ export const TUNING: Tuning = {
   },
   modes: {
     full: { coop: { bossShield: { waves: [] } } },
+    // Endless (Han, 17 and 22 Oct 2026): Full's economy and wave list on Hard (Full's Hard bands), with no wave-10
+    // shield, then the loop in `endless` below.
+    endless: { difficulty: 'hard', endless: { on: true }, coop: { bossShield: { waves: [] } } },
     // Quick mode (docs/MOBILE.md §6): 15 waves, about 11 minutes. Wave k plays like Full wave 2k (bosses on
     // waves 5, 10 and 15, air waves on 8 and 13): creep HP and armour grow about twice as fast per wave, and
     // each wave pays about as much as two Full waves. A little more starting gold, and heroes need 60% of the
@@ -920,6 +955,17 @@ export const TUNING: Tuning = {
   // not surge. Bosses stay on the listed lane. Wisps stay on the portal they were listed on.
   // The spawn gap tightens only on a surged lane, so an ordinary wave keeps its natural gap.
   surges: { fromWave: 6, period: 9, share: 0.6, trioShare: 0.4, soloShare: 0.34 },
+  // Endless's loop: waves 31+ repeat 21–30, ×1.35 HP and ×1.15 creeps per cycle, a boss every fifth wave (Ironhorn,
+  // Matriarch, Shardback in turn), at most 200 waves. Tuned so a solo expert falls between waves 33 and 55 (Decision Log).
+  endless: {
+    on: false,
+    cycleFrom: 21,
+    hpGrowthPerCycle: 1.8,
+    countGrowthPerCycle: 1.25,
+    bossEvery: 5,
+    bosses: ['ironhorn', 'matriarch', 'shardback'],
+    maxWave: 200,
+  },
   hero: {
     maxLevel: 10,
     xpForLevel: [0, 300, 750, 1350, 2100, 3000, 4050, 5250, 6600, 8100],
@@ -1050,11 +1096,12 @@ export const TUNING: Tuning = {
   },
 };
 
-/** `tuning` with the changes of `mode` applied. Full drops the wave-10 shield; Quick keeps it. */
+/** `tuning` with the changes of `mode` applied. Full and Endless drop the wave-10 shield; Quick keeps it. */
 export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
   const m = tuning.modes[mode];
   return {
     ...tuning,
+    endless: { ...tuning.endless, ...m.endless },
     economy: { ...tuning.economy, ...m.economy },
     waves: { ...tuning.waves, ...m.waves },
     playerScaling: { ...tuning.playerScaling, ...m.playerScaling },

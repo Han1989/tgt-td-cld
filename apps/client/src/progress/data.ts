@@ -20,7 +20,8 @@
  * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
  * V-06a on 22 Oct 2026 (PR #128: the heroes designed by Claude and generated in Meshy, session 1 of 2, assets only).
  * V-06b on 22 Oct 2026 (PR #130: the Meshy heroes in the game, session 2 of 2).
- * Protocol is 20 (PR #116). This page only reports status.
+ * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
+ * Protocol is 21 (PR #129). This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -911,8 +912,17 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'p6d',
-    note: 'Han, 17 Oct 2026: one seed a day for everyone, solo, Quick on Hard, unlimited tries, the best run counts (Heart left, then time). A tile on the home card starts it; the end screen’s Post my run (one tap, from 13, with a nickname) sends the run’s replay, and the server plays it again itself and keeps its own result, so scores are real. The rank comes first, counting up (“#14 of 212 · top 7 %”), then the gap to the next player, the best in gold and the five rows around you. No accounts; boards kept 90 days. Endless and the share card are sessions 2 and 3. Built by Claude Code (PR #126).',
+    note: 'Han, 17 Oct 2026: one seed a day for everyone, solo, Quick on Hard, unlimited tries, the best run counts (Heart left, then time). A tile on the home card starts it; the end screen’s Post my run (one tap, from 13, with a nickname) sends the run’s replay, and the server plays it again itself and keeps its own result, so scores are real. The rank comes first, counting up (“#14 of 212 · top 7 %”), then the gap to the next player, the best in gold and the five rows around you. No accounts; boards kept 90 days. Endless is session 2 (done, below); the share card is session 3. Built by Claude Code (PR #126).',
     proof: pr(126),
+  },
+  {
+    id: 'p6d-endless',
+    title: 'Endless, Daily run session 2 of 3',
+    owner: 'Team',
+    status: 'done',
+    section: 'p6d',
+    note: 'Han, 17 Oct 2026, shaped 22 Oct: the second reason to come back after two wins. A third mode with no last wave, the third segment of the Mode row (Full 30 waves · Quick 15 waves · Endless ∞), so Play solo starts it and a room’s host can pick it. It is always Hard: Full’s 30 waves, then waves 21–30 again, stronger every 10 waves (creep HP ×1.8, creeps ×1.25), a boss every fifth wave (Ironhorn on 35, then the Matriarch and the Shardback), until the Heart falls. The score is the wave reached: “Fallen on wave 37”, “New best!”, and the best per hero shown over the Endless segment, kept in this browser only (no scoreboard yet). The expert bot falls around wave 47, the casual bot around 34. Protocol 21. Built by Claude Code (PR #129).',
+    proof: pr(129),
   },
   {
     id: 'p6d-weekly',
@@ -1088,7 +1098,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 20,
+  protocol: 21,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

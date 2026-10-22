@@ -56,6 +56,8 @@ describe('client message codec', () => {
     { t: 'ready', ready: true },
     { t: 'mode', mode: 'full' },
     { t: 'mode', mode: 'quick' },
+    // Protocol 21: Endless.
+    { t: 'mode', mode: 'endless' },
   ];
 
   it.each(valid)('round-trips %j', (msg) => {
@@ -88,7 +90,8 @@ describe('client message codec', () => {
     ['code with O', '{"t":"join","v":2,"code":"ABODE","name":"a","hero":"ranger"}'],
     ['bad token', '{"t":"rejoin","v":2,"code":"ABCDE","token":"nope"}'],
     ['non-boolean ready', '{"t":"ready","ready":"yes"}'],
-    ['unknown mode', '{"t":"mode","mode":"endless"}'],
+    ['unknown mode', '{"t":"mode","mode":"marathon"}'],
+    ['a mode with the wrong case', '{"t":"mode","mode":"Endless"}'],
     ['mode with extra keys', '{"t":"mode","mode":"quick","waves":5}'],
     // Protocol 20: nobody picks the difficulty, and match modifiers are gone.
     ['a difficulty pick', '{"t":"difficulty","difficulty":"hard"}'],

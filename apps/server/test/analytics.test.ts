@@ -59,6 +59,11 @@ describe('parseAnalyticsEvent', () => {
       }),
     ).toMatchObject({ result: 'victory', heartHp: 40 });
     expect(parseAnalyticsEvent({ ...base, t: 'match_end', result: 'victory', heartHp: 10, heartMax: 5, mode: 'full', wave: 1, players: 1 })).toBeNull();
+    // Endless (protocol 21): the wave it fell on, past the list.
+    expect(
+      parseAnalyticsEvent({ ...base, t: 'match_end', result: 'defeat', heartHp: 0, heartMax: 100, mode: 'endless', wave: 43, players: 1 }),
+    ).toMatchObject({ mode: 'endless', wave: 43 });
+    expect(parseAnalyticsEvent({ ...base, t: 'match_end', result: 'defeat', heartHp: 0, heartMax: 100, mode: 'marathon', wave: 4, players: 1 })).toBeNull();
   });
 });
 
@@ -105,6 +110,20 @@ describe('summarize', () => {
         mode: 'quick',
         wave: 8,
         players: 2,
+      }),
+      // An Endless run always ends in a defeat: it stays out of the wins and losses.
+      event({
+        t: 'match_end',
+        at: day0 + 50,
+        visitor: 'visitor-bbbb',
+        session: 'session-bbbb',
+        channel: 'crazygames',
+        result: 'defeat',
+        heartHp: 0,
+        heartMax: 100,
+        mode: 'endless',
+        wave: 44,
+        players: 1,
       }),
     ];
     const summary = summarize(events, now, { connectedPlayers: 4, persistent: false, durable: false, dir: null });

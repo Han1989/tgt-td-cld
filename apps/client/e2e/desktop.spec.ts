@@ -299,7 +299,7 @@ test('Play solo on the home card is the match picked, never the lesson; Change h
   await waitForReady(page, 'solo');
   await expect(page.locator('#lobby-learn')).toBeVisible();
   // One segmented row for the mode, and no difficulty or modifier picks anywhere.
-  await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(2);
+  await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(3);
   await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip')).toHaveCount(0);
   await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
   await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();

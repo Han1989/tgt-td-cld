@@ -11,11 +11,15 @@ export interface MatchFile {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** `tdt-match-2026-09-28-1432-quick-normal-victory.json` (local time of `date`). */
+/**
+ * `tdt-match-2026-09-28-1432-quick-normal-victory.json` (local time of `date`); an Endless run, which always ends with
+ * the Heart falling, by its wave: `tdt-match-2026-10-22-2105-endless-hard-wave-37.json`.
+ */
 export function matchFileName(report: MatchReport, date: Date): string {
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   const difficulty = report.difficulty ?? 'normal';
-  return `tdt-match-${day}-${pad(date.getHours())}${pad(date.getMinutes())}-${report.mode}-${difficulty}-${report.result}.json`;
+  const end = report.mode === 'endless' && report.result === 'defeat' ? `wave-${report.wave}` : report.result;
+  return `tdt-match-${day}-${pad(date.getHours())}${pad(date.getMinutes())}-${report.mode}-${difficulty}-${end}.json`;
 }
 
 export function matchFile(report: MatchReport, replay: Replay, date: Date): MatchFile {

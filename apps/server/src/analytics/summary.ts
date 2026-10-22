@@ -248,7 +248,8 @@ export function summarize(
       list.push(event.rating);
       ratingsByChannel.set(event.channel, list);
     }
-    if (event.t === 'match_end' && event.result) {
+    // Endless has no win (the Heart always falls): its runs are in the Mode table with their mean wave, not here.
+    if (event.t === 'match_end' && event.result && event.mode !== 'endless') {
       if (event.result === 'victory') {
         wins++;
         if (event.heartHp !== undefined) hearts.push(event.heartHp);

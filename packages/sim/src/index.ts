@@ -3,6 +3,8 @@ export { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
 export { TUNING, TICK_RATE, secondsToTicks, towerTier, towerStats, branchTier, repairCost, tuningForMode } from './tuning';
 export type { SurgeTuning } from './tuning';
 export { planSurgeLanes, surgeCounts } from './surges';
+export { endlessWave, lastWave, waveGroups } from './endless';
+export type { EndlessWave } from './endless';
 export type {
   Tuning,
   CreepStats,
@@ -19,6 +21,7 @@ export type {
   ModeTuning,
   DifficultyScaling,
   DifficultyBand,
+  EndlessTuning,
 } from './tuning';
 export { SKILL_MODES } from './skills';
 export type { SkillMode } from './skills';

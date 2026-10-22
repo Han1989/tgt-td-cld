@@ -9,7 +9,7 @@
 // a few ms of timing and more or less room, so repeats never sound identical.
 
 import type { CreepKind, GameEvent, HeroSnap, PlayerId, Snapshot, TowerBranch, TowerSnap } from '@tdt/protocol';
-import { TUNING, tuningForMode, type Tuning } from '@tdt/sim';
+import { TUNING, tuningForMode, waveGroups, type Tuning } from '@tdt/sim';
 import { placement, OTHERS_GAIN, Takes, VoiceGate, type ViewBox } from './mix';
 import type { MusicScene } from './score';
 import { SOUNDS, type Priority, type SoundId } from './sounds';
@@ -68,15 +68,15 @@ function soundMs(id: SoundId): number {
 }
 
 const modeTuning = new Map<string, Tuning>();
-function wavesFor(mode: Snapshot['mode']): Tuning['waves']['list'] {
+function tuningFor(mode: Snapshot['mode']): Tuning {
   let t = modeTuning.get(mode);
   if (!t) modeTuning.set(mode, (t = tuningForMode(TUNING, mode)));
-  return t.waves.list;
+  return t;
 }
 
-/** Whether wave `wave` (1-based) of this match brings a boss. */
+/** Whether wave `wave` (1-based) of this match brings a boss (Endless's past the list too). */
 export function isBossWave(mode: Snapshot['mode'], wave: number): boolean {
-  return wave > 0 && (wavesFor(mode)[wave - 1]?.some((g) => TUNING.creeps[g.kind].boss) ?? false);
+  return waveGroups(tuningFor(mode), wave).some((g) => TUNING.creeps[g.kind].boss);
 }
 
 /**

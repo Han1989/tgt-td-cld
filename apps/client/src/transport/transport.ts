@@ -20,7 +20,7 @@ export interface Transport {
   wake?(): void;
   /**
    * Browser-test builds, local play only: a debug control for the host (`'lose'`: the Heart drops to 0;
-   * `'damageTowers'`: every tower drops to 30% of its HP).
+   * `'damageTowers'`: every tower drops to 30% of its HP; `'skipTo'`: wave `wave` starts on the next tick).
    */
-  debug?(ctl: 'lose' | 'damageTowers'): void;
+  debug?(ctl: 'lose' | 'damageTowers' | 'skipTo', wave?: number): void;
 }
