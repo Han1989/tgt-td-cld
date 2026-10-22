@@ -35,8 +35,9 @@ describe('progress dashboard data', () => {
     // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116), P2-10 (silence while a music
     // file downloads; PR #122), P2-11 (the music streamed from the first tap; PR #123) and T-07a (creeps that cannot
     // be kited; PR #124) are done, and so are V-06a (the heroes designed by Claude and generated in Meshy, session 1;
-    // PR #128) and p6d-daily (the Daily run, session 1 of 3; PR #126).
-    expect(summary.done).toBe(68);
+    // PR #128), V-06b (the Meshy heroes in the game, session 2; PR #130) and p6d-daily (the Daily run, session 1 of 3;
+    // PR #126).
+    expect(summary.done).toBe(69);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -48,7 +49,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(108);
+    expect(summary.total).toBe(109);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -154,7 +155,7 @@ describe('progress dashboard data', () => {
     // after the order, not on the overnight auto-pull list.
     expect(PROGRESS.sections[1]!.id).toBe('visual');
     expect(PROGRESS.sections[1]!.blurb).toContain('Not on the overnight auto-pull list');
-    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04', 'V-05a', 'V-05b', 'V-05c', 'V-05d', 'V-05e', 'V-06a']);
+    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04', 'V-05a', 'V-05b', 'V-05c', 'V-05d', 'V-05e', 'V-06a', 'V-06b']);
     expect(byId('V-01')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/100' } });
     expect(byId('V-01').note).toContain('Merged 10 Oct 2026');
     // Han, 13 Oct 2026: the lesson is the player's choice. V-02 (the second screen) is done.
@@ -197,6 +198,10 @@ describe('progress dashboard data', () => {
     expect(byId('V-06a').note).toContain('22 Oct 2026');
     expect(byId('V-06a').note).toContain('chibi');
     expect(byId('V-06a').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/128');
+    expect(byId('V-06b')).toMatchObject({ owner: 'Team', status: 'done' });
+    expect(byId('V-06b').note).toContain('22 Oct 2026');
+    expect(byId('V-06b').note).toContain('nothing 3D runs on the phone');
+    expect(byId('V-06b').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/130');
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {
       expect(PROGRESS.sections.find((section) => section.id === id)!.blurb).toContain('hold');
     }

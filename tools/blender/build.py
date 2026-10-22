@@ -307,10 +307,11 @@ def main():
                 layout['match'], size = match.render_match(spec, out, work, draft=args.draft)
                 print('match sheet:', size, 'bytes')
                 times[f'{name} match'] = time.time() - tm
-            if not args.frames and not args.out and args.what != 'plate':
+            if not args.frames and args.what != 'plate':
                 layout['id'] = name
                 text = json.dumps(layout, indent=1, sort_keys=True) + '\n'
-                with open(layout_path, 'w') as f:
+                # With --out, the layout goes beside the preview's files (the client's stays as it is).
+                with open(os.path.join(args.out, f'{name}.json') if args.out else layout_path, 'w') as f:
                     f.write(text)
     finally:
         if args.keep or args.work:
