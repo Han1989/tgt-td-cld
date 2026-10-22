@@ -2502,21 +2502,28 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   container-type: inline-size;
 }
 
-/* The name and the waves share one centred baseline; only past the smallest labels does the waves line wrap under the
-   name (a phone narrower than 360 px). */
+/* The name and the waves share one centred baseline, on one line. The segments split the row evenly, but none is
+   narrower than its line (the flex item's automatic minimum): in a wide fallback font (DejaVu, Noto Serif) Quick's line
+   outgrows a third and takes the room from Endless's short one. Only a row too narrow for the three lines at the
+   smallest labels (a phone under about 344 px) wraps the waves under the name. */
 .seg {
   flex: 1;
-  min-width: 0;
   min-height: 38px;
   padding: 6px clamp(3px, 1.8cqi, 8px);
   border-radius: 7px;
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
   align-content: center;
   justify-content: center;
   column-gap: clamp(3px, 1.4cqi, 6px);
   white-space: nowrap;
+}
+
+@container (width < 270px) {
+  .seg {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
 }
 
 .seg-name {
