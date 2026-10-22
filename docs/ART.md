@@ -340,8 +340,9 @@ apps/client/public/map/       The map plate (§16): spire.webp, spire-extra.webp
 apps/client/src/render/plate/ The plate's layout (spire.json), layout.ts (types, pure rules), load.ts (decode, textures); card.* (the
                               link card's plate, dev only)
 tools/blender/                The 3D pipeline (§15): hero.py (the hero table), creeps.py (the creeps'), structures.py (the
-                              towers', Heart's and portals'), tdt3d/, assets/kaykit/ (CC0 source models); mapdata.ts and
-                              tdt3d/map.py, the map plate (§16)
+                              towers', Heart's and portals'), tdt3d/, assets/kaykit/ (CC0 source models), assets/meshy/
+                              (the Meshy heroes, V-06a); mapdata.ts and tdt3d/map.py, the map plate (§16)
+docs/art/meshy-style.md       The Meshy heroes' style paragraph and briefs (V-06a); meshy-heroes.png their contact sheet
 apps/client/src/showcase.ts   ?showcase dev page (entities, variants, the 3D heroes, creeps, towers, Heart and portals and the
                               stage loops, UI icons, sounds)
 apps/client/src/lobby/heroStage.ts  The home card's hero stage (§12): the picked hero drawn large with Canvas 2D
@@ -430,6 +431,8 @@ tools/blender/
   requirements.txt bpy 4.5.14 and scipy, for Python 3.11
   assets/kaykit/   the CC0 source models, props and clips (glTF only; never shipped to the client)
   assets/quaternius/ the CC0 Ultimate Monsters the Wisp and the bosses come from (glTF, their own clips)
+  assets/meshy/    the three heroes redesigned and generated in Meshy (V-06a, 22 Oct 2026; not used by a build yet):
+                   per hero a concept, the rigged model and seven clips (README.md there; style: docs/art/meshy-style.md)
   tdt3d/
     palette.py     the Runelight tokens, read from render/art/tokens.ts (a colour is never copied by hand)
     gltf.py        importing a character (its Rig_Medium armature, scaled, facing +X), its props on the hand
