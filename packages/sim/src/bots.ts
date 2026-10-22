@@ -20,6 +20,7 @@ import {
   type TowerSnap,
 } from '@tdt/protocol';
 import { shieldStandPoint } from './coop';
+import { waveGroups } from './endless';
 import { getMap, type BuildPad } from './map';
 import { mix32 } from './surges';
 import { repairCost, tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
@@ -315,7 +316,7 @@ export function createBalanceBot(
         const secondsLeft = snap.nextWaveIn < 0 ? 0 : snap.nextWaveIn / snap.tickRate;
         const clearFor = clearSince < 0 ? 0 : (snap.tick - clearSince) / snap.tickRate;
         const mineCount = snap.towers.filter((t) => t.owner === playerId).length;
-        const firstThird = snap.wave <= Math.ceil(snap.totalWaves / 3);
+        const firstThird = snap.wave <= Math.ceil(tuning.waves.list.length / 3);
         if (
           snap.wave >= 1 &&
           snap.nextWaveIn >= 0 &&
@@ -347,7 +348,8 @@ export function createBalanceBot(
       }
       const skill = (slot: SkillSlot) => hero.skills.find((s) => s.slot === slot);
       const r = skill('R');
-      const later = r !== undefined && r.rank > 0 && snap.wave >= Math.round(FORWARD_FROM * snap.totalWaves);
+      // The list's length, not `totalWaves`: Endless plays its 30 waves as Full does, then stays "later".
+      const later = r !== undefined && r.rank > 0 && snap.wave >= Math.round(FORWARD_FROM * tuning.waves.list.length);
       const post = later ? posts.forward : posts.guard;
       // Where the hero goes, most urgent first: the Heart when hurt; a live boss; in the final wave, the last
       // few creeps (one parked out of the towers' reach, e.g. an Archer shooting an air-only Flak, would keep
@@ -513,7 +515,7 @@ function spendExpert(
   const cap = zone ? owned : Math.max(EXPERT_MIN_TOWERS, Math.floor(owned * EXPERT_PAD_FRACTION));
   const teamBranches = snap.towers.flatMap((t) => (t.branch ? [t.branch] : []));
   const branchNeed = branchNeeds(tuning, snap.wave);
-  const branchFrom = Math.round(EXPERT_BRANCH_FROM * snap.totalWaves);
+  const branchFrom = Math.round(EXPERT_BRANCH_FROM * tuning.waves.list.length);
 
   for (const t of mine) {
     const focus = bosses.some((b) => dist(b.x, b.y, t.x, t.y) <= t.range);
@@ -827,10 +829,10 @@ function rankPads(tuning: Tuning): BuildPad[] {
   return [...map.pads].sort((a, b) => score(b) - score(a) || a.id - b.id);
 }
 
-/** The wave lists of the current wave and the next ones (before wave 1: the first waves). */
-function comingWaves(tuning: Tuning, wave: number): WaveGroup[][] {
-  const first = Math.max(0, wave - 1);
-  return tuning.waves.list.slice(first, first + LOOKAHEAD);
+/** The wave lists of the current wave and the next ones (before wave 1: the first waves; Endless past the list too). */
+function comingWaves(tuning: Tuning, wave: number, ahead = LOOKAHEAD): WaveGroup[][] {
+  const first = Math.max(1, wave);
+  return Array.from({ length: ahead }, (_, i) => waveGroups(tuning, first + i));
 }
 
 /** Shifting Hide (Stone ↔ Ether armour) is static knowledge of a boss kind, like its name on the wave list. */
@@ -854,8 +856,7 @@ function waveNeeds(tuning: Tuning, wave: number): { air: boolean; armour: boolea
 
 /** What the next few waves call for when picking branches: bosses, armour (Brutes, a Stone hide) and flyers. */
 function branchNeeds(tuning: Tuning, wave: number): Record<BranchNeed, boolean> {
-  const first = Math.max(0, wave - 1);
-  const groups = tuning.waves.list.slice(first, first + BRANCH_LOOKAHEAD).flat();
+  const groups = comingWaves(tuning, wave, BRANCH_LOOKAHEAD).flat();
   const count = (pick: (g: WaveGroup) => boolean) =>
     groups.filter(pick).reduce((n, g) => n + g.perLane * g.lanes.length, 0);
   const total = Math.max(1, count(() => true));

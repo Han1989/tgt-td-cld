@@ -373,7 +373,7 @@ export function renderDashboard(summary: AnalyticsSummary, options: DashboardOpt
         <div><b>${formatHeart(summary)}</b><span class="note">avg Heart left on a win</span></div>
         <div><b>${lossWave}</b><span class="note">avg loss</span></div>
       </div>
-      <p class="note">${summary.outcomes.matches} finished matches reported by the client.</p>
+      <p class="note">${summary.outcomes.matches} finished Full and Quick matches reported by the client (Endless runs are in Matches → Mode).</p>
     </section>
     <section>
       <h2>How many are playing</h2>

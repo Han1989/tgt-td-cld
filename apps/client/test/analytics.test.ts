@@ -187,7 +187,10 @@ describe('analytics session', () => {
     api.feedback(0, 'no');
     api.matchEnd({ result: 'defeat', heartHp: 0, heartMax: 100, mode: 'quick', wave: 4, players: 9 });
     api.matchEnd({ result: 'victory', heartHp: 12.4, heartMax: 100, mode: 'full', wave: 30, players: 1 });
-    expect(posts.map((post) => post.body.t)).toEqual(['session_start', 'feedback', 'feedback', 'match_end']);
+    api.matchEnd({ result: 'defeat', heartHp: 0, heartMax: 100, mode: 'endless', wave: 43, players: 1 });
+    api.matchEnd({ result: 'defeat', heartHp: 0, heartMax: 100, mode: 'marathon', wave: 4, players: 1 });
+    expect(posts.map((post) => post.body.t)).toEqual(['session_start', 'feedback', 'feedback', 'match_end', 'match_end']);
+    expect(posts[4]!.body).toMatchObject({ mode: 'endless', wave: 43 });
     expect(posts[1]!.body.comment).toBe('great match');
     expect(posts[2]!.body.comment).toBeUndefined();
     expect(posts[3]!.body).toMatchObject({ result: 'victory', heartHp: 12, players: 1 });

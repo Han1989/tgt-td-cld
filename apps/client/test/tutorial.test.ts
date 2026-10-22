@@ -43,7 +43,7 @@ const STATUSES: readonly TutorialStatus[] = ['new', 'completed', 'skipped'];
 
 /** Every pick a player can make on the home card: a hero and a mode. */
 const PICKS: readonly SoloPick[] = (['ranger', 'warden', 'arcanist'] as const).flatMap((hero) =>
-  (['full', 'quick'] as const).map((mode) => ({ hero, mode })),
+  (['full', 'quick', 'endless'] as const).map((mode) => ({ hero, mode })),
 );
 
 /** A settings store in memory, as `SettingsStore` keeps it. */
@@ -71,6 +71,11 @@ describe('tutorial status', () => {
         expect(beginSolo(store(status), 'play', pick)).toEqual({ hero: pick.hero, mode: pick.mode, lesson: false });
       }
     }
+  });
+
+  it('the lesson never runs on Endless: Play solo on Endless is Endless, Learn to play is Quick', () => {
+    expect(beginSolo(store('new'), 'play', { hero: 'ranger', mode: 'endless' })).toEqual({ hero: 'ranger', mode: 'endless', lesson: false });
+    expect(beginSolo(store('new'), 'lesson', { hero: 'ranger', mode: 'endless' })).toEqual({ hero: 'ranger', mode: 'quick', lesson: true });
   });
 
   it('Learn to play always starts the lesson: Quick, the picked hero', () => {

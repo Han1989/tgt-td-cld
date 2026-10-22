@@ -16,10 +16,13 @@ interface Hook {
   lose: () => void;
   /** Solo: every tower drops to 30% of its HP. */
   damageTowers: () => void;
+  /** Solo: wave `wave` starts on the next tick (an Endless match past wave 30). */
+  skipTo: (wave: number) => void;
   latest(): {
     tick: number;
     tickRate: number;
     totalWaves: number;
+    mode: string;
     /** The wave running (0 before the first). */
     wave: number;
     phase: string;

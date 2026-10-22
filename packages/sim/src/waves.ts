@@ -4,13 +4,15 @@ import type { CreepKind, LaneId, PlayerId } from '@tdt/protocol';
 import { initBoss } from './bosses';
 import { emit, newId, random } from './combat';
 import { onBossSpawned, teamSize } from './coop';
+import { endlessWave, lastWave, waveGroups } from './endless';
 import { getMap } from './map';
 import { surgeCounts, surgeNotice, surgeShare } from './surges';
 import type { Creep, GameState } from './state';
 import { secondsToTicks, TICK_RATE, type DifficultyBand, type WaveGroup } from './tuning';
 
+/** The match's last wave: the list's length, or Endless's `maxWave` (no wave counter total in Endless). */
 export function totalWaves(state: GameState): number {
-  return state.tuning.waves.list.length;
+  return lastWave(state.tuning);
 }
 
 export function waveIncome(state: GameState, wave: number): number {
@@ -60,7 +62,7 @@ function startWave(state: GameState): void {
   state.nextSurge = ahead;
   if (ahead && changed) emit(state, { type: 'surge', wave: ahead.wave, lane: ahead.lane });
 
-  const groups = t.list[wave - 1] ?? [];
+  const groups = waveGroups(state.tuning, wave);
   const natural = secondsToTicks(t.spawnInterval);
   const intervalTicks = secondsToTicks(t.interval);
   const surge = state.surgeLane;
@@ -162,7 +164,8 @@ export function difficultyScaling(
   const lateWaves = Math.max(1, Math.ceil(waves / 3));
   const start = waves - lateWaves;
   const linear = Math.min(1, Math.max(0, (wave - start) / lateWaves));
-  const progress = (wave - 1) / Math.max(1, waves - 1);
+  // Past the list (Endless) the ramps stay at their final-wave value.
+  const progress = Math.min(1, (wave - 1) / Math.max(1, waves - 1));
   const ramp = band.ease != null && band.ease > 0 ? Math.pow(progress, band.ease) : linear;
   return {
     hp: band.hp + band.lateHp * ramp,
@@ -186,11 +189,15 @@ function wholeExtra(extra: number, wave: number, perLane: number): number {
   return whole + (frac > phase ? 1 : 0);
 }
 
-/** Creeps per lane after player-count scaling (+30% per extra player by default) and difficulty. */
+/**
+ * Creeps per lane after player-count scaling (+30% per extra player by default), difficulty and, past the list in
+ * Endless, the cycle's count growth.
+ */
 export function scaledCount(state: GameState, perLane: number): number {
   const scale = difficultyScaling(state, Math.max(1, state.wave));
+  const loop = endlessWave(state.tuning, state.wave)?.count ?? 1;
   const multiplied = Math.round(
-    perLane * scale.count * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)),
+    perLane * scale.count * loop * (1 + state.tuning.playerScaling.countPerExtraPlayer * extraPlayers(state)),
   );
   return multiplied + wholeExtra(scale.extra, Math.max(1, state.wave), perLane);
 }
@@ -210,14 +217,25 @@ export function playerHpMultiplier(state: GameState, wave: number): number {
   return at(ps.hp, 1) + at(ps.earlyHpBonus, 0) * fade + at(ps.lateHpBonus, 0) * ramp;
 }
 
+/** The wave whose growth (HP and armour per wave) a wave's creeps have: itself, or past the list in Endless its source. */
+function growthWave(state: GameState, wave: number): number {
+  return endlessWave(state.tuning, wave)?.source ?? wave;
+}
+
+/**
+ * A creep's max HP on `wave`. Past the list in Endless: the source wave's growth, the final wave's team and difficulty
+ * multipliers (their ramps stay full), × the cycle's HP growth.
+ */
 export function creepMaxHp(state: GameState, kind: CreepKind, wave: number): number {
   const base = state.tuning.creeps[kind].hp;
   const w = state.tuning.waves;
-  const waveMult = 1 + w.hpGrowthPerWave * (wave - 1) + w.lateHpGrowthPerWave * Math.max(0, wave - w.lateGrowthFrom);
+  const at = growthWave(state, wave);
+  const waveMult = 1 + w.hpGrowthPerWave * (at - 1) + w.lateHpGrowthPerWave * Math.max(0, at - w.lateGrowthFrom);
   const playerMult = playerHpMultiplier(state, wave);
   const scale = difficultyScaling(state, wave);
   const diffHp = state.tuning.creeps[kind].boss ? scale.bossHp : scale.hp;
-  return Math.round(base * waveMult * playerMult * diffHp);
+  const loop = endlessWave(state.tuning, wave)?.hp ?? 1;
+  return Math.round(base * waveMult * playerMult * diffHp * loop);
 }
 
 export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave: number): Creep {
@@ -237,7 +255,7 @@ export function spawnCreep(state: GameState, kind: CreepKind, lane: LaneId, wave
     y: portal.y + Math.max(0, offY),
     hp: maxHp,
     maxHp,
-    armor: stats.armor + state.tuning.waves.armorGrowthPerWave * (wave - 1),
+    armor: stats.armor + state.tuning.waves.armorGrowthPerWave * (growthWave(state, wave) - 1),
     magicResist: Math.min(
       state.tuning.combat.maxMagicResist,
       stats.magicResist + difficultyScaling(state, wave).magicResist,

@@ -54,6 +54,8 @@ export interface HeadlessResult {
   repairs: number;
   repairGold: number;
   towersDestroyed: number;
+  /** Endless: Heart HP when the first wave past the list started (wave 31), or null if the Heart fell before it. */
+  heartAfterList: number | null;
   /** With `record`: the match's report and replay, as a host sends them when it ends. */
   file?: { report: MatchReport; replay: Replay };
 }
@@ -84,6 +86,7 @@ export function runHeadlessMatch(opts: {
   difficulty?: Difficulty;
   /** Bots think this many times per second. */
   decisionsPerSecond?: number;
+  /** Default: an hour, or in Endless long enough to reach `maxWave`. */
   maxSeconds?: number;
   /**
    * Run it as a host does (`createMatch` / `matchCommand` / `matchStep`: coordinates rounded to 1/100 tile) and return
@@ -100,9 +103,13 @@ export function runHeadlessMatch(opts: {
   const match = opts.record ? createMatch(config, opts.seed) : null;
   const state = match?.state ?? createGame(config, opts.seed);
   const every = Math.max(1, Math.round(TICK_RATE / (opts.decisionsPerSecond ?? 4)));
-  const maxTicks = (opts.maxSeconds ?? 60 * 60) * TICK_RATE;
+  const waves = state.tuning.waves;
+  const endless = state.tuning.endless;
+  const longest = endless.on ? waves.buildPhase + waves.interval * endless.maxWave + 10 * 60 : 60 * 60;
+  const maxTicks = (opts.maxSeconds ?? longest) * TICK_RATE;
 
-  const thirds = Math.ceil(state.tuning.waves.list.length / 3);
+  const thirds = Math.ceil(waves.list.length / 3);
+  let heartAfterList: number | null = null;
   const heartAt: number[] = [state.heartHp];
   const bossIds = new Set<number>();
   let bossLeaks = 0;
@@ -120,8 +127,9 @@ export function runHeadlessMatch(opts: {
   const casts = { Q: 0, W: 0, R: 0 };
   const usage = state.heroes.map(() => ({ ultCasts: 0, alive: 0, lowMana: 0, withUlt: 0, ultUnaffordable: 0, offCd: 0, learned: -1 }));
   while (state.phase !== 'victory' && state.phase !== 'defeat' && state.tick < maxTicks) {
-    // Heart HP when the second and the last third start (Full: waves 11 and 21).
+    // Heart HP when the second and the last third start (Full: waves 11 and 21), and Endless's wave 31.
     if (heartAt.length < 3 && state.wave > heartAt.length * thirds) heartAt.push(state.heartHp);
+    if (heartAfterList === null && state.wave > waves.list.length) heartAfterList = state.heartHp;
     if (state.tick % every === 0) {
       const snap = snapshot(state);
       for (const bot of opts.bots) {
@@ -201,6 +209,7 @@ export function runHeadlessMatch(opts: {
     deaths,
     earlyCalls,
     casts,
+    heartAfterList,
     heartLost: [0, 1, 2].map((i) => (heartAt[i] ?? state.heartHp) - (heartAt[i + 1] ?? state.heartHp)),
     heroes: state.heroes.map((h, i) => {
       const u = usage[i]!;

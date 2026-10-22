@@ -593,6 +593,8 @@ export class GameView {
         lose: () => view.transport?.debug?.('lose'),
         /** Solo: every tower drops to 30% of its HP (the Repair button and the repair hint). */
         damageTowers: () => view.transport?.debug?.('damageTowers'),
+        /** Solo: wave `wave` starts on the next tick (an Endless match past wave 30). */
+        skipTo: (wave: number) => view.transport?.debug?.('skipTo', wave),
         latest: (): Snapshot | undefined => buffer.latest,
         me: () => view.me,
         layout: () => layout,

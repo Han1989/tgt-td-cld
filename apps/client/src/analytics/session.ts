@@ -3,7 +3,7 @@
 // off nothing is sent, and the session in progress stops where it is (no session_end; the server
 // closes it after its idle window). Turned back on, the next tick starts a new session.
 
-import { DIFFICULTIES, HERO_KINDS, type Difficulty, type HeroKind } from '@tdt/protocol';
+import { DIFFICULTIES, GAME_MODES, HERO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
 import type { Channel } from './channel';
 import { errorSignature, type Browser } from './errors';
 import type { Platform } from './platform';
@@ -55,7 +55,7 @@ export interface AnalyticsBody {
   result?: 'victory' | 'defeat';
   heartHp?: number;
   heartMax?: number;
-  mode?: 'full' | 'quick';
+  mode?: GameMode;
   wave?: number;
   players?: number;
   difficulty?: Difficulty;
@@ -381,10 +381,10 @@ function isHero(value: unknown): value is HeroKind {
  * left off when missing. False when a value is out of range (nothing should be sent).
  */
 function matchFields(body: AnalyticsBody, info: Partial<MatchInfo> & { mode: string; players: number }): boolean {
-  if (info.mode !== 'full' && info.mode !== 'quick') return false;
+  if (!(GAME_MODES as readonly string[]).includes(info.mode)) return false;
   const players = Math.round(info.players);
   if (players < 1 || players > 3) return false;
-  body.mode = info.mode;
+  body.mode = info.mode as GameMode;
   body.players = players;
   if (info.difficulty !== undefined) {
     if (!(DIFFICULTIES as readonly string[]).includes(info.difficulty)) return false;

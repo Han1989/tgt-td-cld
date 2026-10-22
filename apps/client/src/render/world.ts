@@ -26,7 +26,7 @@ import {
   type TowerSnap,
   type ZoneSnap,
 } from '@tdt/protocol';
-import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, type GameMap } from '@tdt/sim';
+import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, waveGroups, type GameMap } from '@tdt/sim';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
@@ -882,8 +882,8 @@ export class WorldRenderer {
         case 'waveStart': {
           this.portalFlareAt = now;
           this.portalSurgeLane = null;
-          const list = latest ? tuningForMode(TUNING, latest.mode).waves.list : TUNING.waves.list;
-          const boss = list[e.wave - 1]?.some((g) => isBossKind(g.kind)) ?? false;
+          const tuning = latest ? tuningForMode(TUNING, latest.mode) : TUNING;
+          const boss = waveGroups(tuning, e.wave).some((g) => isBossKind(g.kind));
           this.portalFlareBoss = boss;
           for (const p of this.portals) {
             fx.ring(p.x, p.y, boss ? 3 : 2, boss ? COLORS.bad : COLORS.portal, 600, 0.3, 'shock');

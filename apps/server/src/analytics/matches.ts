@@ -77,7 +77,7 @@ export function summarizeMatches(events: readonly StoredEvent[]): MatchBreakdown
   }
   const modeLabel = (key: string) => {
     const [mode, difficulty] = key.split('|');
-    const m = mode === 'full' ? 'Full' : mode === 'quick' ? 'Quick' : '?';
+    const m = mode === 'full' ? 'Full' : mode === 'quick' ? 'Quick' : mode === 'endless' ? 'Endless' : '?';
     const d = difficulty === 'normal' ? 'Normal' : difficulty === 'hard' ? 'Hard' : 'difficulty not sent';
     return `${m} · ${d}`;
   };
@@ -89,7 +89,8 @@ export function summarizeMatches(events: readonly StoredEvent[]): MatchBreakdown
   return {
     started,
     finished,
-    byMode: rows(['full|normal', 'full|hard', 'quick|normal', 'quick|hard'], modeLabel, byMode, false),
+    // Endless is always Hard and never won: its row's wave is how far runs got.
+    byMode: rows(['full|normal', 'full|hard', 'quick|normal', 'quick|hard', 'endless|hard'], modeLabel, byMode, false),
     byPlayers: rows(['1|solo', '1|online', '2|online', '3|online'], playersLabel, byPlayers, false),
     byHero: rows(HERO_KINDS, (key) => HERO_LABELS[key as keyof typeof HERO_LABELS] ?? key, byHero, false),
     byChannel: rows(CHANNELS, (key) => CHANNEL_LABELS[key as keyof typeof CHANNEL_LABELS] ?? key, byChannel, false),

@@ -253,20 +253,25 @@ describe('match results', () => {
       end({ result: 'defeat', heartHp: 0, wave: 7, difficulty: 'hard', online: true, players: 2, hero: 'warden', durationSec: 300 }),
       // An older client: no difficulty, length or heroes.
       end({ mode: 'full', wave: 30 }),
+      // Endless runs: always Hard, never won; the row's wave is how far they got.
+      end({ mode: 'endless', difficulty: 'hard', result: 'defeat', heartHp: 0, wave: 41, channel: 'crazygames' }),
+      end({ mode: 'endless', difficulty: 'hard', result: 'defeat', heartHp: 0, wave: 36, channel: 'crazygames' }),
     ]);
     expect(m.started).toBe(1);
-    expect(m.finished).toBe(3);
+    expect(m.finished).toBe(5);
     expect(m.byMode.map((r) => [r.label, r.matches, r.wins])).toEqual([
       ['Quick · Normal', 1, 1],
       ['Quick · Hard', 1, 0],
+      ['Endless · Hard', 2, 0],
       ['Full · difficulty not sent', 1, 1],
     ]);
+    expect(m.byMode.find((r) => r.label === 'Endless · Hard')?.avgWave).toBe(38.5);
     expect(m.byPlayers.map((r) => r.label)).toEqual(['1 player, solo', '2 players, room', '1 player']);
     expect(m.byHero.map((r) => [r.label, r.matches])).toEqual([
       ['Ranger', 1],
       ['Warden', 1],
     ]);
-    expect(m.byChannel.find((r) => r.label === 'CrazyGames')).toMatchObject({ matches: 1, avgWave: 15, avgDurationSec: 600 });
+    expect(m.byChannel.find((r) => r.label === 'CrazyGames')).toMatchObject({ matches: 3, avgWave: (15 + 41 + 36) / 3, avgDurationSec: 600 });
     expect(m.byChannel.find((r) => r.label === 'Direct')).toMatchObject({ matches: 2, wins: 1, avgWave: 18.5, avgDurationSec: 300 });
   });
 });

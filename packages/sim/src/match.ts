@@ -24,6 +24,7 @@ import {
   type ReplayEntry,
 } from '@tdt/protocol';
 import { applyCommand, setPlayerConnected, setPlayerLeft } from './commands';
+import { lastWave } from './endless';
 import { createGame, step } from './game';
 import { skillInfo } from './skills';
 import type { GameConfig, GameState } from './state';
@@ -296,7 +297,7 @@ export function matchReport(match: Match): MatchReport {
     seed: match.seed,
     result: state.phase === 'victory' ? 'victory' : 'defeat',
     wave: state.wave,
-    totalWaves: state.tuning.waves.list.length,
+    totalWaves: lastWave(state.tuning),
     seconds: state.tick / TICK_RATE,
     heartHp: Math.max(0, state.heartHp),
     heartMaxHp: state.tuning.heart.maxHp,
@@ -473,6 +474,12 @@ export function replayRefusal(replay: Pick<Replay, 'modifiers' | 'practice' | 'b
   return null;
 }
 
+/** How a report's match ended, for the summary: "victory wave 30/30", or in Endless "Endless, fell on wave 37". */
+function outcome(report: MatchReport): string {
+  if (report.mode !== 'endless') return `${report.result} wave ${report.wave}/${report.totalWaves}`;
+  return report.result === 'victory' ? `Endless, held all ${report.totalWaves} waves` : `Endless, fell on wave ${report.wave}`;
+}
+
 /** A one-line summary of a report, for server logs. */
 export function reportSummary(report: MatchReport, room?: string): string {
   const heroes = report.heroes.map(
@@ -484,8 +491,7 @@ export function reportSummary(report: MatchReport, room?: string): string {
   );
   return (
     `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} seed ${report.seed} v${report.protocol} build ${report.build} ` +
-    `${report.result} ` +
-    `wave ${report.wave}/${report.totalWaves} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} ` +
+    `${outcome(report)} heart ${report.heartHp}/${report.heartMaxHp} ${mmss(report.seconds)} ` +
     `towers ${report.heroes.reduce((n, h) => n + h.towersBuilt, 0)} ` +
     `upgrades ${report.heroes.reduce((n, h) => n + h.upgrades, 0)} ` +
     `branches ${report.heroes.reduce((n, h) => n + h.branches, 0)} ` +

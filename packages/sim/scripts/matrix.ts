@@ -1,5 +1,5 @@
-// The balance matrix: `npm run balance:matrix [-- quick|full] [normal|hard] [novice|casual|expert] [solo|pairs|trio]
-// [--seeds N] [--jobs N] [--json file]`.
+// The balance matrix: `npm run balance:matrix [-- quick|full|endless] [normal|hard] [novice|casual|expert]
+// [solo|pairs|trio] [--seeds N] [--jobs N] [--json file]`.
 // Plays every bot (novice, casual, expert) on Normal and Hard, Full and Quick, for solo (each hero), each pair and the
 // three-player team, over seeds 1..N (default 30), and prints one table per bot / mode / difficulty:
 //   win%   share of seeds won
@@ -10,6 +10,9 @@
 //   R      ultimates cast per match; kills per Arrow Storm and per Meteor; damage per cast; combos per match and their
 //          share of all damage; ultimates' (combos included) share of all damage
 //   repair tower repairs per match and the gold they cost (novice: always 0); towers destroyed by creeps per match
+// Endless runs only when named (`endless`), on Hard alone (the mode sets it), with its own table: the wave the Heart fell
+// on (mean, lowest, highest), the share of seeds that reached wave 31 and the Heart they carried into it, deaths,
+// ultimates, towers and repairs.
 // `--team ranger,warden` runs only that team (hero order = lane order).
 // `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
 // arrays and numbers replace), so a number can be tried without editing tuning.ts.
@@ -33,7 +36,7 @@ import {
 
 type BotName = 'novice' | 'casual' | 'expert';
 const BOTS: BotName[] = ['novice', 'casual', 'expert'];
-const MODES: GameMode[] = ['full', 'quick'];
+const MODES: GameMode[] = ['full', 'quick', 'endless'];
 const DIFFICULTIES: Difficulty[] = ['normal', 'hard'];
 
 const PAIRS: HeroKind[][] = [
@@ -54,6 +57,9 @@ interface Row {
 interface Match {
   won: boolean;
   heart: number;
+  /** The wave the match ended on, and the Heart HP when wave 31 started (Endless; null: fell before it). */
+  wave: number;
+  heartAfterList: number | null;
   lost: number[];
   fly: number;
   flyLane: number[];
@@ -101,6 +107,8 @@ function playMatch(row: Row, seed: number): Match {
   return {
     won: r.result === 'victory',
     heart: r.result === 'victory' ? r.heartHp : 0,
+    wave: r.wave,
+    heartAfterList: r.heartAfterList,
     lost: r.heartLost,
     fly: r.flyerHeartLost,
     flyLane: r.flyerHeartLostByLane,
@@ -135,8 +143,10 @@ const teams: HeroKind[][] = teamArg
   : TEAMS.filter((t) => sizeWords.length === 0 || sizeWords.includes(t.length === 1 ? 'solo' : t.length === 2 ? 'pairs' : 'trio'));
 
 const rows: Row[] = [];
-for (const mode of pick(MODES)) {
-  for (const difficulty of pick(DIFFICULTIES)) {
+// Endless only when it is named (the full matrix stays Full and Quick), and only on Hard: the mode sets it.
+const modes = words.some((w) => (MODES as string[]).includes(w)) ? pick(MODES) : MODES.filter((m) => m !== 'endless');
+for (const mode of modes) {
+  for (const difficulty of mode === 'endless' ? (['hard'] as Difficulty[]) : pick(DIFFICULTIES)) {
     for (const bot of pick(BOTS)) for (const team of teams) rows.push({ bot, mode, difficulty, team });
   }
 }
@@ -187,16 +197,38 @@ function perCast(ms: Match[], tag: 'arrowStorm' | 'meteor'): string {
 /** Damage the combos did in one match. */
 const comboDamage = (m: Match): number => m.by.meteorRain.damage + m.by.stunStorm.damage + m.by.shockwave.damage;
 
+/** The Endless table of one bot: where the Heart fell, and what the run had at wave 31. */
+function endlessRow(row: Row, ms: Match[]): string[] {
+  const waves = ms.map((m) => m.wave);
+  const reached = ms.filter((m) => m.heartAfterList !== null);
+  const wardenAt = row.team.indexOf('warden');
+  return [
+    label(row.team),
+    `${f(mean(waves), 1)}  ${Math.min(...waves)}  ${Math.max(...waves)}`,
+    pct(reached.length / Math.max(1, ms.length)),
+    reached.length ? f(mean(reached.map((m) => m.heartAfterList!)), 1) : '-',
+    `${f(mean(ms.map((m) => sum(m.deaths))), 1)}${wardenAt >= 0 ? ` (${f(mean(ms.map((m) => m.deaths[wardenAt] ?? 0)), 1)})` : ''}`,
+    f(sum(ms.map((m) => m.ults)) / Math.max(1, ms.length), 1),
+    f(mean(ms.map((m) => m.combos)), 1),
+    f(mean(ms.map((m) => m.towers)), 1),
+    `${f(mean(ms.map((m) => m.repairs ?? 0)), 1)} (${f(mean(ms.map((m) => m.repairGold ?? 0)))})`,
+    f(mean(ms.map((m) => m.destroyed ?? 0)), 1),
+  ];
+}
+
+const ENDLESS_COLS = ['team', 'fell on (mean min max)', 'reached 31', 'heart at 31', 'dead (warden)', 'R', 'combo', 'towers', 'repair (gold)', 'destroyed'];
+
 function print(results: Match[][]): void {
   const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers', 'repair (gold)', 'destroyed'];
   let group = '';
+  let heads = cols;
   let table: string[][] = [];
   const flush = () => {
     if (table.length === 0) return;
-    const widths = cols.map((c, i) => Math.max(c.length, ...table.map((r) => r[i]!.length)));
+    const widths = heads.map((c, i) => Math.max(c.length, ...table.map((r) => r[i]!.length)));
     const line = (r: string[]) => r.map((c, i) => c.padEnd(widths[i]!)).join('  ');
     console.log(`\n${group}`);
-    console.log(line(cols));
+    console.log(line(heads));
     for (const r of table) console.log(line(r));
     table = [];
   };
@@ -205,8 +237,13 @@ function print(results: Match[][]): void {
     if (g !== group) {
       flush();
       group = g;
+      heads = row.mode === 'endless' ? ENDLESS_COLS : cols;
     }
     const ms = results[i]!;
+    if (row.mode === 'endless') {
+      table.push(endlessRow(row, ms));
+      return;
+    }
     const hearts = ms.map((m) => m.heart);
     const lost = [0, 1, 2].map((t) => sum(ms.map((m) => m.lost[t] ?? 0)));
     const totalLost = sum(lost) || 1;

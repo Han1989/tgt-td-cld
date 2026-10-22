@@ -94,6 +94,8 @@ describe('the daily run', () => {
     expect(dailyRefusal(ok, seed)).toBeNull();
     expect(dailyRefusal({ ...ok, seed: seed + 1 }, seed)).toMatch(/seed/);
     expect(dailyRefusal({ ...ok, mode: 'full' }, seed)).toMatch(/Quick/);
+    // Endless is played on Hard too, and solo, but it is never a daily run.
+    expect(dailyRefusal({ ...ok, mode: 'endless' }, seed)).toMatch(/Endless/);
     expect(dailyRefusal({ ...ok, difficulty: 'normal' }, seed)).toMatch(/Hard/);
     const { difficulty: _old, ...noDifficulty } = ok;
     expect(dailyRefusal(noDifficulty, seed)).toMatch(/Hard/);

@@ -15,6 +15,7 @@ import {
   type PlayerId,
 } from '@tdt/protocol';
 import { dailyTileLine, type DailyToday } from '../daily/text';
+import { endlessBest } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar } from '../render/art/icons';
 import { HERO_COLORS, toCss } from '../render/palette';
@@ -132,7 +133,7 @@ export class LobbyUi {
 
     // Play solo starts the match with the card's hero and mode at once, never the lesson; the line under it is how a
     // new player picks the lesson.
-    this.homeMode = new ModePicker($('lobby-mode-home'), storedMode(), storeMode);
+    this.homeMode = new ModePicker($('lobby-mode-home'), storedMode(), storeMode, $('lobby-mode-home-best'));
     this.offline.addEventListener('click', () => solo.playSolo({ hero: this.hero, mode: this.homeMode.mode }));
     $('lobby-learn-btn').addEventListener('click', () => solo.learnToPlay(this.hero));
     // Through the service worker, so a cached old app shell can't survive the refresh.
@@ -149,7 +150,7 @@ export class LobbyUi {
       this.syncRoomHero();
       room?.setHero(hero);
     });
-    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => room?.setMode(mode));
+    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => room?.setMode(mode), $('lobby-mode-room-best'));
     if (room) this.bindRoom(room);
     this.dailyTile.addEventListener('click', () => {
       if (this.daily && this.dailyToday) this.daily.play(this.hero, this.dailyToday);
@@ -210,18 +211,20 @@ export class LobbyUi {
     });
   }
 
-  /** The room card's line under the hero buttons. */
+  /** The room card's line under the hero buttons, and the hero's best Endless wave on the Mode row. */
   private syncRoomHero(): void {
     this.roomRole.textContent = HERO_INFO[this.hero].role;
     this.roomBlurb.textContent = HERO_INFO[this.hero].blurb;
+    this.modePicker.showBest(endlessBest(this.hero));
   }
 
-  /** The home card's stage and the line under the hero buttons show the picked hero. */
+  /** The home card's stage, the line under the hero buttons and the Mode row's best show the picked hero. */
   private syncStage(): void {
     const info = HERO_INFO[this.hero];
     this.stage.show(this.hero);
     this.role.textContent = info.role;
     this.blurb.textContent = info.blurb;
+    this.homeMode.showBest(endlessBest(this.hero));
   }
 
   /** "New here? Learn to play" until the first solo match; it does not come back on its own (⚙ → Lesson stays). */
@@ -342,13 +345,16 @@ export class LobbyUi {
   }
 }
 
-/** The mode's label on the room card; a guest sees "(the host picks)" with it. */
+/** The mode's label on the room card; a guest sees "(the host picks)" with it. The best Endless wave's note stays. */
 function hostLabel(el: HTMLElement, name: string, host: boolean): void {
+  const best = el.querySelector('.mode-best');
   el.textContent = name;
-  if (host) return;
-  const note = document.createElement('small');
-  note.textContent = '(the host picks)';
-  el.append(note);
+  if (!host) {
+    const note = document.createElement('small');
+    note.textContent = '(the host picks)';
+    el.append(note);
+  }
+  if (best) el.append(best);
 }
 
 /** One seat on the room card: the hero's emblem, the name, the hero, and Host, Ready, Not ready or reconnecting. */

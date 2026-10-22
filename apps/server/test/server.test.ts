@@ -185,6 +185,24 @@ describe('match mode', () => {
     expect(host!.lobby!.mode).toBe('quick');
   });
 
+  it('lets the host pick Endless: the match is on Hard with no last wave, and its report says Endless', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    host!.send({ t: 'mode', mode: 'endless' });
+    await guest!.waitFor(() => guest!.lobby?.mode === 'endless');
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    expect(guest!.snap!.mode).toBe('endless');
+    expect(guest!.snap!.difficulty).toBe('hard');
+    expect(guest!.snap!.totalWaves).toBe(200);
+    server.rooms.get(host!.code!)!.state!.heartHp = 0;
+    await host!.waitFor(() => host!.snap?.phase === 'defeat' && host!.report !== null);
+    expect(host!.report?.report).toMatchObject({ mode: 'endless', difficulty: 'hard', result: 'defeat' });
+    expect(host!.report?.replay).toMatchObject({ mode: 'endless', difficulty: 'hard' });
+  });
+
   it('keeps the mode when the room returns to the lobby', async () => {
     const { server, url } = await start();
     const [host, guest] = await fullRoom(url, 2);
@@ -201,7 +219,7 @@ describe('match mode', () => {
 });
 
 describe('difficulty', () => {
-  it('starts every room on Normal: the lobby offers no difficulty and no modifiers (protocol 20)', async () => {
+  it('starts every Full or Quick room on Normal: the lobby offers no difficulty and no modifiers (protocol 20)', async () => {
     const { server, url } = await start();
     const [host, guest] = await fullRoom(url, 2);
     host!.acting = false;

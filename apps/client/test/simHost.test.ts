@@ -84,6 +84,18 @@ describe('SimHost (local transport backend)', () => {
     expect(snaps().at(-1)!.difficulty).toBe('normal');
   });
 
+  it('starts Endless on Hard with no last wave, and Play again stays Endless', () => {
+    const { host, snaps } = harness();
+    host.receive(encodeClientMessage({ t: 'mode', mode: 'endless' }));
+    let snap = snaps().at(-1)!;
+    expect([snap.mode, snap.difficulty, snap.totalWaves]).toEqual(['endless', 'hard', TUNING.endless.maxWave]);
+    (host as unknown as { state: { heartHp: number } }).state.heartHp = 0;
+    host.tick();
+    host.receive(encodeClientMessage({ t: 'restart' }));
+    snap = snaps().at(-1)!;
+    expect([snap.tick, snap.mode, snap.difficulty]).toEqual([0, 'endless', 'hard']);
+  });
+
   it('sends the match report and replay once, when the match ends', () => {
     const { host, out } = harness();
     host.receive(encodeClientMessage({ t: 'cmd', cmd: { type: 'build', padId: 0, tower: 'arrow' } }));

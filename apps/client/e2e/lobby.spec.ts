@@ -325,11 +325,18 @@ function overflow(page: Page): Promise<number> {
 test('the home card: Mode is one segmented row, remembered, and the first screen holds it all down to the lesson line', async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 839 });
   await openHome(page);
-  // One row of two stone segments, Full by default; no difficulty and no modifiers anywhere in the lobby.
-  await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(2);
+  // One row of three stone segments, Full by default; no difficulty and no modifiers anywhere in the lobby.
+  await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(3);
   await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
   await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="full"]')).toHaveText('Full30 waves');
   await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]')).toHaveText('Quick15 waves');
+  await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="endless"]')).toHaveText('Endless∞');
+  await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="endless"]')).toHaveAttribute(
+    'title',
+    'Hard from wave 1, no last wave. How far can you go?',
+  );
+  // No Endless run yet: no best on the row.
+  await expect(page.locator('#lobby-mode-home-best')).toBeHidden();
   await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip, #lobby-solo, #lobby-solo-practice')).toHaveCount(0);
   // The stage, the hero buttons, the line, Mode, Play solo and "New here? Learn to play" fit the screen, unscrolled;
   // only the friends' controls are under the fold.
@@ -417,6 +424,97 @@ for (const size of [
     expect((await box(page, '#lobby-stage')).bottom - (await box(page, '#lobby-stage')).top).toBeGreaterThanOrEqual(120);
   });
 }
+
+/** Each Mode segment shows its name and its waves on one line, inside the segment: the labels shrink before they wrap. */
+async function modeRowFits(page: Page, row = '#lobby-mode-home'): Promise<void> {
+  const segs = await page.locator(`${row} .mode-pick`).evaluateAll((els) =>
+    els.map((el) => {
+      const b = el.getBoundingClientRect();
+      const name = el.querySelector('.seg-name')!.getBoundingClientRect();
+      const sub = el.querySelector('.seg-sub')!.getBoundingClientRect();
+      return { mode: (el as HTMLElement).dataset.mode, b, name, sub, cut: el.scrollWidth - el.clientWidth };
+    }),
+  );
+  expect(segs.map((s) => s.mode)).toEqual(['full', 'quick', 'endless']);
+  for (const s of segs) {
+    expect(s.cut, s.mode).toBeLessThanOrEqual(0);
+    expect(s.sub.left, `${s.mode}: the waves beside the name`).toBeGreaterThanOrEqual(s.name.right - 0.5);
+    expect(s.name.left, s.mode).toBeGreaterThanOrEqual(s.b.left);
+    expect(s.sub.right, s.mode).toBeLessThanOrEqual(s.b.right);
+  }
+}
+
+for (const size of [
+  { width: 412, height: 839 },
+  { width: 360, height: 640 },
+]) {
+  test(`Mode at ${size.width} × ${size.height}: Full, Quick and Endless fit one line each, and the best Endless wave sits over Endless`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.addInitScript(() => localStorage.setItem('tdt.endlessBest', JSON.stringify({ ranger: 37 })));
+    await openHome(page);
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    await modeRowFits(page);
+    // The Ranger's best, on the label's line, over the Endless segment (a phone) or under the label (a wide card).
+    await expect(page.locator('#lobby-mode-home-best')).toHaveText('Best: wave 37');
+    const best = await box(page, '#lobby-mode-home-best');
+    const endless = await box(page, '#lobby-mode-home .mode-pick[data-mode="endless"]');
+    expect(best.bottom).toBeLessThanOrEqual(endless.top + 1);
+    if (size.width <= 520) expect(Math.abs(best.right - endless.right)).toBeLessThanOrEqual(8);
+    // The Warden has no Endless run: no best.
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();
+    await expect(page.locator('#lobby-mode-home-best')).toBeHidden();
+    await onScreen(page, 'lobby-offline');
+  });
+}
+
+test('Play solo on Endless: Hard with no last wave, "Wave 1" alone, "Fallen on wave 1", then the best on the Mode row', async ({ page }) => {
+  await openHome(page, 'skipped');
+  await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="endless"]').click();
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('endless');
+  await page.locator('#lobby-offline').click();
+  await expect(page.locator('#lobby')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(200);
+  const snap = await page.evaluate(() => window.__tdt.latest()!);
+  expect([snap.difficulty, snap.heroes[0]!.kind]).toEqual(['hard', 'warden']);
+  await expect(page.locator('#tutorial')).toBeHidden();
+  await page.locator('#call-early').dispatchEvent('click');
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.wave)).toBe(1);
+  // No total: "Wave 1", not "Hard 1 / 200".
+  await expect(page.locator('#wave-label')).toHaveText('Wave');
+  await expect(page.locator('#wave')).toHaveText('1');
+  await page.evaluate(() => window.__tdt.lose());
+  await expect(page.locator('#end-screen')).toBeVisible();
+  await expect(page.locator('#end-title')).toHaveText('Fallen on wave 1');
+  await expect(page.locator('#end-text')).toContainText('New best!');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.endlessBest') ?? 'null'))).toEqual({ warden: 1 });
+  // Play again stays Endless; a run that does not go further is not a new best.
+  await page.locator('#restart').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.mode)).toBe('endless');
+  await page.evaluate(() => window.__tdt.lose());
+  await expect(page.locator('#end-title')).toHaveText('Fallen on wave 0');
+  await expect(page.locator('#end-text')).toContainText('Best: wave 1.');
+  // The home card's Mode row shows the Warden's best.
+  await page.locator('#end-change-hero').click();
+  await expect(page.locator('#lobby-home')).toBeVisible();
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'endless');
+  await expect(page.locator('#lobby-mode-home-best')).toHaveText('Best: wave 1');
+});
+
+test('Endless past wave 30: wave 35 brings the Ironhorn, and the counter reads 35 alone', async ({ page }) => {
+  await openHome(page, 'skipped');
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="endless"]').click();
+  await page.locator('#lobby-offline').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(200);
+  // Waves 31-40 repeat 21-30, stronger; every fifth wave past 30 has a boss: Ironhorn first.
+  await page.evaluate(() => window.__tdt.skipTo(35));
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.wave)).toBe(35);
+  await expect(page.locator('#wave')).toHaveText('35');
+  await expect(page.locator('#banner')).toContainText('Ironhorn approaches!');
+  // (The Ironhorn itself walks out after the wave's regular creeps, about 35 s later: the sim's tests cover it.)
+  await expect(page.locator('#banner')).toContainText('Wave 35 · Boss');
+});
 
 test('a new player who picks a hero and a mode and taps Play solo gets that match on Normal, with no lesson', async ({ page }) => {
   await openHome(page);
@@ -603,6 +701,9 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await expect(page.locator('#lobby-room-role')).toHaveText('Ranged DPS');
     await expect(page.locator('#lobby-mode-room .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
     await expect(page.locator('#lobby-mode-room .mode-pick[data-mode="full"]')).toBeEnabled();
+    // Endless is the row's third segment for a room too.
+    await expect(page.locator('#lobby-mode-room .mode-pick[data-mode="endless"]')).toBeEnabled();
+    await modeRowFits(page, '#lobby-mode-room');
     await expect(page.locator('#lobby-mode-room-label')).toHaveText('Mode');
     await expect(page.locator('#lobby-room .pick-row')).toHaveCount(3);
     await expect(page.locator('.difficulty-pick, .mod-picks, .mod-chip')).toHaveCount(0);

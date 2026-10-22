@@ -26,7 +26,7 @@ let next = performance.now() + TICK_MS;
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown; seed?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown; seed?: unknown; wave?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
     next = performance.now() + TICK_MS;
@@ -56,6 +56,10 @@ ctx.onmessage = (e) => {
   }
   if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'damageTowers') {
     host.debugDamageTowers();
+    return;
+  }
+  if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'skipTo') {
+    host.debugSkipTo(Number(data.wave));
     return;
   }
   host.receive(e.data);
