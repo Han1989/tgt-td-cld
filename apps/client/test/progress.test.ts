@@ -34,9 +34,9 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('Soft launch');
     // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116), P2-10 (silence while a music
     // file downloads; PR #122), P2-11 (the music streamed from the first tap; PR #123) and T-07a (creeps that cannot
-    // be kited; PR #124) are done, and so is V-06a (the heroes designed by Claude and generated in Meshy, session 1;
-    // PR #128).
-    expect(summary.done).toBe(67);
+    // be kited; PR #124) are done, and so are V-06a (the heroes designed by Claude and generated in Meshy, session 1;
+    // PR #128) and p6d-daily (the Daily run, session 1 of 3; PR #126).
+    expect(summary.done).toBe(68);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -48,7 +48,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(107);
+    expect(summary.total).toBe(108);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -71,6 +71,7 @@ describe('progress dashboard data', () => {
       'P2-10': 122,
       'P2-11': 123,
       'T-07a': 124,
+      'p6d-daily': 126,
       'D-09': 98,
       'H-07': 98,
     };

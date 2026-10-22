@@ -1,6 +1,7 @@
-// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode, Play solo, then
-// nickname and create / join for friends), the room card (code + invite link, the seats, your hero, the host's mode,
-// ready / start) and a busy state. A build with no game server shows the home card alone, with no friends' controls.
+// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode, the Daily run's
+// tile, Play solo, then nickname and create / join for friends), the room card (code + invite link, the seats, your
+// hero, the host's mode, ready / start) and a busy state. A build with no game server shows the home card alone, with
+// no friends' controls and no Daily tile.
 
 import {
   HERO_KINDS,
@@ -13,6 +14,7 @@ import {
   type LobbyState,
   type PlayerId,
 } from '@tdt/protocol';
+import { dailyTileLine, type DailyToday } from '../daily/text';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar } from '../render/art/icons';
 import { HERO_COLORS, toCss } from '../render/palette';
@@ -22,8 +24,7 @@ import { lessonOffer, type SoloPick } from '../tutorial/logic';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
 import { dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
-
-const NAME_KEY = 'tdt.name';
+import { storedName, storeName } from './nickname';
 
 /** The home card's solo controls (every build). */
 export interface SoloActions {
@@ -31,6 +32,14 @@ export interface SoloActions {
   playSolo(pick: SoloPick): void;
   /** "New here? Learn to play": the lesson with this hero, straight away. */
   learnToPlay(hero: HeroKind): void;
+}
+
+/** The Daily run's tile (a build with a game server). */
+export interface DailyActions {
+  /** Today's run, or null: the tile stays hidden (the request failed). */
+  today(): Promise<DailyToday | null>;
+  /** One tap on the tile: today's run on the card's hero. */
+  play(hero: HeroKind, today: DailyToday): void;
 }
 
 /** The friends' controls and the room card (a build with a game server). */
@@ -49,22 +58,6 @@ function $(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`Missing #${id}`);
   return el;
-}
-
-function stored(key: string): string {
-  try {
-    return localStorage.getItem(key) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function store(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
 }
 
 /** Invite link for a room: the current page with `?room=CODE`. */
@@ -109,11 +102,23 @@ export class LobbyUi {
   private readonly modePicker: ModePicker;
   private amReady = false;
   private current: LobbyState | null = null;
+  private readonly dailyTile = $('lobby-daily') as HTMLButtonElement;
+  private readonly dailyLine = $('lobby-daily-line');
+  /** Today's run as the tile last heard it, and which request is the latest (an older answer is dropped). */
+  private dailyToday: DailyToday | null = null;
+  private dailyAsk = 0;
 
-  /** `room` is null in a build with no game server: the home card has no friends' controls and no room card. */
-  constructor(solo: SoloActions, room: RoomActions | null) {
+  /**
+   * `room` and `daily` are null in a build with no game server: the home card has no friends' controls, no room card
+   * and no Daily tile.
+   */
+  constructor(
+    solo: SoloActions,
+    room: RoomActions | null,
+    private readonly daily: DailyActions | null = null,
+  ) {
     dropStoredDifficulty();
-    this.name.value = stored(NAME_KEY);
+    this.name.value = storedName();
     this.name.maxLength = MAX_NAME_LENGTH;
     const invited = room ? normalizeRoomCode(new URLSearchParams(location.search).get('room') ?? '') : null;
     if (invited) this.code.value = invited;
@@ -146,6 +151,33 @@ export class LobbyUi {
     });
     this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => room?.setMode(mode));
     if (room) this.bindRoom(room);
+    this.dailyTile.addEventListener('click', () => {
+      if (this.daily && this.dailyToday) this.daily.play(this.hero, this.dailyToday);
+    });
+  }
+
+  /** Asks for today's run and shows the tile with its live line, or hides it when the server does not answer. */
+  private syncDaily(): void {
+    if (!this.daily) return this.showDaily(null);
+    const ask = ++this.dailyAsk;
+    void this.daily.today().then(
+      (today) => {
+        if (ask === this.dailyAsk) this.showDaily(today);
+      },
+      () => {
+        if (ask === this.dailyAsk) this.showDaily(null);
+      },
+    );
+  }
+
+  private showDaily(today: DailyToday | null): void {
+    this.dailyToday = today;
+    this.dailyTile.classList.toggle('hidden', !today);
+    this.home.classList.toggle('has-daily', !!today);
+    if (!today) return;
+    const line = dailyTileLine(today, Date.now());
+    this.dailyLine.textContent = line.text;
+    this.dailyLine.classList.toggle('you', line.you);
   }
 
   /** The friends' controls on the home card, and the room card's buttons. */
@@ -221,6 +253,9 @@ export class LobbyUi {
     this.syncStage();
     this.stage.start();
     this.syncLesson();
+    this.syncDaily();
+    // A nickname typed on a Daily run's end screen fills the field.
+    if (!this.name.value) this.name.value = storedName();
     this.showError(error);
     // Keyboard focus starts on the main button (with a mouse or trackpad; a phone shows no ring on it), or on
     // the nickname an invited friend still has to type. Never scroll the card for it.
@@ -302,7 +337,7 @@ export class LobbyUi {
       this.name.focus();
       return null;
     }
-    store(NAME_KEY, name);
+    storeName(name);
     return name;
   }
 }

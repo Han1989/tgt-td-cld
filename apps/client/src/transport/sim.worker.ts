@@ -26,10 +26,15 @@ let next = performance.now() + TICK_MS;
 let paused = false;
 
 ctx.onmessage = (e) => {
-  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown } | null;
+  const data = e.data as { ctl?: unknown; paused?: unknown; auras?: unknown; ult?: unknown; seed?: unknown } | null;
   if (data && typeof data === 'object' && data.ctl === 'pause') {
     paused = data.paused === true;
     next = performance.now() + TICK_MS;
+    return;
+  }
+  // The Daily run: the day's seed, Quick on Hard, for every match of this worker (Play again included).
+  if (data && typeof data === 'object' && data.ctl === 'daily') {
+    if (typeof data.seed === 'number') host.setDaily(data.seed);
     return;
   }
   // Browser tests (e2e builds only): plenty of gold, so building and upgrading can be tested at once.

@@ -16,6 +16,7 @@ import {
 } from '@tdt/protocol';
 import {
   createMatch,
+  dailyConfig,
   matchCommand,
   matchOver,
   matchReplay,
@@ -36,6 +37,8 @@ export class SimHost {
   private queue: Command[] = [];
   private hero: HeroKind = 'ranger';
   private mode: GameMode = 'full';
+  /** A Daily run's seed: every match this host starts is that day's run (one player, Quick, Hard), Play again too. */
+  private dailySeed: number | null = null;
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
   /** Same ping / emote gap the game server enforces. */
@@ -52,17 +55,27 @@ export class SimHost {
 
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
-    // Every match a player starts is Normal (Han, 17 Oct 2026).
-    this.match = createMatch(
-      { players: [{ id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero }], mode: this.mode, difficulty: 'normal', tuning: this.tuning },
-      this.nextSeed(),
-      normalizeBuild(this.build),
-    );
+    const player = { id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero };
+    // Every match a player starts is Normal (Han, 17 Oct 2026), except the Daily run: Quick on Hard, the day's seed.
+    this.match =
+      this.dailySeed === null
+        ? createMatch({ players: [player], mode: this.mode, difficulty: 'normal', tuning: this.tuning }, this.nextSeed(), normalizeBuild(this.build))
+        : createMatch({ ...dailyConfig(player), tuning: this.tuning }, this.dailySeed, normalizeBuild(this.build));
     this.reported = false;
     this.queue = [];
     this.social = freshSocialClock();
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
+  }
+
+  /**
+   * The Daily run (a worker control message, not part of the protocol): from now on every match is the run of the day
+   * whose seed this is, until the host is closed. Starts one at once, as a hero or mode pick does.
+   */
+  setDaily(seed: number): void {
+    if (!Number.isSafeInteger(seed) || seed < 0 || this.state.phase === 'waves') return;
+    this.dailySeed = seed;
+    this.reset();
   }
 
   /** Handles one raw message from the client. Malformed input is ignored. */

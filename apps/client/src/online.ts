@@ -2,6 +2,8 @@
 
 import { PROTOCOL_VERSION, type GameMode, type HeroKind, type LobbyState, type ServerMessage } from '@tdt/protocol';
 import { currentAnalytics } from './analytics/install';
+import { fetchToday } from './daily/api';
+import type { DailyToday } from './daily/text';
 import type { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
@@ -42,6 +44,10 @@ export class OnlineController {
         setReady: (ready) => this.transport?.send({ t: 'ready', ready }),
         start: () => this.transport?.send({ t: 'start' }),
         leave: () => this.leave(),
+      },
+      {
+        today: () => fetchToday(),
+        play: (hero, today) => gated(() => this.playDaily(hero, today)),
       },
     );
     view.onLeave = () => this.leave();
@@ -161,6 +167,16 @@ export class OnlineController {
     this.ui.hide();
     playSolo(this.view, start, pick, () => this.ui.showHome());
   }
+
+  /** The Daily tile: today's run on the card's hero, locally like Play solo, leaving an online room first. */
+  private playDaily(hero: HeroKind, today: DailyToday): void {
+    const inRoom = this.transport !== null;
+    this.transport?.close();
+    this.drop();
+    if (inRoom) history.replaceState(null, '', location.pathname);
+    this.ui.hide();
+    playDaily(this.view, hero, today, () => this.ui.showHome());
+  }
 }
 
 let soloTransport: LocalTransport | null = null;
@@ -179,18 +195,39 @@ export function endSolo(view: GameView): void {
  * both picks).
  */
 export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home: () => void): void {
-  endSolo(view);
-  const transport = new LocalTransport();
-  soloTransport = transport;
-  view.attach(transport);
-  view.matchStarting();
+  const transport = startLocal(view, home);
   const match = beginSolo(sharedSettings(), start, pick);
   // Each of these starts a new match in the local host; the last one is the match played.
   transport.send({ t: 'mode', mode: match.mode });
   transport.send({ t: 'hero', hero: match.hero });
   view.setLesson(match.lesson);
+}
+
+/**
+ * Starts today's Daily run locally (docs/GAME_DESIGN.md "Daily run"): Play solo's flow on `hero`, with the day's seed,
+ * Quick on Hard (the local host's daily control). Play again runs the same day's seed again: tries are unlimited. Its
+ * end screen offers Post my run; "Change hero / mode" comes back to the home card.
+ */
+export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, home: () => void): void {
+  const transport = startLocal(view, home);
+  // Counts as a solo start for the lesson offer, like Play solo; never the lesson.
+  beginSolo(sharedSettings(), 'play', { hero, mode: 'quick' });
+  transport.daily(today.seed);
+  transport.send({ t: 'hero', hero });
+  view.setLesson(false);
+  view.setDaily({ day: today.day, seed: today.seed });
+}
+
+/** A new local host attached to the view; "Change hero / mode" on its end screen ends it and calls `home`. */
+function startLocal(view: GameView, home: () => void): LocalTransport {
+  endSolo(view);
+  const transport = new LocalTransport();
+  soloTransport = transport;
+  view.attach(transport);
+  view.matchStarting();
   view.onChangeHero = () => {
     endSolo(view);
     home();
   };
+  return transport;
 }

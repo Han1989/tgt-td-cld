@@ -9,6 +9,7 @@ import { addCount, emptyCounts, expireCounts } from '../src/analytics/counts';
 import { renderDashboard } from '../src/analytics/page';
 import { DAY_MS, expireRetention, retentionFromEvents } from '../src/analytics/retention';
 import { summarize, type StoredEvent } from '../src/analytics/summary';
+import type { DailyDayStat } from '../src/daily/store';
 
 let seed = 20261005;
 function rand(): number {
@@ -148,7 +149,18 @@ events.push({ t: 'session_start', at: now - 200_000, visitor: 'visitor-live0001'
 const table = retentionFromEvents(events.filter((e) => e.at <= now));
 expireRetention(table, now);
 expireCounts(counts, now);
-const summary = summarize(events, now, { connectedPlayers: 2, persistent: true, durable: true, dir: '/var/data' }, table, counts);
+// The Daily run's last two weeks: a few players a day, more after a post, with the odd refused post and mismatch.
+const daily: DailyDayStat[] = Array.from({ length: 14 }, (_, i) => {
+  const players = Math.round(8 + rand() * 30 + (i === 4 ? 120 : 0));
+  return {
+    day: new Date(now - i * DAY_MS).toISOString().slice(0, 10),
+    posts: players + Math.round(players * (1 + rand() * 2)),
+    players,
+    failures: rand() < 0.3 ? 1 + Math.floor(rand() * 3) : 0,
+    mismatches: rand() < 0.15 ? 1 : 0,
+  };
+});
+const summary = summarize(events, now, { connectedPlayers: 2, persistent: true, durable: true, dir: '/var/data' }, table, counts, daily);
 const out = process.argv[2] ?? 'analytics-example.html';
 writeFileSync(out, renderDashboard(summary, { example: true }));
 console.log(`Wrote ${out} (${events.length} made-up events, ${CHANNELS.length} channels).`);

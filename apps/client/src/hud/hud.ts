@@ -28,6 +28,7 @@ import {
 import { getMap, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import { currentAnalytics } from '../analytics/install';
 import { analyticsOn } from '../analytics/preference';
+import { DailyEndCard, type DailyRunInfo } from '../daily/endCard';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
@@ -245,6 +246,8 @@ export class Hud {
   private feedbackSent = false;
   /** The finished match's report and replay (sent by the host when it ends), for "Save match report". */
   private report: { report: MatchReport; replay: Replay } | null = null;
+  /** A Daily run's Post my run and rank reveal (hidden for any other match). */
+  private readonly daily = new DailyEndCard();
   private readonly team = $('team');
   private readonly teamCode = $('team-code');
   private readonly teamList = $('team-list');
@@ -385,6 +388,7 @@ export class Hud {
 
     const over = snap.phase === 'victory' || snap.phase === 'defeat';
     this.endScreen.classList.toggle('hidden', !over);
+    this.daily.sync(over, this.report);
     if (!over) {
       if (this.outcomeSent) this.resetFeedback();
       this.outcomeSent = false;
@@ -433,6 +437,11 @@ export class Hud {
   /** The host's report and replay of the match that just ended (null: none yet, or a new match started). */
   setReport(report: { report: MatchReport; replay: Replay } | null): void {
     this.report = report;
+  }
+
+  /** The match being played is this Daily run (null: any other match): its end screen offers Post my run. */
+  setDaily(run: DailyRunInfo | null): void {
+    this.daily.setRun(run);
   }
 
   /** Tall (phone) layout on or off. */

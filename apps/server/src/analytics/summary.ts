@@ -6,6 +6,7 @@ import { summarizeErrors, type ErrorSummary } from './errors';
 import { summarizeFunnel, type FunnelSummary } from './funnel';
 import { summarizeMatches, type MatchBreakdown } from './matches';
 import type { ParsedEvent } from './parse';
+import type { DailyDayStat } from '../daily/store';
 import {
   COHORT_KEEP_DAYS,
   cohortDays,
@@ -80,6 +81,8 @@ export interface AnalyticsSummary {
   funnel: FunnelSummary;
   matches: MatchBreakdown;
   errors: ErrorSummary;
+  /** The Daily run, per UTC day, newest first (daily/store.ts): runs posted, players, refused posts, mismatches. */
+  daily: DailyDayStat[];
   feedback: {
     count: number;
     comments: number;
@@ -171,6 +174,7 @@ export function summarize(
   live: { connectedPlayers: number; persistent: boolean; durable: boolean; dir: string | null },
   retention?: RetentionState,
   counts: CountState = emptyCounts(),
+  daily: DailyDayStat[] = [],
 ): AnalyticsSummary {
   const recent = events.filter((event) => now - event.at <= RETAIN_MS && event.at <= now + 60_000);
   const table = retention ?? retentionFromEvents(recent);
@@ -312,6 +316,7 @@ export function summarize(
     funnel: summarizeFunnel(recent, firstSessions),
     matches: summarizeMatches(recent),
     errors: summarizeErrors(recent),
+    daily,
     feedback: {
       count: ratings.length,
       comments,

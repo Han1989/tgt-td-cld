@@ -1,5 +1,5 @@
 import { decodeServerMessage, encodeClientMessage, type ServerMessage, type Snapshot } from '@tdt/protocol';
-import { TUNING } from '@tdt/sim';
+import { dailyRefusal, dailySeed, TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { formatSeconds } from '../src/hud/hud';
 import { LOCAL_PLAYER_ID, SimHost } from '../src/transport/simHost';
@@ -113,6 +113,31 @@ describe('SimHost (local transport backend)', () => {
       [0, 0, 'callEarly'],
     ]);
     expect(replay.end).toMatchObject({ tick: 41, result: 'defeat' });
+  });
+
+  it('plays the Daily run on its seed, Quick on Hard, for every match after it, Play again too', () => {
+    const { host, out, snaps } = harness();
+    const seed = dailySeed('2026-10-22');
+    host.setDaily(seed);
+    host.receive(encodeClientMessage({ t: 'hero', hero: 'warden' }));
+    // A mode pick cannot turn it back into a Normal match.
+    host.receive(encodeClientMessage({ t: 'mode', mode: 'full' }));
+    let snap = snaps().at(-1)!;
+    expect(snap).toMatchObject({ tick: 0, mode: 'quick', difficulty: 'hard', totalWaves: 15 });
+    expect(snap.heroes[0]!.kind).toBe('warden');
+    (host as unknown as { state: { heartHp: number } }).state.heartHp = 0;
+    host.tick();
+    const { report, replay } = out.find((m) => m.t === 'report') as Extract<ServerMessage, { t: 'report' }>;
+    expect(report).toMatchObject({ seed, mode: 'quick', difficulty: 'hard' });
+    expect(replay).toMatchObject({ seed, mode: 'quick', difficulty: 'hard', players: [{ hero: 'warden' }] });
+    expect(dailyRefusal(replay, seed)).toBeNull();
+    host.receive(encodeClientMessage({ t: 'restart' }));
+    snap = snaps().at(-1)!;
+    expect(snap).toMatchObject({ tick: 0, mode: 'quick', difficulty: 'hard' });
+    // Out-of-range seeds are ignored.
+    host.setDaily(-1);
+    host.setDaily(1.5);
+    expect(snaps().at(-1)!.tick).toBe(0);
   });
 
   it('stamps solo reports with the client build it was given', () => {

@@ -41,10 +41,25 @@ export {
   matchReport,
   matchReplay,
   replayMatch,
+  replaySteps,
   replayProblem,
   replayRefusal,
   reportSummary,
   R_OVERLAP_SECONDS,
 } from './match';
 export type { Match, Presence } from './match';
+export {
+  DAILY_KEY,
+  DAILY_RUN,
+  DAY_MS,
+  dailyClosesAt,
+  dailyConfig,
+  dailyKey,
+  dailyRefusal,
+  dailySeed,
+  dayNumber,
+  rankOrder,
+  shiftDailyKey,
+} from './daily';
+export type { DailyRun } from './daily';
 export { comboOf, comboPartners, heroHitLane, shieldStandPoint } from './coop';

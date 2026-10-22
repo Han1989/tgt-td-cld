@@ -1770,6 +1770,186 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   color: var(--gold);
 }
 
+/* A Daily run's end screen (daily/endCard.ts): Post my run above the stats, then the rank reveal. */
+.end-daily {
+  width: min(360px, 100%);
+  margin: 0 auto 14px;
+}
+
+.end-daily-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.end-daily-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(280px, 100%);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.end-daily-name input {
+  font: inherit;
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+  background: rgba(8, 6, 12, 0.75);
+  border: 1px solid var(--ink);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 8, 0.8);
+  border-radius: 8px;
+  padding: 8px 10px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.end-daily-name input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Gold, not rune-teal: Play again stays the card's main button. */
+.btn.end-daily-post {
+  min-height: 46px;
+  min-width: 200px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2a1a00;
+  text-shadow: none;
+  background: linear-gradient(180deg, #ffe58a, #d99a1e);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.55), inset 0 -2px 0 rgba(60, 30, 0, 0.35), 0 0 14px rgba(255, 210, 74, 0.3);
+}
+
+.btn.end-daily-post:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff0b0, #e8ab2e);
+}
+
+.end-card p.end-daily-note {
+  margin: 0;
+  font-size: 12px;
+}
+
+.end-card p.end-daily-msg {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.end-card p.end-daily-msg:empty {
+  display: none;
+}
+
+.end-daily-rank {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.end-daily-place {
+  font-family: var(--title-font);
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.end-daily-place .num {
+  font-size: 38px;
+  text-shadow: 0 0 16px rgba(255, 210, 74, 0.45), 0 2px 0 var(--ink);
+}
+
+.end-daily-place .rest {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.end-daily-gap {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.end-daily-best {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.end-daily-rows {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  text-align: left;
+  background: rgba(8, 6, 12, 0.55);
+  border: 1px solid rgba(232, 185, 74, 0.4);
+  border-radius: 10px;
+}
+
+.end-daily-rows li {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 2px 4px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.end-daily-rows li.mine {
+  color: var(--gold);
+  font-weight: 700;
+  background: rgba(255, 210, 74, 0.1);
+  border-radius: 6px;
+}
+
+.end-daily-rows .r {
+  color: var(--muted);
+}
+
+.end-daily-rows li.mine .r {
+  color: var(--gold);
+}
+
+.end-daily-rows .n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The reveal: each line after the count; the stats and the rating wait until the board has been read. They drop out
+   at once when the reveal starts and fade back in after it. */
+.end-daily-gap,
+.end-daily-best,
+.end-daily-rows,
+.end-card:not(.daily-revealing) .end-stats,
+.end-card:not(.daily-revealing) .end-feedback {
+  transition: opacity 260ms ease-out;
+}
+
+.end-card.daily-revealing .end-daily-gap:not(.in),
+.end-card.daily-revealing .end-daily-best:not(.in),
+.end-card.daily-revealing .end-daily-rows:not(.in),
+.end-card.daily-revealing .end-stats,
+.end-card.daily-revealing .end-feedback {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .end-daily-gap,
+  .end-daily-best,
+  .end-daily-rows,
+  .end-card:not(.daily-revealing) .end-stats,
+  .end-card:not(.daily-revealing) .end-feedback {
+    transition: none;
+  }
+}
+
 /* Under the note box: no personal details, and the privacy page (privacy.html). */
 .end-comment-hint {
   margin: 10px 0 0;
@@ -2076,6 +2256,79 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   min-height: 50px;
 }
 
+/* The Daily run's tile (docs/GAME_DESIGN.md "Daily run"), under Mode: carved stone with a gold edge (the one main
+   button stays Play solo), two short lines at a fixed height. Its room (the tile and one gap) comes out of the stage,
+   so Play solo does not move when the tile appears after the server answers. */
+#lobby-home {
+  --daily-room: 66px;
+}
+
+.daily-tile {
+  box-sizing: border-box;
+  height: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 14px;
+  text-align: left;
+  border-color: rgba(232, 185, 74, 0.55);
+  box-shadow: var(--stone-rim), inset 3px 0 0 rgba(255, 210, 74, 0.55);
+}
+
+.daily-head {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--title-font);
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.daily-head b {
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.daily-sub {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.daily-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.daily-line.you {
+  color: var(--gold);
+}
+
+/* Under 380 px the line has under 280 px: "Yesterday's champion: Kael · 82 Heart" needs 279 px at 13 px in a wide
+   fallback font (DejaVu Sans, where system-ui has nothing narrower), so the line steps down and the tile's sides
+   give it 4 px more. */
+@media (max-width: 380px) {
+  .daily-tile {
+    padding: 6px 12px;
+  }
+
+  .daily-line {
+    font-size: 12px;
+  }
+}
+
+#lobby-home.has-daily .hero-stage {
+  height: clamp(124px, calc(100dvh - 530px - var(--daily-room)), calc(320px - var(--daily-room)));
+}
+
 #lobby-offline.big {
   font-size: 19px;
   letter-spacing: 0.03em;
@@ -2117,6 +2370,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 /* A friend who came by an invite link: the nickname and Join come first, Join is the main button. */
 #lobby-home.invited .mode-row,
+#lobby-home.invited .daily-tile,
 #lobby-home.invited .solo-dock,
 #lobby-home.invited .learn-line {
   order: 1;
@@ -2145,6 +2399,10 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
     margin: -16px -16px 0;
     height: 240px;
     height: clamp(190px, calc(100dvh - 400px), 320px);
+  }
+
+  #lobby-home.has-daily .hero-stage {
+    height: clamp(124px, calc(100dvh - 400px - var(--daily-room)), calc(320px - var(--daily-room)));
   }
 
   .hero-blurb {

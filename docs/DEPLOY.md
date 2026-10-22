@@ -82,13 +82,23 @@ After changing it: Render → *Environment* → edit → **Save, rebuild and dep
 | `WS_COMPRESSION` | on | `off` disables permessage-deflate. |
 | `RENDER_GIT_COMMIT` | `dev` | Set by Render itself (the deployed commit); stamped into every online match report and replay and the `match …` log line. Don't set it by hand. |
 | `ANALYTICS_DASHBOARD_KEY` | unset (dashboard off) | Shared secret for `GET /analytics`. See [`docs/ANALYTICS.md`](ANALYTICS.md). Do not commit it. |
-| `ANALYTICS_DIR` | system temp dir | Where the analytics JSONL is written. A Render Disk path keeps it across deploys; the default temp file does not. `memory` keeps RAM only. |
+| `ANALYTICS_DIR` | system temp dir | Where the analytics JSONL is written, and the Daily run's day files in its `daily/` directory. A Render Disk path keeps them across deploys; the default temp directory does not. `memory` keeps RAM only. |
 
 Startup logs one analytics line: where events are stored, and whether the dashboard is on. The page itself is [`docs/ANALYTICS.md`](ANALYTICS.md).
 
 ## 6. Operations
 
 **Match log.** Every finished match logs one line: `match <room code> <mode> seed <seed> v<protocol> build <commit> <result> wave …`, then the Heart after each wave and a summary per hero. `build` is the server's commit (`RENDER_GIT_COMMIT`): check that commit out to re-run a saved report with `npm run replay`.
+
+**Daily run** (docs/GAME_DESIGN.md "Daily run"). Three HTTP routes on the game server, beside `/analytics` (no WebSocket message; the same `ALLOWED_ORIGINS` check and CORS):
+
+| Route | What |
+|---|---|
+| `GET /daily/today` | `{ day, seed, closesAt, runs, champion }`: today's UTC date, its seed, the next UTC midnight (ms), how many browsers are on today's board, yesterday's winner `{ name, heart, ticks }` or null. With a data key in `x-data-key`, also `you: { today, yesterday }` (rank and total, or null). |
+| `GET /daily/board?day=YYYY-MM-DD` | Today's or yesterday's board (any other day is 400): `total`, the caller's `rank` and `best` (by `x-data-key`), and five rows around the caller (or the top five), each `{ rank, name, heart, wave, ticks, mine }`. |
+| `POST /daily/post` | `{ key, name, file: { report, replay } }`, up to 448 KB. Checked, then re-run by the server one at a time (a few ms per slice, so rooms keep ticking); answers the caller's rank, total, best, this run, whether it improved the best, the personal best over the days kept and five rows. Refusals are JSON `{ error, message }`: 400 (`body`, `file`, `rerun`), 409 (`day`: another day's seed; `forgotten`), 413, 429 (`Retry-After: 20`), 503 (`busy`). |
+
+Each post logs one line: `daily <day> accepted: <result> wave … heart … ticks … rank r/n (best) re-run N ms`, or `daily <day> refused: <why>` (no name, id or key). Day files are `daily/YYYY-MM-DD.json` in `ANALYTICS_DIR` (each browser's best run: its id, nickname, hero and result, plus the day's counts), rewritten through a temp file and a rename on every change, read back at startup, and deleted after 90 days (at startup and every 24 hours, with the event log). With `memory` they stay in RAM; with `ANALYTICS_DIR` unset they go in the temp directory and a deploy clears them. The dashboard's **Daily run** table reads them. A deploy or restart drains rooms as below; a post that arrives while the server restarts fails, and the player taps again.
 
 **Health.** `GET /health` returns JSON:
 

@@ -31,10 +31,12 @@ export interface ServerCopy {
   visitor: string;
   events: unknown[];
   retention: unknown;
+  /** The Daily runs this browser posted (a server from before the Daily run sends none). */
+  daily?: unknown[];
 }
 
 export type MyDataResult =
-  | { kind: 'file'; name: string; text: string; events: number }
+  | { kind: 'file'; name: string; text: string; events: number; daily?: number }
   /** No id or key in this browser: nothing was ever sent from it. */
   | { kind: 'nothing' }
   /** An id from before data keys: the server cannot tell it is this browser's. */
@@ -54,13 +56,14 @@ export function myDataFile(copy: ServerCopy, date: Date): { name: string; text: 
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   const body = {
     about:
-      "Everything Tower Defense Together's game server holds for this browser's id: its play data events (kept 30 days) " +
-      'and its line in the return-rate table (kept 31 days after the last visit). Nothing else is kept about you. ' +
-      'See /privacy.html.',
+      "Everything Tower Defense Together's game server holds for this browser's id: its play data events (kept 30 days), " +
+      'its line in the return-rate table (kept 31 days after the last visit) and the Daily runs it posted (kept 90 days ' +
+      'on the public board). Nothing else is kept about you. See /privacy.html.',
     exportedAt: date.toISOString(),
     visitor: copy.visitor,
     events: copy.events,
     retention: copy.retention,
+    daily: copy.daily ?? [],
   };
   return { name: `tdt-play-data-${day}.json`, text: `${JSON.stringify(body, null, 1)}\n` };
 }
@@ -68,10 +71,13 @@ export function myDataFile(copy: ServerCopy, date: Date): { name: string; text: 
 /** The line shown after a copy or deletion. */
 export function myDataLine(result: MyDataResult): string {
   switch (result.kind) {
-    case 'file':
-      return result.events === 0
-        ? 'Downloaded. The server holds nothing for this browser right now.'
-        : `Downloaded: ${result.events} event${result.events === 1 ? '' : 's'} and nothing more.`;
+    case 'file': {
+      const daily = result.daily ?? 0;
+      if (result.events === 0 && daily === 0) return 'Downloaded. The server holds nothing for this browser right now.';
+      const events = `${result.events} event${result.events === 1 ? '' : 's'}`;
+      if (daily === 0) return `Downloaded: ${events} and nothing more.`;
+      return `Downloaded: ${events} and ${daily} posted Daily run${daily === 1 ? '' : 's'}, nothing more.`;
+    }
     case 'nothing':
       return 'Nothing has been sent from this browser, so there is nothing to copy or delete.';
     case 'legacy':
@@ -123,7 +129,7 @@ export async function copyMyData(
     const { status, body } = await ask(url, key, fetchFn);
     if (status === 429) return { kind: 'busy' };
     if (!isCopy(body)) return { kind: 'error' };
-    return { kind: 'file', ...myDataFile(body, now()), events: body.events.length };
+    return { kind: 'file', ...myDataFile(body, now()), events: body.events.length, daily: body.daily?.length ?? 0 };
   } catch {
     return { kind: 'error' };
   }
