@@ -8,7 +8,7 @@ import { readdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { startSolo, waitForReady } from './helpers';
 
-/** The heroes, every one made in 3D (V-05b). */
+/** The heroes, every one made in 3D (V-05b; the game's own Meshy models since V-06b). */
 const HEROES_3D = ['arcanist', 'ranger', 'warden'];
 /** The creep kinds, every one made in 3D (V-05c). */
 const CREEPS_3D = ['archer', 'brute', 'grunt', 'hatchling', 'ironhorn', 'matriarch', 'runner', 'shardback', 'wisp'];

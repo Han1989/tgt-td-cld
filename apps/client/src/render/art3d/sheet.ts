@@ -5,7 +5,7 @@
 import type { HeroKind } from '@tdt/protocol';
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
 import arcanistSheet from './arcanist-match.png?url';
-import { HERO_3D, type Cell, type LayerName, type MatchLayout } from './layout';
+import { HERO_3D, kindBox, type Cell, type LayerName, type MatchLayout } from './layout';
 import rangerSheet from './ranger-match.png?url';
 import wardenSheet from './warden-match.png?url';
 
@@ -14,6 +14,9 @@ const SHEETS: Partial<Record<HeroKind, string>> = { ranger: rangerSheet, warden:
 export interface Frame {
   tex: Texture;
   flash: Texture;
+  /** The anchor (the feet, or the arm layer's shoulder) in the cell, 0..1: frames of one kind share it. */
+  ax: number;
+  ay: number;
 }
 
 /** A layer's frames by kind (idle, walk, the attack and cast poses…), each with its white twin. */
@@ -61,9 +64,12 @@ async function load(url: string, layout: MatchLayout): Promise<HeroFrames> {
     if (!box) continue;
     const frames: Frames = {};
     for (const [kind, cells] of Object.entries(kinds)) {
+      const b = kindBox(box, kind);
       frames[kind] = cells.map((c) => ({
-        tex: new Texture({ source, frame: new Rectangle(c.x, c.y, box.w, box.h) }),
-        flash: new Texture({ source, frame: new Rectangle(c.fx, c.fy, box.w, box.h) }),
+        tex: new Texture({ source, frame: new Rectangle(c.x, c.y, b.w, b.h) }),
+        flash: new Texture({ source, frame: new Rectangle(c.fx, c.fy, b.w, b.h) }),
+        ax: b.ax / b.w,
+        ay: b.ay / b.h,
       }));
     }
     layers[name] = frames;

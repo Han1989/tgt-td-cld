@@ -1,5 +1,12 @@
 # 3D heroes: screenshots
 
+**V-06b (22 Oct 2026): the Meshy heroes in the game** (the game's own designs, `docs/ART.md` §15 "Meshy heroes").
+
+- `v06b-stage-<hero>-412x839.webp`: each hero's stage on the home card of a 412 × 839 phone at 2.625×, its poster (the loop's first frame, as reduced motion shows it): V-05b's KayKit hero on the left, the Meshy hero on the right.
+- `v06b-match-3heroes-412x839.webp`, `v06b-match-3heroes-zoom.webp`: a three-player online match on a 412 × 839 phone (a local game server; the browser as the Ranger, bots as the Warden and the Arcanist), 40 s in, and the three heroes from it enlarged 3×.
+- `v06b-arcanist-staff.webp`: her staff on her right hand (`hero.py`: at (−0.475, 0.95, 0.05) m of her bind pose, leaning 12° out, 0.85 of its size): the stage's frame 0 and the match's idle frame enlarged 4×. The crescent stands beside her shoulder, clear of the brim.
+- `heroes-contact-sheet.png`: `python tools/blender/contact.py`, now V-06b's: each hero's stage moments (the fixture frames, from the shipped WebM, in the shared box), then the match poses at full size, at phone size and 50 px tall.
+
 **V-05b round 2 (PR #109, 17 Oct 2026): a sharp stage, 2400 × 900.**
 
 - `stage-<hero>-412x839.webp`: each hero's stage on the home card of a 412 × 839 phone at 3×, paused in his signature move (the Ranger at full draw, the Warden mid-slice, the Arcanist's gem raised as the summon begins) (the browser tests' Chromium plays the VP9 WebM; phones with H.264 play the MP4 of the same frames).
@@ -12,7 +19,7 @@
 - `match-3heroes-412x839.webp`, `match-3heroes-zoom.webp`: a three-player match on a 412 × 839 phone (Han as the Ranger, bots as the Warden and the Arcanist), and the three heroes cropped from it.
 - `arcanist-idle-match-zoom.webp`: the Arcanist standing idle in a solo match, 3× pixel for pixel.
 - `arcanist-stage-gem-in-moss.webp`: the Arcanist's stage idle (frame 0), and the summon's start (frame 94), where his staff's gem reaches the moss below his feet and sets the shared box's bottom (`stage.BOX` y 400).
-- `heroes-contact-sheet.png`: `python tools/blender/contact.py`. The stage's key moments (from V-05b's 1200 × 450 loops), then the match poses at full size, at phone size and 50 px tall (unchanged in round 2).
+- `heroes-contact-sheet.png` was V-05b's until V-06b replaced it (the KayKit heroes' sheet is in git history).
 - `greyscale.webp`: one stage frame per hero in greyscale (the value check).
 - `ranger-0151-fringe.webp`: the Ranger's stage frame 151.
   - Yellow: the flying arrow's box, left out of the fringe check.

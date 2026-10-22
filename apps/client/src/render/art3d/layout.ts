@@ -1,5 +1,5 @@
 // Heroes made in 3D and rendered ahead of time (docs/ART.md §15): what the Blender pipeline wrote for each one
-// (tools/blender, `npm run art:3d -- <hero>`, from the KayKit models in the hero table tools/blender/hero.py), and the
+// (tools/blender, `npm run art:3d -- <hero>`, from the Meshy models in the hero table tools/blender/hero.py), and the
 // pure rules the rig and the lobby's stage use to play it. Nothing 3D runs here: the stage is a video, the match a
 // sheet of pictures. Generated files, not edited by hand: <hero>.json (both layouts) and <hero>-match.png (the sheet)
 // in this folder, the stage files in public/stage/.
@@ -17,14 +17,27 @@ export interface Cell {
   fy: number;
 }
 
-/** A layer's cell size and its anchor in the cell (sheet px): the feet, or the shoulder the arm layer turns about. */
-export interface LayerBox {
+/** A cell's size and its anchor in the cell (sheet px): the feet, or the shoulder the arm layer turns about. */
+export interface CellBox {
   w: number;
   h: number;
   ax: number;
   ay: number;
+}
+
+/**
+ * A layer's box: every frame of it together (where the figure can reach), and each kind's own (`kinds`: its frames
+ * are cropped to what they fill, so the Warden's idle cells are not as wide as his slash's; V-06b).
+ */
+export interface LayerBox extends CellBox {
+  kinds?: Record<string, CellBox>;
   /** The arm layer only: which way its weapon points as rendered (radians, y down), so the rig turns it from there. */
   aim?: number;
+}
+
+/** The cell box of a layer's frames of one kind: its own, or (a layout from before V-06b) the layer's. */
+export function kindBox(layer: LayerBox, kind: string): CellBox {
+  return layer.kinds?.[kind] ?? layer;
 }
 
 /**
@@ -90,7 +103,7 @@ export interface HeroLayout {
   stage: StageLayout;
 }
 
-/** The heroes made in 3D: all three, from the KayKit packs (V-05b). */
+/** The heroes made in 3D: all three, the game's own designs generated in Meshy (V-06b; V-05b's were KayKit's). */
 export const HERO_3D: Partial<Record<HeroKind, HeroLayout>> = {
   ranger: ranger as HeroLayout,
   warden: warden as HeroLayout,
@@ -121,8 +134,8 @@ export function progressFrame(u: number, n: number): number {
 /**
  * Walk cycles per second so the planted foot doesn't slide: the hero's ground speed in the rig's own px (world px
  * divided by how much larger the rig is drawn) over the stride, capped where a faster cadence would only flicker.
- * On a phone (heroes drawn about 2.2×) a Ranger at full speed takes about 4 strides a second and his feet hold the
- * ground; where heroes are drawn at their map size (desktop) the cap is reached and the feet slide a little.
+ * On a phone (heroes drawn about 2.2×) a Ranger at full speed takes about 2 running strides a second and his feet
+ * hold the ground; drawn at his map size (desktop) about 4.7.
  */
 export function walkCadence(speedTilesPerS: number, drawScale: number, stride: number, max = 5): number {
   if (!(speedTilesPerS > 0) || !(stride > 0)) return 0;

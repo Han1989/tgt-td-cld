@@ -1,9 +1,11 @@
-# A hero or a creep imported from the CC0 packs (docs/ART.md §15), posed by the packs' clips: one class for every
-# figure, built from its row of the hero or creep table (tools/blender/hero.py, creeps.py). It reads a clip's keys by
-# bone name at any time (the KayKit clips share the Rig_Medium skeleton; a Quaternius monster plays its own), blends
-# poses (an overlay clip easing in over the idle), puts a pose on the skeleton,
-# and keeps the props the clips can't move: the bow's string (the bow's own shape key, drawn as far as the draw hand
-# has come back) and the arrow (from the draw hand through the bow hand, or flying off after the loose).
+# A hero or a creep imported from the CC0 packs or generated in Meshy (docs/ART.md §15), posed by its clips: one class
+# for every figure, built from its row of the hero or creep table (tools/blender/hero.py, creeps.py). It reads a clip's
+# keys by bone name at any time (the KayKit clips share the Rig_Medium skeleton; a Quaternius monster plays its own; a
+# Meshy hero its own clip files, on Meshy's skeleton: `rig='meshy'`), blends poses (an overlay clip easing in over the
+# idle), puts a pose on the skeleton (a clip's hips held over the feet where the row pins them), and keeps the props the
+# clips can't move: the bow's string (the bow's own shape key, drawn as far as the draw hand has come back) and the
+# arrow (from the draw hand through the bow hand, or flying off after the loose). The pipeline names bones by
+# Rig_Medium's names (`world('foot.l')`); a Meshy figure maps them to its joints (gltf.MESHY_BONES).
 
 import re
 
@@ -43,28 +45,51 @@ class Figure:
         self.spec = spec
         for name, kw in spec['materials'].items():
             shading.define(name, **kw)
-        # The clips a monster brings with it (KayKit figures have none: theirs come from the animation packs).
+        # The clips a monster or a Meshy hero brings with it (KayKit figures have none: theirs come from the packs).
         self.own_clips = {}
         grid = spec.get('grid', gltf.KAYKIT_GRID)
-        self.arm, self.parts = gltf.load_character(spec['model'], 1.0, spec['parts'], spec['colours'],
-                                                   spec.get('overrides'), folder=spec.get('folder', gltf.CHARACTERS),
-                                                   grid=grid, clips_out=self.own_clips, regions=spec.get('regions'))
-        # As tall as its 2D rig: the pack's figure (at rest, props aside) scaled to the table's height in world px.
-        lo, hi = mesh_bbox([o for objs in self.parts.values() for o in objs])
-        self.scale = spec['height'] / (hi.z - lo.z)
-        self.arm.scale = (self.scale,) * 3
+        self.meshy = spec.get('rig') == 'meshy'
+        self.bones = gltf.MESHY_BONES if self.meshy else {}
+        if self.meshy:
+            self.arm, self.parts = gltf.load_meshy(spec, self.own_clips)
+            # As tall as its 2D rig, crown to soles: the model at rest, the weapons left out (the Warden's sword and
+            # shield reach past him sideways, not up; the box is by height). The armature is in centimetres.
+            lo, hi = gltf.rest_height(self.parts)
+            self.arm.scale = (spec['height'] / (hi - lo),) * 3
+            self.prop_px = self.arm.scale[0] * 100  # world px per glTF metre of a prop
+        else:
+            self.arm, self.parts = gltf.load_character(spec['model'], 1.0, spec['parts'], spec['colours'],
+                                                       spec.get('overrides'), folder=spec.get('folder', gltf.CHARACTERS),
+                                                       grid=grid, clips_out=self.own_clips, regions=spec.get('regions'))
+            # As tall as its 2D rig: the pack's figure (at rest, props aside) scaled to the table's height in world px.
+            lo, hi = mesh_bbox([o for objs in self.parts.values() for o in objs])
+            self.arm.scale = (spec['height'] / (hi.z - lo.z),) * 3
+            self.prop_px = self.arm.scale[0]
+        self.scale = self.arm.scale[0]
         bpy.context.view_layer.update()
         self.props = {}
         for p in spec.get('props', ()):
             offset = p.get('offset')
-            objs = gltf.attach(self.arm, p['file'], p['bone'], p['colours'], p['layer'], p['index'],
-                               offset=offset() if callable(offset) else offset,
-                               folder=spec.get('prop_folder', gltf.PROPS), grid=grid)
+            if p.get('meshy'):
+                objs = gltf.attach_meshy(self.arm, spec, p)
+            else:
+                objs = gltf.attach(self.arm, p['file'], self.bone(p['bone']) if p.get('bone') else None, p['colours'],
+                                   p['layer'], p['index'], offset=offset() if callable(offset) else offset,
+                                   folder=p.get('folder', spec.get('prop_folder', gltf.PROPS)), grid=grid)
             self.parts.setdefault(p['layer'], []).extend(objs)
             self.props[p['name']] = objs
         self.pb = self.arm.pose.bones
         for b in self.pb:
             b.rotation_mode = 'QUATERNION'
+        # A Meshy joint's tail, from its head (armature units): to its child's head, or for a leaf (a toe, a hand) a
+        # little way on (gltf.MESHY_LEAF_CM); the importer gives Meshy's joints lengths far past their children.
+        self._tails = {}
+        if self.meshy:
+            for b in self.arm.data.bones:
+                kids = list(b.children)
+                self._tails[b.name] = ((kids[0].head_local - b.head_local).length if kids
+                                       else gltf.MESHY_LEAF_CM.get(b.name, 5.0))
+        self._pins = spec.get('pin', {})
         self._curves = {}
         self.objects = [o for objs in self.parts.values() for o in objs]
         self.draw = 0.0
@@ -94,7 +119,25 @@ class Figure:
         return self._curves[name]
 
     def sample(self, name, t, loop=False):
-        """The clip's pose `t` seconds in (clamped to the clip, or wrapped round it when `loop`)."""
+        """The clip's pose `t` seconds in (clamped to the clip, or wrapped round it when `loop`). Where the row pins a
+        clip (`pin`: {clip: share}), its hips' travel over the ground since the clip's first frame is taken out by that
+        share, so a flinch or a fall stays on its spot (Meshy's hit reactions step 0.8–0.9 m sideways, its deaths fall
+        0.7–0.8 m back)."""
+        pose = self._sample(name, t, loop)
+        pin = self._pins.get(name, 0.0)
+        if pin > 0:
+            hips = self.bone('hips')
+            first = self._sample(name, 0.0)
+            if hips in pose and hips in first:
+                rest = self.arm.data.bones[hips].matrix_local.to_3x3()
+                loc, rot, scl = pose[hips]
+                a = rest @ loc
+                b = rest @ first[hips][0]
+                a = V((a.x + (b.x - a.x) * pin, a.y + (b.y - a.y) * pin, a.z))  # armature space: z up
+                pose[hips] = (rest.inverted() @ a, rot, scl)
+        return pose
+
+    def _sample(self, name, t, loop=False):
         ch, f0, f1, fps = self._channels(name)
         length = (f1 - f0) / fps
         if loop and length > 0:
@@ -129,17 +172,25 @@ class Figure:
             b.rotation_quaternion = rot
             b.scale = scl
         bpy.context.view_layer.update()
-        if self._string is not None:
+        if self._string is not None or self.meshy:
             self.set_draw(self.hand_draw() if draw is None else draw)
         if 'arrow' in self.props:
             self.place_arrow(arrow or 'hidden')
 
+    def bone(self, name):
+        """The skeleton's own name for a bone the pipeline names by Rig_Medium's (`hips`, `foot.l`, `handslot.r`)."""
+        return self.bones.get(name, name)
+
     def world(self, bone, at='head'):
-        pb = self.pb[bone]
-        return self.arm.matrix_world @ (pb.head if at == 'head' else pb.tail)
+        pb = self.pb[self.bone(bone)]
+        if at == 'head':
+            return self.arm.matrix_world @ pb.head
+        if self._tails:
+            return self.arm.matrix_world @ (pb.head + pb.matrix.to_3x3().normalized() @ V((0, self._tails[pb.name], 0)))
+        return self.arm.matrix_world @ pb.tail
 
     def matrix(self, bone):
-        return self.arm.matrix_world @ self.pb[bone].matrix
+        return self.arm.matrix_world @ self.pb[self.bone(bone)].matrix
 
     # --- the bow and the arrow ------------------------------------------------------------------------------
 
@@ -157,7 +208,13 @@ class Figure:
 
     def hand_draw(self):
         """How far the string is drawn (0..1): as far back as the draw hand has come along the string's path, if the
-        hand is on the string (near that path); else 0."""
+        hand is on the string (near that path); else 0. A Meshy bow's string is welded and never draws: there it is how
+        far the hands have come apart, from the bow held at brace to the clip's full draw (`draw` in the row: the
+        hands' distance in world px at both)."""
+        if self.meshy and 'draw' in self.spec:
+            d0, d1 = self.spec['draw']
+            d = (self.world('handslot.r', 'tail') - self.world('handslot.l', 'tail')).length
+            return max(0.0, min(1.0, (d - d0) / (d1 - d0)))
         if self._string is None:
             return 0.0
         m = self._bow.matrix_world
@@ -171,9 +228,15 @@ class Figure:
         return max(0.0, min(1.0, u))
 
     def set_draw(self, v):
+        self.draw = v
         if self._string is not None:
-            self.draw = v
             self._string.value = v
+
+    def aim_points(self):
+        """Where the arrow's nock and the bow's grip are: its line, nock to grip."""
+        if self.meshy:
+            return self.world('handslot.r', 'tail'), self.world('handslot.l', 'tail')
+        return self.nock_world(), self.world('handslot.l')
 
     def nock_world(self):
         m = self._bow.matrix_world
@@ -211,8 +274,12 @@ class Figure:
             a.matrix_world = Matrix.Translation((0, 0, -500))
             return
         a.hide_render = False
-        nock = self.nock_world() if self._string is not None else self.world('handslot.r')
-        grip = self.world('handslot.l')
+        if self.meshy:
+            # The welded string doesn't draw: the arrow lies from the draw hand's mitt through the bow hand's.
+            nock, grip = self.aim_points()
+        else:
+            nock = self.nock_world() if self._string is not None else self.world('handslot.r')
+            grip = self.world('handslot.l')
         fly = 0.0
         if isinstance(state, tuple) and state[0] == 'flying':
             nock, grip = self._loosed
@@ -220,7 +287,7 @@ class Figure:
         else:
             self._loosed = (nock.copy(), grip.copy())
         d = (grip - nock).normalized()
-        k = self.arm.scale[0]
+        k = self.prop_px * self.spec.get('arrow_scale', 1.0)
         # Turn the arrow's own axis onto d, with its side kept level.
         q = self._arrow_dir.rotation_difference(d)
         rot = q.to_matrix().to_4x4()
