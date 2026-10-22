@@ -340,8 +340,10 @@ apps/client/public/map/       The map plate (§16): spire.webp, spire-extra.webp
 apps/client/src/render/plate/ The plate's layout (spire.json), layout.ts (types, pure rules), load.ts (decode, textures); card.* (the
                               link card's plate, dev only)
 tools/blender/                The 3D pipeline (§15): hero.py (the hero table), creeps.py (the creeps'), structures.py (the
-                              towers', Heart's and portals'), tdt3d/, assets/kaykit/ (CC0 source models); mapdata.ts and
-                              tdt3d/map.py, the map plate (§16)
+                              towers', Heart's and portals'), tdt3d/, assets/kaykit/ (CC0 source models), assets/meshy/
+                              (the Meshy heroes, V-06a: round 2, chibi, and round 1); mapdata.ts and tdt3d/map.py, the map
+                              plate (§16)
+docs/art/meshy-style.md       The Meshy heroes' style paragraph and briefs (V-06a); meshy-heroes.png their contact sheet
 apps/client/src/showcase.ts   ?showcase dev page (entities, variants, the 3D heroes, creeps, towers, Heart and portals and the
                               stage loops, UI icons, sounds)
 apps/client/src/lobby/heroStage.ts  The home card's hero stage (§12): the picked hero drawn large with Canvas 2D
@@ -415,6 +417,8 @@ Two first impressions sit outside the match and follow the same rules.
 
 **Han, 16 Oct 2026: the models come from packs, not from code.** V-05a modelled the Ranger in code (cages, lathes, a skeleton with IK, proportion rules): every round was slow, the figure looked wrong, and the renders ran at four times the display size. The heroes are now the **CC0 KayKit models** in `tools/blender/assets/kaykit/` (`README.md` there: Knight = the Warden, Mage = the Arcanist, Rogue_Hooded = the Ranger) with **the packs' own clips**. What V-05a built and works stays: the painter (`npr.py`) that turns Cycles passes into Runelight's cel bands, moonlight, teal rim and ink; the clearing; one picture of hero and scene; the fringe check; the stage video and match sheet formats; the rigs on `HeroRigBase`; the encode. V-05b (PR #108) brought all three heroes in this way, V-05c every creep and the three bosses (below: creeps and bosses), V-05d the towers, the Heart and the portals (below: towers, the Heart and the portals). **Han, 17 Oct 2026 (Pixel 10 Pro): V-05b's 1200 × 450 stage was blurry next to V-05a's Ranger** (soft edges, weak eye glow, thin ink), so its round 2 (PR #109) put the stage back at 2400 × 900 with V-05a's pixel sizes: why, below (the stage loop).
 
+**Han, 22 Oct 2026: the heroes are redesigned (V-06a).** The CC0 pack heroes are generic and the game lost its identity, so the three heroes are original characters designed by Claude in the Runelight look and generated in Meshy, chibi like the game's heroes (round 2; round 1 came out realistic): the style sheet is `docs/art/meshy-style.md`, the models, clips and concepts are in `tools/blender/assets/meshy/` (Meshy's own skeleton, not KayKit's Rig_Medium), the contact sheet is `docs/art/meshy-heroes.png`. Session 1 is assets only; session 2 puts them through the painter and this pipeline. Until then the game shows the KayKit heroes below.
+
 ### The pipeline
 
 ```
@@ -430,6 +434,8 @@ tools/blender/
   requirements.txt bpy 4.5.14 and scipy, for Python 3.11
   assets/kaykit/   the CC0 source models, props and clips (glTF only; never shipped to the client)
   assets/quaternius/ the CC0 Ultimate Monsters the Wisp and the bosses come from (glTF, their own clips)
+  assets/meshy/     the heroes designed by Claude and generated in Meshy (V-06a: models, Meshy's own skeleton and
+                   clips, the concepts; README.md there is the index; session 2 puts them through this pipeline)
   tdt3d/
     palette.py     the Runelight tokens, read from render/art/tokens.ts (a colour is never copied by hand)
     gltf.py        importing a character (its Rig_Medium armature, scaled, facing +X), its props on the hand
