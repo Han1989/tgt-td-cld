@@ -34,14 +34,14 @@ describe('progress dashboard data', () => {
     expect(summary.nextGateDetail).toContain('Soft launch');
     // p5-one-screen (no modifiers, Normal only, the lobby on one screen; PR #116), P2-10 (silence while a music
     // file downloads; PR #122), P2-11 (the music streamed from the first tap; PR #123) and T-07a (creeps that cannot
-    // be kited; PR #124) are done, and V-06a (the three heroes generated in Meshy, session 1; PR #126).
+    // be kited; PR #124) are done, and V-06a (the three heroes generated in Meshy, session 1; PR #127).
     expect(summary.done).toBe(67);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
     // round 2 PR #120), V-05d (the towers, the Heart and the portals in 3D, PR #118) and V-05e (the stress budget after
     // the 3D sprites, PR #121) are done, and V-05a (PR #106) is closed as superseded by V-05b. V-06a (the heroes
-    // redesigned and generated in Meshy, session 1 of 2; PR #126) is done.
+    // redesigned and generated in Meshy, session 1 of 2; PR #127) is done.
     expect(summary.open).toBe(40);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
@@ -193,7 +193,7 @@ describe('progress dashboard data', () => {
     expect(byId('V-05d').proof?.href).toBe('https://github.com/Han1989/tgt-td-cld/pull/118');
     // Han, 22 Oct 2026: the pack heroes are generic, so the three heroes are redesigned and generated in Meshy (V-06a,
     // session 1 of 2: assets only).
-    expect(byId('V-06a')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/126' } });
+    expect(byId('V-06a')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/127' } });
     expect(byId('V-06a').note).toContain('22 Oct 2026');
     expect(byId('V-06a').note).toContain('Meshy');
     for (const id of ['after', 'p6a', 'p6b', 'p6c', 'p6d', 'gate2']) {

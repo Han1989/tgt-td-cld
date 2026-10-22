@@ -18,7 +18,7 @@
  * P2-10 on 17 Oct 2026 (PR #122: silence, not the code-made score, while a music file downloads).
  * P2-11 on 17 Oct 2026 (PR #123: the music streamed from the first tap, then its decoded loop).
  * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
- * V-06a on 22 Oct 2026 (PR #126: the three heroes redesigned and generated in Meshy, session 1 of 2; Han's decision).
+ * V-06a on 22 Oct 2026 (PR #127: the three heroes redesigned and generated in Meshy, session 1 of 2; Han's decision).
  * Protocol is 20 (PR #116). This page only reports status.
  */
 
@@ -321,8 +321,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'visual',
-    note: 'Assets only: no game code changes, protocol stays 20. Han, 22 Oct 2026: the pack heroes are generic and the game lost its identity, so the three heroes are redesigned as original characters in the Runelight look and generated in Meshy; the painter and the render-ahead-of-time pipeline stay, and session 2 puts the new models through them. One style sheet (a paragraph every prompt starts with, and a brief per hero with two marks that read at phone size). The Ranger is a hooded forest scout in moss green and leather with a curled leaf-peaked hood and a tall bone-tipped bow; the Warden an iron-and-ember shield-captain with a ram-horn pauldron, a kite shield with an ember rune and ember eyes in his helm; the Arcanist a battle-mage woman in violet and bone-white with a long braid strung with glowing rune beads and a crescent staff. Each has a concept, a textured model rigged by Meshy, and seven clips (idle, walk, run, attack, cast, hit, death). Each weapon bends with the body as rigged; binding it to one hand keeps it rigid (tested), so the designed weapons stay. 234 of 1,076 credits spent. In review: Han judges the contact sheet on his phone. Built by Claude Code (PR #126).',
-    proof: pr(126),
+    note: 'Assets only: no game code changes, protocol stays 20. Han, 22 Oct 2026: the pack heroes are generic and the game lost its identity, so the three heroes are redesigned as original characters in the Runelight look and generated in Meshy; the painter and the render-ahead-of-time pipeline stay, and session 2 puts the new models through them. One style sheet (a paragraph every prompt starts with, and a brief per hero with two marks that read at phone size). The Ranger is a hooded forest scout in moss green and leather with a curled leaf-peaked hood and a tall bone-tipped bow; the Warden an iron-and-ember shield-captain with a ram-horn pauldron, a kite shield with an ember rune and ember eyes in his helm; the Arcanist a battle-mage woman in violet and bone-white with a long braid strung with glowing rune beads and a crescent staff. Each has a concept, a textured model rigged by Meshy, and seven clips (idle, walk, run, attack, cast, hit, death). Each weapon bends with the body as rigged; binding it to one hand keeps it rigid (tested), so the designed weapons stay. 234 of 1,076 credits spent. In review: Han judges the contact sheet on his phone. Built by Claude Code (PR #127).',
+    proof: pr(127),
   },
   {
     id: 'g1-render',
