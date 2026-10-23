@@ -20,6 +20,7 @@
  * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
  * V-06a on 22 Oct 2026 (PR #128: the heroes designed by Claude and generated in Meshy, session 1 of 2, assets only).
  * V-06b on 22 Oct 2026 (PR #130: the Meshy heroes in the game, session 2 of 2).
+ * V-06c on 22 Oct 2026 (PR #131: three fixes on the Meshy heroes' stage loops after Han's look on his phone).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -334,6 +335,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only, session 2 of 2: no game rules, server or protocol change. Han, 22 Oct 2026: the game’s heroes are the chibi Meshy models, the game’s own designs, everywhere the free-pack heroes showed: the first screen’s stage, the match and the art page. They go through the same painter and are rendered ahead of time exactly as before (nothing 3D runs on the phone). The weapons Meshy welded into the body now move with the hand instead of bending; every colour of their textures is matched to the game’s palette, and a colour the table doesn’t expect stops the build; their own animations play with the moments where a hand, the hat or the helm passes through the face left out. The Arcanist holds her crescent staff upright, its crystal glowing beside her hat. In review: Han judges the heroes on his phone. Built by Claude Code (PR #130).',
     proof: pr(130),
+  },
+  {
+    id: 'V-06c',
+    title: 'Three fixes on the heroes’ first-screen loops',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change. Han, 22 Oct 2026, from his phone: the Warden looked too sharp, the Arcanist never held her staff, and the Ranger’s drawing hand vanished into his neck. On the first screen the Warden’s armour is now lit like the other two heroes’ leather and cloth (no white shine, a faint rim, softer edges; his glowing eyes and rune unchanged). The Arcanist’s staff runs through her hand in every pose, on the first screen and in the match. The Ranger stops his draw at his cheek and holds it until he looses, and while he draws, his arm and arrow are drawn in front of his hood so the hand always shows. In review: Han judges the three on his phone. Built by Claude Code (PR #131).',
+    proof: pr(131),
   },
   {
     id: 'g1-render',

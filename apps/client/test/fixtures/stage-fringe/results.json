@@ -1,37 +1,37 @@
 {
  "arcanist-0000": {
-  "crossings": 2066,
+  "crossings": 2188,
   "fringe": 0,
   "hard": 10,
-  "measured": 1972,
+  "measured": 2083,
   "pass": true
  },
  "arcanist-0140": {
-  "crossings": 2231,
-  "fringe": 3,
+  "crossings": 2338,
+  "fringe": 1,
   "hard": 17,
-  "measured": 2178,
+  "measured": 2283,
   "pass": true
  },
  "arcanist-0160": {
-  "crossings": 2197,
-  "fringe": 0,
-  "hard": 22,
-  "measured": 2087,
+  "crossings": 2298,
+  "fringe": 1,
+  "hard": 18,
+  "measured": 2206,
   "pass": true
  },
  "ranger-0000": {
-  "crossings": 2082,
+  "crossings": 2084,
   "fringe": 1,
   "hard": 33,
-  "measured": 2058,
+  "measured": 2055,
   "pass": true
  },
  "ranger-0150": {
-  "crossings": 1845,
-  "fringe": 3,
-  "hard": 12,
-  "measured": 1796,
+  "crossings": 1795,
+  "fringe": 2,
+  "hard": 13,
+  "measured": 1778,
   "pass": true
  },
  "ranger-0165": {
@@ -42,10 +42,10 @@
   "pass": true
  },
  "warden-0000": {
-  "crossings": 2212,
+  "crossings": 2210,
   "fringe": 0,
   "hard": 24,
-  "measured": 2181,
+  "measured": 2183,
   "pass": true
  },
  "warden-0100": {

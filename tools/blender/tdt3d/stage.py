@@ -398,9 +398,25 @@ def _pose_loop(spec, fig, fps):
     return frames, contacts
 
 
+def staged(spec):
+    """The row as the stage renders it: its stage-only material touches (`stage.materials`: the Warden's plate as soft
+    as the cloth heroes' on the stage) over the row's materials, and its stage-only cut into layers (`stage.layers`
+    and `stage.index`: the Ranger's draw arm a layer of its own, to draw over his hood). The match sheet keeps the
+    row's."""
+    st = spec['stage']
+    out = dict(spec, layers=st.get('layers', spec.get('layers', {})), index=st.get('index', spec['index']))
+    over = st.get('materials')
+    if over:
+        unknown = set(over) - set(spec['materials'])
+        if unknown:
+            raise KeyError(f'{spec["name"]}: stage materials {sorted(unknown)} are not in its row\'s materials')
+        out['materials'] = {k: dict(v, **over.get(k, {})) for k, v in spec['materials'].items()}
+    return out
+
+
 def _build(spec, fps):
     """The hero, the camera that frames every hero the same, the moon and the clearing."""
-    fig = figure.Figure(spec)
+    fig = figure.Figure(staged(spec))
     shading.set_globals(z0=0, z1=spec['height'], ao_samples=6)
     return fig
 
@@ -468,6 +484,31 @@ def _flight_box(cam, objs, frame, shutter, pad=3):
 
 def _away(fig, fact):
     return [o for o in fig.objects if o.pass_index == ARROW_INDEX and _arrow_away(fact)]
+
+
+def _painted(p, look, k, sd):
+    """A render's hero layer at render size: painted, lined (never over a fern in front of him), premultiplied; its
+    coverage, glow and depth."""
+    col, a, emit = npr.shade(p, look)
+    col = npr.ink_smear(p, look, col)
+    cov, ink = npr.outline(p, look, k, scene_depth=sd, with_colour=True)
+    pm = col * a[..., None]
+    pm = pm * (1 - cov[..., None]) + ink * cov[..., None]
+    alpha = a * (1 - cov) + cov
+    glow = emit * a[..., None]
+    hdepth = np.where(a > 0.5, p['Depth'][..., 0] / np.maximum(a, 1e-4), np.inf)
+    return pm, alpha, glow, hdepth
+
+
+def over_weight(ids, solid, above, layer, reach):
+    """Where a layer drawn on its own goes over the whole figure's render (h × w, 0..1): where the figure's front is
+    the part it is drawn over (the Ranger's head), and as far round it as that part's line reaches (its ink off the
+    hand), never where the front is any other part (his body stays in front of his arms). `ids`: the whole render's
+    object per pixel (pass indices), `solid`: covered, `above` and `layer`: the pass indices of each."""
+    front = np.isin(ids, list(above)) & solid
+    near = ndimage.binary_dilation(front, iterations=reach) if front.any() else front
+    other = solid & ~np.isin(ids, list(above) + list(layer))
+    return (near & ~other).astype(np.float32)
 
 
 def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, check_frames=(), plate_cache=None):
@@ -566,6 +607,14 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     ground.data.materials[0] = _catcher()
     sc.view_layers[0].cycles.use_pass_shadow_catcher = True
     motes = Motes(glade, cam, fps, shutter)
+    # What is drawn over another part on some frames (`over` in the row's stage: the Ranger's draw arm and his arrow
+    # over his head while he draws), the part it goes over and the rest of him (pass indices for the passes).
+    over = spec['stage'].get('over')
+    over_objs = [o for o in hero_objs if over and (o.get('layer') in over['layers'] or
+                                                   any(o in fig.props[n] for n in over.get('props', ())))]
+    over_above = [o for o in hero_objs if over and o.get('layer') == over['above']]
+    over_under = [o for o in hero_objs if over and o not in over_objs and o not in over_above]
+    over_ids = {'above': {o.pass_index for o in over_above}, 'layer': {o.pass_index for o in over_objs}}
     frames_dir = os.path.join(tmp, 'frames')
     os.makedirs(frames_dir, exist_ok=True)
     if checks_dir:
@@ -608,19 +657,40 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
             """The finished frame with the hero rendered at k × the output size, and its fringe check."""
             rcam = mcam if k == ss else scene.Cam(cam.obj, ow * k, oh * k)
             pdepth, pids = plate_at[k]
+            border = (x0 * k, y0 * k, x1 * k, y1 * k)
             p = scene.render(rcam, os.path.join(tmp, 'passes'), samples=samples, motion_blur=shutter,
-                             frame=i + 1, extra=['Shadow Catcher'], border=(x0 * k, y0 * k, x1 * k, y1 * k))
+                             frame=i + 1, extra=['Shadow Catcher'], border=border)
             # The hero layer, at render size: painted, lined (his line reaches past his edge, but never over a fern
             # in front of him), then scaled down.
             sd = pdepth[y0 * k:y1 * k, x0 * k:x1 * k]
-            col, a, emit = npr.shade(p, look)
-            col = npr.ink_smear(p, look, col)
-            cov, ink = npr.outline(p, look, k, scene_depth=sd, with_colour=True)
-            pm = col * a[..., None]
-            pm = pm * (1 - cov[..., None]) + ink * cov[..., None]
-            alpha = a * (1 - cov) + cov
-            glow = emit * a[..., None]
-            hdepth = np.where(a > 0.5, p['Depth'][..., 0] / np.maximum(a, 1e-4), np.inf)
+            pm, alpha, glow, hdepth = _painted(p, look, k, sd)
+            a = p['Alpha'][..., 0]
+            if facts[i]['over']:
+                # Drawn over another part this frame (the Ranger's draw arm and arrow over his head while he draws:
+                # the hood would hide his hand): rendered on their own, the part they go over left out and the rest
+                # of him a holdout (his body and his bow still hide what is behind them, and the cut where the arm
+                # meets the shoulder), painted and lined alone, and put over the whole render where its front is
+                # that part.
+                for o in over_above:
+                    o.hide_render = True
+                for o in over_under:
+                    o.is_holdout = True
+                q = scene.render(rcam, os.path.join(tmp, 'passes'), samples=samples, motion_blur=shutter,
+                                 frame=i + 1, border=border)
+                for o in over_above:
+                    o.hide_render = False
+                for o in over_under:
+                    o.is_holdout = False
+                qpm, qalpha, qglow, qdepth = _painted(q, look, k, sd)
+                reach = int(math.ceil(look['outer'] * k / 2)) + 1
+                w = over_weight(npr.ids_of(p) // 1000, a > 0.5, over_ids['above'], over_ids['layer'], reach)
+                aw = qalpha * w
+                pm = qpm * w[..., None] + pm * (1 - aw[..., None])
+                glow = qglow * w[..., None] + glow * (1 - aw[..., None])
+                hdepth = np.where(aw > 0.5, np.minimum(qdepth, hdepth), hdepth)
+                alpha = aw + alpha * (1 - aw)
+                a = np.maximum(a, q['Alpha'][..., 0] * w)
+                del q, qpm, qalpha, qglow, qdepth
             catch = p['Shadow Catcher'][..., 0]
             shadow = (1 - npr.smoothstep(0.55, 0.82, catch)) * (pids[y0 * k:y1 * k, x0 * k:x1 * k] == GROUND_ID)
             # Where he covers part of a pixel the catcher sees less of the ground, so his own edge reads as less
@@ -643,7 +713,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
                 D = hdepth[:hh * k, :ww * k].reshape(hh, k, ww, k).min(axis=(1, 3))
             else:
                 D = hdepth
-            del p, col, a, emit, cov, ink, pm, alpha, glow, catch, shadow
+            del p, a, pm, alpha, glow, catch, shadow
 
             # The finished frame.
             frame = atmo.mist(still, i / fps)

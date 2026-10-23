@@ -112,6 +112,7 @@ def shade(p, look):
     f_dim = _flag_table('dim', 1.0)[mat]
     f_mrim = _flag_table('mrim', 1.0)[mat]
     f_fill = _flag_table('fill', 1.0)[mat]
+    f_pool = _flag_table('pool', 1.0)[mat]
 
     if look['ao_blur'] > 0:
         ao = ndimage.gaussian_filter(ao, look['ao_blur'])
@@ -126,7 +127,7 @@ def shade(p, look):
     col *= (1 - look['ao'] * f_ao * (1 - np.clip(ao, 0, 1)))[..., None]
     col *= (1 - look['darken'] * (1 - np.clip(grad, 0, 1)))[..., None]
     col += np.array(rgb(look['fill']), np.float32) * (albedo * 0.5 + 0.5) * (np.clip(fill, 0, 1) * look['fill_amount'] * f_fill * (1 - lit))[..., None]
-    col += albedo * np.array(rgb(look['pool_tint']), np.float32) * (np.clip(pool, 0, 4) * look['pool_amount'])[..., None]
+    col += albedo * np.array(rgb(look['pool_tint']), np.float32) * (np.clip(pool, 0, 4) * look['pool_amount'] * f_pool)[..., None]
     r = smoothstep(look['rim_at'] - look['rim_soft'], look['rim_at'] + look['rim_soft'], rim) * look['rim_amount'] * f_rim
     rc = np.array(rgb(look['rim']), np.float32)
     col = col + (rc * 0.85 + albedo * 0.3 - col * 0.5) * r[..., None]

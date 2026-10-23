@@ -52,7 +52,9 @@ def stage_pose(fig, spec, t):
     `frm` to `to` seconds from `at` in the loop, eased in over `ease_in`; it holds its last frame for `hold`, then eases
     out over `ease_out`). A move that follows another eases in over the other's held last frame, so clips chain. A move's
     `weight` (1 by default) is how far it takes the pose from what is under it: the Warden's slash on the stage is 0.85
-    of the clip's over his guard, so its sweep stays inside the box the three heroes share."""
+    of the clip's over his guard, so its sweep stays inside the box the three heroes share. A move's `stop` (clip
+    seconds a, b) holds the clip's pose at a until the clip would have reached b, then plays on from b: the Ranger's
+    draw stops at his cheek and holds there until the loose, its timing (the loose, the arrow) unchanged."""
     st = spec['stage']
     pose = idle_pose(fig, st, t)
     for m in st['moves']:
@@ -65,6 +67,8 @@ def stage_pose(fig, spec, t):
         if t < start or t >= end + hold + ease_out:
             continue
         u = m['frm'] + min(t - start, dur) * m.get('rate', 1.0)
+        if 'stop' in m and m['stop'][0] <= u < m['stop'][1]:
+            u = m['stop'][0]
         w = (smooth((t - start) / ease_in) if ease_in > 0 else 1.0) * m.get('weight', 1.0)
         if t > end + hold:
             w *= 1.0 - smooth((t - end - hold) / ease_out) if ease_out > 0 else 0.0
@@ -102,7 +106,9 @@ def stage_frames(fig, spec, fps):
         fast = any(a <= t < b for a, b in st.get('fast', ()))
         if isinstance(state, tuple):
             fast = True
-        out.append({'pose': pose, 'arrow': state, 'fast': fast, 't': t})
+        # Drawn over another part on this frame (`over`: the Ranger's draw arm over his hood while he draws).
+        over = any(a <= t < b for a, b in st['over']['spans']) if 'over' in st else False
+        out.append({'pose': pose, 'arrow': state, 'fast': fast, 'over': over, 't': t})
     return out
 
 
