@@ -3,7 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { box, lessonCard, sent, startSolo, toScreen, waitForReady } from './helpers';
+import { box, expectSameBoxes, framesAB, framesIn, lessonCard, sent, startSolo, toScreen, waitForReady } from './helpers';
 
 test('wide layout: map centred and fitted to the height, HUD in the side margins, no touch overlay', async ({ page }) => {
   await startSolo(page);
@@ -16,6 +16,23 @@ test('wide layout: map centred and fitted to the height, HUD in the side margins
   expect(left.right).toBeLessThanOrEqual(l.map.left);
   expect(hero.left).toBeGreaterThanOrEqual(l.map.right);
   await expect(page.locator('#hero-panel .skill')).toHaveCount(4);
+});
+
+test('the rendered frames move nothing: the stats, the hero panel and the open tower panel keep their boxes', async ({ page }) => {
+  await startSolo(page);
+  await framesIn(page);
+  const padId = await page.evaluate(() => window.__tdt.latest()!.pads[0]!.id);
+  const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
+  const at = await toScreen(page, pad.x, pad.y);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.press('1');
+  await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#tower-panel')).toBeVisible();
+  const { frames, css } = await framesAB(page, ['#topbar', '#topbar .stat', '#call-early', '#hero-panel', '#hero-panel .skill', '#tower-panel', '#tower-panel button']);
+  expectSameBoxes(frames, css);
+  const source = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).borderImageSource);
+  for (const sel of ['#topbar', '#hero-panel', '#tower-panel', '#gold-stat', '#call-early']) expect(await source(sel), sel).toContain('blob:');
 });
 
 test('mouse and keyboard: right-click moves, left-click a pad and press 1 to build, U upgrades, Q casts', async ({ page }) => {

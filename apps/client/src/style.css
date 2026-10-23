@@ -4744,3 +4744,254 @@ body.layout-tall .mates {
   outline: 2px solid var(--bad);
   outline-offset: -2px;
 }
+
+/* Rendered frames (docs/ART.md §12, V-07a) ------------------------------------------------------------------------
+   The match view's chrome from the rendered sheet: stone and dark timber kitbashed from the KayKit pieces, lit by the
+   map plate's moon (npm run art:3d -- ui). hud/frames.ts cuts each piece into an image of its own and publishes it
+   as --ui-<piece>, with --ui-<piece>-slice (its 9-slice insets, sheet px) and --ui-<piece>-width (CSS px), then sets
+   <html data-ui="ready">. Only the match view (#hud) changes: the lobby keeps its look. Until the sheet is in, or if
+   it fails, the CSS look above stays. A frame is paint only (border-image draws over the padding): no border width,
+   padding or size changes, so every panel keeps its box (the layout tests check them). The :root colours stay the
+   source of every text colour and glow. */
+
+/* Panels: the stone frame, a carved stud at each corner, the moon's shadow of its top and left bars inside. */
+:root[data-ui='ready'] #hud :is(.popup, .hero-panel, .team, .help, .skill-sheet),
+:root[data-ui='ready'] body.layout-wide #hud .topbar {
+  border-image: var(--ui-panel) var(--ui-panel-slice) / var(--ui-panel-width) stretch;
+  border-radius: 4px;
+  background-clip: padding-box;
+  box-shadow: 0 6px 18px rgba(0, 0, 8, 0.55);
+}
+
+/* Chips and toasts: the same frame, its bars a little thinner (a short line of text). */
+:root[data-ui='ready'] #hud :is(.toast, .build-hint, .notice, .radial-chip, .air-flag, .emote-line, .tutorial) {
+  border-image: var(--ui-panel) var(--ui-panel-slice) / 7px stretch;
+  border-radius: 3px;
+  background-clip: padding-box;
+}
+
+/* The phone's top bar: its gold trim underneath, rendered. */
+:root[data-ui='ready'] body.layout-tall #hud .topbar {
+  box-shadow: 0 4px 10px rgba(0, 0, 8, 0.45);
+}
+
+:root[data-ui='ready'] body.layout-tall #hud .topbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 3px;
+  background: var(--ui-trim) left center / auto 100% repeat-x;
+  pointer-events: none;
+}
+
+/* The stats on their plaques: gold on the coin plaque, the Heart on the Heart plaque (cracked under 60%), the wave on
+   the plain one. Drawn round the stat's own box (the phone) or a little past it (the desktop's rows). */
+:root[data-ui='ready'] #hud .topbar :is(.stat.gold, .stat.heart, .stat.wave) {
+  border: 0 solid transparent;
+  border-image: var(--ui-plaque) var(--ui-plaque-slice) fill / 6px / 0 3px stretch;
+  border-radius: 0;
+}
+
+:root[data-ui='ready'] #hud .topbar .stat.gold {
+  border-image-source: var(--ui-plaque-coin);
+}
+
+:root[data-ui='ready'] #hud .topbar .stat.heart {
+  border-image-source: var(--ui-plaque-heart);
+}
+
+:root[data-ui='ready'] #hud .topbar .stat.heart.cracked {
+  border-image-source: var(--ui-plaque-heart-cracked);
+}
+
+:root[data-ui='ready'] body.layout-wide #hud .topbar :is(.stat.gold, .stat.heart, .stat.wave) {
+  border-image-width: 8px;
+  border-image-outset: 3px 8px;
+}
+
+/* Buttons: the stone face; pressed, the sunk face (and the button sinks 2 px, below); selected, the rune-teal rim.
+   The main action (.btn.big) keeps its rune-teal glow. */
+:root[data-ui='ready'] #hud .btn:not(.big) {
+  /* The CSS stone gives way to the face (states that add a ring of their own keep it: no mana, ready, misses air). */
+  --stone: none;
+  --stone-hover: none;
+  --stone-rim: 0 0 transparent;
+  border-image: var(--ui-button) var(--ui-button-slice) fill / var(--ui-button-width) stretch;
+  border-radius: 3px;
+}
+
+:root[data-ui='ready'] #hud .btn:not(.big):hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+:root[data-ui='ready'] #hud .btn:not(.big):is(.pressed, :active):not(:disabled) {
+  border-image-source: var(--ui-button-pressed);
+}
+
+:root[data-ui='ready'] #hud .btn.active:not(.big) {
+  border-image-source: var(--ui-button-selected);
+  outline: none;
+}
+
+/* The skill buttons and the build and tower rings: the round medallion, ready when it can be cast or bought (the
+   rune-teal ring), dark while cooling down, plain stone otherwise; the icon, key, pips and cooldown sweep as before. */
+:root[data-ui='ready'] #hud .tskill-btn {
+  border-color: transparent;
+  background: var(--ui-medallion) center / 100% 100% no-repeat border-box;
+  box-shadow: 0 3px 8px rgba(0, 0, 8, 0.5);
+}
+
+:root[data-ui='ready'] #hud .tskill:not(.locked, .no-mana, .dead, .cooling, .badge) .tskill-btn {
+  background-image: var(--ui-medallion-ready);
+}
+
+:root[data-ui='ready'] #hud .tskill.cooling .tskill-btn {
+  background-image: var(--ui-medallion-cooldown);
+}
+
+:root[data-ui='ready'] #hud .tskill.no-mana .tskill-btn {
+  box-shadow: inset 0 0 0 2px var(--mana), 0 3px 8px rgba(0, 0, 8, 0.5);
+}
+
+:root[data-ui='ready'] #hud .tskill-btn.cancel {
+  box-shadow: 0 0 0 3px var(--bad);
+}
+
+:root[data-ui='ready'] #hud .radial-btn {
+  border-color: transparent;
+  background: var(--ui-medallion-ready) center / 100% 100% no-repeat border-box;
+  box-shadow: 0 3px 8px rgba(0, 0, 8, 0.55);
+}
+
+:root[data-ui='ready'] #hud .radial-btn:is(.poor, :disabled) {
+  background-image: var(--ui-medallion);
+  box-shadow: 0 3px 8px rgba(0, 0, 8, 0.55);
+}
+
+:root[data-ui='ready'] #hud .radial-btn.previewing {
+  box-shadow: 0 0 0 4px rgba(255, 210, 74, 0.45), 0 0 16px rgba(255, 210, 74, 0.45), 0 3px 8px rgba(0, 0, 8, 0.55);
+}
+
+:root[data-ui='ready'] #hud .radial-btn.holding {
+  box-shadow: 0 0 0 3px var(--bad), 0 3px 8px rgba(0, 0, 8, 0.55);
+}
+
+/* The desktop's skill buttons: the stone face (wide buttons, with their names). */
+:root[data-ui='ready'] #hud .skill.ready {
+  border-image-source: var(--ui-button-selected);
+}
+
+/* The end screen: the timber frame with its gold trim. */
+:root[data-ui='ready'] #hud .end-card {
+  border-image: var(--ui-timber) var(--ui-timber-slice) / var(--ui-timber-width) stretch;
+  border-radius: 6px;
+  background-clip: padding-box;
+  box-shadow: 0 0 0 4px rgba(16, 12, 22, 0.6), 0 0 40px rgba(0, 0, 8, 0.6);
+}
+
+/* The wave banner on its carved plate, the serif title still text; the plate reaches past the text's box. It
+   stretches only sideways: its top and bottom halves (50% each) and its capitals at the sides. */
+:root[data-ui='ready'] #hud .banner {
+  border: 0 solid transparent;
+  border-image: var(--ui-banner) var(--ui-banner-slice) fill / 50% 0.75em / 0.22em 1.05em stretch;
+}
+
+/* Motion (docs/ART.md §12): a press sinks 2 px onto the pressed face and springs back on release; the wave banner
+   slams in (1.3 → 1, a two-frame overshoot); a changed stat pops (hud/press.ts `pop`); a skill off its cooldown flashes
+   its rim once (`rimFlash`); gold short of a price shakes the gold plaque (`shake`). Under reduced motion nothing
+   grows, moves or shakes: the faces change and things fade. */
+:root[data-ui='ready'] #hud :is(.btn:not(.big), .radial-btn, .tskill-btn) {
+  transition:
+    transform 200ms cubic-bezier(0.34, 1.9, 0.64, 1),
+    filter 90ms ease-out;
+}
+
+:root[data-ui='ready'] #hud :is(.btn:not(.big), .radial-btn, .tskill-btn):is(.pressed, :active):not(:disabled) {
+  transform: translateY(2px);
+  filter: brightness(0.92);
+  transition:
+    transform 50ms ease-out,
+    filter 50ms ease-out;
+}
+
+.banner:not(.boss) {
+  animation-name: banner-slam;
+}
+
+@keyframes banner-slam {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(1.3);
+  }
+  6% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(0.97);
+  }
+  7.4%,
+  72% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes banner-calm {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+  10%,
+  72% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes shake-calm {
+  30% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner:not(.boss),
+  .banner.boss {
+    animation-name: banner-calm;
+  }
+
+  #hud .shake {
+    animation-name: shake-calm;
+  }
+
+  :root[data-ui='ready'] #hud :is(.btn:not(.big), .radial-btn, .tskill-btn):is(.pressed, :active):not(:disabled) {
+    transform: none;
+  }
+}
+
+/* The desktop's skill buttons: each icon on its medallion, in the medallion's state. */
+:root[data-ui='ready'] #hud .skill .skill-ico {
+  left: 3px;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  background:
+    var(--ico) center / 74% no-repeat,
+    var(--ui-medallion) center / 100% 100% no-repeat;
+}
+
+:root[data-ui='ready'] #hud .skill:not(.no-mana, .cooling, .passive, .unlearned, :disabled) .skill-ico {
+  background-image: var(--ico), var(--ui-medallion-ready);
+}
+
+:root[data-ui='ready'] #hud .skill.cooling .skill-ico {
+  background-image: var(--ico), var(--ui-medallion-cooldown);
+}

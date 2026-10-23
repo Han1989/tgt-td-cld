@@ -179,6 +179,46 @@ export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'ful
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.totalWaves)).toBe(mode === 'quick' ? 15 : 30);
 }
 
+/** Waits for the HUD's rendered frames (docs/ART.md §12, V-07a): the sheet is in and its pieces published. */
+export async function framesIn(page: Page): Promise<void> {
+  await expect(page.locator('html')).toHaveAttribute('data-ui', 'ready', { timeout: 30_000 });
+}
+
+/**
+ * Every element `selectors` match, boxed with the rendered frames and then, in the same frame of the same match, with
+ * the CSS look (`<html data-ui>` taken off and put back): the frames' change alone, nothing the game moved.
+ */
+export async function framesAB(page: Page, selectors: readonly string[]): Promise<{ frames: Record<string, Box>; css: Record<string, Box> }> {
+  return page.evaluate((sels) => {
+    const read = () => {
+      const out: Record<string, { left: number; top: number; right: number; bottom: number }> = {};
+      for (const s of sels) {
+        document.querySelectorAll(s).forEach((el, i) => {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 || r.height > 0) out[`${s} #${i}`] = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+        });
+      }
+      return out;
+    };
+    const html = document.documentElement;
+    if (html.dataset.ui !== 'ready') throw new Error('the frames are not in');
+    const frames = read();
+    html.dataset.ui = 'off';
+    const css = read();
+    html.dataset.ui = 'ready';
+    return { frames, css };
+  }, selectors);
+}
+
+/** Two sets of boxes are the same, to half a pixel. */
+export function expectSameBoxes(after: Record<string, Box>, before: Record<string, Box>): void {
+  expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
+  for (const [s, b] of Object.entries(before)) {
+    const a = after[s]!;
+    for (const k of ['left', 'top', 'right', 'bottom'] as const) expect(Math.abs(a[k] - b[k]), `${s} ${k}: ${a[k]} vs ${b[k]}`).toBeLessThanOrEqual(0.5);
+  }
+}
+
 export function sent(page: Page, type: string) {
   return page.evaluate((t) => window.__tdt.sent.filter((c) => c.type === t), type);
 }

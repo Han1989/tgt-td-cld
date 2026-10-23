@@ -24,6 +24,7 @@
  * V-06e-concepts on 23 Oct 2026 (PR #132: two redesigns of the Arcanist with her face hidden, images only).
  * V-06d on 23 Oct 2026 (PR #133: one stage height for the three heroes, and the home card on a short window).
  * V-06e on 23 Oct 2026 (PR #134: the Arcanist as the Hooded Oracle, from Meshy into the game).
+ * V-07a on 24 Oct 2026 (PR #135: the HUD's frames rendered ahead of time, the match view's chrome).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -374,6 +375,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only: no game rules, server or protocol change. Han, 23 Oct 2026: of the two redesigns, the Arcanist becomes the Hooded Oracle, with one change: the half-mask under her hood goes dark, so only her two violet eyes glow and nothing pale reads as a face, as on the Ranger and the Warden. Her model, rig and animations were made in Meshy from the picked picture, without her staff (she holds her crescent staff as before), and she goes through the same painter and is rendered ahead of time like the other two, on the first screen, in the match and on the art page. Her hood’s long peak sweeps back behind her head instead of rising up, so on the first screen she stands no taller than the Warden, and the whole stage is drawn about 6% larger than after V-06d (a little short of before it: the Ranger’s leaf peak is now the highest point). Her name, skills, icon and role are unchanged. In review: Han judges her on his phone. Built by Claude Code (PR #134).',
     proof: pr(134),
+  },
+  {
+    id: 'V-07a',
+    title: 'The match view’s frames, rendered like the towers',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art, tools and the HUD’s look: no game rules, server or protocol change, and nothing on screen moves. Han, 24 Oct 2026: the world is rendered in 3D and the panels over it were flat page styling, the gap to a polished game. The panels, buttons, skill buttons, the build ring, the stats in the top bar, the wave banner and the end screen now use frames made the way the towers are: carved stone and dark timber put together from the same free 3D model packs, lit by the same moon, rendered once into one small picture (42 KB) the game loads after the map. The skill buttons show at a glance which skill is ready (a teal ring) or cooling down (dark); the Heart’s plaque cracks when the Heart does. Buttons sink when pressed, numbers pop when they change, the wave banner slams in, and only fades run when the phone asks for reduced motion. Until the picture loads, the old look stays. In review: Han judges the match view on his phone. Built by Claude Code (PR #135).',
+    proof: pr(135),
   },
   {
     id: 'g1-render',

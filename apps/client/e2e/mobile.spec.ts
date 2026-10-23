@@ -2,7 +2,7 @@
 // Pixel projects), docs/MOBILE.md §8.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, centre, Finger, Hand, lessonCard, overlaps, sent, stall, startSolo, waitForReady, type Box } from './helpers';
+import { box, centre, expectSameBoxes, Finger, framesAB, framesIn, Hand, lessonCard, overlaps, sent, stall, startSolo, waitForReady, type Box } from './helpers';
 
 const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn'];
 
@@ -124,6 +124,8 @@ async function expectChipClear(page: Page, what: string): Promise<void> {
 test.describe('portrait phone layout', () => {
   test('the HUD and the controls stay inside the viewport and never overlap each other or the gameplay', async ({ page }) => {
     await startSolo(page);
+    // With the rendered frames in (V-07a): the boxes are the CSS look's either way (the test below), checked here as drawn.
+    await framesIn(page);
     const vp = page.viewportSize()!;
     const layout = await page.evaluate(() => window.__tdt.layout());
     expect(layout.kind).toBe('tall');
@@ -167,6 +169,25 @@ test.describe('portrait phone layout', () => {
     for (const b of controls.slice(0, 2)) expect(Math.min(b.right - b.left, b.bottom - b.top)).toBeGreaterThanOrEqual(44);
   });
 
+  test('the rendered frames move nothing: the top bar, its stats and buttons, the controls and the build ring keep their boxes', async ({ page }) => {
+    await startSolo(page);
+    await framesIn(page);
+    const [pad] = await myPadsBottomFirst(page);
+    await tapPad(page, pad!);
+    await expect(page.locator('#radial .radial-btn').first()).toBeVisible();
+    const TOP = ['#topbar', '#top-level', '#gold-stat', '.stat.heart', '.stat.wave', '.stat.timer', '#call-early', '#emote-btn', '#settings-btn'];
+    const { frames, css } = await framesAB(page, [...TOP, ...OVERLAY, '#radial .radial-btn', '#radial-chip']);
+    expect(Object.keys(frames).filter((k) => k.startsWith('#radial .radial-btn')).length).toBeGreaterThanOrEqual(5);
+    expectSameBoxes(frames, css);
+    // And they are drawn: the stats on their plaques, the buttons on their faces, the skills and the ring on medallions.
+    const style = (sel: string, prop: string) => page.locator(sel).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+    for (const sel of ['#gold-stat', '.stat.heart', '.stat.wave', '#call-early']) expect(await style(sel, 'border-image-source'), sel).toContain('blob:');
+    expect(await style('.tskill[data-slot="W"] .tskill-btn', 'background-image')).toContain('blob:');
+    expect(await style('#radial .radial-btn', 'background-image')).toContain('blob:');
+    // The gold trim under the bar is a picture too.
+    expect(await page.locator('#topbar').evaluate((el) => getComputedStyle(el, '::after').backgroundImage)).toContain('blob:');
+  });
+
   test('on a 412 × 839 phone the whole map fits with no panning', async ({ page }) => {
     const vp = page.viewportSize()!;
     test.skip(vp.width !== 412 || vp.height !== 839, 'Pixel 7 profile only');
@@ -179,6 +200,7 @@ test.describe('portrait phone layout', () => {
 
   test('radial menus stay on screen and never cover the joystick or the skills', async ({ page }) => {
     await startSolo(page);
+    await framesIn(page);
     const controls = await overlayBoxes(page);
     const vp = page.viewportSize()!;
     const pads = await myPadsBottomFirst(page);

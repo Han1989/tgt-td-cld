@@ -15,7 +15,8 @@
 // "Usable" = `<html data-ready>` is set (main.ts's `tdt:ready` mark), the home card is shown and the
 // Play solo button is on screen, enabled and the element a tap at its centre would hit. After that, each run waits
 // for the map plate (docs/ART.md §16, loaded a second after the first screen) and reports when it was ready, its
-// bytes and how long its decode took (`tdt:decode:spire.webp`), on the same throttled phone. With `--sheets` it then
+// bytes and how long its decode took (`tdt:decode:spire.webp`), then for the HUD's rendered frames, which come right
+// after it (`tdt:ui`, docs/ART.md §12), on the same throttled phone. With `--sheets` it then
 // waits for the 3D match sheets, which load after the plate, one after another (docs/ART.md §15: the towers', Heart's
 // and portals', the creeps', then the heroes'), and reports when they were in (`tdt:structures`, `tdt:creep-sheets`,
 // `tdt:hero-sheets`) and their bytes (all of them, and the creeps' alone); the first screen's numbers are taken
@@ -49,6 +50,9 @@ interface Run {
   plate: number;
   plateDecode: number;
   plateKb: number;
+  /** The HUD's rendered frames (V-07a): when they were in (since navigation), and the sheet's bytes. */
+  ui: number;
+  uiKb: number;
   structures: number;
   heroSheets: number;
   creepSheets: number;
@@ -237,6 +241,8 @@ try {
         creepSheets: NaN,
         sheetsKb: NaN,
         creepKb: NaN,
+        ui: NaN,
+        uiKb: NaN,
         heard,
         loop,
       });
@@ -258,6 +264,16 @@ try {
         }),
       )
       .catch(() => ({ at: NaN, decode: NaN, kb: NaN }));
+    // The HUD's rendered frames come right after the plate (docs/ART.md §12).
+    const frames = await page
+      .waitForFunction(() => document.documentElement.dataset.ui === 'ready', undefined, { polling: 250, timeout: 120_000 })
+      .then(() =>
+        page.evaluate(() => {
+          const res = performance.getEntriesByType('resource').find((r) => /\/ui-[^/]*\.webp/.test(r.name)) as PerformanceResourceTiming | undefined;
+          return { at: performance.getEntriesByName('tdt:ui')[0]?.startTime ?? NaN, kb: (res?.encodedBodySize ?? NaN) / 1024 };
+        }),
+      )
+      .catch(() => ({ at: NaN, kb: NaN }));
     let loaded = { structures: NaN, hero: NaN, creep: NaN, bytes: 0, creepBytes: 0 };
     if (sheets) {
       // The hero sheets are the last in.
@@ -283,6 +299,8 @@ try {
       plate: plate.at,
       plateDecode: plate.decode,
       plateKb: plate.kb,
+      ui: frames.at,
+      uiKb: frames.kb,
       structures: loaded.structures,
       heroSheets: loaded.hero,
       creepSheets: loaded.creep,
@@ -293,7 +311,8 @@ try {
     });
     console.log(
       `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB; ` +
-        `map plate ${(plate.kb).toFixed(0)} KB, ready ${ms(plate.at)}, decoded in ${plate.decode.toFixed(0)} ms` +
+        `map plate ${(plate.kb).toFixed(0)} KB, ready ${ms(plate.at)}, decoded in ${plate.decode.toFixed(0)} ms; ` +
+        `HUD frames ${frames.kb.toFixed(0)} KB, in at ${ms(frames.at)}` +
         (sheets
           ? `; structures in at ${ms(loaded.structures)}, creep sheets at ${ms(loaded.creep)}, hero sheets at ${ms(loaded.hero)} ` +
             `(${(loaded.bytes / 1024).toFixed(0)} KB, the creeps' ${(loaded.creepBytes / 1024).toFixed(0)} KB)`
@@ -337,6 +356,7 @@ function report(): void {
   console.log(`transferred:              ${(results.reduce((s, r) => s + r.kb, 0) / results.length).toFixed(0)} KB per load`);
   console.log(`map plate ready:          ${stats(results.map((r) => r.plate))}`);
   console.log(`map plate decode:         ${stats(results.map((r) => r.plateDecode))} (${results[0]?.plateKb.toFixed(0)} KB)`);
+  console.log(`HUD frames in:            ${stats(results.map((r) => r.ui))} (${results[0]?.uiKb.toFixed(0)} KB)`);
   if (sheets) {
     console.log(`structures sheet in:      ${stats(results.map((r) => r.structures))}`);
     console.log(`creep sheets in:          ${stats(results.map((r) => r.creepSheets))}`);
