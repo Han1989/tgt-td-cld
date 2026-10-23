@@ -5,6 +5,7 @@
 #   python tools/blender/build.py map [spire|card|all] [--draft] [--out DIR] [--work DIR]
 #   python tools/blender/build.py structures [arrow,heart,…] [--draft] [--out DIR] [--work DIR]
 #   python tools/blender/build.py arrow,heart                 (tower kinds, heart, portal: the same)
+#   python tools/blender/build.py ui [--draft] [--out DIR]     (the HUD's frames, tools/blender/ui.py)
 #
 # Normally run through `npm run art:3d -- <hero>` (tools/blender/art3d.mjs), which finds Blender's Python; `heroes`
 # builds all three, sharing one render of the clearing; `creeps` all nine creeps and bosses. The heroes are rows of
@@ -16,6 +17,8 @@
 # apps/client/src/render/plate/spire.json; the link card's plate (dev only) in apps/client/src/render/plate/card.webp.
 # The towers, the Heart and the portals (tools/blender/structures.py): one sheet, structures-match.png, and its layout
 # structures.json in apps/client/src/render/art3d/; rendering some keeps the sheet's other frames.
+# The HUD's frames (tools/blender/ui.py, V-07a): one sheet, ui.webp (lossless), and its layout ui.json in
+# apps/client/src/render/art3d/, the fringe check's mask in apps/client/test/fixtures/ui-fringe/.
 
 import argparse
 import json
@@ -36,6 +39,7 @@ CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'stage-fri
 CREEP_CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'creep-fringe')
 PLATE_OUT = os.path.join(ROOT, 'apps', 'client', 'public', 'map')
 PLATE_LAYOUT = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'plate')
+UI_CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'ui-fringe')
 # Where each map's picture goes: Spire's is shipped (and precached); the link card's is only for ?ogcard (dev server).
 PLATE_DIRS = {'spire': PLATE_OUT, 'card': PLATE_LAYOUT}
 
@@ -167,6 +171,45 @@ def structures_main(argv):
         raise SystemExit(notes['over'])
 
 
+def ui_main(argv):
+    """`build.py ui [--draft] [--out DIR]`: the HUD's frames, button faces, medallions, plaques, trim and the banner's
+    plate (tools/blender/ui.py) into one sheet, ui.webp, its layout ui.json and the fringe check's mask."""
+    ap = argparse.ArgumentParser(prog='build.py ui')
+    ap.add_argument('--draft', action='store_true', help='fewer samples (a quick look)')
+    ap.add_argument('--out', default=None, help='write the sheet, its layout and a preview here instead')
+    args = ap.parse_args(argv)
+
+    import bpy  # noqa: F401 (first: it registers mathutils)
+    from tdt3d import encode, imageio, ui
+    import ui as table
+
+    tmp = tempfile.mkdtemp(prefix='tdt3d-ui-')
+    try:
+        sheet, mask, layout, notes = ui.render_all(table, tmp, draft=args.draft)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    out = args.out or MATCH_OUT
+    checks = args.out or UI_CHECKS_OUT
+    os.makedirs(out, exist_ok=True)
+    os.makedirs(checks, exist_ok=True)
+    size = encode.sheet(sheet, os.path.join(out, 'ui.webp'))
+    imageio.write_png(os.path.join(checks, 'mask.png'), mask)
+    worst_f = max(notes['byPiece'].items(), key=lambda kv: kv[1]['fringe'])
+    worst_h = max(notes['byPiece'].items(), key=lambda kv: kv[1]['hard'])
+    doc = {'id': 'ui', 'match': dict(layout, file='ui.webp'), 'checks': {
+        'samples': notes['samples'], 'over': notes['over'], 'worstFringe': worst_f[1]['fringe'],
+        'worstHard': worst_h[1]['hard'], 'byPiece': notes['byPiece']}}
+    with open(os.path.join(out, 'ui.json'), 'w') as f:
+        f.write(json.dumps(doc, indent=1, sort_keys=True) + '\n')
+    if args.out:
+        ui.preview(sheet, layout, os.path.join(args.out, 'ui-preview.png'))
+    print(f'ui: sheet {sheet.shape[1]} × {sheet.shape[0]} ({size} bytes), {len(layout["pieces"])} pieces in '
+          f'{notes["seconds"]} s; worst fringe {worst_f[1]["fringe"]} ({worst_f[0]}), worst hard {worst_h[1]["hard"]} '
+          f'({worst_h[0]})', flush=True)
+    if notes['failed']:
+        raise SystemExit('The fringe check failed on: ' + ', '.join(notes['failed']))
+
+
 def map_main(argv):
     ap = argparse.ArgumentParser(prog='build.py map')
     ap.add_argument('which', nargs='?', default='all', choices=['spire', 'card', 'all'])
@@ -212,6 +255,8 @@ def main():
         return map_main(argv[1:])
     if argv and argv[0] == 'structures':
         return structures_main(argv[1:])
+    if argv and argv[0] == 'ui':
+        return ui_main(argv[1:])
     import bpy  # noqa: F401 (first: it registers mathutils, which the tables use)
     import structures as structure_table
     every = set(structure_table.TOWERS) | {'heart', 'portal'}

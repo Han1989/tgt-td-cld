@@ -14,12 +14,15 @@ export class Counter {
     private readonly maxMs = 600,
   ) {}
 
-  /** Sets the real value. The first value (or one after a reset) shows at once. */
-  set(value: number): void {
-    if (value === this.target && this.shown !== null) return;
+  /** Sets the real value. The first value (or one after a reset) shows at once. True when the value changed from one
+   * already shown (the HUD pops the number then). */
+  set(value: number): boolean {
+    if (value === this.target && this.shown !== null) return false;
+    const changed = this.shown !== null;
     this.target = value;
     if (this.shown === null) this.shown = value;
     this.floor = Math.abs(this.target - this.shown) / this.maxMs;
+    return changed;
   }
 
   /** Forgets the shown value: the next `set` shows at once (e.g. a new match). */

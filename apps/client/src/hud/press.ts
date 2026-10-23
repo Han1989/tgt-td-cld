@@ -36,3 +36,36 @@ export function installPressFeedback(root: Document = document, onPress: (el: El
 export function pulse(el: Element, keyframes: Keyframe[], ms: number): void {
   el.animate?.(keyframes, { duration: ms, easing: 'ease-out' });
 }
+
+/** The device asks for reduced motion: HUD feedback fades, and nothing grows, moves or shakes (docs/ART.md §12). */
+export function reducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** How long a changed number's pop takes to settle, ms. */
+export const POP_MS = 180;
+const POP: Keyframe[] = [{ transform: 'scale(1.15)' }, { transform: 'none' }];
+const POP_CALM: Keyframe[] = [{ opacity: 0.55 }, { opacity: 1 }];
+
+/** A stat that changed pops its number 1.15× and settles (under reduced motion it dips and fades back). */
+export function pop(el: Element): void {
+  pulse(el, reducedMotion() ? POP_CALM : POP, POP_MS);
+}
+
+/** A skill off its cooldown: its rim flashes rune-teal once (a ring that fades out: no scale, no movement). */
+const RIM_FLASH: Keyframe[] = [
+  { boxShadow: '0 0 0 3px rgba(127, 252, 216, 0.95), 0 0 16px 5px rgba(127, 252, 216, 0.65)' },
+  { boxShadow: '0 0 0 0 rgba(127, 252, 216, 0), 0 0 0 0 rgba(127, 252, 216, 0)' },
+];
+
+export function rimFlash(el: Element): void {
+  pulse(el, RIM_FLASH, 420);
+}
+
+/** Shakes an element once (a button or the gold plaque short of a price): the `shake` class, which style.css turns
+ * into a fade under reduced motion. */
+export function shake(el: HTMLElement): void {
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+}

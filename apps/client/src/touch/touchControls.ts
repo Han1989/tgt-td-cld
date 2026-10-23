@@ -23,7 +23,7 @@ import {
 } from '@tdt/protocol';
 import { getMap, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
-import { pulse } from '../hud/press';
+import { pulse, rimFlash, shake } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
 import { skillSheetRows } from '../hud/skillSheet';
 import { addUltCueParts, applyUltCues } from '../hud/ultFace';
@@ -117,6 +117,8 @@ interface SkillEl {
   cost: HTMLElement;
   pips: HTMLElement;
   key: string;
+  /** Cooling down when last drawn: the button flashes its rim when it comes off. */
+  cooling: boolean;
 }
 
 /** An icon element for a radial button. */
@@ -468,6 +470,7 @@ export class TouchControls {
       cost,
       pips: btn.querySelector('.pips')!,
       key: '',
+      cooling: false,
     };
   }
 
@@ -486,6 +489,9 @@ export class TouchControls {
       el.wrap.classList.toggle('no-mana', f.noMana);
       el.wrap.classList.toggle('dead', !hero.alive);
       el.wrap.classList.toggle('cooling', skill.cooldown > 0);
+      // Off its cooldown: the rim flashes once.
+      if (el.cooling && skill.cooldown === 0) rimFlash(el.btn);
+      el.cooling = skill.cooldown > 0;
       el.wrap.classList.toggle('ready', f.ready);
       el.wrap.classList.toggle('waiting-mana', f.waitingMana);
       el.learn.classList.toggle('hidden', !skill.learnable);
@@ -522,9 +528,7 @@ export class TouchControls {
   }
 
   private shake(el: HTMLElement): void {
-    el.classList.remove('shake');
-    void el.offsetWidth;
-    el.classList.add('shake');
+    shake(el);
   }
 
   private onSkillDown(e: PointerEvent, slot: SkillSlot, button: HTMLButtonElement): void {

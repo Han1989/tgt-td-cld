@@ -32,6 +32,7 @@ import { DailyEndCard, type DailyRunInfo } from '../daily/endCard';
 import { endlessEndCopy, recordEndlessRun, type EndlessRun } from '../endless/best';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
+import { HEART_CRACKED } from '../render/art/damage';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
 import { comboPairLines, ultimateLines } from '../coop/ultReport';
@@ -41,7 +42,7 @@ import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette'
 import type { UiState } from '../uiState';
 import { CoinFlyer } from './coins';
 import { Counter } from './counter';
-import { pulse } from './press';
+import { pop, POP_MS, pulse, reducedMotion, rimFlash, shake } from './press';
 import { addUltCueParts, applyUltCues } from './ultFace';
 import { UltHud } from './ultHud';
 import { matchFile, saveMatchFile } from './matchFile';
@@ -75,7 +76,9 @@ import {
 /** The Heart stat warns (red pulse) at or under this share of HP; matches the world's warning glow. */
 const HEART_LOW = 0.3;
 
-const GAIN_PULSE: Keyframe[] = [{ transform: 'scale(1.18)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }];
+/** Gold coming in: the number pops (1.15×, settling over POP_MS) and glints; under reduced motion only the glint. */
+const GAIN_PULSE: Keyframe[] = [{ transform: 'scale(1.15)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }];
+const GAIN_CALM: Keyframe[] = [{ filter: 'brightness(1.6)' }, { filter: 'none' }];
 const HIT_PULSE: Keyframe[] = [
   { transform: 'translateX(-4px)', backgroundColor: 'rgba(255, 60, 60, 0.55)' },
   { transform: 'translateX(4px)' },
@@ -267,7 +270,12 @@ export class Hud {
   private readonly heartCounter = new Counter(160, 500);
   private readonly coins: CoinFlyer;
   private lastGold: number | null = null;
+  private lastWave: number | null = null;
   private lastGainPulse = 0;
+  /** When each stat last popped (a stream of changes pops at most every 90 ms, so it doesn't stutter). */
+  private readonly popped = new WeakMap<Element, number>();
+  /** The desktop skill buttons cooling down, so the one that comes off its cooldown flashes its rim. */
+  private readonly coolingSlots = new Set<SkillSlot>();
   private lastUpdate = 0;
   /** Coins and other decorative feedback (off at Low quality). */
   particles = true;
@@ -348,17 +356,27 @@ export class Hud {
     const dt = this.lastUpdate > 0 ? Math.min(100, now - this.lastUpdate) : 16;
     this.lastUpdate = now;
     const gold = player?.gold ?? 0;
+    // A stat that changes pops its number: gold coming in with a glint, gold spent plainly.
     if (this.lastGold !== null && gold > this.lastGold) this.gainPulse();
+    else if (this.lastGold !== null && gold < this.lastGold) this.popStat(this.gold);
     this.lastGold = gold;
     this.goldCounter.set(gold);
     setText(this.gold, String(this.goldCounter.step(dt)));
-    this.heartCounter.set(snap.heartHp);
+    if (this.heartCounter.set(snap.heartHp)) {
+      this.popStat(this.heartNum);
+      this.popStat(this.heartText);
+    }
     const heartShown = this.heartCounter.step(dt);
     setWidth(this.heartFill, snap.heartHp / snap.heartMaxHp);
     setText(this.heartText, `${heartShown} / ${snap.heartMaxHp}`);
     setText(this.heartNum, String(heartShown));
     const low = snap.heartHp > 0 && snap.heartHp <= snap.heartMaxHp * HEART_LOW;
     if (this.heartStat.classList.contains('low') !== low) this.heartStat.classList.toggle('low', low);
+    // The Heart plaque cracks with the Heart (the world's cracked stage, render/art/damage.ts).
+    const cracked = snap.heartHp < snap.heartMaxHp * HEART_CRACKED;
+    if (this.heartStat.classList.contains('cracked') !== cracked) this.heartStat.classList.toggle('cracked', cracked);
+    if (this.lastWave !== null && snap.wave !== this.lastWave) this.popStat(this.wave);
+    this.lastWave = snap.wave;
     this.coins.update(now);
     const hard = snap.difficulty === 'hard';
     // Endless has no last wave to count to: "Wave 37" alone (it is always Hard).
@@ -718,6 +736,8 @@ export class Hud {
 
   toast(text: string, kind?: 'air' | 'gold' | 'repair'): void {
     this.onToast(text);
+    // Gold short of a price: the gold plaque shakes too (the button that asked shakes on its own).
+    if (text === 'Not enough gold') shake(this.goldStat);
     const el = document.createElement('div');
     el.className = kind ? `toast teach ${kind}` : 'toast';
     el.textContent = text;
@@ -775,6 +795,8 @@ export class Hud {
   resetEffects(): void {
     this.goldCounter.reset();
     this.heartCounter.reset();
+    this.lastWave = null;
+    this.coolingSlots.clear();
     this.lastGold = null;
     this.coins.clear();
     this.hideLaneRoles();
@@ -814,7 +836,16 @@ export class Hud {
     const now = performance.now();
     if (now - this.lastGainPulse < 90) return;
     this.lastGainPulse = now;
-    pulse(this.gold, GAIN_PULSE, 260);
+    this.popped.set(this.gold, now);
+    pulse(this.gold, reducedMotion() ? GAIN_CALM : GAIN_PULSE, POP_MS);
+  }
+
+  /** A stat's number pops when it changes (hud/press.ts `pop`), at most every 90 ms. */
+  private popStat(el: Element): void {
+    const now = performance.now();
+    if (now - (this.popped.get(el) ?? 0) < 90) return;
+    this.popped.set(el, now);
+    pop(el);
   }
 
   /** Advisory lane roles under the boss banner. The one-line toast stays. */
@@ -993,6 +1024,9 @@ export class Hud {
       b.root.classList.toggle('no-mana', f.noMana);
       b.root.classList.toggle('ready', f.ready);
       b.root.classList.toggle('cooling', skill.cooldown > 0);
+      // Off its cooldown: the rim flashes once.
+      if (skill.cooldown > 0) this.coolingSlots.add(skill.slot);
+      else if (this.coolingSlots.delete(skill.slot)) rimFlash(b.root);
       b.root.classList.toggle('passive', skill.passive);
       b.root.classList.toggle('unlearned', f.locked);
       b.root.disabled = !hero.alive || f.locked;

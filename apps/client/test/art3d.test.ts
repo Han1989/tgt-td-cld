@@ -33,6 +33,8 @@ import {
 } from '../src/render/art3d/layout';
 import { CREEP_3D } from '../src/render/art3d/creepData';
 import structuresDoc from '../src/render/art3d/structures.json';
+import uiDoc from '../src/render/art3d/ui.json';
+import { cssName, frameVars, type UiLayout } from '../src/hud/frames';
 import {
   flameFrame,
   FLICKER_MS,
@@ -1006,6 +1008,10 @@ describe('nothing 3D runs on the device', () => {
     expect(own.sort()).toEqual(['structures-match.png', 'structures.json', 'structures.ts']);
   });
 
+  it('the HUD frames are one picture and its layout', () => {
+    expect(readdirSync(ART3D).filter((f) => f.startsWith('ui')).sort()).toEqual(['ui.json', 'ui.webp']);
+  });
+
   it('the creeps are pictures: a sheet and its layout per kind, and nothing else of theirs under src', () => {
     const own = readdirSync(ART3D).filter((f) => CREEP_KINDS.some((k) => f.startsWith(`${k}.`) || f.startsWith(`${k}-`)));
     expect(own.sort()).toEqual(CREEP_KINDS.flatMap((k) => [`${k}-match.webp`, `${k}.json`]).sort());
@@ -1189,5 +1195,171 @@ describe('3D towers, the Heart and the portals: the rig rules', () => {
     }
     // The same moment, the same flame.
     expect(flameFrame(1234)).toEqual(flameFrame(1234));
+  });
+});
+
+describe('the HUD frames rendered ahead of time: the UI sheet (V-07a)', () => {
+  const doc = uiDoc as unknown as { id: string; match: UiLayout; checks: { samples: number; over: string; worstFringe: number; worstHard: number; byPiece: Record<string, { fringe: number; hard: number; measured: number; fringePx: number; glowIgnored?: boolean }> } };
+  const m = doc.match;
+  const file = readFileSync(join(ART3D, m.file));
+  const img = decodeWebp(file);
+  const pieces = Object.entries(m.pieces);
+  const css = readFileSync(join(CLIENT, 'src', 'style.css'), 'utf8');
+  /** The pieces docs/ART.md §12 lists: the frames, the button faces, the medallions, the plaques, the trim, the plate. */
+  const WANT = ['panel', 'timber', 'button', 'buttonPressed', 'buttonSelected', 'medallion', 'medallionReady', 'medallionCooldown',
+    'plaque', 'plaqueCoin', 'plaqueHeart', 'plaqueHeartCracked', 'trim', 'banner'];
+
+  it('is one lossless WebP page, 1024 wide and at most 1024 high, the size the layout says, 2 sheet px per CSS px, under 400 KB', () => {
+    expect(doc.id).toBe('ui');
+    expect(m.file).toBe('ui.webp');
+    expect(file.toString('ascii', 12, 16)).toBe('VP8L');
+    expect([img.width, img.height]).toEqual([m.w, m.h]);
+    expect(img.channels).toBe(4);
+    expect(m.w).toBe(1024);
+    expect(m.h).toBeLessThanOrEqual(1024);
+    expect(m.res).toBe(2);
+    expect(file.length).toBeLessThan(400_000);
+  });
+
+  it('has every piece the HUD uses, each drawn at 2× the size it is shown at', () => {
+    expect(Object.keys(m.pieces).sort()).toEqual([...WANT].sort());
+    for (const [name, p] of pieces) {
+      expect([p.w, p.h], name).toEqual([p.css[0] * m.res, p.css[1] * m.res]);
+      expect(['slice', 'image', 'strip'], name).toContain(p.kind);
+      expect(p.kind === 'slice', name).toBe(p.slice !== undefined);
+    }
+    expect(m.pieces.medallion!.kind).toBe('image');
+    expect(m.pieces.trim!.kind).toBe('strip');
+  });
+
+  it('every piece lies inside the sheet without overlapping another', () => {
+    for (const [name, p] of pieces) {
+      expect(p.x, name).toBeGreaterThanOrEqual(0);
+      expect(p.y, name).toBeGreaterThanOrEqual(0);
+      expect(p.x + p.w, name).toBeLessThanOrEqual(m.w);
+      expect(p.y + p.h, name).toBeLessThanOrEqual(m.h);
+    }
+    for (let i = 0; i < pieces.length; i++) {
+      for (let j = i + 1; j < pieces.length; j++) {
+        const [na, a] = pieces[i]!;
+        const [nb, b] = pieces[j]!;
+        expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h, `${na} and ${nb}`).toBe(false);
+      }
+    }
+  });
+
+  it('every 9-slice inset is inside its piece, leaving an edge and a centre to stretch, and the CSS gets it at its drawn size', () => {
+    const vars = frameVars(m);
+    for (const [name, p] of pieces) {
+      if (p.kind !== 'slice') continue;
+      const [t, r, b, l] = p.slice!;
+      for (const v of [t, r, b, l]) {
+        expect(Number.isInteger(v), name).toBe(true);
+        expect(v, name).toBeGreaterThan(0);
+      }
+      // Inside: the insets meet at most (the banner's plate stretches only sideways: its halves meet, no middle row).
+      expect(t + b, name).toBeLessThanOrEqual(p.h);
+      expect(l + r, name).toBeLessThan(p.w);
+      // A middle kept to stretch, at least 4 sheet px (across, for every piece; down, for every piece but the plate).
+      expect(p.w - l - r, name).toBeGreaterThanOrEqual(4);
+      if (name !== 'banner') expect(p.h - t - b, name).toBeGreaterThanOrEqual(4);
+      else expect(t + b).toBe(p.h);
+      expect(vars[`--ui-${cssName(name)}-slice`], name).toBe(`${t} ${r} ${b} ${l}`);
+      expect(vars[`--ui-${cssName(name)}-width`], name).toBe([t, r, b, l].map((v) => `${v / m.res}px`).join(' '));
+    }
+    expect(cssName('plaqueHeartCracked')).toBe('plaque-heart-cracked');
+  });
+
+  it("a 9-slice's edges are the same all along their middle (stretching never smears a corner)", () => {
+    const at = (x: number, y: number, k: number) => img.data[(y * img.width + x) * 4 + k]!;
+    for (const [name, p] of pieces) {
+      if (p.kind !== 'slice') continue;
+      const [t, r, b, l] = p.slice!;
+      let worst = 0;
+      // Top and bottom edges: each row the same across the middle; left and right: each column the same down it.
+      for (const [y0, y1] of [[0, t], [p.h - b, p.h]] as const) {
+        for (let y = y0; y < y1; y++) {
+          for (let k = 0; k < 4; k++) {
+            let lo = 255, hi = 0;
+            for (let x = l; x < p.w - r; x++) {
+              const v = at(p.x + x, p.y + y, k);
+              lo = Math.min(lo, v);
+              hi = Math.max(hi, v);
+            }
+            worst = Math.max(worst, hi - lo);
+          }
+        }
+      }
+      for (const [x0, x1] of [[0, l], [p.w - r, p.w]] as const) {
+        for (let x = x0; x < x1; x++) {
+          for (let k = 0; k < 4; k++) {
+            let lo = 255, hi = 0;
+            for (let y = t; y < p.h - b; y++) {
+              const v = at(p.x + x, p.y + y, k);
+              lo = Math.min(lo, v);
+              hi = Math.max(hi, v);
+            }
+            worst = Math.max(worst, hi - lo);
+          }
+        }
+      }
+      // Exactly the same (the build evens them: tdt3d/ui.py `_even`), up to the lossless encode's rounding of nothing.
+      expect(worst, name).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('every piece passed the fringe check in the build, at 48 samples, and passes it here with its numbers', () => {
+    // Twice the 3D sprites' 24 (#109's rule): the pieces are small, and a soft shadow's edge is clean at 48.
+    expect(doc.checks.samples).toBe(48);
+    expect(doc.checks.over).toBe('moss');
+    expect(Object.keys(doc.checks.byPiece).sort()).toEqual([...WANT].sort());
+    // The build's mask: each piece's own coverage (without the gutter's shadow) in red, its glow in green.
+    const mask = decodePng(readFileSync(join(CLIENT, 'test', 'fixtures', 'ui-fringe', 'mask.png')));
+    expect([mask.width, mask.height]).toEqual([m.w, m.h]);
+    // The moss the HUD floats over (RL.moss), round each piece as the build had it (6 px; a strip runs on past its ends).
+    const moss = [0x2a, 0x47, 0x3b];
+    const PAD = 6;
+    for (const [name, p] of pieces) {
+      const c = doc.checks.byPiece[name]!;
+      expect(c.fringe, name).toBeLessThanOrEqual(0.01);
+      expect(c.hard, name).toBeLessThanOrEqual(0.05);
+      const strip = p.kind === 'strip';
+      const w = p.w + 2 * PAD;
+      const h = p.h + 2 * PAD;
+      const rgb = new Uint8Array(w * h * 3);
+      const alpha = new Uint8Array(w * h);
+      const glow = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const sy = y - PAD;
+          const sx = strip ? Math.min(p.w - 1, Math.max(0, x - PAD)) : x - PAD;
+          const inside = sy >= 0 && sy < p.h && sx >= 0 && sx < p.w;
+          const i = y * w + x;
+          const si = ((p.y + sy) * img.width + p.x + sx) * 4;
+          const a = inside ? img.data[si + 3]! : 0;
+          for (let k = 0; k < 3; k++) rgb[i * 3 + k] = Math.round(((inside ? img.data[si + k]! : 0) * a + moss[k]! * (255 - a)) / 255);
+          const mi = ((p.y + sy) * mask.width + p.x + sx) * mask.channels;
+          alpha[i] = inside ? mask.data[mi]! : 0;
+          glow[i] = inside && !c.glowIgnored ? mask.data[mi + 1]! : 0;
+        }
+      }
+      const r = measureFringe(w, h, rgb, alpha, glow);
+      expect(Math.abs(r.measured - c.measured), name).toBeLessThanOrEqual(Math.max(4, c.measured * 0.03));
+      expect(Math.abs(r.fringe - c.fringePx), name).toBeLessThanOrEqual(2);
+      expect(r.pass, name).toBe(true);
+    }
+    expect(doc.checks.worstFringe).toBe(Math.max(...Object.values(doc.checks.byPiece).map((c) => c.fringe)));
+    expect(doc.checks.worstHard).toBe(Math.max(...Object.values(doc.checks.byPiece).map((c) => c.hard)));
+  });
+
+  it('style.css uses every piece, each only under <html data-ui="ready"> (the CSS look stays until the sheet is in)', () => {
+    for (const name of WANT) expect(css, name).toContain(`var(--ui-${cssName(name)})`);
+    for (const line of css.split('\n').filter((l) => /var\(--ui-[a-z-]+\)/.test(l))) {
+      // Each use sits in a rule whose selector starts with :root[data-ui='ready'].
+      const at = css.indexOf(line);
+      const open = css.lastIndexOf('{', at);
+      const selector = css.slice(css.lastIndexOf('}', open) + 1, open);
+      expect(selector, line.trim()).toContain(":root[data-ui='ready']");
+    }
   });
 });
