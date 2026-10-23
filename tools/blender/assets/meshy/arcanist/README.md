@@ -99,7 +99,11 @@ and return. The pipeline pins the hips on both (`pin` in `tools/blender/hero.py`
 - The hood's top (her crown) at y 1.80 over (−0.07, 0.07); the peak's tip at (−0.31, 1.53, −0.42), back to her right
   and 0.27 m under the top; the head joint at y 1.225, `head_end` at 1.747.
 - Her right mitt (the faces `RightHand` moves alone) centred at (−0.506, 0.532, 0.224); round 2's at
-  (−0.444, 0.493, 0.136). The staff keeps V-06c's grip: its place moves by as much.
+  (−0.444, 0.493, 0.136). It is open, as asked (the fingers apart, side by side in one plane, the hand a slab about
+  3.5 cm thick, leaning 17.8° out at the top). **V-06f:** the pipeline closes it into a fist round the staff's shaft
+  in the bind pose (`tools/blender/tdt3d/gltf.py` `close_hand`, her row's `grip`) and places the staff on the
+  fist's axis; `model.glb` is unchanged. V-06e placed the staff by an offset alone (V-06c's grip moved by as much as
+  the mitt), its shaft through the open mitt.
 - **Cloth the auto-rig skinned to the limbs near it**, rebound whole to `Spine02` in the pipeline (`rebind`), as the
   bow and the shield are rebound to a hand: the hood's trailing end below the shoulder, behind her right arm (584
   vertices: x < −0.22, y < 1.16, z < −0.04; skinned 38% `RightForeArm`, 35% `Head`, 20% `RightArm`), and the coat's

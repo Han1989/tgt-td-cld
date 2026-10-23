@@ -25,6 +25,7 @@
  * V-06d on 23 Oct 2026 (PR #133: one stage height for the three heroes, and the home card on a short window).
  * V-06e on 23 Oct 2026 (PR #134: the Arcanist as the Hooded Oracle, from Meshy into the game).
  * V-07a on 24 Oct 2026 (PR #135: the HUD's frames rendered ahead of time, the match view's chrome).
+ * V-06f on 24 Oct 2026 (PR #136: the Oracle holds her staff, her hand closed round it).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -384,6 +385,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art, tools and the HUD’s look: no game rules, server or protocol change, and nothing on screen moves. Han, 24 Oct 2026: the world is rendered in 3D and the panels over it were flat page styling, the gap to a polished game. The panels, buttons, skill buttons, the build ring, the stats in the top bar, the wave banner and the end screen now use frames made the way the towers are: carved stone and dark timber put together from the same free 3D model packs, lit by the same moon, rendered once into one small picture (42 KB) the game loads after the map. The skill buttons show at a glance which skill is ready (a teal ring) or cooling down (dark); the Heart’s plaque cracks when the Heart does. Buttons sink when pressed, numbers pop when they change, the wave banner slams in, and only fades run when the phone asks for reduced motion. Until the picture loads, the old look stays. In review: Han judges the match view on his phone. Built by Claude Code (PR #135).',
     proof: pr(135),
+  },
+  {
+    id: 'V-06f',
+    title: 'The Arcanist holds her staff',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change, and the other two heroes are untouched. Han, 24 Oct 2026, from his phone: the staff’s shaft passed through her open glove, her hand beside it. Her right hand is now closed into a fist round the shaft: the model’s open glove is bent shut around it before anything is rendered, the staff sits in the middle of the fist (a little low on the shaft, so she still carries it tall), and the fist moves with the staff in every pose. A new check runs on every frame of her first-screen loop and her match pictures and stops the build if the shaft ever shows through the glove or the hand drifts beside it; a staff hung in an open hand by position alone is now refused. Her first-screen loop and her match pictures are rendered again. In review: Han judges her hand on his phone. Built by Claude Code (PR #136).',
+    proof: pr(136),
   },
   {
     id: 'g1-render',

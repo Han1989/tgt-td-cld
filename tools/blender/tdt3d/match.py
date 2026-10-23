@@ -12,7 +12,7 @@ import os
 import bpy
 import numpy as np
 
-from . import figure, imageio, motion, npr, scene, shading
+from . import figure, grip, imageio, motion, npr, scene, shading
 
 RES = 4        # sheet px per world px
 SS = 2         # rendered at SS × RES, then averaged down (anti-aliasing for the ink and the edges)
@@ -151,6 +151,7 @@ def render_match(spec, out_dir, tmp, draft=False):
                 o.hide_render = k not in shown and k not in holdout
                 o.is_holdout = k in holdout
 
+    held = []       # the grip check on each pose (tdt3d.grip), for a hero who grips a prop
     rendered = {}   # layer -> [(kind, image)]
     points = {}     # point name -> kind -> [(x, y)] world px from the feet, in the body view
     anchors = {}
@@ -163,6 +164,8 @@ def render_match(spec, out_dir, tmp, draft=False):
                 clip, t = pose[0], pose[1]
                 arrow = pose[2] if len(pose) > 2 else 'hidden'
                 fig.apply(fig.sample(clip, t), arrow=arrow)
+                # A prop in a mitt hand is held on every frame (V-06f).
+                grip.check(fig, spec, f'match {layer} {kind} {i + 1}', held)
                 pivot = figure.V((0, 0, 0)) if view == 'body' else fig.world(lspec['pivot'])
                 cam = scene.ortho_camera('Match' + view, VIEWS[view][0], VIEWS[view][1], side, side, px, pivot,
                                          (side / 2, side / 2))
@@ -177,8 +180,8 @@ def render_match(spec, out_dir, tmp, draft=False):
                 rendered[layer].append((kind, _shoot(cam, tmp, {**look, **lspec.get('look', {})}, objs)))
                 if layer == 'arm' and kind == lspec.get('aim_frame', 'draw') and i == len(poses) - 1:
                     # The layer's own aim: the arrow's way (nock to grip) at full draw, in the sheet (y down).
-                    nock, grip = fig.aim_points()
-                    a, g = cam.px(nock), cam.px(grip)
+                    nock, bow_grip = fig.aim_points()
+                    a, g = cam.px(nock), cam.px(bow_grip)
                     anchors['aim'] = math.atan2(g[1] - a[1], g[0] - a[0])
                 print(f'match {name} {layer} {kind} {i + 1}/{len(poses)}', flush=True)
     show(set(fig.parts))
@@ -245,4 +248,6 @@ def render_match(spec, out_dir, tmp, draft=False):
         'idleMs': round(m['idle_ms']),
         'timing': m.get('timing', {}),
     }
+    if held:
+        layout['grip'] = grip.summary(held)
     return layout, size

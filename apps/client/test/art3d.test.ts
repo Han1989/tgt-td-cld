@@ -363,6 +363,38 @@ describe('3D heroes: the stage', () => {
   }
 });
 
+describe('3D heroes: a prop in the hand is held (V-06f)', () => {
+  // A prop in a mitt hand is never held by an offset alone: the pipeline closes the hand round its shaft and checks the
+  // grip on every frame it renders (tools/blender/tdt3d/grip.py), and the build stops on a frame that fails it.
+  it('the Arcanist holds her staff on every stage frame and every match frame: a closed fist round the shaft', () => {
+    const a = HERO_3D.arcanist!;
+    const matchFrames = Object.values(COUNTS.arcanist!).reduce(
+      (n, kinds) => n + Object.values(kinds).reduce((m, k) => m + k, 0),
+      0,
+    );
+    for (const [where, g, frames] of [
+      ['stage', a.stage.grip, a.stage.frames],
+      ['match', a.match.grip, matchFrames],
+    ] as const) {
+      expect(g, where).toBeDefined();
+      expect(g!.frames, where).toBe(frames);
+      expect(g!.pass, where).toBe(true);
+      // The fist wraps the shaft whole over at least 1.25 of its diameters round the grip, its surface outside the
+      // shaft there, and beside the fist the glove never comes nearer the axis than the shaft's own surface.
+      expect(g!.band, where).toBeGreaterThanOrEqual(1.25);
+      expect(g!.clear, where).toBeGreaterThanOrEqual(1);
+      expect(g!.cut, where).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('the Ranger and the Warden hold nothing in a mitt by an offset (their weapons are part of the model)', () => {
+    for (const kind of ['ranger', 'warden'] as const) {
+      expect(HERO_3D[kind]!.stage.grip, kind).toBeUndefined();
+      expect(HERO_3D[kind]!.match.grip, kind).toBeUndefined();
+    }
+  });
+});
+
 describe('3D heroes: one clearing for all three', () => {
   it('every hero stands in the same box, on the same ground line, in a frame of the same size: switching heroes never moves the clearing', () => {
     const stages = heroes.map(([, h]) => h!.stage);
