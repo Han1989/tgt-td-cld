@@ -424,11 +424,14 @@ WARDEN['match'] = dict(
 # brim (README) and the staff behind it; past 1.7 s, where the staff comes down behind the hat; and all of
 # Charged_Spell_Cast (cast.glb), where she crouches under the hat (no face for a second) and lifts the staff upside
 # down. Her walk is Meshy's walk: in its run the staff trails level behind her.
+# V-06e: the Hooded Oracle plays the same moments (round 2's model, with the hat, chose them); with the hood the staff
+# keeps clear of her head in all of them, the raise holds the crystal over the hood, and in the thrust the shaft
+# passes over her dark half-mask, under her eyes.
 ARCANIST['stage'] = dict(
     seconds=STAGE_S, idle=BREATH,
     # V-06d: as tall as the Warden to the crown (tdt3d.stage.CROWN). V-06e: her crown is her hood's top, as the
     # Ranger's is his hood's dome; its peak, swept back behind her head, is left out of the measure (it stays under
-    # the hood's top, so nothing of her rises over the Warden's helm: the stage keeps V-06c's fit, docs/ART.md §15).
+    # the hood's top, so nothing of her rises over the Warden's helm: her loop reaches up to y 313, docs/ART.md §15).
     hat=_hat('peak'),
     moves=[
         dict(clip='attack', at=2.3, frm=0.3, to=0.6, ease_in=0.35, hold=0.6, ease_out=0.45),
