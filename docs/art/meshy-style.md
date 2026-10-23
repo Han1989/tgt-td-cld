@@ -12,6 +12,18 @@ body, skin, cloth and metal texture); the game's heroes are **chibi**. Same thre
 is kept for comparison in `tools/blender/assets/meshy/<hero>-r1/`, and both rounds are on the contact sheet,
 `docs/art/meshy-heroes.png`.
 
+## The face rule (V-06e, Han, 23 Oct 2026)
+
+**No hero shows a face.** Each hero's face is hidden, by a hood and a mask in its shadow or by a closed helm, and
+shows only **two glowing eyes** in the dark, in the hero's own eye colour (the Ranger's pale green, the Warden's
+ember, the Arcanist's violet); nothing round them is pale enough to read as a face at phone size (a mask is bone or
+cloth in the hood's shadow, painted dark). Each hero has **one silhouette piece** that reads at 40 px (the Ranger's
+leaf peak, the Warden's horned pauldron and kite shield, the Arcanist's peaked hood swept back). Round 2's Arcanist
+broke it (a pretty anime face, white hair and a braid under the hat) and read as another art style next to the
+other two, so she was redesigned as the Hooded Oracle. The style paragraph's "Face: two small dot eyes, no nose, a
+small simple mouth" was written for round 2's faces; a new hero's brief overrides it ("her face is completely hidden:
+no skin, no hair, no nose, no mouth"), as every brief here does.
+
 ## The style paragraph
 
 > Original chibi fantasy hero for a dark moonlit tower-defense game, a stylised 3D game character like a small
@@ -107,11 +119,26 @@ phone size (a hero is about 40 px tall in a match).
 
 ### The Arcanist: violet and bone-white
 
-**V-06e (Han, 23 Oct 2026):** she is redesigned by the other two heroes' rule, **face hidden, two glowing violet
-eyes, one silhouette piece**, keeping the rest of round 2 (2.5 heads, violet and bone-white, the crescent staff, the
-rune cord). Two concepts, images only, for Han to pick: the Hooded Oracle (a tall peaked hood, a bone half-mask) and
-the Bone-Masked Seer (the hat, a full bone mask, a tattered mantle), in `tools/blender/assets/meshy/arcanist-concepts/`
-with their prompts; sheet `docs/art/arcanist-redesign.png`. The brief below is round 2's, which the game still shows.
+**V-06e (Han, 23 Oct 2026):** she is redesigned by the face rule (above), keeping the rest of round 2 (2.5 heads,
+violet and bone-white, the crescent staff, the rune cord). Two concepts, images only (the Hooded Oracle and the
+Bone-Masked Seer, `tools/blender/assets/meshy/arcanist-concepts/`, sheet `docs/art/arcanist-redesign.png`); **Han
+picked the Hooded Oracle** (10:04), with its bone half-mask dark, and V-06e made her model
+(`tools/blender/assets/meshy/arcanist/`). Her brief now:
+
+- **Who:** a battle-mage, a woman, calm and determined; no face shows, only two violet glowing eyes in the dark of
+  her hood.
+- **Head (oversized):** a deep, big violet hood round the big skull, its long soft peak swept far back behind her head
+  (its tip no higher than the hood's round top, so she stands no taller than the others on the first screen: a peak
+  rising up would rise over the Warden's helm), one long trailing end hanging from its back behind her right arm;
+  under it a half-mask over the lower face, bone in the hood's teal-black shadow, as dark as the hood's inside but
+  for a step; the rune cord of bone beads with glowing violet rune beads from the hood's front edge down her chest.
+- **Torso, arms, legs, feet:** as round 2 (below).
+- **Weapon:** the crescent staff as round 2, a separate prop on her right hand.
+- **Identity marks:** the peaked hood swept back; the crescent staff head with its crystal.
+- **Avoid:** a pale mask or any skin, hair or a hat, a peak that rises straight up (over the others) or sweeps back to
+  her left (the stage and match cameras look from her front right, so it hides behind the hood: V-06e's first model).
+
+Round 2's brief, for the record (`tools/blender/assets/meshy/arcanist-r2/`):
 
 - **Who:** a battle-mage, a woman (Han, 17 Oct 2026), slim, calm and determined; two dark dot eyes and a small mouth.
 - **Head (oversized):** a big deep-violet mage's hat with a wide brim and a soft pointed crown that leans back, a

@@ -19,15 +19,16 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 |---|---|---|---|---|
 | `ranger/` | 2, chibi | The Ranger: a hooded forest scout, moss green and leather ([README](ranger/README.md)) | the big hood with its leaf peak; the mask and two glinting eyes | a recurve bow in his left hand, part of the mesh |
 | `warden/` | 2, chibi | The Warden: a heavy shield-captain, iron and ember ([README](warden/README.md)) | the ram-horn pauldron; the kite shield's ember rune | a sword and a kite shield, part of the mesh |
-| `arcanist/` | 2, chibi | The Arcanist: a battle-mage woman, violet and bone-white ([README](arcanist/README.md)) | the big hat; the white braid with violet rune beads | none in the model: her crescent staff is a separate prop, `staff.glb` |
+| `arcanist/` | V-06e, chibi | The Arcanist as the Hooded Oracle (Han, 23 Oct 2026): a battle-mage, violet and bone-white, her face hidden ([README](arcanist/README.md)) | the peaked hood swept back, with its trailing end; two violet eyes in its dark, the half-mask dark | none in the model: her crescent staff is a separate prop, `staff.glb` (kept from round 2) |
+| `arcanist-r2/` | 2, chibi | round 2's Arcanist, the game's from V-06b to V-06d: the big hat, the white braid with violet rune beads, her face ([README](arcanist-r2/README.md)) | | her staff is `arcanist/staff.glb` |
 | `ranger-r1/`, `warden-r1/`, `arcanist-r1/` | 1, realistic | the same designs, kept as PR #127 landed them | | in hand, part of the mesh |
-| `arcanist-concepts/` | V-06e, images only | the Arcanist redesigned with her face hidden (Han, 23 Oct 2026): the Hooded Oracle and the Bone-Masked Seer, two images each, for Han to pick ([README](arcanist-concepts/README.md)) | | concepts only: no model |
+| `arcanist-concepts/` | V-06e, images only | the Arcanist redesigned with her face hidden (Han, 23 Oct 2026): the Hooded Oracle and the Bone-Masked Seer, two images each; Han picked the Oracle, `oracle-a.png` ([README](arcanist-concepts/README.md)) | | concepts only: no model |
 
 ## What each hero folder holds
 
 | File | What |
 |---|---|
-| `concept.png` | The concept image the model was made from (896 × 1200, `nano-banana-pro`; round 2's Arcanist also has `concept-bare.png`, the edit the model was made from) |
+| `concept.png` | The concept image the model was made from (896 × 1200, `nano-banana-pro`; round 2's Arcanist, `arcanist-r2/`, also has `concept-bare.png`, the edit the model was made from; the Oracle's is her bare-handed edit flipped) |
 | `model.glb` | The rigged, textured character in its bind pose, Meshy's `Character_output.glb` unchanged: about 30,800 triangles, one 2048 × 2048 JPEG base colour embedded (no separate texture file), 24 joints, facing glTF +Z, Y up |
 | `walk.glb`, `run.glb` | The rig's free clips (armature only) |
 | `idle.glb`, `attack.glb`, `cast.glb`, `hit.glb`, `death.glb` | One preset action each (the hero's README maps file → action), split from Meshy's bundled animation file into the armature-only format of `walk.glb` |

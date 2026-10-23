@@ -55,8 +55,9 @@ MID = (0.0, -2.0)     # the point between the heroes' feet the camera centres (f
 # V-06b: wider for the Meshy Warden (sword to shield he is as wide as he is tall, and his slash sweeps past both).
 # V-06d: centred on the feet (x 1200), so each hero stands in its middle, as wide each side as the Warden's slash
 # reaches to his left; its top over the Arcanist's hat, now that she stands as tall as the Warden to her crown (it was
-# the Warden's helm, y 308).
-BOX = dict(x0=864.0, y0=266.0, x1=1536.0, y1=800.0)
+# the Warden's helm, y 308; V-06d's 266). V-06e: the Arcanist's hood stays under y 308 (313.0, her staff's raise
+# included), so the top is the Ranger's leaf peak again (296.0, since V-06d scaled him to the crown), 4 px over it.
+BOX = dict(x0=864.0, y0=292.0, x1=1536.0, y1=800.0)
 AZIMUTH = 40.0        # degrees round from the hero's front towards its right
 ELEVATION = 4.5       # degrees above the hero's chest
 LENS = 50.0

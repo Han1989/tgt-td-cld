@@ -91,8 +91,8 @@ export interface StageLayout {
   /** The box this hero's own loop fills, inside `figure`. */
   own: { x0: number; y0: number; x1: number; y1: number };
   /** How far the hero's crown stands over the ground line in the poster frame, video px: the same for all three (V-06d:
-   * the Warden's; weapons, the Arcanist's hat and the Ranger's leaf peak left out). And his size on the stage over his
-   * match height. */
+   * the Warden's; weapons, the Arcanist's hood's peak and the Ranger's leaf peak left out). And his size on the stage
+   * over his match height. */
   crown: number;
   scale: number;
   /** The files in public/stage/: the loop (H.264 MP4, and VP9 WebM for browsers without H.264), its first frame

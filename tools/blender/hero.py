@@ -12,6 +12,8 @@
 
 import math
 
+import numpy as np
+
 from tdt3d import motion
 from tdt3d.palette import mix
 
@@ -62,6 +64,24 @@ def _at_head(material):
 def _hat(*materials):
     """What of the head is not the head: faces of these materials on the head's bones (a hat, a leaf peak)."""
     return lambda material, bone: bone in HEAD_BONES and material in materials
+
+
+def _trail(x, y, z):
+    """The Arcanist's hood's trailing end below her shoulder (bind pose): behind her right arm, down to her hip."""
+    return (x < -0.22) & (y < 1.16) & (z < -0.04)
+
+
+def _flap(x, y, z):
+    """The coat's flap hanging behind her left arm (bind pose), above the coat's hem."""
+    return (x > 0.22) & (y > 0.33) & (y < 1.06) & np.where(y > 0.5, z < 0.06, z < -0.05)
+
+
+def _violet(c, n, bone):
+    """The Arcanist's violet (bind pose): the hood's peak, swept back behind her head past its dome; the cloth that
+    hangs free behind her arms (`_trail`, `_flap`); else her coat and hood."""
+    if bone in HEAD_BONES and c[1] > 1.35 and c[2] < -0.2:
+        return 'peak'
+    return 'cloth' if _trail(*c) or _flap(*c) else None
 
 
 RANGER = dict(
@@ -169,36 +189,52 @@ WARDEN = dict(
 ARCANIST = dict(
     name='arcanist',
     rig='meshy', meshy='arcanist',
+    # V-06e (Han, 23 Oct 2026): the Hooded Oracle. As tall as her 2D rig to the top of her hood (render/art/entities/
+    # arcanist.ts: 28 world px, its hat's tip); her hood's peak sweeps back below it.
     height=28.0,
     clips=CLIPS, pin=PIN,
     index={'body': BODY},
-    # Her hat (the violet and the bone band on her head) casts no moon shadow: its brim, as wide as her shoulders,
-    # would put her whole coat in shadow.
-    shadowless=_hat('robe', 'bone'),
+    # Two pieces of cloth hang free beside her arms, and the auto-rig skinned them to the arms and legs near them
+    # (assets/meshy/arcanist/README.md): the hood's trailing end, behind her right arm, to her right forearm and head;
+    # the coat's flap, behind her left arm, to her left arm and thigh. Bound whole to her lowest spine joint, they
+    # hang behind her whatever her arms and legs do (their tops stay on the hood and the shoulder): over the walk
+    # their tips sway about 1 world px about her hips, 14 as skinned and 6 bound to her chest (`Spine`), where the
+    # trailing end swung out beside her like a whip. Her bead cord lies on the coat and moves with it as skinned.
+    rebind=[dict(name='hood trailing end', bone='Spine02', count=584, select=_trail),
+            dict(name='coat flap', bone='Spine02', count=528, select=_flap)],
     paint=dict(clusters={
-        'violet': ('#39174b', 'robe'),
-        'leather': ('#191511', 'leather'),
-        'hair': ('#dce2e4', 'hair'),
-        'bone': ('#ecedd6', 'bone'),
-        'leggings': ('#09131c', 'leggings'),
-        'skin': ('#facdb9', 'skin'),
-        'vambrace': ('#5f493e', 'vambrace'),
-        'rune': ('#9c14f8', 'rune'),
-    }, regions={'leather': _at_head('eye'), 'leggings': _at_head('eye')}),
+        'violet': ('#48235a', 'robe'),
+        'leather': ('#1a1715', 'leather'),
+        'leggings': ('#0c1921', 'leggings'),
+        'inside': ('#0b262d', 'inside'),
+        'bone': ('#f3f0e3', 'bone'),
+        'boneShade': ('#d7d6cb', 'bone'),
+        'grey': ('#9c9597', 'bone'),
+        'mask': ('#5a5d6d', 'mask'),
+        'vambrace': ('#76655b', 'vambrace'),
+        'rune': ('#af4bf8', 'rune'),
+        'glow': ('#bf6df9', 'rune'),
+        'glowRim': ('#6a4b99', 'rune'),
+    }, regions={'violet': _violet, 'leggings': _at_head('inside'), 'grey': _at_head('mask'),
+                'rune': _at_head('eye'), 'glow': _at_head('eye'), 'glowRim': _at_head('eye')}),
     materials={
-        # The coat less shaded than the moon would leave it (its folds face down and away), so she reads violet.
+        # The coat and the hood less shaded than the moon would leave them (their folds face down and away), so she
+        # reads violet; the hood's peak is the hood (its own name only for the stage's crown: `hat`).
         'robe': dict(token='violet', shade=0.6),
+        'peak': dict(token='violet', shade=0.6),
+        # The hood's trailing end and the coat's flap: thin cloth that faces away from the moon, lined thinly and
+        # less shaded so it stays violet beside her at match size (fully lined and shaded it was a black tendril).
+        'cloth': dict(token='violet', shade=0.35, line=0.6, fill=0.7),
         # Her boots, gloves and corset dark leather, her leggings the coat's deep shade: lit enough to read as her
         # legs under the coat at phone size.
         'leather': dict(color=mix('gloveDark', 'woodDark', 0.5), fill=0.5),
         'leggings': dict(token='violetDark', shade=0.7),
-        # Her hair bone-white, a step cooler than the bone band so the two read apart, and kept light in the brim's
-        # shade.
-        'hair': dict(color=mix('bone', 'stone', 0.2), shade=0.4),
         'bone': dict(token='bone', fill=0.6),
-        # The face under the brim keeps its warmth (the moon's shadow tone would turn it grey).
-        'skin': dict(token='skin', shade=0.45, fill=0.5),
-        'eye': dict(token='hole', line=False, rim=0.0, ao=0.0, grad=False),
+        # No face (Han, 23 Oct 2026): the hood's teal-black dark, and in it her half-mask, bone in the hood's shadow
+        # (as the Ranger's mask is), a step lighter than the dark round it; only her two eyes glow.
+        'inside': dict(token='hoodShadow', shade=0.5, rim=0.0, mrim=0.0, ao=0.6, fill=0.0),
+        'mask': dict(color=mix('bone', 'hoodShadow', 0.8), shade=0.6, rim=0.0, mrim=0.0, ao=0.5, fill=0.1),
+        'eye': dict(token='arcane', emit=1.0, line=False, rim=0.0, ao=0.0, grad=False),
         'vambrace': LEATHER_LIGHT,
         'rune': dict(token='arcane', emit=1.0, line=False, rim=0.0, ao=0.0, grad=False),
         'staffWood': dict(token='woodDark', metal=0.2),
@@ -208,12 +244,13 @@ ARCANIST = dict(
         'crystal': dict(token='arcane', emit=1.0, metal=0.6, rim=0.0, ao=0.0, grad=False),
     },
     props=[
-        # Her crescent staff (Meshy's own prop, staff.glb): in her right hand, upright, the crescent over her shoulder
-        # and clear of the hat's brim. V-06c: its shaft through the middle of her mitt (the centre of the faces her
-        # RightHand moves alone), so the glove closes round it on every frame; V-06b's place, (-0.475, 0.95, 0.05),
-        # stood it 1.84 world px behind and inside her open hand, in every pose (both ride the hand).
+        # Her crescent staff (Meshy's own prop, staff.glb): in her right hand, upright, the crescent over her shoulder.
+        # V-06c: its shaft through the middle of her mitt (the centre of the faces her RightHand moves alone), so the
+        # glove closes round it on every frame; V-06b's place stood it 1.84 world px behind and inside her open hand,
+        # in every pose (both ride the hand). V-06e: the Oracle's mitt is at (-0.506, 0.532, 0.224), round 2's was at
+        # (-0.444, 0.493, 0.136); the staff keeps V-06c's grip on it, (-0.554, 0.932, 0.136) moved by as much.
         dict(name='staff', meshy=True, file='staff.glb', bone='handslot.r', layer='body', index=STAFF,
-             at=(-0.554, 0.932, 0.136), turn=(0.0, 0.0, 12.0), scale=0.85,
+             at=(-0.616, 0.971, 0.224), turn=(0.0, 0.0, 12.0), scale=0.85,
              paint=dict(clusters={'bone': ('#eae7d6', 'crescent'), 'wood': ('#3c2d2c', 'staffWood'),
                                   'binding': ('#83786a', 'binding'), 'crystal': ('#c168fc', 'crystal'),
                                   'crystalDeep': ('#b84cf7', 'crystal')})),
@@ -387,10 +424,15 @@ WARDEN['match'] = dict(
 # brim (README) and the staff behind it; past 1.7 s, where the staff comes down behind the hat; and all of
 # Charged_Spell_Cast (cast.glb), where she crouches under the hat (no face for a second) and lifts the staff upside
 # down. Her walk is Meshy's walk: in its run the staff trails level behind her.
+# V-06e: the Hooded Oracle plays the same moments (round 2's model, with the hat, chose them); with the hood the staff
+# keeps clear of her head in all of them, the raise holds the crystal over the hood, and in the thrust the shaft
+# passes over her dark half-mask, under her eyes.
 ARCANIST['stage'] = dict(
     seconds=STAGE_S, idle=BREATH,
-    # V-06d: as tall as the Warden to the crown (tdt3d.stage.CROWN), the top of her head; her hat rises over it.
-    hat=_hat('robe', 'bone'),
+    # V-06d: as tall as the Warden to the crown (tdt3d.stage.CROWN). V-06e: her crown is her hood's top, as the
+    # Ranger's is his hood's dome; its peak, swept back behind her head, is left out of the measure (it stays under
+    # the hood's top, so nothing of her rises over the Warden's helm: her loop reaches up to y 313, docs/ART.md §15).
+    hat=_hat('peak'),
     moves=[
         dict(clip='attack', at=2.3, frm=0.3, to=0.6, ease_in=0.35, hold=0.6, ease_out=0.45),
         dict(clip='attack', at=3.2, frm=1.28, to=1.5, ease_in=0.4, hold=1.3, ease_out=0.7),
