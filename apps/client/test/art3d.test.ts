@@ -349,8 +349,8 @@ describe('3D heroes: the stage', () => {
         expect(right).toBeLessThanOrEqual(w - box.side + 0.5);
         expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top - 0.5);
         // The hood clear of the title's last line wherever there's room: all but the shortest stages, 220 px and less
-        // since the Arcanist's hat is the box's top (V-06d; on a 220 px stage the box's top, a few px of margin over
-        // the hat, reaches 1.7 px up into the line's box, the hat's ink 0.1 px).
+        // (V-06d, when the Arcanist's hat was the box's top: on a 220 px stage the box's top reached 1.7 px up into the
+        // line's box; V-06e's top, the Ranger's leaf peak, is lower).
         if (h > 220) expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top + STAGE_TITLE_CLEAR - 0.5);
         expect(fit.top + s.groundY * fit.scale).toBeCloseTo(box.ground, 3);
         // Not shrunk to a speck: the hero fills the room between the title and the ground, or the width.
@@ -378,13 +378,15 @@ describe('3D heroes: one clearing for all three', () => {
 
   it('the three stand as tall, soles to crown, the Warden at his own height, each in the middle of the box (V-06d)', () => {
     // tools/blender (stage.stand): every hero scaled on the stage alone so his crown stands as far over the ground line
-    // as the Warden's in the poster frame, 391.7 video px (weapons, the Arcanist's hat and the Ranger's leaf peak left
-    // out); the match sheets keep each row's height.
+    // as the Warden's in the poster frame, 391.7 video px (weapons, the Arcanist's hood's peak and the Ranger's leaf
+    // peak left out); the match sheets keep each row's height.
     for (const [kind, hero] of heroes) {
       const s = hero!.stage;
       expect(s.crown, kind).toBe(391.7);
+      // The Ranger a quarter larger than in a match; the Arcanist a tenth (V-06e: her crown is her hood's top, round 2's
+      // was her head under the hat, 1.27).
       if (kind === 'warden') expect(s.scale).toBe(1);
-      else expect(s.scale, kind).toBeGreaterThan(1.2);
+      else expect(s.scale, kind).toBeGreaterThan(kind === 'ranger' ? 1.2 : 1.05);
       // The shared box centred on the feet: each hero stands in its middle, on the one ground line.
       expect((s.figure.x0 + s.figure.x1) / 2, kind).toBe(s.feetX);
     }

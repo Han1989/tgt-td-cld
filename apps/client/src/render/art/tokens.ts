@@ -86,7 +86,8 @@ export const RL = {
   robe: 0xb9508c,
   robeDark: 0x5a1f45,
   skin: 0xe2b996,
-  /** The Arcanist rendered in 3D (V-06b): her violet battle-coat and hat, and their deep shade and her leggings. */
+  /** The Arcanist rendered in 3D (V-06b; V-06e the Hooded Oracle): her violet coat and hood, and their deep shade and
+   * her leggings. */
   violet: 0x7d4cc0,
   violetDark: 0x3f2470,
 

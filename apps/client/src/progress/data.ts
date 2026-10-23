@@ -23,6 +23,7 @@
  * V-06c on 22 Oct 2026 (PR #131: three fixes on the Meshy heroes' stage loops after Han's look on his phone).
  * V-06e-concepts on 23 Oct 2026 (PR #132: two redesigns of the Arcanist with her face hidden, images only).
  * V-06d on 23 Oct 2026 (PR #133: one stage height for the three heroes, and the home card on a short window).
+ * V-06e on 23 Oct 2026 (PR #134: the Arcanist as the Hooded Oracle, from Meshy into the game).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -364,6 +365,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art, tools and one lobby style rule: no game rules, server or protocol change. Han, 23 Oct 2026: the three heroes should stand as tall as each other on the first screen, at the Warden’s height, measured to the top of the head with weapons and the Arcanist’s hat left out. The Ranger and the Arcanist are now drawn a quarter larger there, measured as the first screen shows them; in a match nothing changes, and the Warden stays the tallest. The Arcanist’s hat now rises above the Warden’s helm, and the stage must keep it under the title, so on a phone the whole stage is drawn a little smaller than before. On a window under 640 px tall (a short laptop window), the hero stage used to squash into a thin strip under the title; it now keeps its phone shape and the card scrolls. In review: Han judges the stages on his phone and the short window on his laptop. Built by Claude Code (PR #133).',
     proof: pr(133),
+  },
+  {
+    id: 'V-06e',
+    title: 'The Arcanist as the Hooded Oracle',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change. Han, 23 Oct 2026: of the two redesigns, the Arcanist becomes the Hooded Oracle, with one change: the half-mask under her hood goes dark, so only her two violet eyes glow and nothing pale reads as a face, as on the Ranger and the Warden. Her model, rig and animations were made in Meshy from the picked picture, without her staff (she holds her crescent staff as before), and she goes through the same painter and is rendered ahead of time like the other two, on the first screen, in the match and on the art page. Her hood’s long peak sweeps back behind her head instead of rising up, so on the first screen she stands no taller than the Warden, and the whole stage is drawn about 6% larger than after V-06d (a little short of before it: the Ranger’s leaf peak is now the highest point). Her name, skills, icon and role are unchanged. In review: Han judges her on his phone. Built by Claude Code (PR #134).',
+    proof: pr(134),
   },
   {
     id: 'g1-render',

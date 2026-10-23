@@ -6,8 +6,9 @@ another art style. Redesign her by the same rule: **face hidden, two glowing vio
 everything else from round 2: chibi 2.5 heads, the violet and bone-white colours, the crescent staff with the violet
 crystal, the bead-and-rune cord.
 
-**Images only.** No image to 3D, rig, clips or Blender: Han picks a concept first. The game still shows round 2's
-Arcanist (`../arcanist/`). Designed by Claude, generated in Meshy on 23 Oct 2026.
+**Images only.** No image to 3D, rig, clips or Blender: Han picks a concept first. Designed by Claude, generated in
+Meshy on 23 Oct 2026. **Han picked the Oracle (23 Oct 2026, 10:04), `oracle-a.png`, with its mask dark; V-06e made
+her from it: `../arcanist/` (round 2's Arcanist, which these were drawn from, is now `../arcanist-r2/`).**
 **Generated on a Meshy Pro plan, private licence, commercial use permitted.** Sheet for Han:
 `docs/art/arcanist-redesign.png` (these four, the current concept, and all of them at phone size next to the Ranger and
 the Warden).
@@ -23,7 +24,7 @@ All four are 896 × 1200 PNG, as Meshy returned them.
 
 ## How they were made
 
-`meshy_image_to_image`, `nano-banana-pro`, aspect 3:4, one image: **`../arcanist/concept.png` mirrored left to right**
+`meshy_image_to_image`, `nano-banana-pro`, aspect 3:4, one image: **`../arcanist-r2/concept.png` mirrored left to right**
 (Pillow's `ImageOps.mirror`; not kept, since it is the concept flipped, the input V-06a's bare-handed edit also started
 from). The round-2 concept came out mirrored, with the staff in her left hand; Han's brief asks for the staff in her
 right hand, so the image sent agrees with the words. Each prompt is the style sheet's paragraph and composition line
@@ -75,12 +76,12 @@ is the clearest difference.
 - **Cloth in Meshy's rig:** each Meshy model is one welded mesh, and the auto-rig skins a piece that hangs free like a
   limb (`../README.md`, "The one rig fault"). The Oracle's trailing end hangs beside her arm and would be skinned to
   it; the Seer's cord hangs beside her mask. The model would again be bare-handed with `../arcanist/staff.glb` on her
-  right hand, so the chosen concept needs a bare-handed edit first, as `../arcanist/concept-bare.png` had.
+  right hand, so the chosen concept needs a bare-handed edit first, as `../arcanist-r2/concept-bare.png` had.
 - **The rune glyphs** on the beads are mirrored or redrawn (the mirrored input); at 40 px they are dots.
 
 ## The prompts
 
-Oracle a and b (the only image: `../arcanist/concept.png` mirrored):
+Oracle a and b (the only image: `../arcanist-r2/concept.png` mirrored):
 
 ```text
 Original chibi fantasy hero for a dark moonlit tower-defense game, a stylised 3D game character like a small collectible vinyl toy, not realistic. Chibi (super-deformed) proportions: the whole figure only 2.5 heads tall, the head about a third of the whole height and as wide as the shoulders, a big round skull, almost no neck, a short small stubby body, short stubby arms that reach only to the hips, short stubby legs, oversized hands and oversized feet, and the hero's signature piece oversized. Face: two small dot eyes, no nose, a small simple mouth, smooth skin with no texture. Flat cel colours in two tones per material (one lit tone, one shadow tone), no fabric weave, no metal grain or scratches, no fine detail, no realism: large clean shapes and a silhouette that reads at 40 pixels tall. Palette of a moonlit forest at night: muted materials (leather, dark cloth, iron, wood, bone), shadows leaning deep teal-black, moon-silver light from the upper left, one accent colour per hero and small glowing details only where something emits light. Even, readable lighting on the figure, no cast shadows across it, no motion blur, no text, no logo.
