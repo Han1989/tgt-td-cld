@@ -26,7 +26,7 @@ import bpy
 import numpy as np
 from scipy import ndimage
 
-from . import bake, encode, figure, fringe, imageio, motion, npr, scene, shading
+from . import bake, encode, figure, fringe, grip, imageio, motion, npr, scene, shading
 from .clearing import Clearing
 from .geom import V, Z
 from .figure import mesh_bbox
@@ -395,18 +395,22 @@ def _to8(x):
 
 def _pose_loop(spec, fig, fps):
     """Poses every frame of the loop once (the idle and the signature move, tdt3d.motion), records it and bakes it
-    into keys (motion blur needs f-curves); returns each frame's facts and contacts."""
+    into keys (motion blur needs f-curves); returns each frame's facts and contacts, and the grip check's summary over
+    the frames (tdt3d.grip; None for a hero who grips nothing)."""
     fig.apply(figure.Pose())
     rest = {s: (fig.world(f'foot.{s}'), fig.world(f'toes.{s}', 'tail')) for s in ('l', 'r')}
     frames = motion.stage_frames(fig, spec, fps)
     snaps, contacts = [], []
-    for f in frames:
+    held = []
+    for i, f in enumerate(frames):
         fig.apply(f['pose'], arrow=f['arrow'])
+        # A prop in a mitt hand is held on every frame (V-06f): the grip check, before anything renders.
+        grip.check(fig, spec, f'stage frame {i}', held)
         snaps.append(bake.record(fig))
         contacts.append(_contacts(fig, rest))
     snaps.append(snaps[0])  # the key after the last frame is the first: motion blur at the seam flows on
     bake.bake(fig, snaps, start=1)
-    return frames, contacts
+    return frames, contacts, grip.summary(held) if held else None
 
 
 def staged(spec):
@@ -568,7 +572,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     fig = _build(spec, fps, cam)
     crown = crown_px(fig, spec, cam)
     hero_objs = fig.objects
-    facts, contacts = _pose_loop(spec, fig, fps)
+    facts, contacts, held = _pose_loop(spec, fig, fps)
     moon = lights(cam)
     glade = _glade(cam, d, period, fps)
     scene.detail(1 if draft else 2)
@@ -865,6 +869,9 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         # this hero's size on the stage over his row's.
         'crown': round(crown, 1), 'scale': round(fig.size, 4),
     }
+    if held:
+        # The grip check over every frame of the loop (V-06f): the hand holds the prop on each.
+        layout['grip'] = held
     os.makedirs(out_dir, exist_ok=True)
     files = {'mp4': f'{name}.mp4', 'webm': f'{name}.webm', 'poster': f'{name}-poster.webp',
              'clearing': 'clearing.webp'}
@@ -902,7 +909,7 @@ def stage_layout(spec, draft=False):
     cam, _ = camera(FRAME_H, mid)
     fig = _build(spec, fps, cam)
     crown = crown_px(fig, spec, cam)
-    facts, _ = _pose_loop(spec, fig, fps)
+    facts, _, held = _pose_loop(spec, fig, fps)
     sc = bpy.context.scene
     union = None
     for i in range(len(facts)):
@@ -917,4 +924,5 @@ def stage_layout(spec, draft=False):
         'feetX': round(fx, 1), 'groundY': round(fy, 1), 'figure': dict(BOX),
         'own': {'x0': round(union[0], 1), 'y0': round(union[1], 1), 'x1': round(union[2], 1), 'y1': round(union[3], 1)},
         'crown': round(crown, 1), 'scale': round(fig.size, 4),
+        **({'grip': held} if held else {}),
     }

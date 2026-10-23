@@ -55,6 +55,21 @@ export interface Point {
   y: number;
 }
 
+/** The grip check over a hero's frames (V-06f, docs/ART.md §15; tools/blender/tdt3d/grip.py): a prop in a mitt hand
+ * is held by a fist closed round its shaft, on every frame the stage and the match use. Measured on the posed figure by
+ * rays cast out from the shaft's axis: `band`, the shortest fist that wraps the shaft whole round the grip, in shaft
+ * diameters; `clear`, the nearest its outer surface comes to the axis there, and `cut`, the nearest the glove comes
+ * to it beside the fist, in shaft radii (under 1 the shaft would show through the glove); `off`, how far the
+ * glove's middle strays from the axis. Only the Arcanist grips a prop (her staff). */
+export interface GripCheck {
+  frames: number;
+  band: number;
+  clear: number;
+  cut: number;
+  off: number;
+  pass: boolean;
+}
+
 export interface MatchLayout {
   file: string;
   /** Sheet px per world px. */
@@ -73,6 +88,7 @@ export interface MatchLayout {
   /** One idle cycle (the 2D breath), ms. */
   idleMs: number;
   timing: Record<string, number>;
+  grip?: GripCheck;
 }
 
 export interface StageLayout {
@@ -95,6 +111,7 @@ export interface StageLayout {
    * over his match height. */
   crown: number;
   scale: number;
+  grip?: GripCheck;
   /** The files in public/stage/: the loop (H.264 MP4, and VP9 WebM for browsers without H.264), its first frame
    * (the poster) and the empty clearing; each with its size and a hash of its bytes (the `?v=` in its URL). */
   files: Record<StageFile, { name: string; bytes: number; hash: string }>;

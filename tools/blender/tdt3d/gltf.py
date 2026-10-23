@@ -13,7 +13,8 @@ import os
 import bpy
 import bmesh  # after bpy, which registers it
 import numpy as np
-from mathutils import Matrix
+from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 KAYKIT = os.path.join(ROOT, 'tools', 'blender', 'assets', 'kaykit')
@@ -344,6 +345,277 @@ def rebind(obj, rules, where):
     return counts
 
 
+FIST = 'fist'
+
+
+def _vertex_weights(obj, group):
+    """Each vertex's weight in a vertex group (0 where it is not in it)."""
+    g = obj.vertex_groups[group]
+    w = np.zeros(len(obj.data.vertices), np.float64)
+    for v in obj.data.vertices:
+        for e in v.groups:
+            if e.group == g.index:
+                w[v.index] = e.weight
+    return w
+
+
+def _turn(degrees):
+    """A prop's `turn` (degrees round glTF x, y, z, applied in that order) as a 3 × 3 matrix in glTF axes."""
+    from mathutils import Euler
+
+    return np.array(Euler([math.radians(a) for a in degrees], 'XYZ').to_matrix())
+
+
+_SHAFTS = {}
+
+
+def shaft_axis(spec, prop):
+    """A gripped prop's shaft in its own frame (glTF metres of its file): measured on its mesh over `grip['shaft']`
+    (the span of its own height that is shaft alone, below the head), each 4 cm slice's middle fitted by a line.
+    Returns {point: the axis at the prop's own height 0, dir: up the shaft, radius: the slices' mean half width,
+    foot and top: the prop's lowest and highest heights}."""
+    key = (spec['meshy'], prop['file'])
+    if key not in _SHAFTS:
+        made = _import(os.path.join(MESHY, spec['meshy'], prop['file']))
+        co = []
+        for o in made:
+            if o.type == 'MESH':
+                c = np.array([o.matrix_world @ v.co for v in o.data.vertices])
+                co.append(np.c_[c[:, 0], c[:, 2], -c[:, 1]])  # Blender x, y, z = glTF x, -z, y
+        for o in made:
+            data = o.data
+            bpy.data.objects.remove(o, do_unlink=True)
+            if isinstance(data, bpy.types.Mesh) and data.users == 0:
+                bpy.data.meshes.remove(data)
+        xyz = np.concatenate(co)
+        lo, hi = prop['grip']['shaft']
+        mids, halves = [], []
+        for y in np.arange(lo, hi, 0.04):
+            sl = xyz[(xyz[:, 1] >= y) & (xyz[:, 1] < y + 0.04)]
+            if len(sl) < 8:
+                continue
+            a, b = sl.min(axis=0), sl.max(axis=0)
+            mids.append(((a[0] + b[0]) / 2, y + 0.02, (a[2] + b[2]) / 2))
+            halves.append(((b[0] - a[0]) + (b[2] - a[2])) / 4)
+        mids = np.array(mids)
+        # x and z as lines in y: the axis, its direction up the shaft.
+        kx, cx = np.polyfit(mids[:, 1], mids[:, 0], 1)
+        kz, cz = np.polyfit(mids[:, 1], mids[:, 2], 1)
+        d = np.array([kx, 1.0, kz])
+        _SHAFTS[key] = {'point': np.array([cx, 0.0, cz]), 'dir': d / np.linalg.norm(d),
+                        'radius': float(np.mean(halves)), 'foot': float(xyz[:, 1].min()),
+                        'top': float(xyz[:, 1].max())}
+    return _SHAFTS[key]
+
+
+def gripped(spec):
+    """The prop the row's hand grips (its `grip`), or None."""
+    return next((p for p in spec.get('props', ()) if p.get('grip')), None)
+
+
+def close_hand(obj, fist, u, shaft, where):
+    """Bends a mitt into a fist round a prop's shaft (V-06f, docs/ART.md §15) by moving its vertices in the bind pose
+    (glTF metres), as `rebind` rebinds a weapon: a prop in a mitt is never held by an offset alone. `u` is the way the
+    shaft's axis leans (as the row turns the prop), `shaft` its radius. A Meshy mitt is an open hand, a flat slab (the
+    palm, and the fingers side by side in one plane), and an axis that crosses the slab can't be wrapped (the glove
+    would stay pierced inside the fist), nor one that runs between two fingers (the gap stays open as a slot). So:
+    1. the hand is turned about the middle of the mitt (the vertices the hand bone moves alone) so that its plane holds
+       the axis;
+    2. the axis is put inside the hand, on the slab's mid-surface (half way between the palm and the back of the hand),
+       where it is farthest from the glove's surface over the grip (`core`: how far up and down the axis, how far
+       across the hand to look; inside a finger), so the glove wraps it on every side;
+    3. every edge of the hand that spans more than `arc` degrees round the axis is cut in two, again until none does
+       (each cut shared by the faces on both sides, so nothing cracks open): squeezed, a wide face's flat chord would cut
+       back inside the shaft;
+    4. every vertex the bone moves is squeezed towards the axis: in cylindrical coordinates round it a vertex `r` from
+       it goes to `r_in + k·r` (the hand's width closed round the shaft, nothing of it nearer the axis than r_in) and
+       `a` along it to `a·fingers` below the grip and `a·back` above it; the fist's lower half (the fingertips' end) is
+       rounded along a superellipse (`round`, its exponent) to `tip` shaft radii at the bottom, a ball the shaft runs
+       out of, not a pipe's flat end; a vertex the bone shares with the forearm moves as far as its weight reaches
+       `full` (smoothstep), so the wrist blends into the cuff;
+    5. the fist is bound to the hand bone as far as it moved (all of it where it closed whole), so it rides the hand
+       with the prop and a bending wrist bends the cuff, not the fist round the shaft.
+    Its custom normals follow the new shape, and the moved vertices are marked (a `fist` group no bone is named after,
+    so the skin ignores it: its weight is how far each moved) for the grip check (tdt3d.grip). Returns the axis' point
+    at the grip and its direction."""
+    me = obj.data
+    xyz = bind_coords(me).astype(np.float64)
+    w = _vertex_weights(obj, fist['bone'])
+    mitt = w >= 0.999
+    if mitt.sum() < 100:
+        raise RuntimeError(f'{where}: {fist["bone"]} moves only {int(mitt.sum())} vertices alone: no mitt to close')
+    pivot = xyz[mitt].mean(axis=0)
+    # The slab's plane: its normal is the mitt's thinnest direction. The turn that brings the axis into it.
+    normal = np.linalg.svd(xyz[mitt] - pivot, full_matrices=False)[2][2]
+    along = u - (u @ normal) * normal
+    along /= np.linalg.norm(along)
+    axis = np.cross(along, u)
+    turn = math.degrees(math.asin(min(1.0, np.linalg.norm(axis))))
+    rot = np.array(Matrix.Rotation(math.radians(turn), 3, Vector(axis / max(1e-12, np.linalg.norm(axis)))))
+    normal = rot @ normal
+
+    def share(w):
+        """How far each vertex moves: all of it where the hand bone's weight reaches `full`, smoothstep below."""
+        k = np.clip(w / fist['full'], 0.0, 1.0)
+        return k * k * (3 - 2 * k)
+
+    def turned(xyz, s):
+        return xyz + s[:, None] * ((xyz - pivot) @ rot.T + pivot - xyz)
+
+    s = share(w)
+    moved = s > 0
+    # Where the axis runs: inside the hand, on the slab's mid-surface (half way between the palm and the back of the
+    # hand), and as far from the glove's surface as it can be over the grip, `core[0]` up and down the axis: a Meshy
+    # mitt's fingers lie side by side, and an axis between two of them would leave the gap between them open as a slot
+    # in the fist; inside a finger it is wrapped all round. Searched across the hand, `core[1]` each side of the mitt's
+    # middle; inside is where a ray crosses the hand's faces an odd number of times.
+    side = np.cross(u, normal)
+    hand = turned(xyz, s)
+    tri = np.empty(len(me.polygons) * 3, np.int64)
+    me.polygons.foreach_get('vertices', tri)
+    tri = tri.reshape(-1, 3)
+    tri = tri[moved[tri].all(axis=1)]
+    bvh = BVHTree.FromPolygons([Vector(v) for v in hand], [tuple(t) for t in tri.tolist()], all_triangles=True)
+
+    def inside(p):
+        n, at = 0, Vector(p)
+        for _ in range(64):
+            hit = bvh.ray_cast(at, Vector(normal), 1.0)[0]
+            if hit is None:
+                return n % 2 == 1
+            n += 1
+            at = hit + Vector(normal) * 1e-6
+        return False
+
+    span, reach = fist['core']
+    glove = hand[moved]
+    best = None
+    for e in np.arange(-reach, reach + 1e-9, 0.002):
+        line = pivot + e * side
+        d = glove - line
+        a, t, x = d @ u, d @ normal, d @ side
+        near = (np.abs(a) < span) & (np.abs(x) < 0.01)
+        if not near.any():
+            continue
+        c = line + normal * (t[near].min() + t[near].max()) / 2
+        if not all(inside(c + h * u) for h in np.linspace(-span, span, 5)):
+            continue
+        d = glove - c
+        a = d @ u
+        gap = np.linalg.norm(d - np.outer(a, u), axis=1)[np.abs(a) < span].min()
+        if best is None or gap > best[0]:
+            best = (gap, c)
+    if best is None:
+        raise RuntimeError(f'{where}: no line inside {fist["bone"]}\'s hand holds the shaft (grip.core)')
+    core, centre = best
+
+    def angle(xyz):
+        d = xyz - centre
+        q = d - np.outer(d @ u, u)
+        return np.arctan2(q @ side, q @ normal)
+
+    # A face near the axis spans a wide angle round it, and squeezed out to r_in its flat chord would cut back inside
+    # the shaft: every edge of the hand that spans more than `arc` degrees round the axis is cut in two, again until
+    # none does (each cut shared by the faces on both sides, so nothing cracks open).
+    cuts = 0
+    for _ in range(8):
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        layer = bm.verts.layers.deform.active
+        gi = obj.vertex_groups[fist['bone']].index
+        co = np.array([v.co for v in bm.verts], np.float64) / 100.0
+        bw = np.array([v[layer].get(gi, 0.0) for v in bm.verts])
+        bs = share(bw)
+        phi = angle(turned(np.c_[co[:, 0], co[:, 2], -co[:, 1]], bs))
+        wide = []
+        arc = math.radians(fist['arc'])
+        for e in bm.edges:
+            i, j = e.verts[0].index, e.verts[1].index
+            if bs[i] > 0 and bs[j] > 0 and abs(math.remainder(phi[i] - phi[j], 2 * math.pi)) > arc:
+                wide.append(e)
+        if not wide:
+            bm.free()
+            break
+        bmesh.ops.subdivide_edges(bm, edges=wide, cuts=1, use_grid_fill=True)
+        bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 3])
+        bm.to_mesh(me)
+        bm.free()
+        me.update()
+        cuts += len(wide)
+    if cuts:
+        names = sorted(set(obj['materials']))
+        obj['materials'] = [names[p.material_index] for p in me.polygons]
+        xyz = bind_coords(me).astype(np.float64)
+        w = _vertex_weights(obj, fist['bone'])
+        s = share(w)
+        moved = s > 0
+    xyz = turned(xyz, s)
+    d = xyz - centre
+    a = d @ u
+    p = d - a[:, None] * u
+    r = np.linalg.norm(p, axis=1)
+    r2 = fist['r_in'] + fist['k'] * r
+    a2 = np.where(a < 0, a * fist['fingers'], a * fist['back'])
+    # The fist's lower half rounded (the fingertips' end): squeezed out to r_in all the way down it ended in a flat
+    # disc round the shaft, a pipe's end. Down there the glove closes in towards the shaft along a superellipse
+    # (`round`: its exponent) to `tip` shaft radii at the bottom, so the fist is a ball the shaft runs out of.
+    whole = s >= 0.999
+    lo, hi = a2[whole].min(), a2[whole].max()
+    q = np.clip(((lo + hi) / 2 - a2) / ((hi - lo) / 2), 0.0, 1.0)
+    shape = (1 - q ** fist['round']) ** (1 / fist['round'])
+    bottom = fist['tip'] * shaft
+    r2 = bottom + (r2 - bottom) * shape
+    target = centre + a2[:, None] * u + p / np.maximum(r, 1e-9)[:, None] * r2[:, None]
+    new = xyz + s[:, None] * (target - xyz)
+    # Back to Blender's frame (glTF x, y, z = Blender x, -z, y), in the armature's centimetres.
+    co = np.c_[new[:, 0], -new[:, 2], new[:, 1]] * 100.0
+    # The corner normals before the move (Meshy's custom normals), then the new shape's at the moved vertices: the
+    # faces' normals summed by area round each point (vertices split at a UV seam share their point's).
+    n_loops = len(me.loops)
+    old = np.empty(n_loops * 3, np.float32)
+    me.corner_normals.foreach_get('vector', old)
+    old = old.reshape(-1, 3).astype(np.float64)
+    me.vertices.foreach_set('co', co.astype(np.float32).ravel())
+    me.update()
+    tri = np.empty(len(me.polygons) * 3, np.int64)
+    me.polygons.foreach_get('vertices', tri)
+    tri = tri.reshape(-1, 3)
+    fn = np.cross(co[tri[:, 1]] - co[tri[:, 0]], co[tri[:, 2]] - co[tri[:, 0]])
+    _, point = np.unique(np.round(co, 3), axis=0, return_inverse=True)
+    point = point.ravel()
+    acc = np.zeros((point.max() + 1, 3))
+    for j in range(3):
+        np.add.at(acc, point[tri[:, j]], fn)
+    vn = acc[point]
+    vn /= np.maximum(np.linalg.norm(vn, axis=1), 1e-12)[:, None]
+    lv = np.empty(n_loops, np.int64)
+    me.loops.foreach_get('vertex_index', lv)
+    sl = s[lv][:, None]
+    nn = old * (1 - sl) + vn[lv] * sl
+    nn /= np.maximum(np.linalg.norm(nn, axis=1), 1e-12)[:, None]
+    me.normals_split_custom_set([tuple(n) for n in nn])
+    me.update()
+    # The fist rides the hand bone as the prop does: each moved vertex's skin goes to the hand as far as it moved (all
+    # of it where it closed whole), so a bending wrist bends the cuff, not the fist round the shaft.
+    bone = obj.vertex_groups[fist['bone']].index
+    bones = {g.index for g in obj.vertex_groups if g.name not in (WEAPON, FIST)}
+    for v in me.vertices:
+        k = float(s[v.index])
+        if k <= 0:
+            continue
+        for e in v.groups:
+            if e.group in bones and e.group != bone:
+                e.weight *= 1 - k
+        obj.vertex_groups[fist['bone']].add([v.index], w[v.index] * (1 - k) + k, 'REPLACE')
+    g = obj.vertex_groups.get(FIST) or obj.vertex_groups.new(name=FIST)
+    for i in np.nonzero(moved)[0].tolist():
+        g.add([i], float(s[i]), 'REPLACE')
+    print(f'{where}: {fist["bone"]} closed round the shaft: the hand turned {turn:.1f}° to hold it in its plane, '
+          f'{cuts} wide edges cut, {int(moved.sum())} vertices moved, the axis {core * 100:.1f} cm inside it, through '
+          f'({", ".join(f"{c:.3f}" for c in centre)})', flush=True)
+    return centre, u
+
+
 def _texture(obj):
     """The base colour texture of a Meshy mesh's (only) material, as display values (h × w × 3, rows bottom first)."""
     for m in obj.data.materials:
@@ -586,6 +858,14 @@ def load_meshy(spec, clips_out):
     where = f'meshy/{spec["meshy"]}/model.glb'
     rebind(mesh, spec.get('rebind', ()), where)
     paint_by_texture(mesh, spec['paint'], where)
+    prop = gripped(spec)
+    if prop is not None:
+        # After the paint (its regions read the bind pose as Meshy made it): the mitt closed round the prop's shaft,
+        # leaning as the row turns the prop.
+        sh = shaft_axis(spec, prop)
+        u = _turn(prop.get('turn', (0, 0, 0))) @ sh['dir']
+        centre, axis = close_hand(mesh, prop['grip'], u, sh['radius'] * prop.get('scale', 1.0), where)
+        arm['fist'] = [*centre, *axis]
     pieces = split_layers(mesh, spec.get('layers', {}), spec['index'], spec.get('shadowless'))
     for clip, file in spec['clips'].items():
         got = {}
@@ -609,8 +889,10 @@ def load_meshy(spec, clips_out):
 
 def attach_meshy(arm, spec, prop):
     """A Meshy prop (the Arcanist's staff.glb): painted from its texture like the hero, and hung on a hand bone at the
-    place the row gives in the hero's bind pose (`at`: glTF metres of model.glb, the prop's own origin; `turn`: degrees
-    round glTF x, y, z, applied in that order; `scale` of its modelled size), so it rides the hand from there."""
+    place the row gives in the hero's bind pose (`turn`: degrees round glTF x, y, z, applied in that order; `scale` of
+    its modelled size), so it rides the hand from there. A gripped prop (`grip`, V-06f) is placed on the fist's axis
+    (close_hand): its shaft's axis is the fist's, the fist `grip['at']` of the prop's height up from its foot; a prop
+    in a hand is never placed by an offset alone (`at`, glTF metres of model.glb, is for a prop no hand holds)."""
     from mathutils import Euler
 
     made = _import(os.path.join(MESHY, spec['meshy'], prop['file']))
@@ -618,9 +900,24 @@ def attach_meshy(arm, spec, prop):
     for o in made:
         if o.type != 'MESH':
             bpy.data.objects.remove(o, do_unlink=True)
-    x, y, z = prop['at']
     turn = Euler([math.radians(a) for a in prop.get('turn', (0, 0, 0))], 'XYZ').to_matrix().to_4x4()
-    k = prop.get('scale', 1.0) * 100.0  # metres → the armature's centimetres
+    scale = prop.get('scale', 1.0)
+    if prop.get('grip'):
+        if 'fist' not in arm:
+            raise RuntimeError(f'{spec["name"]}: {prop["name"]} is gripped but no hand was closed round it')
+        if 'at' in prop:
+            raise RuntimeError(f'{spec["name"]}: {prop["name"]} is gripped: the fist places it, not `at`')
+        sh = shaft_axis(spec, prop)
+        centre = np.array(arm['fist'][:3])
+        height = sh['foot'] + prop['grip']['at'] * (sh['top'] - sh['foot'])
+        grip = sh['point'] + sh['dir'] * (height - sh['point'][1]) / sh['dir'][1]
+        x, y, z = centre - _turn(prop.get('turn', (0, 0, 0))) @ (scale * grip)
+    else:
+        if MESHY_BONES.get(prop['bone'], prop['bone']) in ('LeftHand', 'RightHand'):
+            raise RuntimeError(f'{spec["name"]}: {prop["name"]} hangs in a mitt hand by an offset alone: close the '
+                               'hand round it (`grip`, docs/ART.md §15 "V-06f")')
+        x, y, z = prop['at']
+    k = scale * 100.0  # metres → the armature's centimetres
     place = (Matrix.Translation((x * 100, -z * 100, y * 100)) @ GLTF_TO_BLENDER @ turn @ BLENDER_TO_GLTF
              @ Matrix.Diagonal((k, k, k, 1.0)))
     out = []

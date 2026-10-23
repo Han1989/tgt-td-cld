@@ -245,12 +245,20 @@ ARCANIST = dict(
     },
     props=[
         # Her crescent staff (Meshy's own prop, staff.glb): in her right hand, upright, the crescent over her shoulder.
-        # V-06c: its shaft through the middle of her mitt (the centre of the faces her RightHand moves alone), so the
-        # glove closes round it on every frame; V-06b's place stood it 1.84 world px behind and inside her open hand,
-        # in every pose (both ride the hand). V-06e: the Oracle's mitt is at (-0.506, 0.532, 0.224), round 2's was at
-        # (-0.444, 0.493, 0.136); the staff keeps V-06c's grip on it, (-0.554, 0.932, 0.136) moved by as much.
+        # V-06f (Han, 24 Oct 2026): held in a fist, not hung by an offset (V-06c's place ran the shaft through her
+        # open mitt, her hand beside it). `grip` closes her mitt round the shaft in the bind pose (tdt3d.gltf.
+        # close_hand) and the staff is placed on the fist's axis, the fist 0.22 of the staff up from its foot (its lower
+        # third, as V-06c held it: she carries it tall); the grip check (tdt3d.grip) holds on every frame. The shaft is
+        # staff.glb's height -0.9 to -0.15 (its own metres; the head and its binding above). The fist: the glove at
+        # least 7.5 cm from the axis (three shaft radii) and 0.3 of the open hand's width round it, the fingers and the
+        # back of the hand kept at their length (1.0, 0.9: a chibi fist as big as her open mitt), its lower half
+        # rounded (an ellipse, 1.2 shaft radii at the bottom); the forearm's share moved as far as the hand's weight
+        # reaches 0.2; the axis looked for 3 cm up and down and 5 cm across the hand; edges cut under 12° round it.
         dict(name='staff', meshy=True, file='staff.glb', bone='handslot.r', layer='body', index=STAFF,
-             at=(-0.616, 0.971, 0.224), turn=(0.0, 0.0, 12.0), scale=0.85,
+             turn=(0.0, 0.0, 12.0), scale=0.85,
+             grip=dict(bone='RightHand', at=0.22, shaft=(-0.9, -0.15),
+                       r_in=0.075, k=0.3, fingers=1.0, back=0.9, full=0.2, round=2.0, tip=1.2, core=(0.03, 0.05),
+                       arc=12.0),
              paint=dict(clusters={'bone': ('#eae7d6', 'crescent'), 'wood': ('#3c2d2c', 'staffWood'),
                                   'binding': ('#83786a', 'binding'), 'crystal': ('#c168fc', 'crystal'),
                                   'crystalDeep': ('#b84cf7', 'crystal')})),
