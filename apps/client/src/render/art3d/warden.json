@@ -524,23 +524,23 @@
   },
   "files": {
    "clearing": {
-    "bytes": 59130,
-    "hash": "c0d771df5e6a",
+    "bytes": 59024,
+    "hash": "373874633240",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1175368,
-    "hash": "6f8442cfa1d3",
+    "bytes": 1109048,
+    "hash": "a1af10158431",
     "name": "warden.mp4"
    },
    "poster": {
-    "bytes": 59754,
-    "hash": "07c8e4600661",
+    "bytes": 59486,
+    "hash": "af09ea745089",
     "name": "warden-poster.webp"
    },
    "webm": {
-    "bytes": 1176083,
-    "hash": "1ebe710ddd1b",
+    "bytes": 1160084,
+    "hash": "2891e742c9ea",
     "name": "warden.webm"
    }
   },

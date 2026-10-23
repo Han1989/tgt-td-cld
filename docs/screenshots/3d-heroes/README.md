@@ -1,5 +1,13 @@
 # 3D heroes: screenshots
 
+**V-06c (22 Oct 2026): three fixes on the stage loops** (Han's notes from his phone; `docs/ART.md` §15 "V-06c"). Each `v06c-stage-*` is the hero's stage on the home card of a 412 × 839 phone at 2.625×, the loop paused on one frame: V-06b's loop on the left, V-06c's on the right (the browser tests' Chromium plays the VP9 WebM; phones with H.264 play the MP4 of the same frames).
+
+- `v06c-stage-warden-0000-412x839.webp` (frame 0, the poster) and `v06c-stage-warden-0100-412x839.webp` (frame 100, the shield up): no white sheen on the helm, the pauldrons and the bevels, the rim and the moonlit edge faint, the bevels a step from the plate. The soft teal light on the helm in both is one of the clearing's motes drifting in front of him.
+- `v06c-stage-arcanist-0000-412x839.webp` (idle) and `v06c-stage-arcanist-0145-412x839.webp` (the staff raised): her hand on the staff, the shaft through her glove.
+- `v06c-arcanist-staff.webp`: her hand and staff enlarged 3×, stage frames 0 (idle), 75 (the thrust, mid-swing) and 145 (the raise): V-06b on top, V-06c below.
+- `v06c-stage-ranger-0120-412x839.webp` (the pull) and `v06c-stage-ranger-0150-412x839.webp` (held at the cheek): his draw hand in front of the hood with the arrow; V-06b's hand was behind it.
+- `v06c-ranger-draw.webp`: every frame of the shipped loop from 94 to 162, the draw arm drawn over the hood on 96–160, cut to his head and arms, in order left to right, top to bottom.
+
 **V-06b (22 Oct 2026): the Meshy heroes in the game** (the game's own designs, `docs/ART.md` §15 "Meshy heroes").
 
 - `v06b-stage-<hero>-412x839.webp`: each hero's stage on the home card of a 412 × 839 phone at 2.625×, its poster (the loop's first frame, as reduced motion shows it): V-05b's KayKit hero on the left, the Meshy hero on the right.
