@@ -326,14 +326,16 @@ describe('3D heroes: the stage', () => {
     });
 
     // Every size the lobby's stage takes (style.css .hero-stage; lobby card min(500px, 100vw - 32px)),
-    // with the title's bottom and the ground line as heroStage.ts measures them.
+    // with the title's bottom and the ground line as heroStage.ts measures them. Under 640 px tall the stage keeps the
+    // 412 × 839 phone's shape, 378 × 320, at the card's width (V-06d), so no phone's stage is 190 px tall any more.
     const SIZES: [string, number, number, number][] = [
       ['home card, 412 × 839 phone', 380, 320, 61],
       ['home card, 390 × 664 phone', 358, 264, 61],
       ['home card, 360 × 640 phone', 328, 240, 61],
-      ['home card, short phone', 328, 190, 61],
+      ['home card, 360 wide under 640 px tall', 328, 278, 61],
       ['home card, desktop', 498, 320, 61],
       ['home card, short desktop', 498, 220, 61],
+      ['home card, desktop window under 640 px tall', 498, 422, 61],
     ];
     for (const [name, w, h, top] of SIZES) {
       it(`${kind}: fills the ${name} stage (${w} × ${h}) with the hero whole, under the title`, () => {
@@ -346,8 +348,10 @@ describe('3D heroes: the stage', () => {
         expect(left).toBeGreaterThanOrEqual(box.side - 0.5);
         expect(right).toBeLessThanOrEqual(w - box.side + 0.5);
         expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top - 0.5);
-        // The hood clear of the title's last line wherever there's room (all but the shortest stages, 190 px and less).
-        if (h > 190) expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top + STAGE_TITLE_CLEAR - 0.5);
+        // The hood clear of the title's last line wherever there's room: all but the shortest stages, 220 px and less
+        // since the Arcanist's hat is the box's top (V-06d; on a 220 px stage the box's top, a few px of margin over
+        // the hat, reaches 1.7 px up into the line's box, the hat's ink 0.1 px).
+        if (h > 220) expect(fit.top + f.y0 * fit.scale).toBeGreaterThanOrEqual(top + STAGE_TITLE_CLEAR - 0.5);
         expect(fit.top + s.groundY * fit.scale).toBeCloseTo(box.ground, 3);
         // Not shrunk to a speck: the hero fills the room between the title and the ground, or the width.
         const tall = (s.groundY - f.y0) * fit.scale;
@@ -371,6 +375,20 @@ describe('3D heroes: one clearing for all three', () => {
     const box = { w: 380, h: 320, ground: 286, top: 61, side: 14 };
     for (const s of stages) expect(fitStage(s, box)).toEqual(fitStage(stages[0]!, box));
   });
+
+  it('the three stand as tall, soles to crown, the Warden at his own height, each in the middle of the box (V-06d)', () => {
+    // tools/blender (stage.stand): every hero scaled on the stage alone so his crown stands as far over the ground line
+    // as the Warden's in the poster frame, 391.7 video px (weapons, the Arcanist's hat and the Ranger's leaf peak left
+    // out); the match sheets keep each row's height.
+    for (const [kind, hero] of heroes) {
+      const s = hero!.stage;
+      expect(s.crown, kind).toBe(391.7);
+      if (kind === 'warden') expect(s.scale).toBe(1);
+      else expect(s.scale, kind).toBeGreaterThan(1.2);
+      // The shared box centred on the feet: each hero stands in its middle, on the one ground line.
+      expect((s.figure.x0 + s.figure.x1) / 2, kind).toBe(s.feetX);
+    }
+  });
 });
 
 describe('3D heroes: the rig and stage rules', () => {
@@ -378,7 +396,7 @@ describe('3D heroes: the rig and stage rules', () => {
     const files = {} as StageLayout['files'];
     const stage = (x0: number, x1: number): StageLayout => ({
       w: 2400, h: 900, frames: 240, fps: 30, loopMs: 8000, groundY: 735, feetX: 1200,
-      figure: { x0, x1, y0: 305, y1: 760 }, own: { x0, x1, y0: 305, y1: 760 }, files,
+      figure: { x0, x1, y0: 305, y1: 760 }, own: { x0, x1, y0: 305, y1: 760 }, crown: 32, scale: 1, files,
     });
     // Centred: the box's middle on the stage's middle.
     const wide = { w: 498, h: 320, ground: 286, top: 61, side: 14 };

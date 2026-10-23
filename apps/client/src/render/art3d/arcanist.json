@@ -503,32 +503,33 @@
   "walkStride": 17.292
  },
  "stage": {
+  "crown": 391.7,
   "feetX": 1200.0,
   "figure": {
    "x0": 864.0,
-   "x1": 1516.0,
-   "y0": 308.0,
+   "x1": 1536.0,
+   "y0": 266.0,
    "y1": 800.0
   },
   "files": {
    "clearing": {
-    "bytes": 59024,
-    "hash": "373874633240",
+    "bytes": 59088,
+    "hash": "a1a756f0eb82",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1148828,
-    "hash": "f1f49defa801",
+    "bytes": 1084024,
+    "hash": "3cb99f0782ed",
     "name": "arcanist.mp4"
    },
    "poster": {
-    "bytes": 59710,
-    "hash": "50f0affa47e2",
+    "bytes": 59134,
+    "hash": "e45e867f9d91",
     "name": "arcanist-poster.webp"
    },
    "webm": {
-    "bytes": 1163524,
-    "hash": "11f311448d0e",
+    "bytes": 1137070,
+    "hash": "d93d44cb659f",
     "name": "arcanist.webm"
    }
   },
@@ -538,11 +539,12 @@
   "h": 900,
   "loopMs": 8000,
   "own": {
-   "x0": 1004.7,
-   "x1": 1349.0,
-   "y0": 367.4,
-   "y1": 751.4
+   "x0": 947.0,
+   "x1": 1382.6,
+   "y0": 270.2,
+   "y1": 755.2
   },
+  "scale": 1.2684,
   "w": 2400
  }
 }

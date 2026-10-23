@@ -2424,6 +2424,19 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   }
 }
 
+/* A window under 640 px tall (V-06d, Han, 23 Oct 2026; a short desktop window, a small phone upright): the one-screen
+   rule can't hold there, and the heights above would squash the stage to a strip under the title (124 px with the
+   Daily tile). So the stage keeps the shape it has on a 412 × 839 phone (378 × 320) at the card's full width, the
+   Daily tile no longer takes its room from it, and the card scrolls inside the page (its max-height, below). */
+@media (max-height: 639px) {
+  .hero-stage,
+  #lobby-home.has-daily .hero-stage {
+    height: auto;
+    aspect-ratio: 378 / 320;
+    flex-shrink: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-stage.swap .hero-stage-figure {
     animation: none;

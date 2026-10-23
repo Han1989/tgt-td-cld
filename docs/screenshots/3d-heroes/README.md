@@ -1,5 +1,10 @@
 # 3D heroes: screenshots
 
+**V-06d (23 Oct 2026): one stage height** (Han's request; `docs/ART.md` §15 "V-06d"). Each is the three heroes' stages on the home card of a 412 × 839 phone at 2.625×, the Ranger, the Warden and the Arcanist left to right: V-06c's loops on the top row, V-06d's on the bottom.
+
+- `v06d-stages-412x839.webp`: the posters (the loops' first frames, as reduced motion shows them), where the rule is measured: each crown (the Warden's helm, the Ranger's hood under its leaf peak, the Arcanist's head under her hat) the same height over the ground line.
+- `v06d-moves-412x839.webp`: each loop paused in its signature move (the Ranger's frame 150, held at the cheek; the Warden's 100, the shield up; the Arcanist's 140, the staff raised), the loops inside the shared box and clear of the title.
+
 **V-06c (22 Oct 2026): three fixes on the stage loops** (Han's notes from his phone; `docs/ART.md` §15 "V-06c"). Each `v06c-stage-*` is the hero's stage on the home card of a 412 × 839 phone at 2.625×, the loop paused on one frame: V-06b's loop on the left, V-06c's on the right (the browser tests' Chromium plays the VP9 WebM; phones with H.264 play the MP4 of the same frames).
 
 - `v06c-stage-warden-0000-412x839.webp` (frame 0, the poster) and `v06c-stage-warden-0100-412x839.webp` (frame 100, the shield up): no white sheen on the helm, the pauldrons and the bevels, the rim and the moonlit edge faint, the bevels a step from the plate. The soft teal light on the helm in both is one of the clearing's motes drifting in front of him.
