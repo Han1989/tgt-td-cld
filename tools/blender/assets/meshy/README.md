@@ -21,6 +21,7 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 | `warden/` | 2, chibi | The Warden: a heavy shield-captain, iron and ember ([README](warden/README.md)) | the ram-horn pauldron; the kite shield's ember rune | a sword and a kite shield, part of the mesh |
 | `arcanist/` | 2, chibi | The Arcanist: a battle-mage woman, violet and bone-white ([README](arcanist/README.md)) | the big hat; the white braid with violet rune beads | none in the model: her crescent staff is a separate prop, `staff.glb` |
 | `ranger-r1/`, `warden-r1/`, `arcanist-r1/` | 1, realistic | the same designs, kept as PR #127 landed them | | in hand, part of the mesh |
+| `arcanist-concepts/` | V-06e, images only | the Arcanist redesigned with her face hidden (Han, 23 Oct 2026): the Hooded Oracle and the Bone-Masked Seer, two images each, for Han to pick ([README](arcanist-concepts/README.md)) | | concepts only: no model |
 
 ## What each hero folder holds
 

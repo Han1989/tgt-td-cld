@@ -20,6 +20,7 @@
  * T-07a on 21 Oct 2026 (PR #124: creeps that cannot be kited; Han's decision from the first Reddit cold tester).
  * V-06a on 22 Oct 2026 (PR #128: the heroes designed by Claude and generated in Meshy, session 1 of 2, assets only).
  * V-06b on 22 Oct 2026 (PR #130: the Meshy heroes in the game, session 2 of 2).
+ * V-06e-concepts on 23 Oct 2026 (PR #132: two redesigns of the Arcanist with her face hidden, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -334,6 +335,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only, session 2 of 2: no game rules, server or protocol change. Han, 22 Oct 2026: the game’s heroes are the chibi Meshy models, the game’s own designs, everywhere the free-pack heroes showed: the first screen’s stage, the match and the art page. They go through the same painter and are rendered ahead of time exactly as before (nothing 3D runs on the phone). The weapons Meshy welded into the body now move with the hand instead of bending; every colour of their textures is matched to the game’s palette, and a colour the table doesn’t expect stops the build; their own animations play with the moments where a hand, the hat or the helm passes through the face left out. The Arcanist holds her crescent staff upright, its crystal glowing beside her hat. In review: Han judges the heroes on his phone. Built by Claude Code (PR #130).',
     proof: pr(130),
+  },
+  {
+    id: 'V-06e-concepts',
+    title: 'Two redesigns of the Arcanist (images only)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Concept pictures only: nothing in the game changes yet. Han, 23 Oct 2026: the Arcanist is too beautiful next to the other two, who show no face (a masked hood, a closed helm, two glowing eyes), so her pretty face reads as another art style. She is redesigned by their rule: face hidden, two glowing violet eyes, one silhouette piece, keeping her chibi figure, her violet and bone-white, her crescent staff and her rune cord. Two concepts, two pictures each, made in Meshy from her current concept: the Hooded Oracle (a tall peaked hood, a bone half-mask, the eyes glowing in its shadow) and the Bone-Masked Seer (her big hat, a full bone mask with glowing eye slits, a tattered mantle). The better picture of each pair is marked on the sheet; at phone size only the Oracle keeps the dark face with two glowing dots the other heroes have. In review: Han picks one, and a later session makes her model. Built by Claude Code (PR #132).',
+    proof: pr(132),
   },
   {
     id: 'g1-render',

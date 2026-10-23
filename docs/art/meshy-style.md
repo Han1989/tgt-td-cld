@@ -107,6 +107,12 @@ phone size (a hero is about 40 px tall in a match).
 
 ### The Arcanist: violet and bone-white
 
+**V-06e (Han, 23 Oct 2026):** she is redesigned by the other two heroes' rule, **face hidden, two glowing violet
+eyes, one silhouette piece**, keeping the rest of round 2 (2.5 heads, violet and bone-white, the crescent staff, the
+rune cord). Two concepts, images only, for Han to pick: the Hooded Oracle (a tall peaked hood, a bone half-mask) and
+the Bone-Masked Seer (the hat, a full bone mask, a tattered mantle), in `tools/blender/assets/meshy/arcanist-concepts/`
+with their prompts; sheet `docs/art/arcanist-redesign.png`. The brief below is round 2's, which the game still shows.
+
 - **Who:** a battle-mage, a woman (Han, 17 Oct 2026), slim, calm and determined; two dark dot eyes and a small mouth.
 - **Head (oversized):** a big deep-violet mage's hat with a wide brim and a soft pointed crown that leans back, a
   bone-white band and a small bone crescent clasp (round 2: Han's note names the hat as her signature piece; it takes

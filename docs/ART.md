@@ -437,7 +437,8 @@ tools/blender/
   assets/kaykit/   the CC0 source models, props and clips (glTF only; never shipped to the client)
   assets/quaternius/ the CC0 Ultimate Monsters the Wisp and the bosses come from (glTF, their own clips)
   assets/meshy/    the heroes designed by Claude and generated in Meshy (V-06a: models, Meshy's own skeleton and
-                   clips, the concepts; README.md there is the index); the game's heroes since V-06b
+                   clips, the concepts; README.md there is the index); the game's heroes since V-06b;
+                   arcanist-concepts/ the V-06e redesign concepts (images only, Han picks)
   tdt3d/
     palette.py     the Runelight tokens, read from render/art/tokens.ts (a colour is never copied by hand)
     gltf.py        importing a character, facing +X: a KayKit or Quaternius one (its armature, its props on the hand
