@@ -40,15 +40,23 @@ W, H = 2400, 900      # the video; one frame for every stage size (fitStage in t
 # at 1× are rendered at PLATE_SS × instead, below.
 SS = 1
 PLATE_SS = 2
-FRAME_H = 33.0        # world px from the ground to the top of `BOX`, the tallest hero (the Warden's helm) with room
+FRAME_H = 33.0        # world px from the ground to the camera's frame line (the Warden's helm with room): its scale
 HERO_H_PX = 427       # px that FRAME_H world px take at the camera's distance
+# Every hero's crown stands this many video px over the ground line on the stage (V-06d, Han, 23 Oct 2026: the Warden's
+# stage height for all three, measured as the first screen shows them: in the loop's first frame, the poster, through
+# the stage camera), his weapons and what rises over his head left out of the measure (`hat` in the row's stage: the
+# Arcanist's hat, the Ranger's leaf peak). Each hero is scaled to it on the stage alone (`stand`); the match keeps the
+# row's height, so in a match the Warden stays the tallest.
+CROWN_PX = 391.697   # the Warden's, measured at his row's height (V-06c's stage)
 FEET_Y = 735          # the ground line under the hero, video px from the top
 MID = (0.0, -2.0)     # the point between the heroes' feet the camera centres (figure x / y, world px)
 # The box every hero's loop stays inside (video px, ink included): all three share it, so fitStage places the
 # video the same for each and switching heroes never moves the clearing. The build stops if a loop leaves it.
-# V-06b: wider for the Meshy Warden (sword to shield he is as wide as he is tall, and his slash sweeps past both); the
-# stage on a 412 px phone is still fitted by its height, so no hero is drawn smaller for it.
-BOX = dict(x0=864.0, y0=308.0, x1=1516.0, y1=800.0)
+# V-06b: wider for the Meshy Warden (sword to shield he is as wide as he is tall, and his slash sweeps past both).
+# V-06d: centred on the feet (x 1200), so each hero stands in its middle, as wide each side as the Warden's slash
+# reaches to his left; its top over the Arcanist's hat, now that she stands as tall as the Warden to her crown (it was
+# the Warden's helm, y 308).
+BOX = dict(x0=864.0, y0=266.0, x1=1536.0, y1=800.0)
 AZIMUTH = 40.0        # degrees round from the hero's front towards its right
 ELEVATION = 4.5       # degrees above the hero's chest
 LENS = 50.0
@@ -63,6 +71,7 @@ HERO_AO_SAMPLES = 2   # AO rays a sample on the hero (the plate takes 6)
 # into light dots), rendered again at 10 and kept. Both are smooth from four times the pixels.
 SAMPLES_2X = 10
 SAMPLES_2X_FAST = 18
+AO = 2.6              # world px the AO looks round (the hero's scaled with him on the stage, as his creases are)
 GROUND_ID = 100
 SKY_IDS = 200         # 200 and over: the sky, the stars, the moon
 MARGIN_PX = 34        # output px kept round the hero's box: his line, the light wrap and his glows' bloom
@@ -178,7 +187,7 @@ def camera(hero_h_world, figure_mid, w=W, h=H):
 def lights(cam):
     moon = (-cam.right * 0.78 + cam.up * 0.58 - cam.forward * 0.2).normalized()
     scene.moon(moon, angle_deg=1.2)
-    shading.set_globals(rim=(cam.right * 0.95 + cam.up * 0.3).normalized(), ao=2.6, shine=34)
+    shading.set_globals(rim=(cam.right * 0.95 + cam.up * 0.3).normalized(), ao=AO, shine=34)
     return moon
 
 
@@ -319,7 +328,8 @@ def _contacts(fig, rest):
 
 
 def contact_shade(gx, gy, contacts, scale=1.0):
-    """How much of the sky's light the hero keeps from the moss under and round his feet (0..1)."""
+    """How much of the sky's light the hero keeps from the moss under and round his feet (0..1). `scale`: the hero's
+    size over his row's height (the stage's, V-06d): his shadows as soft and a lifted foot's as faded as at it."""
     keep = np.ones_like(gx)
     for kind, p0, p1, lift in contacts:
         ax, ay = p0
@@ -330,7 +340,7 @@ def contact_shade(gx, gy, contacts, scale=1.0):
         d2 = (gx - ax - t * vx) ** 2 + (gy - ay - t * vy) ** 2
         if kind == 'foot':
             s = CONTACT['foot_sigma'] * scale
-            k = CONTACT['foot'] * (1 - npr.smoothstep(0.0, CONTACT['lift'], lift))
+            k = CONTACT['foot'] * (1 - npr.smoothstep(0.0, CONTACT['lift'] * scale, lift))
         else:
             s = CONTACT['body_sigma'] * scale
             k = CONTACT['body']
@@ -402,7 +412,7 @@ def staged(spec):
     """The row as the stage renders it: its stage-only material touches (`stage.materials`: the Warden's plate as soft
     as the cloth heroes' on the stage) over the row's materials, and its stage-only cut into layers (`stage.layers`
     and `stage.index`: the Ranger's draw arm a layer of its own, to draw over his hood). The match sheet keeps the
-    row's."""
+    row's (and its size: `_build` scales the stage's figure to `CROWN`)."""
     st = spec['stage']
     out = dict(spec, layers=st.get('layers', spec.get('layers', {})), index=st.get('index', spec['index']))
     over = st.get('materials')
@@ -414,11 +424,39 @@ def staged(spec):
     return out
 
 
-def _build(spec, fps):
-    """The hero, the camera that frames every hero the same, the moon and the clearing."""
+def _build(spec, fps, cam=None):
+    """The hero (as tall as every hero on the stage when the stage camera `cam` is given: `stand`)."""
     fig = figure.Figure(staged(spec))
-    shading.set_globals(z0=0, z1=spec['height'], ao_samples=6)
+    if cam is not None:
+        stand(fig, spec, cam)
+    shading.set_globals(z0=0, z1=spec['height'] * fig.size, ao_samples=6)
     return fig
+
+
+def crown_px(fig, spec, cam):
+    """How far the hero's crown stands over the ground line in the loop's first frame (video px of the full frame):
+    the top of his figure through the stage camera, his weapons and his hat (`stage.hat`) left out."""
+    fig.apply(motion.stage_pose(fig, spec, 0.0))
+    _, ys, _ = scene.Cam(cam.obj, W, H).project(fig.crown_points(spec['stage'].get('hat')))
+    return FEET_Y - float(ys.min())
+
+
+def stand(fig, spec, cam):
+    """Scales the hero on the stage so his crown stands `CROWN_PX` over the ground line (`crown_px`), as the Warden's
+    does: all three as tall on the first screen (V-06d). Scaled from his feet, so a few rounds settle the perspective."""
+    for _ in range(6):
+        k = CROWN_PX / crown_px(fig, spec, cam)
+        if abs(k - 1) < 1e-5:
+            return
+        fig.resize(k)
+    raise RuntimeError(f'{spec["name"]}: the stage size does not settle ({k})')
+
+
+def hero_look(look, size):
+    """The look the hero is painted with on the stage: the scene's, its depth steps scaled with him (a hero drawn
+    `size` × his row's height keeps the inner lines he had at it; the line weights are output px, the same for all)."""
+    return dict(look, depth_abs=look['depth_abs'] * size, depth_rel=look['depth_rel'] * size,
+                big_jump=look['big_jump'] * size)
 
 
 def _glade(cam, d, period, fps):
@@ -520,16 +558,16 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
     fps = spec['stage'].get('fps', 30)
     period = spec['stage']['seconds']
     n = int(round(period * fps))
-    fig = _build(spec, fps)
-    hero_objs = fig.objects
     shutter = 0.0 if draft else SHUTTER
     ss = 1 if draft else SS
     pss = 1 if draft else PLATE_SS
     ow, oh = (W // 2, H // 2) if draft else (W, H)
-    facts, contacts = _pose_loop(spec, fig, fps)
-
     mid = V((MID[0], MID[1], 0))
     cam, d = camera(FRAME_H, mid, ow, oh)
+    fig = _build(spec, fps, cam)
+    crown = crown_px(fig, spec, cam)
+    hero_objs = fig.objects
+    facts, contacts = _pose_loop(spec, fig, fps)
     moon = lights(cam)
     glade = _glade(cam, d, period, fps)
     scene.detail(1 if draft else 2)
@@ -598,7 +636,8 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         o.hide_render = False
     # The hero's AO with fewer rays a sample than the plate's: averaged over a pixel's samples it is as smooth, at a
     # third of the frame's time.
-    shading.set_globals(ao_samples=HERO_AO_SAMPLES)
+    shading.set_globals(ao_samples=HERO_AO_SAMPLES, ao=AO * fig.size)
+    hlook = hero_look(look, fig.size)
     for o in scenery:
         o.hide_render = o is not ground and o not in props
     for o in props:
@@ -663,7 +702,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
             # The hero layer, at render size: painted, lined (his line reaches past his edge, but never over a fern
             # in front of him), then scaled down.
             sd = pdepth[y0 * k:y1 * k, x0 * k:x1 * k]
-            pm, alpha, glow, hdepth = _painted(p, look, k, sd)
+            pm, alpha, glow, hdepth = _painted(p, hlook, k, sd)
             a = p['Alpha'][..., 0]
             if facts[i]['over']:
                 # Drawn over another part this frame (the Ranger's draw arm and arrow over his head while he draws:
@@ -681,7 +720,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
                     o.hide_render = False
                 for o in over_under:
                     o.is_holdout = False
-                qpm, qalpha, qglow, qdepth = _painted(q, look, k, sd)
+                qpm, qalpha, qglow, qdepth = _painted(q, hlook, k, sd)
                 reach = int(math.ceil(look['outer'] * k / 2)) + 1
                 w = over_weight(npr.ids_of(p) // 1000, a > 0.5, over_ids['above'], over_ids['layer'], reach)
                 aw = qalpha * w
@@ -719,7 +758,7 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
             frame = atmo.mist(still, i / fps)
             base = frame[R]
             base = base * (1 - S[..., None] * (1 - lit_over_shadow))
-            keep = contact_shade(gx[R], gy[R], contacts[i])
+            keep = contact_shade(gx[R], gy[R], contacts[i], fig.size)
             base = base * np.where(ground_px[R], keep, 1.0)[..., None]
             # The same air over him as over the moss he stands on.
             L = L * (1 - haze_hero) + mist_col * haze_hero * A[..., None]
@@ -821,6 +860,9 @@ def render_stage(spec, out_dir, tmp, draft=False, frames=None, checks_dir=None, 
         'feetX': round(fx * s, 1), 'groundY': round(fy * s, 1),
         # The box all three heroes share (fitStage places every hero's video the same), and this hero's own.
         'figure': dict(BOX), 'own': own,
+        # How far the crown stands over the ground line in the poster frame (video px: the same for all three), and
+        # this hero's size on the stage over his row's.
+        'crown': round(crown, 1), 'scale': round(fig.size, 4),
     }
     os.makedirs(out_dir, exist_ok=True)
     files = {'mp4': f'{name}.mp4', 'webm': f'{name}.webm', 'poster': f'{name}-poster.webp',
@@ -855,10 +897,11 @@ def stage_layout(spec, draft=False):
     """The hero's own box over its loop (video px, ink included, the flying arrow left out) from the posed figure
     alone, without rendering: to check it stays inside BOX, or to set BOX."""
     fps = spec['stage'].get('fps', 30)
-    fig = _build(spec, fps)
-    facts, _ = _pose_loop(spec, fig, fps)
     mid = V((MID[0], MID[1], 0))
     cam, _ = camera(FRAME_H, mid)
+    fig = _build(spec, fps, cam)
+    crown = crown_px(fig, spec, cam)
+    facts, _ = _pose_loop(spec, fig, fps)
     sc = bpy.context.scene
     union = None
     for i in range(len(facts)):
@@ -872,4 +915,5 @@ def stage_layout(spec, draft=False):
         'w': W, 'h': H, 'fps': fps, 'frames': len(facts), 'loopMs': round(spec['stage']['seconds'] * 1000),
         'feetX': round(fx, 1), 'groundY': round(fy, 1), 'figure': dict(BOX),
         'own': {'x0': round(union[0], 1), 'y0': round(union[1], 1), 'x1': round(union[2], 1), 'y1': round(union[3], 1)},
+        'crown': round(crown, 1), 'scale': round(fig.size, 4),
     }

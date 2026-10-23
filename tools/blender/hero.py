@@ -7,6 +7,8 @@
 #
 # Units are the game's world px (1 tile = 32): feet at the origin, facing +X, the figure's left +Y. A figure is scaled
 # so it stands as tall as its 2D rig (render/art/entities/<hero>.ts, hood, helm or hat to the soles), weapons aside.
+# On the stage every hero stands as tall as the Warden to the crown instead (V-06d: tdt3d.stage.CROWN), his weapons and
+# what rises over his head (`hat` in the row's stage) left out; the match keeps `height`.
 
 import math
 
@@ -55,6 +57,11 @@ def _on_shield(material):
 def _at_head(material):
     """A region on the head only (the eyes in a colour the clasps and the bow's tips share)."""
     return lambda c, n, bone: material if bone in HEAD_BONES else None
+
+
+def _hat(*materials):
+    """What of the head is not the head: faces of these materials on the head's bones (a hat, a leaf peak)."""
+    return lambda material, bone: bone in HEAD_BONES and material in materials
 
 
 RANGER = dict(
@@ -167,7 +174,7 @@ ARCANIST = dict(
     index={'body': BODY},
     # Her hat (the violet and the bone band on her head) casts no moon shadow: its brim, as wide as her shoulders,
     # would put her whole coat in shadow.
-    shadowless=lambda material, bone: bone in HEAD_BONES and material in ('robe', 'bone'),
+    shadowless=_hat('robe', 'bone'),
     paint=dict(clusters={
         'violet': ('#39174b', 'robe'),
         'leather': ('#191511', 'leather'),
@@ -279,6 +286,8 @@ RANGER['draw'] = (7.0, 10.5)
 # the row's layers.
 RANGER['stage'] = dict(
     seconds=STAGE_S, idle=BREATH,
+    # V-06d: as tall as the Warden to the crown (tdt3d.stage.CROWN), his hood's top; its leaf peak rises over it.
+    hat=_hat('leafLight'),
     moves=[dict(clip='attack', at=1.4, frm=0.2, to=4.7, ease_in=0.4, ease_out=0.8, stop=(3.2, 3.95))],
     arrow=dict(nock=2.4, loose=5.15, flight=0.45),
     fast=[(5.1, 5.7)],
@@ -380,6 +389,8 @@ WARDEN['match'] = dict(
 # down. Her walk is Meshy's walk: in its run the staff trails level behind her.
 ARCANIST['stage'] = dict(
     seconds=STAGE_S, idle=BREATH,
+    # V-06d: as tall as the Warden to the crown (tdt3d.stage.CROWN), the top of her head; her hat rises over it.
+    hat=_hat('robe', 'bone'),
     moves=[
         dict(clip='attack', at=2.3, frm=0.3, to=0.6, ease_in=0.35, hold=0.6, ease_out=0.45),
         dict(clip='attack', at=3.2, frm=1.28, to=1.5, ease_in=0.4, hold=1.3, ease_out=0.7),

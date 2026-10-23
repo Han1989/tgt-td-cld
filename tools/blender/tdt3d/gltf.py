@@ -301,6 +301,25 @@ def rest_height(parts):
     return lo, hi
 
 
+def crown_vertices(parts, hat=None):
+    """The vertices a figure's height is measured on, soles to crown ({object: vertex indices}): its skinned body
+    (not its props), its weapons left out and the faces `hat(material, bone)` picks (what rises over the head: the
+    Arcanist's hat, the Ranger's leaf peak). The stage measures its heroes by them (V-06d, Figure.crown)."""
+    out = {}
+    for objs in parts.values():
+        for o in objs:
+            if not o.vertex_groups:
+                continue  # a prop (the staff, the arrow): no skin
+            g = o.vertex_groups.get(WEAPON)
+            weapon = {v.index for v in o.data.vertices if g is not None and any(e.group == g.index for e in v.groups)}
+            names = [m.name for m in o.data.materials]
+            kept = {i for p, b in zip(o.data.polygons, face_bones(o))
+                    if not (hat and hat(names[p.material_index] if names else None, b)) for i in p.vertices}
+            if kept - weapon:
+                out[o] = np.array(sorted(kept - weapon), np.int64)
+    return out
+
+
 def rebind(obj, rules, where):
     """Binds every vertex a rule selects 100% to one bone (`rules`: [{bone, select(x, y, z) -> mask, count}], in
     glTF metres of the bind pose; `count`, the README's vertex count, is checked: the boxes are the README's, measured

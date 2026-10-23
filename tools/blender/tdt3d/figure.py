@@ -10,6 +10,7 @@
 import re
 
 import bpy
+import numpy as np
 from mathutils import Matrix, Quaternion, Vector
 
 from . import gltf, shading
@@ -43,6 +44,9 @@ def mix(a, b, w):
 class Figure:
     def __init__(self, spec):
         self.spec = spec
+        # The figure's size over the row's (1 but on the stage, where every hero stands as tall to the crown: V-06d).
+        self.size = 1.0
+        self._crown = None
         for name, kw in spec['materials'].items():
             shading.define(name, **kw)
         # The clips a monster or a Meshy hero brings with it (KayKit figures have none: theirs come from the packs).
@@ -177,6 +181,31 @@ class Figure:
         if 'arrow' in self.props:
             self.place_arrow(arrow or 'hidden')
 
+    def crown_points(self, hat=None):
+        """The figure in its pose now as the points its height is measured on (world, n × 3): its weapons and props
+        left out, and the faces `hat(material, bone)` picks (gltf.crown_vertices; the first call's `hat` holds)."""
+        if self._crown is None:
+            self._crown = gltf.crown_vertices(self.parts, hat)
+        dg = bpy.context.evaluated_depsgraph_get()
+        out = []
+        for o, idx in self._crown.items():
+            ev = o.evaluated_get(dg)
+            me = ev.to_mesh()
+            co = np.empty(len(me.vertices) * 3, np.float32)
+            me.vertices.foreach_get('co', co)
+            co = co.reshape(-1, 3)[idx]
+            out.append((np.c_[co, np.ones(len(co))] @ np.array(o.matrix_world).T)[:, :3])
+            ev.to_mesh_clear()
+        return np.concatenate(out)
+
+    def resize(self, k):
+        """The whole figure k times as large, its props with it (the stage's size, V-06d)."""
+        self.arm.scale = tuple(s * k for s in self.arm.scale)
+        self.prop_px *= k
+        self.scale *= k
+        self.size *= k
+        bpy.context.view_layer.update()
+
     def bone(self, name):
         """The skeleton's own name for a bone the pipeline names by Rig_Medium's (`hips`, `foot.l`, `handslot.r`)."""
         return self.bones.get(name, name)
@@ -210,10 +239,10 @@ class Figure:
         """How far the string is drawn (0..1): as far back as the draw hand has come along the string's path, if the
         hand is on the string (near that path); else 0. A Meshy bow's string is welded and never draws: there it is how
         far the hands have come apart, from the bow held at brace to the clip's full draw (`draw` in the row: the
-        hands' distance in world px at both)."""
+        hands' distance in world px at both, at the row's height)."""
         if self.meshy and 'draw' in self.spec:
             d0, d1 = self.spec['draw']
-            d = (self.world('handslot.r', 'tail') - self.world('handslot.l', 'tail')).length
+            d = (self.world('handslot.r', 'tail') - self.world('handslot.l', 'tail')).length / self.size
             return max(0.0, min(1.0, (d - d0) / (d1 - d0)))
         if self._string is None:
             return 0.0

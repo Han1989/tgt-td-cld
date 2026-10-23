@@ -22,6 +22,7 @@
  * V-06b on 22 Oct 2026 (PR #130: the Meshy heroes in the game, session 2 of 2).
  * V-06c on 22 Oct 2026 (PR #131: three fixes on the Meshy heroes' stage loops after Han's look on his phone).
  * V-06e-concepts on 23 Oct 2026 (PR #132: two redesigns of the Arcanist with her face hidden, images only).
+ * V-06d on 23 Oct 2026 (PR #133: one stage height for the three heroes, and the home card on a short window).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -354,6 +355,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Concept pictures only: nothing in the game changes yet. Han, 23 Oct 2026: the Arcanist is too beautiful next to the other two, who show no face (a masked hood, a closed helm, two glowing eyes), so her pretty face reads as another art style. She is redesigned by their rule: face hidden, two glowing violet eyes, one silhouette piece, keeping her chibi figure, her violet and bone-white, her crescent staff and her rune cord. Two concepts, two pictures each, made in Meshy from her current concept: the Hooded Oracle (a tall peaked hood, a bone half-mask, the eyes glowing in its shadow) and the Bone-Masked Seer (her big hat, a full bone mask with glowing eye slits, a tattered mantle). The better picture of each pair is marked on the sheet; at phone size only the Oracle keeps the dark face with two glowing dots the other heroes have. In review: Han picks one, and a later session makes her model. Built by Claude Code (PR #132).',
     proof: pr(132),
+  },
+  {
+    id: 'V-06d',
+    title: 'One height for the three heroes on the first screen',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art, tools and one lobby style rule: no game rules, server or protocol change. Han, 23 Oct 2026: the three heroes should stand as tall as each other on the first screen, at the Warden’s height, measured to the top of the head with weapons and the Arcanist’s hat left out. The Ranger and the Arcanist are now drawn a quarter larger there, measured as the first screen shows them; in a match nothing changes, and the Warden stays the tallest. The Arcanist’s hat now rises above the Warden’s helm, and the stage must keep it under the title, so on a phone the whole stage is drawn a little smaller than before. On a window under 640 px tall (a short laptop window), the hero stage used to squash into a thin strip under the title; it now keeps its phone shape and the card scrolls. In review: Han judges the stages on his phone and the short window on his laptop. Built by Claude Code (PR #133).',
+    proof: pr(133),
   },
   {
     id: 'g1-render',

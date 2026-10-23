@@ -515,32 +515,33 @@
   "walkStride": 29.4
  },
  "stage": {
+  "crown": 391.7,
   "feetX": 1200.0,
   "figure": {
    "x0": 864.0,
-   "x1": 1516.0,
-   "y0": 308.0,
+   "x1": 1536.0,
+   "y0": 266.0,
    "y1": 800.0
   },
   "files": {
    "clearing": {
-    "bytes": 59024,
-    "hash": "373874633240",
+    "bytes": 59088,
+    "hash": "a1a756f0eb82",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1109048,
-    "hash": "a1af10158431",
+    "bytes": 1109667,
+    "hash": "7b39bf98f093",
     "name": "warden.mp4"
    },
    "poster": {
-    "bytes": 59486,
-    "hash": "af09ea745089",
+    "bytes": 59428,
+    "hash": "30b46d1dc957",
     "name": "warden-poster.webp"
    },
    "webm": {
-    "bytes": 1160084,
-    "hash": "2891e742c9ea",
+    "bytes": 1159640,
+    "hash": "3576432e0540",
     "name": "warden.webm"
    }
   },
@@ -555,6 +556,7 @@
    "y0": 315.6,
    "y1": 784.7
   },
+  "scale": 1.0,
   "w": 2400
  }
 }

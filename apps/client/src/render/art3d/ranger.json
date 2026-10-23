@@ -598,32 +598,33 @@
   "walkStride": 31.4
  },
  "stage": {
+  "crown": 391.7,
   "feetX": 1200.0,
   "figure": {
    "x0": 864.0,
-   "x1": 1516.0,
-   "y0": 308.0,
+   "x1": 1536.0,
+   "y0": 266.0,
    "y1": 800.0
   },
   "files": {
    "clearing": {
-    "bytes": 59024,
-    "hash": "373874633240",
+    "bytes": 59088,
+    "hash": "a1a756f0eb82",
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1145955,
-    "hash": "5c62b0b7dc2b",
+    "bytes": 1056189,
+    "hash": "1a3ce007c5f7",
     "name": "ranger.mp4"
    },
    "poster": {
-    "bytes": 59648,
-    "hash": "d9187ae28dfc",
+    "bytes": 59800,
+    "hash": "dd19464f5945",
     "name": "ranger-poster.webp"
    },
    "webm": {
-    "bytes": 1138535,
-    "hash": "654626a42a98",
+    "bytes": 1163085,
+    "hash": "852dc500b8e9",
     "name": "ranger.webm"
    }
   },
@@ -633,11 +634,12 @@
   "h": 900,
   "loopMs": 8000,
   "own": {
-   "x0": 1104.8,
-   "x1": 1416.4,
-   "y0": 383.5,
-   "y1": 770.4
+   "x0": 1076.6,
+   "x1": 1462.0,
+   "y0": 296.0,
+   "y1": 778.5
   },
+  "scale": 1.2497,
   "w": 2400
  }
 }

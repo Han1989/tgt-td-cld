@@ -352,6 +352,67 @@ test('the home card: Mode is one segmented row, remembered, and the first screen
   await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('aria-pressed', 'true');
 });
 
+test.describe('a short window', () => {
+  // One page opens the home card at several sizes: from its second load the service worker answers the page, and
+  // a route doesn't see what the worker fetches (the Daily tile's answer).
+  test.use({ serviceWorkers: 'block' });
+
+  test('a window under 640 px tall: the stage keeps its 412 × 839 shape and the card scrolls, nothing squashed or overlapping', async ({ page, isMobile }) => {
+    // With the Daily tile up (a build with a game server), which took its room from the stage: a 124 px strip before.
+    await page.route('**/daily/today', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ day: '2026-10-23', seed: 1, closesAt: Date.now() + 3_600_000, runs: 12, champion: null }),
+      }),
+    );
+    // A short desktop window; on a phone, a small one upright (an iPhone SE in Safari: on its side it gets the rotate
+    // screen, layout.ts).
+    const sizes = isMobile
+      ? [{ width: 375, height: 553 }, { width: 360, height: 560 }]
+      : [{ width: 1100, height: 500 }, { width: 1280, height: 600 }, { width: 360, height: 560 }];
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await openHome(page, undefined, '&daily');
+      await expect(page.locator('#lobby-daily')).toBeVisible();
+      await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+      const at = `${size.width} × ${size.height}`;
+      // The stage at least the card's full width at the shape it has on a 412 × 839 phone (378 × 320).
+      const stage = await box(page, '#lobby-stage');
+      expect(stage.bottom - stage.top, at).toBeGreaterThanOrEqual(((stage.right - stage.left) * 320) / 378 - 1);
+      // The title stays over the stage, clear of the sound button.
+      const logo = await box(page, '#lobby-stage .stage-logo');
+      const sound = await box(page, '#lobby-sound');
+      expect(logo.top, at).toBeGreaterThanOrEqual(stage.top);
+      expect(logo.bottom, at).toBeLessThanOrEqual(stage.top + (stage.bottom - stage.top) / 3);
+      expect(sound.left >= logo.right || sound.bottom <= logo.top, at).toBe(true);
+      // The hero's picture fills the stage (the clearing's CSS shows nowhere round it).
+      await expect.poll(() => backdrop(page)).toMatch(/^(poster|video)$/);
+      const poster = await box(page, '#lobby-stage .stage-poster');
+      expect(poster.left, at).toBeLessThanOrEqual(stage.left + 1);
+      expect(poster.top, at).toBeLessThanOrEqual(stage.top + 1);
+      expect(poster.right, at).toBeGreaterThanOrEqual(stage.right - 1);
+      expect(poster.bottom, at).toBeGreaterThanOrEqual(stage.bottom - 1);
+      // Top to bottom, nothing overlaps: the stage, the hero buttons, their line, Mode, the Daily tile, Play solo, the
+      // lesson line and the friends' controls.
+      let above = stage;
+      for (const sel of ['#lobby-heroes-home', '#lobby-home > .hero-blurb', '#lobby-home > .mode-row', '#lobby-daily', '#lobby-offline', '#lobby-learn', '#lobby-friends']) {
+        const b = await box(page, sel);
+        expect(b.top, `${sel} at ${at}`).toBeGreaterThanOrEqual(above.bottom - 1);
+        above = b;
+      }
+      // The card scrolls inside the page (the page itself does not), and Play solo is a scroll away, reachable.
+      expect(await overflow(page), at).toBeGreaterThan(0);
+      expect(await page.locator('.lobby').evaluate((el) => el.scrollHeight - el.clientHeight), at).toBeLessThanOrEqual(0);
+      await page.locator('#lobby-offline').scrollIntoViewIfNeeded();
+      const spot = await mainSpot(page, 'lobby-offline');
+      expect(spot.top, at).toBeGreaterThanOrEqual(0);
+      expect(spot.bottom, at).toBeLessThanOrEqual(size.height);
+      expect(spot.hit, at).toBe('lobby-offline');
+    }
+  });
+});
+
 test('the Daily tile stays hidden in a build with no game server', async ({ page }) => {
   let asked = 0;
   await page.route('**/daily/today', (route) => {
