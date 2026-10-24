@@ -100,3 +100,24 @@ the front. The match rig still flips a sheet drawn facing +x, as today.
   it, the charred wood and iron, and one exaggerated silhouette per kind.
 - **The Shardback's hide.** The concept shows its shards lit ember. Today the rig lights them violet while the Ether hide
   is up (the `hide` layer). The model session keeps that layer, and picks the lit colour with Han.
+
+## What changed in the making (V-06i, batch 1: the ground creeps)
+
+Han picked Grunt a, Archer a, Runner b and Brute b (24 Oct 2026), and the four are in the game
+(`tools/blender/assets/meshy/creeps/`, `docs/ART.md` §15 "Meshy creeps", `docs/art/enemy-creeps-1.png`). What the
+sheet above did not foresee:
+
+- **The Archer holds its bow in its left hand.** The pick (and Han's brief) put it in the right; Meshy's archery clips
+  hold a bow in the left, as the Ranger's do, and the auto-rig's asymmetric rest would not let the clips be mirrored.
+  The model is the pick's mirror image; the design is unchanged.
+- **Thin bones are thickened in the pipeline.** "Archer a's limbs are thin" (above, and the concepts' README): three
+  image edits would not thicken them (the image model holds a reference's build and pose), so the import pushes the
+  Archer's limbs out round their bones (2.6×), and the Runner's bird legs (1.8×). Both carry a thinner line.
+- **Only the eyes and the core glow** (and the Archer's string and joints). The ember Meshy painted in the other kinds'
+  joints and seams is ember but unlit, so the glow stays where the face rule puts it; an eye socket glows whole (its dark
+  red rim with it), or at 40 px a deep socket under a big brow reads as a black hole.
+- **The Runner is rigged as a biped.** Meshy's auto-rig took the raptor; its legs walk, but its spine is held as modelled
+  in every frame (a biped's clips would stand it upright), and it falls forward when it dies.
+- **At 40 px the four separate by silhouette, not colour:** the old warm cloth tokens are gone, as this sheet says, so a
+  Grunt is a square skull over a cleaver, an Archer a skull beside a tall bow, a Runner a skull on long legs, a Brute a
+  yoke. Whether players miss the colours is Han's call on his phone (each kind's ember could be tinted a step).

@@ -56,8 +56,12 @@ def _moments(fig, st):
 
 
 def _pose(fig, st, clip, t, loop):
-    """A state's pose at one moment: the clip's, with another clip's upper body layered over it (`overlay`)."""
+    """A state's pose at one moment: the clip's, with another clip's upper body layered over it (`overlay`), and the
+    bones the row holds at their bind pose (`hold`: the Runner's spine, neck and head, which a biped's clips would
+    stand upright) left there."""
     pose = fig.sample(clip, t, loop=loop)
+    for bone in fig.spec.get('hold', ()):
+        pose.pop(bone, None)
     over = st.get('overlay')
     if over:
         layer = fig.sample(over['clip'], over['t'])
@@ -65,6 +69,12 @@ def _pose(fig, st, clip, t, loop):
             if bone in layer:
                 pose[bone] = layer[bone]
     return pose
+
+
+def _clip_name(fig, clip):
+    """A clip's own name, for the layout: a pack clip's, or the Meshy clip a creep's file holds (Right_Hand_Sword_Slash
+    for its `attack.glb`)."""
+    return fig._action(clip).get('source', clip)
 
 
 def _camera(side, px):
@@ -260,7 +270,7 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
     fig = figure.Figure(spec)
     px = spec.get('res', RES)
     side = WINDOW * 2 * px
-    look = dict(npr.LOOK, **LOOK, **spec.get('look', {}))
+    look = dict(npr.LOOK, **dict(LOOK, **spec.get('look', {})))
     samples = DRAFT_SAMPLES if draft else SAMPLES
     states = spec['states']
     cam = _camera(side, px)
@@ -276,6 +286,17 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
     lo, hi = figure.mesh_bbox(fig.objects)
     shading.set_globals(z0=0, z1=hi.z)
     print(f'creep {name}: radius {radius:.2f} world px (tuning {want:.2f}), idle {width:.1f} × {height:.1f}', flush=True)
+    # Where the idle figure's top is (world px above the feet): the HP bar goes over it. With its props left out, as
+    # the size is (the Archer's bow, taller than itself, stands over its skull: the bar goes over the skull).
+    body_top = None
+    props = {o for objs in fig.props.values() for o in objs}
+    if props:
+        for o in props:
+            o.hide_render = True
+        img, _, _ = _frame(fig, cam, tmp, look, samples, None)
+        for o in props:
+            o.hide_render = False
+        body_top = (side / 2 - np.nonzero(img[..., 3] > 0.5)[0].min()) / px
 
     flying = spec['flying']
     shadow_rx = SHADOW['rx'] * want * px
@@ -377,10 +398,10 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
         frames.setdefault(state, []).append(cells[k])
         if hide_mat is not None and state != 'death':
             hide_frames.setdefault(state, []).append(hides[k] or dict(x=0, y=0, w=0, h=0, dx=0, dy=0))
-    # Where the idle figure's top is (world px above the feet): the HP bar goes over it.
-    top_y = None
+    # The idle frame's top, if no prop was left out above.
+    top_y = body_top
     for k, (state, i, rgba8, *_r) in enumerate(finished):
-        if state == 'idle':
+        if state == 'idle' and body_top is None:
             ys = np.nonzero(rgba8[..., 3] > 128)[0]
             top_y = (anchor - ys.min()) / px
     walk = states['walk']
@@ -396,8 +417,8 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
         'cycleMs': round(fig.seconds(walk['clip']) * 1000),
         'radius': round(radius, 2), 'width': round(width, 2), 'height': round(height, 2),
         'top': round(top_y, 2) if top_y is not None else None,
-        'clips': {s: sorted({c for c, _, _ in _moments(fig, states[s])} |
-                            ({states[s]['overlay']['clip']} if states[s].get('overlay') else set()))
+        'clips': {s: sorted({_clip_name(fig, c) for c, _, _ in _moments(fig, states[s])} |
+                            ({_clip_name(fig, states[s]['overlay']['clip'])} if states[s].get('overlay') else set()))
                   for s in STATE_ORDER if s in states},
     }
     if hide_mat is not None:

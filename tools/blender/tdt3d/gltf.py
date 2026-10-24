@@ -324,25 +324,145 @@ def crown_vertices(parts, hat=None):
 def rebind(obj, rules, where):
     """Binds every vertex a rule selects 100% to one bone (`rules`: [{bone, select(x, y, z) -> mask, count}], in
     glTF metres of the bind pose; `count`, the README's vertex count, is checked: the boxes are the README's, measured
-    on the same model). Returns {bone: count}."""
+    on the same model). A rule's vertices are marked as a weapon (`WEAPON`: left out of the height) unless it says
+    `weapon=False` (a creep's tail, fists or feet, rebound only so they move whole), and a rule with `cut=True` marks
+    them for a layer of their own (`CUT`: a creep's welded weapon, left out of its size like a pack's prop; `cut` a
+    select function marks only the part of them it picks: the blade, not the fist round its grip). A rule's `of` (a set
+    of bones) keeps only the vertices those bones moved most as Meshy skinned them (the Runner's ribs, skinned to one
+    collarbone, among its thighs); its `dark` only those on faces painted darker than that (CIELAB L); its `grow` grows
+    the selection along the mesh into the vertices that mask allows.
+    A rule's `turn` turns its vertices rigidly in the bind pose (`_turn_vertices`).
+    Returns {rule: count}."""
     me = obj.data
     xyz = bind_coords(me)
     groups = {g.name: g for g in obj.vertex_groups}
+    owner = None
+    if any(rule.get('of') for rule in rules):
+        names = [g.name for g in obj.vertex_groups]
+        w = np.zeros((len(me.vertices), len(names)), np.float32)
+        for v in me.vertices:
+            for e in v.groups:
+                w[v.index, e.group] = e.weight
+        owner = np.array(names, dtype=object)[w.argmax(axis=1)]
     counts = {}
+    taken = np.zeros(len(me.vertices), bool)  # a vertex goes to the first rule that takes it (and is turned once)
     for rule in rules:
-        sel = np.nonzero(rule['select'](xyz[:, 0], xyz[:, 1], xyz[:, 2]))[0].tolist()
+        mask = rule['select'](xyz[:, 0], xyz[:, 1], xyz[:, 2])
+        if rule.get('of'):
+            mask = mask & np.isin(owner, sorted(rule['of']))
+        if rule.get('dark') is not None:
+            # Only vertices on faces painted darker than this (CIELAB L): the Archer's charred bow tip, curled in
+            # beside its bone-white toe and skinned to it.
+            light = lab(face_colours(obj))[:, 0]
+            tri = np.empty(len(me.polygons) * 3, np.int64)
+            me.polygons.foreach_get('vertices', tri)
+            darkest = np.full(len(me.vertices), np.inf)
+            np.minimum.at(darkest, tri, np.repeat(light, 3))
+            mask = mask & (darkest < rule['dark'])
+        if rule.get('grow'):
+            # Grown along the mesh's edges into the vertices `grow` allows (a bowstring that runs past a skull's cheek:
+            # no box holds the one and not the other, but the string is joined to the bow and not to the skull).
+            within = rule['grow'](xyz[:, 0], xyz[:, 1], xyz[:, 2])
+            edges = np.empty(len(me.edges) * 2, np.int64)
+            me.edges.foreach_get('vertices', edges)
+            edges = edges.reshape(-1, 2)
+            while True:
+                a, b = mask[edges[:, 0]], mask[edges[:, 1]]
+                new = np.zeros_like(mask)
+                new[edges[a & ~b, 1]] = True
+                new[edges[b & ~a, 0]] = True
+                new &= within & ~mask
+                if not new.any():
+                    break
+                mask = mask | new
+        mask = mask & ~taken
+        taken |= mask
+        sel = np.nonzero(mask)[0].tolist()
         if rule.get('count') is not None and len(sel) != rule['count']:
             raise RuntimeError(f'{where}: the {rule["name"]} rebind selects {len(sel)} vertices, the README '
                                f'measured {rule["count"]}')
         for g in groups.values():
             g.remove(sel)
         groups[rule['bone']].add(sel, 1.0, 'REPLACE')
-        # Marked too (a group no bone is named after, so the skin ignores it): the height is measured without them.
-        weapon = obj.vertex_groups.get(WEAPON) or obj.vertex_groups.new(name=WEAPON)
-        weapon.add(sel, 1.0, 'REPLACE')
+        # Marked too (groups no bone is named after, so the skin ignores them): the height is measured without a
+        # weapon; a cut weapon is a layer of its own.
+        if rule.get('weapon', True):
+            weapon = obj.vertex_groups.get(WEAPON) or obj.vertex_groups.new(name=WEAPON)
+            weapon.add(sel, 1.0, 'REPLACE')
+        if rule.get('cut'):
+            cut = obj.vertex_groups.get(CUT) or obj.vertex_groups.new(name=CUT)
+            part = (sel if rule['cut'] is True else
+                    [i for i in sel if rule['cut'](xyz[i:i + 1, 0], xyz[i:i + 1, 1], xyz[i:i + 1, 2])[0]])
+            cut.add(part, 1.0, 'REPLACE')
+        if rule.get('turn'):
+            _turn_vertices(obj, sel, rule['turn'])
         counts[rule['name']] = len(sel)
         print(f'{where}: {rule["name"]} rebound to {rule["bone"]}: {len(sel)} vertices', flush=True)
     return counts
+
+
+def _turn_vertices(obj, sel, turn):
+    """Turns vertices of the bind pose rigidly (`turn`: {about: a point, quat: (w, x, y, z)}, glTF metres and axes),
+    their custom normals with them: a weapon re-seated in the hand that holds it (V-06i: the Archer's bow, upright in
+    Meshy's archery clips where it lay flat as the model held it)."""
+    from mathutils import Quaternion
+
+    me = obj.data
+    r = np.array(Quaternion(turn['quat']).normalized().to_matrix())
+    # glTF (x, y, z) = Blender mesh (x, -z, y) / 100; the turn in the mesh's own axes.
+    g = np.array([[1.0, 0, 0], [0, 0, -1.0], [0, 1.0, 0]])
+    rb = g @ r @ g.T
+    about = g @ np.array(turn['about']) * 100.0
+    n_loops = len(me.loops)
+    normals = np.empty(n_loops * 3, np.float32)
+    me.corner_normals.foreach_get('vector', normals)
+    normals = normals.reshape(-1, 3).astype(np.float64)
+    co = np.empty(len(me.vertices) * 3, np.float32)
+    me.vertices.foreach_get('co', co)
+    co = co.reshape(-1, 3).astype(np.float64)
+    co[sel] = (co[sel] - about) @ rb.T + about
+    me.vertices.foreach_set('co', co.astype(np.float32).ravel())
+    lv = np.empty(n_loops, np.int64)
+    me.loops.foreach_get('vertex_index', lv)
+    moved = np.isin(lv, sel)
+    normals[moved] = normals[moved] @ rb.T
+    me.update()
+    me.normals_split_custom_set([tuple(n) for n in normals])
+    me.update()
+
+
+# A creep's welded weapon (a rebind with `cut`): the faces whose corners are all in it are cut into a layer of their
+# own, `weapon`, so the creep's size is measured without it (tdt3d.creep: props are left out, as the packs' blades).
+CUT = 'cut'
+
+
+def thicken(obj, arm, rule, where):
+    """Thickens thin limbs in the bind pose (V-06i: the Archer's bones, single thin bones the match's line would eat):
+    every vertex a bone of `rule['bones']` moves is pushed away from that bone's axis (its head to its child's head) to
+    `rule['k']` times its distance, as far as the bone's weight on it, so a round bone stays round and a joint blends
+    between its two bones. Vertices rebound whole to another bone (a bow, a quiver) carry no weight on these and stay.
+    The skin is unchanged; only the bind pose's shape moves. Returns the number of vertices moved."""
+    me = obj.data
+    n = len(me.vertices)
+    co = np.empty(n * 3, np.float32)
+    me.vertices.foreach_get('co', co)
+    co = co.reshape(n, 3).astype(np.float64)
+    off = np.zeros_like(co)
+    moved = np.zeros(n, bool)
+    for name in rule['bones']:
+        b = arm.data.bones[name]
+        kids = list(b.children)
+        h = np.array(b.head_local)
+        t = np.array(kids[0].head_local) if kids else np.array(b.tail_local)
+        d = t - h
+        w = _vertex_weights(obj, name) if name in obj.vertex_groups else np.zeros(n)
+        u = np.clip(((co - h) @ d) / max(1e-9, d @ d), 0.0, 1.0)
+        off += (co - (h + u[:, None] * d)) * (rule['k'] - 1.0) * w[:, None]
+        moved |= w > 0
+    me.vertices.foreach_set('co', (co + off).astype(np.float32).ravel())
+    me.update()
+    print(f'{where}: {", ".join(rule["bones"])} thickened {rule["k"]}x: {int(moved.sum())} vertices', flush=True)
+    return int(moved.sum())
 
 
 FIST = 'fist'
@@ -776,16 +896,18 @@ def paint_by_texture(obj, paint, where, layer_of=None):
     return shares
 
 
-def split_layers(obj, layers, index, shadowless=None):
+def split_layers(obj, layers, index, shadowless=None, forced=None):
     """Cuts a welded mesh into the row's layers by the bone that moves each face (`layers`: {layer: set of bones},
     every other face in 'body'); returns {layer: [objects]}. Each piece keeps the skin (its armature modifier).
     `shadowless(material, bone)` picks faces cut into a piece of their own that casts no moon shadow (the Arcanist's
-    hat: its wide brim would put her whole coat in its shadow, a dark blob under a hat at phone size)."""
+    hat: its wide brim would put her whole coat in its shadow, a dark blob under a hat at phone size). `forced` gives
+    some faces their layer whatever bone moves them (a creep's cut weapon: one list entry a face, None elsewhere)."""
     bones = face_bones(obj)
     mats = list(obj.get('materials') or [None] * len(bones))
     owner = []
-    for b, m in zip(bones, mats):
-        layer = next((k for k, bs in layers.items() if b in bs), 'body')
+    for k, (b, m) in enumerate(zip(bones, mats)):
+        layer = (forced[k] if forced and forced[k] else None) or next((k2 for k2, bs in layers.items() if b in bs),
+                                                                       'body')
         owner.append((layer, bool(shadowless and shadowless(m, b))))
     out = {}
     for layer, shade in sorted(set(owner)):
@@ -846,8 +968,9 @@ def load_meshy(spec, clips_out):
     """Imports a Meshy hero (`spec['meshy']`, its folder under assets/meshy): the armature turned to face +X (the
     model faces glTF +Z, Blender -Y, as the packs' do; its scale is set by the Figure), the weapons rebound to the
     hands, every face painted from the texture to the row's materials, the mesh cut into the row's layers; and the
-    row's clip files, each read into `clips_out` by its file's name (idle, walk, …). Returns the armature and
-    {layer: [objects]}."""
+    row's clip files, each read into `clips_out` by its file's name (idle, walk, …). A creep (V-06i: `spec['meshy']`
+    is `creeps/<kind>`) may also thicken thin limbs (`thicken`) and cut its welded weapon into a layer of its own (a
+    rebind with `cut`). Returns the armature and {layer: [objects]}."""
     folder = os.path.join(MESHY, spec['meshy'])
     made = _import(os.path.join(folder, 'model.glb'), {})
     arm = next(o for o in made if o.type == 'ARMATURE')
@@ -866,13 +989,22 @@ def load_meshy(spec, clips_out):
         u = _turn(prop.get('turn', (0, 0, 0))) @ sh['dir']
         centre, axis = close_hand(mesh, prop['grip'], u, sh['radius'] * prop.get('scale', 1.0), where)
         arm['fist'] = [*centre, *axis]
-    pieces = split_layers(mesh, spec.get('layers', {}), spec['index'], spec.get('shadowless'))
+    if spec.get('thicken'):
+        thicken(mesh, arm, spec['thicken'], where)
+    forced = None
+    if CUT in mesh.vertex_groups:
+        cut = _vertex_weights(mesh, CUT) > 0
+        tri = np.empty(len(mesh.data.polygons) * 3, np.int64)
+        mesh.data.polygons.foreach_get('vertices', tri)
+        forced = ['weapon' if all(cut[tri.reshape(-1, 3)[k]]) else None for k in range(len(mesh.data.polygons))]
+    pieces = split_layers(mesh, spec.get('layers', {}), spec['index'], spec.get('shadowless'), forced)
     for clip, file in spec['clips'].items():
         got = {}
         objs = _import(os.path.join(folder, file), got)
         if len(got) != 1:
             raise RuntimeError(f'{spec["meshy"]}/{file}: {len(got)} clips, expected one')
         act = next(iter(got.values()))
+        act['source'] = act.name  # Meshy's own name for the clip (the layouts list it)
         act.name = f'{spec["name"]}:{clip}'
         hemisphere(act)
         clips_out[clip] = act

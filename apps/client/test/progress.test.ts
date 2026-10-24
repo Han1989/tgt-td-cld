@@ -41,9 +41,10 @@ describe('progress dashboard data', () => {
     // V-06d (one stage height for the three heroes, and the home card on a short window; PR #133), V-06e (the
     // Arcanist as the Hooded Oracle, from Meshy into the game; PR #134), V-07a (the HUD's frames rendered ahead of
     // time; PR #135), V-06f (the Oracle holds her staff; PR #136), V-07b (juice, every event lands; PR #137),
-    // V-06h-concepts (the enemy faction, two concepts a kind, images only; PR #138) and V-07a-fix (the match page
-    // never scrolls, the plaques inside the bar, the rims slimmer; PR #139).
-    expect(summary.done).toBe(79);
+    // V-06h-concepts (the enemy faction, two concepts a kind, images only; PR #138), V-07a-fix (the match page
+    // never scrolls, the plaques inside the bar, the rims slimmer; PR #139) and V-06i (the ground creeps from Meshy into
+    // the game, enemy batch 1; PR #140).
+    expect(summary.done).toBe(80);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -55,7 +56,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(119);
+    expect(summary.total).toBe(120);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -87,6 +88,7 @@ describe('progress dashboard data', () => {
       'V-07b': 137,
       'V-06h-concepts': 138,
       'V-07a-fix': 139,
+      'V-06i': 140,
       'D-09': 98,
       'H-07': 98,
     };
@@ -169,7 +171,7 @@ describe('progress dashboard data', () => {
     // after the order, not on the overnight auto-pull list.
     expect(PROGRESS.sections[1]!.id).toBe('visual');
     expect(PROGRESS.sections[1]!.blurb).toContain('Not on the overnight auto-pull list');
-    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04', 'V-05a', 'V-05b', 'V-05c', 'V-05d', 'V-05e', 'V-06a', 'V-06b', 'V-06c', 'V-06e-concepts', 'V-06d', 'V-06e', 'V-07a', 'V-06f', 'V-07b', 'V-06h-concepts', 'V-07a-fix']);
+    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04', 'V-05a', 'V-05b', 'V-05c', 'V-05d', 'V-05e', 'V-06a', 'V-06b', 'V-06c', 'V-06e-concepts', 'V-06d', 'V-06e', 'V-07a', 'V-06f', 'V-07b', 'V-06h-concepts', 'V-07a-fix', 'V-06i']);
     expect(byId('V-01')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/100' } });
     expect(byId('V-01').note).toContain('Merged 10 Oct 2026');
     // Han, 13 Oct 2026: the lesson is the player's choice. V-02 (the second screen) is done.

@@ -50,6 +50,8 @@ def build_creeps(names, args):
     from tdt3d import scene, creep
     import creeps as table
 
+    if args.legacy and not args.out:
+        raise SystemExit('--legacy renders a pack row the game no longer ships: give --out DIR')
     out = args.out or MATCH_OUT
     checks = args.out or CREEP_CHECKS_OUT
     results_path = os.path.join(checks, 'results.json')
@@ -60,8 +62,10 @@ def build_creeps(names, args):
     try:
         for name in names:
             scene.reset(fps=30)
-            layout, size, notes, fixtures = creep.render_creep(table.CREEPS[name], out, os.path.join(tmp, name),
-                                                               draft=args.draft, checks_dir=checks)
+            spec = (table.LEGACY if args.legacy else table.CREEPS)[name]
+            layout, size, notes, fixtures = creep.render_creep(spec, out, os.path.join(tmp, name),
+                                                               draft=args.draft, checks_dir=checks,
+                                                               frames_out=args.frames_out)
             times[name] = notes['renderS']
             w, h = notes['worstFringe'], notes['worstHard']
             print(f'creep {name}: sheet {layout["w"]} × {layout["h"]} ({size} bytes), {notes["frames"]} frames in '
@@ -250,6 +254,9 @@ def main():
     ap.add_argument('--keep', action='store_true', help='keep the working folder (the stage frames) and print where')
     ap.add_argument('--work', default=None, help='a working folder kept between runs: an interrupted render resumes')
     ap.add_argument('--plate-cache', default=None, help='stage: keep the finished plate in this .npz and reuse it (hero work only)')
+    ap.add_argument('--legacy', action='store_true', help='creeps: the pack row of a kind the Meshy host replaced '
+                    '(V-06i: grunt, archer, runner, brute), with --out')
+    ap.add_argument('--frames-out', default=None, help='creeps: also write every frame over the lane as a PNG here')
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
     if argv and argv[0] == 'map':
         return map_main(argv[1:])
