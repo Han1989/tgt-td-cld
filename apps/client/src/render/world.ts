@@ -38,6 +38,21 @@ import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
 import { MeteorShow, type MeteorStats } from './fx/meteorShow';
 import { isMeteorKind, type MeteorKind } from './fx/meteors';
+import {
+  dropOffset,
+  JUICE,
+  killPopScale,
+  leakPeak,
+  punchScale,
+  upgradeFlash,
+  upgradeScale,
+  vignetteAlpha,
+  vignetteBox,
+  vignetteClose,
+  vignetteGradient,
+  type ScreenBox,
+  type VignettePulse,
+} from './fx/juice';
 import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
 import { vowLook } from './fx/vow';
 import {
@@ -115,8 +130,8 @@ const MAX_DYING = 48;
 /** Tower recoil after a shot, and how far it kicks back (px). */
 const RECOIL_MS = 140;
 const RECOIL_PX = 4;
-/** A new tower pops in over this long. */
-const POP_MS = 260;
+/** Towers just removed (sold, destroyed) are remembered this long (ms), for their event's effect a moment later. */
+const GONE_TOWER_MS = 3000;
 /** Iron Vow ring radii beyond a hero's body radius (px): the glow, the thin ring, the dashed ring. */
 const VOW_GLOW = 22;
 const VOW_INNER = 9;
@@ -162,6 +177,8 @@ interface CreepSprite extends EntitySprite {
   tintKey: number;
   /** When it left the snapshots (limbo) or started dying (ms). */
   goneAt: number;
+  /** The kill pop's scale last set on it (V-07b), so a dying creep's scale is written only when it changes. */
+  popK: number;
 }
 
 interface TowerSprite extends EntitySprite {
@@ -171,7 +188,14 @@ interface TowerSprite extends EntitySprite {
   recoilY: number;
   /** Last all-round pulse (Blizzard): the whole tower swells instead of recoiling. */
   pulseAt: number;
+  /** When it appeared: it drops onto its pad from then (V-07b). */
   born: number;
+  /** Its drop is over. */
+  landed: boolean;
+  /** Its `towerBuilt` event came: the landing throws dust and bumps the screen (not a tower seen on a rejoin). */
+  landFx: boolean;
+  /** Its last upgrade: it pops 1.1× and its turret flashes white. */
+  upgradeAt: number;
   /** The body is offset or scaled right now (needs resetting when the animation ends). */
   animating: boolean;
   art: TowerRigBase | null;
@@ -335,6 +359,41 @@ export class WorldRenderer {
   private readonly fxLayer = new Container();
   private readonly textLayer = new Container();
   private readonly overlay = new Graphics();
+  /**
+   * Over the world, in screen space (V-07b), over the map's columns on screen (`vignetteBox`), never shaken or punched:
+   * a boss wave's red wash (one sprite, alpha only) and the Heart's vignette.
+   */
+  private readonly screenLayer = new Container();
+  private readonly wash: Sprite;
+  /**
+   * The Heart's vignette: one DOM layer just over the canvas, under the whole HUD (`.heart-vignette`), its opacity and
+   * its picture's scale set here, written only when they change. Not a sprite: behind a defeat's card it stays up every
+   * frame, and a WebGL quad that size cost a software GPU as much fill as the world does (CI's browser tests); the
+   * compositor blends a layer for nothing.
+   */
+  private readonly vignette: HTMLDivElement;
+  private readonly vignetteArt: HTMLDivElement;
+  private vignetteTint: number = FX.vignette;
+  /** What the vignette's layer shows now (its opacity 0: not displayed), its box and its picture's scale. */
+  private vignetteAlpha = 0;
+  private vignetteShown = '';
+  private vignetteAt = '';
+  private vignetteSize = 1;
+  private washAt = -Infinity;
+  /** The latest leak's vignette pulse. */
+  private leakPulse: VignettePulse | null = null;
+  /** When the Heart fell (the vignette closes in before the end card), and the vignette's alpha then. */
+  private defeatAt: number | null = null;
+  private defeatFrom = 0;
+  /** The camera's zoom-punch: when it started (set on the next frame drawn), how far, held how long. */
+  private punchAt = -Infinity;
+  private punchPeak = 1;
+  private punchHold = 0;
+  private punchPending = false;
+  /** Lanes with a boss this wave: their portals flare brighter. */
+  private portalBossLanes: readonly number[] = [];
+  /** Towers just removed (sold, destroyed): where they stood, for their event's effect a moment later. */
+  private readonly goneTowers = new Map<number, { x: number; y: number; at: number }>();
 
   private readonly atlas: FxAtlas;
   readonly fx: Effects;
@@ -451,7 +510,18 @@ export class WorldRenderer {
     );
     this.fx.attach(this.groundFxLayer, this.fxLayer);
     this.zoneLayer.addChild(this.meteors.ground);
-    app.stage.addChild(this.world);
+    this.wash = new Sprite(Texture.WHITE);
+    this.wash.tint = COLORS.bad;
+    fade(this.wash, 0);
+    this.screenLayer.addChild(this.wash);
+    app.stage.addChild(this.world, this.screenLayer);
+    this.vignette = document.createElement('div');
+    this.vignette.className = 'heart-vignette';
+    this.vignette.setAttribute('aria-hidden', 'true');
+    this.vignetteArt = document.createElement('div');
+    this.vignetteArt.style.background = vignetteGradient(this.vignetteTint);
+    this.vignette.append(this.vignetteArt);
+    app.canvas.after(this.vignette);
     this.heart = this.makeHeart();
     this.makePortals();
   }
@@ -600,8 +670,14 @@ export class WorldRenderer {
     this.lastRenderAt = now;
     const cam = this.camera;
     const shake = this.fx.shakeOffset(now, dt);
-    this.world.scale.set(cam.zoom);
-    this.world.position.set(cam.viewW / 2 - cam.x * cam.zoom + shake.x, cam.viewH / 2 - cam.y * cam.zoom + shake.y);
+    if (this.punchPending) {
+      this.punchPending = false;
+      this.punchAt = now;
+    }
+    // The zoom-punch scales the world about the screen's centre, over the camera's own fit (the camera is unchanged).
+    const zoom = cam.zoom * punchScale(now - this.punchAt, this.punchPeak, this.punchHold);
+    this.world.scale.set(zoom);
+    this.world.position.set(cam.viewW / 2 - cam.x * zoom + shake.x, cam.viewH / 2 - cam.y * zoom + shake.y);
     this.fx.zoom = cam.zoom;
     this.fx.bitScale = this.scales.creep;
     this.ensureGround();
@@ -638,6 +714,84 @@ export class WorldRenderer {
     this.updateTexts(now);
     this.fx.update(now, dt);
     this.drawOverlay(latest, heroes, me, ui, now);
+    this.updateScreen(latest, now);
+  }
+
+  /**
+   * The camera's zoom-punch (V-07b): the world drawn `peak` times the camera's zoom on the next frame, held `holdMs`,
+   * then eased back over 120 ms. A camera kick, so it goes with the screen shake (Off, Low and reduced motion drop it).
+   */
+  punch(peak: number, holdMs = 0): void {
+    if (!this.fx.level.shake) return;
+    // A bigger punch still running keeps going.
+    if (!this.punchPending && punchScale(this.lastRenderAt - this.punchAt, this.punchPeak, this.punchHold) >= peak) return;
+    this.punchPeak = peak;
+    this.punchHold = holdMs;
+    this.punchPending = true;
+  }
+
+  /** The boss wave's wash and the Heart's vignette (screen space, alpha only; V-07b, docs/ART.md §6 "Juice"). */
+  private updateScreen(latest: Snapshot, now: number): void {
+    const cam = this.camera;
+    const box = vignetteBox(cam.viewW, cam.viewH, cam.worldToScreen(0, 0).x, cam.worldToScreen(cam.worldW, 0).x);
+    const t = (now - this.washAt) / JUICE.washMs;
+    const wash = t >= 0 && t < 1 ? JUICE.washAlpha * (1 - t) : 0;
+    if (wash > 0) {
+      this.wash.position.set(box.left, box.top);
+      this.wash.width = box.right - box.left;
+      this.wash.height = box.bottom - box.top;
+    }
+    fade(this.wash, wash);
+    let alpha: number;
+    let size = 1;
+    let tint: number = FX.vignette;
+    if (latest.phase === 'defeat') {
+      // The Heart fell: the vignette closes in (fades in, under reduced motion) before the end card shows.
+      if (this.defeatAt === null) {
+        this.defeatAt = now;
+        this.defeatFrom = this.vignetteAlpha;
+      }
+      const c = vignetteClose(now - this.defeatAt, this.defeatFrom, this.fx.calm);
+      alpha = c.alpha;
+      size = c.size;
+      tint = mixColor(FX.vignette, FX.vignetteDeep, Math.round((1 - (c.size - 0.55) / 0.45) * 8) / 8);
+    } else {
+      this.defeatAt = null;
+      alpha = vignetteAlpha(now, this.leakPulse, this.heartFrac < HEART_LOW && this.heartFrac > 0, this.fx.calm);
+    }
+    this.showVignette(alpha, box, size, tint);
+  }
+
+  /**
+   * The vignette's layer: `alpha` (0: not displayed), over `box`, its picture scaled by `size` (1: its solid ring on the
+   * box's edges; smaller: closing in) in `tint`. Each style is written only when it changes.
+   */
+  private showVignette(alpha: number, box: ScreenBox, size: number, tint: number): void {
+    this.vignetteAlpha = alpha;
+    const style = this.vignette.style;
+    const shown = alpha > 0 ? alpha.toFixed(3) : '';
+    if (shown !== this.vignetteShown) {
+      this.vignetteShown = shown;
+      style.display = shown ? 'block' : '';
+      style.opacity = shown;
+    }
+    if (!shown) return;
+    const at = `${box.left} ${box.top} ${box.right - box.left} ${box.bottom - box.top}`;
+    if (at !== this.vignetteAt) {
+      this.vignetteAt = at;
+      style.left = `${box.left}px`;
+      style.top = `${box.top}px`;
+      style.width = `${box.right - box.left}px`;
+      style.height = `${box.bottom - box.top}px`;
+    }
+    if (size !== this.vignetteSize) {
+      this.vignetteSize = size;
+      this.vignetteArt.style.transform = size === 1 ? '' : `scale(${size})`;
+    }
+    if (tint !== this.vignetteTint) {
+      this.vignetteTint = tint;
+      this.vignetteArt.style.background = vignetteGradient(tint);
+    }
   }
 
   /** A new match: forget effects and hit tracking. */
@@ -656,6 +810,15 @@ export class WorldRenderer {
     this.heartShown = -1;
     for (const t of this.texts) t.obj.destroy();
     this.texts = [];
+    this.leakPulse = null;
+    this.defeatAt = null;
+    this.washAt = -Infinity;
+    this.punchAt = -Infinity;
+    this.punchPending = false;
+    this.portalBossLanes = [];
+    this.goneTowers.clear();
+    fade(this.wash, 0);
+    this.showVignette(0, { left: 0, top: 0, right: 0, bottom: 0 }, 1, FX.vignette);
   }
 
   /**
@@ -674,6 +837,7 @@ export class WorldRenderer {
    */
   fuseBurst(combo: ComboKind, x: number, y: number, casters: readonly { x: number; y: number }[]): void {
     this.fx.rainFuse(combo, x, y, casters);
+    this.punch(JUICE.fusePunch, JUICE.fuseHoldMs);
   }
 
   /**
@@ -701,7 +865,8 @@ export class WorldRenderer {
     const crits = this.hits.feed(events, me, !latest || latest.players.length <= 1);
     // Numbers start above the drawn creep: the offsets are tuned for creeps drawn ~1.6× and grow with their scale.
     const lift = this.scales.creep / 1.6;
-    for (const c of crits) fx.number(c.x, c.y - 0.3 * lift, c.damage, FX.crit, true);
+    // Crits shown are yours (online `feed` keeps only yours): 1.3× and a hotter yellow; the render clock holds a frame.
+    for (const c of crits) fx.number(c.x, c.y - 0.3 * lift, c.damage, FX.critYours, true, JUICE.critScale);
     for (const e of events) {
       switch (e.type) {
         case 'kill': {
@@ -709,6 +874,7 @@ export class WorldRenderer {
           if (shown > 0) fx.number(e.x, e.y - 0.1 * lift, shown, FX.number);
           const t = TUNING.creeps[e.kind];
           fx.death(e.x, e.y, CREEP_COLORS[e.kind], t.radius, t.boss);
+          if (t.boss) fx.bossFall(e.x, e.y, t.radius);
           this.startDeath(e.creepId, e.kind, e.x, e.y, now);
           if (e.by === me && e.bounty > 0) {
             if (fx.particles) fx.label(e.x, e.y - 0.6, `+${e.bounty}`, COLORS.gold, 12);
@@ -724,6 +890,10 @@ export class WorldRenderer {
             this.releaseCreep(gone);
           }
           this.heartHitAt = now;
+          // The vignette pulses at the screen's edges, stronger for a boss's leak (several in one frame: the strongest).
+          const peak = leakPeak(e.damage, gone ? TUNING.creeps[gone.kind].boss : false);
+          const same = this.leakPulse !== null && this.leakPulse.at === now;
+          this.leakPulse = { at: now, peak: same ? Math.max(peak, this.leakPulse!.peak) : peak };
           fx.label(this.map.heart.x, this.map.heart.y - 1.5, `-${e.damage}`, COLORS.bad, 18, true);
           fx.flash(this.map.heart.x, this.map.heart.y, 2.2, COLORS.bad, 380, 0.6);
           // A pack of leaks is one thud, not a rumble.
@@ -764,6 +934,7 @@ export class WorldRenderer {
           const hx = hero.root.x / S;
           const hy = hero.root.y / S;
           this.floatText(`Level ${e.level}!`, hx, hy - 1, COLORS.good, now);
+          fx.levelRing(hx, hy);
           fx.ring(hx, hy, 1.4, COLORS.gold, 500, 0.2, 'shock');
           fx.sparkle(hx, hy, COLORS.gold, 14, 0.6);
           break;
@@ -816,10 +987,14 @@ export class WorldRenderer {
           break;
         }
         case 'towerBuilt': {
+          // It is dropping onto its pad already (it appeared with the newer snapshot): its landing throws the dust.
+          const s = this.towers.get(e.towerId);
+          if (s && !s.landed) {
+            s.landFx = true;
+            break;
+          }
           const t = this.towerPos(e.towerId, latest);
-          if (!t) break;
-          fx.dustRing(t.x, t.y, 1.3, FX.dust, 10);
-          fx.ring(t.x, t.y, 1.5, FX.moon, 300, 0.4);
+          if (t) this.land(t.x, t.y);
           break;
         }
         case 'towerUpgraded': {
@@ -828,7 +1003,16 @@ export class WorldRenderer {
           fx.ring(t.x, t.y, 1.6, COLORS.gold, 450, 0.3, 'shock');
           fx.sparkle(t.x, t.y, COLORS.gold, 10 + e.tier * 4, 0.9);
           const s = this.towers.get(e.towerId);
-          if (s) this.startPop(s, now);
+          if (e.branch && s) {
+            // A branch: a ring of the branch's own colour runs out from it.
+            const color = shotColor(s.kind, e.branch);
+            fx.ring(t.x, t.y, 2.1, color, 560, 0.25, 'shock');
+            fx.ring(t.x, t.y, 1.3, color, 380, 0.5);
+          }
+          if (s) {
+            s.upgradeAt = now;
+            s.animating = true;
+          }
           break;
         }
         case 'towerRepaired': {
@@ -844,6 +1028,7 @@ export class WorldRenderer {
           if (!t) break;
           fx.ring(t.x, t.y, 1.4, COLORS.gold, 350, 0.3);
           fx.shards(t.x, t.y, [COLORS.gold, FX.goldLight], 10, 170, 'square');
+          fx.dustDrift(t.x, t.y);
           break;
         }
         case 'towerDestroyed': {
@@ -883,14 +1068,24 @@ export class WorldRenderer {
           this.portalFlareAt = now;
           this.portalSurgeLane = null;
           const tuning = latest ? tuningForMode(TUNING, latest.mode) : TUNING;
-          const boss = waveGroups(tuning, e.wave).some((g) => isBossKind(g.kind));
+          const bossLanes: number[] = waveGroups(tuning, e.wave)
+            .filter((g) => isBossKind(g.kind))
+            .flatMap((g) => g.lanes);
+          const boss = bossLanes.length > 0;
           this.portalFlareBoss = boss;
-          for (const p of this.portals) {
+          this.portalBossLanes = bossLanes;
+          for (const [i, p] of this.portals.entries()) {
             fx.ring(p.x, p.y, boss ? 3 : 2, boss ? COLORS.bad : COLORS.portal, 600, 0.3, 'shock');
             fx.ring(p.x, p.y, boss ? 2.2 : 1.5, FX.rune, 450, 0.5);
             fx.sparkle(p.x, p.y, boss ? COLORS.bad : FX.rune, boss ? 18 : 12, 1.1);
+            // The boss's lane: its portal flares brighter.
+            if (bossLanes.includes(i)) fx.flash(p.x, p.y, 2.6, COLORS.bad, 620, 0.75);
           }
-          if (boss) fx.bump(0.55);
+          if (boss) {
+            fx.bump(0.55);
+            // A low red wash over the screen, fading over 0.6 s.
+            this.washAt = now;
+          }
           break;
         }
         case 'gameOver': {
@@ -1029,6 +1224,7 @@ export class WorldRenderer {
         // The rain is global. Each impact is its own `aoe`; the cast is a big flare on the hero and a kick.
         fx.ultimateCast(hx, hy, ZONE_COLORS.arrowStorm);
         fx.bump(SHAKE_AT.arrowStorm);
+        this.punch(JUICE.castPunch);
         break;
       case 'arcanist.Q':
         fx.castFlare(hx, hy, AOE_COLORS.fireball);
@@ -1039,11 +1235,13 @@ export class WorldRenderer {
       case 'arcanist.R':
         fx.ultimateCast(hx, hy, AOE_COLORS.meteor);
         fx.bump(SHAKE_AT.meteor);
+        this.punch(JUICE.castPunch);
         break;
       case 'warden.R':
         // The vow's own burst is the `aoe`; the cast adds the flare and the kick.
         fx.ultimateCast(hx, hy, AOE_COLORS.ironVow);
         fx.bump(SHAKE_AT.ironVow);
+        this.punch(JUICE.castPunch);
         break;
       default:
         break;
@@ -1066,7 +1264,15 @@ export class WorldRenderer {
   private towerPos(id: number, latest: Snapshot | undefined): { x: number; y: number } | undefined {
     const s = this.towers.get(id);
     if (s) return { x: s.root.x / S, y: s.root.y / S };
-    return latest?.towers.find((t) => t.id === id);
+    // A sold or destroyed tower leaves the snapshots before its event is drawn.
+    return latest?.towers.find((t) => t.id === id) ?? this.goneTowers.get(id);
+  }
+
+  /** A tower lands on its pad (V-07b): dust, a moonlit ring and a small bump. */
+  private land(x: number, y: number): void {
+    this.fx.landing(x, y);
+    this.fx.ring(x, y, 1.5, FX.moon, 300, 0.4);
+    this.fx.bump(JUICE.landShake);
   }
 
   /** Creep HP that dropped since the last rendered snapshot: flash, sparks and numbers. */
@@ -1190,9 +1396,10 @@ export class WorldRenderer {
         p.root.scale.set(swell);
       }
       p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
-      fade(p.flare, burst);
+      const bossLane = this.portalFlareBoss && this.portalBossLanes.includes(i);
+      fade(p.flare, Math.min(1, burst * (bossLane ? JUICE.bossFlare : 1)));
       if (burst > 0) {
-        p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? 1.35 : 1) * (p.view ? PORTAL_FLARE : 1));
+        p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? (bossLane ? 1.55 : 1.35) : 1) * (p.view ? PORTAL_FLARE : 1));
         p.flare.rotation = t * 0.6 + i;
       }
       if (!this.fx.particles) continue;
@@ -1531,18 +1738,27 @@ export class WorldRenderer {
     s.status.clear();
     s.statusKey = '';
     s.goneAt = now;
+    s.popK = 1;
     this.dying.push(s);
   }
 
   private updateDying(now: number): void {
     if (this.dying.length === 0) return;
+    // A kill pops the creep 1.2× for two frames, then its death clip plays (V-07b); under reduced motion the clip alone.
+    const popMs = this.fx.calm ? 0 : JUICE.killPopMs;
     this.dying = this.dying.filter((s) => {
-      const t = (now - s.goneAt) / s.art!.deathMs;
+      const age = now - s.goneAt;
+      const t = (age - popMs) / s.art!.deathMs;
       if (t >= 1) {
         this.releaseCreep(s);
         return false;
       }
-      s.art!.die(t);
+      const k = popMs > 0 ? killPopScale(age) : 1;
+      if (k !== s.popK) {
+        s.popK = k;
+        s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[s.kind].flying) * k);
+      }
+      s.art!.die(Math.max(0, t));
       return true;
     });
   }
@@ -1640,6 +1856,9 @@ export class WorldRenderer {
           recoilY: 0,
           pulseAt: -Infinity,
           born: 0,
+          landed: true,
+          landFx: false,
+          upgradeAt: -Infinity,
           animating: false,
           art: rig,
           aimAt: 0,
@@ -1647,7 +1866,12 @@ export class WorldRenderer {
           hitsAir: true,
           hitsGround: true,
         };
-        if (!swapped) this.startPop(s, now);
+        // A new tower drops onto its pad (one swapped for its 3D rig was already standing).
+        if (!swapped) {
+          s.born = now;
+          s.landed = false;
+          s.animating = true;
+        }
         this.towerLayer.addChild(s.root);
         this.towers.set(t.id, s);
       }
@@ -1678,37 +1902,52 @@ export class WorldRenderer {
     }
     for (const [id, s] of this.towers) {
       if (!seen.has(id)) {
+        this.goneTowers.set(id, { x: s.root.x / S, y: s.root.y / S, at: now });
         s.root.destroy({ children: true });
         this.towers.delete(id);
       }
     }
+    for (const [id, g] of this.goneTowers) if (now - g.at > GONE_TOWER_MS) this.goneTowers.delete(id);
   }
 
-  private startPop(s: TowerSprite, now: number): void {
-    s.born = now;
-    s.animating = true;
-  }
-
-  /** Recoil (the body kicks back from the shot), the all-round pulse, and the pop of a new or upgraded tower. */
+  /**
+   * Recoil (the body kicks back from the shot), the all-round pulse, a new tower's drop onto its pad (V-07b: 12 px over
+   * 120 ms, then dust and a bump if its event came) and an upgrade's pop (1.1×) and white turret flash. Under reduced
+   * motion the drop is a fade-in and the upgrade only flashes.
+   */
   private animateTower(s: TowerSprite, now: number): void {
     if (!s.animating) return;
+    const calm = this.fx.calm;
     const r = Math.max(0, 1 - (now - s.recoilAt) / RECOIL_MS);
-    const p = Math.min(1, (now - s.born) / POP_MS);
     const q = Math.min(1, (now - s.pulseAt) / PULSE_MS);
-    // Overshoot then settle.
-    const pop = p >= 1 ? 1 : 1 + Math.sin(p * Math.PI) * 0.18 - (1 - p) * 0.25;
+    const age = now - s.born;
+    const dropping = !s.landed && age < JUICE.dropMs;
+    if (!s.landed && !dropping) {
+      s.landed = true;
+      if (s.landFx) this.land(s.root.x / S, s.root.y / S);
+    }
+    const drop = dropping && !calm ? dropOffset(age) : 0;
+    const up = now - s.upgradeAt;
+    const pop = calm ? 1 : upgradeScale(up);
+    const flash = upgradeFlash(up);
     // Swell and settle back to exactly 1, the same in every direction.
     const pulse = q >= 1 ? 1 : 1 + Math.sin(q * Math.PI) * PULSE_SCALE;
     const kick = r * r * RECOIL_PX;
     // A turret's gun slides back along its barrel; a shape kicks back as a whole.
-    if (s.art?.turns) s.art.kick(kick * 1.2);
-    else s.body.position.set(-s.recoilX * kick, -s.recoilY * kick);
+    if (s.art?.turns) {
+      s.art.kick(kick * 1.2);
+      s.body.position.set(0, drop);
+    } else s.body.position.set(-s.recoilX * kick, -s.recoilY * kick + drop);
     s.body.scale.set(pop * pulse);
-    if (r <= 0 && p >= 1 && q >= 1) {
+    s.body.alpha = dropping && calm ? Math.max(0, age / JUICE.dropMs) : 1;
+    s.art?.setFlash(flash);
+    if (r <= 0 && !dropping && q >= 1 && up >= JUICE.upgradePopMs && flash <= 0) {
       s.animating = false;
       s.body.position.set(0, 0);
       s.body.scale.set(1);
+      s.body.alpha = 1;
       s.art?.kick(0);
+      s.art?.setFlash(0);
     }
   }
 
@@ -2379,7 +2618,7 @@ function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
     const s = makeSprite(rig.body);
     s.root.addChildAt(rig.flash, 1);
     if (rig.shadow) s.root.addChildAt(rig.shadow, 0);
-    return { ...s, kind, flash: rig.flash, art: rig, gen, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
+    return { ...s, kind, flash: rig.flash, art: rig, gen, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0, popK: 1 };
   }
   const boss = TUNING.creeps[kind].boss;
   const body = creepBody(kind);
@@ -2393,7 +2632,7 @@ function makeCreepSprite(kind: CreepKind, kit: ArtKit): CreepSprite {
   } else {
     body.tint = CREEP_COLORS[kind];
   }
-  return { ...s, kind, flash, art: null, gen, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0 };
+  return { ...s, kind, flash, art: null, gen, flashUntil: 0, flashReadyAt: 0, tintKey: -1, goneAt: 0, popK: 1 };
 }
 
 function updateBar(s: EntitySprite, hp: number, maxHp: number, width: number, y: number): void {

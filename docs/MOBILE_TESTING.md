@@ -201,6 +201,21 @@ The home card on a phone, then one Endless run (about 25 minutes to wave 30). An
 - [ ] 13.6 Back on the home card (**Change hero / mode**), the Mode label's line shows **"Best: wave N"** in gold over the Endless segment for that hero, and nothing for a hero with no Endless run. A room's host can pick Endless too; the guests see it lit on their room card.
 - [ ] 13.7 **Save match report** offers a file named `…-endless-hard-wave-N.json`.
 
+## 14. Juice: every event lands (V-07b)
+
+Solo Quick with the Arcanist or the Ranger, Screen shake on Normal (⚙ → Screen shake), reduced motion off. About 6 minutes to the wave-5 Ironhorn; call waves early.
+
+- [ ] 14.1 **Build:** tap a pad and a tower: it drops onto its pad (about 12 px, quick), lands with a puff of dust, a pale ring and a tiny bump of the screen. **Upgrade** it: it pops a little bigger and its turret flashes white once. At tier 4 the branch adds a ring in the branch's colour. **Sell** one: dust drifts up off the empty pad.
+- [ ] 14.2 **Waves:** each wave banner slams in with a white edge for a blink. The wave-5 boss banner washes the screen faintly red for half a second, and the Mid portal (the boss's lane) flares brighter than the other two.
+- [ ] 14.3 **Kills:** a dying creep pops a little bigger for a blink before it falls; each of your kills flies a coin to the gold counter and the number pops. When many die at once (a rain), five coins fly and the rest arrive a moment later as one bigger coin.
+- [ ] 14.4 **Feel the hit-stop:** walk your hero into a lane and let its own attacks kill: about once a second a kill freezes the world for a split second (25 ms, a "thunk", your hero keeps moving). With the Ranger, a crit's number is bigger, yellow, and the world holds a frame. None of it should feel like lag; if it does, note which.
+- [ ] 14.5 **The ultimate's punch:** press R with creeps on the map: the whole view kicks in a few percent and settles (120 ms) with the flare, the blink and the shake; when its first strike lands, the world holds for a moment (70 ms). Fuse two ultimates online (Meteor Rain): the punch is a little bigger and holds two frames.
+- [ ] 14.6 **The boss falls:** a wide white flash, a dust ring, the world freezes for a moment and then runs in slow motion for half a second before catching up, and **"Ironhorn falls"** slams in in gold.
+- [ ] 14.7 **The Heart:** let a creep leak: the screen's edges pulse red with the shake (a boss leak pulses stronger). Below 30% of the Heart's HP the edges breathe slowly red until it is healed above it.
+- [ ] 14.8 **Level up:** the level badge pops, a short gold ring runs out at your hero's feet, and the skill points chip bounces once.
+- [ ] 14.9 **The end:** win a match: the Heart emblem drops onto the card with a bump and the numbers count up. Lose one: the red edges close in over the map for most of a second, then the card shows.
+- [ ] 14.10 **Settings:** Screen shake **Off**: no punch and no bump, the rest as before. Graphics **Low**: no dust or coins; flashes, rings, the vignette and the hit-stop stay. Turn on the phone's **reduce motion**: no hit-stop, no punch, no pop or drop (a new tower fades in), the vignette is steady instead of breathing, the boss banner and the emblem fade in.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

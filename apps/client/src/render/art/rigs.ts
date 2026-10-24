@@ -6,7 +6,7 @@
 
 import type { CreepSnap, SkillSlot, TowerBranch } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
-import { Container, Graphics, type ColorSource, type Sprite } from 'pixi.js';
+import { Container, Graphics, Sprite, type ColorSource } from 'pixi.js';
 import { fade } from '../fade';
 import type { ArtKit } from './kit';
 import type { CreepArt, CreepRigView, Gait, HeroPose, HeroRig, TowerArt } from './registry';
@@ -456,6 +456,8 @@ export const TURN_RATE = 7;
 export abstract class TowerRigBase {
   readonly body = new Container();
   protected readonly turret = new Container();
+  /** The gun's white flash on an upgrade (V-07b): the gun's frame again, additive, alpha only, out of the draw at 0. */
+  private readonly gunFlash = new Sprite();
   private angle = -Math.PI / 2;
   /** Drawn from the 3D sheet (Tower3DRig) rather than the 2D art. */
   abstract readonly is3d: boolean;
@@ -473,6 +475,29 @@ export abstract class TowerRigBase {
   }
 
   abstract setTier(tier: number, branch: TowerBranch | null): void;
+
+  /** The turret's gun sprite (its frame changes with the tier and, for the 3D towers, the recoil). */
+  protected abstract readonly gunSprite: Sprite;
+
+  /** Puts the gun on the turret, its flash over it. */
+  protected mountGun(gun: Sprite): void {
+    this.gunFlash.blendMode = 'add';
+    fade(this.gunFlash, 0);
+    this.turret.addChild(gun, this.gunFlash);
+  }
+
+  /** The turret flashes white (an upgrade, 0..1): the gun drawn again over itself, added. */
+  setFlash(alpha: number): void {
+    if (alpha > 0) {
+      const g = this.gunSprite;
+      const f = this.gunFlash;
+      if (f.texture !== g.texture) f.texture = g.texture;
+      f.anchor.copyFrom(g.anchor);
+      f.scale.copyFrom(g.scale);
+      f.position.copyFrom(g.position);
+    }
+    fade(this.gunFlash, alpha);
+  }
 
   /** Turn towards `target` (radians) at a capped rate. */
   aim(target: number, dtMs: number): void {
@@ -502,8 +527,12 @@ export class TowerRig extends TowerRigBase {
     super(kit, art.turret);
     this.base = kit.sprite(art.id, 'base1');
     this.gun = kit.sprite(art.id, 'top1');
-    this.turret.addChild(this.gun);
+    this.mountGun(this.gun);
     this.body.addChild(this.base, this.turret);
+  }
+
+  protected get gunSprite(): Sprite {
+    return this.gun;
   }
 
   setTier(tier: number, branch: TowerBranch | null): void {

@@ -43,6 +43,7 @@ interface Hook {
   fx(): { live: number; shaken: number; particles: boolean; shake: boolean; shakeScale: number; maxNumbers: number; calm: boolean };
   /** Coins launched to the gold counter so far. */
   coins(): number;
+  clock(): { lag: number };
   art(): {
     display: 'normal' | 'bright';
     pads: number;

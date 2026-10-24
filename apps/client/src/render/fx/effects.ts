@@ -394,9 +394,9 @@ export class Effects {
     });
   }
 
-  /** A floating damage number (tile units); crits are bigger and end in "!". */
-  number(x: number, y: number, damage: number, color: number, crit = false): void {
-    this.label(x, y, damageText(damage, crit), color, crit ? 22 : 13, crit);
+  /** A floating damage number (tile units); crits are bigger and end in "!", `scale` times bigger again (your crits). */
+  number(x: number, y: number, damage: number, color: number, crit = false, scale = 1): void {
+    this.label(x, y, damageText(damage, crit), color, (crit ? 22 : 13) * scale, crit);
   }
 
   /**
@@ -1504,6 +1504,78 @@ export class Effects {
         scale: [0.5, 1.1],
         alpha: [0.45, 0],
         tint: color,
+      });
+    }
+  }
+
+  /** A boss falls (V-07b): a wide white flash over its death burst, a moonlit shock ring and a dust ring rolling out. */
+  bossFall(x: number, y: number, radius: number): void {
+    const r = radius * this.bitScale;
+    this.flash(x, y, r * 3.6, FX.hot, 420, 0.95);
+    this.ring(x, y, r * 4.6, FX.moonLight, 560, 0.25, 'shock');
+    this.dustRing(x, y, r * 3, FX.dust, 22);
+  }
+
+  /** A tower lands on its pad (V-07b): a puff of dust round its foot, thrown out low. */
+  landing(x: number, y: number): void {
+    this.dustRing(x, y, 1.1, FX.dust, 10);
+    if (!this.particles) return;
+    this.emit({
+      frame: 'smoke',
+      x: x * S,
+      y: (y + 0.55) * S,
+      count: 5,
+      spread: S * 0.9,
+      speed: [20, 50],
+      angle: [Math.PI * 0.85, Math.PI * 2.15],
+      drag: 3,
+      life: [300, 520],
+      scale: [0.5, 1.15],
+      alpha: [0.5, 0],
+      tint: FX.dust,
+    });
+  }
+
+  /** A tower sold (V-07b): dust drifting up and away from the empty pad for a moment. */
+  dustDrift(x: number, y: number): void {
+    if (!this.particles) return;
+    this.emit({
+      frame: 'smoke',
+      x: x * S,
+      y: y * S,
+      count: 9,
+      spread: S * 1.1,
+      speed: [8, 26],
+      angle: [-Math.PI * 0.8, -Math.PI * 0.2],
+      gravity: -22,
+      drag: 0.6,
+      life: [700, 1100],
+      scale: [0.55, 1.4],
+      jitter: 0.3,
+      alpha: [0.42, 0],
+      hold: 0.15,
+      tint: [FX.dust, FX.smoke],
+    });
+  }
+
+  /** A level up at the hero's feet (V-07b): a short gold ring running out along the ground, under the hero. */
+  levelRing(x: number, y: number): void {
+    const k = this.bitScale;
+    for (const [tint, from, to, life] of [
+      [FX.gold, 0.3, 1.35, 440],
+      [FX.goldLight, 0.2, 0.9, 320],
+    ] as const) {
+      this.emit({
+        frame: 'ring',
+        x: x * S,
+        y: y * S,
+        life: [life, life],
+        scale: [(from * S * k) / RING_PX, (to * S * k) / RING_PX],
+        tint,
+        alpha: [0.95, 0],
+        hold: 0.15,
+        layer: 'ground',
+        essential: true,
       });
     }
   }
