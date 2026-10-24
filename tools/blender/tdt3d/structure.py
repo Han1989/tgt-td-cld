@@ -1,8 +1,8 @@
-# The towers, the Heart and the portals (docs/ART.md §15, V-05d): kitbashed from the CC0 KayKit pieces in
-# tools/blender/assets/kaykit/ (never modelled in code), one row each in tools/blender/structures.py, repainted in
-# Runelight's tokens, lit by the map plate's moon (map.MOON: upper left, 40° up, shadows down-right) and painted by
-# the same look, rendered ahead of time into one sheet (apps/client/src/render/art3d/structures-match.png) with its
-# layout (structures.json).
+# The towers, the Heart and the portals (docs/ART.md §15, V-05d; since V-06l the game's own Meshy models, with the
+# CC0 KayKit pieces in tools/blender/assets/kaykit/ for the kit's small additions; never modelled in code), one row
+# each in tools/blender/structures.py, repainted in Runelight's tokens, lit by the map plate's moon (map.MOON: upper
+# left, 40° up, shadows down-right) and painted by the same look, rendered ahead of time into one sheet
+# (apps/client/src/render/art3d/structures-match.png) with its layout (structures.json).
 #
 # Towers are seen straight down, as the map plate is (docs/ART.md §5): the base, which never turns, and the turret,
 # which the client turns towards its target, so a turret frame drawn from above stays true at any angle. Each tower
@@ -11,11 +11,11 @@
 # shadow down-right onto a catcher at the height the table gives (`shadow`), short enough to stay on its pad.
 #
 # The Heart and the portals never turn, so they are seen from above at a steep angle from the south (VIEW_SOUTH):
-# the castle's front and the gate's arch read, as the 2D Heart showed its gem in 3/4 view. The Heart has a body per
-# damage stage (whole, cracked, ruined), each with its white twin (the hit flash), and layers the client animates on
-# top: the chest's glow (pulsed with the beat), the rubble of each damaged stage, and the flames (three frames, so the
-# client can flicker them). The portal has its body and the torches' glow; the flare at a wave start stays the
-# client's own additive burst.
+# the keep's gate, its Spire and the gatehouse's arch read, as the 2D Heart showed its gem in 3/4 view. The Heart has a
+# body per damage stage (whole, cracked, ruined), each with its white twin (the hit flash), and layers the client
+# animates on top: its light (the crystal's and the windows', pulsed with the beat), the rubble of each damaged stage,
+# and the flames (three frames, so the client can flicker them). The portal has its body and its lights' glow (the
+# rune-stones'); the flare at a wave start stays the client's own additive burst.
 #
 # Every frame's anchor is the world point it stands on (a tower's centre, its turret's pivot, the Heart's and a
 # portal's position on the map), in sheet px of its own cell; frames are trimmed to what they cover and packed into
@@ -144,7 +144,8 @@ class Piece:
     def pose(self, moves):
         """Places the piece, with `moves` ({mesh name or '*': Matrix in the file's frame; 'world': a Matrix applied
         after the placement; 'deform': a Meshy piece's pose, tdt3d.posed's form, of its `posed` regions}) applied
-        first. With none, its row's resting pose (`pose`: the chest's lid open, the rotor tilted at the sky)."""
+        first. With none, its row's resting pose (`pose`: the rotor tilted at the sky, the Heart's merlons knocked
+        askew)."""
         if moves is None and 'pose' in self.spec:
             moves = self.spec['pose'](self, 1.0)
         world = (moves or {}).get('world', Matrix.Identity(4))
@@ -456,7 +457,7 @@ def check(full, glow, over, figure=None):
 
 def glow_layer(light):
     """A glow layer from a frame's emissive light: the light and its halo, premultiplied (h × w × 4), for the client
-    to add over the frame (the chest's light it pulses, the torches' it flickers)."""
+    to add over the frame (the Heart's light it pulses, the portal's it flickers)."""
     b = _bloom(light, *GLOW_BLOOM)
     pm = np.clip(light + b, 0, 1)
     return np.concatenate([pm, np.clip(pm.max(axis=2), 0, 1)[..., None]], axis=2)
@@ -604,7 +605,7 @@ def _points(cam, row, anchor):
 
 
 def render_heart(row, tmp, samples, frames, checks):
-    """The Heart: its body in each damage stage with its white twin, the rubble of each damaged stage, the chest's
+    """The Heart: its body in each damage stage with its white twin, the rubble of each damaged stage, its light's
     glow and three frames of flames."""
     window = row.get('window', 120)
     look = dict(npr.LOOK, **LOOK, **row.get('look', {}))
@@ -635,7 +636,7 @@ def render_heart(row, tmp, samples, frames, checks):
         frames[f'heart/stage{stage}'] = trim(npr.to8(full), anchor)
         frames[f'heart/flash{stage}'] = trim(white_twin(npr.to8(img)), anchor)
         if stage == 0:
-            # The chest's light, as its body frame has it: the client pulses it with the beat.
+            # The Heart's light (its crystal and windows), as its body frame has it: the client pulses it with the beat.
             frames['heart/glow'] = glow_frame(glow_layer(shot.light), anchor)
         if rubble:
             # The rubble in front of the castle and round it: the castle holds out what it hides.

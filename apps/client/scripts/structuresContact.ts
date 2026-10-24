@@ -17,6 +17,17 @@
 // down, at phone size and close up, each tier 1 turret through its recoil, then a match on a 412 × 839 phone at 3×
 // (the e2e build, `?lab`, wave 10 of Full, the five kinds built on the map, some upgraded) and a crop of it at the
 // screen's own pixels; to docs/art/wards-towers-a.png, the match frame alone to docs/art/wards-wave10.png.
+//
+//   npm run structures-contact -w @tdt/client -- --branches [rev]
+//   npm run build:e2e -w @tdt/client && npm run structures-contact -w @tdt/client -- --heart [rev]
+//
+// V-06l, batch 2: `--branches` draws every branch's own turret (Meshy) straight down beside its kind's tier 1 and
+// batch 1's placeholder (the tier-1 turret composed; the sheet read from git at `rev`, batch 1's commit by default),
+// at phone size and close up, and each branch turret through its recoil, to docs/art/wards-branches-a.png. `--heart`
+// draws the Heart in its three stages and a portal (with its swirl) beside V-05d's KayKit ones (the same commit), at
+// phone size on the map plate's ground and close up, then wave 10 of Full on a 412 × 839 phone at 3× with the Heart
+// cracked (waves 6–9 skipped through first, so enough leaks) and the Heart at the screen's own pixels, to
+// docs/art/wards-heart-a.png; the match frame alone to docs/art/wards-heart-wave10.png.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -28,11 +39,14 @@ import { decodePng, encodeIndexedPng } from './png';
 import { quantize } from './quantize';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const wards = process.argv.includes('--wards');
-const at = process.argv.indexOf('--wards');
-const rev = wards && process.argv[at + 1]?.startsWith('-') === false ? process.argv[at + 1]! : '47d0759';
+const mode = (['--wards', '--branches', '--heart'] as const).find((m) => process.argv.includes(m));
+const at = mode ? process.argv.indexOf(mode) : -1;
+/** The commit whose sheet is the comparison: the one before V-06l (KayKit towers), or batch 1's (its placeholder
+ * branch turrets and the KayKit Heart and portals). */
+const rev = mode && process.argv[at + 1]?.startsWith('-') === false ? process.argv[at + 1]! : mode === '--wards' ? '47d0759' : 'eaef23c';
 const art = join(root, '..', '..', 'docs', 'art');
-const out = join(art, wards ? 'wards-towers-a.png' : 'structures-3d.png');
+const SHEETS = { '--wards': 'wards-towers-a.png', '--branches': 'wards-branches-a.png', '--heart': 'wards-heart-a.png' };
+const out = join(art, mode ? SHEETS[mode] : 'structures-3d.png');
 
 /** The structures' sheet (a data URL) and match layout as a commit shipped them. */
 function fromGit(commit: string): { sheet: string; layout: unknown } {
@@ -50,9 +64,13 @@ const padOnScreen = (id: number) =>
 /**
  * The e2e build in a phone: a solo match on Full, the five tower kinds built on five pads round the middle of the map
  * (Arrow at tier 3, Cannon 2, Frost 1, Arcane 3, Flak 2), wave 10 at once, a screenshot once the Ironhorn is well onto
- * its lane; also the box round the five towers on the screen, device px.
+ * its lane; also the box round the five towers on the screen, device px. `cracked`: waves from 6 on are started early,
+ * two at a time, until enough of them have leaked that the Heart is under 58% of its HP (cracked: docs/ART.md §15);
+ * once the leaks have stopped (no hit for 3 s, so no hit flash, banner or red pulse) and the hero is back on his feet,
+ * he walks to the lanes' junction (a right-click: a mouse's move order), clear of the Heart he would be drawn over, and
+ * wave 10 starts again for the shot, the Heart between 35% and 58%; the box is then round the Heart.
  */
-async function matchFrame(): Promise<{ shot: string; box: { x0: number; y0: number; x1: number; y1: number } }> {
+async function matchFrame(cracked = false): Promise<{ shot: string; box: { x0: number; y0: number; x1: number; y1: number } }> {
   if (!existsSync(join(root, 'dist-e2e', 'index.html'))) throw new Error('build the e2e client first: npm run build:e2e -w @tdt/client');
   const server = await preview({ root, logLevel: 'warn', build: { outDir: 'dist-e2e' }, preview: { port: 0, host: '127.0.0.1' } });
   const url = server.resolvedUrls?.local[0];
@@ -113,6 +131,44 @@ async function matchFrame(): Promise<{ shot: string; box: { x0: number; y0: numb
       await page.touchscreen.tap(heart.x, heart.y);
       await page.waitForTimeout(250);
     }
+    const heartLeft = () =>
+      page.evaluate('(() => { const s = window.__tdt.latest(); return s.heartHp / s.heartMaxHp; })()') as Promise<number>;
+    /** Waits until the Heart has held its HP for `ms` (no creep reaching it), at most `limit` ms. */
+    const quiet = async (ms: number, limit: number) => {
+      let last = await heartLeft();
+      let since = Date.now();
+      for (const end = Date.now() + limit; Date.now() < end && Date.now() - since < ms; ) {
+        await gotIt();
+        await page.waitForTimeout(200);
+        const now = await heartLeft();
+        if (now !== last) [last, since] = [now, Date.now()];
+      }
+    };
+    if (cracked) {
+      const waves = [6, 7, 8, 9, 10, 10, 10, 10];
+      for (let i = 0; i < waves.length && (await heartLeft()) >= 0.58; i += 2) {
+        for (const w of waves.slice(i, i + 2)) {
+          await page.evaluate(`window.__tdt.skipTo(${w})`);
+          await gotIt();
+          await page.waitForTimeout(1500);
+        }
+        // Until they have leaked or fallen: the Heart under 58%, or (once they have had 25 s to arrive) no hit for 6 s.
+        for (let t = 0; t < 50 && (await heartLeft()) >= 0.58; t++) {
+          await gotIt();
+          await page.waitForTimeout(500);
+        }
+        if ((await heartLeft()) >= 0.58) await quiet(6000, 40_000);
+      }
+      await quiet(3000, 120_000);
+      const up = `(() => window.__tdt.latest().heroes.every((h) => h.respawnIn === 0))()`;
+      for (let i = 0; i < 60 && !(await page.evaluate(up)); i++) await page.waitForTimeout(500);
+      const f = await heartLeft();
+      if (!(f > 0.35 && f < 0.58)) throw new Error(`the Heart is at ${f} of its HP after the leaks, not cracked`);
+      const away = (await page.evaluate(`(() => { const h = window.__tdt.map.heart;
+        return window.__tdt.camera.worldToScreen(h.x * 32, (h.y - 7) * 32); })()`)) as { x: number; y: number };
+      await page.mouse.click(away.x, away.y, { button: 'right' });
+      await page.waitForTimeout(4000);
+    }
     await page.evaluate('window.__tdt.skipTo(10)');
     const ready = `(() => { const s = window.__tdt.latest(); const b = s.creeps.find((c) => c.kind === 'ironhorn');
       return !!b && s.creeps.length >= 20 && b.y > 6; })()`;
@@ -120,13 +176,30 @@ async function matchFrame(): Promise<{ shot: string; box: { x0: number; y0: numb
       await gotIt();
       await page.waitForTimeout(500);
     }
+    if (cracked) {
+      // The boss wave's lane hints (BOSS_LANE_HINTS) and the unspent-gold nudge cover the map for a few seconds: the
+      // shot waits them out.
+      const shown = async () => {
+        for (const text of [/stomp nearby/, /Gold is waiting/]) {
+          for (const el of await page.getByText(text).all()) if (await el.isVisible().catch(() => false)) return true;
+        }
+        return false;
+      };
+      for (let i = 0; i < 30 && (await shown()); i++) await page.waitForTimeout(500);
+      await quiet(1500, 20_000);
+      const f = await heartLeft();
+      if (!(f > 0.35 && f < 0.58)) throw new Error(`the Heart is at ${f} of its HP on wave 10, not cracked`);
+    }
     await gotIt();
     await page.waitForTimeout(300);
     const shot = `data:image/png;base64,${(await page.screenshot()).toString('base64')}`;
-    const points = (await Promise.all(pads.map((id) => page.evaluate(padOnScreen(id))))) as { x: number; y: number }[];
+    const points = cracked
+      ? [(await page.evaluate(`(() => { const h = window.__tdt.map.heart;
+          return window.__tdt.camera.worldToScreen(h.x * 32, (h.y - 1) * 32); })()`)) as { x: number; y: number }]
+      : ((await Promise.all(pads.map((id) => page.evaluate(padOnScreen(id))))) as { x: number; y: number }[]);
     const xs = points.map((p) => p.x * 3);
     const ys = points.map((p) => p.y * 3);
-    const m = 110;
+    const m = cracked ? 260 : 110;
     const box = { x0: Math.min(...xs) - m, y0: Math.min(...ys) - m, x1: Math.max(...xs) + m, y1: Math.max(...ys) + m };
     return { shot, box };
   } finally {
@@ -135,7 +208,7 @@ async function matchFrame(): Promise<{ shot: string; box: { x0: number; y0: numb
   }
 }
 
-const match = wards ? await matchFrame() : null;
+const match = mode === '--wards' ? await matchFrame() : mode === '--heart' ? await matchFrame(true) : null;
 const server = await createServer({ root, logLevel: 'warn', server: { port: 0, host: '127.0.0.1' } });
 await server.listen();
 const url = server.resolvedUrls?.local[0];
@@ -147,21 +220,24 @@ try {
   // A light page of the shell (no game boots): the drawing module is imported into it.
   await page.goto(`${url}privacy.html`);
   // A string, so tsx leaves the page's code alone (it would wrap a function in a `__name` the page doesn't have).
-  const call = wards ? `m.drawWards(${JSON.stringify(fromGit(rev))}, ${JSON.stringify(match)})` : 'm.drawContact()';
+  const call = mode
+    ? `m.${{ '--wards': 'drawWards', '--branches': 'drawBranches', '--heart': 'drawHeart' }[mode]}(${JSON.stringify(fromGit(rev))}, ${JSON.stringify(match)})`
+    : 'm.drawContact()';
   const data = (await page.evaluate(`import('/src/structuresContact.ts').then((m) => ${call})`)) as string;
   const small = (url: string, dither: number) => {
     const full = decodePng(Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
     const { indices, palette } = quantize(full, 256, dither);
     return encodeIndexedPng(full.width, full.height, indices, palette);
   };
-  const png = small(data, wards ? 0.75 : 0.4);
+  const png = small(data, mode ? 0.75 : 0.4);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, png);
   console.log(`${out}: ${(png.length / 1024).toFixed(0)} KB`);
   if (match) {
     const shot = small(match.shot, 0.75);
-    writeFileSync(join(art, 'wards-wave10.png'), shot);
-    console.log(`${join(art, 'wards-wave10.png')}: ${(shot.length / 1024).toFixed(0)} KB`);
+    const alone = join(art, mode === '--heart' ? 'wards-heart-wave10.png' : 'wards-wave10.png');
+    writeFileSync(alone, shot);
+    console.log(`${alone}: ${(shot.length / 1024).toFixed(0)} KB`);
   }
 } finally {
   await browser.close();

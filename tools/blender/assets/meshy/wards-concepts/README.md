@@ -32,7 +32,8 @@ pixels) beside the three heroes and a Grunt.
 the towers at 1200 × 1200; `meshy_text_to_image` takes an aspect ratio and no size, and returns 1:1 at 1024 × 1024.
 
 **Han's pick, 24 Oct 2026, 18:51: theme A.** The five towers are made from the `-a` concepts in V-06l batch 1
-(`../wards/<kind>/`, a README a kind); the Heart and the portal follow in batch 2.
+(`../wards/<kind>/`, a README a kind); their ten branch turrets, the Heart (`../wards/heart/`, from an edit of
+`heart-a.png`) and the portal (`../wards/portal/`, straight from `portal-a.png`) in batch 2.
 
 ## How they were made
 

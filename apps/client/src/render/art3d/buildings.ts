@@ -2,11 +2,12 @@
 // what it did for the 2D ones (the heartbeat, the hit flash and wobble, the damage stages and their shards, the warning
 // ring, the portals' swirl and wave-start flare, the motes) and these views give it the pictures:
 //
-// - the Heart: a castle keeping a glowing chest, a body per damage stage (whole, cracked under 60% HP, ruined and
-//   burning under 30%) each with its white twin (the hit flash), the rubble of each damaged stage, the chest's glow
-//   (additive, pulsed with the beat) and three frames of flames (additive, flickered by `flameFrame`);
-// - a portal: a gatehouse with two torches, their glow flickering (additive); the renderer's swirl, glow and flare
-//   go in the gate's opening.
+// - the Heart: the moon-stone keep with the Spire rising from it, its rose-red crystal on the tip (V-06l batch 2), a
+//   body per damage stage (whole, cracked under 60% HP, ruined and burning under 30%) each with its white twin (the
+//   hit flash), the rubble of each damaged stage, its light's glow (the crystal and the Spire's windows; additive,
+//   pulsed with the beat) and three frames of flames (additive, flickered by `flameFrame`);
+// - a portal: a moon-stone gatehouse, its rune-stones' teal glow flickering (additive); the renderer's swirl, glow
+//   and flare go in its arch's opening.
 //
 // Everything is a sprite anchored at the building's point on the map; layers change by alpha and texture only, the
 // ones at 0 (the stages not shown, the flashes between hits) out of the draw (`fade`).
@@ -27,7 +28,8 @@ function sprite(f: StructureFrame | undefined, blend?: 'add'): Sprite {
 
 export class Heart3DView {
   readonly root = new Container();
-  /** Where the chest's light is (shards, flash, embers) and the castle's middle (the blaze), world px from its point. */
+  /** Where the Heart's light is (`chest`: its crystal; shards, flash, embers) and the keep's middle (the blaze), world
+   * px from its point. */
   readonly chest: StructurePoint;
   readonly keep: StructurePoint;
   private readonly bodies: Sprite[];
@@ -106,7 +108,7 @@ export class Portal3DView {
     return sheet.frames.has('portal/body') && sheet.frames.has('portal/glow');
   }
 
-  /** The torches flicker (lane `i` out of step with the others). */
+  /** Its lights flicker (lane `i` out of step with the others). */
   update(now: number, i: number): void {
     this.glow.alpha = 0.78 + 0.12 * Math.sin(now / 95 + i * 2.1) + 0.1 * Math.sin(now / 37 + i);
   }
