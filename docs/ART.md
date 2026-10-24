@@ -424,6 +424,8 @@ Two first impressions sit outside the match and follow the same rules.
 
 **Han, 22 Oct 2026: the heroes are redesigned (V-06a).** The CC0 pack heroes are generic and the game lost its identity, so the three heroes are original characters designed by Claude in the Runelight look and generated in Meshy, chibi like the game's heroes (round 2; round 1 came out realistic): the style sheet is `docs/art/meshy-style.md`, the models, clips and concepts are in `tools/blender/assets/meshy/` (Meshy's own skeleton, not KayKit's Rig_Medium), the contact sheet is `docs/art/meshy-heroes.png`. Session 1 was assets only. **V-06b (session 2, 22 Oct 2026) put them through this pipeline: the game's heroes are now these**, everywhere the KayKit heroes showed (the stage, the match sheets, `?showcase`; below, "Meshy heroes"). V-05b's KayKit rows are in git history (PR #109); the KayKit packs stay for the creeps, the towers, the Heart, the portals and the arrow. **Han, 23 Oct 2026: no hero shows a face (V-06e).** Round 2's Arcanist had a pretty face and read as another art style next to the faceless Ranger and Warden, so she is now **the Hooded Oracle** (below, "V-06e"; the face rule in `docs/art/meshy-style.md`).
 
+**Han, 24 Oct 2026: the enemies are designed as one faction before any model (V-06h concepts).** The Spire's host, bone and ember with ember-orange eyes or a core against the heroes' teal and violet, one silhouette rule a kind: the faction sheet is `docs/art/enemy-style.md`, the concepts `tools/blender/assets/meshy/enemy-concepts/`, the sheet for Han `docs/art/enemy-redesign.png`. Images only: the creeps and bosses stay the packs' (below, "Creeps and bosses") until their models are made.
+
 ### The pipeline
 
 ```

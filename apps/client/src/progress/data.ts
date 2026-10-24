@@ -26,6 +26,7 @@
  * V-06e on 23 Oct 2026 (PR #134: the Arcanist as the Hooded Oracle, from Meshy into the game).
  * V-07a on 24 Oct 2026 (PR #135: the HUD's frames rendered ahead of time, the match view's chrome).
  * V-06f on 24 Oct 2026 (PR #136: the Oracle holds her staff, her hand closed round it).
+ * V-06h-concepts on 24 Oct 2026 (PR #138: the enemy faction, nine kinds, two concepts each, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -394,6 +395,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only: no game rules, server or protocol change, and the other two heroes are untouched. Han, 24 Oct 2026, from his phone: the staff’s shaft passed through her open glove, her hand beside it. Her right hand is now closed into a fist round the shaft: the model’s open glove is bent shut around it before anything is rendered, the staff sits in the middle of the fist (a little low on the shaft, so she still carries it tall), and the fist moves with the staff in every pose. A new check runs on every frame of her first-screen loop and her match pictures and stops the build if the shaft ever shows through the glove or the hand drifts beside it; a staff hung in an open hand by position alone is now refused. Her first-screen loop and her match pictures are rendered again. In review: Han judges her hand on his phone. Built by Claude Code (PR #136).',
     proof: pr(136),
+  },
+  {
+    id: 'V-06h-concepts',
+    title: 'The enemies designed as one faction (images only)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Concept pictures only: nothing in the game changes yet. Han, 24 Oct 2026: the heroes are the game’s own designs now, but the creeps, the bosses and the buildings are still free asset packs, repainted. So the enemies are designed next, as one faction, before any model is made. They are the Spire’s host: risen things of bone and ember that crawl out of the violet portals, with no skin and none of the heroes’ colours. Every one has ember-orange eye sockets or an ember core, against the heroes’ teal and violet, so the two sides read at a glance. Each kind has one shape that reads at phone size: the squat Grunt with a notched blade, the thin Archer with a bow taller than itself, the long-legged Runner, the Brute with an iron slab on its shoulders, the Wisp a floating skull-lantern, the Hatchling a shell on too many legs, the horned and plated Ironhorn, the Matriarch with a brood cage of ember in her chest, and the Shardback with a back of glowing shards. The faction is written down in one page. Two pictures of each kind were made in Meshy, and the better of each pair is marked on the sheet, next to today’s creep and in a strip at phone size beside the three heroes. In review: Han picks; the models follow in two batches (the ground creeps, then the Wisp, the Hatchling and the bosses). Built by Claude Code (PR #138).',
+    proof: pr(138),
   },
   {
     id: 'g1-render',
