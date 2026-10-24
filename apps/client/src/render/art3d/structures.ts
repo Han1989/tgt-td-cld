@@ -86,3 +86,25 @@ export function flameFrame(now: number): { i: number; alpha: number } {
   const h = Math.imul(step ^ 0x5bd1e995, 0x27d4eb2d) >>> 0;
   return { i, alpha: 0.75 + 0.25 * (((h >>> 16) % 1000) / 1000) };
 }
+
+/**
+ * Each tower variant's reach at scale 1, world px from its centre: the farther of its base's half width and its
+ * turret's radius at rest or in recoil (the turret turns), over the drawing's opaque pixels (alpha 200 and up, its soft
+ * shadow and glow aside), rounded up to half a world px. Measured from structures-match.png (a test keeps it so).
+ * `towerScale` (entityScale.ts) stops a tower's phone scale where this reaches its pad's edge (V-07e).
+ */
+export const TOWER_REACH: Record<TowerKind, Record<string, number>> = {
+  arrow: { '1': 26, '2': 28, '3': 29, sniper: 42.5, volley: 45 },
+  cannon: { '1': 36, '2': 39, '3': 39.5, mortar: 39.5, shrapnel: 42 },
+  frost: { '1': 28.5, '2': 30, '3': 33.5, blizzard: 30, glacier: 43 },
+  arcane: { '1': 30, '2': 37, '3': 34, prism: 46, void: 35.5 },
+  flak: { '1': 30, '2': 32, '3': 34, hailstorm: 43.5, skyguard: 42 },
+};
+
+/** The 2D towers' reach (the fallback until the sheet is in): drawn TOWER_SIZE (2.4) tiles across, under 40 px a side. */
+export const TOWER_2D_REACH = 40;
+
+/** A tower's reach at scale 1 (world px): its 3D variant's, or the 2D art's. */
+export function towerReach(kind: TowerKind, tier: number, branch: TowerBranch | null, is3d: boolean): number {
+  return is3d ? (TOWER_REACH[kind][towerVariant(tier, branch)] ?? TOWER_2D_REACH) : TOWER_2D_REACH;
+}

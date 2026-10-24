@@ -216,6 +216,18 @@ Solo Quick with the Arcanist or the Ranger, Screen shake on Normal (⚙ → Scre
 - [ ] 14.9 **The end:** win a match: the Heart emblem drops onto the card with a bump and the numbers count up. Lose one: the red edges close in over the map for most of a second, then the card shows.
 - [ ] 14.10 **Settings:** Screen shake **Off**: no punch and no bump, the rest as before. Graphics **Low**: no dust or coins; flashes, rings, the vignette and the hit-stop stay. Turn on the phone's **reduce motion**: no hit-stop, no punch, no pop or drop (a new tower fades in), the vignette is steady instead of breathing, the boss banner and the emblem fade in.
 
+## 15. Closer: the art at a size you can see (V-07e)
+
+Solo Full with any hero, on the phone held upright. About 5 minutes; call waves early to wave 10 (the Ironhorn).
+
+- [ ] 15.1 **Bigger units at the whole map:** the heroes are clearly bigger than before (about 2.8 tiles across on a 412 px wide phone), the creeps a step bigger, the bosses with them. Towers fill their pads more but never hang over a pad's edge, the Prism and the Volley included (build an Arcane to tier 4 Prism and look at its pad's edges). Every HP bar still sits over its own creep on a busy lane; creeps overlapping one another is expected.
+- [ ] 15.2 **The first match after the lesson:** a few seconds in, the line **"Pinch to zoom in. Double-tap to see the whole map."** shows once, and never again (not in the next match, not during Learn to play).
+- [ ] 15.3 **Pinch:** two fingers on the map, spread them: the map zooms in about the spot between your fingers, up to 1.8× (further spreading does nothing). Two fingers that barely move do nothing. A pinch never builds, pings, walks or opens a ring. The **⤢** button at the top right of the map reads the zoom ("1.4×").
+- [ ] 15.4 **Follow:** zoomed in, walk with the stick: the camera follows your hero, keeping him in the middle third of the view, and stops at the map's edges (never shows past them). Walk down to the Heart: the Heart and the lanes above it are never under the stick or the skills.
+- [ ] 15.5 **Everything still works zoomed in:** tap a pad (its ring opens round it) and build; tap your tower (its ring), upgrade, hold Sell; hold a still finger to ping (on the spot you pressed); drag a skill to aim; tap a creep to focus it.
+- [ ] 15.6 **Back to the whole map:** double-tap the bare ground (not a pad, a tower or a creep): the camera eases back in a fifth of a second. Or tap **⤢**. At the whole map, ⤢ says how to zoom. With the phone's **reduce motion** on, the way back is a quick fade instead of a zoom.
+- [ ] 15.7 A new match (Play again) starts at the whole map, whatever the last one ended at. In ⚙ there is no zoom setting.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

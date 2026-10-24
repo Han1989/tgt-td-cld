@@ -821,7 +821,7 @@ export class Hud {
     setTimeout(() => el.remove(), 3400);
   }
 
-  toast(text: string, kind?: 'air' | 'gold' | 'repair'): void {
+  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom'): void {
     this.onToast(text);
     // Gold short of a price: the gold plaque shakes too (the button that asked shakes on its own).
     if (text === 'Not enough gold') shake(this.goldStat);

@@ -20,6 +20,7 @@ export { loadHeroSheets } from './sheet';
 export { Heart3DView, Portal3DView, PORTAL_FLARE, PORTAL_OPENING } from './buildings';
 export { loadStructureSheet, structuresVersion } from './structureSheet';
 export { Tower3DRig } from './towerRig';
+export { towerReach } from './structures';
 
 /** The hero's 3D rig, or null while it has none (its sheet not loaded yet, or it failed). */
 export function heroRig3d(kind: HeroKind, kit: ArtKit, mine: boolean): HeroRig | null {

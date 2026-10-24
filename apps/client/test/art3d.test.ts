@@ -40,7 +40,9 @@ import {
   FLICKER_MS,
   RECOIL_MAX,
   recoilFrame,
+  TOWER_REACH,
   towerKeys,
+  towerReach,
   towerVariant,
   type StructuresLayout,
 } from '../src/render/art3d/structures';
@@ -1177,6 +1179,31 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
           // And it is a tower, not a speck: a base reaches a good part of the pad, a turret past its pivot.
           expect(reach, key).toBeGreaterThan(key === k.base ? 22 : 10);
         }
+      }
+    }
+  });
+
+  it('TOWER_REACH is each variant\'s reach in the sheet, rounded up to half a world px (V-07e: the phone scale stops there)', () => {
+    for (const kind of TOWER_KINDS) {
+      expect(Object.keys(TOWER_REACH[kind]).sort(), kind).toEqual(variants(kind).sort());
+      for (const v of variants(kind)) {
+        const k = towerKeys(kind, v);
+        let reach = 0;
+        for (const key of [k.base, ...k.turret]) {
+          const c = m.cells[key]!;
+          for (let yy = 0; yy < c.h; yy++) {
+            for (let xx = 0; xx < c.w; xx++) {
+              if (alphaAt(png, c.x + xx, c.y + yy) < 200) continue;
+              const dx = (xx + 0.5 - c.ax) / m.res;
+              const dy = (yy + 0.5 - c.ay) / m.res;
+              reach = Math.max(reach, key === k.base ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy));
+            }
+          }
+        }
+        const table = TOWER_REACH[kind][v]!;
+        expect(table, `${kind}/${v}`).toBeGreaterThanOrEqual(reach - 1e-6);
+        expect(table - reach, `${kind}/${v}`).toBeLessThanOrEqual(0.5 + 1e-6);
+        expect(towerReach(kind, v === '1' || v === '2' || v === '3' ? Number(v) : 4, /^\d$/.test(v) ? null : (v as never), true)).toBe(table);
       }
     }
   });

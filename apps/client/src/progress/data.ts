@@ -34,6 +34,7 @@
  * V-06l-concepts on 24 Oct 2026 (PR #143: the Spire's wards, the towers, the Heart and the portals in two themes, images only).
  * V-06l-towers on 24 Oct 2026 (PR #145: the Spire's wards, batch 1, the five towers from Meshy, theme A).
  * V-06l-batch2 on 24 Oct 2026 (PR #146: the Spire's wards, batch 2, the branch turrets, the Heart and the portals).
+ * V-07e on 24 Oct 2026 (PR #147: closer, the art at a size you can see on a phone: bigger units and a pinch zoom).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -476,6 +477,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only: no game rules, server or protocol change; every tower keeps its pad, range and branches, and the Heart and the portals stand where they stood. Every building in a match is now the game’s own design. Each of the ten branches has its own turret made in Meshy from its tower’s turret picture: the Sniper a heavier, longer ballista with a sight, the Volley three bolts fanned under two bows, the Mortar a short wide bowl with a glowing shot, the Shrapnel the stone-thrower with a banded keg, the Glacier one thick frozen column, the Blizzard a star of six ice lances that turns on a pulse, the Prism a big many-faced crystal, the Void a dark orb in a claw, the Skyguard the sail rotor on a tall mast, the Hailstorm a battery of four drums beside the wheel. They turn and kick as before, gold as at tier 3, with the branch’s violet glow. The Heart is the moon-stone keep with the Spire rising from it and the rose-red crystal on its tip: under 60% cracks run down its walls and two merlons are knocked askew; under 30% the Spire breaks off below its roof, two turret caps fall, rubble lies round it and it burns, while the crystal still hovers where it was until the Heart falls. The portals are moon-stone gatehouses with an open arch where the swirl shows, their rune-stones glowing teal instead of torches. In review: Han judges them on his phone. Built by Claude Code (PR #146).',
     proof: pr(146),
+  },
+  {
+    id: 'V-07e',
+    title: 'Closer: bigger heroes, creeps and towers on a phone, and a pinch to zoom in',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'The match on a phone: no game rules, server or protocol change. Han, 24 Oct 2026: the new heroes, creeps and towers are detailed, but in a match they looked small, because the whole map fits a phone’s width. Two changes. Heroes are drawn a step bigger (1.75 times where they were 1.4) and creeps and bosses too (1.45 where they were 1.2), with their health bars, shots and traps; towers as big as their pads allow, up to 1.3 times, each stopping at its pad’s edge (measured from the pictures: the widest, the Prism, already filled its pad, so it stays nearly as it was). And two fingers now zoom the map in, up to 1.8 times, about the spot between them; zoomed in, the camera follows your hero and keeps him in the middle of the view, never showing past the map. A double-tap on bare ground, or the ⤢ button at the top right of the map (it shows the zoom, like 1.4×), brings the whole map back in a fifth of a second. Every match starts with the whole map, and the first match on a phone says once how to zoom. Tablets and desktop are unchanged. In review: Han judges it on his Pixel 10 Pro. Built by Claude Code (PR #147).',
+    proof: pr(147),
   },
   {
     id: 'g1-render',

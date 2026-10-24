@@ -98,6 +98,10 @@ describe('settings', () => {
     expect(DEFAULT_SETTINGS.repairHint).toBe('new');
     expect(parseSettings(JSON.stringify({ repairHint: 'seen' })).repairHint).toBe('seen');
     expect(parseSettings(JSON.stringify({ repairHint: 1 })).repairHint).toBe('new');
+    // V-07e: the pinch-zoom line, once.
+    expect(DEFAULT_SETTINGS.zoomHint).toBe('new');
+    expect(parseSettings(JSON.stringify({ zoomHint: 'seen' })).zoomHint).toBe('seen');
+    expect(parseSettings(JSON.stringify({ zoomHint: true })).zoomHint).toBe('new');
   });
 });
 

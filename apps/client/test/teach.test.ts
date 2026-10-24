@@ -19,6 +19,8 @@ import {
   GOLD_SIT_SECONDS,
   hitsAir,
   repairHint,
+  ZOOM_HINT_AFTER_MS,
+  zoomHint,
   kindFlies,
   readAir,
   readGold,
@@ -224,5 +226,22 @@ describe('repair line', () => {
     expect(repairHint(true, 'me', [tower('mate', 10)], true)).toBeNull();
     expect(repairHint(false, 'me', [tower('me', 10)], true)).toBeNull();
     expect(repairHint(true, null, [tower('me', 10)], true)).toBeNull();
+  });
+});
+
+describe('zoom line (phones, V-07e)', () => {
+  const due = { due: true, zoomable: true, lesson: false, quiet: false, playing: true, sinceMs: ZOOM_HINT_AFTER_MS };
+
+  it('speaks once on a phone, a few seconds into a match that is not the lesson', () => {
+    expect(zoomHint(due)).toBe('Pinch to zoom in. Double-tap to see the whole map.');
+    expect(zoomHint({ ...due, sinceMs: ZOOM_HINT_AFTER_MS - 1 })).toBeNull();
+  });
+
+  it('stays quiet during the lesson, under a card, off a phone, out of a match, and once seen', () => {
+    expect(zoomHint({ ...due, lesson: true })).toBeNull();
+    expect(zoomHint({ ...due, quiet: true })).toBeNull();
+    expect(zoomHint({ ...due, zoomable: false })).toBeNull();
+    expect(zoomHint({ ...due, playing: false })).toBeNull();
+    expect(zoomHint({ ...due, due: false })).toBeNull();
   });
 });

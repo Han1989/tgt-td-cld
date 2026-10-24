@@ -53,7 +53,14 @@ export interface Settings {
    * `seen` does not. Learn to play sets it back to `new`.
    */
   repairHint: RepairHint;
+  /**
+   * The pinch-zoom line (V-07e). `new` shows it once, the first time a match on a phone starts after the lesson (never
+   * during it); then `seen`.
+   */
+  zoomHint: ZoomHint;
 }
+
+export type ZoomHint = 'new' | 'seen';
 
 export const STICK_NAMES: Record<StickMode, string> = {
   float: 'Floating',
@@ -123,6 +130,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tutorial: 'new',
   airLesson: 'new',
   repairHint: 'new',
+  zoomHint: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -159,6 +167,7 @@ export function parseSettings(raw: string | null): Settings {
     if (v.tutorial === 'new' || v.tutorial === 'completed' || v.tutorial === 'skipped') out.tutorial = v.tutorial;
     out.airLesson = parseAirLesson(v.airLesson);
     out.repairHint = parseRepairHint(v.repairHint);
+    out.zoomHint = v.zoomHint === 'seen' ? 'seen' : 'new';
   } catch {
     // Corrupt value: defaults.
   }

@@ -2,7 +2,7 @@
 // Pixel projects), docs/MOBILE.md §8.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, centre, expectSameBoxes, Finger, framesAB, framesIn, Hand, lessonCard, overlaps, sent, stall, startSolo, waitForReady, type Box } from './helpers';
+import { box, centre, expectSameBoxes, Finger, framesAB, framesIn, Hand, lessonCard, overlaps, pinchOn, sent, stall, startSolo, waitForReady, type Box } from './helpers';
 
 const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn'];
 
@@ -100,6 +100,32 @@ async function elementsOver(page: Page, b: Box): Promise<string[]> {
   }, b);
 }
 
+/**
+ * The gameplay on screen now (the pads of this match, every lane tile, the Heart) that overlaps any of `boxes`, by
+ * name. Empty when nothing gameplay is under them.
+ */
+async function gameplayUnder(page: Page, boxes: Box[]): Promise<string[]> {
+  return page.evaluate((boxes) => {
+    const t = window.__tdt;
+    const m = t.map as typeof t.map & { tiles: ArrayLike<number> };
+    const at = (x: number, y: number, w: number, h: number) => {
+      const a = t.camera.worldToScreen(x * 32, y * 32);
+      const b = t.camera.worldToScreen((x + w) * 32, (y + h) * 32);
+      return { left: a.x, top: a.y, right: b.x, bottom: b.y };
+    };
+    const things: [string, { left: number; top: number; right: number; bottom: number }][] = [];
+    for (const p of t.latest()!.pads) {
+      const pad = m.pads[p.id]!;
+      things.push([`pad ${p.id}`, at(pad.x - m.padSize / 2, pad.y - m.padSize / 2, m.padSize, m.padSize)]);
+    }
+    for (let ty = 0; ty < m.height; ty++) for (let tx = 0; tx < m.width; tx++) if (m.tiles[ty * m.width + tx] === 1) things.push([`lane ${tx},${ty}`, at(tx, ty, 1, 1)]);
+    things.push(['heart', at(m.heart.x - 2.2, m.heart.y - 2.2, 4.4, 4.4)]);
+    const hit = (a: (typeof things)[number][1], b: (typeof boxes)[number]) =>
+      a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+    return things.filter(([, r]) => boxes.some((b) => hit(r, b))).map(([name]) => name);
+  }, boxes);
+}
+
 /** Your pads in this match, lowest on screen first (closest to the controls). */
 async function myPadsBottomFirst(page: Page): Promise<number[]> {
   return page.evaluate(() => {
@@ -185,6 +211,30 @@ test.describe('portrait phone layout', () => {
     expect(layout.gameplayBottom - layout.followRange).toBeLessThanOrEqual(layout.controls!.top + 0.5);
     // Touch targets of at least 44 px.
     for (const b of controls.slice(0, 2)) expect(Math.min(b.right - b.left, b.bottom - b.top)).toBeGreaterThanOrEqual(44);
+
+    // V-07e: the ⤢ button sits under the top bar at the map's top right, clear of the controls and of every pad and lane.
+    const zb = await box(page, '#zoom-btn');
+    expect(zb.top).toBeGreaterThanOrEqual(top.bottom - 0.5);
+    expect(zb.right).toBeLessThanOrEqual(vp.width + 0.5);
+    for (const b of controls) expect(overlaps(zb, b)).toBe(false);
+    // Where the camera rests at the fit, no pad or lane is under it. (On a shorter phone the camera follows the hero down
+    // at the fit too, and the rows it scrolls up pass under the button as they pass under the top bar.)
+    if (layout.followRange === 0) expect(await gameplayUnder(page, [zb])).toEqual([]);
+    // At any zoom the controls never cover the gameplay round your hero: pinched in to 1.8× (the most) with the hero at
+    // his spawn by the Heart, the camera follows him down, and no lane, pad or the Heart is under the stick or a skill.
+    for (const ratio of [1.4, 2]) {
+      await pinchOn(page, { x: vp.width / 2, y: (top.bottom + layout.controls!.top) / 2 }, ratio);
+      const level = Math.min(1.8, ratio);
+      await expect.poll(() => page.evaluate(() => window.__tdt.zoom())).toBeCloseTo(level, 2);
+      await expect.poll(() => gameplayUnder(page, controls), { message: `at ${level}×` }).toEqual([]);
+      const hero = await page.evaluate(() => {
+        const h = window.__tdt.latest()!.heroes[0]!;
+        return window.__tdt.camera.worldToScreen(h.x * 32, h.y * 32);
+      });
+      expect(hero.y).toBeLessThan(layout.controls!.top);
+      await page.locator('#zoom-btn').tap();
+      await expect.poll(() => page.evaluate(() => window.__tdt.zoom())).toBe(1);
+    }
   });
 
   test('the rendered frames move nothing: the top bar, its stats and buttons, the controls and the build ring keep their boxes', async ({ page }) => {
@@ -1188,5 +1238,146 @@ test.describe('floating stick with the skills around it (the default) and taps w
     await expect(page.locator('.toast', { hasText: 'Hold Sell' })).toBeVisible();
     await page.waitForTimeout(500);
     expect(await sent(page, 'sell')).toHaveLength(0);
+  });
+});
+
+test.describe('pinch zoom on a phone (V-07e)', () => {
+  test('a pinch zooms to 1.5×, the camera follows the walking hero, a tap and a ping at zoom land on their tiles, a double-tap and ⤢ bring back the whole map', async ({
+    page,
+  }) => {
+    await startSolo(page);
+    const zoom = () => page.evaluate(() => window.__tdt.zoom());
+    const l = await page.evaluate(() => window.__tdt.layout());
+    const button = page.locator('#zoom-btn');
+    // Every match starts with the whole map; the ⤢ button is where the layout put it, reading nothing yet.
+    expect(await zoom()).toBe(1);
+    await expect(button).toBeVisible();
+    const zb = await box(page, '#zoom-btn');
+    for (const k of ['left', 'top', 'right', 'bottom'] as const) expect(Math.abs(zb[k] - l.zoomButton![k])).toBeLessThanOrEqual(1);
+    await expect(button.locator('.zoom-level')).toHaveText('');
+    // At the whole map, ⤢ says how to zoom.
+    await button.tap();
+    await expect(page.locator('.toast', { hasText: 'Pinch to zoom in' }).first()).toBeVisible();
+
+    // A two-finger tap (the fingers 1% further apart) does nothing; a pinch spreading them 1.5 times zooms to 1.5×.
+    const mid = { x: (l.map.left + l.map.right) / 2, y: (l.topBarBottom + l.controls!.top) / 2 };
+    await pinchOn(page, mid, 1.01);
+    await page.waitForTimeout(150);
+    expect(await zoom()).toBe(1);
+    await pinchOn(page, mid, 1.5);
+    await expect.poll(zoom).toBeCloseTo(1.5, 2);
+    await expect(button.locator('.zoom-level')).toHaveText('1.5×');
+    // The two pinches tapped, pinged, walked and opened nothing.
+    for (const type of ['ping', 'move', 'build', 'attack']) expect(await sent(page, type), type).toHaveLength(0);
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+
+    // The floating stick walks the hero up the Mid lane; once he stops, the camera has kept him in the middle third.
+    const finger = await Finger.on(page);
+    const from = { x: mid.x, y: l.controls!.top - 40 };
+    await finger.down(from.x, from.y);
+    await finger.move(from.x, from.y - 15);
+    await finger.move(from.x, from.y - 30);
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.heroes[0]!.y), { timeout: 30_000 }).toBeLessThan(27);
+    await finger.up();
+    const band = { left: l.map.left, right: l.map.right, top: l.topBarBottom, bottom: l.controls!.top };
+    const centreBox = {
+      left: band.left + (band.right - band.left) / 3,
+      right: band.right - (band.right - band.left) / 3,
+      top: band.top + (band.bottom - band.top) / 3,
+      bottom: band.bottom - (band.bottom - band.top) / 3,
+    };
+    await expect
+      .poll(async () => {
+        const s = await page.evaluate(() => {
+          const h = window.__tdt.latest()!.heroes[0]!;
+          return window.__tdt.camera.worldToScreen(h.x * 32, h.y * 32);
+        });
+        const slack = 6;
+        return s.x >= centreBox.left - slack && s.x <= centreBox.right + slack && s.y >= centreBox.top - slack && s.y <= centreBox.bottom + slack;
+      }, { message: 'the hero is inside the centre box' })
+      .toBe(true);
+    expect(await zoom()).toBeCloseTo(1.5, 2);
+
+    // A tap on one of your pads at 1.5× opens its ring, and the build goes to that pad.
+    const pick = await page.evaluate(() => {
+      const t = window.__tdt;
+      const l = t.layout();
+      const snap = t.latest()!;
+      const z = l.zoomButton!;
+      for (const p of snap.pads) {
+        if ((p.owner !== t.me() && p.owner !== null) || snap.towers.some((x) => x.padId === p.id)) continue;
+        const pad = t.map.pads[p.id]!;
+        const s = t.camera.worldToScreen(pad.x * 32, pad.y * 32);
+        if (s.x < l.map.left + 40 || s.x > l.map.right - 40 || s.y < l.topBarBottom + 60 || s.y > l.controls!.top - 60) continue;
+        if (s.x > z.left - 40 && s.y < z.bottom + 40) continue;
+        return { id: p.id, x: s.x, y: s.y };
+      }
+      return null;
+    });
+    expect(pick, 'a pad of yours on screen at 1.5×').not.toBeNull();
+    await page.touchscreen.tap(pick!.x, pick!.y);
+    await expect(page.locator('#radial[data-menu="build"] .radial-btn').first()).toBeVisible();
+    await page.locator('.radial-btn[data-tower="arrow"]').tap();
+    await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId: pick!.id, tower: 'arrow' }]);
+
+    // Bare ground on screen (no pad, tower or creep within a snap's reach): a long press pings the tile under the finger.
+    const ground = await page.evaluate(() => {
+      const t = window.__tdt;
+      const l = t.layout();
+      const snap = t.latest()!;
+      const px = t.camera.zoom * 32;
+      const z = l.zoomButton!;
+      const spots: { x: number; y: number }[] = [];
+      for (const p of snap.pads) spots.push(t.map.pads[p.id]!);
+      for (const tw of snap.towers) spots.push(tw);
+      let best: { x: number; y: number; d: number } | null = null;
+      for (let y = l.topBarBottom + 40; y < l.controls!.top - 40; y += 8) {
+        for (let x = l.map.left + 30; x < l.map.right - 30; x += 8) {
+          if (x > z.left - 30 && y < z.bottom + 30) continue;
+          const w = t.camera.screenToWorld(x, y);
+          let d = Infinity;
+          for (const s of spots) {
+            const dx = Math.max(0, Math.abs(w.x / 32 - s.x) - t.map.padSize / 2);
+            const dy = Math.max(0, Math.abs(w.y / 32 - s.y) - t.map.padSize / 2);
+            d = Math.min(d, Math.hypot(dx, dy) * px);
+          }
+          for (const c of snap.creeps) d = Math.min(d, Math.hypot(w.x / 32 - c.x, w.y / 32 - c.y) * px - 20);
+          if (!best || d > best.d) best = { x, y, d };
+        }
+      }
+      return best;
+    });
+    expect(ground!.d, 'bare ground on screen').toBeGreaterThan(60);
+    const under = await page.evaluate(({ x, y }) => window.__tdt.camera.screenToWorld(x, y), ground!);
+    await finger.down(ground!.x, ground!.y);
+    await page.waitForTimeout(650);
+    await finger.up();
+    await expect.poll(() => sent(page, 'ping').then((p) => p.length)).toBe(1);
+    const [ping] = (await sent(page, 'ping')) as unknown as { x: number; y: number }[];
+    expect(Math.abs(ping!.x - under.x / 32)).toBeLessThan(0.3);
+    expect(Math.abs(ping!.y - under.y / 32)).toBeLessThan(0.3);
+
+    // A double-tap there brings back the whole map (200 ms), and the ⤢ button reads nothing again.
+    const moves = (await sent(page, 'move')).length;
+    const t0 = Date.now() / 1000;
+    await finger.down(ground!.x, ground!.y, t0);
+    await finger.up(t0 + 0.05);
+    await finger.down(ground!.x + 3, ground!.y + 2, t0 + 0.15);
+    await finger.up(t0 + 0.2);
+    await expect.poll(zoom).toBe(1);
+    await expect(button.locator('.zoom-level')).toHaveText('');
+    // The double-tap selected nothing and moved nothing.
+    expect(await sent(page, 'move')).toHaveLength(moves);
+    expect(await sent(page, 'attack')).toHaveLength(0);
+    await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+
+    // Pinched in to the most (1.8×, however far the fingers spread), ⤢ brings back the whole map too.
+    await pinchOn(page, mid, 2.5);
+    await expect.poll(zoom).toBeCloseTo(1.8, 2);
+    await expect(button.locator('.zoom-level')).toHaveText('1.8×');
+    await button.tap();
+    await expect.poll(zoom).toBe(1);
+    const camera = await page.evaluate(() => window.__tdt.camera.worldToScreen(0, 0));
+    expect(camera.x).toBeCloseTo(l.map.left, 0);
   });
 });

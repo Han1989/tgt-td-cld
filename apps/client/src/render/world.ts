@@ -32,7 +32,7 @@ import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
-import { UNIT_SCALES, type EntityScales } from './entityScale';
+import { towerScale, UNIT_SCALES, type EntityScales } from './entityScale';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
@@ -102,6 +102,7 @@ import {
   PORTAL_OPENING,
   portalView3d,
   structuresVersion,
+  towerReach,
   towerRig3d,
   type Creep3DRig,
   type Heart3DView,
@@ -1892,7 +1893,8 @@ export class WorldRenderer {
         this.towers.set(t.id, s);
       }
       s.root.position.set(t.x * S, t.y * S);
-      s.root.scale.set(this.scales.tower);
+      // As large as the layout draws towers, but never past its pad (its own variant's reach: V-07e).
+      s.root.scale.set(towerScale(this.scales.tower, towerReach(t.kind, t.tier, t.branch, s.art?.is3d === true)));
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
       const statusKey = `${t.tier}${t.branch ?? ''}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {

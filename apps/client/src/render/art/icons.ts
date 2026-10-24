@@ -412,6 +412,30 @@ const UI_ICONS: Record<string, IconDraw> = {
       p.line(c, w, k.moon, 2.2);
     }
   },
+  // The whole map (⤢, V-07e): a moonlit double arrow from corner to corner, lower left to upper right, over the four
+  // corners of a stone frame.
+  fitMap: (c, p, k) => {
+    const corners = new Path2D();
+    for (const [x, y, dx, dy] of [
+      [-16, -16, 1, 1],
+      [16, -16, -1, 1],
+      [-16, 16, 1, -1],
+      [16, 16, -1, -1],
+    ] as const) {
+      corners.addPath(pathLine([x + dx * 9, y, x, y, x, y + dy * 9]));
+    }
+    p.line(c, corners, k.ink, 5.4);
+    p.line(c, corners, k.stone, 3);
+    const shaft = pathLine([-8, 8, 8, -8]);
+    p.line(c, shaft, k.ink, 5.6);
+    p.line(c, shaft, k.moon, 3);
+    for (const [x, y, s] of [
+      [10, -10, 1],
+      [-10, 10, -1],
+    ] as const) {
+      p.detail(c, poly([x, y, x - s * 10, y, x, y + s * 10], 0.8), k.moon);
+    }
+  },
   // Muted: the speaker with a red cross.
   muted: (c, p, k) => {
     speaker(c, p, k);
@@ -449,7 +473,8 @@ export type IconId =
   | 'target'
   | 'level'
   | 'sound'
-  | 'muted';
+  | 'muted'
+  | 'fitMap';
 
 /** Every icon, by id. */
 export const ICONS: ReadonlyMap<string, IconDraw> = (() => {

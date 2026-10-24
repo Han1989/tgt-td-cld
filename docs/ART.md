@@ -130,23 +130,23 @@ Scatter decorations with `hash()` (deterministic), never `Math.random()`: the ar
 
 ## 6. Size and readability at phone size
 
-On the reference phone (412 × 839, Spire's 26 tiles across the width) a tile is **15.85 px**. Units are drawn larger than their map size so they stay readable, each kind with its own scale (`render/entityScale.ts`, `entityScales(tilePx)`, a pure function of the tile size, unit-tested). **Where a tile is 25 px or more (desktop, tablet) every scale is 1.** The camera is not part of it: the whole Spire map stays on screen and the camera stays still on phones (`docs/MOBILE.md` §4; Han, 14 Oct 2026, V-04).
+On the reference phone (412 × 839, Spire's 26 tiles across the width) a tile is **15.85 px**. Units are drawn larger than their map size so they stay readable, each kind with its own scale (`render/entityScale.ts`, `entityScales(tilePx)`, a pure function of the fitted tile size, unit-tested). **Where a tile is 25 px or more (desktop, tablets with big tiles) every scale is 1.** The scales follow the fitted tile only: on a phone a pinch zooms the map and everything on it together (up to 1.8×, `docs/MOBILE.md` §4), so units keep their size against the map at any zoom (Han, 14 Oct 2026, V-04; one step bigger and the pinch in V-07e, Han, 24 Oct 2026: "the art at a size you can see").
 
 - **Base scale** = `clamp(25 / tilePx, 1, 1.6)`: what every unit had before V-04 (1.58 on the reference phone, 1.6 from a 15.6 px tile down).
-- **Towers** = the base scale, at most 1.2 (unchanged: they must stay inside their pad).
-- **Creeps** (bosses and flyers with them, so a boss keeps its size relative to other creeps) = base × `CREEP_BOOST` (1.2); **heroes** = base × `HERO_BOOST` (1.4). The boost grows linearly as tiles shrink from 25 px and is whole at 16 px, so nothing jumps between a tablet and a phone. Largest: heroes 2.24, creeps 1.92 (a 360 px wide phone, 13.85 px tiles).
+- **Towers** = the base scale, at most **1.3** (`MAX_TOWER_SCALE`; 1.2 before V-07e), and **never past their pad** (`towerScale(scale, reach)`): a tower's scale stops where its widest part reaches the pad's edge (48 world px from its centre), its `reach` being the farther of its base's half width and its turret's radius at rest or in recoil (the turret turns), over the drawing's opaque pixels, per variant (`TOWER_REACH` in `art3d/structures.ts`, measured from the structures sheet and kept so by `test/art3d.test.ts`; the 2D fallback 40, so V-04's 1.2). Measured, not by eye: the widest is the **Prism's base, 46 world px**, so it stays at 1.04 (at V-04's 1.2 it already overhung its pad by 3–4 px a side on a phone); the Volley 1.07, the Glacier 1.12, the Sniper's long turret 1.13; 12 of the 15 tier 1–3 bodies get the whole 1.3 (the Cannon at tiers 2 and 3 stop at 1.23 and 1.22, the Arcane at tier 2 at 1.297).
+- **Creeps** (bosses and flyers with them, so a boss keeps its size relative to other creeps) = base × `CREEP_BOOST` (**1.45**; V-04's 1.2); **heroes** = base × `HERO_BOOST` (**1.75**; V-04's 1.4). The boost grows linearly as tiles shrink from 25 px and is whole at 16 px, so nothing jumps between a tablet and a phone. Largest: heroes 2.8, creeps 2.32 (a 360 px wide phone, 13.85 px tiles). Overlap on a busy lane is accepted; a unit's HP bar is its child, so it stays over its own sprite at any scale.
 - Everything that follows a unit's drawn size uses its scale: HP bars and their offsets (they are children of the unit), hit flashes, the contact shadow and the hero's ground ring, hit and death effects (`fx.bitScale` = the creep scale; a hero's death passes its own), meteors (`meteors.bitScale`), where damage numbers start, the Iron Vow ring's reach, and where a tap lands on a creep (`WorldRenderer.drawnCreepRadius`, so a tap hits what is drawn). Shots and the Snare Trap's coil follow the creeps. **Nothing that shows a game rule changes size:** tower ranges, aura radii (the Bulwark Aura's true radius), rain and skill areas, the trap's root ring, pads and the Heart stay at their true size.
 
 | Thing | World px → phone px (412 wide) | Example |
 |---|---|---|
-| Heroes | × 1.09 (was × 0.78) | a hero ~25 px tall, weapon and all → ~35 px |
-| Creeps, bosses | × 0.94 (was × 0.78) | a Grunt frame 32 × 36 → 30 × 34 px |
-| Towers | × 0.59 | an 84 px tower frame → 50 px |
+| Heroes | × 1.37 (V-04 × 1.09, before × 0.78) | a hero ~32 px tall, weapon and all → ~44 px (V-04 ~35) |
+| Creeps, bosses | × 1.14 (V-04 × 0.94) | a Grunt frame 32 × 36 → 36 × 41 px (V-04 30 × 34) |
+| Towers | up to × 0.64 (V-04 × 0.59), never past the pad | an 84 px tower frame → 54 px |
 | Heart, portals, pads | × 0.50 | a 96 px pad → 48 px |
-| Projectiles, trap coil | × 0.94 | a bolt ~28 px long → ~26 px; same scale as creeps |
+| Projectiles, trap coil | × 1.14 | a bolt ~28 px long → ~32 px; same scale as creeps |
 | Trap root ring | × 0.50 | the root radius in tiles, not scaled up with creeps |
 
-Checked by eye at 412 × 839 and 360 × 640 in `/?stress=300` and in a Quick match at wave 12 with towers built (`docs/screenshots/bigger-units/`): lanes (2 tiles wide) still read as lanes, a Brute (radius 0.5) fills its lane and no more, and HP bars stay clear. A boss (Shardback, radius 0.95) edges onto the neighbouring pad's border, as it did a little at the old size.
+Pinched in, everything is that × the zoom (up to 1.8: a hero ~79 px, a 96 px pad 86 px). V-04 was checked by eye at 412 × 839 and 360 × 640 in `/?stress=300` and in a Quick match at wave 12 with towers built (`docs/screenshots/bigger-units/`): lanes (2 tiles wide) still read as lanes, a Brute (radius 0.5) fills its lane and no more, and HP bars stay clear. V-07e's wave 10 at the fit and at 1.8×, V-04's scales against V-07e's on one frozen frame, is in `docs/screenshots/closer/`: creeps on a busy lane now overlap (accepted), a boss reaches over the lane's edge onto the pads' border, and every HP bar still sits over its own unit.
 
 Rules:
 - **Silhouette first.** Each entity must be recognisable from its outline alone at phone size (`?showcase` shows each at that size, bottom right of its card). Different creeps need different silhouettes, not just different colours.

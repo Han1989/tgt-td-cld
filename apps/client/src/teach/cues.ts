@@ -223,3 +223,16 @@ export function repairHint(
   if (!towers.some((t) => t.owner === me && t.hp < t.maxHp * REPAIR_HINT_BELOW)) return null;
   return touch ? 'A tower is under half HP. Tap it, then Repair.' : 'A tower is under half HP. Click it, then Repair (F).';
 }
+
+/** The pinch-zoom line waits this long (ms) into a match, past its opening banner. */
+export const ZOOM_HINT_AFTER_MS = 3000;
+export const ZOOM_HINT_TEXT = 'Pinch to zoom in. Double-tap to see the whole map.';
+
+/**
+ * The one-time pinch-zoom line (V-07e): on a phone (`zoomable`), while it is still due, in a match that is not the
+ * lesson and has no card up, `sinceMs` after the match was first drawn. Otherwise null.
+ */
+export function zoomHint(p: { due: boolean; zoomable: boolean; lesson: boolean; quiet: boolean; playing: boolean; sinceMs: number }): string | null {
+  if (!p.due || !p.zoomable || p.lesson || p.quiet || !p.playing) return null;
+  return p.sinceMs >= ZOOM_HINT_AFTER_MS ? ZOOM_HINT_TEXT : null;
+}

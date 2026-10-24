@@ -1,10 +1,11 @@
 // Touch input recognition as pure functions (docs/MOBILE.md §5, §8): joystick and
 // the floating stick, tap vs drag, smart-cast targeting, drag-to-aim and cancel,
 // snap-to-nearest, hold-to-sell, tap-to-build vs hold-to-preview, taps that count
-// as taps when a frame is late, overlay hit tests and radial menu placement. No DOM, so every rule here is unit-tested; `touchControls.ts`
-// wires them to pointer events.
+// as taps when a frame is late, the pinch zoom and the double-tap back to the fit (V-07e), overlay hit tests and
+// radial menu placement. No DOM, so every rule here is unit-tested; `touchControls.ts` wires them to pointer events.
 
 import type { SkillSnap } from '@tdt/protocol';
+import { MAX_PHONE_ZOOM } from '../input/camera';
 import { clamp, FLOAT_R, inRect, type Rect } from '../layout';
 
 export interface Pt {
@@ -217,6 +218,52 @@ export function mapPing(elapsedMs: number, dragged: boolean, holdMs = PING_HOLD_
   if (dragged || elapsedMs <= 0) return { progress: 0, ping: false };
   const progress = clamp(elapsedMs / holdMs, 0, 1);
   return { progress, ping: elapsedMs >= holdMs };
+}
+
+// ---------------------------------------------------------------------------
+// Pinch zoom and the double-tap back to the fit (phones, V-07e)
+// ---------------------------------------------------------------------------
+
+/** A pinch zooms only once the fingers' distance has changed by more than this share: a two-finger tap does nothing. */
+export const PINCH_DEAD = 0.03;
+/** Two taps on the ground at most this far apart in time (ms) and space (px) are a double-tap. */
+export const DOUBLE_TAP_MS = 300;
+export const DOUBLE_TAP_PX = 30;
+
+/** Where a pinch started: its two fingers and the zoom then (times the fitted zoom). */
+export interface PinchStart {
+  a: Pt;
+  b: Pt;
+  zoom: number;
+}
+
+export interface Pinch {
+  /** The zoom now, clamped to [lo, hi] (the start's while still inside the dead zone). */
+  zoom: number;
+  /** The fingers' midpoint now (screen px): the zoom is about it. */
+  mid: Pt;
+  /** Past the dead zone, once and for all. */
+  active: boolean;
+}
+
+/**
+ * Two fingers on the map, now at `a` and `b`: the zoom is the start's times the ratio of their distances, clamped to
+ * fit (1) .. MAX_PHONE_ZOOM, about their midpoint. Until the ratio leaves 1 ± PINCH_DEAD the zoom does not move (a
+ * two-finger tap, or fingers landing a hair apart); after that the pinch is active until it ends.
+ */
+export function pinch(start: PinchStart, a: Pt, b: Pt, wasActive: boolean, lo = 1, hi = MAX_PHONE_ZOOM, dead = PINCH_DEAD): Pinch {
+  const d0 = Math.max(1, Math.hypot(start.b.x - start.a.x, start.b.y - start.a.y));
+  const ratio = Math.hypot(b.x - a.x, b.y - a.y) / d0;
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const active = wasActive || Math.abs(ratio - 1) > dead;
+  return { zoom: clamp(active ? start.zoom * ratio : start.zoom, lo, hi), mid, active };
+}
+
+/** A tap on the ground (`at`: its event time, ms) after `last`: a double-tap when close enough in time and space. */
+export function isDoubleTap(last: { at: number; p: Pt } | null, now: { at: number; p: Pt }, ms = DOUBLE_TAP_MS, px = DOUBLE_TAP_PX): boolean {
+  if (!last) return false;
+  const dt = now.at - last.at;
+  return dt >= 0 && dt <= ms && Math.hypot(now.p.x - last.p.x, now.p.y - last.p.y) <= px;
 }
 
 // ---------------------------------------------------------------------------

@@ -5,7 +5,9 @@
 //   one-row top bar, the map fitted to the width under it, and the touch controls
 //   drawn over the map's safe zone (forest rows) at the bottom. If the map's
 //   gameplay rows would reach under the controls (shorter phones), the camera
-//   follows the hero vertically within `followRange`.
+//   follows the hero vertically within `followRange`. On a phone a pinch zooms the
+//   map in (input/camera.ts, `PhoneZoom`) and the ⤢ button (`zoomButton`) brings it
+//   back to the fit.
 // - `wide`: tablets in landscape and desktop. The map is fitted to the height and
 //   centred; the HUD sits in the side margins (and the touch controls too, on a
 //   touch screen).
@@ -42,6 +44,9 @@ export const EDGE_GAP = 8;
 export const GESTURE_GAP = 12;
 /** Room above the buttons for the skill-learn "+" badges (px). */
 export const LEARN_ALLOWANCE = 4;
+/** The ⤢ button (back to the whole map, V-07e): its side, a touch target, and its gap to the top bar and the map's edge (px). */
+export const ZOOM_BTN_PX = 44;
+export const ZOOM_BTN_GAP = 4;
 
 /**
  * Controls layout (⚙ → Controls layout), two choices. The stick: `float` (the default) walks the hero from a drag
@@ -126,6 +131,12 @@ export interface Layout {
   followRange: number;
   /** Screen y where the map's gameplay rows end (safe zone starts), camera at rest. */
   gameplayBottom: number;
+  /**
+   * Phones (the tall layout on a phone): the ⤢ button, at the top right of the map under the top bar, over the east
+   * border and the bare ground beside it (never over a pad or a lane at the fitted zoom). Null where the camera does
+   * not pinch-zoom (tablets, desktop, narrow windows).
+   */
+  zoomButton: Rect | null;
 }
 
 export function isPhone(w: number, h: number): boolean {
@@ -136,7 +147,17 @@ export function computeLayout(input: LayoutInput): Layout {
   const { w, h, insets, touch, mapW, mapH } = input;
   const phone = touch && isPhone(w, h);
   if (phone && input.landscape) {
-    return { kind: 'rotate', tilePx: 0, map: rect(0, 0, 0, 0), topBarBottom: 0, margin: 0, controls: null, followRange: 0, gameplayBottom: 0 };
+    return {
+      kind: 'rotate',
+      tilePx: 0,
+      map: rect(0, 0, 0, 0),
+      topBarBottom: 0,
+      margin: 0,
+      controls: null,
+      followRange: 0,
+      gameplayBottom: 0,
+      zoomButton: null,
+    };
   }
 
   const wideTile = Math.min((h - 2 * WIDE_PAD) / mapH, (w - 2 * SIDE_MIN) / mapW);
@@ -156,6 +177,7 @@ export function computeLayout(input: LayoutInput): Layout {
       controls,
       followRange: 0,
       gameplayBottom: top + input.safeFromY * wideTile,
+      zoomButton: null,
     };
   }
 
@@ -179,7 +201,15 @@ export function computeLayout(input: LayoutInput): Layout {
     controls,
     followRange: Math.max(0, gameplayBottom - controls.top),
     gameplayBottom,
+    zoomButton: phone ? zoomButtonRect(map, topBarBottom, w - insets.right) : null,
   };
+}
+
+/** The ⤢ button: ZOOM_BTN_PX square at the map's top right, ZOOM_BTN_GAP under the top bar and in from the edge. */
+function zoomButtonRect(map: Rect, topBarBottom: number, screenRight: number): Rect {
+  const right = Math.min(map.right, screenRight) - ZOOM_BTN_GAP;
+  const top = topBarBottom + ZOOM_BTN_GAP;
+  return rect(right - ZOOM_BTN_PX, top, right, top + ZOOM_BTN_PX);
 }
 
 /**
