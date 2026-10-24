@@ -2,7 +2,7 @@
 
 > **The style guide for every art session.** Read it before drawing anything, together with `CLAUDE.md` (architecture and performance rules) and `docs/MOBILE.md` §7 (performance targets). If you make an art decision this guide doesn't cover, add it here and log it in `GAME_DESIGN.md` §13.
 
-Art Track 0 chose style C, **"Runelight"**, from the art-direction spike (styles A/B/C, compared on phones). It is now the game's only look. The rule is that art is **made by scripts in the repo**. Most of it is **drawn in code** (Canvas 2D paths) and **baked once** into atlases at start-up. Since Han's decision of 14 Oct 2026, heroes, then creeps and towers, are **3D models rendered ahead of time by Blender scripts** into pictures and videos (§15): nothing 3D runs on the player's device. Since 16 Oct 2026 the models come from the **CC0 KayKit packs** (`tools/blender/assets/kaykit/`), with the packs' own clips, repainted in Runelight's tokens by the painter in the repo; nothing is modelled in code. Since 17 Oct 2026 the creeps and bosses are too (V-05c): the KayKit Skeletons and the Quaternius Ultimate Monsters (`tools/blender/assets/quaternius/`); and the towers, the Heart and the portals (V-05d), kitbashed from the KayKit Hexagon, Builder and Dungeon pieces. Since 17 Oct 2026 **the map's ground is one picture rendered ahead of time** the same way (§16), with the painted ground (§4) as its fallback. Entities that have no art yet keep their Phase 1 shapes until an art session draws them.
+Art Track 0 chose style C, **"Runelight"**, from the art-direction spike (styles A/B/C, compared on phones). It is now the game's only look. The rule is that art is **made by scripts in the repo**. Most of it is **drawn in code** (Canvas 2D paths) and **baked once** into atlases at start-up. Since Han's decision of 14 Oct 2026, heroes, then creeps and towers, are **3D models rendered ahead of time by Blender scripts** into pictures and videos (§15): nothing 3D runs on the player's device. Since 16 Oct 2026 the models come from the **CC0 KayKit packs** (`tools/blender/assets/kaykit/`), with the packs' own clips, repainted in Runelight's tokens by the painter in the repo; nothing is modelled in code. Since 17 Oct 2026 the creeps and bosses are too (V-05c): the KayKit Skeletons and the Quaternius Ultimate Monsters (`tools/blender/assets/quaternius/`); and the towers, the Heart and the portals (V-05d), kitbashed from the KayKit Hexagon, Builder and Dungeon pieces. Since 22 Oct 2026 the heroes, and since 24 Oct 2026 every creep and boss (the Spire's host, V-06i and V-06j), are the game's own designs generated in Meshy, through the same painter and pipeline; the packs now give only the towers, the Heart and the portals. Since 17 Oct 2026 **the map's ground is one picture rendered ahead of time** the same way (§16), with the painted ground (§4) as its fallback. Entities that have no art yet keep their Phase 1 shapes until an art session draws them.
 
 ## 1. The look in one paragraph
 
@@ -482,7 +482,7 @@ tools/blender/
                    clips, the concepts; README.md there is the index); the game's heroes since V-06b;
                    arcanist/ the Arcanist as the Hooded Oracle (V-06e), arcanist-r2/ round 2's Arcanist,
                    arcanist-concepts/ the V-06e concepts (Han picked the Oracle); enemy-concepts/ the faction's
-                   concepts (V-06h); creeps/ the four ground creeps from Han's picks (V-06i)
+                   concepts (V-06h); creeps/ the nine kinds of the host from Han's picks (V-06i, V-06j)
   tdt3d/
     palette.py     the Runelight tokens, read from render/art/tokens.ts (a colour is never copied by hand)
     gltf.py        importing a character, facing +X: a KayKit or Quaternius one (its armature, its props on the hand
@@ -493,6 +493,9 @@ tools/blender/
     figure.py      a hero from its table row: clips read by bone name at any time (the Rig_Medium names mapped to
                    Meshy's joints), a clip's hips pinned over the feet, poses blended, the bow's string (a KayKit
                    bow's shape key), the arrow nocked from the draw hand through the bow hand, or flying
+    posed.py       a creep with no skeleton (V-06j: the Wisp, the Hatchling, the Ironhorn, the Shardback): its
+                   states as poses of the bind pose (regions turned, scaled and moved by soft weights; the whole
+                   body squashed, pitched, rolled and lifted), keyed in time as the row's clips
     motion.py      the stage loop (the idle with the signature move eased over it) and the match frames' moments
     bake.py        a posed loop written into f-curves (motion blur needs them)
     shading.py     materials: a white diffuse body for the moon's light plus AOVs (albedo, glow, AO, rim, moonlit
@@ -510,6 +513,8 @@ tools/blender/
     match.py       the match sheet: the layers with white twins, and their layout
     creep.py       a creep's match sheet: its states' frames, trimmed and packed 2048 wide, the fringe check on each
                    (over the lane), its contact shadow, the Shardback's hide masks; the two-page budget check
+    encode.py      the encodes; a creep's (or the UI's) sheet as lossless WebP, checked for colour under a clear
+                   pixel and written in libwebp's exact mode if it has some (V-06j)
     structure.py   the towers', the Heart's and the portals' sheet: pieces placed and repainted, rendered straight down
                    or from the south, painted, the moon's shadow from a squashed copy, the fringe and pad checks,
                    the glow layers, one page packed (a partial render keeps the other frames)
@@ -701,9 +706,9 @@ The Ranger's body leaves out his arms (his welded mesh is cut by the bone that m
 
 ### Creeps and bosses (V-05c, 17 Oct 2026; round 2 the same day)
 
-**Han, 17 Oct 2026.** Every creep and boss is a pre-rendered 3D model, as the heroes are: a model from a CC0 pack in the repo, posed by the pack's own clips, repainted in Runelight's tokens by the painter, rendered ahead of time into a match sheet and played by a rig on the device (§7, 3D creeps). The game's numbers don't change: every creep keeps its radius, speed, HP and behaviour; only how it is drawn changes. One table, `tools/blender/creeps.py`, in the shape of `hero.py`; `tdt3d/creep.py` renders a row; `npm run art:3d -- creeps` renders all nine. Creeps have no stage loop: match sheets only. **Since V-06i (24 Oct 2026) the
-Grunt, the Runner, the Archer and the Brute are the Meshy host** (below, "Meshy creeps"); their pack rows below are kept
-as `LEGACY` in the table.
+**Han, 17 Oct 2026.** Every creep and boss is a pre-rendered 3D model, as the heroes are: a model from a CC0 pack in the repo, posed by the pack's own clips, repainted in Runelight's tokens by the painter, rendered ahead of time into a match sheet and played by a rig on the device (§7, 3D creeps). The game's numbers don't change: every creep keeps its radius, speed, HP and behaviour; only how it is drawn changes. One table, `tools/blender/creeps.py`, in the shape of `hero.py`; `tdt3d/creep.py` renders a row; `npm run art:3d -- creeps` renders all nine. Creeps have no stage loop: match sheets only. **Since V-06i and V-06j (24 Oct
+2026) all nine are the Meshy host** (below, "Meshy creeps" and "Meshy creeps, batch 2"); the pack rows below are kept as
+`LEGACY` in the table.
 
 | Kind | Model (pack) | Props, palette | Clips: walk · stand · attack · flinch · death · ability |
 |---|---|---|---|
@@ -743,13 +748,13 @@ as `LEGACY` in the table.
 - **Loading.** After the map plate and the structures' sheet (V-05d: the plate a second after the first screen, then one sheet after another, Han's order of 17 Oct 2026: the plate, the structures, the creeps, the heroes; a 2D creep is a fine stand-in, the painted ground less so), one kind after another in the order they first come in the waves (Grunt, Runner, Archer, Brute, Wisp, Ironhorn, Matriarch, Hatchling, Shardback), so the early creeps are 3D first on a slow line (`loadCreepSheets`, `<html data-creep-sheets>` and the `tdt:creep-sheets` mark once all are in). Their layouts (`creepData.ts`, the nine JSON files) come with them in a chunk of their own, so the first screen carries only the rig and loader code; the rig code stays in the first chunk, because a lazy chunk that shares Pixi with it makes the bundler (Rolldown) split Pixi's renderers off into a chunk loaded at start, a round trip more on a slow line. 1.81 MB of lossless WebP in all (2.88 MB of PNG before round 2), part of the precached shell like the hero sheets. A texture reaches the GPU when its kind is first drawn.
 - **Cost** (measured 17 Oct 2026, after V-03): the 300-creep stress scene's textures go from 7 (33.3 MiB) to 13 (42.8 MiB: the six walker sheets it draws; all nine kinds on screen would add 29.4 MiB). Its JavaScript per frame under 4× throttling rose 3–7 ms on the session container (2D 30.7–32.6 ms, 3D 34.0–38.1 ms, against the test's 33.3 ms budget, which main itself only just meets there; CI measures main at 15.8 ms). In a CPU profile the creep rig and renderer account for about 1.3 ms of that and WebGL calls for 0.4 ms; the rest is not in any function of ours (software GL). Mipmaps on the sheets did not change it. The rig swaps a frame only when it changes and skips a still creep's transform. First load: +3 KB (the rig and loader code), the first screen's timings unchanged; on throttled Slow 4G every creep sheet is in 46 s after the page opens (the hero sheets at 21 s, the plate at 23 s). **Round 2** (lossless WebP, measured 17 Oct 2026 after V-05d, 6 runs each on the same container): every creep sheet is in **42.9 s** after the page opens instead of 48.2 s (median; 42.4–43.3 s against 47.8–51.0 s), so the hero sheets that load after them come 5 s sooner (50.9 s against 56.1 s); the match sheets a load fetches go from 5,727 KB to 4,679 KB (the creeps' 1,767 KB); the first screen is unchanged (405 KB, its timings inside their run-to-run ranges). The stress scene's textures are the same (14, 57.4 MiB: it draws the six walker kinds, whose pixels did not change), and its JavaScript per frame under 4× throttling was 34.3 ms on main and 37.6 then 34.6 ms with WebP on the session container (both over the 33.3 ms budget there, as main is; CI judges): a sheet's format only changes how it decodes once, not how it draws.
 
-**Adding a 3D creep.** A row in `tools/blender/creeps.py` (model, parts by mesh, materials and colour map, props, clips per state and frame counts; `regions` for a cell that paints two things, `gltf.DROP` for faces to leave out), `npm run art:3d -- <kind>`, look at the frames; then the kind in `CREEP_3D` (`render/art3d/creepData.ts`, in wave order) and `CREEP_SHEETS` (`creepSheet.ts`), and its counts in `test/art3d.test.ts`.
+**Adding a 3D creep.** A row in `tools/blender/creeps.py` (model, parts by mesh, materials and colour map, props, clips per state and frame counts; `regions` for a cell that paints two things, `gltf.DROP` for faces to leave out; a Meshy model with no skeleton gives `posed`: V-06j, below), `npm run art:3d -- <kind>`, look at the frames; then the kind in `CREEP_3D` (`render/art3d/creepData.ts`, in wave order) and `CREEP_SHEETS` (`creepSheet.ts`), and its counts in `test/art3d.test.ts`.
 
 ### Meshy creeps (V-06i, 24 Oct 2026)
 
 **Han, 24 Oct 2026:** the four ground creeps become his picks from `docs/art/enemy-redesign.png` (**Grunt a, Archer a,
 Runner b, Brute b**), original designs of the Spire's host (`docs/art/enemy-style.md`), through the same Meshy-to-pipeline
-route as the heroes. The Wisp, the Hatchling and the bosses stay on the packs (the second batch). No game number changes:
+route as the heroes. The Wisp, the Hatchling and the bosses followed in the second batch (V-06j, below). No game number changes:
 every creep keeps its radius, speed, HP and behaviour, and the rig plays the new sheets unchanged.
 
 **The rows** (`tools/blender/creeps.py`, `rig='meshy'`, `meshy='creeps/<kind>'`, `gltf.load_meshy` as for a hero): the
@@ -814,6 +819,77 @@ round 2: 14, 57.4). Contact sheet for Han: `docs/art/enemy-creeps-1.png` (`npm r
 creeps-contact -w @tdt/client -- --host`): each kind's stand, step, blow and death at the sheets' own pixels, the pack's
 row over Meshy's, then a match on a 412 × 839 phone at 3× (wave 12 of Full, all four on the lanes beside the Ranger)
 and a crop of it at the screen's own pixels.
+
+### Meshy creeps, batch 2 (V-06j, 24 Oct 2026)
+
+**Han, 24 Oct 2026:** the last five enemies become his picks (**Wisp b, Hatchling b, Ironhorn a, Matriarch a, Shardback
+b**), finishing the Spire's host: since V-06j every creep and boss is the game's own design. The rules of batch 1 hold
+(one image edit into a clean pose, image to 3D in the concept's own pose, Meshy's rig tried once, loose parts rebound);
+with Han's notes: the Ironhorn without its dark tufts, the Matriarch's brood cage bigger and raised into her ribs, the
+Shardback's shards ember at rest and violet while the Ether hide is up. No game number changes: every radius is the
+sim's, the bosses' events and timings are the ones they had, and Creep3DRig plays the new sheets unchanged.
+
+| Kind | Model (Meshy) | Skeleton | States: walk · stand · attack · flinch · death · ability |
+|---|---|---|---|
+| Wisp | Wisp b; 20,748 triangles | none (Han: its bob is the rig's) | the flame's flicker (4) · bind pose · its flare (3) · tipped back · the ember goes out (3) |
+| Hatchling | Hatchling b; 20,708 | none (Han: the hop from the bind pose, one squash) | the hop (6: squashed, then lifted over its shadow) · bind pose · a bite (3) · tipped back · flipped onto its back (3) |
+| Ironhorn | Ironhorn a without its tufts; 30,843 | none: Meshy's rig stood it on two legs (tried once) | a gallop (2) · bind pose · a gore (3) · tipped back · tipping onto its side (3) · the Stomp, a rear-and-slam (3) |
+| Matriarch | Matriarch a, the brood raised into her ribs; 31,162 | Meshy's, her own clips | walking · Idle 0 · Heavy_Hammer_Swing 0.9–1.35 · Hit_Reaction 0.2 · dying_backwards 0.2–1.5 · the Hatch: the swing at 0.7, 0.85, 0.95 (claws raised over her bared brood) |
+| Shardback | Shardback b; 30,960 | none: Meshy's rig reared it up (tried once) | a trot (2) · bind pose · a bite (3) · tipped back · slumping flat (3) · the hide shift: its rest pose hunkered (3) |
+
+- **Posed from the bind pose** (`tdt3d/posed.py`, a row's `posed`): the four kinds with no skeleton are imported as
+  Meshy made them (one textured mesh, centred), hung on an empty that turns and sizes them as an armature would, their
+  soles (`ground`) on the anchor. A pose moves the bind pose's vertices: regions (a leg, the head, the Wisp's flame and
+  smoke) turned, scaled and moved about a pivot by soft weights (a region may keep to some materials: the Wisp's flame,
+  not the iron ring it rises through), then the whole body squashed about the ground, pitched (a quadruped about its
+  hind feet), rolled, lifted. Poses are keyed in time as the row's clips and sampled as a rigged figure's are, so
+  `tdt3d.creep` renders them the same way. Nothing is modelled: the shapes are Meshy's, only placed. Their walks have
+  no planted foot, so their layouts carry no stride (`walkStride` null): the rig steps them at their clip's pace (the
+  Wisp and the Hatchling did so already). The brief's two-frame gallop and trot rock rather than run, a frame about
+  every half second.
+- **The Matriarch's rig** was the worst skinning yet: her hips owned most of her chest, her eggs her arms and hips, her
+  claws stretched with her legs and her feet with their toes. The cage of ribs and eggs is bound whole to her chest (her
+  upper arms beside it left out by their distance from the arm bones), each claw to its hand (her legs and feet left
+  out), each foot to its foot and the crest down her back to her chest; the swing's moment with her claws raised over
+  her open chest is the Hatch. Her eggs needed three image edits (low in her belly, then a glow behind her ribs, then
+  solid eggs filling them) and a second model (the first, from the glow, came out with an empty cage).
+- **The Shardback's shards** are dark smoky glass with ember cores: the bright cores glow (`shard`, emitting at 0.6),
+  the deeper reds are unlit ember (`shardDeep`); the `hide` layer carries all three materials' coverage (`hide` may now
+  name several), and the rig lights it violet while the Ether hide is up, additive at 0.85, as before: over the ember it
+  reads violet with white-hot cores. Its eye sockets are painted as sockets, not glass, so the hide never lights its
+  eyes. Its stone is the stone tokens a step toward bone (they lean violet).
+- **The look:** the host's materials (bone, charred wood, dark iron, ember), plus ash-grey stone, the Wisp's pale smoke
+  and the shards' glass. Only the eyes and a core glow: the Wisp's flame, the Hatchling's eyes and crack, the Ironhorn's
+  core, the Matriarch's eggs (her only glow besides her eyes), the Shardback's shard cores; Meshy's ember in joints and
+  seams is unlit. The Hatchling's legs are a few world px thick, so its line is thinner (0.8 world px outside, 0.25
+  inside); Meshy painted their shadow side as dark as its charred band, so off the shell those faces are bone. The
+  Wisp's smoke is cut out of its size (as a weapon): its skull, ring and flame are what the radius measures.
+- **The encode** (`encode.sheet`): libwebp, at ffmpeg's lossless setting, filled the Ironhorn's clear pixels with its
+  neighbours' ink and its twins' white (its predictor's guess, which compresses better), which sampling could bleed in;
+  every other sheet came out clean. A sheet is now decoded and checked, and one with colour under a clear pixel is
+  written again in libwebp's `exact` mode (through Pillow, `tools/blender/requirements.txt`). The Ironhorn's is, and is
+  smaller for it.
+
+| Kind | Idle silhouette (world px) | Sheet px / world px | Sheet | WebP (the pack's) | Frames | Render |
+|---|---|---|---|---|---|---|
+| Wisp | 16.8 × 28.2 (the smoke left out) | 4 | 2048 × 187 | 69 KB (58) | 12 | 10 s |
+| Hatchling | 23.2 × 17.8 | 4 | 2048 × 102 | 60 KB (49) | 14 | 8 s |
+| Ironhorn | 73.7 × 63.3 | 3 | 2048 × 407 | 382 KB (346) | 13 | 29 s |
+| Matriarch | 80.0 × 112.3 | 3 | 2048 × 1049 | 585 KB (404) | 19 | 44 s |
+| Shardback | 74.7 × 71.7 | 3 | 2048 × 593 | 496 KB (404) | 13 | 32 s |
+
+The bosses stay at 3 px per world px: all nine sheets are **6.44 M px** (24.6 MiB as RGBA; 7.34 after V-06i), on two
+2048 × 2048 pages (one: the Matriarch, the Shardback and the Brute; two: the Ironhorn, the Archer, the Wisp, the Runner,
+the Grunt and the Hatchling); the five are 1,593 KB of lossless WebP (1,261 before). Every frame passes the fringe check;
+the worst is the Matriarch's blow (3 fringe pixels of 1,308, 3.1% hard steps), inside the test's 1% and 5%. **The
+Matriarch stands tall:** the area rule makes a thin figure tall (80 × 112 world px against the MushroomKing's 65 × 78),
+about three and a half hero heights on a phone; the rule is the rule, and Han judges it on his phone. The stress test
+(300 creeps, 4× throttling, this container): 25.3 ms of JavaScript a frame, 14 textures, 56.4 MiB (V-06i: 28.3 ms, 14,
+56.0). Contact sheets for Han: `docs/art/enemy-creeps-2.png` (`npm run build:e2e -w @tdt/client && npm run
+creeps-contact -w @tdt/client -- --host2`): each kind's frames at 4 px per world px, the pack's row over Meshy's (the
+bosses with their ability frames, the Shardback with and without its Ether hide), then wave 10 of Full (the Ironhorn's)
+on a 412 × 839 phone at 3× and a crop round the Ironhorn (the frame alone: `docs/art/enemy-wave10.png`); and
+`docs/art/enemy-family.png`, the three heroes and all nine kinds at phone size, drawn by the match's own rigs.
 
 ### Towers, the Heart and the portals (V-05d, 17 Oct 2026)
 

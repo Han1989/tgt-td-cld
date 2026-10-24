@@ -971,6 +971,8 @@ def load_meshy(spec, clips_out):
     row's clip files, each read into `clips_out` by its file's name (idle, walk, …). A creep (V-06i: `spec['meshy']`
     is `creeps/<kind>`) may also thicken thin limbs (`thicken`) and cut its welded weapon into a layer of its own (a
     rebind with `cut`). Returns the armature and {layer: [objects]}."""
+    if spec.get('posed'):
+        return load_posed(spec)
     folder = os.path.join(MESHY, spec['meshy'])
     made = _import(os.path.join(folder, 'model.glb'), {})
     arm = next(o for o in made if o.type == 'ARMATURE')
@@ -1015,6 +1017,47 @@ def load_meshy(spec, clips_out):
                 bpy.data.meshes.remove(data)
             elif isinstance(data, bpy.types.Armature) and data.users == 0:
                 bpy.data.armatures.remove(data)
+    bpy.context.view_layer.update()
+    return arm, pieces
+
+
+def load_posed(spec):
+    """Imports an unrigged Meshy creep (V-06j: the image to 3D's model as Meshy made it, no skeleton; tdt3d.posed poses
+    it): its mesh in centimetres (as a Meshy skeleton's mesh is, so bind_coords and the rows' rules read glTF metres of
+    model.glb), hung on an empty turned to face +X with its soles (`posed['ground']`) on the origin and its middle
+    (`posed['centre']`) over it; every face painted from its texture; the part `posed['cut']` picks cut into the weapon
+    layer (left out of the size, as a welded weapon). Returns the empty and {layer: [objects]}."""
+    where = f'meshy/{spec["meshy"]}/model.glb'
+    made = _import(os.path.join(MESHY, spec['meshy'], 'model.glb'), {})
+    meshes = [o for o in made if o.type == 'MESH']
+    if len(meshes) != 1 or len(made) != 1 or meshes[0].vertex_groups:
+        raise RuntimeError(f'{where}: expected one unrigged mesh (an image to 3D model)')
+    mesh = meshes[0]
+    mesh.data.transform(Matrix.Scale(100.0, 4))  # metres → centimetres; the custom normals stay
+    mesh.matrix_world = Matrix.Identity(4)
+    arm = bpy.data.objects.new('Hero', None)
+    bpy.context.scene.collection.objects.link(arm)
+    arm.rotation_mode = 'XYZ'
+    arm.rotation_euler = (0.0, 0.0, math.pi / 2)
+    arm.scale = (0.01,) * 3
+    posed = spec['posed']
+    cx, cz = posed['centre']
+    mesh.parent = arm
+    mesh.location = (-cx * 100.0, cz * 100.0, -posed['ground'] * 100.0)  # glTF (x, y, z) = Blender (x, -z, y)
+    paint_by_texture(mesh, spec['paint'], where)
+    forced = None
+    if posed.get('cut'):
+        xyz = bind_coords(mesh.data)
+        sel = np.nonzero(posed['cut'](xyz[:, 0], xyz[:, 1], xyz[:, 2]))[0].tolist()
+        for name in (CUT, WEAPON):
+            mesh.vertex_groups.new(name=name).add(sel, 1.0, 'REPLACE')
+        cut = np.zeros(len(xyz), bool)
+        cut[sel] = True
+        tri = np.empty(len(mesh.data.polygons) * 3, np.int64)
+        mesh.data.polygons.foreach_get('vertices', tri)
+        forced = ['weapon' if all(cut[t]) else None for t in tri.reshape(-1, 3)]
+        print(f'{where}: {len(sel)} vertices cut into the weapon layer', flush=True)
+    pieces = split_layers(mesh, {}, spec['index'], None, forced)
     bpy.context.view_layer.update()
     return arm, pieces
 

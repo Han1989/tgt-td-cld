@@ -1,7 +1,6 @@
 // Creeps and bosses made in 3D and rendered ahead of time (docs/ART.md §15, V-05c): what the Blender pipeline wrote
-// for each kind (tools/blender, `npm run art:3d -- creeps`, from the creep table tools/blender/creeps.py: the four ground
-// creeps the game's own Meshy models since V-06i, the Wisp and the bosses the CC0 Quaternius monsters), and the pure
-// rules Creep3DRig plays them by. Nothing 3D runs here: a
+// for each kind (tools/blender, `npm run art:3d -- creeps`, from the creep table tools/blender/creeps.py: all nine the
+// game's own Meshy models, the Spire's host, since V-06i and V-06j), and the pure rules Creep3DRig plays them by. Nothing 3D runs here: a
 // creep is a sheet of pictures (a lossless WebP). Generated files, not edited by hand: <kind>.json and
 // <kind>-match.webp in this folder.
 

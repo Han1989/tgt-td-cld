@@ -99,7 +99,8 @@ the front. The match rig still flips a sheet drawn facing +x, as today.
   must not look like what she fights" holds. What makes the host its own, and not a pack skeleton, is the ember inside
   it, the charred wood and iron, and one exaggerated silhouette per kind.
 - **The Shardback's hide.** The concept shows its shards lit ember. Today the rig lights them violet while the Ether hide
-  is up (the `hide` layer). The model session keeps that layer, and picks the lit colour with Han.
+  is up (the `hide` layer). The model session keeps that layer, and picks the lit colour with Han. **Han's answer (V-06j):
+  ember at rest, violet while the Ether hide is up** (below).
 
 ## What changed in the making (V-06i, batch 1: the ground creeps)
 
@@ -121,3 +122,27 @@ sheet above did not foresee:
 - **At 40 px the four separate by silhouette, not colour:** the old warm cloth tokens are gone, as this sheet says, so a
   Grunt is a square skull over a cleaver, an Archer a skull beside a tall bow, a Runner a skull on long legs, a Brute a
   yoke. Whether players miss the colours is Han's call on his phone (each kind's ember could be tinted a step).
+
+## What changed in the making (V-06j, batch 2: the Wisp, the Hatchling and the bosses)
+
+Han picked Wisp b, Hatchling b, Ironhorn a, Matriarch a and Shardback b (24 Oct 2026), and the five are in the game
+(`tools/blender/assets/meshy/creeps/`, `docs/ART.md` §15 "Meshy creeps, batch 2", `docs/art/enemy-creeps-2.png` and the
+family at phone size, `docs/art/enemy-family.png`): the host is whole, every enemy the game's own. What the sheet above
+did not foresee:
+
+- **Four of the five have no skeleton.** The Wisp and the Hatchling need none (the rig bobs the Wisp; the Hatchling
+  hops in its bind pose), and Meshy's auto-rig, a biped's, stood the Ironhorn and the Shardback up on their hind legs
+  (tried once each). Their states are poses of the model as Meshy made it, placed in the pipeline: the Ironhorn
+  gallops and the Shardback trots in two frames, the Ironhorn rears and slams for its Stomp, the Shardback hunkers for
+  its hide shift, the Hatchling dies on its back with its legs in the air, and the Wisp's ember goes out as it falls.
+- **The Matriarch's brood is in her ribs** (Han's note): three image edits (the first left the eggs low, the second drew
+  them as a glow behind the ribs, which the image to 3D left out: an empty cage) and a second model made the eggs solid
+  and filling the cage. Her eggs and her eyes are her only glow. **She stands tall:** the area rule makes a thin figure
+  tall, about three and a half hero heights on a phone.
+- **The Ironhorn lost its tufts** (Han's note): its hindquarters are bone, ribs and iron, as its front.
+- **The Shardback's shards are ember at rest and violet with the Ether hide**: smoky glass with ember cores, lit violet
+  by the rig over the ember (it reads violet with white-hot cores); its stone a step toward bone, so only the shards
+  turn violet.
+- **One rule held for colour:** only the eyes and a core glow (the Wisp's flame, the Hatchling's eyes and the crack on
+  its top, the Ironhorn's core, the Matriarch's brood, the Shardback's shard cores); the ember Meshy painted in joints
+  and seams is unlit.

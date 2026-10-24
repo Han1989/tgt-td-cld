@@ -135,7 +135,8 @@ def _frame(fig, cam, tmp, look, samples, hide_mat):
     hide = None
     if hide_mat is not None:
         ids = npr.ids_of(p)
-        hide = ((ids % 1000) == shading.number(hide_mat)) * a * (1 - cov)
+        mats = (hide_mat,) if isinstance(hide_mat, str) else hide_mat
+        hide = np.isin(ids % 1000, [shading.number(m) for m in mats]) * a * (1 - cov)
     # The render's outermost pixels are only partly filled: nothing of the figure reaches them (the margin).
     for arr in (pm, alpha, glow) + ((hide,) if hide is not None else ()):
         arr[:2] = 0
@@ -267,7 +268,7 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
     t_start = time.time()
     name = spec['name']
     spec = dict(spec, height=spec['radius'] * 2 * 32 * 1.6)  # a first size; the fit below sets the real one
-    fig = figure.Figure(spec)
+    fig = figure.make(spec)
     px = spec.get('res', RES)
     side = WINDOW * 2 * px
     look = dict(npr.LOOK, **dict(LOOK, **spec.get('look', {})))

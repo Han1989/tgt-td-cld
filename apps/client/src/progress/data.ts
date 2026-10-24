@@ -30,6 +30,7 @@
  * V-06h-concepts on 24 Oct 2026 (PR #138: the enemy faction, nine kinds, two concepts each, images only).
  * V-07a-fix on 24 Oct 2026 (PR #139: the match page never scrolls, the plaques inside the bar, the rims slimmer).
  * V-06i on 24 Oct 2026 (PR #140: the ground creeps from Meshy into the game, the enemy faction's batch 1).
+ * V-06j on 24 Oct 2026 (PR #141: the Wisp, the Hatchling and the bosses from Meshy into the game, batch 2).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * Protocol is 22 (PR #142). This page only reports status.
@@ -435,6 +436,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only: no game rules, server or protocol change; every creep keeps its size, speed and HP. Han, 24 Oct 2026: the four ground creeps become his picks from the enemy faction’s sheet (Grunt a, Archer a, Runner b, Brute b), original designs of the Spire’s host made into 3D models in Meshy and put through the same rendering as the heroes. The Grunt is squat and square with a notched cleaver, the Archer thin with a bow taller than itself, the Runner a bone raptor on long bird legs with its tail out behind, the Brute an iron yoke across its shoulders over a tiny skull and huge iron-bound fists. They are bone, charred wood and dark iron, and only their eyes and the ember core in their chests glow (and the Archer’s bowstring and joints). Each was posed in the same pose as before, rigged and given Meshy’s own moves: the Grunt chops, the Archer walks with its bow aimed and draws and looses, the Runner sprints on its bird legs, kicks and falls forward, and the Brute brings both fists down. The Archer was mirrored so its bow sits in the hand Meshy’s archery moves use; the Runner, a raptor, kept the human rig but its spine stays as modelled. The Wisp, the Hatchling and the bosses are still the packs’ (the second batch). In review: Han judges the four on his phone. Built by Claude Code (PR #140).',
     proof: pr(140),
+  },
+  {
+    id: 'V-06j',
+    title: 'The Wisp, the Hatchling and the three bosses from Meshy into the game (enemy batch 2)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change; every enemy keeps its size, speed and HP, and the bosses’ abilities come at the same moments. Han, 24 Oct 2026: the last five enemies become his picks (Wisp b, Hatchling b, Ironhorn a, Matriarch a, Shardback b), so every enemy in the game is now its own design, the Spire’s host. The Wisp is a floating skull-lantern whose flame flickers, flares when it attacks and goes out when it dies; the Hatchling a round shell on eight bone legs that hops and dies on its back; the Ironhorn a horned bulk plated in iron (without the tufts of the concept, Han’s note) that gallops, gores and rears up to slam down for its Stomp; the Matriarch a tall bone broodmother with a cage of glowing eggs in her ribs (raised there, Han’s note), who rakes with her claws and bares her brood for the Hatch; the Shardback a stone tortoise whose crystal shards glow ember, and violet while its Ether hide is up (Han’s note). Only the Matriarch could use Meshy’s rig; the other four are posed from the model itself in the art tools (Meshy’s rig stood the two four-legged bosses on their hind legs), and the Ironhorn and the Shardback walk in two frames. The Matriarch stands tall: she is thin, and an enemy is sized by the area it covers. In review: Han judges the five on his phone. Built by Claude Code (PR #141).',
+    proof: pr(141),
   },
   {
     id: 'g1-render',

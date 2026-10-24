@@ -1,5 +1,5 @@
 // Heroes and creeps made in 3D and rendered ahead of time (docs/ART.md §15), the heroes from the game's own Meshy
-// models (V-06b), the creeps from the CC0 KayKit and Quaternius models: the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
+// models (V-06b), the creeps and bosses too (V-06i, V-06j: the Spire's host): the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
 // white twins), the stage files must be what the layout says and within budget, every hero's stage the same box in
 // the same clearing, every shipped stage frame and the creeps' kept frames must pass the fringe check, the creep sheets
 // (lossless WebP, read pixel for pixel by scripts/webp.ts) must fit the texture budget (two 2048 × 2048 pages), and
@@ -729,17 +729,22 @@ describe('the service worker, the stage videos and the music’s ranges', () => 
 /** docs/ART.md §15: the frames each creep's rig plays, by state (tools/blender/creeps.py). */
 const WALKER = { walk: 8, idle: 1, attack: 4, hit: 1, death: 3 };
 const BOSS = { walk: 8, idle: 1, attack: 3, hit: 1, death: 3, ability: 3 };
+/** A boss posed from its bind pose (V-06j: Meshy's rig stood it on two legs): a two-frame gallop or trot. */
+const POSED_BOSS = { ...BOSS, walk: 2 };
 const CREEP_COUNTS: Record<CreepKind, Partial<Record<CreepState, number>>> = {
   grunt: WALKER,
   runner: WALKER,
   archer: WALKER,
   brute: WALKER,
-  wisp: { walk: 8, idle: 1, hit: 1, death: 3 },
+  // The flame's flicker (the rig bobs it), and its flare for an attack (a Taunt holds it at the Warden).
+  wisp: { walk: 4, idle: 1, attack: 3, hit: 1, death: 3 },
   hatchling: { walk: 6, idle: 1, attack: 3, hit: 1, death: 3 },
-  ironhorn: BOSS,
+  ironhorn: POSED_BOSS,
   matriarch: BOSS,
-  shardback: BOSS,
+  shardback: POSED_BOSS,
 };
+/** Posed from the bind pose (no skeleton, no planted foot): they step at their clip's pace, not a stride. */
+const POSED: CreepKind[] = ['wisp', 'hatchling', 'ironhorn', 'shardback'];
 
 /**
  * Bottom-left skyline packing, tallest first, as tools/blender/tdt3d/creep.py `skyline` (one of its orders): the
@@ -830,8 +835,9 @@ describe('3D creeps: the match sheets', () => {
       expect(m.width).toBeGreaterThan(want);
       expect(m.top).toBeGreaterThan(m.height * 0.5);
       expect(m.top).toBeLessThan(m.height * 1.25 + (TUNING.creeps[kind].flying ? 16 : 0));
-      // Walkers and bosses step at their stride (feet that hold the ground); the Wisp beats and the Hatchling hops at their clip's pace.
-      if (kind === 'wisp' || kind === 'hatchling') expect(m.walkStride).toBeNull();
+      // Rigged walkers and bosses step at their stride (feet that hold the ground); the posed kinds (the Wisp's flicker,
+      // the Hatchling's hop, the Ironhorn's gallop, the Shardback's trot) at their clip's pace.
+      if (POSED.includes(kind)) expect(m.walkStride).toBeNull();
       else expect(m.walkStride).toBeGreaterThan(4);
       expect(m.cycleMs).toBeGreaterThan(300);
     });

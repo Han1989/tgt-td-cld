@@ -4,16 +4,17 @@
 // at the size a 412 × 839 phone draws them in a match on a 3× screen (V-04's creep scale), and again close up at the
 // 3D sheet's own pixels. Returns the picture as a PNG data URL. `drawIronhorn` (V-05c round 2) puts the Ironhorn as
 // V-05c merged it (the BlueDemon) next to today's (the Demon); `drawHost` (V-06i) the four ground creeps from Meshy next
-// to the pack creeps they replaced, and a match screenshot.
+// to the pack creeps they replaced, and a match screenshot; `drawHost2` (V-06j) the Wisp, the Hatchling and the bosses
+// the same way, and `drawFamily` the three heroes and all nine kinds at phone size, drawn by the match's own rigs.
 
 import type { CreepKind } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import './render/art/load';
 import { createPainter } from './render/art/paint';
-import { creepArt } from './render/art/registry';
+import { creepArt, heroArt } from './render/art/registry';
 import { LIGHTING, RL } from './render/art/tokens';
 import { CREEP_3D } from './render/art3d/creepData';
-import type { CreepCell, CreepMatchLayout } from './render/art3d/creeps';
+import type { CreepCell, CreepMatchLayout, CreepState } from './render/art3d/creeps';
 import { CREEP_SHEETS } from './render/art3d/creepSheet';
 import { entityScales } from './render/entityScale';
 import { flyerDrawScale } from './teach/cues';
@@ -346,5 +347,242 @@ export async function drawHost(before: Record<string, { sheet: string; layout: C
   c.strokeStyle = '#cfe6ff';
   c.lineWidth = 2;
   c.strokeRect(24 + cx / 3, y + cy / 3, cropW / 3, MATCH_H / 3);
+  return canvas.toDataURL('image/png');
+}
+
+/** The frames a row shows: the stand, two steps, the blow, the flinch, the fall and a boss's ability (all of them). */
+function hostPicks(L: CreepMatchLayout, all: boolean): [string, CreepCell][] {
+  const walk = L.frames.walk;
+  const out: [string, CreepCell][] = [
+    ['stand', L.frames.idle[0]!],
+    ['step', walk[0]!],
+    ['step', walk[Math.floor(walk.length / 2)]!],
+  ];
+  if (L.frames.attack) out.push(['blow', L.frames.attack[Math.min(L.frames.attack.length - 1, 1)]!]);
+  if (all) out.push(['flinch', L.frames.hit[0]!]);
+  out.push(['death', L.frames.death.at(-1)!]);
+  const ability = L.frames.ability ?? [];
+  if (all) ability.forEach((f, i) => out.push([`ability ${i + 1}`, f]));
+  else if (ability.length) out.push(['ability', ability[1] ?? ability[0]!]);
+  return out;
+}
+
+/**
+ * V-06j, the Spire's host, batch 2: the Wisp, the Hatchling and the three bosses generated in Meshy next to the pack
+ * creeps they replace. Each kind's frames at 4 px per world px (the bosses' 3 px sheets drawn at 4), the pack's row over
+ * Meshy's: the stand, two steps, the blow, the flinch, the fall and a boss's ability frames (the Ironhorn's Stomp, the
+ * Matriarch's Hatch, the Shardback's hide shift), and the Shardback again in its Ether hide (its `hide` cells lit as
+ * the rig lights them: violet, added at 0.85). Then a match on a 412 × 839 phone at 3× (`match`, a screenshot: wave 10
+ * of Full, the Ironhorn's) at 1:3 beside a crop of it at the screen's own pixels.
+ */
+export async function drawHost2(before: Record<string, { sheet: string; layout: CreepMatchLayout }>, match: string): Promise<string> {
+  const kinds: CreepKind[] = ['wisp', 'hatchling', 'ironhorn', 'matriarch', 'shardback'];
+  const bitmap = async (url: string) => createImageBitmap(await (await fetch(url)).blob());
+  type Row = { kind: CreepKind; label: string; L: CreepMatchLayout; sheet: ImageBitmap; ether?: boolean; all: boolean };
+  const rows: Row[] = [];
+  for (const k of kinds) {
+    rows.push({ kind: k, label: 'pack (V-05c)', L: before[k]!.layout, sheet: await bitmap(before[k]!.sheet), all: false });
+    const sheet = await bitmap(CREEP_SHEETS[k]);
+    rows.push({ kind: k, label: 'Meshy (V-06j)', L: CREEP_3D[k].match, sheet, all: true });
+    if (k === 'shardback') rows.push({ kind: k, label: 'Meshy, Ether hide', L: CREEP_3D[k].match, sheet, ether: true, all: true });
+  }
+  const S = 4; // drawn px per world px
+  const reach = (L: CreepMatchLayout, f: CreepCell) => {
+    const k = S / L.res;
+    return { left: (L.box.ax - f.dx) * k, right: (f.dx + f.w - L.box.ax) * k, up: (L.box.ay - f.dy) * k, down: (f.dy + f.h - L.box.ay) * k };
+  };
+  const LABEL = 200;
+  const MAX_W = 2400;
+  // Each row's frames, wrapped into lines no wider than MAX_W.
+  const lines = rows.map((r) => {
+    const out: [string, CreepCell][][] = [[]];
+    let w = LABEL;
+    for (const p of hostPicks(r.L, r.all)) {
+      const re = reach(r.L, p[1]);
+      const fw = re.left + re.right + 20;
+      if (w + fw > MAX_W && out.at(-1)!.length) {
+        out.push([]);
+        w = LABEL;
+      }
+      out.at(-1)!.push(p);
+      w += fw;
+    }
+    return out;
+  });
+  const lineH = (r: Row, line: [string, CreepCell][]) =>
+    Math.max(...line.map(([, f]) => reach(r.L, f).up)) + Math.max(...line.map(([, f]) => reach(r.L, f).down)) + 40;
+  const lineW = (r: Row, line: [string, CreepCell][]) => LABEL + line.reduce((a, [, f]) => a + reach(r.L, f).left + reach(r.L, f).right + 20, 0);
+  const width = Math.ceil(Math.max(WIDTH, ...rows.flatMap((r, i) => lines[i]!.map((l) => lineW(r, l) + 48))));
+  const shot = await bitmap(match);
+  const MATCH_H = 839;
+  const rowsH = rows.reduce((a, r, i) => a + lines[i]!.reduce((b, l) => b + lineH(r, l) + 4, 0) + 10, 0);
+  const height = Math.ceil(70 + 56 + rowsH + kinds.length * 12 + 56 + MATCH_H + 40);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const c = canvas.getContext('2d')!;
+  c.fillStyle = css(RL.ink);
+  c.fillRect(0, 0, width, height);
+  c.fillStyle = '#e6dac0';
+  c.font = 'bold 32px sans-serif';
+  c.fillText('V-06j: the Spire’s host, batch 2 (Meshy) next to the pack creeps', 24, 48);
+  let y = 70;
+  c.fillStyle = '#cfe6ff';
+  c.font = '24px sans-serif';
+  c.fillText('At 4 px per world px (the bosses’ 3 px sheets drawn at 4): stand · steps · blow · flinch · death · ability', 24, y + 36);
+  y += 56;
+  // The Ether hide as the rig shows it: the spines' coverage, tinted violet, added over the frame.
+  const tinted = document.createElement('canvas');
+  for (const [i, r] of rows.entries()) {
+    for (const [j, line] of lines[i]!.entries()) {
+      const h = lineH(r, line);
+      c.fillStyle = css(RL.lane);
+      c.fillRect(24, y, width - 48, h);
+      if (j === 0) {
+        c.fillStyle = '#e6dac0';
+        c.font = 'bold 22px sans-serif';
+        c.fillText(creepArt(r.kind)!.name, 34, y + 30);
+        c.font = '20px sans-serif';
+        c.fillText(r.label, 34, y + 56);
+      }
+      const ground = y + h - 20 - Math.max(...line.map(([, f]) => reach(r.L, f).down));
+      let x = 24 + LABEL;
+      for (const [what, f] of line) {
+        const re = reach(r.L, f);
+        const feetX = x + re.left;
+        const k = S / r.L.res;
+        c.imageSmoothingEnabled = k !== 1;
+        c.imageSmoothingQuality = 'high';
+        draw3d(c, r.sheet, f, r.L.res, feetX - r.L.box.ax * k, ground - r.L.box.ay * k, S);
+        const stateOf = (Object.entries(r.L.frames) as [CreepState, CreepCell[]][]).find(([, list]) => list.includes(f));
+        const hide = r.ether && stateOf ? r.L.hide?.[stateOf[0]]?.[stateOf[1].indexOf(f)] : undefined;
+        if (hide && hide.w > 0) {
+          tinted.width = hide.w;
+          tinted.height = hide.h;
+          const t = tinted.getContext('2d')!;
+          t.clearRect(0, 0, hide.w, hide.h);
+          t.drawImage(r.sheet, hide.x, hide.y, hide.w, hide.h, 0, 0, hide.w, hide.h);
+          t.globalCompositeOperation = 'source-in';
+          t.fillStyle = css(RL.hideEther);
+          t.fillRect(0, 0, hide.w, hide.h);
+          t.globalCompositeOperation = 'source-over';
+          c.globalCompositeOperation = 'lighter';
+          c.globalAlpha = 0.85;
+          c.drawImage(tinted, feetX - r.L.box.ax * k + hide.dx * k, ground - r.L.box.ay * k + hide.dy * k, hide.w * k, hide.h * k);
+          c.globalAlpha = 1;
+          c.globalCompositeOperation = 'source-over';
+        }
+        c.fillStyle = 'rgba(230, 218, 192, 0.8)';
+        c.font = '16px sans-serif';
+        c.fillText(what, x, y + h - 4);
+        x += re.left + re.right + 20;
+      }
+      y += h + 4;
+    }
+    y += r.kind !== rows[i + 1]?.kind ? 22 : 6;
+  }
+  c.fillStyle = '#cfe6ff';
+  c.font = '24px sans-serif';
+  c.fillText('In a match: 412 × 839 at 3×, wave 10 of Full (the Ironhorn’s), the Ranger at the fork; a crop at 3×', 24, y + 36);
+  y += 56;
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(shot, 24, y, 412, MATCH_H);
+  const cropW = Math.min(shot.width, width - 48 - 412 - 24);
+  const ih = await ironhornAt(shot);
+  const cx = Math.round(Math.min(shot.width - cropW, Math.max(0, ih.x - cropW / 2)));
+  const cy = Math.round(Math.min(shot.height - MATCH_H, Math.max(0, ih.y - MATCH_H / 2)));
+  c.drawImage(shot, cx, cy, cropW, MATCH_H, 24 + 412 + 24, y, cropW, MATCH_H);
+  c.strokeStyle = '#cfe6ff';
+  c.lineWidth = 2;
+  c.strokeRect(24 + cx / 3, y + cy / 3, cropW / 3, MATCH_H / 3);
+  return canvas.toDataURL('image/png');
+}
+
+/** Where the crop is centred: the screenshot's `ironhorn` point if the script passed one (its URL hash), else the middle. */
+async function ironhornAt(shot: ImageBitmap): Promise<{ x: number; y: number }> {
+  const at = (window as unknown as { __ironhorn?: { x: number; y: number } }).__ironhorn;
+  return at ?? { x: shot.width / 2, y: shot.height / 2 };
+}
+
+/**
+ * V-06j, the final family: the three heroes and the nine kinds of the Spire's host standing on the lane at the size a
+ * 412 × 839 phone draws them in a match, at the screen's own pixels (3×), each drawn by the match's own rig from its
+ * sheet (Hero3DRig, Creep3DRig) at V-04's scales (the Wisp at its flyer's size), with no ring under the heroes. The
+ * heroes face the host.
+ */
+export async function drawFamily(): Promise<string> {
+  const { Application, Container } = await import('pixi.js');
+  const { ArtKit } = await import('./render/art/kit');
+  const { creepRig3d, heroRig3d, loadCreepSheets, loadHeroSheets } = await import('./render/art3d');
+  const { HERO_KINDS, CREEP_KINDS } = await import('@tdt/protocol');
+  await loadHeroSheets();
+  await loadCreepSheets();
+  const kit = new ArtKit('normal');
+  const scales = entityScales(TILE_CSS);
+  const perWorld = (TILE_CSS / 32) * DPR;
+  const order: CreepKind[] = ['grunt', 'archer', 'runner', 'brute', 'wisp', 'hatchling', 'ironhorn', 'matriarch', 'shardback'];
+  if (order.length !== CREEP_KINDS.length) throw new Error('a creep kind is missing from the family');
+  const figures: { view: InstanceType<typeof Container>; name: string }[] = [];
+  for (const kind of HERO_KINDS) {
+    const rig = heroRig3d(kind, kit, false);
+    if (!rig) throw new Error(`no 3D hero ${kind}`);
+    const view = new Container();
+    view.addChild(rig.body);
+    for (let t = 0; t < 4; t++) rig.update({ x: 0, y: 0, facing: 0, stunned: false }, 1000 + t * 16, 16);
+    view.scale.set(scales.hero * perWorld);
+    figures.push({ view, name: heroArt(kind)?.name ?? kind });
+  }
+  for (const kind of order) {
+    const rig = creepRig3d(kind, kit);
+    if (!rig) throw new Error(`no 3D creep ${kind}`);
+    const view = new Container();
+    if (rig.shadow) view.addChild(rig.shadow);
+    view.addChild(rig.body, rig.flash);
+    rig.reset(-1);
+    rig.update(0, 3, true, 1000, 0);
+    rig.update(0, 3, true, 1016, 0);
+    view.scale.set(scales.creep * perWorld * flyerDrawScale(TUNING.creeps[kind].flying));
+    figures.push({ view, name: creepArt(kind)!.name });
+  }
+  const GAP = 36;
+  const bounds = figures.map((f) => f.view.getBounds());
+  const up = Math.max(...bounds.map((b) => -b.y));
+  const down = Math.max(...bounds.map((b) => b.y + b.height));
+  const width = Math.ceil(bounds.reduce((a, b) => a + b.width + GAP, GAP));
+  const top = 70;
+  const bandH = Math.ceil(up + down + 60);
+  const height = top + bandH + 40;
+  const stage = new Container();
+  let x = GAP;
+  const ground = top + 30 + up;
+  const labels: [string, number][] = [];
+  for (const [i, f] of figures.entries()) {
+    const b = bounds[i]!;
+    f.view.position.set(x - b.x, ground);
+    stage.addChild(f.view);
+    labels.push([f.name, x + b.width / 2]);
+    x += b.width + GAP;
+  }
+  const app = new Application();
+  await app.init({ width, height, backgroundAlpha: 0, antialias: true, preserveDrawingBuffer: true, resolution: 1 });
+  app.stage.addChild(stage);
+  app.render();
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const c = canvas.getContext('2d')!;
+  c.fillStyle = css(RL.ink);
+  c.fillRect(0, 0, width, height);
+  c.fillStyle = css(RL.lane);
+  c.fillRect(0, top, width, bandH);
+  c.drawImage(app.canvas, 0, 0);
+  c.fillStyle = '#e6dac0';
+  c.font = 'bold 30px sans-serif';
+  c.fillText('V-06j: the family at phone size — the three heroes and the Spire’s host (412 × 839, 3× screen pixels)', 24, 46);
+  c.font = '20px sans-serif';
+  c.textAlign = 'center';
+  for (const [name, cx] of labels) c.fillText(name, cx, height - 14);
+  app.destroy();
   return canvas.toDataURL('image/png');
 }
