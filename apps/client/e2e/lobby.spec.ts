@@ -413,6 +413,28 @@ test.describe('a short window', () => {
   });
 });
 
+test('under a gesture bar (its bottom inset) the lobby layer itself never scrolls, only its card: Chrome gets no screen-filling scroller', async ({ page }) => {
+  // Chrome on Android drawn edge to edge (V-07a-fix): the page under the gesture bar, its height the bottom inset.
+  // The layer's padding is the insets, so a card as tall as the screen less 24 px overflowed it by the inset.
+  await page.setViewportSize({ width: 412, height: 760 });
+  const cdp = await page.context().newCDPSession(page);
+  const inset = await cdp
+    .send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, bottom: 24, left: 0, right: 0 } })
+    .then(() => 24, () => 0);
+  if (!inset) test.info().annotations.push({ type: 'note', description: 'no safe-area override in this browser: checked with no inset' });
+  await openHome(page);
+  // The home card with the friends' controls is taller than the screen: it scrolls inside the page (V-06d's rule).
+  expect(await overflow(page)).toBeGreaterThan(0);
+  expect(await page.locator('.lobby').evaluate((el) => [el.scrollHeight - el.clientHeight, getComputedStyle(el).overflowY])).toEqual([0, 'hidden']);
+  const card = await box(page, '.lobby-card');
+  expect(card.bottom).toBeLessThanOrEqual(760 - inset);
+  // Scrolled to its end, the card's last control is on screen, over the gesture bar, and the layer has not moved.
+  await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  const join = await box(page, '#lobby-join');
+  expect(join.bottom).toBeLessThanOrEqual(760 - inset);
+  expect(await page.evaluate(() => [document.querySelector('.lobby')!.scrollTop, document.scrollingElement!.scrollTop])).toEqual([0, 0]);
+});
+
 test('the Daily tile stays hidden in a build with no game server', async ({ page }) => {
   let asked = 0;
   await page.route('**/daily/today', (route) => {

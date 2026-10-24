@@ -57,10 +57,35 @@ body {
   overscroll-behavior: none;
 }
 
-#game,
+/* The document never scrolls (V-07a-fix, docs/ART.md §12): the body is pinned to the screen and every layer is fixed
+   over it, so nothing (a focused field, a scroll that chains out of a card) can move the page under the HUD. What
+   scrolls is a card's own body (the lobby card, the end card's middle), never a layer that fills the screen: on
+   Android, Chrome lets such a layer carry its toolbars and its bottom bar away with its scroll. */
+body {
+  position: fixed;
+  inset: 0;
+}
+
 #game canvas {
   position: fixed;
   inset: 0;
+  display: block;
+}
+
+/* The game's two roots: fixed to the visible viewport (its dynamic height, the toolbars' room left out), clipped. */
+#game,
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overflow: clip;
+}
+
+#game {
   display: block;
 }
 
@@ -91,8 +116,6 @@ button {
 }
 
 #hud {
-  position: fixed;
-  inset: 0;
   pointer-events: none;
 }
 
@@ -1615,24 +1638,47 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 /* End screen ------------------------------------------------------------- */
 
+/* The end screen never scrolls (V-07a-fix): a layer over the whole screen that scrolled was what Chrome on Android
+   could tie its toolbars to. The card fits the screen under the top bar, clear of the safe areas, and when it is
+   taller its middle (.end-body) scrolls inside its frame: the emblem and the title stay on top, the buttons at the
+   bottom, always on screen. */
 .end-screen {
   position: absolute;
   inset: 0;
   z-index: 8;
-  display: grid;
-  place-items: center;
-  overflow: auto;
-  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: calc(var(--topbar-bottom, 0px) + 12px) 0 calc(env(safe-area-inset-bottom) + 12px);
   background: radial-gradient(ellipse at 50% 40%, rgba(16, 24, 22, 0.6), rgba(0, 0, 8, 0.82));
 }
 
 .end-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  max-width: calc(100% - 24px);
   text-align: center;
   padding: 24px 40px 28px;
   background: var(--panel);
   border: 1px solid rgba(232, 185, 74, 0.45);
   border-radius: 16px;
   box-shadow: var(--panel-shadow), 0 0 0 4px rgba(16, 12, 22, 0.6), 0 0 40px rgba(0, 0, 8, 0.6);
+}
+
+.end-card > * {
+  flex: none;
+}
+
+.end-card > .end-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* The Heart, whole on a victory and split on a defeat. */
@@ -4379,15 +4425,18 @@ body.layout-rotate .rotate {
   pointer-events: none;
 }
 
-/* Lobby on phones: keep clear of notches, scroll if the keyboard is up. */
+/* Lobby on phones: keep clear of notches. The card scrolls inside the page when it is taller than the screen (a short
+   window, V-06d; the keyboard up), never the layer under it (V-07a-fix): the card's height leaves the safe-area insets
+   out too, so the layer (whose padding they are) never overflows, and its scroll never chains out of it. */
 .lobby {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .lobby-card {
-  max-height: calc(100dvh - 24px);
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @media (pointer: coarse) {
@@ -4806,28 +4855,39 @@ body.layout-tall .mates {
 }
 
 /* The stats on their plaques: gold on the coin plaque, the Heart on the Heart plaque (cracked under 60%), the wave on
-   the plain one. Drawn round the stat's own box (the phone) or a little past it (the desktop's rows). */
+   the plain one. A plaque is drawn by the stat's ::before behind its text, so the stat's box stays the CSS look's. On
+   the phone it stands inside the 44 px bar, 3 px clear of its top and bottom (V-07a-fix: drawn round the stat's own
+   44 px box it filled the bar to its edges and stood taller than the bar's 36 px buttons); on the desktop a little
+   past the row. Its 9-slice is drawn for that size and shown 1:1. */
 :root[data-ui='ready'] #hud .topbar :is(.stat.gold, .stat.heart, .stat.wave) {
-  border: 0 solid transparent;
-  border-image: var(--ui-plaque) var(--ui-plaque-slice) fill / 6px / 0 3px stretch;
-  border-radius: 0;
+  position: relative;
+  isolation: isolate;
 }
 
-:root[data-ui='ready'] #hud .topbar .stat.gold {
+:root[data-ui='ready'] #hud .topbar :is(.stat.gold, .stat.heart, .stat.wave)::before {
+  content: '';
+  position: absolute;
+  inset: 3px -3px;
+  z-index: -1;
+  border: 0 solid transparent;
+  border-image: var(--ui-plaque) var(--ui-plaque-slice) fill / var(--ui-plaque-width) stretch;
+  pointer-events: none;
+}
+
+:root[data-ui='ready'] #hud .topbar .stat.gold::before {
   border-image-source: var(--ui-plaque-coin);
 }
 
-:root[data-ui='ready'] #hud .topbar .stat.heart {
+:root[data-ui='ready'] #hud .topbar .stat.heart::before {
   border-image-source: var(--ui-plaque-heart);
 }
 
-:root[data-ui='ready'] #hud .topbar .stat.heart.cracked {
+:root[data-ui='ready'] #hud .topbar .stat.heart.cracked::before {
   border-image-source: var(--ui-plaque-heart-cracked);
 }
 
-:root[data-ui='ready'] body.layout-wide #hud .topbar :is(.stat.gold, .stat.heart, .stat.wave) {
-  border-image-width: 8px;
-  border-image-outset: 3px 8px;
+:root[data-ui='ready'] body.layout-wide #hud .topbar :is(.stat.gold, .stat.heart, .stat.wave)::before {
+  inset: -3px -8px;
 }
 
 /* Buttons: the stone face; pressed, the sunk face (and the button sinks 2 px, below); selected, the rune-teal rim.

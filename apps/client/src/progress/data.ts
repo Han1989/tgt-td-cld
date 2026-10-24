@@ -28,6 +28,7 @@
  * V-06f on 24 Oct 2026 (PR #136: the Oracle holds her staff, her hand closed round it).
  * V-07b on 24 Oct 2026 (PR #137: juice, every event lands; the match's feel).
  * V-06h-concepts on 24 Oct 2026 (PR #138: the enemy faction, nine kinds, two concepts each, images only).
+ * V-07a-fix on 24 Oct 2026 (PR #139: the match page never scrolls, the plaques inside the bar, the rims slimmer).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -414,6 +415,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Concept pictures only: nothing in the game changes yet. Han, 24 Oct 2026: the heroes are the game’s own designs now, but the creeps, the bosses and the buildings are still free asset packs, repainted. So the enemies are designed next, as one faction, before any model is made. They are the Spire’s host: risen things of bone and ember that crawl out of the violet portals, with no skin and none of the heroes’ colours. Every one has ember-orange eye sockets or an ember core, against the heroes’ teal and violet, so the two sides read at a glance. Each kind has one shape that reads at phone size: the squat Grunt with a notched blade, the thin Archer with a bow taller than itself, the long-legged Runner, the Brute with an iron slab on its shoulders, the Wisp a floating skull-lantern, the Hatchling a shell on too many legs, the horned and plated Ironhorn, the Matriarch with a brood cage of ember in her chest, and the Shardback with a back of glowing shards. The faction is written down in one page. Two pictures of each kind were made in Meshy, and the better of each pair is marked on the sheet, next to today’s creep and in a strip at phone size beside the three heroes. In review: Han picks; the models follow in two batches (the ground creeps, then the Wisp, the Hatchling and the bosses). Built by Claude Code (PR #138).',
     proof: pr(138),
+  },
+  {
+    id: 'V-07a-fix',
+    title: 'The match screen stays put, the top bar and rings tidied',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'The match screen on a phone: no game rules, server or protocol change. Han, 24 Oct 2026, from his Pixel: with the end screen open the whole page slid and the top bar was half out of view, the joystick sat under the phone’s gesture bar, the gold and Heart plaques stood taller than the top bar, and the glowing rings round the skill and build buttons were too thick. The page can no longer move at all: nothing that covers the whole screen scrolls any more (on Android, Chrome can slide its own bars, and the page with them, along with such a layer). A long end screen now stays under the top bar and scrolls only its middle, with its buttons always on screen. The joystick and the skill buttons keep a margin over the gesture bar, and move if it appears mid-match. The plaques now sit inside the top bar, redrawn for that size, and the glowing rings are about 60% as wide (the glow itself is unchanged). In review: Han checks on his Pixel. Built by Claude Code (PR #139).',
+    proof: pr(139),
   },
   {
     id: 'g1-render',

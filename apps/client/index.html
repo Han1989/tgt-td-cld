@@ -394,41 +394,44 @@
         <div class="end-card">
           <div id="end-emblem" class="end-emblem" aria-hidden="true"></div>
           <h1 id="end-title">Victory</h1>
-          <!-- A Daily run (daily/endCard.ts): Post my run before the stats; once posted, the rank, then the stats. -->
-          <div id="end-daily" class="end-daily hidden">
-            <div id="end-daily-ask" class="end-daily-ask">
-              <label id="end-daily-name-row" class="end-daily-name hidden">
-                <span>Nickname for the board</span>
-                <input id="end-daily-name" maxlength="16" autocomplete="nickname" placeholder="Your name" enterkeyhint="go" />
-              </label>
-              <button id="end-daily-post" class="btn end-daily-post" type="button">Post my run</button>
-              <p class="end-daily-note">Shown on today's public board under your nickname. · <a href="/privacy.html#daily" target="_blank" rel="noopener">Privacy</a></p>
+          <!-- The middle scrolls inside the card when it is taller than the screen; the buttons stay (style.css). -->
+          <div class="end-body">
+            <!-- A Daily run (daily/endCard.ts): Post my run before the stats; once posted, the rank, then the stats. -->
+            <div id="end-daily" class="end-daily hidden">
+              <div id="end-daily-ask" class="end-daily-ask">
+                <label id="end-daily-name-row" class="end-daily-name hidden">
+                  <span>Nickname for the board</span>
+                  <input id="end-daily-name" maxlength="16" autocomplete="nickname" placeholder="Your name" enterkeyhint="go" />
+                </label>
+                <button id="end-daily-post" class="btn end-daily-post" type="button">Post my run</button>
+                <p class="end-daily-note">Shown on today's public board under your nickname. · <a href="/privacy.html#daily" target="_blank" rel="noopener">Privacy</a></p>
+              </div>
+              <p id="end-daily-msg" class="end-daily-msg" role="status"></p>
+              <div id="end-daily-rank" class="end-daily-rank hidden" aria-live="polite">
+                <div id="end-daily-place" class="end-daily-place"></div>
+                <div id="end-daily-gap" class="end-daily-gap"></div>
+                <div id="end-daily-best" class="end-daily-best"></div>
+                <ol id="end-daily-rows" class="end-daily-rows"></ol>
+              </div>
             </div>
-            <p id="end-daily-msg" class="end-daily-msg" role="status"></p>
-            <div id="end-daily-rank" class="end-daily-rank hidden" aria-live="polite">
-              <div id="end-daily-place" class="end-daily-place"></div>
-              <div id="end-daily-gap" class="end-daily-gap"></div>
-              <div id="end-daily-best" class="end-daily-best"></div>
-              <ol id="end-daily-rows" class="end-daily-rows"></ol>
+            <div id="end-stats" class="end-stats">
+              <p id="end-text"></p>
+              <ul id="end-gifts" class="end-gifts hidden"></ul>
+              <ul id="end-ults" class="end-gifts end-ults hidden"></ul>
             </div>
-          </div>
-          <div id="end-stats" class="end-stats">
-            <p id="end-text"></p>
-            <ul id="end-gifts" class="end-gifts hidden"></ul>
-            <ul id="end-ults" class="end-gifts end-ults hidden"></ul>
-          </div>
-          <div id="end-feedback" class="end-feedback hidden">
-            <div class="end-q">How was this match?</div>
-            <div id="end-ratings" class="end-ratings" role="group" aria-label="Rate this match from 1 to 5">
-              <button type="button" class="end-rate" data-rating="1" aria-label="1, poor">1</button>
-              <button type="button" class="end-rate" data-rating="2" aria-label="2">2</button>
-              <button type="button" class="end-rate" data-rating="3" aria-label="3">3</button>
-              <button type="button" class="end-rate" data-rating="4" aria-label="4">4</button>
-              <button type="button" class="end-rate" data-rating="5" aria-label="5, great">5</button>
+            <div id="end-feedback" class="end-feedback hidden">
+              <div class="end-q">How was this match?</div>
+              <div id="end-ratings" class="end-ratings" role="group" aria-label="Rate this match from 1 to 5">
+                <button type="button" class="end-rate" data-rating="1" aria-label="1, poor">1</button>
+                <button type="button" class="end-rate" data-rating="2" aria-label="2">2</button>
+                <button type="button" class="end-rate" data-rating="3" aria-label="3">3</button>
+                <button type="button" class="end-rate" data-rating="4" aria-label="4">4</button>
+                <button type="button" class="end-rate" data-rating="5" aria-label="5, great">5</button>
+              </div>
+              <input id="end-comment" class="end-comment" maxlength="140" placeholder="Optional note" aria-label="Optional note, up to 140 characters" aria-describedby="end-comment-hint" autocomplete="off" enterkeyhint="done" />
+              <p id="end-comment-hint" class="end-comment-hint">Don't include personal details. · <a id="end-privacy" href="/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+              <div id="end-feedback-thanks" class="end-thanks hidden">Thanks — that helps.</div>
             </div>
-            <input id="end-comment" class="end-comment" maxlength="140" placeholder="Optional note" aria-label="Optional note, up to 140 characters" aria-describedby="end-comment-hint" autocomplete="off" enterkeyhint="done" />
-            <p id="end-comment-hint" class="end-comment-hint">Don't include personal details. · <a id="end-privacy" href="/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
-            <div id="end-feedback-thanks" class="end-thanks hidden">Thanks — that helps.</div>
           </div>
           <div class="end-actions">
             <button id="restart" class="btn big">Play again</button>

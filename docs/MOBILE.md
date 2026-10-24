@@ -60,6 +60,8 @@
 - Hero HP and mana show above the hero sprite.
 - **Landscape on a phone** shows a "Rotate to portrait" screen.
 - Keep clear of notches and the home indicator using `env(safe-area-inset-*)`. Touch targets are at least 44 pt.
+- **A gesture-bar margin** (V-07a-fix, Han, 24 Oct 2026): every touch control (the stick, its resting hint and the skill buttons) keeps **12 pt over the bottom safe-area inset** (`GESTURE_GAP` in `layout.ts`), so nothing sits under a phone's gesture bar, which Chrome on Android draws the page under once its own bottom bar has scrolled away (the inset is then the bar's height). W and R stay where they were on a 412 × 839 phone (the stick and Q and E moved up 4 pt; the arc spreads sideways), so the whole map still fits with no panning; with an inset the camera follows the hero over what the controls hide, as on a shorter phone. The layout runs again whenever the insets change, resize or not.
+- **The match page never scrolls** (V-07a-fix): the page is pinned and the game is fixed to the screen's visible height (`100dvh`); no layer that fills the screen scrolls (on Android, Chrome lets such a layer carry its toolbars and bottom bar away). The end card fits the screen under the top bar and, when it is taller, scrolls its middle inside its frame, its buttons always on screen. The lobby keeps its own card's scroll on a short window (V-06d, `docs/ART.md` §12).
 
 ### Tablet and desktop
 
