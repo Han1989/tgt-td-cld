@@ -31,6 +31,7 @@
  * V-07a-fix on 24 Oct 2026 (PR #139: the match page never scrolls, the plaques inside the bar, the rims slimmer).
  * V-06i on 24 Oct 2026 (PR #140: the ground creeps from Meshy into the game, the enemy faction's batch 1).
  * V-06j on 24 Oct 2026 (PR #141: the Wisp, the Hatchling and the bosses from Meshy into the game, batch 2).
+ * V-06l-concepts on 24 Oct 2026 (PR #143: the Spire's wards, the towers, the Heart and the portals in two themes, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * Protocol is 22 (PR #142). This page only reports status.
@@ -445,6 +446,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only: no game rules, server or protocol change; every enemy keeps its size, speed and HP, and the bosses’ abilities come at the same moments. Han, 24 Oct 2026: the last five enemies become his picks (Wisp b, Hatchling b, Ironhorn a, Matriarch a, Shardback b), so every enemy in the game is now its own design, the Spire’s host. The Wisp is a floating skull-lantern whose flame flickers, flares when it attacks and goes out when it dies; the Hatchling a round shell on eight bone legs that hops and dies on its back; the Ironhorn a horned bulk plated in iron (without the tufts of the concept, Han’s note) that gallops, gores and rears up to slam down for its Stomp; the Matriarch a tall bone broodmother with a cage of glowing eggs in her ribs (raised there, Han’s note), who rakes with her claws and bares her brood for the Hatch; the Shardback a stone tortoise whose crystal shards glow ember, and violet while its Ether hide is up (Han’s note). Only the Matriarch could use Meshy’s rig; the other four are posed from the model itself in the art tools (Meshy’s rig stood the two four-legged bosses on their hind legs), and the Ironhorn and the Shardback walk in two frames. The Matriarch stands tall: she is thin, and an enemy is sized by the area it covers. In review: Han judges the five on his phone. Built by Claude Code (PR #141).',
     proof: pr(141),
+  },
+  {
+    id: 'V-06l-concepts',
+    title: 'The towers, the Heart and the portals designed as one faction, in two themes (images only)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Concept pictures only: nothing in the game changes yet. Han, 24 Oct 2026: the heroes and every enemy are the game’s own designs now; the towers, the Heart and the portals are the last things still from free asset packs. So the defenders’ buildings are designed next, as one faction, in two themes, and Han picks a theme. They are the Spire’s wards, what the heroes build to hold the Heart: pale moon-stone, dark timber and dark iron, lit teal as a tower is upgraded and violet when it takes a branch, gold only at the top tier, and nothing on them glows orange, because orange embers are the enemy’s. Every tower keeps a base and a turret that turns and kicks, and each kind keeps one shape that reads from straight above on its pad: the Arrow tall and thin, the Cannon squat and wide, the Frost pale with a column, the Arcane a crystal and a dome, the Flak a rotor on top. Theme A is medieval: stone towers, slate roofs, a ballista, a stone-thrower, an ice lance, a crystal staff on a dome, a sail rotor; the Heart a keep with a tall spire, the portal a gatehouse. Theme B is East Asian: tiered roofs with upturned corners, dark lacquered timber, paper lanterns and bronze bells, a repeating crossbow, a battery of fire tubes, a frost bell, a lantern shrine, a wheel of kites; the Heart a tiered tower over a stone terrace, the portal a gate on two posts. Theme B matches the music (the garden lobby and the war epic). Fourteen pictures made in Meshy, one per kind and theme, on a sheet next to today’s buildings, each tower’s roof as its pad shows it, and both sets at phone size beside the heroes. Once Han picks, the models follow in two batches. Built by Claude Code (PR #143).',
+    proof: pr(143),
   },
   {
     id: 'g1-render',
