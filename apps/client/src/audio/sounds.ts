@@ -693,6 +693,10 @@ export const SOUNDS = {
   repair: sfx(0.42, 150, 2, 1, {
     layers: [knock(420, 0.06, 0.8), knock(500, 0.06, 0.7, 0.08), knock(600, 0.06, 0.7, 0.16), ...guzheng(D5, 0.7, 0.55, 0.22)],
   }, TUNE),
+  /** Reinforce (Endless): an iron band hammered on, two bright clinks rising, and one string over the upgrade's. */
+  reinforce: sfx(0.46, 150, 2, 1, {
+    layers: [...thud(160, 0.12, 0.7), clink(1800, 0.8, 0.03), clink(2400, 0.6, 0.09), ...guzheng(F5, 0.8, 0.7, 0.12)],
+  }, TUNE),
   /** Sell: a little fall of copper coins on wood. */
   sell: sfx(0.4, 120, 2, 1, {
     layers: [knock(400, 0.06, 0.6), clink(2300, 0.7, 0.02), clink(2050, 0.7, 0.07), clink(1850, 0.7, 0.12), clink(2150, 0.6, 0.17)],

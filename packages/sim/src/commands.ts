@@ -9,8 +9,8 @@ import { padBlocker } from './pads';
 import { nearestWalkable } from './pathfinding';
 import { castAtPoint, castBlocker, castInstant, learnBlocker, skillInfo } from './skills';
 import type { GameState, Hero, Tower } from './state';
-import { upgradeTower } from './towers';
-import { repairCost, towerTier } from './tuning';
+import { reinforceTower, upgradeTower } from './towers';
+import { reinforceCost, repairCost, towerTier } from './tuning';
 import { dist } from './vec';
 import { callEarly } from './waves';
 
@@ -127,6 +127,7 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
         maxHp: stats.hp,
         tier: 1,
         branch: null,
+        reinforced: 0,
         shots: 0,
         cooldown: 0,
         spent: stats.cost,
@@ -168,6 +169,19 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
       if (player.gold < cost) return reject('Not enough gold');
       player.gold -= cost;
       upgradeTower(state, tower, command.branch ?? null);
+      return true;
+    }
+    case 'reinforce': {
+      // Endless only: one more rank for a branched tower, as many as the gold buys (`reinforceCost`).
+      if (!state.tuning.reinforce.on) return reject('Reinforce is only in Endless');
+      const tower = state.towers.find((t) => t.id === command.towerId && !t.dead);
+      if (!tower) return reject('No such tower');
+      if (tower.owner !== playerId) return reject('Not your tower');
+      if (!tower.branch) return reject('Reinforce comes after a specialisation');
+      const cost = reinforceCost(state.tuning, tower);
+      if (player.gold < cost) return reject('Not enough gold');
+      player.gold -= cost;
+      reinforceTower(state, tower, cost);
       return true;
     }
     case 'repair': {

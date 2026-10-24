@@ -20,7 +20,8 @@ export interface Transport {
   wake?(): void;
   /**
    * Browser-test builds, local play only: a debug control for the host (`'lose'`: the Heart drops to 0;
-   * `'damageTowers'`: every tower drops to 30% of its HP; `'skipTo'`: wave `wave` starts on the next tick).
+   * `'damageTowers'`: every tower drops to 30% of its HP; `'skipTo'`: wave `wave` starts on the next tick; `'level'`:
+   * your hero is at level `wave`, one XP short of the next, past 10 in Endless).
    */
-  debug?(ctl: 'lose' | 'damageTowers' | 'skipTo', wave?: number): void;
+  debug?(ctl: 'lose' | 'damageTowers' | 'skipTo' | 'level', wave?: number): void;
 }

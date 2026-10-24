@@ -4,13 +4,23 @@
 import { CREEP_KINDS, HERO_KINDS, type CreepKind, type GameEvent, type HeroKind } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
-import { armorMultiplier, damageTower, grantXp, heroArmor, heroManaRegen, heroMaxHp } from '../src/combat';
-import { snapshot } from '../src/game';
+import {
+  armorMultiplier,
+  damageHero,
+  damageTower,
+  grantXp,
+  heroArmor,
+  heroDamage,
+  heroManaRegen,
+  heroMaxHp,
+  heroMaxMana,
+} from '../src/combat';
+import { createGame, snapshot } from '../src/game';
 import { DRIVE_HOLD_TICKS } from '../src/heroes';
 import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
 import { runManaDrill } from '../src/headless';
-import { secondsToTicks, TUNING, type Tuning } from '../src/tuning';
+import { heroLevelXp, secondsToTicks, tuningForMode, TUNING, type Tuning } from '../src/tuning';
 import { labGame, MID, placeCreep, run, runCollect, tuningCopy } from './helpers';
 
 /** A lab game whose heroes don't auto-attack (so skill damage is measurable). */
@@ -119,6 +129,92 @@ describe('levels and skill points', () => {
     state.pendingEvents = [];
     expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R', x: 13, y: 20 })).toBe(false);
     expect(rejection(state)).toBe('This skill takes no target');
+  });
+});
+
+describe('veteran levels (Endless)', () => {
+  /** A one-hero game of `mode` with the wave timer off, the hero at level 10 with every skill at its top rank. */
+  function capped(mode: 'endless' | 'full', kind: HeroKind = 'warden'): { state: GameState; hero: Hero } {
+    const state = createGame({ players: [{ id: 'p1', name: 'P1', hero: kind }], mode }, 7);
+    state.nextWaveTick = -1;
+    const hero = state.heroes[0]!;
+    grantXp(state, hero, TUNING.hero.xpForLevel[9]!);
+    hero.ranks = { Q: 4, W: 4, E: 4, R: 3 };
+    hero.skillPoints = 0;
+    hero.attackCd = 1_000_000;
+    state.pendingEvents = [];
+    return { state, hero };
+  }
+
+  it('past level 10 each level needs 1.25× the step before it (the first: 1.25 × the step from 9 to 10)', () => {
+    const t = tuningForMode(TUNING, 'endless');
+    const last = TUNING.hero.xpForLevel[9]! - TUNING.hero.xpForLevel[8]!;
+    expect(heroLevelXp(t, 10)).toBe(TUNING.hero.xpForLevel[9]);
+    expect(heroLevelXp(t, 11)).toBe(TUNING.hero.xpForLevel[9]! + Math.round(last * 1.25));
+    expect(heroLevelXp(t, 12) - heroLevelXp(t, 11)).toBe(Math.round(Math.round(last * 1.25) * 1.25));
+    // Full and Quick: the cap's XP, never reached.
+    expect(heroLevelXp(TUNING, 11)).toBe(TUNING.hero.xpForLevel[9]);
+    expect(heroLevelXp(tuningForMode(TUNING, 'quick'), 11)).toBe(tuningForMode(TUNING, 'quick').hero.xpForLevel[9]);
+  });
+
+  it('in Endless a level-10 hero gains level 11 at the right XP, with no skill point, and hits harder', () => {
+    const { state, hero } = capped('endless');
+    const toEleven = heroLevelXp(state.tuning, 11) - hero.xp;
+    const before = { damage: heroDamage(state, hero), hp: heroMaxHp(state, hero), regen: heroManaRegen(state, hero) };
+    const armor = heroArmor(state, hero);
+    const mana = heroMaxMana(state, hero);
+    grantXp(state, hero, toEleven - 1);
+    expect(hero.level).toBe(10);
+    grantXp(state, hero, 1);
+    expect(hero.level).toBe(11);
+    expect(hero.skillPoints).toBe(0);
+    expect(state.pendingEvents).toContainEqual({ type: 'levelUp', heroId: hero.id, level: 11 });
+    // +6% attack and skill damage, +6% max HP (current HP with it), +4% mana regeneration; armour and max mana stay.
+    expect(heroDamage(state, hero)).toBeCloseTo(before.damage * 1.06);
+    expect(heroMaxHp(state, hero)).toBeCloseTo(before.hp * 1.06);
+    expect(hero.hp).toBeCloseTo(before.hp * 1.06);
+    expect(heroManaRegen(state, hero)).toBeCloseTo(before.regen * 1.04);
+    expect(heroArmor(state, hero)).toBe(armor);
+    expect(heroMaxMana(state, hero)).toBe(mana);
+    // The snapshot's XP bar keeps filling toward level 12; the badge reads past the cap.
+    const snap = snapshot(state).heroes[0]!;
+    expect(snap).toMatchObject({ level: 11, maxLevel: 10, xpLevelStart: heroLevelXp(state.tuning, 11), xpNextLevel: heroLevelXp(state.tuning, 12) });
+    // Cleave lands 6% harder at level 11 than at level 10.
+    const cleave = (level: number) => {
+      const { state: s, hero: h } = capped('endless');
+      h.level = level;
+      h.mana = 1_000;
+      const brute = placeCreep(s, 'brute', h.x + 1, h.y);
+      brute.rootUntil = 1_000_000;
+      expect(applyCommand(s, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
+      return brute.maxHp - brute.hp;
+    };
+    expect(cleave(11) / cleave(10)).toBeCloseTo(1.06);
+    expect(cleave(15) / cleave(10)).toBeCloseTo(1.3);
+  });
+
+  it('levels on past 11 (several at once on a big grant), and the respawn stays the cap’s', () => {
+    const { state, hero } = capped('endless');
+    grantXp(state, hero, heroLevelXp(state.tuning, 14) - hero.xp);
+    expect(hero.level).toBe(14);
+    expect(state.pendingEvents.filter((e) => e.type === 'levelUp').map((e) => (e.type === 'levelUp' ? e.level : 0))).toEqual([11, 12, 13, 14]);
+    expect(heroDamage(state, hero) / heroDamage({ ...state }, { ...hero, level: 10 })).toBeCloseTo(1.24);
+    damageHero(state, hero, 1_000_000, 'magic');
+    const t = TUNING.hero;
+    expect(hero.respawnTick - state.tick).toBe(secondsToTicks(t.respawnBase + t.respawnPerLevel * t.maxLevel));
+  });
+
+  it('in Full a level-10 hero stays at 10 on the same XP, its XP capped and its numbers unchanged', () => {
+    const { state, hero } = capped('full');
+    const damage = heroDamage(state, hero);
+    const hp = heroMaxHp(state, hero);
+    grantXp(state, hero, 1_000_000);
+    expect(hero.level).toBe(10);
+    expect(hero.xp).toBe(TUNING.hero.xpForLevel[9]);
+    expect(state.pendingEvents.filter((e) => e.type === 'levelUp')).toHaveLength(0);
+    expect(heroDamage(state, hero)).toBe(damage);
+    expect(heroMaxHp(state, hero)).toBe(hp);
+    expect(snapshot(state).heroes[0]).toMatchObject({ level: 10, xpLevelStart: 8100, xpNextLevel: 8100 });
   });
 });
 

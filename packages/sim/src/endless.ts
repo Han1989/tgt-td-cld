@@ -10,7 +10,7 @@ export interface EndlessWave {
   source: number;
   /** Full cycles past the list, from 1: waves 31–40 are cycle 1, 41–50 cycle 2. */
   cycle: number;
-  /** Creep HP × this (bosses too): `hpGrowthPerCycle` to the power of `cycle`. */
+  /** Creep HP × this (bosses too): `hpFirstCycle` in cycle 1, then × `hpGrowthPerCycle` for each further cycle. */
   hp: number;
   /** Non-boss creep count × this: `countGrowthPerCycle` to the power of `cycle`. */
   count: number;
@@ -46,7 +46,8 @@ export function endlessWave(tuning: Tuning, wave: number): EndlessWave | null {
   const boss = e.bossEvery > 0 && after % e.bossEvery === 0 ? (e.bosses[(after / e.bossEvery - 1) % e.bosses.length] ?? null) : null;
   const groups = (tuning.waves.list[source - 1] ?? []).filter((g) => !tuning.creeps[g.kind].boss);
   if (boss) groups.push({ kind: boss, perLane: 1, lanes: [1] });
-  return { source, cycle, hp: power(e.hpGrowthPerCycle, cycle), count: power(e.countGrowthPerCycle, cycle), boss, groups };
+  const hp = e.hpFirstCycle * power(e.hpGrowthPerCycle, cycle - 1);
+  return { source, cycle, hp, count: power(e.countGrowthPerCycle, cycle), boss, groups };
 }
 
 /** The creeps of wave `wave` (1-based): the list's, Endless's past it, or none. */

@@ -172,6 +172,8 @@ export interface Tower {
   tier: number;
   /** The top-tier specialisation (tier = last regular tier + 1), else null. */
   branch: TowerBranch | null;
+  /** Reinforce ranks bought after the branch (Endless only; 0 elsewhere): damage and max HP × (1 + perRank)^rank. */
+  reinforced: number;
   /** Shots fired so far (Glacier freezes on every Nth). */
   shots: number;
   cooldown: number;

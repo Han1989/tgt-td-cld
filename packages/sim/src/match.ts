@@ -50,6 +50,8 @@ interface HeroTrack {
   repairs: number;
   repairGold: number;
   towersDestroyed: number;
+  reinforces: number;
+  reinforceGold: number;
   wavesCalledEarly: number;
   goldGifted: number;
   goldReceived: number;
@@ -102,6 +104,8 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
       repairs: 0,
       repairGold: 0,
       towersDestroyed: 0,
+      reinforces: 0,
+      reinforceGold: 0,
       wavesCalledEarly: 0,
       goldGifted: 0,
       goldReceived: 0,
@@ -138,7 +142,7 @@ export function matchCommand(match: Match, playerId: PlayerId, command: Command)
   return ok;
 }
 
-/** Counts a successful build, upgrade, branch, sell, repair or call-early toward the report. */
+/** Counts a successful build, upgrade, branch, sell, repair, reinforce or call-early toward the report. */
 function noteEconomy(track: HeroTrack, cmd: Command, spent: number): void {
   if (cmd.type === 'build') {
     track.towersBuilt++;
@@ -152,6 +156,10 @@ function noteEconomy(track: HeroTrack, cmd: Command, spent: number): void {
   } else if (cmd.type === 'repair') {
     track.repairs++;
     track.repairGold += spent;
+    track.goldSpent += spent;
+  } else if (cmd.type === 'reinforce') {
+    track.reinforces++;
+    track.reinforceGold += spent;
     track.goldSpent += spent;
   } else if (cmd.type === 'callEarly') {
     track.wavesCalledEarly++;
@@ -282,6 +290,8 @@ export function matchReport(match: Match): MatchReport {
       repairs: t.repairs,
       repairGold: t.repairGold,
       towersDestroyed: t.towersDestroyed,
+      reinforces: t.reinforces,
+      reinforceGold: t.reinforceGold,
       goldUnspent: Math.floor(player.gold),
       wavesCalledEarly: t.wavesCalledEarly,
       goldGifted: t.goldGifted,
@@ -349,7 +359,7 @@ export function matchReplay(match: Match): Replay {
 /**
  * Re-runs a replay with the simulation: every logged input at its tick, then steps until the match ends (or
  * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry, and on a match
- * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice).
+ * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice, Endless before protocol 22).
  */
 export function replayMatch(
   replay: Replay,
@@ -455,13 +465,26 @@ export function replayProblem(data: unknown): string | null {
 
 const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
+/** The protocol that brought Endless its veteran levels and Reinforce: an Endless replay from before it is refused. */
+const ENDLESS_RULES_PROTOCOL = 22;
+
 /**
  * Why this build cannot re-run a replay whose rules are gone, or null. Match modifiers (Swift, Ironclad, Sky Tide,
  * Fog, Gold Rush) and Meteor Rain practice were removed in protocol 20 (Han, 17 Oct 2026); a replay saved with no
- * modifiers (an empty list, or none at all) re-runs as before.
+ * modifiers (an empty list, or none at all) re-runs as before. An Endless match recorded before protocol 22 played
+ * without veteran levels and Reinforce (Han, 24 Oct 2026), so it would not re-run the same way; Full and Quick are
+ * unchanged and re-run.
  */
-export function replayRefusal(replay: Pick<Replay, 'modifiers' | 'practice' | 'build'>): string | null {
+export function replayRefusal(
+  replay: Pick<Replay, 'modifiers' | 'practice' | 'build' | 'mode' | 'protocol'>,
+): string | null {
   const where = replay.build && replay.build !== 'dev' ? `: git checkout ${replay.build}, then re-run it` : '';
+  if (replay.mode === 'endless' && replay.protocol < ENDLESS_RULES_PROTOCOL) {
+    return (
+      `This Endless match was recorded under protocol ${replay.protocol}, before veteran levels and Reinforce changed ` +
+      `Endless in protocol ${ENDLESS_RULES_PROTOCOL}; only a build from before then can re-run it${where}.`
+    );
+  }
   if (replay.modifiers && replay.modifiers.length > 0) {
     return (
       `This match ran match modifiers (${replay.modifiers.join(' + ')}), which were removed in protocol 20; ` +
@@ -487,7 +510,8 @@ export function reportSummary(report: MatchReport, room?: string): string {
       `${h.name}/${h.hero} L${h.level} k${h.kills} d${h.deaths} Q${h.casts.Q} W${h.casts.W} R${h.casts.R} ` +
       `noMana Q${Math.round(h.noManaSeconds.Q)}s W${Math.round(h.noManaSeconds.W)}s Roverlap ${h.rOverlaps} ` +
       `gifted ${h.goldGifted ?? 0} got ${h.goldReceived ?? 0} ` +
-      `repairs ${h.repairs ?? 0}/${h.repairGold ?? 0}g towers lost ${h.towersDestroyed ?? 0}`,
+      `repairs ${h.repairs ?? 0}/${h.repairGold ?? 0}g towers lost ${h.towersDestroyed ?? 0}` +
+      (report.mode === 'endless' ? ` reinforces ${h.reinforces ?? 0}/${h.reinforceGold ?? 0}g` : ''),
   );
   return (
     `match${room ? ` ${room}` : ''} ${report.mode} ${report.difficulty} seed ${report.seed} v${report.protocol} build ${report.build} ` +

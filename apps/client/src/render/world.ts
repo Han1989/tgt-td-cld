@@ -1015,6 +1015,22 @@ export class WorldRenderer {
           }
           break;
         }
+        case 'towerReinforced': {
+          // Reinforce (Endless): gold rings pulse up the tower, each smaller and higher, with gold motes rising off it,
+          // and the upgrade's pop and white turret flash (V-07b).
+          const t = this.towerPos(e.towerId, latest);
+          if (!t) break;
+          fx.ring(t.x, t.y, 1.5, COLORS.gold, 420, 0.3, 'shock');
+          fx.ring(t.x, t.y - 0.4, 1.05, FX.goldLight, 380, 0.4);
+          fx.ring(t.x, t.y - 0.8, 0.65, FX.goldLight, 340, 0.5);
+          fx.sparkle(t.x, t.y - 0.3, COLORS.gold, 8 + Math.min(8, e.rank), 0.5);
+          const s = this.towers.get(e.towerId);
+          if (s) {
+            s.upgradeAt = now;
+            s.animating = true;
+          }
+          break;
+        }
         case 'towerRepaired': {
           // A short mend: a green ring and a few green motes rising off the tower.
           const t = this.towerPos(e.towerId, latest);

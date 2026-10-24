@@ -171,6 +171,51 @@ test('desktop tower panel: at tier 3 it offers the two specialisations; clicking
   await expect(page.locator('#tower-panel h3')).toContainText('Shrapnel tower');
   await expect(page.locator('#tower-panel .branch-option')).toHaveCount(0);
   await expect(page.locator('#tower-panel')).toContainText('Max tier');
+  // Quick: no Reinforce past the branch (Endless only), and U does nothing more.
+  await expect(page.locator('#tower-panel button[data-action="reinforce"]')).toHaveCount(0);
+  await page.keyboard.press('u');
+  expect(await sent(page, 'reinforce')).toHaveLength(0);
+});
+
+test('desktop tower panel, Endless: past the branch Reinforce +N for its price; U and the button buy ranks', async ({ page }) => {
+  await startSolo(page, '?lab', 'endless');
+  const padId = await page.evaluate(() => window.__tdt.latest()!.pads[2]!.id);
+  const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
+  const at = await toScreen(page, pad.x, pad.y);
+  const tower = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), padId);
+  const price = (rank: number) =>
+    page.evaluate((r) => {
+      const t = window.__tdt.tuning;
+      return Math.ceil(t.towers.cannon!.tiers[2]!.cost * t.reinforce.priceGrowth ** r - 1e-9);
+    }, rank);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.press('2');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#tower-panel')).toBeVisible();
+  await page.keyboard.press('u');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(2);
+  await page.keyboard.press('u');
+  await expect.poll(() => tower().then((t) => t?.tier)).toBe(3);
+  await page.locator('#tower-panel .branch-option[data-branch="mortar"]').click();
+  await expect.poll(() => tower().then((t) => t?.branch)).toBe('mortar');
+
+  // The Upgrade button's place: Reinforce +1, the tier-3 upgrade's price; no Max tier row.
+  const reinforce = page.locator('#tower-panel button[data-action="reinforce"]');
+  await expect(reinforce).toContainText('Reinforce +1');
+  await expect(reinforce.locator('.cost')).toHaveText(String(await price(0)));
+  await expect(page.locator('#tower-panel')).not.toContainText('Max tier');
+  // U buys a rank, then the button another; the stats show the ranks.
+  await page.keyboard.press('u');
+  await expect.poll(() => tower().then((t) => t?.reinforced)).toBe(1);
+  await expect(reinforce).toContainText('Reinforce +2');
+  await expect(reinforce.locator('.cost')).toHaveText(String(await price(1)));
+  await reinforce.click();
+  await expect.poll(() => tower().then((t) => t?.reinforced)).toBe(2);
+  await expect(page.locator('#tower-panel')).toContainText('Reinforced');
+  await expect(page.locator('#tower-panel')).toContainText('×2: +');
+  expect(await sent(page, 'reinforce')).toHaveLength(2);
+  expect(await sent(page, 'upgrade').then((c) => c.length)).toBe(3);
 });
 
 test('desktop tower panel: Repair shows only while damaged; F and the button repair it for the price shown', async ({ page }) => {

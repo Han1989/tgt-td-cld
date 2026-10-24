@@ -1,6 +1,6 @@
-import type { CreepKind, GameEvent, GameMode, HeroKind, LaneId } from '@tdt/protocol';
-import { afterAll, expect } from 'vitest';
-import { createNoviceBot } from '../src/bots';
+import { HERO_KINDS, type CreepKind, type GameEvent, type GameMode, type HeroKind, type LaneId } from '@tdt/protocol';
+import { afterAll, expect, it } from 'vitest';
+import { createNoviceBot, type Bot } from '../src/bots';
 import { runHeadlessMatch, type HeadlessResult } from '../src/headless';
 import { createGame, step } from '../src/game';
 import { getMap } from '../src/map';
@@ -186,3 +186,45 @@ export const EXPERT_NORMAL_SHARE = 0.8;
 // a whole lane for seconds, and he ends Hard at 80-90 where the Warden ends it at 40-55), so the share of seeds inside the band
 // is only 30%; the mean of the gate's matches must still sit inside it (the matrix reports every team on its own).
 export const HARD_SHARE = 0.3;
+
+/**
+ * Endless's loop gate for one bot (balanceEndless*.test.ts), solo, every hero on the gate seeds: every match ends in
+ * defeat, the mean of the waves the Heart fell on is in `min` ≤ mean < `before` (with `eachInBand`, every match too), and
+ * with `heartAt31` the mean Heart as wave 31 starts (a run that fell before it counts 0) is at least that.
+ */
+export function endlessGate(band: {
+  make: (id: string) => Bot;
+  min: number;
+  before: number;
+  eachInBand: boolean;
+  heartAt31?: number;
+}): void {
+  const waves: number[] = [];
+  const hearts: number[] = [];
+  afterAll(() => {
+    if (waves.length === 0) return;
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const said = `mean wave ${mean(waves).toFixed(1)} of ${waves.join(', ')}`;
+    expect(mean(waves), said).toBeGreaterThanOrEqual(band.min);
+    expect(mean(waves), said).toBeLessThan(band.before);
+    if (band.heartAt31 !== undefined) {
+      expect(mean(hearts), `mean Heart at wave 31 ${mean(hearts).toFixed(1)} of ${hearts.join(', ')}`).toBeGreaterThanOrEqual(band.heartAt31);
+    }
+  });
+  const cases = HERO_KINDS.flatMap((hero) => BALANCE_SEEDS.map((seed) => [hero, seed] as const));
+  it.each(cases)(
+    `the %s falls (seed %i)`,
+    (hero, seed) => {
+      const result = runHeadlessMatch({ bots: [band.make('p1')], heroes: [hero], seed, mode: 'endless' });
+      expect(result.result).toBe('defeat');
+      if (band.eachInBand) {
+        expect(result.wave).toBeGreaterThanOrEqual(band.min);
+        expect(result.wave).toBeLessThan(band.before);
+      }
+      waves.push(result.wave);
+      hearts.push(result.heartAfterList ?? 0);
+    },
+    // The expert's matches run past wave 80.
+    120_000,
+  );
+}

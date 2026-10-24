@@ -31,7 +31,8 @@
  * V-07a-fix on 24 Oct 2026 (PR #139: the match page never scrolls, the plaques inside the bar, the rims slimmer).
  * V-06i on 24 Oct 2026 (PR #140: the ground creeps from Meshy into the game, the enemy faction's batch 1).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
- * Protocol is 21 (PR #129). This page only reports status.
+ * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
+ * Protocol is 22 (PR #142). This page only reports status.
  */
 
 import type { ProgressData, ProgressItem, ProgressProof, ProgressSection } from './model';
@@ -1021,8 +1022,17 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'p6d',
-    note: 'Han, 17 Oct 2026, shaped 22 Oct: the second reason to come back after two wins. A third mode with no last wave, the third segment of the Mode row (Full 30 waves · Quick 15 waves · Endless ∞), so Play solo starts it and a room’s host can pick it. It is always Hard: Full’s 30 waves, then waves 21–30 again, stronger every 10 waves (creep HP ×1.8, creeps ×1.25), a boss every fifth wave (Ironhorn on 35, then the Matriarch and the Shardback), until the Heart falls. The score is the wave reached: “Fallen on wave 37”, “New best!”, and the best per hero shown over the Endless segment, kept in this browser only (no scoreboard yet). The expert bot falls around wave 47, the casual bot around 34. Protocol 21. Built by Claude Code (PR #129).',
+    note: 'Han, 17 Oct 2026, shaped 22 Oct: the second reason to come back after two wins. A third mode with no last wave, the third segment of the Mode row (Full 30 waves · Quick 15 waves · Endless ∞), so Play solo starts it and a room’s host can pick it. It is always Hard: Full’s 30 waves, then waves 21–30 again, stronger every 10 waves (creep HP ×1.8, creeps ×1.25), a boss every fifth wave (Ironhorn on 35, then the Matriarch and the Shardback), until the Heart falls. The score is the wave reached: “Fallen on wave 37”, “New best!”, and the best per hero shown over the Endless segment, kept in this browser only (no scoreboard yet). The expert bot falls around wave 47, the casual bot around 34. Protocol 21. Built by Claude Code (PR #129). Retuned on 24 Oct 2026 with veteran levels and Reinforce (p6d-endless-2, below).',
     proof: pr(129),
+  },
+  {
+    id: 'p6d-endless-2',
+    title: 'Endless scaling: the hero and the gold keep pace',
+    owner: 'Team',
+    status: 'done',
+    section: 'p6d',
+    note: 'Han’s Endless match of 24 Oct 2026: his hero hit level 10 on wave 21 and every pad was full and branched by the mid-40s, with 2,000 gold and nothing to buy, exactly when the waves got steep. In Endless only (Full and Quick do not change by a single number): the hero keeps levelling past 10 (+6% damage and HP a level, each level a little further off), and a branched tower buys Reinforce ranks, one tap each on the ring’s Reinforce +N, each +12% damage and HP for a price that grows as fast. The loop is retuned around them: the first cycle doubles creep HP, then ×1.4 every 10 waves, no extra creeps; waves 1–30 are a little gentler so a strong player reaches the loop near full. The expert bot now falls around wave 70 (77 solo), the casual bot around 54, the novice before 40. Protocol 22. Built by Claude Code (PR #142).',
+    proof: pr(142),
   },
   {
     id: 'p6d-weekly',
@@ -1198,7 +1208,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 21,
+  protocol: 22,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

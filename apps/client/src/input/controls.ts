@@ -4,6 +4,7 @@
 
 import { TOWER_KINDS, type Command, type PlayerId, type SkillSlot, type Snapshot, type TowerKind } from '@tdt/protocol';
 import { getMap, padAtTile, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
+import { reinforceOffer } from '../hud/towerInfo';
 import { padStatus } from '../padInfo';
 import { COLORS } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
@@ -257,6 +258,29 @@ export class Controls {
     this.actions.send({ type: 'repair', towerId });
   }
 
+  /** U or the panel's Reinforce button (Endless): your branched tower's next rank. Says why when it can't (nothing spent). */
+  reinforce(towerId: number): void {
+    const snap = this.actions.latest();
+    const tower = snap?.towers.find((t) => t.id === towerId);
+    if (!snap || !tower || tower.owner !== this.actions.me()) return;
+    const offer = reinforceOffer(tuningForMode(TUNING, snap.mode), tower);
+    if (!offer) return this.actions.toast('Tower is at max tier');
+    const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+    if (gold < offer.cost) return this.actions.toast('Not enough gold');
+    this.actions.send({ type: 'reinforce', towerId });
+  }
+
+  /** U: the selected tower's next tier, or past its branch in Endless its next Reinforce rank. */
+  private upgradeSelected(): void {
+    const id = this.ui.selectedTowerId;
+    if (id === null) return;
+    const snap = this.actions.latest();
+    const tower = snap?.towers.find((t) => t.id === id);
+    if (snap && tower?.branch && tuningForMode(TUNING, snap.mode).reinforce.on) return this.reinforce(id);
+    // The sim rejects it if it isn't ours.
+    this.actions.send({ type: 'upgrade', towerId: id });
+  }
+
   /** Build hotkeys: build on the selected pad, or pick a tower to place. */
   pressBuild(tower: TowerKind): void {
     if (this.ui.selectedPadId !== null) {
@@ -310,8 +334,8 @@ export class Controls {
         this.actions.send({ type: 'stop' });
         break;
       case 'u':
-        // Upgrade the selected tower (the sim rejects it if it isn't ours).
-        if (this.ui.selectedTowerId !== null) this.actions.send({ type: 'upgrade', towerId: this.ui.selectedTowerId });
+        // Upgrade the selected tower; in Endless a branched one buys its next Reinforce rank.
+        this.upgradeSelected();
         break;
       case 'f':
         // Repair ("fix") the selected tower.

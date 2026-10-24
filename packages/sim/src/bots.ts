@@ -21,9 +21,9 @@ import {
 } from '@tdt/protocol';
 import { shieldStandPoint } from './coop';
 import { waveGroups } from './endless';
-import { getMap, type BuildPad } from './map';
+import { getMap, laneDistance, type BuildPad } from './map';
 import { mix32 } from './surges';
-import { repairCost, tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
+import { reinforceCost, repairCost, tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
 
 export interface Bot {
@@ -198,6 +198,8 @@ export function createBalanceBot(
   let lastRepairTick = -Infinity;
   const repairReady = (snap: Snapshot): boolean =>
     style !== 'novice' && snap.tick - lastRepairTick >= REPAIR_EVERY[style] * snap.tickRate;
+  /** Endless: the lane with the most creeps when it last had any (Mid before then), whose towers Reinforce first. */
+  let busiest: LaneId = 1;
 
   return {
     playerId,
@@ -245,8 +247,9 @@ export function createBalanceBot(
       // The expert's pad plan is already tight. Pulling a pad onto the surge lane, gifting, or
       // walking over moved Hard gate seeds out of 40–80 Heart. The casual bot does all three.
       if (focusLane != null && style === 'casual') biasSurgePad(free, mine, focusLane);
+      if (tuning.reinforce.on && style !== 'novice') busiest = busiestLane(snap) ?? busiest;
       if (style === 'expert') {
-        gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses);
+        gold = spendExpert(cmds, snap, tuning, playerId, gold, padRank, free, kinds, team, needs, bosses, busiest);
         if (repairReady(snap)) {
           const spent = spendRepair(cmds, mine, tuning, gold);
           if (spent > 0) lastRepairTick = snap.tick;
@@ -294,13 +297,16 @@ export function createBalanceBot(
         }
 
         // Nothing left to buy (every pad taken, every tower branched; a small zone gets there first): the gold
-        // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers.
-        if (!novice && free.length === 0 && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
-          const to = neediestTeammate(snap, playerId, tuning);
+        // goes to the teammate with the most upgrades still to buy, so the whole team's gold ends up in towers. In
+        // Endless, once no teammate has a tier or a branch left to buy, it buys Reinforce ranks instead.
+        if (!novice && free.length === 0 && mine.length > 0 && mine.every((t) => t.branch)) {
+          const to = gold >= MIN_GIFT ? neediestTeammate(snap, playerId, tuning) : undefined;
           if (to) {
             const amount = Math.floor(gold);
             cmds.push({ type: 'gift', to, amount });
             gold -= amount;
+          } else if (tuning.reinforce.on) {
+            gold -= spendReinforce(cmds, mine, tuning, gold, busiest);
           }
         }
       }
@@ -491,6 +497,7 @@ function spendExpert(
   team: Set<TowerKind>,
   needs: { air: boolean; armour: boolean; stone: boolean },
   bosses: CreepSnap[],
+  busiest: LaneId,
 ): number {
   let gold = goldStart;
   const mine: PlannedTower[] = snap.towers
@@ -512,7 +519,10 @@ function spendExpert(
   // but only after the towers it has are tiered and branched. Spreading that gold across every pad first
   // leaves a physical pair one branch short of the late waves.
   const zone = owned < 20;
-  const cap = zone ? owned : Math.max(EXPERT_MIN_TOWERS, Math.floor(owned * EXPERT_PAD_FRACTION));
+  // Endless: once the planned towers are all branched, the rest of the zone is worth its gold too (the match goes on);
+  // Reinforce comes after every pad of the zone is built and branched.
+  const planned = zone ? owned : Math.max(EXPERT_MIN_TOWERS, Math.floor(owned * EXPERT_PAD_FRACTION));
+  const cap = tuning.reinforce.on && mine.length >= planned && mine.every((t) => t.branch) ? owned : planned;
   const teamBranches = snap.towers.flatMap((t) => (t.branch ? [t.branch] : []));
   const branchNeed = branchNeeds(tuning, snap.wave);
   const branchFrom = Math.round(EXPERT_BRANCH_FROM * tuning.waves.list.length);
@@ -607,12 +617,18 @@ function spendExpert(
 
   const filled = kinds.length >= cap || free.length === 0;
   const builtThisTick = kinds.length > mine.length;
-  if (filled && !builtThisTick && mine.length > 0 && mine.every((t) => t.branch) && gold >= MIN_GIFT) {
-    const to = neediestTeammate(snap, playerId, tuning);
+  if (filled && !builtThisTick && mine.length > 0 && mine.every((t) => t.branch)) {
+    const to = gold >= MIN_GIFT ? neediestTeammate(snap, playerId, tuning) : undefined;
     if (to) {
       const amount = Math.floor(gold);
       cmds.push({ type: 'gift', to, amount });
       gold -= amount;
+    } else if (tuning.reinforce.on) {
+      // Endless: every pad of the zone built and branched (as the snapshot has them: nothing bought this decision),
+      // and no teammate with a branch to buy: Reinforce ranks.
+      const built = snap.towers.filter((t) => t.owner === playerId);
+      const zoneDone = built.length === owned && built.every((t) => t.branch);
+      if (zoneDone) gold -= spendReinforce(cmds, built, tuning, gold, busiest);
     }
   }
   return gold;
@@ -804,6 +820,62 @@ function spendRepair(cmds: Command[], mine: TowerSnap[], tuning: Tuning, gold: n
     return cost;
   }
   return 0;
+}
+
+/**
+ * The tower first in line takes the next rank while it costs at most this × the cheapest rank the bot could buy; past
+ * that the next tower in line does, so ranks spread over the towers that matter instead of piling up on one.
+ */
+const REINFORCE_SPREAD = 1.5;
+
+/**
+ * Endless: one Reinforce rank for this bot's branched towers. The snapshot has no per-tower damage, so the line is the
+ * towers on the busiest lane first, nearest the Heart first, then the rest by their distance to the Heart; the first in
+ * line whose rank is not too dear (`REINFORCE_SPREAD`) and that it can pay for while keeping its repair reserve (the
+ * price of repairing its priciest tower from `REPAIR_BELOW` of its HP, so the ranks never eat the repairs). Returns
+ * the gold spent (0 if none).
+ */
+function spendReinforce(cmds: Command[], mine: TowerSnap[], tuning: Tuning, gold: number, lane: LaneId): number {
+  const pads = getMap().pads;
+  const heart = getMap().heart;
+  const branched = mine.filter((t) => t.branch);
+  if (branched.length === 0) return 0;
+  const reserve = Math.ceil(tuning.economy.repairRate * Math.max(...branched.map((t) => t.spent)) * (1 - REPAIR_BELOW));
+  const price = (t: TowerSnap) => reinforceCost(tuning, t);
+  const cheapest = Math.min(...branched.map(price));
+  const away = (t: TowerSnap) => (pads[t.padId]?.lane === lane ? 0 : 1);
+  const toHeart = (t: TowerSnap) => dist(t.x, t.y, heart.x, heart.y);
+  const line = [...branched].sort((a, b) => away(a) - away(b) || toHeart(a) - toHeart(b));
+  for (const t of line) {
+    const cost = price(t);
+    if (cost <= 0 || cost > REINFORCE_SPREAD * cheapest) continue;
+    if (gold - reserve < cost) return 0;
+    cmds.push({ type: 'reinforce', towerId: t.id });
+    return cost;
+  }
+  return 0;
+}
+
+/** The lane with the most creeps on it (each counted on its nearest lane), or null when the map is empty. */
+function busiestLane(snap: Snapshot): LaneId | null {
+  if (snap.creeps.length === 0) return null;
+  const lanes = getMap().lanes;
+  const count = [0, 0, 0];
+  for (const c of snap.creeps) {
+    let best = 0;
+    let bestD = Infinity;
+    for (const l of lanes) {
+      const d = laneDistance([l], c.x, c.y);
+      if (d < bestD) {
+        bestD = d;
+        best = l.id;
+      }
+    }
+    count[best]!++;
+  }
+  // Ties keep Mid, then West: the lane order the map lists.
+  const order: LaneId[] = [1, 0, 2];
+  return order.reduce((a, b) => (count[b]! > count[a]! ? b : a));
 }
 
 /** Pads ordered by how much lane (and wisp flight line) they cover. */
