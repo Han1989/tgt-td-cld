@@ -19,6 +19,15 @@ function pageMoved(page: Page): Promise<number[]> {
   });
 }
 
+/** The Heart's vignette (V-07b): the layer's parent, whether it shows, and its box on screen. */
+function heartVignette(page: Page): Promise<{ parent: string; shown: boolean; box: number[] }> {
+  return page.locator('.heart-vignette').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return { parent: el.parentElement!.id, shown: cs.display !== 'none' && Number(cs.opacity) > 0, box: [r.left, r.top, r.right, r.bottom] };
+  });
+}
+
 /** Taps the centre of a pad (by map pad id). */
 async function tapPad(page: Page, padId: number): Promise<void> {
   const p = await page.evaluate((id) => {
@@ -229,6 +238,11 @@ test.describe('portrait phone layout', () => {
 
       await page.evaluate(() => window.__tdt.lose());
       await expect(page.locator('#end-screen')).toBeVisible();
+      // V-07b's vignette lives in the fixed game root, over the whole screen, and stays up behind a defeat's card.
+      const vignette = await heartVignette(page);
+      expect(vignette.parent, at).toBe('game');
+      expect(vignette.shown, at).toBe(true);
+      for (const [k, v] of vignette.box.entries()) expect(v, `${at} vignette ${k}`).toBeCloseTo([0, 0, 412, height][k]!, 0);
       // A long card (a team's gift and ultimate lines; forced here, this build has no team): taller than the screen.
       await page.evaluate(() => {
         const ul = document.getElementById('end-ults')!;
@@ -257,6 +271,8 @@ test.describe('portrait phone layout', () => {
       await expect.poll(() => page.locator('.end-body').evaluate((el) => el.scrollTop), at).toBeGreaterThan(0);
       expect(await pageMoved(page), at).toEqual([0, 0, 0, 0]);
       expect(await box(page, '#topbar'), at).toEqual(top);
+      // The card's scroll is its own: the vignette under it is still shown, over the same box.
+      expect(await heartVignette(page), at).toEqual(vignette);
       const restart = await box(page, '#restart');
       expect(restart.bottom, at).toBeLessThanOrEqual(height);
       expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, centre(restart)), at).toBe('restart');
