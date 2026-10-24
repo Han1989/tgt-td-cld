@@ -11,6 +11,48 @@ import { LIGHTING, RL, type Display } from './tokens';
 export const ART_RES = 2;
 export const PAGE_PX = 1024;
 const PAD = 4;
+/**
+ * Atlas px kept round a frame's drawn pixels when its texture is trimmed to them: the linear filter's reach (so the
+ * edges draw as before) and Bright's fainter shadow tails (a tenth of a px narrower or wider than Normal's).
+ */
+export const TRIM_MARGIN = 2;
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * The box (page px) round the pixels a frame drew (alpha above 0) inside `rect`, `margin` px wider on each side and
+ * kept inside `rect`; null if it drew nothing. `data` is the page's RGBA bytes, `pageW` px wide. Pure (tested).
+ */
+export function drawnBox(data: ArrayLike<number>, pageW: number, rect: Box, margin: number): Box | null {
+  const drawn = (x: number, y: number) => data[(y * pageW + x) * 4 + 3]! > 0;
+  const row = (y: number) => {
+    for (let x = rect.x; x < rect.x + rect.w; x++) if (drawn(x, y)) return true;
+    return false;
+  };
+  let top = rect.y;
+  while (top < rect.y + rect.h && !row(top)) top++;
+  if (top === rect.y + rect.h) return null;
+  let bottom = rect.y + rect.h - 1;
+  while (!row(bottom)) bottom--;
+  const column = (x: number) => {
+    for (let y = top; y <= bottom; y++) if (drawn(x, y)) return true;
+    return false;
+  };
+  let left = rect.x;
+  while (!column(left)) left++;
+  let right = rect.x + rect.w - 1;
+  while (!column(right)) right--;
+  const x0 = Math.max(rect.x, left - margin);
+  const y0 = Math.max(rect.y, top - margin);
+  const x1 = Math.min(rect.x + rect.w, right + 1 + margin);
+  const y1 = Math.min(rect.y + rect.h, bottom + 1 + margin);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
 
 interface Slot {
   page: number;
@@ -117,21 +159,78 @@ export function createArtAtlas(entries: readonly ArtEntry[], display: Display): 
   bake(display);
   // resolution: frames come out in world px, so sprites need no extra scale.
   for (const canvas of canvases) sources.push(new CanvasSource({ resource: canvas, resolution: ART_RES }));
-  const textures = new Map<string, Texture>();
-  for (const [name, s] of slots) {
-    const r = s.rect;
-    textures.set(
-      name,
-      new Texture({ source: sources[s.page]!, frame: new Rectangle(r.x / ART_RES, r.y / ART_RES, r.width / ART_RES, r.height / ART_RES) }),
-    );
+
+  // Each frame's texture is trimmed to what it drew (docs/ART.md §15 "V-07e"): a sprite's quad covers its drawing, not
+  // the frame's transparent margin (a shot's frame is three to five times its drawing), so a software GPU fills a
+  // third as many pixels for it; the anchor and the size stay the frame's (`orig`). Measured once: a re-bake (Display)
+  // changes colours and shadow alpha, never where a drawing reaches (TRIM_MARGIN covers the rest). Reading the pages
+  // back makes the canvas draw the bake at once, so it never runs before the first screen (`tdt:ready`, main.ts; the
+  // atlas is made before it): until then a frame's texture is its whole frame, as before (the 2D Heart and portals the
+  // game view makes at once, until the 3D sheet replaces them); after it the trim runs in an idle moment, or at the
+  // first frame asked for, whichever comes first.
+  const texturesFor = (drawn: ReadonlyMap<string, Box | null>): Map<string, Texture> => {
+    const out = new Map<string, Texture>();
+    for (const [name, s] of slots) {
+      const r = s.rect;
+      const b = drawn.get(name) ?? { x: r.x, y: r.y, w: r.width, h: r.height };
+      const frame = new Rectangle(b.x / ART_RES, b.y / ART_RES, b.w / ART_RES, b.h / ART_RES);
+      const whole = b.w === r.width && b.h === r.height;
+      out.set(
+        name,
+        whole
+          ? new Texture({ source: sources[s.page]!, frame })
+          : new Texture({
+              source: sources[s.page]!,
+              frame,
+              orig: new Rectangle(0, 0, r.width / ART_RES, r.height / ART_RES),
+              trim: new Rectangle((b.x - r.x) / ART_RES, (b.y - r.y) / ART_RES, b.w / ART_RES, b.h / ART_RES),
+            }),
+      );
+    }
+    return out;
+  };
+  let whole: Map<string, Texture> | null = null;
+  let trimmed: Map<string, Texture> | null = null;
+  const trim = (): Map<string, Texture> => {
+    if (trimmed) return trimmed;
+    const start = performance.now();
+    const drawn = new Map<string, Box | null>();
+    canvases.forEach((canvas, page) => {
+      const mine = [...slots].filter(([, s]) => s.page === page);
+      const rows = Math.max(1, ...mine.map(([, s]) => s.rect.y + s.rect.height));
+      const data = canvas.getContext('2d')!.getImageData(0, 0, PAGE_PX, rows).data;
+      for (const [name, s] of mine) {
+        const { x, y, width: w, height: h } = s.rect;
+        drawn.set(name, drawnBox(data, PAGE_PX, { x, y, w, h }, TRIM_MARGIN));
+      }
+    });
+    trimmed = texturesFor(drawn);
+    performance.measure('tdt:art-trim', { start, detail: { pages: pageCount } });
+    return trimmed;
+  };
+  const firstScreenUp = () => performance.getEntriesByName('tdt:ready').length > 0;
+  const soon = () => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => trim(), { timeout: 3000 });
+    else setTimeout(() => trim(), 1000);
+  };
+  if (firstScreenUp()) soon();
+  else if (typeof PerformanceObserver === 'function') {
+    const firstScreen = new PerformanceObserver((list) => {
+      if (list.getEntriesByName('tdt:ready').length === 0) return;
+      firstScreen.disconnect();
+      soon();
+    });
+    firstScreen.observe({ type: 'mark' });
   }
+  const textures = () => trimmed ?? (firstScreenUp() ? trim() : (whole ??= texturesFor(new Map())));
+
   return {
     frame(name) {
-      const t = textures.get(name);
+      const t = textures().get(name);
       if (!t) throw new Error(`no art frame ${name}`);
       return t;
     },
-    has: (name) => textures.has(name),
+    has: (name) => slots.has(name),
     bake,
     pages: pageCount,
   };

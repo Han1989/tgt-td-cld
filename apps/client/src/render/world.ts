@@ -89,7 +89,7 @@ import {
   type HeartArt,
   type HeroRig,
 } from './art/registry';
-import { CreepRig, DEATH, HIT_FLASH, TowerRig, type TowerRigBase } from './art/rigs';
+import { CreepRig, DEATH, flashGap, HIT_FLASH, TowerRig, type TowerRigBase } from './art/rigs';
 import { fade } from './fade';
 import {
   creepRig3d,
@@ -116,9 +116,11 @@ const TOWER_SIZE = 2.4;
 const MARKER_LIFE_MS = 450;
 /** Off-screen margin (px) before an entity is culled. */
 const CULL_MARGIN = 48;
-/** A hit creep flashes (at most 60% towards white) for this long, and at most this often (so a creep under steady fire keeps its colour). */
+/**
+ * A hit creep flashes (at most 60% towards white) for this long, and at most every `flashGap` (so a creep under steady
+ * fire keeps its colour).
+ */
 const FLASH_MS = HIT_FLASH.ms;
-const FLASH_EVERY_MS = HIT_FLASH.everyMs;
 /**
  * A creep's sprite waits this long (frozen) after it leaves the snapshots for its `kill` event (which
  * is due one snapshot later), so its death reaction starts where it stood. Else it is just released.
@@ -405,6 +407,8 @@ export class WorldRenderer {
   private lastRenderAt = 0;
   /** The last frame's length (ms). */
   private lastDt = 16;
+  /** The frames' length (ms), smoothed and not capped as `dt` is: how long a hit flash stays on screen at least. */
+  private frameMs = 16;
 
   private readonly creeps = new Map<number, CreepSprite>();
   /** Creep sprites of dead creeps, by kind, reused for new ones. */
@@ -668,6 +672,7 @@ export class WorldRenderer {
 
   render(view: InterpolatedView, latest: Snapshot, me: PlayerId | null, ui: UiState, now: number): void {
     const dt = this.lastRenderAt > 0 ? Math.min(100, now - this.lastRenderAt) : 16;
+    if (this.lastRenderAt > 0) this.frameMs += (Math.min(2000, Math.max(0, now - this.lastRenderAt)) - this.frameMs) * 0.2;
     this.lastRenderAt = now;
     const cam = this.camera;
     const shake = this.fx.shakeOffset(now, dt);
@@ -1303,7 +1308,8 @@ export class WorldRenderer {
       const s = this.creeps.get(h.id);
       if (s && now >= s.flashReadyAt) {
         s.flashUntil = now + FLASH_MS;
-        s.flashReadyAt = now + FLASH_EVERY_MS;
+        // At most every 300 ms, and on slow frames at most one frame in five (`flashGap`).
+        s.flashReadyAt = now + flashGap(this.frameMs);
       }
       const px = h.x * S;
       const py = h.y * S;

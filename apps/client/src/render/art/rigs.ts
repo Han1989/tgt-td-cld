@@ -34,6 +34,18 @@ export const GAITS = {
  * partial whitening), so a creep under steady fire keeps its colours and silhouette almost always.
  */
 export const HIT_FLASH = { ms: 60, everyMs: 300, alpha: 0.6 } as const;
+
+/**
+ * How long (ms) a creep under steady fire waits before it may flash again, with frames `frameMs` apart. A flash lasts at
+ * least the frame it is drawn in, so where frames come further apart than the flash (a struggling phone, a software
+ * GPU) the wait grows with them: a creep is white at most `ms / everyMs` of its frames (a fifth) at any frame rate, as
+ * at 30 FPS and up, where the wait is `everyMs` (at 1 FPS every hit creep would otherwise be white in every frame:
+ * a second quad over each of them, docs/ART.md §15 "V-07e").
+ */
+export function flashGap(frameMs: number): number {
+  return Math.max(HIT_FLASH.everyMs, (Math.max(HIT_FLASH.ms, frameMs) * HIT_FLASH.everyMs) / HIT_FLASH.ms);
+}
+
 /** How much a hit squashes the body (fraction of its size at full flash); bosses flinch half as much. */
 const FLINCH = 0.09;
 

@@ -3,7 +3,7 @@ import { CREEP_KINDS, HERO_KINDS, SKILL_SLOTS, TOWER_BRANCHES, TOWER_KINDS, type
 import { getMap, Tile, tileAt, TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { heartStage } from '../src/render/art/damage';
-import { atlasFrames, packFrames, PAGE_PX } from '../src/render/art/atlas';
+import { atlasFrames, drawnBox, packFrames, PAGE_PX, TRIM_MARGIN } from '../src/render/art/atlas';
 import '../src/render/art/load';
 import { heroIcon, ICONS, skillIcon, towerIcon } from '../src/render/art/icons';
 import {
@@ -21,7 +21,7 @@ import {
   type CreepArt,
 } from '../src/render/art/registry';
 import { WARDEN_SWING, wardenStrike } from '../src/render/art/entities/warden';
-import { DEATH, deathPose, hold, HIT_FLASH, KNOCK, knockPose } from '../src/render/art/rigs';
+import { DEATH, deathPose, flashGap, hold, HIT_FLASH, KNOCK, knockPose } from '../src/render/art/rigs';
 import { propSpots } from '../src/render/art/scatter';
 import { LIGHTING, liftColor, RL } from '../src/render/art/tokens';
 import { shotColor } from '../src/render/palette';
@@ -132,6 +132,24 @@ describe('art atlas', () => {
     }
   });
 
+  it('trims a frame to what it drew, a margin round it, inside its slot', () => {
+    // A 16 px page; the slot is x 2..13, y 3..12; the drawing covers x 6..8, y 5..9 (one faint pixel at 8, 9).
+    const W = 16;
+    const page = new Uint8Array(W * W * 4);
+    const paint = (x: number, y: number, a: number) => (page[(y * W + x) * 4 + 3] = a);
+    for (let y = 5; y <= 9; y++) for (let x = 6; x <= 7; x++) paint(x, y, 255);
+    paint(8, 9, 1);
+    // Outside the slot: never counted.
+    paint(0, 0, 255);
+    paint(15, 15, 255);
+    const slot = { x: 2, y: 3, w: 12, h: 10 };
+    expect(drawnBox(page, W, slot, 0)).toEqual({ x: 6, y: 5, w: 3, h: 5 });
+    expect(drawnBox(page, W, slot, TRIM_MARGIN)).toEqual({ x: 4, y: 3, w: 7, h: 9 });
+    // The margin stops at the slot's edges.
+    expect(drawnBox(page, W, slot, 5)).toEqual(slot);
+    expect(drawnBox(page, W, { x: 10, y: 3, w: 4, h: 4 }, 2)).toBeNull();
+  });
+
   it('opens a new page when one is full', () => {
     const big = Array.from({ length: 5 }, (_, i) => ({ name: `f${i}`, w: 500, h: 500 }));
     const packed = packFrames(big);
@@ -240,6 +258,33 @@ describe('hit and death reactions', () => {
     expect(DEATH.boss.ms).toBeGreaterThan(DEATH.creep.ms);
     expect(deathPose(1, DEATH.boss).dy).toBeGreaterThan(0);
     expect(DEATH.hero.tip).toBeGreaterThan(DEATH.creep.tip);
+  });
+
+  it('a creep under steady fire is white at most a fifth of its frames, at any frame rate', () => {
+    // 30 FPS and up: the 300 ms wait, unchanged.
+    for (const ms of [8, 16.7, 33.3, 60]) expect(flashGap(ms)).toBe(HIT_FLASH.everyMs);
+    // Slower frames: a flash lasts its whole frame, so the wait is five frames.
+    expect(flashGap(100)).toBeCloseTo(500);
+    expect(flashGap(900)).toBeCloseTo(4500);
+    // The share of 100 frames a creep hit in every frame is drawn white (as world.ts flashes it).
+    const whiteShare = (frame: number) => {
+      let readyAt = 0;
+      let until = 0;
+      let white = 0;
+      for (let i = 0; i < 100; i++) {
+        const now = i * frame;
+        if (now >= readyAt) {
+          until = now + HIT_FLASH.ms;
+          readyAt = now + flashGap(frame);
+        }
+        if (now < until) white++;
+      }
+      return white / 100;
+    };
+    // 60 FPS: four frames of every eighteen; 10 and 1 FPS: one frame in five (a flat 300 ms wait: every frame at 1 FPS).
+    expect(whiteShare(16.7)).toBeLessThanOrEqual(0.25);
+    expect(whiteShare(100)).toBeCloseTo(0.2);
+    expect(whiteShare(1000)).toBeCloseTo(0.2);
   });
 
   it('a pose envelope eases in, holds and eases out', () => {
