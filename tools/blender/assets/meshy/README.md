@@ -23,6 +23,7 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 | `arcanist-r2/` | 2, chibi | round 2's Arcanist, the game's from V-06b to V-06d: the big hat, the white braid with violet rune beads, her face ([README](arcanist-r2/README.md)) | | her staff is `arcanist/staff.glb` |
 | `ranger-r1/`, `warden-r1/`, `arcanist-r1/` | 1, realistic | the same designs, kept as PR #127 landed them | | in hand, part of the mesh |
 | `arcanist-concepts/` | V-06e, images only | the Arcanist redesigned with her face hidden (Han, 23 Oct 2026): the Hooded Oracle and the Bone-Masked Seer, two images each; Han picked the Oracle, `oracle-a.png` ([README](arcanist-concepts/README.md)) | | concepts only: no model |
+| `enemy-concepts/` | V-06h, images only | the enemy faction, the Spire's host (Han, 24 Oct 2026): nine kinds, two concepts each, by the faction sheet `docs/art/enemy-style.md`; the picks marked for Han ([README](enemy-concepts/README.md)) | | concepts only: no model |
 
 ## What each hero folder holds
 

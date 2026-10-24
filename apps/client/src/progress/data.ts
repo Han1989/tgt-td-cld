@@ -27,6 +27,7 @@
  * V-07a on 24 Oct 2026 (PR #135: the HUD's frames rendered ahead of time, the match view's chrome).
  * V-06f on 24 Oct 2026 (PR #136: the Oracle holds her staff, her hand closed round it).
  * V-07b on 24 Oct 2026 (PR #137: juice, every event lands; the match's feel).
+ * V-06h-concepts on 24 Oct 2026 (PR #138: the enemy faction, nine kinds, two concepts each, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -404,6 +405,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How the match feels, on screen only: no game rules, timing, server or protocol change. Han, 24 Oct 2026: the second step of the polish; everything the player causes or suffers should land, the way a polished indie tower defence does it. A boss’s death and your ultimate’s first strike freeze the world for a split second (a boss also slows it down for half a second), and so does a kill by your hero’s own attack, at most once a second; your hero and the buttons never wait. Dying creeps pop, every kill flies a coin to your gold (a crowd of kills becomes one bigger coin), a boss falls with a white flash, dust and “Ironhorn falls”. Your ultimate kicks the whole view in a little. Towers drop onto their pads with a puff of dust, upgrades flash, sold towers leave dust. Wave banners slam with a white edge, a boss wave washes the screen red. When the Heart is hit the screen’s edges pulse red, they breathe while it is low, and they close in when it falls. Level ups ring gold at your feet, your crits are bigger and yellow, and a victory’s Heart lands on the card while the numbers count up. With reduced motion on, nothing freezes, zooms or bounces: things only fade. In review: Han judges the feel on his phone. Built by Claude Code (PR #137).',
     proof: pr(137),
+  },
+  {
+    id: 'V-06h-concepts',
+    title: 'The enemies designed as one faction (images only)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Concept pictures only: nothing in the game changes yet. Han, 24 Oct 2026: the heroes are the game’s own designs now, but the creeps, the bosses and the buildings are still free asset packs, repainted. So the enemies are designed next, as one faction, before any model is made. They are the Spire’s host: risen things of bone and ember that crawl out of the violet portals, with no skin and none of the heroes’ colours. Every one has ember-orange eye sockets or an ember core, against the heroes’ teal and violet, so the two sides read at a glance. Each kind has one shape that reads at phone size: the squat Grunt with a notched blade, the thin Archer with a bow taller than itself, the long-legged Runner, the Brute with an iron slab on its shoulders, the Wisp a floating skull-lantern, the Hatchling a shell on too many legs, the horned and plated Ironhorn, the Matriarch with a brood cage of ember in her chest, and the Shardback with a back of glowing shards. The faction is written down in one page. Two pictures of each kind were made in Meshy, and the better of each pair is marked on the sheet, next to today’s creep and in a strip at phone size beside the three heroes. In review: Han picks; the models follow in two batches (the ground creeps, then the Wisp, the Hatchling and the bosses). Built by Claude Code (PR #138).',
+    proof: pr(138),
   },
   {
     id: 'g1-render',
