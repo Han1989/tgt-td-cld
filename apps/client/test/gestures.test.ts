@@ -1,5 +1,6 @@
 import type { SkillSnap } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
+import { MAX_PHONE_ZOOM } from '../src/input/camera';
 import {
   aimPoint,
   arrowTo,
@@ -13,11 +14,16 @@ import {
   holdReached,
   inOverlay,
   isCancelRelease,
+  isDoubleTap,
   isDrag,
   mapPing,
   mapTouchKind,
   PING_HOLD_MS,
   pingRelease,
+  pinch,
+  PINCH_DEAD,
+  DOUBLE_TAP_MS,
+  DOUBLE_TAP_PX,
   placeChip,
   placeRadial,
   pressLength,
@@ -406,5 +412,47 @@ describe('taps that register when the page stalls', () => {
     expect(pingRelease(PING_HOLD_MS, false)).toBe(true);
     expect(pingRelease(PING_HOLD_MS - 1, false)).toBe(false);
     expect(pingRelease(2000, true)).toBe(false);
+  });
+});
+
+describe('pinch zoom and the double-tap back (phones, V-07e)', () => {
+  const start = { a: { x: 150, y: 400 }, b: { x: 250, y: 400 }, zoom: 1 };
+
+  it('does nothing inside its 3% dead zone: a two-finger tap, or fingers settling a hair apart', () => {
+    expect(PINCH_DEAD).toBe(0.03);
+    const p = pinch(start, { x: 149, y: 401 }, { x: 251.5, y: 399 }, false);
+    expect(p.active).toBe(false);
+    expect(p.zoom).toBe(1);
+    // Just past it, the pinch takes: 4% wider is 1.04×, and stays active even back inside the dead zone.
+    const q = pinch(start, { x: 148, y: 400 }, { x: 252, y: 400 }, false);
+    expect(q.active).toBe(true);
+    expect(q.zoom).toBeCloseTo(1.04, 5);
+    const back = pinch(start, { x: 150, y: 400 }, { x: 251, y: 400 }, true);
+    expect(back.active).toBe(true);
+    expect(back.zoom).toBeCloseTo(1.01, 5);
+  });
+
+  it('zooms by the ratio of the fingers\' distances, from the zoom it started at, clamped to fit .. 1.8×', () => {
+    expect(MAX_PHONE_ZOOM).toBe(1.8);
+    expect(pinch(start, { x: 125, y: 400 }, { x: 275, y: 400 }, false).zoom).toBeCloseTo(1.5, 5);
+    expect(pinch({ ...start, zoom: 1.5 }, { x: 175, y: 400 }, { x: 225, y: 400 }, false).zoom).toBe(1);
+    expect(pinch(start, { x: 0, y: 400 }, { x: 400, y: 400 }, false).zoom).toBe(MAX_PHONE_ZOOM);
+    expect(pinch({ ...start, zoom: 1.2 }, { x: 160, y: 400 }, { x: 240, y: 400 }, false).zoom).toBe(1);
+    // Turning the two fingers round each other at the same distance is no zoom.
+    expect(pinch(start, { x: 200, y: 350 }, { x: 200, y: 450 }, false).active).toBe(false);
+  });
+
+  it('zooms about the fingers\' midpoint as they are now', () => {
+    expect(pinch(start, { x: 100, y: 300 }, { x: 300, y: 340 }, false).mid).toEqual({ x: 200, y: 320 });
+  });
+
+  it('a double-tap is two ground taps within 300 ms and 30 px', () => {
+    const first = { at: 1000, p: { x: 200, y: 300 } };
+    expect(isDoubleTap(null, first)).toBe(false);
+    expect(isDoubleTap(first, { at: 1250, p: { x: 210, y: 315 } })).toBe(true);
+    expect(isDoubleTap(first, { at: 1000 + DOUBLE_TAP_MS + 1, p: first.p })).toBe(false);
+    expect(isDoubleTap(first, { at: 1100, p: { x: 200 + DOUBLE_TAP_PX + 1, y: 300 } })).toBe(false);
+    // Out of order (a stamp from before the last tap) is not one.
+    expect(isDoubleTap(first, { at: 900, p: first.p })).toBe(false);
   });
 });

@@ -1,7 +1,9 @@
 // Touch controls (docs/MOBILE.md §5): a floating stick (a drag anywhere on the map
 // walks; the default) or a fixed joystick, Q/W/E/R buttons drawn over the map,
 // tap-to-select on the map with snapping and a tie picker, a radial build menu
-// around pads and a radial ring around your towers. Taps and holds are told apart
+// around pads and a radial ring around your towers. On a phone two fingers pinch
+// the map's zoom, and a double-tap on the ground or the ⤢ button brings back the
+// whole map (V-07e, docs/MOBILE.md §4). Taps and holds are told apart
 // by the events' own timestamps, so a stalled frame does not turn a tap into a
 // hold. The rules are pure functions in `gestures.ts`; this file wires them to
 // pointer events and DOM.
@@ -42,7 +44,7 @@ import {
   upgradeCost,
   PRIORITY_NAMES,
 } from '../hud/towerInfo';
-import type { Camera } from '../input/camera';
+import { zoomLabel, type Camera } from '../input/camera';
 import { clamp, type Layout, type Rect } from '../layout';
 import { padStatus } from '../padInfo';
 import { iconVar, skillIcon, towerIcon, type IconId } from '../render/art/icons';
@@ -60,10 +62,12 @@ import {
   holdReached,
   inOverlay,
   isCancelRelease,
+  isDoubleTap,
   isDrag,
   mapPing,
   mapTouchKind,
   pingRelease,
+  pinch,
   placeChip,
   placeRadial,
   pressLength,
@@ -82,6 +86,7 @@ import {
   type StickFeelName,
   type Candidate,
   type MapTouchKind,
+  type PinchStart,
   type Pt,
   type Scored,
   type StickVec,
@@ -106,6 +111,15 @@ export interface TouchActions {
   clearSelection(): void;
   /** Where your hero is drawn (predicted while it walks), if anywhere. */
   heroAt(): { x: number; y: number } | null;
+  /** Phones: the camera's zoom, times the fitted zoom (1 = the whole map). */
+  zoomLevel(): number;
+  /** Two fingers came down on the map, their midpoint at `mid` (screen px). */
+  pinchStart(mid: Pt): void;
+  /** The pinch moved past its dead zone: zoom to `level` (1..MAX_PHONE_ZOOM) about the fingers' midpoint `mid`. */
+  pinchTo(level: number, mid: Pt): void;
+  pinchEnd(): void;
+  /** A double-tap on the ground or the ⤢ button: back to the whole map. */
+  zoomBack(): void;
 }
 
 interface SkillEl {
@@ -171,7 +185,19 @@ export class TouchControls {
    * A finger on the map: a tap unless it moves, a ping when lifted after a still hold, or (floating stick) the stick
    * once it moves. `start` is canvas px, `client` viewport px (where the stick's base goes), `at` the down `timeStamp`.
    */
-  private mapTouch: { id: number; start: Pt; client: Pt; kind: MapTouchKind; at: number; dismiss: boolean } | null = null;
+  private mapTouch: { id: number; start: Pt; now: Pt; client: Pt; kind: MapTouchKind; at: number; dismiss: boolean } | null = null;
+  /**
+   * Two fingers on the map (phones): a pinch zoom (`gestures.ts`'s `pinch`). Neither finger taps, pings or steers.
+   * It ends when either lifts; the other is then `spent` until it lifts too.
+   */
+  private pinchTouch: { ids: [number, number]; pts: Map<number, Pt>; start: PinchStart; active: boolean } | null = null;
+  /** Fingers of a pinch that has ended, still down: their moves and lift do nothing. */
+  private readonly spent = new Set<number>();
+  /** The last tap on the bare ground (its event time and place), for the double-tap back to the whole map. */
+  private lastGroundTap: { at: number; p: Pt } | null = null;
+  /** The ⤢ button (phones): back to the whole map, and how far in the camera is while zoomed ("1.4×"). */
+  private readonly zoomBtn: HTMLButtonElement;
+  private zoomText = '';
   /** The last frame's time, to tell a frame that follows a stall (a hold is not decided on it). */
   private lastFrame = 0;
   /** Grows under a still finger until the ping fires. */
@@ -219,6 +245,18 @@ export class TouchControls {
     this.picker = div('popup picker hidden', hud);
     this.picker.id = 'picker';
     this.pingHold = div('ping-hold hidden', hud);
+    this.zoomBtn = document.createElement('button');
+    this.zoomBtn.type = 'button';
+    this.zoomBtn.id = 'zoom-btn';
+    this.zoomBtn.className = 'zoom-btn hidden';
+    this.zoomBtn.setAttribute('aria-label', 'See the whole map');
+    this.zoomBtn.innerHTML = `${ico('fitMap')}<span class="zoom-level"></span>`;
+    hud.appendChild(this.zoomBtn);
+    this.zoomBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.zoomBtn.addEventListener('click', () => {
+      if (this.actions.zoomLevel() > 1) this.actions.zoomBack();
+      else this.actions.toast('Pinch to zoom in. Double-tap to see the whole map.');
+    });
 
     this.joy.addEventListener('pointerdown', (e) => this.onStickDown(e));
     this.joy.addEventListener('pointermove', (e) => this.onStickMove(e));
@@ -253,6 +291,7 @@ export class TouchControls {
     if (!c) {
       this.releaseStick(false);
       this.closeSkillSheet();
+      this.zoomBtn.classList.add('hidden');
       return;
     }
     // The floating stick's resting base is a hint: touches on it fall through to the map, where a drag steers.
@@ -270,6 +309,31 @@ export class TouchControls {
     }
     this.respawn.style.top = `${Math.round(c.top - 24)}px`;
     this.menuKey = '';
+    const z = layout.zoomButton;
+    this.zoomBtn.classList.toggle('hidden', !z);
+    if (z) {
+      this.zoomBtn.style.left = `${Math.round(z.left)}px`;
+      this.zoomBtn.style.top = `${Math.round(z.top)}px`;
+      this.zoomBtn.style.width = `${Math.round(z.right - z.left)}px`;
+      this.zoomBtn.style.height = `${Math.round(z.bottom - z.top)}px`;
+    }
+  }
+
+  /** The layout zooms by pinch (a phone held upright). */
+  private zoomable(): boolean {
+    return !!this.layout?.zoomButton;
+  }
+
+  /** The ⤢ button's label: nothing at the whole map, else how far in ("1.4×"). Written only when it changes. */
+  private updateZoomButton(): void {
+    if (!this.zoomable()) return;
+    const level = this.actions.zoomLevel();
+    const text = zoomLabel(level);
+    if (text === this.zoomText) return;
+    this.zoomText = text;
+    this.zoomBtn.querySelector('.zoom-level')!.textContent = text;
+    this.zoomBtn.classList.toggle('zoomed', text !== '');
+    this.zoomBtn.setAttribute('aria-label', text ? `Zoomed in ${text}: see the whole map` : 'See the whole map');
   }
 
   private putJoy(x: number, y: number, r: number): void {
@@ -314,6 +378,7 @@ export class TouchControls {
     this.updatePing(now);
     this.updateSkillInfo(now, gap);
     this.updateMenu(snap);
+    this.updateZoomButton();
   }
 
   // -------------------------------------------------------------------------
@@ -637,24 +702,34 @@ export class TouchControls {
   // -------------------------------------------------------------------------
 
   private onMapDown(e: PointerEvent): void {
-    if (e.pointerType === 'mouse' || this.mapTouch) return;
+    if (e.pointerType === 'mouse' || this.pinchTouch) return;
+    // A second finger on the map while the first has not started steering: a pinch (phones). With the floating
+    // stick already walking, it stays a tap, as before.
+    const first = this.mapTouch;
+    if (first && this.zoomable()) return this.startPinch(first, e);
+    if (first) return;
     const start = this.screenPt(e);
     // An open menu is dismissed by the release; that press is not a ping.
     const dismiss = this.menu !== null || !this.picker.classList.contains('hidden') || this.ui.emoteOpen;
-    this.mapTouch = { id: e.pointerId, start, client: { x: e.clientX, y: e.clientY }, kind: 'press', at: e.timeStamp, dismiss };
+    this.mapTouch = { id: e.pointerId, start, now: start, client: { x: e.clientX, y: e.clientY }, kind: 'press', at: e.timeStamp, dismiss };
   }
 
   private onMapMove(e: PointerEvent): void {
+    if (this.spent.has(e.pointerId)) return;
+    if (this.pinchTouch?.pts.has(e.pointerId)) return this.onPinchMove(e);
     if (this.stick?.base && e.pointerId === this.stick.id) return this.onFloatMove(e);
     const t = this.mapTouch;
     if (!t || e.pointerId !== t.id) return;
+    t.now = this.screenPt(e);
     // Distance, not time, decides: past the tap slop the touch is the floating stick (or, with a fixed stick, a
     // drag that does nothing). Either way it never selects, pings or presses a button it passes over.
-    t.kind = mapTouchKind(t.start, this.screenPt(e), t.kind, !!this.layout?.controls?.floating, this.stick === null);
+    t.kind = mapTouchKind(t.start, t.now, t.kind, !!this.layout?.controls?.floating, this.stick === null);
     if (t.kind === 'stick') this.startFloat(e, t);
   }
 
   private onMapUp(e: PointerEvent): void {
+    if (this.spent.delete(e.pointerId)) return;
+    if (this.pinchTouch?.pts.has(e.pointerId)) return this.endPinch(e.pointerId);
     if (this.stick?.base && e.pointerId === this.stick.id) return this.releaseStick(true);
     const t = this.mapTouch;
     if (!t || e.pointerId !== t.id) return;
@@ -662,12 +737,52 @@ export class TouchControls {
     if (t.kind !== 'press') return;
     // A still hold pings when the finger lifts, measured by the events' timestamps; anything shorter is a tap.
     if (!t.dismiss && pingRelease(pressLength(t.at, e.timeStamp), false)) return this.ping(t.start);
-    this.tap(this.screenPt(e));
+    this.tap(this.screenPt(e), e.timeStamp);
   }
 
   private onMapCancel(e: PointerEvent): void {
+    if (this.spent.delete(e.pointerId)) return;
+    if (this.pinchTouch?.pts.has(e.pointerId)) return this.endPinch(e.pointerId);
     if (this.stick?.base && e.pointerId === this.stick.id) this.releaseStick(true);
     if (this.mapTouch?.id === e.pointerId) this.cancelMap();
+  }
+
+  /**
+   * The second finger of a pinch came down: the first touch stops being a tap, a ping or a drag, and the zoom starts
+   * from where the camera is, about the fingers' midpoint.
+   */
+  private startPinch(first: { id: number; now: Pt }, e: PointerEvent): void {
+    const a = first.now;
+    const b = this.screenPt(e);
+    this.cancelMap();
+    this.lastGroundTap = null;
+    this.pinchTouch = {
+      ids: [first.id, e.pointerId],
+      pts: new Map([
+        [first.id, a],
+        [e.pointerId, b],
+      ]),
+      start: { a, b, zoom: this.actions.zoomLevel() },
+      active: false,
+    };
+    this.actions.pinchStart({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  }
+
+  private onPinchMove(e: PointerEvent): void {
+    const p = this.pinchTouch!;
+    p.pts.set(e.pointerId, this.screenPt(e));
+    const out = pinch(p.start, p.pts.get(p.ids[0])!, p.pts.get(p.ids[1])!, p.active);
+    p.active = out.active;
+    if (out.active) this.actions.pinchTo(out.zoom, out.mid);
+  }
+
+  /** One finger of the pinch lifted (or was cancelled): the pinch ends, and the other finger does nothing more. */
+  private endPinch(id: number): void {
+    const p = this.pinchTouch!;
+    this.pinchTouch = null;
+    const other = p.ids[0] === id ? p.ids[1] : p.ids[0];
+    this.spent.add(other);
+    this.actions.pinchEnd();
   }
 
   private cancelMap(): void {
@@ -764,8 +879,11 @@ export class TouchControls {
     this.sheet.innerHTML = '';
   }
 
-  /** A tap selects: your pad → build menu, your tower → ring, an enemy → focus target. It never moves the hero. */
-  tap(p: Pt): void {
+  /**
+   * A tap selects: your pad → build menu, your tower → ring, an enemy → focus target. It never moves the hero. Two taps
+   * on the bare ground (`at`: the event's time) are a double-tap: on a phone, back to the whole map.
+   */
+  tap(p: Pt, at = performance.now()): void {
     const c = this.layout?.controls;
     if (c && inOverlay(p, c.rects, this.layout?.kind === 'tall' ? c.top : null)) return;
     if (!this.sheet.classList.contains('hidden')) {
@@ -778,8 +896,19 @@ export class TouchControls {
       return;
     }
     const result = resolveTap(p, this.candidates());
-    if (result.type === 'none') this.actions.clearSelection();
-    else if (result.type === 'pick') this.select(result.pick);
+    if (result.type === 'none') {
+      this.actions.clearSelection();
+      const tap = { at, p };
+      if (this.zoomable() && isDoubleTap(this.lastGroundTap, tap)) {
+        this.lastGroundTap = null;
+        this.actions.zoomBack();
+      } else {
+        this.lastGroundTap = tap;
+      }
+      return;
+    }
+    this.lastGroundTap = null;
+    if (result.type === 'pick') this.select(result.pick);
     else this.showPicker(p, result.picks);
   }
 

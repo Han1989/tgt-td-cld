@@ -13,6 +13,7 @@ import {
   SKILL_GAP,
   SKILL_PLACES,
   STICK_MODES,
+  ZOOM_BTN_PX,
   type Controls,
 } from '../src/layout';
 
@@ -163,6 +164,36 @@ describe('computeLayout: phones held upright', () => {
       expect(c.skills.R.y).toBeCloseTo(839 - 119);
       expect(c.joystick.y + c.joystick.r).toBeCloseTo(839 - GESTURE_GAP);
     }
+  });
+
+  it('places the ⤢ button at the map\'s top right under the top bar, over the east border, never over a pad, a lane or the Heart', () => {
+    expect(ZOOM_BTN_PX).toBeGreaterThanOrEqual(44);
+    for (const [w, h, insets] of [
+      [412, 839, NO_INSETS],
+      [360, 780, NO_INSETS],
+      [412, 760, NO_INSETS],
+      [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
+      [375, 667, NO_INSETS],
+    ] as const) {
+      const l = computeLayout(input(w, h, { insets }));
+      const z = l.zoomButton!;
+      const at = `${w} × ${h}`;
+      expect(z, at).not.toBeNull();
+      expect(z.right - z.left, at).toBe(ZOOM_BTN_PX);
+      expect(z.bottom - z.top, at).toBe(ZOOM_BTN_PX);
+      // Under the top bar, at the map's right edge, over its last column (the east border).
+      expect(z.top, at).toBeGreaterThanOrEqual(l.topBarBottom);
+      expect(z.right, at).toBeLessThanOrEqual(Math.min(l.map.right, w));
+      expect(z.right, at).toBeGreaterThan(l.map.right - l.tilePx);
+      // Off the gameplay (at the fitted zoom, the camera at rest) and off the controls.
+      for (const g of gameplayRects(l.tilePx, l.map)) expect(overlaps(z, g), `${at}: over ${JSON.stringify(g)}`).toBe(false);
+      for (const r of l.controls!.rects) expect(overlaps(z, r), at).toBe(false);
+    }
+    // Only phones held upright zoom: tablets and desktop have no button.
+    expect(computeLayout(input(1024, 768, { landscape: true })).zoomButton).toBeNull();
+    expect(computeLayout(input(768, 1024)).zoomButton).toBeNull();
+    expect(computeLayout(input(1366, 768, { touch: false, landscape: true })).zoomButton).toBeNull();
+    expect(computeLayout(input(839, 412, { landscape: true })).zoomButton).toBeNull();
   });
 
   it('follows the hero vertically on shorter phones only', () => {

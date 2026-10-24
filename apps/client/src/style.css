@@ -925,6 +925,13 @@ button {
   color: var(--text);
 }
 
+/* The one-time pinch-zoom line (V-07e): moonlight on stone. */
+.toast.teach.zoom {
+  background: linear-gradient(180deg, rgba(36, 44, 62, 0.96), rgba(12, 14, 22, 0.96));
+  border-color: rgba(207, 230, 255, 0.6);
+  color: var(--moon);
+}
+
 /* Gift theater: a gold figure with the other player's colour on the rim. */
 .toast.gift {
   display: flex;
@@ -3854,6 +3861,56 @@ body.touch .touch-overlay:not(.hidden) {
   width: 0;
   height: 0;
   z-index: 3;
+}
+
+/* The ⤢ button (phones, V-07e): back to the whole map, at the map's top right under the top bar (placed by the
+   layout, `zoomButton`). At the whole map a quiet glyph; zoomed in it lights and reads how far ("1.4×"). */
+.zoom-btn {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0;
+  border: 1px solid rgba(207, 230, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(10, 12, 20, 0.5);
+  color: var(--moon);
+  opacity: 0.72;
+  touch-action: manipulation;
+  transition:
+    opacity 120ms,
+    transform 90ms ease-out,
+    border-color 120ms;
+}
+
+.zoom-btn > .ico {
+  width: 22px;
+  height: 22px;
+}
+
+.zoom-btn .zoom-level {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-btn.zoomed {
+  opacity: 1;
+  border-color: rgba(207, 230, 255, 0.7);
+  background: rgba(10, 12, 20, 0.72);
+}
+
+.zoom-btn.zoomed > .ico {
+  width: 18px;
+  height: 18px;
+}
+
+.zoom-btn.pressed {
+  transform: scale(0.92);
 }
 
 /* Pings, the quick-chat wheel and its line. Markers never take touches. */

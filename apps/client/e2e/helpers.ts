@@ -131,13 +131,30 @@ interface Hook {
     gameplayBottom: number;
     map: Box;
     controls: { top: number; rects: Box[] } | null;
+    /** Phones: the ⤢ button (V-07e); null where the camera does not pinch-zoom. */
+    zoomButton: Box | null;
   };
-  map: { width: number; height: number; padSize: number; pads: { id: number; x: number; y: number; zone: string }[] };
+  map: {
+    width: number;
+    height: number;
+    padSize: number;
+    safeFromY: number;
+    heart: { x: number; y: number };
+    heroSpawn: { x: number; y: number };
+    pads: { id: number; x: number; y: number; zone: string }[];
+  };
   camera: {
     zoom: number;
     centerOn(x: number, y: number): void;
     worldToScreen(x: number, y: number): { x: number; y: number };
+    screenToWorld(x: number, y: number): { x: number; y: number };
   };
+  /** Phones: the camera's zoom, times the fitted zoom (1 = the whole map; V-07e). */
+  zoom(): number;
+  /** Solo: holds or resumes the simulation (no paused card). */
+  pause(on: boolean): void;
+  /** The units' scales drawn (null: the layout's own). */
+  scales(s: { hero: number; creep: number; tower: number } | null): void;
 }
 
 /** The ?showcase page's hook (showcase.ts). */
@@ -342,6 +359,28 @@ export class Hand {
   async lift(id: number, x: number, y: number, at?: number): Promise<void> {
     await this.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ id, x, y }], ...(at ? { timestamp: at } : {}) });
   }
+}
+
+/**
+ * Two fingers pinch on the map (phones, V-07e): down `gap` px apart, centred on `at`, then spread (or closed) in
+ * steps until they are `ratio` times as far apart, then lifted. The game zooms by that ratio from where it was.
+ */
+export async function pinchOn(page: Page, at: { x: number; y: number }, ratio: number, gap = 90): Promise<void> {
+  const hand = await Hand.on(page);
+  const put = (d: number) => [at.x - d / 2, at.x + d / 2] as const;
+  const [a0, b0] = put(gap);
+  await hand.press(0, a0, at.y);
+  await hand.press(1, b0, at.y);
+  const steps = 8;
+  let a = a0;
+  let b = b0;
+  for (let i = 1; i <= steps; i++) {
+    [a, b] = put(gap * (1 + ((ratio - 1) * i) / steps));
+    await hand.move(0, a, at.y);
+    await hand.move(1, b, at.y);
+  }
+  await hand.lift(0, a, at.y);
+  await hand.lift(1, b, at.y);
 }
 
 /** Blocks the page's main thread for `ms` (a long frame, a GC pause). */

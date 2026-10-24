@@ -19,13 +19,13 @@ import { EMOTE_LABEL, MarkerLayer, type Box as MarkerBox } from './hud/markers';
 import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
 import { towerName } from './hud/towerInfo';
-import { Camera } from './input/camera';
+import { Camera, FOLLOW_MS, PhoneZoom } from './input/camera';
 import { Controls } from './input/controls';
 import { computeLayout, followOffset, type Insets, type Layout } from './layout';
 import { HitStop } from './render/fx/juice';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
-import { entityScales } from './render/entityScale';
+import { entityScales, type EntityScales } from './render/entityScale';
 import { COLORS, FX, toCss, TOWER_NAMES } from './render/palette';
 import { effectiveQuality, FpsMonitor, fxLevel, resolutionFor } from './render/quality';
 import { HeroPredictor } from './predict';
@@ -35,14 +35,11 @@ import { GraphicsUnavailableError } from './startup/boot';
 import { guardCanvasContext } from './startup/glGuard';
 import { TutorialCoach } from './tutorial/coach';
 import { lessonStatus } from './tutorial/logic';
-import { repairHint } from './teach/cues';
+import { repairHint, zoomHint } from './teach/cues';
 import { INTERP_DELAY_MS, RenderClock, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
 import { createUiState } from './uiState';
-
-/** Smoothing time (ms) of the vertical hero follow on shorter phones. */
-const FOLLOW_MS = 150;
 
 /** A new-player funnel step (docs/ANALYTICS.md); dropped with no analytics or play data off. */
 function funnel(step: FunnelStep): void {
@@ -76,6 +73,10 @@ export class GameView {
   private paused = false;
   /** Radial menus (phones, touch screens) rather than the desktop panels: how the repair line says it. */
   private radialMenus: () => boolean = () => false;
+  /** The layout pinch-zooms (a phone held upright): the zoom hint is for it. */
+  private zoomable: () => boolean = () => false;
+  /** When this match was first drawn (ms; null before its first snapshot), for the zoom hint's wait. */
+  private matchSeenAt: number | null = null;
 
   private constructor(
     readonly hud: Hud,
@@ -90,6 +91,8 @@ export class GameView {
     private readonly marks: MarkerLayer,
     private readonly coach: TutorialCoach,
     private readonly stage: CoopStage,
+    /** Phones: the pinch zoom (V-07e), kept for the match only. */
+    private readonly zoom: PhoneZoom,
   ) {
     this.cues = emptyCues();
   }
@@ -176,6 +179,9 @@ export class GameView {
       return goal ? findPath(map, from, goal) : null;
     });
     renderer.ownHero = (h) => predictor.resolve(h);
+    // Phones: the pinch zoom and the zoomed hero follow (docs/MOBILE.md §4). The touch controls feed it; the frame
+    // loop places the camera where it says.
+    const zoom = new PhoneZoom();
     // Assigned below; the callbacks only run after construction.
     let view: GameView;
     let layout: Layout;
@@ -259,6 +265,11 @@ export class GameView {
       learn: (slot) => controls.learnSkill(slot),
       clearSelection: () => controls.clearSelection(),
       heroAt: () => predictor.drawn,
+      zoomLevel: () => zoom.drawnLevel,
+      pinchStart: (mid) => zoom.pinchStart(mid, layout),
+      pinchTo: (level, mid) => zoom.pinchTo(level, mid, layout),
+      pinchEnd: () => zoom.pinchEnd(),
+      zoomBack: () => zoom.back(performance.now(), prefersReducedMotion()),
     });
 
     // Sound: starts on the first tap or key press (engine.ts); volumes and mute from the settings.
@@ -290,8 +301,9 @@ export class GameView {
       () => (document.body.classList.contains('touch') ? 'touch' : 'desktop'),
       () => settings.get().stick === 'float',
     );
-    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage);
+    view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage, zoom);
     view.radialMenus = radial;
+    view.zoomable = () => layout.zoomButton !== null;
     coach.onSkip = () => {
       funnel('tutorial_skip');
       settings.set({ tutorial: lessonStatus('skip') });
@@ -355,6 +367,8 @@ export class GameView {
         camera.locked = layout.kind === 'tall';
       }
       renderer.scales = entityScales(layout.tilePx);
+      // Only a phone held upright pinch-zooms: anywhere else the camera is at its fit (or the desktop's wheel zoom).
+      if (!layout.zoomButton) zoom.clear();
       hud.setCompact(layout.kind === 'tall');
       touch.setStick(settings.get().stickFeel);
       touch.setLayout(layout);
@@ -491,13 +505,22 @@ export class GameView {
       if (layout.kind === 'tall') {
         // Shorter phones: follow the hero vertically so it stays clear of the top bar and the controls.
         const hero = latest.heroes.find((h) => h.owner === view.me);
-        const target = followOffset(layout, hero ? (predictor.drawn?.y ?? hero.y) : null);
+        const at = hero ? (predictor.drawn ?? { x: hero.x, y: hero.y }) : null;
+        const target = followOffset(layout, at ? at.y : null);
         follow += (target - follow) * Math.min(1, ticker.deltaMS / FOLLOW_MS);
-        camera.place(layout.map.left, layout.map.top - follow);
+        const fit = { left: layout.map.left, top: layout.map.top - follow };
+        // Phones: pinched in, the camera follows the hero in both axes; on the way back to the fit it eases there.
+        const v = layout.zoomButton ? zoom.frame(now, ticker.deltaMS, layout, fit, at) : { level: 1, ...fit, alpha: 1 };
+        camera.zoom = (layout.tilePx / TILE_PX) * v.level;
+        camera.place(v.left, v.top);
+        // Reduced motion: the way back is a fade of the canvas, not a zoom.
+        const opacity = v.alpha < 1 ? v.alpha.toFixed(2) : '';
+        if (canvas.style.opacity !== opacity) canvas.style.opacity = opacity;
       }
       const events = buffer.drainEvents(rnow);
+      view.matchSeenAt ??= now;
       view.feedLesson(latest, events, now);
-      view.feedTeach(latest, events);
+      view.feedTeach(latest, events, now);
       renderer.playEvents(events, latest, view.me, rnow, frame.from.tick + (frame.to.tick - frame.from.tick) * frame.alpha);
       view.hitStop(events, latest, now);
       for (const e of events) {
@@ -628,6 +651,12 @@ export class GameView {
         layout: () => layout,
         map,
         camera,
+        /** Phones: the camera's zoom, times the fitted zoom (1 = the whole map). */
+        zoom: () => zoom.drawnLevel,
+        /** Solo: holds or resumes the simulation (no paused card), to compare one frame drawn two ways. */
+        pause: (on: boolean) => view.transport?.setPaused?.(on),
+        /** The units' scales drawn (null: the layout's own), to compare one frame at two scales. */
+        scales: (s: EntityScales | null) => (renderer.scales = s ?? entityScales(layout.tilePx)),
         fps: () => monitor.fps,
         visibleCreeps: () => renderer.visibleCreeps,
         auraRings: () => renderer.auraRings,
@@ -702,8 +731,8 @@ export class GameView {
     this.hud.setDaily(run);
   }
 
-  /** Flyer card, air toasts and the unspent-gold nudge. Client-only; the sim is unchanged. */
-  private feedTeach(latest: Snapshot, events: Snapshot['events']): void {
+  /** Flyer card, air toasts, the unspent-gold nudge, the repair and zoom lines. Client-only; the sim is unchanged. */
+  private feedTeach(latest: Snapshot, events: Snapshot['events'], now: number): void {
     const settings = sharedSettings().get();
     const hero = latest.heroes.find((h) => h.owner === this.me);
     const flyersNow = latest.creeps.some((c) => TUNING.creeps[c.kind].flying);
@@ -726,6 +755,19 @@ export class GameView {
     if (repair) {
       this.hud.toast(repair, 'repair');
       sharedSettings().set({ repairHint: 'seen' });
+    }
+    // Once ever, on a phone: a few seconds into the first match after the lesson, how to zoom in and back.
+    const zoom = zoomHint({
+      due: settings.zoomHint === 'new',
+      zoomable: this.zoomable(),
+      lesson: this.lesson,
+      quiet,
+      playing: latest.phase === 'build' || latest.phase === 'waves',
+      sinceMs: now - (this.matchSeenAt ?? now),
+    });
+    if (zoom) {
+      this.hud.toast(zoom, 'zoom');
+      sharedSettings().set({ zoomHint: 'seen' });
     }
   }
 
@@ -840,6 +882,9 @@ export class GameView {
     this.stage.clear();
     this.needsCentre = true;
     this.coach.dismissAir();
+    // Every match starts with the whole map in view.
+    this.zoom.clear();
+    this.matchSeenAt = null;
   }
 }
 
