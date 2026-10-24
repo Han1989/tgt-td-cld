@@ -55,13 +55,13 @@ export default defineConfig({
     {
       name: 'pixel',
       retries: RETRIES,
-      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy|meteor|boot)\.spec\.ts/,
+      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy|meteor|boot|share)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
     {
       name: 'desktop',
       retries: RETRIES,
-      testMatch: /(desktop|lobby|hook|ultimates|privacy|daily)\.spec\.ts/,
+      testMatch: /(desktop|lobby|hook|ultimates|privacy|daily|share)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } },
     },
     {

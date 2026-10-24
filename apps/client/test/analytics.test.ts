@@ -28,7 +28,7 @@ const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebK
 const android = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 describe('acquisition channel', () => {
-  it('uses the eight channel ids the server accepts', () => {
+  it('uses the nine channel ids the server accepts', () => {
     expect(CHANNELS).toEqual([
       'friends',
       'cold',
@@ -36,6 +36,7 @@ describe('acquisition channel', () => {
       'reddit-webgames',
       'reddit-towerdefense',
       'crazygames',
+      'share',
       'other',
       'direct',
     ]);
@@ -57,6 +58,17 @@ describe('acquisition channel', () => {
     expect(channelFromSearch('', '', 'friends')).toEqual({ channel: 'friends', save: false, clear: false });
     expect(channelFromSearch('', 'https://discord.com/', 'cold')).toEqual({ channel: 'cold', save: false, clear: false });
     expect(channelFromSearch('?src=direct', '', 'cold')).toEqual({ channel: 'direct', save: false, clear: true });
+  });
+
+  it('reads a share card’s tag and its aliases, remembers it, and leaves another channel’s share-suffixed tag alone', () => {
+    for (const tag of ['share', 'SHARE', 'shared', 'sharecard', 'share-card', 'share_daily', 'daily-share', 'endless_share']) {
+      expect(channelFromSearch(`?src=${tag}`, '', null)).toEqual({ channel: 'share', save: true, clear: false });
+    }
+    expect(channelFromSearch('?utm_source=share', 'https://www.reddit.com/', null)).toMatchObject({ channel: 'share', save: true });
+    // A shared card's link opened from a chat app: the tag wins over the referrer, and later untagged visits keep it.
+    expect(channelFromSearch('?src=share', 'https://discord.com/', 'friends')).toEqual({ channel: 'share', save: true, clear: false });
+    expect(channelFromSearch('', '', 'share')).toEqual({ channel: 'share', save: false, clear: false });
+    expect(channelFromSearch('?src=friends-share', '', null).channel).toBe('friends');
   });
 
   it('reads the r/WebGames and r/TowerDefense tags and their aliases, and no longer the old subreddits', () => {

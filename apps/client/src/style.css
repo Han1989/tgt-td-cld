@@ -1673,6 +1673,25 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   flex: none;
 }
 
+/* The share card's toast (share/share.ts): over the card's head, away from the buttons, so nothing moves. */
+.end-card {
+  position: relative;
+}
+
+.end-card > .end-toasts {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
 .end-card > .end-body {
   flex: 0 1 auto;
   min-height: 0;
@@ -1890,8 +1909,9 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   outline-offset: -1px;
 }
 
-/* Gold, not rune-teal: Play again stays the card's main button. */
-.btn.end-daily-post {
+/* Gold, not rune-teal: Play again stays the card's main button. Share my run (after the reveal) the same. */
+.btn.end-daily-post,
+.btn.end-daily-share {
   min-height: 46px;
   min-width: 200px;
   font-size: 17px;
@@ -1902,7 +1922,13 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.55), inset 0 -2px 0 rgba(60, 30, 0, 0.35), 0 0 14px rgba(255, 210, 74, 0.3);
 }
 
-.btn.end-daily-post:hover:not(:disabled) {
+.btn.end-daily-share {
+  align-self: center;
+  margin-top: 10px;
+}
+
+.btn.end-daily-post:hover:not(:disabled),
+.btn.end-daily-share:hover:not(:disabled) {
   background: linear-gradient(180deg, #fff0b0, #e8ab2e);
 }
 
@@ -2002,6 +2028,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 .end-daily-gap,
 .end-daily-best,
 .end-daily-rows,
+.end-daily-share,
 .end-card:not(.daily-revealing) .end-stats,
 .end-card:not(.daily-revealing) .end-feedback {
   transition: opacity 260ms ease-out;
@@ -2010,6 +2037,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 .end-card.daily-revealing .end-daily-gap:not(.in),
 .end-card.daily-revealing .end-daily-best:not(.in),
 .end-card.daily-revealing .end-daily-rows:not(.in),
+.end-card.daily-revealing .end-daily-share:not(.in),
 .end-card.daily-revealing .end-stats,
 .end-card.daily-revealing .end-feedback {
   opacity: 0;
@@ -2019,6 +2047,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   .end-daily-gap,
   .end-daily-best,
   .end-daily-rows,
+  .end-daily-share,
   .end-card:not(.daily-revealing) .end-stats,
   .end-card:not(.daily-revealing) .end-feedback {
     transition: none;
@@ -4922,6 +4951,14 @@ body.layout-tall .mates {
 :root[data-ui='ready'] #hud .btn.active:not(.big) {
   border-image-source: var(--ui-button-selected);
   outline: none;
+}
+
+/* The Daily run's gold buttons (Post my run, Share my run) keep their gold face, pressed too: their dark text could not
+   be read on the stone face. */
+:root[data-ui='ready'] #hud .btn:is(.end-daily-post, .end-daily-share):not(.big),
+:root[data-ui='ready'] #hud .btn:is(.end-daily-post, .end-daily-share):not(.big):is(.pressed, :active):not(:disabled) {
+  border-image-source: none;
+  border-radius: 8px;
 }
 
 /* The skill buttons and the build and tower rings: the round medallion, ready when it can be cast or bought (the

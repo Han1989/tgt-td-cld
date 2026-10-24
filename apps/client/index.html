@@ -412,6 +412,8 @@
                 <div id="end-daily-gap" class="end-daily-gap"></div>
                 <div id="end-daily-best" class="end-daily-best"></div>
                 <ol id="end-daily-rows" class="end-daily-rows"></ol>
+                <!-- After the reveal: the share card (share/card.ts), one tap. -->
+                <button id="end-daily-share" class="btn end-daily-share" type="button">Share my run</button>
               </div>
             </div>
             <div id="end-stats" class="end-stats">
@@ -438,7 +440,10 @@
             <button id="end-change-hero" class="btn hidden">Change hero / mode</button>
             <button id="end-leave" class="btn hidden">Leave room</button>
             <button id="end-save" class="btn hidden">Save match report</button>
+            <button id="end-share" class="btn hidden" type="button">Share</button>
           </div>
+          <!-- The share card's toast ("Card saved, link copied"), over the card's head. -->
+          <div id="end-toasts" class="end-toasts" role="status" aria-live="polite"></div>
         </div>
       </div>
     </div>

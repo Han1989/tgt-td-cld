@@ -49,6 +49,8 @@ import { pop, POP_MS, pulse, reducedMotion, rimFlash, shake } from './press';
 import { addUltCueParts, applyUltCues } from './ultFace';
 import { UltHud } from './ultHud';
 import { matchFile, saveMatchFile } from './matchFile';
+import { CardShare } from '../share/share';
+import { endlessFace, outcomeLine, type EndlessFace } from '../share/text';
 import { skillFace } from './skillFace';
 import {
   cheapestSpend,
@@ -257,6 +259,11 @@ export class Hud {
   private readonly changeHeroBtn = $('end-change-hero') as HTMLButtonElement;
   private readonly endLeave = $('end-leave');
   private readonly endSave = $('end-save') as HTMLButtonElement;
+  /** An Endless run's share card (share/), beside Save match report. */
+  private readonly endShare = $('end-share') as HTMLButtonElement;
+  private readonly endToasts = $('end-toasts');
+  private readonly cards = new CardShare();
+  private shareFace: EndlessFace | null = null;
   private readonly endFeedback = $('end-feedback');
   private readonly endRatings = $('end-ratings');
   private readonly endComment = $('end-comment') as HTMLInputElement;
@@ -269,7 +276,7 @@ export class Hud {
   /** An Endless match that ended: the wave it fell on against this hero's best (counted once, when it ended). */
   private endless: EndlessRun | null = null;
   /** A Daily run's Post my run and rank reveal (hidden for any other match). */
-  private readonly daily = new DailyEndCard();
+  private readonly daily = new DailyEndCard(undefined, (text) => this.endToast(text));
   private readonly team = $('team');
   private readonly teamCode = $('team-code');
   private readonly teamList = $('team-list');
@@ -360,6 +367,14 @@ export class Hud {
         this.endThanks.classList.remove('hidden');
       });
     }
+    this.endShare.addEventListener('click', () => {
+      const face = this.shareFace;
+      if (!face) return;
+      void this.cards.share(face).then((outcome) => {
+        const line = outcomeLine(outcome);
+        if (line) this.endToast(line);
+      });
+    });
     this.endSave.addEventListener('click', () => {
       if (!this.report) return;
       void saveMatchFile(matchFile(this.report.report, this.report.replay, new Date())).catch(() =>
@@ -446,6 +461,9 @@ export class Hud {
       this.outcomeSent = false;
       this.endCounting = false;
       this.endless = null;
+      if (this.shareFace) this.cards.forget();
+      this.shareFace = null;
+      this.endShare.classList.add('hidden');
       this.renderGifts(null);
       this.renderUlts(null);
     } else {
@@ -460,6 +478,13 @@ export class Hud {
       // An Endless match counts once toward this hero's best in this browser, when it ends (online rooms too).
       if (snap.mode === 'endless' && !won && !this.endless && hero) this.endless = recordEndlessRun(hero.kind, snap.wave);
       const fell = this.endless ? endlessEndCopy(this.endless) : null;
+      // An Endless run that fell: Share beside Save match report once the card is up and the report (its time) is in.
+      // The picture is drawn then, ahead of the tap (after the defeat's vignette, so it never competes with it).
+      if (card && this.endless && this.endless.wave >= 1 && this.report && hero && !this.shareFace) {
+        this.shareFace = endlessFace(this.endless, this.report.report.seconds, hero.kind);
+        this.cards.prepare(this.shareFace);
+      }
+      this.endShare.classList.toggle('hidden', this.shareFace === null);
       setText(this.endTitle, won ? 'Victory!' : (fell?.title ?? 'Defeat'));
       this.endTitle.className = won ? 'victory' : 'defeat';
       this.endEmblem.className = `end-emblem ${won ? 'victory' : 'defeat'}`;
@@ -786,6 +811,15 @@ export class Hud {
   onToast: (text: string) => void = () => {};
   /** A gift toast went up. `accent` is the other player's colour (css). */
   onGift: (accent: string) => void = () => {};
+
+  /** A line on the end card's head (the share card's outcome): over the end screen, where the HUD's toasts are hidden. */
+  private endToast(text: string): void {
+    const el = document.createElement('div');
+    el.className = 'toast teach gold';
+    el.textContent = text;
+    this.endToasts.replaceChildren(el);
+    setTimeout(() => el.remove(), 3400);
+  }
 
   toast(text: string, kind?: 'air' | 'gold' | 'repair'): void {
     this.onToast(text);

@@ -80,6 +80,9 @@ Every post, and every message to testers, uses its channel's link (ANALYTICS.md)
 | r/WebGames | `https://tgt-td-cld.vercel.app/?src=reddit-webgames` |
 | r/TowerDefense | `https://tgt-td-cld.vercel.app/?src=reddit-towerdefense` |
 | CrazyGames | `https://tgt-td-cld.vercel.app/?src=crazygames` |
+| Players' share cards (written by the game, never posted by hand) | `https://tgt-td-cld.vercel.app/?src=share` |
+
+**Players' share cards** (p6d-share, `docs/GAME_DESIGN.md` "Daily run"): after a posted Daily run (**Share my run**) and on an Endless end screen (**Share**), a player's tap makes a 1200 × 630 picture of their result in the game's own look (the hero's stage poster, the gold trim, the wordmark) and shares it with the link `<the page's origin>/?src=share`, so every visit from one counts under **Shared cards** in the dashboard. It is not the link card above: that one is `og-card.png`, what crawlers show under any link. Examples: `docs/screenshots/daily-share/`.
 
 **The order (Han, 8 Oct 2026; `TASKS.md` → Now → The order from here):** the friends retest on the friends link, the cold test on the cold link (three to five people who have never seen the game, no help), one fix round, then the first post, **r/PlayMyGame only**. r/WebGames and then r/TowerDefense follow one at a time, each only after the previous post's numbers are read. The gate (D-06) reads the first session per link: started a match, finished it, started a second one, and the rating. CrazyGames comes with Gate 2, after D-06. While a post is live, no merge changes the sim or the protocol (each one restarts the game server).
 

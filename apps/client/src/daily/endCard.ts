@@ -3,12 +3,16 @@
 // from 13" and no button. A missing nickname is asked for in the same card. On success the rank is revealed first,
 // counting up over about a second, then the gap to the row above, the best in gold, the five rows around the player,
 // and only then the usual stats. A failed post says so in one line; Save match report is untouched. Posting is an
-// explicit act, so it does not read the Play data switch (docs/ANALYTICS.md "Daily run").
+// explicit act, so it does not read the Play data switch (docs/ANALYTICS.md "Daily run"). After the reveal, and only
+// after a post that went through, **Share my run** hands over the share card (share/: the rank, the run, the nickname
+// as the board shows it, the hero) with a link back; never by itself.
 
 import { MAX_NAME_LENGTH, normalizeName, type MatchReport, type Replay } from '@tdt/protocol';
 import { currentAgeBand } from '../analytics/age';
 import { storedName, storeName } from '../lobby/nickname';
 import { askAge } from '../privacy/ageCheck';
+import { CardShare } from '../share/share';
+import { dailyFace, outcomeLine, type DailyFace } from '../share/text';
 import { postRun, type PostOutcome } from './api';
 import { bestLine, gapLine, postErrorLine, rankLine, rankParts, retryable, rowText, type PostResult } from './text';
 
@@ -20,7 +24,7 @@ export interface DailyRunInfo {
 
 /** How long the rank counts up, and when each later line comes in after it (ms). */
 export const COUNT_MS = 1000;
-const STEPS_MS = { gap: 1050, best: 1300, rows: 1550, stats: 1900 };
+const STEPS_MS = { gap: 1050, best: 1300, rows: 1550, share: 1750, stats: 1900 };
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -47,6 +51,7 @@ export class DailyEndCard {
   private readonly gap = $('end-daily-gap');
   private readonly best = $('end-daily-best');
   private readonly rows = $('end-daily-rows');
+  private readonly shareBtn = $('end-daily-share') as HTMLButtonElement;
 
   private run: DailyRunInfo | null = null;
   private file: { report: MatchReport; replay: Replay } | null = null;
@@ -55,14 +60,22 @@ export class DailyEndCard {
   private shown = false;
   private timers: number[] = [];
   private frame = 0;
+  /** The posted run's card, once the post went through. */
+  private face: DailyFace | null = null;
+  private readonly cards = new CardShare();
 
-  constructor(private readonly send: Post = postRun) {
+  /** `toast` shows the share's outcome on the end card ("Card saved, link copied"). */
+  constructor(
+    private readonly send: Post = postRun,
+    private readonly toast: (text: string) => void = () => {},
+  ) {
     this.name.maxLength = MAX_NAME_LENGTH;
     this.placeNum.className = 'num';
     this.placeRest.className = 'rest';
     this.place.replaceChildren(this.placeNum, ' ', this.placeRest);
     this.root.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.post.addEventListener('click', () => void this.tap());
+    this.shareBtn.addEventListener('click', () => void this.shareCard());
     this.name.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void this.tap();
     });
@@ -129,7 +142,11 @@ export class DailyEndCard {
     this.msg.textContent = '';
     const outcome = await this.send(name, file);
     if (this.state !== 'posting' || this.file !== file) return;
-    if (outcome.ok) return this.reveal(outcome.result);
+    if (outcome.ok) {
+      const played = file.replay.players[0]?.hero ?? 'ranger';
+      this.face = dailyFace(outcome.result, name, played);
+      return this.reveal(outcome.result);
+    }
     this.msg.textContent = postErrorLine(outcome.code);
     if (retryable(outcome.code)) {
       this.state = 'idle';
@@ -163,10 +180,11 @@ export class DailyEndCard {
         return li;
       }),
     );
-    const parts = [this.gap, this.best, this.rows];
+    const parts = [this.gap, this.best, this.rows, this.shareBtn];
     if (reducedMotion()) {
       this.showPlace(result.rank, result.total);
       for (const el of parts) el.classList.add('in');
+      this.prepareCard();
       return;
     }
     this.card.classList.add('daily-revealing');
@@ -184,6 +202,10 @@ export class DailyEndCard {
     this.later(STEPS_MS.gap, () => this.gap.classList.add('in'));
     this.later(STEPS_MS.best, () => this.best.classList.add('in'));
     this.later(STEPS_MS.rows, () => this.rows.classList.add('in'));
+    this.later(STEPS_MS.share, () => {
+      this.shareBtn.classList.add('in');
+      this.prepareCard();
+    });
     this.later(STEPS_MS.stats, () => {
       this.showPlace(result.rank, result.total);
       this.card.classList.remove('daily-revealing');
@@ -198,6 +220,17 @@ export class DailyEndCard {
     this.place.setAttribute('aria-label', rankLine(rank, total));
   }
 
+  /** The card is drawn as its button comes in, so a tap shares it at once. */
+  private prepareCard(): void {
+    if (this.face) this.cards.prepare(this.face);
+  }
+
+  private async shareCard(): Promise<void> {
+    if (!this.face) return;
+    const line = outcomeLine(await this.cards.share(this.face));
+    if (line) this.toast(line);
+  }
+
   private later(ms: number, fn: () => void): void {
     this.timers.push(window.setTimeout(fn, ms));
   }
@@ -209,6 +242,9 @@ export class DailyEndCard {
     this.state = 'idle';
     this.shown = false;
     this.file = null;
+    this.face = null;
+    this.cards.forget();
+    this.shareBtn.classList.remove('in');
     this.card.classList.remove('daily-revealing');
     this.root.classList.add('hidden');
     this.rank.classList.add('hidden');

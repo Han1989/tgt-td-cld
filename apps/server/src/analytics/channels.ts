@@ -8,6 +8,7 @@ export const CHANNELS = [
   'reddit-webgames',
   'reddit-towerdefense',
   'crazygames',
+  'share',
   'other',
   'direct',
 ] as const;
@@ -25,6 +26,7 @@ export const CHANNEL_LABELS: Record<Channel, string> = {
   'reddit-webgames': 'r/WebGames',
   'reddit-towerdefense': 'r/TowerDefense',
   crazygames: 'CrazyGames',
+  share: 'Shared cards',
   other: 'Other',
   direct: 'Direct',
 };

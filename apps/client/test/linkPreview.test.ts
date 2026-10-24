@@ -94,6 +94,7 @@ describe('tagged links (docs/ANALYTICS.md)', () => {
       '?src=reddit-webgames',
       '?src=reddit-towerdefense',
       '?src=crazygames',
+      '?src=share',
     ]);
     for (const search of tagged) {
       const src = new URLSearchParams(search).get('src')!;
