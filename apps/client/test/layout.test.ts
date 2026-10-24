@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeLayout,
   followOffset,
+  GESTURE_GAP,
   overlaps,
   SKILL_PX,
   TOP_BAR_H,
@@ -17,6 +18,8 @@ import {
 
 const map = getMap();
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+/** Chrome on an Android phone drawn edge to edge: the page under the gesture bar, its height the bottom inset. */
+const ANDROID_GESTURES: Insets = { top: 0, right: 0, bottom: 24, left: 0 };
 
 function input(w: number, h: number, over: Partial<LayoutInput> = {}): LayoutInput {
   return {
@@ -92,6 +95,8 @@ describe('computeLayout: phones held upright', () => {
     it(`keeps the ${stick} stick, skills ${skills} controls inside the screen, off the gameplay, and never overlapping`, () => {
       for (const [w, h, insets] of [
         [412, 839, NO_INSETS],
+        [412, 760, NO_INSETS],
+        [412, 839, ANDROID_GESTURES],
         [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
         [360, 780, NO_INSETS],
         [430, 932, { top: 59, right: 0, bottom: 34, left: 0 }],
@@ -104,7 +109,8 @@ describe('computeLayout: phones held upright', () => {
         for (const r of c.rects) {
           expect(r.left).toBeGreaterThanOrEqual(0);
           expect(r.right).toBeLessThanOrEqual(w);
-          expect(r.bottom).toBeLessThanOrEqual(h - insets.bottom);
+          // Clear of the gesture bar: the bottom inset and a 12 px margin over it.
+          expect(r.bottom).toBeLessThanOrEqual(h - insets.bottom - GESTURE_GAP + 1e-9);
         }
         expect(minGap(c)).toBeGreaterThan(0);
         // With the camera scrolled as far as it may go, gameplay never sits under the controls.
@@ -136,6 +142,27 @@ describe('computeLayout: phones held upright', () => {
     expect(SKILL_PX).toBeGreaterThanOrEqual(44);
     expect(c.joystick.r * 2).toBeGreaterThanOrEqual(44);
     for (const slot of ['Q', 'W', 'R'] as const) expect(c.skills[slot].r * 2).toBeGreaterThanOrEqual(44);
+  });
+
+  it('keeps every control 12 px over the bottom inset (a gesture bar), and W and R where they were on a 412 × 839 phone', () => {
+    expect(GESTURE_GAP).toBe(12);
+    for (const { stick, skills } of LAYOUTS) {
+      for (const insets of [NO_INSETS, ANDROID_GESTURES]) {
+        for (const h of [839, 760]) {
+          const c = computeLayout(input(412, h, { stick, skills, insets })).controls!;
+          const lowest = Math.max(...circlesOf(c).map((b) => b.y + b.r));
+          expect(lowest, `${stick} ${skills} 412 × ${h}, inset ${insets.bottom}`).toBeLessThanOrEqual(h - insets.bottom - GESTURE_GAP + 1e-9);
+          expect(c.joystick.y + c.joystick.r).toBeLessThanOrEqual(h - insets.bottom - GESTURE_GAP + 1e-9);
+        }
+      }
+    }
+    // Around the stick, W and R stand where they stood before the margin (119 px over the edge); the stick moved up.
+    for (const stick of STICK_MODES) {
+      const c = computeLayout(input(412, 839, { stick })).controls!;
+      expect(c.skills.W.y).toBeCloseTo(839 - 119);
+      expect(c.skills.R.y).toBeCloseTo(839 - 119);
+      expect(c.joystick.y + c.joystick.r).toBeCloseTo(839 - GESTURE_GAP);
+    }
   });
 
   it('follows the hero vertically on shorter phones only', () => {

@@ -119,6 +119,8 @@ class Piece:
             if not spec.get('smooth', False):
                 for p in o.data.polygons:
                     p.use_smooth = False
+            if 'warp' in spec:
+                _warp(o, spec['warp'])
             o.pass_index = index
             self.objects.append(o)
             self.local[o] = m
@@ -169,6 +171,37 @@ def _filter(o, spec, m):
     bmesh.ops.delete(bm, geom=gone, context='FACES')
     bm.to_mesh(me)
     bm.free()
+    me.update()
+
+
+def _warp(o, f, eps=1e-4):
+    """Reshapes a piece after its repaint (its `regions` read the pack's own shape): each vertex, in the mesh's own
+    rest coordinates, goes to `f(co)` (a Vector to a Vector: the medallion's bevel squeezed into a thinner ring). The
+    corner normals follow by f's Jacobian (its inverse transpose, by finite differences), so the pack's shading keeps
+    its hard edges and smooth runs."""
+    me = o.data
+    n_loops = len(me.loops)
+    normals = np.empty(n_loops * 3, np.float32)
+    me.corner_normals.foreach_get('vector', normals)
+    normals = normals.reshape(-1, 3).astype(np.float64)
+    co = np.empty(len(me.vertices) * 3, np.float32)
+    me.vertices.foreach_get('co', co)
+    co = co.reshape(-1, 3).astype(np.float64)
+    new = np.array([tuple(f(V(c))) for c in co])
+    # Each vertex's Jacobian (columns: f's change along x, y, z).
+    jac = np.empty((len(co), 3, 3))
+    for k in range(3):
+        d = np.zeros(3)
+        d[k] = eps
+        jac[:, :, k] = (np.array([tuple(f(V(c + d))) for c in co]) - np.array([tuple(f(V(c - d))) for c in co])) / (2 * eps)
+    lv = np.empty(n_loops, np.int64)
+    me.loops.foreach_get('vertex_index', lv)
+    inv_t = np.transpose(np.linalg.inv(jac), (0, 2, 1))
+    nn = np.einsum('lij,lj->li', inv_t[lv], normals)
+    nn /= np.maximum(np.linalg.norm(nn, axis=1), 1e-12)[:, None]
+    me.vertices.foreach_set('co', new.astype(np.float32).ravel())
+    me.update()
+    me.normals_split_custom_set([tuple(n) for n in nn])
     me.update()
 
 

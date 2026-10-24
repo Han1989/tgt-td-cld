@@ -368,6 +368,17 @@ export class GameView {
     };
     applyLayout();
     window.addEventListener('resize', applyLayout);
+    // The safe-area insets can change with no resize (Chrome on Android drawing the page under its gesture bar once
+    // its bottom bar scrolls away): the probe's border box is its insets (all padding), so it resizes when they do.
+    if (probe && typeof ResizeObserver !== 'undefined') {
+      let seen = JSON.stringify(readInsets());
+      new ResizeObserver(() => {
+        const now = JSON.stringify(readInsets());
+        if (now === seen) return;
+        seen = now;
+        applyLayout();
+      }).observe(probe, { box: 'border-box' });
+    }
     screen.orientation?.addEventListener?.('change', applyLayout);
     settings.onChange(applyLayout);
     // iOS Safari ignores user-scalable; block its pinch gestures directly.

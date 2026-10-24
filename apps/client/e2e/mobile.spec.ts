@@ -10,6 +10,15 @@ async function overlayBoxes(page: Page): Promise<Box[]> {
   return Promise.all(OVERLAY.map((s) => box(page, s)));
 }
 
+/** How far the page has moved: the document's scroll (both ways of reading it), the visual viewport's offset, and how
+ * far the document could scroll at all. Every one is 0 in a match (V-07a-fix). */
+function pageMoved(page: Page): Promise<number[]> {
+  return page.evaluate(() => {
+    const doc = document.scrollingElement!;
+    return [doc.scrollTop, window.scrollY, Math.round(window.visualViewport?.offsetTop ?? 0), Math.max(0, doc.scrollHeight - doc.clientHeight)];
+  });
+}
+
 /** Taps the centre of a pad (by map pad id). */
 async function tapPad(page: Page, padId: number): Promise<void> {
   const p = await page.evaluate((id) => {
@@ -180,12 +189,101 @@ test.describe('portrait phone layout', () => {
     expect(Object.keys(frames).filter((k) => k.startsWith('#radial .radial-btn')).length).toBeGreaterThanOrEqual(5);
     expectSameBoxes(frames, css);
     // And they are drawn: the stats on their plaques, the buttons on their faces, the skills and the ring on medallions.
-    const style = (sel: string, prop: string) => page.locator(sel).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
-    for (const sel of ['#gold-stat', '.stat.heart', '.stat.wave', '#call-early']) expect(await style(sel, 'border-image-source'), sel).toContain('blob:');
+    const style = (sel: string, prop: string, pseudo?: string) =>
+      page.locator(sel).first().evaluate((el, [p, ps]) => getComputedStyle(el, ps).getPropertyValue(p!), [prop, pseudo] as const);
+    for (const sel of ['#gold-stat', '.stat.heart', '.stat.wave']) expect(await style(sel, 'border-image-source', '::before'), sel).toContain('blob:');
+    expect(await style('#call-early', 'border-image-source')).toContain('blob:');
+    // The plaques stand inside the 44 px bar (V-07a-fix), 3 px clear of its top and bottom, no taller than 38 px.
+    const bar = await box(page, '#topbar');
+    for (const sel of ['#gold-stat', '.stat.heart', '.stat.wave']) {
+      const plaque = await page.locator(sel).evaluate((el) => {
+        const b = el.getBoundingClientRect();
+        const cs = getComputedStyle(el, '::before');
+        return { top: b.top + parseFloat(cs.top), bottom: b.bottom - parseFloat(cs.bottom) };
+      });
+      expect(plaque.top, sel).toBeGreaterThanOrEqual(bar.top + 2.5);
+      expect(plaque.bottom, sel).toBeLessThanOrEqual(bar.bottom - 2.5);
+      expect(plaque.bottom - plaque.top, sel).toBeLessThanOrEqual(38.5);
+    }
     expect(await style('.tskill[data-slot="W"] .tskill-btn', 'background-image')).toContain('blob:');
     expect(await style('#radial .radial-btn', 'background-image')).toContain('blob:');
     // The gold trim under the bar is a picture too.
     expect(await page.locator('#topbar').evaluate((el) => getComputedStyle(el, '::after').backgroundImage)).toContain('blob:');
+  });
+
+  test('in a match the page never scrolls; the end card fits under the top bar and scrolls inside its frame (412 × 839, 412 × 760)', async ({ page }) => {
+    // 412 × 760: a 412 × 839 phone with Chrome's toolbar showing.
+    for (const height of [839, 760]) {
+      const at = `412 × ${height}`;
+      await page.setViewportSize({ width: 412, height });
+      await startSolo(page);
+      await framesIn(page);
+      // Nothing scrolls the page: not a script, not a control scrolled into view.
+      await page.evaluate(() => {
+        window.scrollTo(0, 400);
+        document.getElementById('joystick')!.scrollIntoView();
+      });
+      expect(await pageMoved(page), at).toEqual([0, 0, 0, 0]);
+      const top = await box(page, '#topbar');
+      expect([top.top, top.bottom], at).toEqual([0, 44]);
+
+      await page.evaluate(() => window.__tdt.lose());
+      await expect(page.locator('#end-screen')).toBeVisible();
+      // A long card (a team's gift and ultimate lines; forced here, this build has no team): taller than the screen.
+      await page.evaluate(() => {
+        const ul = document.getElementById('end-ults')!;
+        ul.classList.remove('hidden');
+        for (let i = 1; i <= 30; i++) ul.append(Object.assign(document.createElement('li'), { textContent: `Line ${i}` }));
+      });
+      const card = await box(page, '#end-screen .end-card');
+      const body = await page.locator('.end-body').evaluate((el) => ({ range: el.scrollHeight - el.clientHeight, y: getComputedStyle(el).overflowY }));
+      // The card fits the screen under the top bar, the top bar whole over it; the layer under the card never scrolls.
+      expect(card.top, at).toBeGreaterThanOrEqual(top.bottom);
+      expect(card.bottom, at).toBeLessThanOrEqual(height);
+      expect(await box(page, '#topbar'), at).toEqual(top);
+      expect(await page.locator('#end-screen').evaluate((el) => [el.scrollHeight - el.clientHeight, getComputedStyle(el).overflowY]), at).toEqual([0, 'hidden']);
+      // Its middle scrolls inside the frame; the emblem, the title and the buttons stay on screen.
+      expect(body.range, at).toBeGreaterThan(0);
+      expect(body.y, at).toBe('auto');
+      for (const sel of ['#end-emblem', '#end-title', '#restart']) {
+        const b = await box(page, sel);
+        expect(b.top, `${sel} at ${at}`).toBeGreaterThanOrEqual(card.top);
+        expect(b.bottom, `${sel} at ${at}`).toBeLessThanOrEqual(card.bottom);
+      }
+      // A finger scrolls the card's middle, and only that: the page and the top bar stay where they are.
+      const mid = await box(page, '.end-body');
+      const finger = await Finger.on(page);
+      await finger.drag({ x: (mid.left + mid.right) / 2, y: mid.bottom - 20 }, { x: (mid.left + mid.right) / 2, y: mid.top + 10 });
+      await expect.poll(() => page.locator('.end-body').evaluate((el) => el.scrollTop), at).toBeGreaterThan(0);
+      expect(await pageMoved(page), at).toEqual([0, 0, 0, 0]);
+      expect(await box(page, '#topbar'), at).toEqual(top);
+      const restart = await box(page, '#restart');
+      expect(restart.bottom, at).toBeLessThanOrEqual(height);
+      expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, centre(restart)), at).toBe('restart');
+    }
+  });
+
+  test('the joystick and the skills keep 12 px over the bottom inset, also when a gesture bar\'s inset comes mid-match (412 × 839, 412 × 760)', async ({ page }) => {
+    for (const height of [839, 760]) {
+      const at = `412 × ${height}`;
+      await page.setViewportSize({ width: 412, height });
+      await startSolo(page);
+      for (const b of await overlayBoxes(page)) expect(b.bottom, at).toBeLessThanOrEqual(height - 12 + 0.5);
+      // Chrome on Android drawn edge to edge: the page under the gesture bar, its height the bottom inset (24 px here),
+      // which can change with no resize event. Emulated where the browser can (DevTools' safe-area override).
+      const cdp = await page.context().newCDPSession(page);
+      const inset = await cdp
+        .send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, bottom: 24, left: 0, right: 0 } })
+        .then(() => 24, () => 0);
+      if (!inset) test.info().annotations.push({ type: 'note', description: 'no safe-area override in this browser: checked with no inset' });
+      await expect.poll(async () => (await box(page, '#joystick')).bottom, at).toBeLessThanOrEqual(height - inset - 12 + 0.5);
+      for (const b of await overlayBoxes(page)) expect(b.bottom, at).toBeLessThanOrEqual(height - inset - 12 + 0.5);
+      // The controls still never cover gameplay (the camera follows the hero over what they hide).
+      const layout = await page.evaluate(() => window.__tdt.layout());
+      expect(layout.gameplayBottom - layout.followRange, at).toBeLessThanOrEqual(layout.controls!.top + 0.5);
+      await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: {} }).catch(() => undefined);
+      await cdp.detach();
+    }
   });
 
   test('on a 412 × 839 phone the whole map fits with no panning', async ({ page }) => {

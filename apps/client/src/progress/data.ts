@@ -27,6 +27,7 @@
  * V-07a on 24 Oct 2026 (PR #135: the HUD's frames rendered ahead of time, the match view's chrome).
  * V-06f on 24 Oct 2026 (PR #136: the Oracle holds her staff, her hand closed round it).
  * V-07b on 24 Oct 2026 (PR #137: juice, every event lands; the match's feel).
+ * V-07a-fix on 24 Oct 2026 (PR #139: the match page never scrolls, the plaques inside the bar, the rims slimmer).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -404,6 +405,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How the match feels, on screen only: no game rules, timing, server or protocol change. Han, 24 Oct 2026: the second step of the polish; everything the player causes or suffers should land, the way a polished indie tower defence does it. A boss’s death and your ultimate’s first strike freeze the world for a split second (a boss also slows it down for half a second), and so does a kill by your hero’s own attack, at most once a second; your hero and the buttons never wait. Dying creeps pop, every kill flies a coin to your gold (a crowd of kills becomes one bigger coin), a boss falls with a white flash, dust and “Ironhorn falls”. Your ultimate kicks the whole view in a little. Towers drop onto their pads with a puff of dust, upgrades flash, sold towers leave dust. Wave banners slam with a white edge, a boss wave washes the screen red. When the Heart is hit the screen’s edges pulse red, they breathe while it is low, and they close in when it falls. Level ups ring gold at your feet, your crits are bigger and yellow, and a victory’s Heart lands on the card while the numbers count up. With reduced motion on, nothing freezes, zooms or bounces: things only fade. In review: Han judges the feel on his phone. Built by Claude Code (PR #137).',
     proof: pr(137),
+  },
+  {
+    id: 'V-07a-fix',
+    title: 'The match screen stays put, the top bar and rings tidied',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'The match screen on a phone: no game rules, server or protocol change. Han, 24 Oct 2026, from his Pixel: with the end screen open the whole page slid and the top bar was half out of view, the joystick sat under the phone’s gesture bar, the gold and Heart plaques stood taller than the top bar, and the glowing rings round the skill and build buttons were too thick. The page can no longer move at all: nothing that covers the whole screen scrolls any more (on Android, Chrome can slide its own bars, and the page with them, along with such a layer). A long end screen now stays under the top bar and scrolls only its middle, with its buttons always on screen. The joystick and the skill buttons keep a margin over the gesture bar, and move if it appears mid-match. The plaques now sit inside the top bar, redrawn for that size, and the glowing rings are about 60% as wide (the glow itself is unchanged). In review: Han checks on his Pixel. Built by Claude Code (PR #139).',
+    proof: pr(139),
   },
   {
     id: 'g1-render',

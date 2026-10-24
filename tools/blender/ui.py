@@ -51,6 +51,11 @@ COIN = (-0.038, -0.001, 0.2, 1.03)
 # The round shield: its rim's outer radius, the field inside the rim, the rim's inner bevel (the ready ring) and the
 # boss (glTF metres from its centre, in its front plane).
 SHIELD_R, SHIELD_FIELD, SHIELD_RING, SHIELD_BOSS = 0.43, 0.325, 0.395, 0.18
+# The rim's inner bevel runs from the field's edge (its inner wall) to the rim: drawn at the pack's width it was a
+# rune-teal band 5 CSS px wide on a 60 px medallion, too thick at phone size (V-07a-fix, Han, 24 Oct 2026). Every
+# medallion's bevel is squeezed to BEVEL_KEEP of its width against the rim, which never moves, and the field and boss
+# inside it grow to meet it: a band about 60% as wide (3 CSS px), its glow as before.
+BEVEL_IN, BEVEL_OUT, BEVEL_KEEP = 0.29, 0.40, 0.55
 
 
 def piece(file, colours, at=(0.0, 0.0, 0.0), scale=1.0, turn=0.0, rot=(0.0, 0.0, 0.0), **extra):
@@ -137,10 +142,22 @@ def shield(cx, cy, r, rim, field, ring):
         # The rim's inner bevel is a zigzag of triangles between two circles: both sets, so the ring is whole.
         return ring if rr < SHIELD_RING else rim
 
+    def squeeze(co):
+        # Radially, in the shield's front plane (x, z): the bevel into its outer BEVEL_KEEP, everything inside it
+        # scaled out to meet it. The regions above read the pack's own shape (the warp comes after the repaint).
+        rr = math.hypot(co.x, co.z)
+        if rr >= BEVEL_OUT or rr < 1e-9:
+            return co.copy()
+        inner = BEVEL_OUT - BEVEL_KEEP * (BEVEL_OUT - BEVEL_IN)
+        to = BEVEL_OUT - BEVEL_KEEP * (BEVEL_OUT - rr) if rr >= BEVEL_IN else rr * inner / BEVEL_IN
+        out = co.copy()
+        out.x, out.z = co.x * to / rr, co.z * to / rr
+        return out
+
     # Front faces point -y in the file; turned -90° about x they face the camera, the shield's top up the screen.
     # Smooth shaded: the pack's low-poly rim would light facet by facet (a saw blade at this size).
     return piece(SHIELD, {A_METAL: rim, A_PLANK: field, A_WOOD: DROP}, at=(cx, -cy, 0.0), scale=s, rot=(-90, 0, 0),
-                 regions={A_METAL: metal}, smooth=True)
+                 regions={A_METAL: metal}, smooth=True, warp=squeeze)
 
 
 # --- materials -------------------------------------------------------------------------------------------------------
@@ -234,9 +251,10 @@ def button(state):
         out.append(bar(m + rim - 0.3, m + rim - 0.3, w - m - rim + 0.3, h - m - rim + 0.3,
                        'uiFaceRune' if state == 'selected' else 'uiFace', z=face_z - 1.0, depth=0.04))
         if state == 'selected':
-            # The rune line over the joint of rim and face (above both: under the face it would not show).
-            g = 1.6
-            a = m + rim - 0.8
+            # The rune line over the joint of rim and face (above both: under the face it would not show), 1 px:
+            # 60% of V-07a's 1.6, as thin as the medallions' rings (V-07a-fix).
+            g = 1.0
+            a = m + rim - 0.5
             top = face_z + 2.5
             out += [bar(a, a, w - a, a + g, 'uiRuneSoft', z=top, file=COLUMN),
                     bar(a, h - a - g, w - a, h - a, 'uiRuneSoft', z=top, file=COLUMN),
@@ -246,32 +264,40 @@ def button(state):
     return parts
 
 
+# A plaque's size against V-07a's (drawn at 9 px insets and shown at 6, so 0.67 on screen): drawn for the 38 px tall
+# plaque inside the phone's 44 px bar and shown 1:1 (V-07a-fix), a little thinner again so the label over the number
+# and the Heart's bar under it clear the rim.
+PLAQUE_K = 0.6
+
+
 def plaque(stud_kind):
     """A stat's plaque: a thin rim round a dark recessed face, a stud at each corner: none, a gold coin, a Heart gem;
     `cracked`: the Heart plaque with two gems knocked out and rubble in their sockets."""
     def parts(w, h):
-        rim, m = 3.0, 0.5
+        k = PLAQUE_K
+        rim, m = 3.0 * k, 0.5
         out = frame(w, h, rim, 'uiStone')
         out.append(bar(m + rim - 0.3, m + rim - 0.3, w - m - rim + 0.3, h - m - rim + 0.3,
-                       'uiFaceDark', z=-1.5, depth=0.04))
-        c = m + 4.0
+                       'uiFaceDark', z=-1.5 * k, depth=0.04))
+        c = m + 4.0 * k
         corners = ((c, c), (w - c, c), (c, h - c), (w - c, h - c))
+        s, top = 7.0 * k, 1.0 * k
         for i, (x, y) in enumerate(corners):
             if stud_kind == 'none':
-                out.append(stud(x, y, 7.0, 'uiStoneLit', height=1.1))
+                out.append(stud(x, y, s, 'uiStoneLit', height=1.1))
             elif stud_kind == 'coin':
-                out.append(stud(x, y, 7.0, 'uiStoneDark', height=0.6))
-                out.append(coin(x, y, 5.4, z=1.0))
+                out.append(stud(x, y, s, 'uiStoneDark', height=0.6))
+                out.append(coin(x, y, 5.4 * k, z=top))
             elif stud_kind == 'heart':
-                out.append(stud(x, y, 7.0, 'uiStoneDark', height=0.6))
-                out.append(gem(x, y, 4.4, z=1.0))
+                out.append(stud(x, y, s, 'uiStoneDark', height=0.6))
+                out.append(gem(x, y, 4.4 * k, z=top))
             elif i in (1, 2):
                 # Cracked: two gems left, their light out.
-                out.append(stud(x, y, 7.0, 'uiStoneDark', height=0.6))
-                out.append(gem(x, y, 4.4, 'uiHeartDim', z=1.0))
+                out.append(stud(x, y, s, 'uiStoneDark', height=0.6))
+                out.append(gem(x, y, 4.4 * k, 'uiHeartDim', z=top))
             else:
                 # Knocked out: the corner broken off, a chunk of rubble in its place.
-                out.append(rubble(x + 0.4, y + 0.4, 5.4, 'uiStoneLit', turn=35 + 90 * i, z=1.2))
+                out.append(rubble(x + 0.4 * k, y + 0.4 * k, 5.4 * k, 'uiStoneLit', turn=35 + 90 * i, z=1.2 * k))
         return out
     return parts
 
@@ -320,10 +346,10 @@ PIECES = {
     'button': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=button('rest')),
     'buttonPressed': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=button('pressed')),
     'buttonSelected': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=button('selected')),
-    'plaque': dict(kind='slice', inset=(9, 9, 9, 9), middle=12, fill=True, parts=plaque('none')),
-    'plaqueCoin': dict(kind='slice', inset=(9, 9, 9, 9), middle=12, fill=True, parts=plaque('coin')),
-    'plaqueHeart': dict(kind='slice', inset=(9, 9, 9, 9), middle=12, fill=True, parts=plaque('heart')),
-    'plaqueHeartCracked': dict(kind='slice', inset=(9, 9, 9, 9), middle=12, fill=True, parts=plaque('cracked')),
+    'plaque': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=plaque('none')),
+    'plaqueCoin': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=plaque('coin')),
+    'plaqueHeart': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=plaque('heart')),
+    'plaqueHeartCracked': dict(kind='slice', inset=(6, 6, 6, 6), middle=12, fill=True, parts=plaque('cracked')),
     # A plate stretched only sideways: its top and bottom halves meet (no middle row), its capitals are the sides'
     # insets; drawn at its own size.
     'banner': dict(kind='slice', inset=(22, 26, 22, 26), middle=(14, 0), fill=True, parts=banner, big=False),

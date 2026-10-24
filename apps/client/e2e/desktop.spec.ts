@@ -31,8 +31,10 @@ test('the rendered frames move nothing: the stats, the hero panel and the open t
   await expect(page.locator('#tower-panel')).toBeVisible();
   const { frames, css } = await framesAB(page, ['#topbar', '#topbar .stat', '#call-early', '#hero-panel', '#hero-panel .skill', '#tower-panel', '#tower-panel button']);
   expectSameBoxes(frames, css);
-  const source = (sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).borderImageSource);
-  for (const sel of ['#topbar', '#hero-panel', '#tower-panel', '#gold-stat', '#call-early']) expect(await source(sel), sel).toContain('blob:');
+  const source = (sel: string, pseudo?: string) => page.locator(sel).first().evaluate((el, ps) => getComputedStyle(el, ps).borderImageSource, pseudo);
+  for (const sel of ['#topbar', '#hero-panel', '#tower-panel', '#call-early']) expect(await source(sel), sel).toContain('blob:');
+  // A stat's plaque is drawn behind it by its ::before (V-07a-fix), so its own box stays the CSS look's.
+  expect(await source('#gold-stat', '::before')).toContain('blob:');
 });
 
 test('mouse and keyboard: right-click moves, left-click a pad and press 1 to build, U upgrades, Q casts', async ({ page }) => {

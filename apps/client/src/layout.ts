@@ -33,8 +33,13 @@ export const ARC_R = 88;
 export const FLOAT_R = 40;
 /** Around the stick: the least room (px) between two skill buttons, and between the stick and a button. */
 export const SKILL_GAP = 24;
-/** Gap between the controls and the bottom / side edges (px), on top of the safe-area insets. */
+/** Gap between the controls and the side edges (px), on top of the safe-area insets. */
 export const EDGE_GAP = 8;
+/**
+ * Gap between the touch controls and the bottom edge (px), on top of the bottom safe-area inset: room over a phone's
+ * gesture bar, which Chrome on Android can draw the page under (V-07a-fix, docs/MOBILE.md §4).
+ */
+export const GESTURE_GAP = 12;
 /** Room above the buttons for the skill-learn "+" badges (px). */
 export const LEARN_ALLOWANCE = 4;
 
@@ -207,14 +212,15 @@ function onArc(c: Pt, angle: number, size: number): Circle {
 const TWO_THUMB_LIFT = 36;
 /**
  * The floating stick's corner arc sits a little lower, so R's top stays under the gameplay rows and the whole map
- * still fits a 412 × 839 phone with no panning. Q's lower edge stays above the bottom gap.
+ * still fits a 412 × 839 phone with no panning. Q's lower edge sits on the bottom gap.
  */
-const FLOAT_LIFT = 30;
+const FLOAT_LIFT = 28;
 /**
- * Around the stick: W's and R's centres sit this far above the bottom edge, as high as on the first one-thumb arc and
- * no higher, so the whole map still fits a 412 × 839 phone with no panning.
+ * Around the stick: W's and R's centres sit this far above the bottom gap (GESTURE_GAP over the bottom inset), as high
+ * as on the first one-thumb arc and no higher (119 px over the screen's edge on a 412 × 839 phone), so the whole map
+ * still fits it with no panning. The stick and Q and E keep the gap under them.
  */
-const AROUND_TOP = 111;
+const AROUND_TOP = 107;
 
 /** The stick's radius: the floating stick's base (its resting hint is drawn at that size) or the fixed joystick. */
 function stickR(stick: StickMode): number {
@@ -314,7 +320,7 @@ function aroundX(w: number, insets: Insets, anchor: StickAnchor, r: number): num
 
 function tallControls(input: LayoutInput): Controls {
   const { w, h, insets, stick, skills } = input;
-  const bottom = h - Math.max(EDGE_GAP, insets.bottom);
+  const bottom = h - insets.bottom - GESTURE_GAP;
   const floating = stick === 'float';
   const r = stickR(stick);
   if (skills === 'around') return finish(aroundStick(aroundX(w, insets, input.stickAnchor, r), bottom, r), floating);
@@ -329,7 +335,7 @@ function tallControls(input: LayoutInput): Controls {
 /** Wide layout on a touch screen: the controls sit in the side margins. */
 function wideControls(input: LayoutInput, margin: number): Controls {
   const { w, h, insets, stick, skills } = input;
-  const bottom = h - Math.max(EDGE_GAP * 2, insets.bottom);
+  const bottom = h - insets.bottom - Math.max(EDGE_GAP * 2, GESTURE_GAP);
   const floating = stick === 'float';
   const r = stickR(stick);
   // Around the stick: the whole cluster in one margin (the right one unless the stick is set to the left).

@@ -30,20 +30,20 @@
     "fringe": 0.0,
     "fringePx": 0,
     "hard": 0.0,
-    "measured": 478
+    "measured": 476
    },
    "medallionCooldown": {
     "fringe": 0.0,
     "fringePx": 0,
     "hard": 0.0,
-    "measured": 478
+    "measured": 476
    },
    "medallionReady": {
-    "fringe": 0.0081,
-    "fringePx": 4,
+    "fringe": 0.0062,
+    "fringePx": 3,
     "glowIgnored": true,
     "hard": 0.0,
-    "measured": 491
+    "measured": 484
    },
    "panel": {
     "fringe": 0.0,
@@ -55,25 +55,25 @@
     "fringe": 0.0,
     "fringePx": 0,
     "hard": 0.0,
-    "measured": 236
+    "measured": 188
    },
    "plaqueCoin": {
     "fringe": 0.0,
     "fringePx": 0,
     "hard": 0.0,
-    "measured": 236
+    "measured": 188
    },
    "plaqueHeart": {
     "fringe": 0.0,
     "fringePx": 0,
     "hard": 0.0,
-    "measured": 65
+    "measured": 56
    },
    "plaqueHeartCracked": {
     "fringe": 0.0,
     "fringePx": 0,
     "hard": 0.0,
-    "measured": 236
+    "measured": 188
    },
    "timber": {
     "fringe": 0.0,
@@ -90,7 +90,7 @@
   },
   "over": "moss",
   "samples": 48,
-  "worstFringe": 0.0081,
+  "worstFringe": 0.0062,
   "worstHard": 0.0
  },
  "id": "ui",
@@ -131,7 +131,7 @@
      12
     ],
     "w": 48,
-    "x": 944,
+    "x": 696,
     "y": 0
    },
    "buttonPressed": {
@@ -149,8 +149,8 @@
      12
     ],
     "w": 48,
-    "x": 944,
-    "y": 50
+    "x": 746,
+    "y": 0
    },
    "buttonSelected": {
     "css": [
@@ -167,8 +167,8 @@
      12
     ],
     "w": 48,
-    "x": 696,
-    "y": 62
+    "x": 796,
+    "y": 0
    },
    "medallion": {
     "css": [
@@ -223,75 +223,75 @@
    },
    "plaque": {
     "css": [
-     30,
-     30
+     24,
+     24
     ],
     "fill": true,
-    "h": 60,
+    "h": 48,
     "kind": "slice",
     "slice": [
-     18,
-     18,
-     18,
-     18
+     12,
+     12,
+     12,
+     12
     ],
-    "w": 60,
-    "x": 696,
+    "w": 48,
+    "x": 846,
     "y": 0
    },
    "plaqueCoin": {
     "css": [
-     30,
-     30
+     24,
+     24
     ],
     "fill": true,
-    "h": 60,
+    "h": 48,
     "kind": "slice",
     "slice": [
-     18,
-     18,
-     18,
-     18
+     12,
+     12,
+     12,
+     12
     ],
-    "w": 60,
-    "x": 758,
+    "w": 48,
+    "x": 896,
     "y": 0
    },
    "plaqueHeart": {
     "css": [
-     30,
-     30
+     24,
+     24
     ],
     "fill": true,
-    "h": 60,
+    "h": 48,
     "kind": "slice",
     "slice": [
-     18,
-     18,
-     18,
-     18
+     12,
+     12,
+     12,
+     12
     ],
-    "w": 60,
-    "x": 820,
+    "w": 48,
+    "x": 946,
     "y": 0
    },
    "plaqueHeartCracked": {
     "css": [
-     30,
-     30
+     24,
+     24
     ],
     "fill": true,
-    "h": 60,
+    "h": 48,
     "kind": "slice",
     "slice": [
-     18,
-     18,
-     18,
-     18
+     12,
+     12,
+     12,
+     12
     ],
-    "w": 60,
-    "x": 882,
-    "y": 0
+    "w": 48,
+    "x": 696,
+    "y": 50
    },
    "timber": {
     "css": [
@@ -320,7 +320,7 @@
     "kind": "strip",
     "w": 64,
     "x": 746,
-    "y": 62
+    "y": 50
    }
   },
   "res": 2,
