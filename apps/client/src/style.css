@@ -69,6 +69,23 @@ body {
   touch-action: none;
 }
 
+/* The Heart's vignette (V-07b, docs/ART.md §6 "Juice"): one layer just over the canvas, under the whole HUD, over the
+   map's columns. world.ts sets its box and opacity (displayed only while it shows) and its picture's colour
+   (`vignetteGradient`) and scale; the picture is twice the box, so scaled down to 55% it still covers it. */
+.heart-vignette {
+  position: fixed;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.heart-vignette > div {
+  position: absolute;
+  inset: -50%;
+  will-change: transform;
+}
+
 button {
   touch-action: manipulation;
 }

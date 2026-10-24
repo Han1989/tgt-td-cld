@@ -47,7 +47,10 @@ import {
   upgradeFlash,
   upgradeScale,
   vignetteAlpha,
+  vignetteBox,
   vignetteClose,
+  vignetteGradient,
+  type ScreenBox,
   type VignettePulse,
 } from './fx/juice';
 import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
@@ -357,13 +360,25 @@ export class WorldRenderer {
   private readonly textLayer = new Container();
   private readonly overlay = new Graphics();
   /**
-   * Over the world, in screen space (V-07b): a boss wave's red wash and the Heart's vignette at the screen's edges. One
-   * sprite each, alpha only; never shaken or punched.
+   * Over the world, in screen space (V-07b), over the map's columns on screen (`vignetteBox`), never shaken or punched:
+   * a boss wave's red wash (one sprite, alpha only) and the Heart's vignette.
    */
   private readonly screenLayer = new Container();
   private readonly wash: Sprite;
-  private readonly vignette: Sprite;
+  /**
+   * The Heart's vignette: one DOM layer just over the canvas, under the whole HUD (`.heart-vignette`), its opacity and
+   * its picture's scale set here, written only when they change. Not a sprite: behind a defeat's card it stays up every
+   * frame, and a WebGL quad that size cost a software GPU as much fill as the world does (CI's browser tests); the
+   * compositor blends a layer for nothing.
+   */
+  private readonly vignette: HTMLDivElement;
+  private readonly vignetteArt: HTMLDivElement;
   private vignetteTint: number = FX.vignette;
+  /** What the vignette's layer shows now (its opacity 0: not displayed), its box and its picture's scale. */
+  private vignetteAlpha = 0;
+  private vignetteShown = '';
+  private vignetteAt = '';
+  private vignetteSize = 1;
   private washAt = -Infinity;
   /** The latest leak's vignette pulse. */
   private leakPulse: VignettePulse | null = null;
@@ -498,12 +513,15 @@ export class WorldRenderer {
     this.wash = new Sprite(Texture.WHITE);
     this.wash.tint = COLORS.bad;
     fade(this.wash, 0);
-    this.vignette = new Sprite(this.atlas.frames.vignette);
-    this.vignette.anchor.set(0.5);
-    this.vignette.tint = this.vignetteTint;
-    fade(this.vignette, 0);
-    this.screenLayer.addChild(this.wash, this.vignette);
+    this.screenLayer.addChild(this.wash);
     app.stage.addChild(this.world, this.screenLayer);
+    this.vignette = document.createElement('div');
+    this.vignette.className = 'heart-vignette';
+    this.vignette.setAttribute('aria-hidden', 'true');
+    this.vignetteArt = document.createElement('div');
+    this.vignetteArt.style.background = vignetteGradient(this.vignetteTint);
+    this.vignette.append(this.vignetteArt);
+    app.canvas.after(this.vignette);
     this.heart = this.makeHeart();
     this.makePortals();
   }
@@ -714,13 +732,14 @@ export class WorldRenderer {
 
   /** The boss wave's wash and the Heart's vignette (screen space, alpha only; V-07b, docs/ART.md §6 "Juice"). */
   private updateScreen(latest: Snapshot, now: number): void {
-    const w = this.camera.viewW;
-    const h = this.camera.viewH;
+    const cam = this.camera;
+    const box = vignetteBox(cam.viewW, cam.viewH, cam.worldToScreen(0, 0).x, cam.worldToScreen(cam.worldW, 0).x);
     const t = (now - this.washAt) / JUICE.washMs;
     const wash = t >= 0 && t < 1 ? JUICE.washAlpha * (1 - t) : 0;
     if (wash > 0) {
-      this.wash.width = w;
-      this.wash.height = h;
+      this.wash.position.set(box.left, box.top);
+      this.wash.width = box.right - box.left;
+      this.wash.height = box.bottom - box.top;
     }
     fade(this.wash, wash);
     let alpha: number;
@@ -730,7 +749,7 @@ export class WorldRenderer {
       // The Heart fell: the vignette closes in (fades in, under reduced motion) before the end card shows.
       if (this.defeatAt === null) {
         this.defeatAt = now;
-        this.defeatFrom = this.vignette.renderable ? this.vignette.alpha : 0;
+        this.defeatFrom = this.vignetteAlpha;
       }
       const c = vignetteClose(now - this.defeatAt, this.defeatFrom, this.fx.calm);
       alpha = c.alpha;
@@ -740,17 +759,39 @@ export class WorldRenderer {
       this.defeatAt = null;
       alpha = vignetteAlpha(now, this.leakPulse, this.heartFrac < HEART_LOW && this.heartFrac > 0, this.fx.calm);
     }
-    if (alpha > 0) {
-      // Drawn twice the screen's size: its solid half-size ring sits on the screen's edges (smaller: closing in).
-      this.vignette.position.set(w / 2, h / 2);
-      this.vignette.width = 2 * w * size;
-      this.vignette.height = 2 * h * size;
-      if (tint !== this.vignetteTint) {
-        this.vignetteTint = tint;
-        this.vignette.tint = tint;
-      }
+    this.showVignette(alpha, box, size, tint);
+  }
+
+  /**
+   * The vignette's layer: `alpha` (0: not displayed), over `box`, its picture scaled by `size` (1: its solid ring on the
+   * box's edges; smaller: closing in) in `tint`. Each style is written only when it changes.
+   */
+  private showVignette(alpha: number, box: ScreenBox, size: number, tint: number): void {
+    this.vignetteAlpha = alpha;
+    const style = this.vignette.style;
+    const shown = alpha > 0 ? alpha.toFixed(3) : '';
+    if (shown !== this.vignetteShown) {
+      this.vignetteShown = shown;
+      style.display = shown ? 'block' : '';
+      style.opacity = shown;
     }
-    fade(this.vignette, alpha);
+    if (!shown) return;
+    const at = `${box.left} ${box.top} ${box.right - box.left} ${box.bottom - box.top}`;
+    if (at !== this.vignetteAt) {
+      this.vignetteAt = at;
+      style.left = `${box.left}px`;
+      style.top = `${box.top}px`;
+      style.width = `${box.right - box.left}px`;
+      style.height = `${box.bottom - box.top}px`;
+    }
+    if (size !== this.vignetteSize) {
+      this.vignetteSize = size;
+      this.vignetteArt.style.transform = size === 1 ? '' : `scale(${size})`;
+    }
+    if (tint !== this.vignetteTint) {
+      this.vignetteTint = tint;
+      this.vignetteArt.style.background = vignetteGradient(tint);
+    }
   }
 
   /** A new match: forget effects and hit tracking. */
@@ -777,7 +818,7 @@ export class WorldRenderer {
     this.portalBossLanes = [];
     this.goneTowers.clear();
     fade(this.wash, 0);
-    fade(this.vignette, 0);
+    this.showVignette(0, { left: 0, top: 0, right: 0, bottom: 0 }, 1, FX.vignette);
   }
 
   /**

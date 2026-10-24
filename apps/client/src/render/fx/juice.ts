@@ -230,3 +230,33 @@ export function vignetteClose(age: number, from: number, calm: boolean): { size:
     done: t >= 1,
   };
 }
+
+/** A rectangle on the screen (px). */
+export interface ScreenBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Where the vignette and the boss wave's wash go on a `w` × `h` screen: its whole height over the map's columns on it
+ * (`mapLeft` to `mapRight`). A phone fits the map to its width, so that is the whole screen; a wide window (desktop, a
+ * landscape tablet) frames the map in its middle, and its side margins, under the HUD's panels, are not the battlefield
+ * (nor worth filling on a software GPU, which the vignette behind a defeat's card would do every frame).
+ */
+export function vignetteBox(w: number, h: number, mapLeft: number, mapRight: number): ScreenBox {
+  const left = Math.max(0, mapLeft);
+  const right = Math.min(w, mapRight);
+  return right > left ? { left, top: 0, right, bottom: h } : { left: 0, top: 0, right: w, bottom: h };
+}
+
+/**
+ * The vignette's picture in `tint`, a CSS background for a layer twice its box's size (the box in its middle, as
+ * `.heart-vignette > div` has it): clear out to 60% of the box's half-size, a faint edge at 76%, solid from the box's
+ * edges outwards. Scaled by `size` about the middle, its solid ring closes in.
+ */
+export function vignetteGradient(tint: number): string {
+  const rgb = `${(tint >> 16) & 255}, ${(tint >> 8) & 255}, ${tint & 255}`;
+  return `radial-gradient(ellipse 25% 25% at 50% 50%, rgba(${rgb}, 0) 60%, rgba(${rgb}, 0.14) 76%, rgb(${rgb}) 100%)`;
+}

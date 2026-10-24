@@ -1,5 +1,6 @@
 // V-07b's juice (docs/ART.md §6 "Juice"): the render clock's hit-stop and slow-down (snapshotBuffer.ts), which events
-// hold it (render/fx/juice.ts), the kill coins' batching (hud/coins.ts) and the Heart's vignette alpha.
+// hold it (render/fx/juice.ts), the kill coins' batching (hud/coins.ts) and the Heart's vignette (its alpha, its box and
+// its picture).
 
 import type { GameEvent } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
@@ -15,7 +16,9 @@ import {
   upgradeScale,
   VIGNETTE,
   vignetteAlpha,
+  vignetteBox,
   vignetteClose,
+  vignetteGradient,
   type JuiceContext,
 } from '../src/render/fx/juice';
 import { CATCH_UP_RATE, HOLD_BUDGET_MS, HOLD_WINDOW_MS, RenderClock } from '../src/snapshotBuffer';
@@ -286,6 +289,23 @@ describe('the Heart’s vignette', () => {
     expect(end.done).toBe(true);
     expect(vignetteClose(400, 0, true).size).toBe(1);
     expect(vignetteClose(400, 0, true).alpha).toBeGreaterThan(0);
+  });
+
+  it('covers the map’s columns: the whole screen on a phone, the middle of a wide window', () => {
+    expect(vignetteBox(412, 839, 0, 412)).toEqual({ left: 0, top: 0, right: 412, bottom: 839 });
+    expect(vignetteBox(1280, 720, 452.8, 827.2)).toEqual({ left: 452.8, top: 0, right: 827.2, bottom: 720 });
+    // A map zoomed in past the screen's sides fills it; one off the screen (never, but not nothing) gives the screen.
+    expect(vignetteBox(1280, 720, -300, 1600)).toEqual({ left: 0, top: 0, right: 1280, bottom: 720 });
+    expect(vignetteBox(1280, 720, 1400, 1700)).toEqual({ left: 0, top: 0, right: 1280, bottom: 720 });
+  });
+
+  it('is clear in the middle and solid from its box’s edges out, in its tint, and still covers its box closed in', () => {
+    expect(vignetteGradient(0xff2a40)).toBe(
+      'radial-gradient(ellipse 25% 25% at 50% 50%, rgba(255, 42, 64, 0) 60%, rgba(255, 42, 64, 0.14) 76%, rgb(255, 42, 64) 100%)',
+    );
+    expect(vignetteGradient(0x5a0814)).toContain('rgb(90, 8, 20) 100%');
+    // The picture is twice its box (style.css), so closed in to `closeTo` it must still reach the box's edges.
+    expect(2 * VIGNETTE.closeTo).toBeGreaterThanOrEqual(1);
   });
 });
 
