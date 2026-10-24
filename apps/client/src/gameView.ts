@@ -22,6 +22,7 @@ import { towerName } from './hud/towerInfo';
 import { Camera } from './input/camera';
 import { Controls } from './input/controls';
 import { computeLayout, followOffset, type Insets, type Layout } from './layout';
+import { HitStop } from './render/fx/juice';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
 import { entityScales } from './render/entityScale';
@@ -35,7 +36,7 @@ import { guardCanvasContext } from './startup/glGuard';
 import { TutorialCoach } from './tutorial/coach';
 import { lessonStatus } from './tutorial/logic';
 import { repairHint } from './teach/cues';
-import { INTERP_DELAY_MS, SnapshotBuffer } from './snapshotBuffer';
+import { INTERP_DELAY_MS, RenderClock, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
 import { createUiState } from './uiState';
@@ -98,6 +99,14 @@ export class GameView {
 
   /** The R button's clocks: ready for 20 s of a wave, and the 5 s "Combo!" window. */
   private ultCues: UltCueMemory = emptyUltCues();
+
+  /**
+   * The render clock (V-07b): the snapshot buffer and the world render at its time, which holds for a hit-stop and runs
+   * slow after a boss falls, then catches up. Input, the HUD, sound and your hero's prediction stay on real time.
+   */
+  private readonly clock = new RenderClock();
+  /** Which events hold the render clock. */
+  private readonly stops = new HitStop();
 
   /** The first-match lesson is running on this solo match. */
   private lesson = false;
@@ -452,7 +461,9 @@ export class GameView {
       }
       controls.update(ticker.deltaMS);
       const latest = buffer.latest;
-      const frame = buffer.view(now);
+      // The world's time: real time, but for a hit-stop or a boss's slow-down (and the catch-up after them).
+      const rnow = view.clock.tick(now);
+      const frame = buffer.view(rnow);
       touch.update(now);
       // After the controls, so a move sent this frame already shows this frame.
       const mine = latest?.heroes.find((h) => h.owner === view.me);
@@ -472,10 +483,11 @@ export class GameView {
         follow += (target - follow) * Math.min(1, ticker.deltaMS / FOLLOW_MS);
         camera.place(layout.map.left, layout.map.top - follow);
       }
-      const events = buffer.drainEvents(now);
+      const events = buffer.drainEvents(rnow);
       view.feedLesson(latest, events, now);
       view.feedTeach(latest, events);
-      renderer.playEvents(events, latest, view.me, now, frame.from.tick + (frame.to.tick - frame.from.tick) * frame.alpha);
+      renderer.playEvents(events, latest, view.me, rnow, frame.from.tick + (frame.to.tick - frame.from.tick) * frame.alpha);
+      view.hitStop(events, latest, now);
       for (const e of events) {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
@@ -548,7 +560,7 @@ export class GameView {
       }
       marks.update(now, (x, y) => camera.worldToScreen(x * TILE_PX, y * TILE_PX), markerView(layout, camera.viewW, camera.viewH));
       audio.game.events(events, now);
-      renderer.render(frame, latest, view.me, ui, now);
+      renderer.render(frame, latest, view.me, ui, rnow);
       hud.update(latest, view.me);
     });
 
@@ -604,6 +616,8 @@ export class GameView {
         visibleCreeps: () => renderer.visibleCreeps,
         auraRings: () => renderer.auraRings,
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
+        /** The render clock (V-07b): how far behind real time it is (ms; a hit-stop or a boss's slow-down). */
+        clock: () => ({ lag: view.clock.lag }),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
         /** The textures on the GPU: how many, and their bytes (RGBA8, mipmaps counted where a source has them). */
@@ -647,6 +661,24 @@ export class GameView {
   setLesson(on: boolean): void {
     this.lesson = on;
     this.syncLesson();
+  }
+
+  /**
+   * Hit-stops (V-07b, docs/ART.md §6 "Juice"): a boss falling, your ultimate's first strike, your hero's own kill and
+   * your crit hold the render clock for a moment (a boss also slows it); a teammate's never do online. Off under
+   * reduced motion.
+   */
+  private hitStop(events: Snapshot['events'], latest: Snapshot, now: number): void {
+    if (this.renderer.fx.calm || events.length === 0) return;
+    const hero = latest.heroes.find((h) => h.owner === this.me);
+    const ask = this.stops.feed(events, {
+      me: this.me,
+      hero: hero ? { id: hero.id, kind: hero.kind } : null,
+      solo: latest.players.length <= 1,
+      now,
+    });
+    if (ask.hold > 0) this.clock.hold(now, ask.hold);
+    if (ask.slow) this.clock.slow(now, ask.slow.ms, ask.slow.rate);
   }
 
   /** Solo only: this match (and Play again) is the Daily run of `run.day` (null: any other match). */
@@ -775,6 +807,8 @@ export class GameView {
   /** Forget the previous match (e.g. back in the lobby). */
   resetView(): void {
     this.buffer.clear();
+    this.clock.reset();
+    this.stops.reset();
     this.predictor.reset();
     this.renderer.reset();
     this.hud.resetEffects();

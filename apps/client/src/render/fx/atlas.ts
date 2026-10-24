@@ -29,7 +29,8 @@ export type FxFrame =
   | 'arrow'
   | 'leaf'
   | 'rock'
-  | 'warn';
+  | 'warn'
+  | 'vignette';
 
 /** Glyph height in the atlas (px); numbers are scaled from it. */
 export const GLYPH_PX = 34;
@@ -37,6 +38,8 @@ export const GLYPH_PX = 34;
 export const RING_PX = 60;
 /** Radius of the disc and glow frames (px). */
 export const DISC_PX = 30;
+/** The vignette frame is clear out to this share of its half-size, then reddens to solid at half of it. */
+const VIGNETTE_CLEAR = 0.3;
 
 export interface FxAtlas {
   source: CanvasSource;
@@ -125,6 +128,22 @@ export function createFxAtlas(): FxAtlas {
       c.arc(w / 2 + Math.cos(a) * 50, h / 2 + Math.sin(a) * 50, 2 + 8 * thick, 0, Math.PI * 2);
       c.fill();
     }
+  });
+  place('vignette', 96, 96, (c, w, h) => {
+    // The Heart's vignette (V-07b): clear in the middle, white towards the edges, solid from half its size out to its
+    // edges. Drawn at twice the screen's size, its half-size ring sits on the screen's edges; drawn smaller, it closes in.
+    c.fillStyle = '#fff';
+    c.fillRect(0, 0, w, h);
+    const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(VIGNETTE_CLEAR, 'rgba(255,255,255,1)');
+    g.addColorStop(VIGNETTE_CLEAR + 0.08, 'rgba(255,255,255,0.86)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.globalCompositeOperation = 'destination-out';
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    c.globalCompositeOperation = 'source-over';
   });
   place('disc', 64, 64, (c, w, h) => {
     c.fillStyle = '#fff';
