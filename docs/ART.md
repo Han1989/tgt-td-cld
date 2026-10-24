@@ -457,7 +457,7 @@ Two first impressions sit outside the match and follow the same rules.
 
 **Han, 22 Oct 2026: the heroes are redesigned (V-06a).** The CC0 pack heroes are generic and the game lost its identity, so the three heroes are original characters designed by Claude in the Runelight look and generated in Meshy, chibi like the game's heroes (round 2; round 1 came out realistic): the style sheet is `docs/art/meshy-style.md`, the models, clips and concepts are in `tools/blender/assets/meshy/` (Meshy's own skeleton, not KayKit's Rig_Medium), the contact sheet is `docs/art/meshy-heroes.png`. Session 1 was assets only. **V-06b (session 2, 22 Oct 2026) put them through this pipeline: the game's heroes are now these**, everywhere the KayKit heroes showed (the stage, the match sheets, `?showcase`; below, "Meshy heroes"). V-05b's KayKit rows are in git history (PR #109); the KayKit packs stay for the creeps, the towers, the Heart, the portals and the arrow. **Han, 23 Oct 2026: no hero shows a face (V-06e).** Round 2's Arcanist had a pretty face and read as another art style next to the faceless Ranger and Warden, so she is now **the Hooded Oracle** (below, "V-06e"; the face rule in `docs/art/meshy-style.md`).
 
-**Han, 24 Oct 2026: the enemies are designed as one faction before any model (V-06h concepts).** The Spire's host, bone and ember with ember-orange eyes or a core against the heroes' teal and violet, one silhouette rule a kind: the faction sheet is `docs/art/enemy-style.md`, the concepts `tools/blender/assets/meshy/enemy-concepts/`, the sheet for Han `docs/art/enemy-redesign.png`. Images only: the creeps and bosses stay the packs' (below, "Creeps and bosses") until their models are made.
+**Han, 24 Oct 2026: the enemies are designed as one faction before any model (V-06h concepts).** The Spire's host, bone and ember with ember-orange eyes or a core against the heroes' teal and violet, one silhouette rule a kind: the faction sheet is `docs/art/enemy-style.md`, the concepts `tools/blender/assets/meshy/enemy-concepts/`, the sheet for Han `docs/art/enemy-redesign.png`. Images only: the creeps and bosses stay the packs' (below, "Creeps and bosses") until their models are made. **V-06i (24 Oct 2026): the four ground creeps are made** (Han's picks Grunt a, Archer a, Runner b, Brute b; below, "Meshy creeps"); the Wisp, the Hatchling and the bosses are the second batch.
 
 ### The pipeline
 
@@ -467,7 +467,8 @@ tools/blender/
   art3d.mjs        npm run art:3d: finds a Python with bpy and scipy, checks ffmpeg, runs build.py
   hero.py          the hero table: one row a hero (the Meshy model, its weapons rebound, its texture's colours to
                    materials, layers, props, clips, stage loop, match frames)
-  creeps.py        the creep table: one row a creep kind (model, props, colour map, clips per state, frames)
+  creeps.py        the creep table: one row a creep kind (the four ground creeps Meshy rows since V-06i, the pack
+                   rows kept as LEGACY; model, props or rebinds, colour map or texture clusters, clips per state)
   structures.py    the structure table: a row per tower kind × tier and branch (pieces of base and turret, recoil),
                    the Heart (three stages, rubble, flames) and the portal, kitbashed from KayKit pieces
   ui.py            the HUD's frames (V-07a): a row per piece (the stone and timber frames, the button faces, the
@@ -480,7 +481,8 @@ tools/blender/
   assets/meshy/    the heroes designed by Claude and generated in Meshy (V-06a: models, Meshy's own skeleton and
                    clips, the concepts; README.md there is the index); the game's heroes since V-06b;
                    arcanist/ the Arcanist as the Hooded Oracle (V-06e), arcanist-r2/ round 2's Arcanist,
-                   arcanist-concepts/ the V-06e concepts (Han picked the Oracle)
+                   arcanist-concepts/ the V-06e concepts (Han picked the Oracle); enemy-concepts/ the faction's
+                   concepts (V-06h); creeps/ the four ground creeps from Han's picks (V-06i)
   tdt3d/
     palette.py     the Runelight tokens, read from render/art/tokens.ts (a colour is never copied by hand)
     gltf.py        importing a character, facing +X: a KayKit or Quaternius one (its armature, its props on the hand
@@ -699,7 +701,9 @@ The Ranger's body leaves out his arms (his welded mesh is cut by the bone that m
 
 ### Creeps and bosses (V-05c, 17 Oct 2026; round 2 the same day)
 
-**Han, 17 Oct 2026.** Every creep and boss is a pre-rendered 3D model, as the heroes are: a model from a CC0 pack in the repo, posed by the pack's own clips, repainted in Runelight's tokens by the painter, rendered ahead of time into a match sheet and played by a rig on the device (§7, 3D creeps). The game's numbers don't change: every creep keeps its radius, speed, HP and behaviour; only how it is drawn changes. One table, `tools/blender/creeps.py`, in the shape of `hero.py`; `tdt3d/creep.py` renders a row; `npm run art:3d -- creeps` renders all nine. Creeps have no stage loop: match sheets only.
+**Han, 17 Oct 2026.** Every creep and boss is a pre-rendered 3D model, as the heroes are: a model from a CC0 pack in the repo, posed by the pack's own clips, repainted in Runelight's tokens by the painter, rendered ahead of time into a match sheet and played by a rig on the device (§7, 3D creeps). The game's numbers don't change: every creep keeps its radius, speed, HP and behaviour; only how it is drawn changes. One table, `tools/blender/creeps.py`, in the shape of `hero.py`; `tdt3d/creep.py` renders a row; `npm run art:3d -- creeps` renders all nine. Creeps have no stage loop: match sheets only. **Since V-06i (24 Oct 2026) the
+Grunt, the Runner, the Archer and the Brute are the Meshy host** (below, "Meshy creeps"); their pack rows below are kept
+as `LEGACY` in the table.
 
 | Kind | Model (pack) | Props, palette | Clips: walk · stand · attack · flinch · death · ability |
 |---|---|---|---|
@@ -740,6 +744,76 @@ The Ranger's body leaves out his arms (his welded mesh is cut by the bone that m
 - **Cost** (measured 17 Oct 2026, after V-03): the 300-creep stress scene's textures go from 7 (33.3 MiB) to 13 (42.8 MiB: the six walker sheets it draws; all nine kinds on screen would add 29.4 MiB). Its JavaScript per frame under 4× throttling rose 3–7 ms on the session container (2D 30.7–32.6 ms, 3D 34.0–38.1 ms, against the test's 33.3 ms budget, which main itself only just meets there; CI measures main at 15.8 ms). In a CPU profile the creep rig and renderer account for about 1.3 ms of that and WebGL calls for 0.4 ms; the rest is not in any function of ours (software GL). Mipmaps on the sheets did not change it. The rig swaps a frame only when it changes and skips a still creep's transform. First load: +3 KB (the rig and loader code), the first screen's timings unchanged; on throttled Slow 4G every creep sheet is in 46 s after the page opens (the hero sheets at 21 s, the plate at 23 s). **Round 2** (lossless WebP, measured 17 Oct 2026 after V-05d, 6 runs each on the same container): every creep sheet is in **42.9 s** after the page opens instead of 48.2 s (median; 42.4–43.3 s against 47.8–51.0 s), so the hero sheets that load after them come 5 s sooner (50.9 s against 56.1 s); the match sheets a load fetches go from 5,727 KB to 4,679 KB (the creeps' 1,767 KB); the first screen is unchanged (405 KB, its timings inside their run-to-run ranges). The stress scene's textures are the same (14, 57.4 MiB: it draws the six walker kinds, whose pixels did not change), and its JavaScript per frame under 4× throttling was 34.3 ms on main and 37.6 then 34.6 ms with WebP on the session container (both over the 33.3 ms budget there, as main is; CI judges): a sheet's format only changes how it decodes once, not how it draws.
 
 **Adding a 3D creep.** A row in `tools/blender/creeps.py` (model, parts by mesh, materials and colour map, props, clips per state and frame counts; `regions` for a cell that paints two things, `gltf.DROP` for faces to leave out), `npm run art:3d -- <kind>`, look at the frames; then the kind in `CREEP_3D` (`render/art3d/creepData.ts`, in wave order) and `CREEP_SHEETS` (`creepSheet.ts`), and its counts in `test/art3d.test.ts`.
+
+### Meshy creeps (V-06i, 24 Oct 2026)
+
+**Han, 24 Oct 2026:** the four ground creeps become his picks from `docs/art/enemy-redesign.png` (**Grunt a, Archer a,
+Runner b, Brute b**), original designs of the Spire's host (`docs/art/enemy-style.md`), through the same Meshy-to-pipeline
+route as the heroes. The Wisp, the Hatchling and the bosses stay on the packs (the second batch). No game number changes:
+every creep keeps its radius, speed, HP and behaviour, and the rig plays the new sheets unchanged.
+
+**The rows** (`tools/blender/creeps.py`, `rig='meshy'`, `meshy='creeps/<kind>'`, `gltf.load_meshy` as for a hero): the
+model and clips in `tools/blender/assets/meshy/creeps/<kind>/` (a README a kind: the Meshy tasks, prompts, clip map,
+triangles, root motion, the rebind boxes, what is wrong). The pack rows are kept under `LEGACY` (`npm run art:3d --
+grunt --legacy --out DIR` renders one, for a comparison); `-- creeps` builds the four Meshy rows and the five pack ones.
+
+| Kind | Model (Meshy) | Rebound whole (bind pose) | Clips: walk · stand · attack · flinch · death |
+|---|---|---|---|
+| Grunt | Grunt a, flipped to face the picture's left; 20,677 triangles | the cleaver and its fist to `RightHand` (the blade cut into the weapon layer) | walking · Idle at 2 s · Right_Hand_Sword_Slash 0.3–0.55 · Hit_Reaction 0.45 · dying_backwards 0.3–1.5 |
+| Archer | Archer a, **mirrored** before its rig (its bow in its left hand); 20,822 | the bow and its string to `LeftHand`, turned 81° in the fist; the quiver to `Spine` | Walk_Forward_with_Bow_Aimed · Archery_Shot at 2.6 s · Archery_Shot 2.5–3.95 · Hit_Reaction_with_Bow 0.2 · dying_backwards 0.2–1.5 |
+| Runner | Runner b, flipped; rigged as a biped; 20,900 | the tail to `Hips`, the cage of ribs to `Spine`; the spine, neck, head and arms held at the bind pose | running · Idle 0 · Simple_Kick 0.5–1.05 (pinned) · Hit_Reaction 0.2 · Shot_and_Fall_Forward 0.2–1.56 |
+| Brute | Brute b; 20,641 | the yoke to `Spine`, the ribs to `Spine01`, each fist to its hand, each foot to its foot | walking · Idle 0 · Heavy_Hammer_Swing 0.89–1.42 · Hit_Reaction 0.2 · dying_backwards 0.2–1.5 |
+
+- **The flip.** The composition line asked for the picture's left; Grunt a and Runner b faced right, so they were
+  flipped before `meshy_image_to_image` put each pick into a clean pose (the Runner in its own stance: a raptor can't
+  A-pose). Image to 3D took the concept's own pose, remeshed to 20,000 triangles (a creep is a third of a hero's screen
+  size).
+- **The Archer's bow hand.** Han's brief put every weapon in the right hand, as the pick holds its bow; Meshy's archery
+  clips (as the Ranger's) hold a bow in the left. Mirroring the clips in the pipeline was tried: the auto-rig's rest is
+  not symmetric (the right arm rests holding the bow forward, the spine and head joints are rolled), so a mirrored pose
+  turned its skull round. So the image to 3D's model was mirrored (`x → −x`, the faces turned back outward) and rigged
+  again from a GLB data URI: the Archer holds its bow in its left hand and every archery clip plays as made. Held as
+  the model holds it the bow lay flat in those clips, so the rebind turns it 81° in the fist about its grip (`turn`); it
+  stands upright from the raise to the loose and in the aimed walk.
+- **The Runner's rig.** Tried once, as the brief asked: the auto-rig took the raptor as a biped leaning forward. Its legs
+  walk and run, so the rig is kept; it skinned the tail to the left shin and the cage to the left collarbone (rebound),
+  and a biped's clips stand a spine upright, so its spine, neck, head and stub arms are held at the bind pose in every
+  frame (`hold`, `tdt3d.creep._pose`): the clips move its hips (the body and the tail with them) and its legs. Its kick
+  steps 0.9 m along, so it is pinned (`pin`) like the flinch and the death; it falls forward (dying backwards drove its
+  rigid tail into the ground).
+- **The rebind** (`gltf.rebind`, as the heroes' weapons): each part the auto-rig skinned wrong, by a box in the bind
+  pose, by `of` (the vertices those bones moved most), `grow` (grown along the mesh's edges into what a mask allows: the
+  bowstring runs past the skull's cheek, and no box holds the one and not the other), `dark` (faces painted darker than
+  an L: the bow's charred tip curled in by the toe it was skinned to) and `turn`; a vertex goes to the first rule that
+  takes it. A welded weapon's blade (the cleaver, the bow) is cut into a layer of its own (`cut`), a prop for the size
+  and the HP bar's top, as a pack creep's blade is.
+- **Thin limbs** (`gltf.thicken`): the Archer's limbs were single thin bones in the concept (its README's note; three
+  image edits would not thicken them) and the Runner's bird legs thin: at 4 px per world px the painter's 1.5 px line ate
+  them to ink. Every vertex those bones move is pushed from the bone's axis to 2.6× (the Archer) and 1.8× (the Runner's
+  legs) its distance, as far as the bone's weight on it; both are drawn with the thinner line the Ranger's bow layer uses.
+- **The texture to tokens:** bone (`bone`, every painted tone of it flattened to the token), charred wood (`woodDark`
+  toward `ink`), dark iron (`iron`, `ironDark`), and ember: the eye sockets and the core glow (`ember`, emitting, the dark
+  red round an eye with it, so a socket reads at 40 px), the Archer's string and joints too; the ember Meshy painted in
+  the other kinds' joints and seams is ember, unlit. No cloth colour: the kinds' old warm tokens are gone (the faction
+  sheet). The Grunt's black sockets glow with its eyes deep in them.
+- **The radius rule holds:** each figure is scaled so its idle silhouette's area radius is the sim's radius (weapons
+  left out); the HP bar's top is measured with the weapons left out too (the Archer's bow stands over its skull).
+
+| Kind | Idle silhouette (world px) | Sheet | WebP (the pack's) | Frames | Render |
+|---|---|---|---|---|---|
+| Grunt | 25.5 × 28.5 | 2048 × 134 | 131 KB (120) | 17 | 17 s |
+| Archer | 22.8 × 33.8 | 2048 × 207 | 201 KB (108) | 17 | 19 s |
+| Runner | 20.8 × 37.5 | 2048 × 157 | 122 KB (84) | 17 | 16 s |
+| Brute | 41.0 × 32.2 | 2048 × 307 | 247 KB (233) | 17 | 27 s |
+
+All nine sheets are 7.34 M px (28.0 MiB as RGBA; 7.71 and 29.4 before), on two 2048 × 2048 pages (one: the Shardback,
+the Matriarch and the Archer; two: the Ironhorn, the Brute, the Runner, the Grunt, the Wisp and the Hatchling); the four
+are 702 KB of lossless WebP (545 before). Every frame passes the fringe check with no fringe pixel and no hard step. The
+stress test (300 creeps, 4× throttling, this container): 28.3 ms of JavaScript a frame, 14 textures, 56.0 MiB (V-05c
+round 2: 14, 57.4). Contact sheet for Han: `docs/art/enemy-creeps-1.png` (`npm run build:e2e -w @tdt/client && npm run
+creeps-contact -w @tdt/client -- --host`): each kind's stand, step, blow and death at the sheets' own pixels, the pack's
+row over Meshy's, then a match on a 412 × 839 phone at 3× (wave 12 of Full, all four on the lanes beside the Ranger)
+and a crop of it at the screen's own pixels.
 
 ### Towers, the Heart and the portals (V-05d, 17 Oct 2026)
 

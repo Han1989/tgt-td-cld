@@ -3,7 +3,8 @@
 // sprite, drawn by its own art file and the painter, next to its 3D stand and step from the shipped sheet, on the lane,
 // at the size a 412 × 839 phone draws them in a match on a 3× screen (V-04's creep scale), and again close up at the
 // 3D sheet's own pixels. Returns the picture as a PNG data URL. `drawIronhorn` (V-05c round 2) puts the Ironhorn as
-// V-05c merged it (the BlueDemon) next to today's (the Demon).
+// V-05c merged it (the BlueDemon) next to today's (the Demon); `drawHost` (V-06i) the four ground creeps from Meshy next
+// to the pack creeps they replaced, and a match screenshot.
 
 import type { CreepKind } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
@@ -257,5 +258,93 @@ export async function drawIronhorn(before: { sheet: string; layout: CreepMatchLa
     label(i === 0 ? 'BlueDemon' : 'Demon', x, y + 28);
     x += standW[i]! + gap;
   }
+  return canvas.toDataURL('image/png');
+}
+
+/**
+ * V-06i, the Spire's host, batch 1: the Grunt, the Archer, the Runner and the Brute generated in Meshy next to the pack
+ * creeps they replace. Each kind's stand, step, blow and death close up at the sheets' own pixels (4 per world px), the
+ * pack's row over Meshy's; then a match on a 412 × 839 phone at 3× (`match`, a screenshot) at 1:3 beside a crop of it at
+ * the screen's own pixels. `before`: the pack sheets (data URLs) and layouts.
+ */
+export async function drawHost(before: Record<string, { sheet: string; layout: CreepMatchLayout }>, match: string): Promise<string> {
+  const kinds: CreepKind[] = ['grunt', 'archer', 'runner', 'brute'];
+  const bitmap = async (url: string) => createImageBitmap(await (await fetch(url)).blob());
+  const rows: { kind: CreepKind; label: string; L: CreepMatchLayout; sheet: ImageBitmap }[] = [];
+  for (const k of kinds) {
+    rows.push({ kind: k, label: 'pack (V-05c)', L: before[k]!.layout, sheet: await bitmap(before[k]!.sheet) });
+    rows.push({ kind: k, label: 'Meshy (V-06i)', L: CREEP_3D[k].match, sheet: await bitmap(CREEP_SHEETS[k]) });
+  }
+  const picks = (L: CreepMatchLayout): [string, CreepCell][] => [
+    ['stand', L.frames.idle[0]!],
+    ['step', L.frames.walk[2]!],
+    ['blow', L.frames.attack!.at(-1)!],
+    ['death', L.frames.death.at(-1)!],
+  ];
+  // How far a frame reaches left and right of the feet, up and down (sheet px).
+  const reach = (L: CreepMatchLayout, f: CreepCell) => ({
+    left: L.box.ax - f.dx,
+    right: f.dx + f.w - L.box.ax,
+    up: L.box.ay - f.dy,
+    down: f.dy + f.h - L.box.ay,
+  });
+  const LABEL = 190;
+  const rowH = rows.map((r) => Math.max(...picks(r.L).map(([, f]) => reach(r.L, f).up)) + Math.max(...picks(r.L).map(([, f]) => reach(r.L, f).down)) + 44);
+  const rowW = rows.map((r) => LABEL + picks(r.L).reduce((a, [, f]) => a + reach(r.L, f).left + reach(r.L, f).right + 20, 0));
+  const shot = await bitmap(match);
+  const width = Math.max(WIDTH, ...rowW.map((w) => w + 48));
+  const MATCH_H = 839;
+  const height = Math.ceil(70 + 56 + rowH.reduce((a, h) => a + h + 8, 0) + kinds.length * 10 + 56 + MATCH_H + 40);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const c = canvas.getContext('2d')!;
+  c.fillStyle = css(RL.ink);
+  c.fillRect(0, 0, width, height);
+  c.fillStyle = '#e6dac0';
+  c.font = 'bold 32px sans-serif';
+  c.fillText('V-06i: the Spire’s host, batch 1 (Meshy) next to the pack creeps', 24, 48);
+  let y = 70;
+  c.fillStyle = '#cfe6ff';
+  c.font = '24px sans-serif';
+  c.fillText('Close up at the sheets’ own pixels (4 per world px): stand · step · blow · death', 24, y + 36);
+  y += 56;
+  for (const [i, r] of rows.entries()) {
+    const h = rowH[i]!;
+    c.fillStyle = css(RL.lane);
+    c.fillRect(24, y, width - 48, h);
+    c.fillStyle = '#e6dac0';
+    c.font = 'bold 22px sans-serif';
+    c.fillText(creepArt(r.kind)!.name, 34, y + 30);
+    c.font = '20px sans-serif';
+    c.fillText(r.label, 34, y + 56);
+    const ground = y + h - 22 - Math.max(...picks(r.L).map(([, f]) => reach(r.L, f).down));
+    let x = 24 + LABEL;
+    for (const [what, f] of picks(r.L)) {
+      const re = reach(r.L, f);
+      const feetX = x + re.left;
+      draw3d(c, r.sheet, f, r.L.res, feetX - r.L.box.ax, ground - r.L.box.ay, r.L.res);
+      c.fillStyle = 'rgba(230, 218, 192, 0.8)';
+      c.font = '16px sans-serif';
+      c.fillText(what, x, y + h - 6);
+      x += re.left + re.right + 20;
+    }
+    y += h + (i % 2 ? 18 : 8);
+  }
+  c.fillStyle = '#cfe6ff';
+  c.font = '24px sans-serif';
+  c.fillText('In a match: 412 × 839 at 3×, wave 12 (Full), all four on the lanes, the Ranger at the fork; a crop at 3×', 24, y + 36);
+  y += 56;
+  // The whole screen at 1:3 (its CSS size), and a crop of it at the screen's own pixels round the mid lane.
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(shot, 24, y, 412, MATCH_H);
+  const cropW = width - 48 - 412 - 24;
+  const cx = Math.round(shot.width / 2 - cropW / 2);
+  const cy = 450; // under the top bar and the Air chip
+  c.drawImage(shot, cx, cy, cropW, MATCH_H, 24 + 412 + 24, y, cropW, MATCH_H);
+  c.strokeStyle = '#cfe6ff';
+  c.lineWidth = 2;
+  c.strokeRect(24 + cx / 3, y + cy / 3, cropW / 3, MATCH_H / 3);
   return canvas.toDataURL('image/png');
 }

@@ -82,6 +82,9 @@ class Figure:
                                    folder=p.get('folder', spec.get('prop_folder', gltf.PROPS)), grid=grid)
             self.parts.setdefault(p['layer'], []).extend(objs)
             self.props[p['name']] = objs
+        if self.meshy and 'weapon' in self.parts:
+            # A creep's welded weapon, cut into a layer of its own (gltf.CUT): a prop, as a pack creep's blade is.
+            self.props['weapon'] = self.parts['weapon']
         self.pb = self.arm.pose.bones
         for b in self.pb:
             b.rotation_mode = 'QUATERNION'

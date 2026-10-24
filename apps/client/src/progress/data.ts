@@ -29,6 +29,7 @@
  * V-07b on 24 Oct 2026 (PR #137: juice, every event lands; the match's feel).
  * V-06h-concepts on 24 Oct 2026 (PR #138: the enemy faction, nine kinds, two concepts each, images only).
  * V-07a-fix on 24 Oct 2026 (PR #139: the match page never scrolls, the plaques inside the bar, the rims slimmer).
+ * V-06i on 24 Oct 2026 (PR #140: the ground creeps from Meshy into the game, the enemy faction's batch 1).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * Protocol is 21 (PR #129). This page only reports status.
  */
@@ -424,6 +425,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'The match screen on a phone: no game rules, server or protocol change. Han, 24 Oct 2026, from his Pixel: with the end screen open the whole page slid and the top bar was half out of view, the joystick sat under the phone’s gesture bar, the gold and Heart plaques stood taller than the top bar, and the glowing rings round the skill and build buttons were too thick. The page can no longer move at all: nothing that covers the whole screen scrolls any more (on Android, Chrome can slide its own bars, and the page with them, along with such a layer). A long end screen now stays under the top bar and scrolls only its middle, with its buttons always on screen. The joystick and the skill buttons keep a margin over the gesture bar, and move if it appears mid-match. The plaques now sit inside the top bar, redrawn for that size, and the glowing rings are about 60% as wide (the glow itself is unchanged). In review: Han checks on his Pixel. Built by Claude Code (PR #139).',
     proof: pr(139),
+  },
+  {
+    id: 'V-06i',
+    title: 'The ground creeps from Meshy into the game (enemy batch 1)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change; every creep keeps its size, speed and HP. Han, 24 Oct 2026: the four ground creeps become his picks from the enemy faction’s sheet (Grunt a, Archer a, Runner b, Brute b), original designs of the Spire’s host made into 3D models in Meshy and put through the same rendering as the heroes. The Grunt is squat and square with a notched cleaver, the Archer thin with a bow taller than itself, the Runner a bone raptor on long bird legs with its tail out behind, the Brute an iron yoke across its shoulders over a tiny skull and huge iron-bound fists. They are bone, charred wood and dark iron, and only their eyes and the ember core in their chests glow (and the Archer’s bowstring and joints). Each was posed in the same pose as before, rigged and given Meshy’s own moves: the Grunt chops, the Archer walks with its bow aimed and draws and looses, the Runner sprints on its bird legs, kicks and falls forward, and the Brute brings both fists down. The Archer was mirrored so its bow sits in the hand Meshy’s archery moves use; the Runner, a raptor, kept the human rig but its spine stays as modelled. The Wisp, the Hatchling and the bosses are still the packs’ (the second batch). In review: Han judges the four on his phone. Built by Claude Code (PR #140).',
+    proof: pr(140),
   },
   {
     id: 'g1-render',

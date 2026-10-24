@@ -1,4 +1,4 @@
-# Meshy heroes (V-06a, added 22 Oct 2026)
+# Meshy heroes (V-06a, added 22 Oct 2026) and creeps (V-06i, 24 Oct 2026)
 
 The three heroes redesigned as original characters (**Han's decision of 22 Oct 2026**: the CC0 pack heroes were
 generic and the game lost its identity), designed by Claude from the style sheet `docs/art/meshy-style.md` and
@@ -6,8 +6,9 @@ generated in Meshy: a concept image, image to 3D, auto-rig and preset clips. Ses
 **session 2** puts them through the painter and the render-ahead-of-time pipeline (`docs/ART.md` §15), as V-05b did
 with the KayKit models. Nothing here ships to the client (`apps/client/test/art3d.test.ts`).
 
-**Licence:** Generated on a Meshy Pro plan, private licence, commercial use permitted. These are **not CC0** (unlike
-`../kaykit/` and `../quaternius/`): they are this game's own assets.
+**Licence:** Generated on a Meshy Pro plan, private licence, commercial use permitted (the creeps of V-06i on a Meshy
+Premium plan, the same terms). These are **not CC0** (unlike `../kaykit/` and `../quaternius/`): they are this game's
+own assets.
 
 **Two rounds.** Round 1 (PR #127, not merged) drew the designs with realistic proportions; **Han, 22 Oct 2026, 11:44:
 the game's heroes are chibi**, so round 2 redraws the same three designs 2.5 heads tall, the in-game hero's stage
@@ -24,6 +25,7 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 | `ranger-r1/`, `warden-r1/`, `arcanist-r1/` | 1, realistic | the same designs, kept as PR #127 landed them | | in hand, part of the mesh |
 | `arcanist-concepts/` | V-06e, images only | the Arcanist redesigned with her face hidden (Han, 23 Oct 2026): the Hooded Oracle and the Bone-Masked Seer, two images each; Han picked the Oracle, `oracle-a.png` ([README](arcanist-concepts/README.md)) | | concepts only: no model |
 | `enemy-concepts/` | V-06h, images only | the enemy faction, the Spire's host (Han, 24 Oct 2026): nine kinds, two concepts each, by the faction sheet `docs/art/enemy-style.md`; the picks marked for Han ([README](enemy-concepts/README.md)) | | concepts only: no model |
+| `creeps/grunt/`, `creeps/archer/`, `creeps/runner/`, `creeps/brute/` | V-06i, enemy batch 1 | the four ground creeps from Han's picks (Grunt a, Archer a, Runner b, Brute b), the game's since V-06i (24 Oct 2026): a README a kind ([Grunt](creeps/grunt/README.md), [Archer](creeps/archer/README.md), [Runner](creeps/runner/README.md), [Brute](creeps/brute/README.md)) | the ember eye sockets and core; the Grunt's notched cleaver, the Archer's tall bow, the Runner's bird legs and tail, the Brute's iron yoke | the Grunt's cleaver and the Archer's bow, part of the mesh (the Archer's model mirrored before its rig: its bow in its left hand) |
 
 ## What each hero folder holds
 
@@ -131,3 +133,20 @@ the pack's staff) on `RightHand`.
   dips far forward in the slash: pick the frames with care.
 - **The bow string** is welded and never flexes (both rounds): draw it as a line from the tips to the hand, or delete
   the bow and hang the pack's `bow_withString` (its string a shape key) on `LeftHand`.
+
+## The creeps (V-06i, enemy batch 1)
+
+`creeps/<kind>/` holds the four ground creeps of the Spire's host (`docs/art/enemy-style.md`), made from Han's picks
+of `enemy-concepts/` the way the heroes were made, with three differences:
+
+- **A pose, not a new design.** `meshy_image_to_image` (`nano-banana-pro`) put each pick into a clean pose for the rig,
+  facing the picture's left (the Grunt and the Runner flipped first); the Runner stands as a raptor stands. One image a
+  kind but the Archer (three: the edit never thickened its limbs nor opened its pose; the first is kept).
+- **A third of a hero's triangles:** `meshy_image_to_3d` remeshed to 20,000 (creeps are drawn at 4 px per world px).
+- **The same skeleton, different faults.** The rig is the heroes' 24 joints, but the auto-rig skinned more of each creep
+  to the wrong bone (a tail to a shin, a cage of ribs or a yoke to a collarbone, fists to the feet beside them), and the
+  Runner, a raptor, was rigged as a biped. `tools/blender/creeps.py` rebinds each part whole to one bone, thickens thin
+  limbs and holds the Runner's spine at its bind pose (its README and each kind's say how).
+
+The clips are split as the heroes' (above), with the action ids in each README. The Archer's model is mirrored (its
+README): Meshy's archery clips hold a bow in the left hand. 292 credits for the four (2,226 → 1,934).
