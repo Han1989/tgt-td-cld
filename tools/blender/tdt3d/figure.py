@@ -85,13 +85,14 @@ class Figure:
         if self.meshy and 'weapon' in self.parts:
             # A creep's welded weapon, cut into a layer of its own (gltf.CUT): a prop, as a pack creep's blade is.
             self.props['weapon'] = self.parts['weapon']
-        self.pb = self.arm.pose.bones
+        # An unrigged Meshy creep hangs on an empty, not a skeleton (tdt3d.posed): no bones to pose.
+        self.pb = self.arm.pose.bones if self.arm.type == 'ARMATURE' else []
         for b in self.pb:
             b.rotation_mode = 'QUATERNION'
         # A Meshy joint's tail, from its head (armature units): to its child's head, or for a leaf (a toe, a hand) a
         # little way on (gltf.MESHY_LEAF_CM); the importer gives Meshy's joints lengths far past their children.
         self._tails = {}
-        if self.meshy:
+        if self.meshy and self.arm.type == 'ARMATURE':
             for b in self.arm.data.bones:
                 kids = list(b.children)
                 self._tails[b.name] = ((kids[0].head_local - b.head_local).length if kids
@@ -326,6 +327,15 @@ class Figure:
         scale = Matrix.Diagonal((k, k, k, 1))
         start = nock + d * fly
         a.matrix_world = Matrix.Translation(start) @ rot @ scale @ Matrix.Translation(-self._arrow_nock)
+
+
+def make(spec):
+    """The figure a row makes: posed from its bind pose if it has no skeleton (`posed`: tdt3d.posed), else posed by its
+    clips."""
+    if spec.get('posed'):
+        from . import posed
+        return posed.PosedFigure(spec)
+    return Figure(spec)
 
 
 def mesh_bbox(objs):

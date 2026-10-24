@@ -104,6 +104,7 @@ holds on the pale lane too: the bone keeps its dark outline.
 - **The Warden's ember eyes.** `docs/art/enemy-style.md` ("What to watch"). In the strip his eyes don't show in his
   side-on standing frame, so they cannot mix with the host's there. On the first screen they could.
 - **The Shardback's lit colour.** It is shown as ember here; today the rig lights the shards violet for the Ether hide.
+  (V-06j, Han: ember at rest, violet while the Ether hide is up.)
 
 ## The prompts
 

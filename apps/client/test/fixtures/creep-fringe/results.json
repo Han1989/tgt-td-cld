@@ -42,45 +42,45 @@
   "pass": true
  },
  "hatchling-idle0": {
-  "crossings": 282,
+  "crossings": 404,
   "fringe": 0,
   "hard": 0,
-  "measured": 193,
+  "measured": 278,
   "pass": true
  },
  "hatchling-walk0": {
-  "crossings": 282,
+  "crossings": 388,
   "fringe": 0,
   "hard": 0,
-  "measured": 192,
+  "measured": 275,
   "pass": true
  },
  "ironhorn-idle0": {
-  "crossings": 1910,
+  "crossings": 1162,
   "fringe": 0,
   "hard": 0,
-  "measured": 1311,
+  "measured": 829,
   "pass": true
  },
  "ironhorn-walk0": {
-  "crossings": 1972,
+  "crossings": 1075,
   "fringe": 0,
   "hard": 0,
-  "measured": 1345,
+  "measured": 756,
   "pass": true
  },
  "matriarch-idle0": {
-  "crossings": 1502,
+  "crossings": 2645,
   "fringe": 0,
   "hard": 0,
-  "measured": 1018,
+  "measured": 1918,
   "pass": true
  },
  "matriarch-walk0": {
-  "crossings": 1524,
+  "crossings": 1923,
   "fringe": 0,
   "hard": 0,
-  "measured": 1056,
+  "measured": 1382,
   "pass": true
  },
  "runner-idle0": {
@@ -98,31 +98,31 @@
   "pass": true
  },
  "shardback-idle0": {
-  "crossings": 1726,
+  "crossings": 1062,
   "fringe": 0,
   "hard": 0,
-  "measured": 1174,
+  "measured": 764,
   "pass": true
  },
  "shardback-walk0": {
-  "crossings": 1566,
+  "crossings": 1018,
   "fringe": 0,
   "hard": 0,
-  "measured": 1031,
+  "measured": 740,
   "pass": true
  },
  "wisp-idle0": {
-  "crossings": 612,
+  "crossings": 382,
   "fringe": 0,
   "hard": 0,
-  "measured": 416,
+  "measured": 271,
   "pass": true
  },
  "wisp-walk0": {
-  "crossings": 616,
+  "crossings": 389,
   "fringe": 0,
   "hard": 0,
-  "measured": 415,
+  "measured": 274,
   "pass": true
  }
 }

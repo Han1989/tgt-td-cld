@@ -80,9 +80,8 @@ def build_creeps(names, args):
                 'frames': notes['frames'], 'samples': notes['samples'],
                 'worstFringe': round(w['fringe'] / max(1, w['measured']), 4),
                 'worstHard': round(h['hard'] / max(1, h['crossings']), 4)}}
-            if not args.out:
-                with open(os.path.join(MATCH_OUT, f'{name}.json'), 'w') as f:
-                    f.write(json.dumps(doc, indent=1, sort_keys=True) + '\n')
+            with open(os.path.join(out, f'{name}.json'), 'w') as f:  # beside its sheet (--out: there, for a look)
+                f.write(json.dumps(doc, indent=1, sort_keys=True) + '\n')
         os.makedirs(checks, exist_ok=True)
         with open(results_path, 'w') as f:
             f.write(json.dumps(results, indent=1, sort_keys=True) + '\n')

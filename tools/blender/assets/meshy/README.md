@@ -1,4 +1,4 @@
-# Meshy heroes (V-06a, added 22 Oct 2026) and creeps (V-06i, 24 Oct 2026)
+# Meshy heroes (V-06a, added 22 Oct 2026) and creeps (V-06i and V-06j, 24 Oct 2026)
 
 The three heroes redesigned as original characters (**Han's decision of 22 Oct 2026**: the CC0 pack heroes were
 generic and the game lost its identity), designed by Claude from the style sheet `docs/art/meshy-style.md` and
@@ -6,8 +6,8 @@ generated in Meshy: a concept image, image to 3D, auto-rig and preset clips. Ses
 **session 2** puts them through the painter and the render-ahead-of-time pipeline (`docs/ART.md` §15), as V-05b did
 with the KayKit models. Nothing here ships to the client (`apps/client/test/art3d.test.ts`).
 
-**Licence:** Generated on a Meshy Pro plan, private licence, commercial use permitted (the creeps of V-06i on a Meshy
-Premium plan, the same terms). These are **not CC0** (unlike `../kaykit/` and `../quaternius/`): they are this game's
+**Licence:** Generated on a Meshy Pro plan, private licence, commercial use permitted (the creeps of V-06i and V-06j on
+a Meshy Premium plan, the same terms). These are **not CC0** (unlike `../kaykit/` and `../quaternius/`): they are this game's
 own assets.
 
 **Two rounds.** Round 1 (PR #127, not merged) drew the designs with realistic proportions; **Han, 22 Oct 2026, 11:44:
@@ -26,6 +26,7 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 | `arcanist-concepts/` | V-06e, images only | the Arcanist redesigned with her face hidden (Han, 23 Oct 2026): the Hooded Oracle and the Bone-Masked Seer, two images each; Han picked the Oracle, `oracle-a.png` ([README](arcanist-concepts/README.md)) | | concepts only: no model |
 | `enemy-concepts/` | V-06h, images only | the enemy faction, the Spire's host (Han, 24 Oct 2026): nine kinds, two concepts each, by the faction sheet `docs/art/enemy-style.md`; the picks marked for Han ([README](enemy-concepts/README.md)) | | concepts only: no model |
 | `creeps/grunt/`, `creeps/archer/`, `creeps/runner/`, `creeps/brute/` | V-06i, enemy batch 1 | the four ground creeps from Han's picks (Grunt a, Archer a, Runner b, Brute b), the game's since V-06i (24 Oct 2026): a README a kind ([Grunt](creeps/grunt/README.md), [Archer](creeps/archer/README.md), [Runner](creeps/runner/README.md), [Brute](creeps/brute/README.md)) | the ember eye sockets and core; the Grunt's notched cleaver, the Archer's tall bow, the Runner's bird legs and tail, the Brute's iron yoke | the Grunt's cleaver and the Archer's bow, part of the mesh (the Archer's model mirrored before its rig: its bow in its left hand) |
+| `creeps/wisp/`, `creeps/hatchling/`, `creeps/ironhorn/`, `creeps/matriarch/`, `creeps/shardback/` | V-06j, enemy batch 2 | the Wisp, the Hatchling and the three bosses from Han's picks (Wisp b, Hatchling b, Ironhorn a without its tufts, Matriarch a with her brood cage raised into her ribs, Shardback b), the game's since V-06j (24 Oct 2026): a README a kind ([Wisp](creeps/wisp/README.md), [Hatchling](creeps/hatchling/README.md), [Ironhorn](creeps/ironhorn/README.md), [Matriarch](creeps/matriarch/README.md), [Shardback](creeps/shardback/README.md)) | the Wisp's skull-lantern and flame, the Hatchling's shell on eight legs, the Ironhorn's horns and iron plates, the Matriarch's crown and her brood of ember eggs, the Shardback's ridge of shards (ember at rest) | none; only the Matriarch is rigged: the Wisp and the Hatchling need no skeleton, and Meshy's rig stood the two four-legged bosses on their hind legs (tried once each), so these four are posed from their bind pose |
 
 ## What each hero folder holds
 
@@ -150,3 +151,20 @@ of `enemy-concepts/` the way the heroes were made, with three differences:
 
 The clips are split as the heroes' (above), with the action ids in each README. The Archer's model is mirrored (its
 README): Meshy's archery clips hold a bow in the left hand. 292 credits for the four (2,226 → 1,934).
+
+## The creeps, batch 2 (V-06j)
+
+`creeps/wisp/`, `creeps/hatchling/`, `creeps/ironhorn/`, `creeps/matriarch/` and `creeps/shardback/` finish the host
+(Han's picks, 24 Oct 2026), made as batch 1 was, with these differences:
+
+- **One model with no skeleton for four of them.** The Wisp (a bob drawn by the rig) and the Hatchling (a hop) need no
+  rig (Han's brief), and `meshy_rig` (for bipeds) took the Ironhorn and the Shardback but its clips stood them up on
+  their hind legs (tried once each, 5 credits each, not used). Their `model.glb` is the image to 3D's own; the pipeline
+  poses it from its bind pose (`tools/blender/tdt3d/posed.py`): a leg swung, the body pitched about its hind feet,
+  squashed, rolled, lifted. The Matriarch is rigged and plays her own clips.
+- **The bosses at 30,000 triangles** (the Wisp and the Hatchling at 20,000): a boss is drawn at 3 px per world px but
+  three times a creep's size.
+- **The Matriarch took three image edits and two models:** her eggs had to move up into her ribs (Han's note), and the
+  first model, made from eggs drawn as a glow behind the ribs, lost them.
+- 279 credits in all (the Wisp 39, the Hatchling 39, the Ironhorn 44, the Shardback 44, the Matriarch 113):
+  `meshy_check_balance` 1,934 before, 1,655 after.

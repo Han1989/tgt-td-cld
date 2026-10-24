@@ -2,3 +2,5 @@
 #   python3.11 -m venv .venv-blender && .venv-blender/bin/pip install -r tools/blender/requirements.txt
 bpy==4.5.14
 scipy==1.17.1
+# libwebp's exact mode for a creep sheet ffmpeg's encoder leaves colour under clear pixels in (tdt3d.encode.sheet)
+pillow==11.3.0

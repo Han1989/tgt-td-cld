@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import tempfile
 
+import numpy as np
+
 from . import imageio
 
 VIDEO_BUDGET = 1_200_000
@@ -56,14 +58,34 @@ def webp(png, out, quality, w=None, h=None):
 def sheet(img, out):
     """A match sheet (h × w × 4 straight RGBA, uint8) as a lossless WebP: every alpha and every colour the figure
     shows kept exactly, a third smaller than the PNG (V-05c round 2). libwebp may change the colour under a fully
-    transparent pixel; at this setting it clears it (test/art3d.test.ts checks), so sampling never bleeds it in.
-    libwebp's slowest, smallest setting; the same pixels give the same bytes."""
+    transparent pixel (its predictor fills it with a neighbour's, which is smaller); mostly it clears it, but not for
+    every sheet (V-06j: the Ironhorn's took its ink and its twins' white), and sampling must never bleed it in
+    (test/art3d.test.ts checks). So the result is decoded and checked, and a sheet with colour under a clear pixel is
+    written again in libwebp's `exact` mode (through Pillow: ffmpeg has no switch for it), which keeps the clear
+    colour given here. libwebp's slowest, smallest setting; the same pixels give the same bytes."""
+    img = img.copy()
+    img[img[..., 3] == 0, :3] = 0
     with tempfile.TemporaryDirectory(prefix='tdt3d-sheet-') as tmp:
         png = os.path.join(tmp, 'sheet.png')
         imageio.write_png(png, img, level=1)
         _run(['-i', png, '-c:v', 'libwebp', '-lossless', '1', '-compression_level', '6', '-quality', '100',
               '-map_metadata', '-1', '-fflags', '+bitexact', out])
+    if _hidden(out, img.shape):
+        from PIL import Image
+
+        Image.fromarray(img, 'RGBA').save(out, 'WEBP', lossless=True, quality=100, method=6, exact=True)
+        print(f'{os.path.basename(out)}: colour under clear pixels, written in exact mode', flush=True)
+        if _hidden(out, img.shape):
+            raise RuntimeError(f'{out}: colour under clear pixels even in exact mode')
     return os.path.getsize(out)
+
+
+def _hidden(path, shape):
+    """Pixels of a WebP with no alpha and some colour (ffmpeg's decoder, as the tests' scripts/webp.ts reads it)."""
+    raw = subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', path, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'],
+                         capture_output=True, check=True).stdout
+    d = np.frombuffer(raw, np.uint8).reshape(shape)
+    return int(((d[..., 3] == 0) & d[..., :3].any(axis=2)).sum())
 
 
 def best(encode, lo, hi, budget, higher_is_better):

@@ -4,12 +4,13 @@
 # state of the 2D rig maps to, and how many frames each state gets. tdt3d.creep renders a row into its match sheet
 # (apps/client/src/render/art3d/<kind>-match.webp, lossless, and <kind>.json), played by Creep3DRig.
 #
-# V-06i (Han, 24 Oct 2026): the four ground creeps (Grunt, Archer, Runner, Brute) are the game's own designs, the
-# Spire's host (docs/art/enemy-style.md), generated in Meshy (tools/blender/assets/meshy/creeps/, `rig='meshy'`) and
-# imported as the heroes are (hero.py): the weapons Meshy welded in rebound whole to a hand, every face painted from its
-# texture colour to a token, Meshy's own clips. Their pack rows (KayKit Skeletons, Rig_Medium, so the animation packs'
-# clips play on them) are kept under `LEGACY` (`npm run art:3d -- grunt --legacy --out DIR` renders one); the Wisp and
-# the bosses are still Quaternius Ultimate Monsters, each with its own clips.
+# V-06i and V-06j (Han, 24 Oct 2026): all nine are the game's own designs, the Spire's host (docs/art/enemy-style.md),
+# generated in Meshy (tools/blender/assets/meshy/creeps/, `rig='meshy'`) and imported as the heroes are (hero.py): the
+# weapons Meshy welded in rebound whole to a hand, every face painted from its texture colour to a token, Meshy's own
+# clips; the Wisp, the Hatchling, the Ironhorn and the Shardback have no skeleton and are posed from their bind pose
+# (`posed`, tdt3d.posed). The pack rows they replaced (KayKit Skeletons on Rig_Medium, so the animation packs' clips
+# play on them; Quaternius Ultimate Monsters with their own clips) are kept under `LEGACY` (`npm run art:3d -- grunt
+# --legacy --out DIR` renders one).
 #
 # Size: every creep keeps its radius in the game (tuning.ts). A figure is scaled so its **rendered radius** equals
 # that radius × TILE_PX world px (× the sheet's 4 px per world px): the radius of the disc with the same area as its
@@ -197,7 +198,7 @@ LEGACY_BRUTE = _walker(
 )
 
 
-# --- the Wisp and the bosses: Quaternius Ultimate Monsters ------------------------------------------------------------
+# --- the Wisp, the Hatchling and the bosses' pack rows (V-05c; LEGACY since V-06j): Quaternius Ultimate Monsters ----------------------------------------------------------
 
 # Bosses are rendered at 3 px per world px, not 4: the nine sheets must fit two 2048 × 2048 pages, and a boss at its
 # radius is ~70–90 world px. A boss is drawn ~0.94 CSS px per world px on a 412 px phone (V-04), 2.8 device px on a
@@ -215,7 +216,7 @@ def _monster(kind, folder, model, row, cells, materials, parts=None, boss=True, 
     )
 
 
-WISP = _monster(
+LEGACY_WISP = _monster(
     'wisp', 'flying', 'Ghost.gltf', 25,
     {0: 'void', 1: 'eyeWhite', 2: 'spirit'},
     {
@@ -229,7 +230,7 @@ WISP = _monster(
 
 # The Ironhorn is the pack's Demon, the horned one (Han, 17 Oct 2026: V-05c's BlueDemon had ears, not horns). One cell
 # of its row paints its horns, its wings, the inside of its mouth, the halo over its head and its trident (`regions`).
-IRONHORN = _monster(
+LEGACY_IRONHORN = _monster(
     'ironhorn', 'big', 'Demon.gltf', 5,
     {0: 'pupil', 1: 'eyeWhite', 2: 'hide', 3: 'horn'},
     {
@@ -268,9 +269,9 @@ def _demon_accent(c, n):
     return 'mouth'
 
 
-IRONHORN['regions'] = {(3, 5): _demon_accent}
+LEGACY_IRONHORN['regions'] = {(3, 5): _demon_accent}
 
-MATRIARCH = _monster(
+LEGACY_MATRIARCH = _monster(
     'matriarch', 'big', 'MushroomKing.gltf', 10,
     {0: 'pupil', 1: 'eyeWhite', 2: 'stem', 3: 'cap', 4: 'gold'},
     {
@@ -288,7 +289,7 @@ MATRIARCH = _monster(
 )
 
 # The Matriarch's brood: the same row of the atlas as the Matriarch, so the same colour map makes them hers.
-HATCHLING = _monster(
+LEGACY_HATCHLING = _monster(
     'hatchling', 'blob', 'Mushnub.gltf', 10,
     {0: 'pupil', 1: 'eyeWhite', 2: 'stem', 5: 'cap'},
     {
@@ -302,7 +303,7 @@ HATCHLING = _monster(
     death=('Death', 0.0, 0.37), n_walk=6, n_attack=3, n_death=3,
 )
 
-SHARDBACK = _monster(
+LEGACY_SHARDBACK = _monster(
     'shardback', 'big', 'Dino.gltf', 6,
     {0: 'pupil', 1: 'eyeWhite', 2: 'skin', 3: 'shard', 4: 'claw', 5: 'mouth'},
     {
@@ -322,10 +323,10 @@ SHARDBACK = _monster(
     # The hide shift: it ducks under its spines (Duck).
     ability=('Duck', 0.25, 0.85), n_attack=3,
 )
-SHARDBACK['hide'] = 'shard'  # the material whose coverage the `hide` layer carries
+LEGACY_SHARDBACK['hide'] = 'shard'  # the material whose coverage the `hide` layer carries
 # The pack paints the Dino's spines, horn and belly with one tan: faces turned to its back (the model faces -Y at rest)
 # or up on its head are the shards, the rest its belly.
-SHARDBACK['regions'] = {(3, 6): lambda c, n: 'shard' if n.y > 0.15 or c.z > 2.55 else 'belly'}
+LEGACY_SHARDBACK['regions'] = {(3, 6): lambda c, n: 'shard' if n.y > 0.15 or c.z > 2.55 else 'belly'}
 
 # --- the walkers: the Spire's host, generated in Meshy (V-06i) --------------------------------------------------------
 #
@@ -352,8 +353,19 @@ CHAR = dict(color=mix('woodDark', 'ink', 0.45), fill=0.5, rim=0.3)
 EMBER = dict(token='ember', emit=1.0, line=False, rim=0.0, ao=0.0, grad=False)
 SEAM = dict(color=mix('ember', 'woodDark', 0.3), fill=0.5, rim=0.5)
 SOCKET = dict(color=mix('ember', 'hole', 0.72), shade=0.5, rim=0.0, mrim=0.0, fill=0.0, ao=0.5)
+# V-06j: the ash-grey stone (the Shardback's hide, the Ironhorn's back slab), the Wisp's pale smoke, the Shardback's
+# dark smoky glass and its shards' ember (`shard`: a material of its own, so the hide layer carries its coverage), and the
+# Matriarch's brood (`egg`): the eggs' glow, hers the only emitter beside her eyes.
+# The stone tokens lean violet (0x8f8ba2): a step toward bone makes them the ash-grey the faction sheet means, so the
+# Shardback's hide reads grey at rest and only its shards turn violet with the Ether hide.
+STONE = dict(color=mix('stone', 'bone', 0.3), fill=0.6)
+STONE_DARK = dict(color=mix('stoneDark', 'bone', 0.2), fill=0.5)
+SMOKE = dict(color=mix('stone', 'moon', 0.35), fill=0.6, rim=0.6)
+GLASS = dict(color=mix('ironDark', 'ink', 0.3), fill=0.5, metal=0.3)
 HOST = {'bone': BONE, 'char': CHAR, 'iron': IRON, 'ironDark': IRON_DARK, 'hole': HOLE, 'ember': EMBER, 'seam': SEAM,
-        'socket': SOCKET}
+        'socket': SOCKET, 'stone': STONE, 'stoneDark': STONE_DARK, 'smoke': SMOKE, 'glass': GLASS,
+        'shard': dict(EMBER, emit=0.6), 'shardDeep': dict(color=mix('ember', 'ink', 0.5), fill=0.5, rim=0.4),
+        'egg': dict(EMBER)}
 
 
 def _glow(core):
@@ -368,15 +380,19 @@ def _on_head(material):
     return lambda c, n, bone: material if bone in MESHY_HEAD else None
 
 
-def _meshy(kind, rebind, clusters, regions=None, thicken=None, clips=None, look=None, hold=(), pin=None, **states):
+def _meshy(kind, rebind, clusters, regions=None, thicken=None, clips=None, look=None, hold=(), pin=None, posed=None,
+           boss=False, flying=False, **states):
     """A Meshy creep's row: `rebind` and `thicken` as gltf.load_meshy takes them, the texture's colours (`clusters`,
     `regions`), extra clip files (`clips`), touches to the look (`look`), bones held at their bind pose in every frame
-    (`hold`, tdt3d.creep), more clips pinned over the feet (`pin`) and the 2D rig's states (`_states`)."""
+    (`hold`, tdt3d.creep), more clips pinned over the feet (`pin`) and the 2D rig's states (`_states`). A model with no
+    skeleton (V-06j) gives `posed` instead (tdt3d.posed: its states are poses of the bind pose, its clips keyed there)."""
     return dict(
-        name=kind, kind=kind, rig='meshy', meshy=f'creeps/{kind}', clips=dict(MESHY_CLIPS, **(clips or {})),
+        name=kind, kind=kind, rig='meshy', meshy=f'creeps/{kind}',
+        clips={} if posed else dict(MESHY_CLIPS, **(clips or {})), posed=posed,
         pin=dict(MESHY_PIN, **(pin or {})), index={'body': BODY, 'weapon': WEAPON}, rebind=rebind, thicken=thicken, hold=tuple(hold),
         paint=dict(clusters=clusters, regions=regions or {}), materials=dict(HOST), props=[],
-        feet_bones=('toes.l', 'toes.r'), boss=False, flying=False, states=_states(**states, n_death=3), res=4,
+        feet_bones=None if posed or flying else ('toes.l', 'toes.r'), boss=boss, flying=flying,
+        states=_states(**dict(dict(n_death=3), **states)), res=BOSS_RES if boss else 4,
         look=dict(MESHY_LOOK, **(look or {})),
     )
 
@@ -578,7 +594,352 @@ BRUTE = _meshy(
     walk='walk', idle=('idle', 0.0), attack=('attack', 0.89, 1.42), hit=('hit', 0.2), death=('death', 0.2, 1.5),
 )
 
-LEGACY = {c['name']: c for c in (LEGACY_GRUNT, LEGACY_RUNNER, LEGACY_ARCHER, LEGACY_BRUTE)}
+# --- the Wisp, the Hatchling and the bosses: the Spire's host, generated in Meshy (V-06j) -----------------------------
+#
+# Han's picks (Wisp b, Hatchling b, Ironhorn a, Matriarch a, Shardback b; docs/art/enemy-style.md), in
+# tools/blender/assets/meshy/creeps/<kind>/ (a README a kind). The Matriarch is rigged by Meshy and plays her own clips,
+# rebound as the ground creeps are. The Wisp and the Hatchling need no skeleton (Han: the Wisp's bob is the rig's, the
+# Hatchling hops in its bind pose with one squash), and Meshy's auto-rig stood the Ironhorn and the Shardback up on their
+# hind legs (tried once each, as the brief asked): these four are posed from their bind pose (`posed`, tdt3d.posed), in
+# glTF metres of model.glb as Meshy made it (x the creature's left, y up, z forward, its middle at 0). Their walks: the
+# Wisp's flame flickers (the rig bobs it over its shadow), the Hatchling hops, the Ironhorn gallops and the Shardback
+# trots, in two frames each.
+
+
+
+def _soft(lo, hi):
+    from tdt3d import posed
+    return posed.soft(lo, hi)
+
+
+def _band(v, lo, hi, edge):
+    """1 inside [lo, hi], falling smoothly to 0 over `edge` outside it."""
+    return np.clip(np.minimum((v - (lo - edge)) / edge, ((hi + edge) - v) / edge), 0, 1)
+
+
+def _ember_glow(glow):
+    """An ember colour: the glow where `glow(c)` (eyes, a core, a crack, the brood), else the unlit ember of a seam."""
+    return lambda c, n, bone: 'ember' if glow(c) else 'seam'
+
+
+# The Wisp (wisp-b): a skull-lantern in its iron band and ring, its flame rising through the ring, a curl of ash-grey
+# smoke for a body. Its walk is the flame's flicker and the smoke's sway (the rig bobs it over its shadow, as before);
+# its attack (a Wisp never strikes, but a Taunt holds it at the Warden) is its flare, the flame flaring up; it dies
+# as its ember goes out, the skull tipping and sinking as the flame dies. The smoke is cut out of its size (as a
+# weapon), so the skull, the ring and the flame are the figure the radius measures.
+_WISP_FLAME = (0.0, 0.46, 0.05)
+_WISP_SMOKE = (0.0, -0.12, -0.12)
+WISP = _meshy(
+    'wisp', rebind=[], flying=True,
+    posed=dict(
+        ground=-0.952, centre=(0.0, 0.0), pivot=(0.1, 0.0),
+        cut=lambda x, y, z: y < -0.37,
+        regions={
+            'flame': dict(weight=lambda x, y, z: (y > 0.38) & (np.abs(x) < 0.3), mats=('ember',), at=_WISP_FLAME,
+                          axis=(0, 0, 1)),
+            'smoke': dict(weight=lambda x, y, z: _soft(-0.05, -0.25)(y), mats=('smoke',), at=_WISP_SMOKE,
+                          axis=(0, 0, 1)),
+        },
+        clips={
+            'rest': dict(name='bind pose', seconds=0.0, keys=[(0.0, {})]),
+            'flicker': dict(name='posed: flicker', seconds=0.64, keys=[
+                (0.0, dict(flame=dict(rot=6, scale=(1.0, 1.0, 1.0)), smoke=-7)),
+                (0.16, dict(flame=dict(rot=0, scale=(0.94, 1.14, 0.94)), smoke=0)),
+                (0.32, dict(flame=dict(rot=-6, scale=(1.0, 1.0, 1.0)), smoke=7)),
+                (0.48, dict(flame=dict(rot=0, scale=(1.04, 0.9, 1.04)), smoke=0))]),
+            'flare': dict(name='posed: flare', seconds=2.0, keys=[
+                (0.0, dict(flame=dict(scale=(1.25, 1.55, 1.25)), pitch=6)),
+                (1.0, dict(flame=dict(scale=(1.45, 1.95, 1.45)), pitch=10)),
+                (2.0, dict(flame=dict(scale=(1.12, 1.25, 1.12)), pitch=3))]),
+            'flinch': dict(name='posed: flinch', seconds=0.0, keys=[
+                (0.0, dict(pitch=14, move=(0, 0, -0.06), flame=dict(rot=0, scale=(1.1, 0.8, 1.1)), smoke=10))]),
+            'die': dict(name='posed: the ember goes out', seconds=3.0, keys=[
+                (0.0, {}),
+                (1.0, dict(flame=dict(scale=0.55), smoke=dict(scale=0.8), pitch=-18, move=(0, -0.12, 0))),
+                (2.0, dict(flame=dict(scale=0.25), smoke=dict(scale=0.5), pitch=-45, roll=18, move=(0, -0.42, 0))),
+                (3.0, dict(flame=dict(scale=0.04), smoke=dict(scale=0.25), pitch=-75, roll=35, move=(0, -0.66, 0)))]),
+        }),
+    clusters={
+        'bone': ('#e2daca', 'bone'),
+        'smoke': ('#a1acb1', 'smoke'),
+        'iron': ('#121313', 'iron'),
+        'ember': ('#fd8f2a', 'ember'),
+        'emberGold': ('#f59132', 'ember'),
+        'emberLight': ('#f1a358', 'ember'),
+        'emberPale': ('#eeb67e', 'ember'),
+        'emberCream': ('#e9c093', 'ember'),
+        'emberDeep': ('#a45c1f', 'ember'),
+        'emberBrown': ('#804b1d', 'ember'),
+        'emberDark': ('#512b0f', 'ember'),
+        'hole': ('#30241b', 'hole'),
+        'holeGrey': ('#51493e', 'hole'),
+        'boneShade': ('#887f72', 'bone'),
+    },
+    walk='flicker', idle=('rest', 0.0), attack=('flare', 0.0, 2.0), hit=('flinch', 0.0), death=('die', 0.0, 3.0),
+    n_walk=4, n_attack=3,
+)
+
+# The Hatchling (hatchling-b): a round skull-shell on eight bone legs, two ember eyes and a lit crack on top. It hops as
+# the pack's Mushnub did, from its bind pose: crouched in a squash, then lifted and set down (the contact shadow stays
+# on the ground under it); it bites with a lunge, and dies flipped onto its back, its legs in the air.
+HATCHLING = _meshy(
+    'hatchling', rebind=[],
+    posed=dict(
+        ground=-0.62, centre=(0.0, 0.0), pivot=(-0.3, 0.0),
+        clips={
+            'rest': dict(name='bind pose', seconds=0.0, keys=[(0.0, {})]),
+            'hop': dict(name='posed: hop', seconds=0.45, keys=[
+                (0.0, dict(squash=0.2)), (0.075, {}), (0.15, dict(move=(0, 0.22, 0))), (0.225, dict(move=(0, 0.34, 0))),
+                (0.3, dict(move=(0, 0.22, 0))), (0.375, {})]),
+            'bite': dict(name='posed: bite', seconds=2.0, keys=[
+                (0.0, dict(pitch=14, move=(0, 0.03, -0.08))),
+                (1.0, dict(pitch=-20, move=(0, 0.0, 0.18))),
+                (2.0, dict(pitch=-7, move=(0, 0.0, 0.06)))]),
+            'flinch': dict(name='posed: flinch', seconds=0.0, keys=[(0.0, dict(pitch=14, move=(0, 0.02, -0.1)))]),
+            'die': dict(name='posed: flipped onto its back', seconds=3.0, keys=[
+                (0.0, {}),
+                (1.0, dict(roll=-70, roll_at=(0.0, 0.0), move=(0, 0.22, 0))),
+                (2.0, dict(roll=-140, roll_at=(0.0, 0.0), move=(0, 0.12, 0))),
+                (3.0, dict(roll=-180, roll_at=(0.0, 0.0), move=(0, -0.02, 0)))]),
+        }),
+    clusters={
+        'bone': ('#abaaa6', 'bone'),
+        'boneShade': ('#9c9a96', 'bone'),
+        'boneStain': ('#6f6863', 'bone'),
+        'char': ('#191a1d', 'char'),
+        'iron': ('#424347', 'iron'),
+        'ember': ('#fa932b', 'ember'),
+        'emberHot': ('#f37419', 'ember'),
+        'emberMid': ('#cf7b3a', 'ember'),
+        'emberDeep': ('#a84913', 'socket'),
+        'emberBrown': ('#6e3113', 'socket'),
+        'emberDark': ('#3e2216', 'socket'),
+        'emberDust': ('#865c42', 'seam'),
+        'emberPale': ('#ba8e6f', 'seam'),
+    },
+    # The glow: its eyes (at the front of the shell) and the crack on its top; the ember in its leg joints is unlit.
+    regions=dict({k: _ember_glow(lambda c: c[1] > 0.25 or (c[2] > 0.3 and abs(c[0]) < 0.32 and -0.25 < c[1] < 0.25))
+                  for k in ('ember', 'emberHot', 'emberMid')},
+                 # Meshy painted its legs' shadow side as dark as its charred band: off the shell they are bone.
+                 char=lambda c, n, bone: 'bone' if math.hypot(c[0], c[2]) > 0.53 or c[1] < -0.47 else None),
+    # Its legs are a few world px thick: the line is thinner than the walkers' (the Archer's), or it eats them to ink.
+    look=dict(outer=0.8 * 4, inner=0.25 * 4),
+    walk='hop', idle=('rest', 0.0), attack=('bite', 0.0, 2.0), hit=('flinch', 0.0), death=('die', 0.0, 3.0),
+    n_walk=6, n_attack=3,
+)
+
+
+def _legs(front, side=None, top=-0.12, low=-0.3):
+    """A quadruped's legs below its body (`front`: the z band the legs stand in), one side (`side` > 0 its left) or
+    both, leaving out what hangs between them (|x| < 0.17: the Ironhorn's core, the Shardback's head)."""
+    z0, z1 = front
+
+    def w(x, y, z):
+        out = _soft(top, low)(y) * _band(z, z0, z1, 0.06) * _soft(0.15, 0.2)(np.abs(x))
+        if side is not None:
+            out = out * (np.sign(x) == side)
+        return out
+    return w
+
+
+# The Ironhorn (ironhorn-a, without its tufts): a horned bulk of bone and iron plates on four legs, its ember core in its
+# chest. Its walk is a two-frame gallop (the legs gathered under it, then reaching out), its attack a gore (the head
+# raised, then driven down and forward), its Stomp a rear-and-slam (up on its hind legs, then down hard: squashed on
+# the landing), and it dies tipping over onto its side.
+_HORN_FRONT, _HORN_HIND = (0.03, 0.5), (-0.68, -0.26)
+IRONHORN = _meshy(
+    'ironhorn', rebind=[], boss=True,
+    posed=dict(
+        ground=-0.6, centre=(0.0, 0.0), pivot=(-0.6, -0.52),
+        regions={
+            'front': dict(weight=_legs(_HORN_FRONT), at=(0.0, -0.1, 0.27)),
+            'hind': dict(weight=_legs(_HORN_HIND), at=(0.0, -0.1, -0.42)),
+            'head': dict(weight=lambda x, y, z: _soft(0.4, 0.56)(z) * (y > -0.45), at=(0.0, 0.0, 0.45)),
+        },
+        clips={
+            'rest': dict(name='bind pose', seconds=0.0, keys=[(0.0, {})]),
+            'gallop': dict(name='posed: gallop', seconds=0.9, keys=[
+                (0.0, dict(front=18, hind=-18, pitch=-3, head=4)),
+                (0.45, dict(front=-22, hind=20, pitch=3, head=-3, move=(0, 0.04, 0)))]),
+            'gore': dict(name='posed: gore', seconds=2.0, keys=[
+                (0.0, dict(head=-16, pitch=3, move=(0, 0, -0.05))),
+                (1.0, dict(head=22, pitch=-4, front=-8, hind=10, move=(0, 0, 0.12))),
+                (2.0, dict(head=8, move=(0, 0, 0.04)))]),
+            'stomp': dict(name='posed: rear and slam', seconds=2.0, keys=[
+                (0.0, dict(pitch=26, front=-28, head=-8)),
+                (1.0, dict(pitch=-9, front=-14, hind=8, squash=0.13, head=20)),
+                (2.0, dict(pitch=-3, front=-5, hind=3, squash=0.05, head=7))]),
+            'flinch': dict(name='posed: flinch', seconds=0.0, keys=[(0.0, dict(pitch=7, head=-12, move=(0, 0, -0.07)))]),
+            'die': dict(name='posed: tipping onto its side', seconds=3.0, keys=[
+                (0.0, {}),
+                (1.0, dict(pitch=-8, front=28, hind=-20, head=14, move=(0, -0.08, 0))),
+                (2.0, dict(roll=-40, roll_at=(0.5, -0.6), front=36, hind=-30, head=18, move=(0, -0.08, 0))),
+                (3.0, dict(roll=-82, roll_at=(0.55, -0.6), front=20, hind=-12, head=22, move=(0, -0.05, 0)))]),
+        }),
+    clusters={
+        'bone': ('#e9e7d9', 'bone'),
+        'boneShade': ('#c8cbc5', 'bone'),
+        'boneGrey': ('#adb2b1', 'bone'),
+        'iron': ('#393d48', 'ironDark'),
+        'ironMid': ('#595b62', 'iron'),
+        'slab': ('#798185', 'iron'),
+        'horn': ('#151113', 'ironDark'),
+        'ember': ('#fda046', 'ember'),
+        'emberHot': ('#f4631f', 'ember'),
+        'emberMid': ('#cd5f23', 'ember'),
+        'emberRed': ('#ad3f0d', 'ember'),
+        'emberDeep': ('#92310b', 'ember'),
+        'emberDark': ('#49180e', 'socket'),
+        'emberDust': ('#b6795b', 'seam'),
+    },
+    # The glow: the core in its chest (between its front legs, under the jaw) and its eye sockets; the ember inside its
+    # ribs is unlit. Its plates and horns are dark iron (the slab on its back the lit iron).
+    regions={k: _ember_glow(lambda c: (c[2] > 0.18 and c[1] < 0.05 and abs(c[0]) < 0.26) or c[2] > 0.62)
+             for k in ('ember', 'emberHot', 'emberMid', 'emberRed', 'emberDeep')},
+    walk='gallop', idle=('rest', 0.0), attack=('gore', 0.0, 2.0), hit=('flinch', 0.0), death=('die', 0.0, 3.0),
+    ability=('stomp', 0.0, 2.0), n_walk=2, n_attack=3,
+)
+
+# The Matriarch (matriarch-a, her brood cage raised into her ribs): rigged by Meshy, her own clips. The auto-rig gave
+# her hips most of her chest, her eggs to her arms and hips, her claws partly to her legs and her back crest to her
+# shoulders, so the cage of ribs and eggs is bound whole to her chest (her upper arms, which run beside it, left out),
+# each claw to its hand (her legs and feet beside them left out), each foot to its foot (its toes stretched it into a
+# blade, as the Brute's) and the crest down her back to her chest. She walks Meshy's walk, stands in its Idle, rakes
+# down with both claws (Heavy_Hammer_Swing from her claws raised over her open chest to the blow) and dies falling
+# back; the Hatch is the swing's open-chest moment, her claws raised wide and the brood bared. Her eggs and her eyes
+# are her only glow; the ember in her joints is unlit.
+_M_ARMS = [(np.array(a), np.array(b)) for a, b in (
+    ((0.142, 1.214, 0.023), (0.280, 0.917, -0.130)), ((0.280, 0.917, -0.130), (0.449, 0.624, -0.083)),
+    ((-0.245, 1.204, -0.007), (-0.366, 0.893, -0.079)), ((-0.366, 0.893, -0.079), (-0.504, 0.638, 0.047)))]
+
+
+_M_LEGS = [(np.array(a), np.array(b)) for a, b in (
+    ((0.089, 0.801, -0.023), (0.159, 0.382, -0.134)), ((0.159, 0.382, -0.134), (0.140, 0.168, -0.433)),
+    ((-0.209, 0.818, -0.023), (-0.304, 0.465, 0.100)), ((-0.304, 0.465, 0.100), (-0.290, 0.123, -0.094)))]
+
+
+def _off_arms(x, y, z, r=0.07, bones=_M_ARMS):
+    """Not on her arms (nor, with `bones=_M_LEGS`, her legs): farther than `r` from each bone's segment."""
+    p = np.stack([x, y, z], -1)
+    near = np.zeros(len(p), bool)
+    for a, b in bones:
+        d, t = _near_segment(p, a, b)
+        near |= (d < r) & (t > -0.1) & (t < 1.1)
+    return ~near
+
+
+MATRIARCH = _meshy(
+    'matriarch', boss=True,
+    rebind=[
+        dict(name='left claws', bone='LeftHand', weapon=False,
+             select=lambda x, y, z: (x > 0.31) & (y > 0.26) & (y < 0.67) & (np.hypot(x - 0.449, z + 0.083) < 0.24)
+             & _off_arms(x, y, z, 0.08, _M_LEGS)),
+        dict(name='right claws', bone='RightHand', weapon=False,
+             select=lambda x, y, z: (x < -0.37) & (y > 0.26) & (y < 0.68) & (np.hypot(x + 0.504, z - 0.047) < 0.24)
+             & _off_arms(x, y, z, 0.08, _M_LEGS)),
+        dict(name='left foot', bone='LeftFoot', weapon=False, select=lambda x, y, z: (x > 0) & (y < 0.2)),
+        dict(name='right foot', bone='RightFoot', weapon=False, select=lambda x, y, z: (x < 0) & (y < 0.2)),
+        dict(name='cage', bone='Spine01', weapon=False,
+             select=lambda x, y, z: (np.abs(x + 0.05) < 0.29) & (y > 0.84) & (y < 1.19) & (np.abs(z) < 0.32)
+             & _off_arms(x, y, z)),
+        dict(name='crest', bone='Spine', weapon=False,
+             select=lambda x, y, z: (z < -0.12) & (y > 1.0) & (np.abs(x + 0.05) < 0.27) & _off_arms(x, y, z)),
+    ],
+    clusters={
+        'bone': ('#a39e99', 'bone'),
+        'boneShade': ('#8d8a86', 'bone'),
+        'boneDeep': ('#7e7a76', 'bone'),
+        'char': ('#1e1c1d', 'char'),
+        'charGrey': ('#514d4a', 'char'),
+        'ember': ('#f1742d', 'egg'),
+        'emberGold': ('#f28645', 'egg'),
+        'emberLight': ('#ed9761', 'egg'),
+        'emberPale': ('#f4c29c', 'egg'),
+        'emberWhite': ('#f7f3e7', 'egg'),
+        'emberMid': ('#b06335', 'egg'),
+        'emberDust': ('#b28668', 'seam'),
+        'emberDeep': ('#784b31', 'socket'),
+        'emberDark': ('#3c2116', 'socket'),
+    },
+    # The brood (the cage in her chest) and her eye sockets glow; the same ember in her joints is unlit.
+    regions={k: (lambda c, n, bone: ('egg' if abs(c[0] + 0.05) < 0.3 and 0.68 < c[1] < 1.2 and abs(c[2]) < 0.3
+                                    else 'ember' if bone in MESHY_HEAD else 'seam'))
+             for k in ('ember', 'emberGold', 'emberLight', 'emberPale', 'emberWhite', 'emberMid')},
+    walk='walk', idle=('idle', 0.0), attack=('attack', 0.9, 1.35), hit=('hit', 0.2), death=('death', 0.2, 1.5),
+    ability=[('attack', 0.7), ('attack', 0.85), ('attack', 0.95)], n_attack=3,
+)
+
+# The Shardback (shardback-b): a tortoise of bone and ash-grey stone, its back a ridge of smoky crystal shards lit ember
+# from inside (Han: ember at rest; the rig lights their `hide` cells violet while the Ether hide is up, as before). Its
+# walk is a two-frame trot (the diagonal legs together, a sway), its attack a bite (the head drawn in, then thrust
+# out), its hide shift its rest frames (it hunkers a little under its shards while the hide changes), and it dies
+# slumping flat, its legs giving way and its head on the ground.
+_SB_FRONT, _SB_HIND = (0.28, 0.74), (-0.34, 0.08)
+SHARDBACK = _meshy(
+    'shardback', rebind=[], boss=True,
+    posed=dict(
+        ground=-0.5, centre=(0.0, 0.05), pivot=(-0.5, -0.1),
+        regions={
+            'frontL': dict(weight=_legs(_SB_FRONT, 1, top=-0.16, low=-0.3), at=(0.0, -0.18, 0.5)),
+            'frontR': dict(weight=_legs(_SB_FRONT, -1, top=-0.16, low=-0.3), at=(0.0, -0.18, 0.5)),
+            'hindL': dict(weight=_legs(_SB_HIND, 1, top=-0.16, low=-0.3), at=(0.0, -0.18, -0.12)),
+            'hindR': dict(weight=_legs(_SB_HIND, -1, top=-0.16, low=-0.3), at=(0.0, -0.18, -0.12)),
+            'legs': dict(weight=lambda x, y, z: _soft(-0.14, -0.3)(y) * _soft(0.15, 0.2)(np.abs(x)),
+                         at=(0.0, -0.5, 0.0)),
+            'body': dict(weight=lambda x, y, z: _soft(-0.33, -0.17)(y), at=(0.0, 0.0, 0.0)),
+            'head': dict(weight=lambda x, y, z: _soft(0.5, 0.62)(z) * (np.abs(x) < 0.3) * (y > -0.32),
+                         at=(0.0, -0.05, 0.56)),
+        },
+        clips={
+            'rest': dict(name='bind pose', seconds=0.0, keys=[(0.0, {})]),
+            'trot': dict(name='posed: trot', seconds=1.0, keys=[
+                (0.0, dict(frontL=-16, hindR=-16, frontR=14, hindL=14, roll=2.5, head=2)),
+                (0.5, dict(frontL=14, hindR=14, frontR=-16, hindL=-16, roll=-2.5, head=-2))]),
+            'bite': dict(name='posed: bite', seconds=2.0, keys=[
+                (0.0, dict(head=dict(rot=-12, move=(0, 0, -0.06)), pitch=3)),
+                (1.0, dict(head=dict(rot=14, move=(0, 0, 0.1)), pitch=-3, move=(0, 0, 0.05))),
+                (2.0, dict(head=dict(rot=5, move=(0, 0, 0.03))))]),
+            'hunker': dict(name='posed: hunker (the hide shift)', seconds=2.0, keys=[
+                (0.0, dict(body=dict(move=(0, -0.025, 0)), legs=dict(scale=(1.04, 0.88, 1.0)), head=dict(move=(0, 0, -0.03)))),
+                (1.0, dict(body=dict(move=(0, -0.045, 0)), legs=dict(scale=(1.06, 0.8, 1.0)), head=dict(move=(0, 0, -0.06)))),
+                (2.0, dict(body=dict(move=(0, -0.015, 0)), legs=dict(scale=(1.02, 0.93, 1.0))))]),
+            'flinch': dict(name='posed: flinch', seconds=0.0, keys=[(0.0, dict(pitch=5, head=-10, move=(0, 0, -0.05)))]),
+            'die': dict(name='posed: slumping flat', seconds=3.0, keys=[
+                (0.0, {}),
+                (1.0, dict(body=dict(move=(0, -0.06, 0)), legs=dict(scale=(1.08, 0.75, 1.04)), head=10)),
+                (2.0, dict(body=dict(move=(0, -0.12, 0)), legs=dict(scale=(1.14, 0.5, 1.08)), head=24, roll=-4)),
+                (3.0, dict(body=dict(move=(0, -0.16, 0)), legs=dict(scale=(1.18, 0.35, 1.1)), head=34, roll=-6))]),
+        }),
+    clusters={
+        'stone': ('#9d9e9d', 'stone'),
+        'stoneMid': ('#7c7c7c', 'stone'),
+        'stoneDark': ('#606163', 'stoneDark'),
+        'stoneDeep': ('#3b3b3a', 'stoneDark'),
+        'bone': ('#cdc5b9', 'bone'),
+        'glass': ('#211510', 'glass'),
+        'glassBrown': ('#371d13', 'glass'),
+        'glassGrey': ('#2e2622', 'glass'),
+        'glassRed': ('#542715', 'glass'),
+        'ember': ('#ee6025', 'shard'),
+        'emberMid': ('#c55120', 'shard'),
+        'emberRed': ('#9b431c', 'shardDeep'),
+        'emberDeep': ('#763518', 'shardDeep'),
+        'emberDust': ('#a26f56', 'shardDeep'),
+    },
+    # Ember on its head is its eyes (glowing, not a shard: the hide layer is the shards' alone), and the dark red round
+    # them its sockets.
+    regions=dict({k: (lambda c, n, bone: 'ember' if c[2] > 0.6 and c[1] < 0.15 else None)
+                  for k in ('ember', 'emberMid', 'emberRed', 'emberDeep', 'emberDust')},
+                 **{k: (lambda c, n, bone: 'socket' if c[2] > 0.6 and c[1] < 0.15 else None)
+                    for k in ('glass', 'glassBrown', 'glassGrey', 'glassRed')}),
+    walk='trot', idle=('rest', 0.0), attack=('bite', 0.0, 2.0), hit=('flinch', 0.0), death=('die', 0.0, 3.0),
+    ability=('hunker', 0.0, 2.0), n_walk=2, n_attack=3,
+)
+SHARDBACK['hide'] = ('glass', 'shard', 'shardDeep')  # the shards' materials: the `hide` layer carries their coverage
+
+
+LEGACY = {c['name']: c for c in (LEGACY_GRUNT, LEGACY_RUNNER, LEGACY_ARCHER, LEGACY_BRUTE, LEGACY_WISP, LEGACY_HATCHLING,
+                                 LEGACY_IRONHORN, LEGACY_MATRIARCH, LEGACY_SHARDBACK)}
 CREEPS = {c['name']: c for c in (GRUNT, RUNNER, ARCHER, BRUTE, WISP, HATCHLING, IRONHORN, MATRIARCH, SHARDBACK)}
 for _c in (*CREEPS.values(), *LEGACY.values()):
     _c['radius'] = RADIUS[_c['kind']]
