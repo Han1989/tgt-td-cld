@@ -5,12 +5,14 @@
 
 import {
   HERO_ULTIMATE,
+  heroReinforceTotals,
   isBossKind,
   laneName,
   TARGET_PRIORITIES,
   TOWER_KINDS,
   type BossKind,
   type GameEvent,
+  type GameMode,
   type HeroKind,
   type HeroSnap,
   type LobbyState,
@@ -29,7 +31,7 @@ import { getMap, repairCost, TILE_PX, tuningForMode, TUNING, waveGroups } from '
 import { currentAnalytics } from '../analytics/install';
 import { analyticsOn } from '../analytics/preference';
 import { DailyEndCard, type DailyRunInfo } from '../daily/endCard';
-import { endlessEndCopy, recordEndlessRun, type EndlessRun } from '../endless/best';
+import { endlessEndCopy, endlessRunLine, recordEndlessRun, type EndlessRun } from '../endless/best';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
@@ -68,11 +70,13 @@ import {
   maxTier,
   PRIORITY_HINTS,
   PRIORITY_NAMES,
+  reinforceOffer,
   targetsText,
   towerName,
   towerStatRows,
   upgradeCost,
 } from './towerInfo';
+import { levelBadge, levelUpToast, xpFill } from './heroLevel';
 
 /** The Heart stat warns (red pulse) at or under this share of HP; matches the world's warning glow. */
 const HEART_LOW = 0.3;
@@ -149,6 +153,8 @@ export interface HudActions {
   upgrade(towerId: number, branch?: TowerBranch): void;
   /** Your damaged tower back to full HP, for gold (hotkey F). */
   repair(towerId: number): void;
+  /** Endless: your branched tower's next Reinforce rank, for gold (hotkey U). */
+  reinforce(towerId: number): void;
   setPriority(towerId: number, priority: TargetPriority): void;
   callEarly(): void;
   /** Online only: give some of your gold to a teammate. */
@@ -472,10 +478,14 @@ export class Hud {
       this.endKills.set(player?.kills ?? 0);
       const heartLeft = won ? this.endHeart.step(dt) : snap.heartHp;
       const kills = `Kills: ${won ? this.endKills.step(dt) : (player?.kills ?? 0)}.`;
+      // Endless: how far the run grew, the hero's level past 10 and the Reinforce ranks (from the report once it is in).
+      const mine = this.report?.report.heroes.find((h) => h.player === me);
+      const ranks = mine ? heroReinforceTotals(mine).reinforces : null;
+      const grew = fell && hero ? ` ${endlessRunLine(hero.level, ranks)}` : '';
       const summary = won
         ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${heartLeft} HP left. ${kills}`
         : fell
-          ? `${fell.line ? `${fell.line} ` : ''}${kills}`
+          ? `${fell.line ? `${fell.line} ` : ''}${kills}${grew}`
           : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. ${kills}`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
       this.renderGifts(this.report?.report ?? null);
@@ -678,7 +688,7 @@ export class Hud {
         this.toast('Your hero has fallen');
       } else if (e.type === 'levelUp') {
         const hero = snap.heroes.find((h) => h.id === e.heroId && h.owner === me);
-        if (hero) this.levelUp(hero, e.level);
+        if (hero) this.levelUp(hero, e.level, snap.mode);
       } else if (e.type === 'kill' && TUNING.creeps[e.kind].boss) {
         // Everyone sees a boss fall, whoever landed the blow.
         this.showBanner(`${CREEP_NAMES[e.kind]} falls`, '', 'fell');
@@ -686,11 +696,12 @@ export class Hud {
     }
   }
 
-  /** Level-up feedback: a toast, a glow on the hero panel, and a note when the ultimate unlocks. */
-  private levelUp(hero: HeroSnap, level: number): void {
-    const ult = HERO_INFO[hero.kind].skills.R.name;
-    const unlocks = TUNING.hero.ultimateLevels[0] === level;
-    this.toast(unlocks ? `Level ${level}! ${ult} (R) unlocked` : `Level ${level}! Skill point ready`);
+  /**
+   * Level-up feedback: a toast, a glow on the hero panel, and a note when the ultimate unlocks. Endless's veteran levels
+   * (past 10, no skill point) get the same pop, glow and ring, and a toast that says what they add.
+   */
+  private levelUp(hero: HeroSnap, level: number, mode: GameMode): void {
+    this.toast(levelUpToast(level, tuningForMode(TUNING, mode), HERO_INFO[hero.kind].skills.R.name));
     for (const el of [this.heroPanel, this.topLevel]) {
       el.classList.remove('leveled');
       void el.offsetWidth;
@@ -1034,9 +1045,8 @@ export class Hud {
     if (this.skillKind !== hero.kind) this.buildSkillButtons(hero.kind);
     setText(this.heroName, info.name);
     setText(this.heroRole, info.role);
-    setText(this.heroLevel, `Lv ${hero.level}${hero.level >= hero.maxLevel ? ' (max)' : ''}`);
-    const span = hero.xpNextLevel - hero.xpLevelStart;
-    setWidth(this.xpFill, span > 0 ? (hero.xp - hero.xpLevelStart) / span : 1);
+    setText(this.heroLevel, levelBadge(hero));
+    setWidth(this.xpFill, xpFill(hero));
     setWidth(this.hpFill, hero.hp / hero.maxHp);
     setText(this.hpText, `${hero.hp} / ${hero.maxHp}`);
     setWidth(this.manaFill, hero.mana / Math.max(1, hero.maxMana));
@@ -1044,7 +1054,7 @@ export class Hud {
     this.skillPoints.classList.toggle('hidden', hero.skillPoints === 0);
     setText(this.skillPoints, `+${hero.skillPoints} skill point${hero.skillPoints === 1 ? '' : 's'}`);
     setText(this.topLevelText, `Lv ${hero.level}`);
-    setWidth(this.topXp, hero.level >= hero.maxLevel || span <= 0 ? 1 : (hero.xp - hero.xpLevelStart) / span);
+    setWidth(this.topXp, xpFill(hero));
     this.topPoints.classList.toggle('hidden', hero.skillPoints === 0);
     setText(this.topPoints, `+${hero.skillPoints}`);
 
@@ -1198,14 +1208,16 @@ export class Hud {
       const mine = tower.owner === me;
       const refund = Math.floor(tower.spent * TUNING.economy.sellRefund);
       const nextCost = upgradeCost(tower.kind, tower.tier);
-      const affordable = [nextCost ?? Infinity, ...branchChoices(tower.kind, tower.tier, tower.branch).map((c) => c.cost)]
-        .map((c) => gold >= c)
-        .join();
-      const repair = mine ? repairCost(tuningForMode(TUNING, snap.mode), tower) : 0;
-      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}:${repair > 0}`;
+      const tuning = tuningForMode(TUNING, snap.mode);
+      // Endless: a branched tower's next Reinforce rank (0: none, Full and Quick).
+      const reinforce = mine ? (reinforceOffer(tuning, tower)?.cost ?? 0) : 0;
+      const branchCosts = branchChoices(tower.kind, tower.tier, tower.branch).map((c) => c.cost);
+      const affordable = [nextCost ?? Infinity, reinforce || Infinity, ...branchCosts].map((c) => gold >= c).join();
+      const repair = mine ? repairCost(tuning, tower) : 0;
+      const key = `tower:${tower.id}:${tower.tier}:${tower.branch}:${tower.reinforced}:${tower.priority}:${mine}:${affordable}:${this.airNow ? 1 : 0}:${repair > 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
-        this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold);
+        this.renderTowerPanel(snap, tower, mine, refund, nextCost, gold, reinforce);
       }
       // HP changes often; update it (and the repair price that follows it) in place so the buttons aren't rebuilt
       // under the pointer.
@@ -1231,11 +1243,13 @@ export class Hud {
     refund: number,
     nextCost: number | null,
     gold: number,
+    /** The next Reinforce rank's price (Endless, your branched tower), else 0. */
+    reinforce: number,
   ): void {
     const panel = this.towerPanel;
     const owner = snap.players.find((p) => p.id === tower.owner)?.name ?? '?';
     const showNext = mine && nextCost !== null;
-    const statRows = towerStatRows(tower.kind, tower.tier, undefined, tower.branch)
+    const statRows = towerStatRows(tower.kind, tower.tier, undefined, tower.branch, tower.reinforced)
       .map((r) => {
         const next = showNext && r.next ? ` <span class="next">→ ${r.next}</span>` : '';
         return `<div class="row"><span>${r.label}</span><span>${r.value}${next}</span></div>`;
@@ -1285,6 +1299,16 @@ export class Hud {
         row.appendChild(b);
       }
       panel.append(label, row);
+    } else if (reinforce > 0) {
+      // Endless: past the branch, Reinforce ranks one after another. The panel stays open for the next.
+      const up = document.createElement('button');
+      up.className = 'btn';
+      up.dataset.action = 'reinforce';
+      up.disabled = gold < reinforce;
+      up.title = `Hotkey: U. +${Math.round(TUNING.reinforce.perRank * 100)}% damage and HP`;
+      up.innerHTML = `Reinforce +${tower.reinforced + 1} <span class="cost">${reinforce}</span>`;
+      up.addEventListener('click', () => this.actions.reinforce(tower.id));
+      panel.appendChild(up);
     } else {
       panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
     }

@@ -17,6 +17,7 @@ import {
 import {
   createMatch,
   dailyConfig,
+  heroLevelXp,
   matchCommand,
   matchOver,
   matchReplay,
@@ -109,6 +110,19 @@ export class SimHost {
   /** Browser tests only (the worker's e2e `damageTowers` control): every tower drops to 30% of its HP. */
   debugDamageTowers(): void {
     for (const t of this.state.towers) t.hp = Math.floor(t.maxHp * 0.3);
+  }
+
+  /**
+   * Browser tests only (the worker's e2e `level` control): the hero is at `level` (past 10 only in Endless, where veteran
+   * levels exist), one XP short of the next, so the next kill near it levels it up as a match would.
+   */
+  debugLevel(level: number): void {
+    const t = this.state.tuning;
+    if (!Number.isSafeInteger(level) || level < 1 || (level > t.hero.maxLevel && !t.hero.veteran.on)) return;
+    for (const hero of this.state.heroes) {
+      hero.level = level;
+      hero.xp = Math.max(heroLevelXp(t, level), heroLevelXp(t, level + 1) - 1);
+    }
   }
 
   /** Browser tests only (the worker's e2e `skipTo` control): wave `wave` starts on the next tick (Endless past 30). */

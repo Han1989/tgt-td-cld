@@ -2,7 +2,7 @@
 // of static tuning data (no DOM), so they are unit-tested.
 
 import { TARGET_PRIORITIES, TOWER_BRANCHES, type TargetPriority, type TowerBranch, type TowerKind } from '@tdt/protocol';
-import { towerStats, towerTier, TUNING, type TowerLevelStats, type Tuning } from '@tdt/sim';
+import { reinforceCost, reinforceMultiplier, towerStats, towerTier, TUNING, type TowerLevelStats, type Tuning } from '@tdt/sim';
 
 export const PRIORITY_NAMES: Record<TargetPriority, string> = {
   first: 'First',
@@ -65,9 +65,10 @@ export function targetsText(kind: TowerKind, tuning: Tuning = TUNING, branch: To
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning): StatRow[] {
+function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning, rank = 0): StatRow[] {
   const out: StatRow[] = [
-    { label: 'Damage', value: `${t.damage} ${tuning.towers[kind].damageType}` },
+    // Whole damage: a Reinforce rank (Endless) makes it fractional; plain tiers and branches are whole already.
+    { label: 'Damage', value: `${Math.round(t.damage)} ${tuning.towers[kind].damageType}` },
     { label: 'Attacks/s', value: round(1 / t.attackCooldown) },
     { label: 'Range', value: round(t.range, 1) },
   ];
@@ -83,21 +84,68 @@ function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning): StatRow[] {
   if (t.chains > 0) out.push({ label: 'Chains', value: `${t.chains} jumps, ${pct(t.chainFalloff)} each` });
   if (t.ignoreResist) out.push({ label: 'Pierce', value: 'Ignores armour and resist' });
   if (t.hpPercent > 0) out.push({ label: '% HP', value: `+${pct(t.hpPercent)} of max HP` });
+  if (rank > 0) out.push({ label: 'Reinforced', value: reinforcedValue(rank, tuning) });
   out.push({ label: 'Max HP', value: String(t.hp) });
   return out;
 }
 
+/** What `rank` Reinforce ranks add to damage and max HP, as a whole percent: 3 ranks of 12% → 41. */
+export function reinforcePercent(rank: number, tuning: Tuning = TUNING): number {
+  return Math.round((reinforceMultiplier(tuning, rank) - 1) * 100);
+}
+
+/** "×3: +41% damage and HP" (the stat row's value). */
+function reinforcedValue(rank: number, tuning: Tuning): string {
+  return `×${rank}: +${reinforcePercent(rank, tuning)}% damage and HP`;
+}
+
+/** A reinforced tower's line (Endless): "Reinforced ×3: +41% damage and HP". Empty at rank 0. */
+export function reinforcedText(rank: number, tuning: Tuning = TUNING): string {
+  return rank > 0 ? `Reinforced ${reinforcedValue(rank, tuning)}` : '';
+}
+
+/**
+ * The next Reinforce rank a tower can buy, and its price: only a branched tower in Endless (`tuning` is the match's,
+ * `tuningForMode(TUNING, snap.mode)`). Null in Full and Quick and before the branch, where the ring and the panel show
+ * no Reinforce button.
+ */
+export function reinforceOffer(
+  tuning: Tuning,
+  tower: { kind: TowerKind; branch: TowerBranch | null; reinforced: number },
+): { rank: number; cost: number } | null {
+  const cost = reinforceCost(tuning, tower);
+  return cost > 0 ? { rank: tower.reinforced + 1, cost } : null;
+}
+
+/**
+ * The tower ring's chip on a branched tower in Endless: the branch and what it does, then what the next Reinforce rank
+ * adds, e.g. "Sniper ×2 (+25%): Long range, big crits, slow · Reinforce: +12% damage and HP".
+ */
+export function reinforceChip(
+  kind: TowerKind,
+  branch: TowerBranch,
+  rank: number,
+  names: Record<TowerKind, string>,
+  tuning: Tuning = TUNING,
+): string {
+  const name = towerName(kind, branch, names);
+  const has = rank > 0 ? ` ×${rank} (+${reinforcePercent(rank, tuning)}%)` : '';
+  return `${name}${has}: ${BRANCH_BLURBS[branch]} · Reinforce: +${pct(tuning.reinforce.perRank)} damage and HP`;
+}
+
 /**
  * Stat rows for `kind` at `tier` (or with `branch`), with next-tier values where a plain upgrade changes them.
- * Branches are picked from two options (`branchChoices`), so the last plain tier shows no next values.
+ * Branches are picked from two options (`branchChoices`), so the last plain tier shows no next values. A branched
+ * tower's Reinforce ranks (Endless, `rank`) are in its damage and max HP, and on a row of their own.
  */
 export function towerStatRows(
   kind: TowerKind,
   tier: number,
   tuning: Tuning = TUNING,
   branch: TowerBranch | null = null,
+  rank = 0,
 ): StatRow[] {
-  const current = rows(kind, towerStats(tuning, kind, tier, branch), tuning);
+  const current = rows(kind, towerStats(tuning, kind, tier, branch, rank), tuning, rank);
   if (branch || tier >= plainTiers(kind, tuning)) return current;
   const next = rows(kind, towerStats(tuning, kind, tier + 1, null), tuning);
   return current.map((r) => {

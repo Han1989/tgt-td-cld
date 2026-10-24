@@ -3,7 +3,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { isBossWave } from '../src/audio/gameAudio';
-import { bestLine, endlessEndCopy, parseBests, withRun } from '../src/endless/best';
+import { tuningForMode, TUNING } from '@tdt/sim';
+import { bestLine, endlessEndCopy, endlessRunLine, parseBests, withRun } from '../src/endless/best';
+import { atTopLevel, levelBadge, levelUpToast, xpFill } from '../src/hud/heroLevel';
 import { modeSub } from '../src/lobby/modePicker';
 import { waveListsFlyers } from '../src/teach/cues';
 
@@ -47,6 +49,37 @@ describe('the best Endless wave', () => {
     });
     expect(endlessEndCopy(withRun({ ranger: 41 }, 'ranger', 37).run)).toEqual({ title: 'Fallen on wave 37', line: 'Best: wave 41.' });
     expect(endlessEndCopy(withRun({}, 'ranger', 0).run)).toEqual({ title: 'Fallen on wave 0', line: '' });
+  });
+
+  it('says how far the run grew: the level past 10 and the Reinforce ranks, once the report is in', () => {
+    expect(endlessRunLine(14, 9)).toBe('Level 14 · 9 Reinforce ranks.');
+    expect(endlessRunLine(11, 1)).toBe('Level 11 · 1 Reinforce rank.');
+    expect(endlessRunLine(14, null)).toBe('Level 14.');
+  });
+});
+
+describe('veteran levels on the HUD (Endless)', () => {
+  const at = (level: number, xp: number, start: number, next: number) => ({ level, maxLevel: 10, xp, xpLevelStart: start, xpNextLevel: next });
+
+  it('the badge and the XP bar go on past 10; at the cap elsewhere they read max and full', () => {
+    // Full / Quick at the cap: no XP left to gain.
+    expect(atTopLevel(at(10, 8100, 8100, 8100))).toBe(true);
+    expect(levelBadge(at(10, 8100, 8100, 8100))).toBe('Lv 10 (max)');
+    expect(xpFill(at(10, 8100, 8100, 8100))).toBe(1);
+    // Endless at level 10: the bar fills toward 11. At 14 the badge has no "(max)".
+    expect(levelBadge(at(10, 9000, 8100, 9975))).toBe('Lv 10');
+    expect(xpFill(at(10, 9000, 8100, 9975))).toBeCloseTo(900 / 1875);
+    expect(levelBadge(at(14, 20_000, 19_000, 23_000))).toBe('Lv 14');
+    expect(atTopLevel(at(14, 20_000, 19_000, 23_000))).toBe(false);
+    expect(levelBadge(at(7, 4100, 4050, 5250))).toBe('Lv 7');
+  });
+
+  it('a veteran level up says what it adds; up to 10 a skill point or R as before', () => {
+    const endless = tuningForMode(TUNING, 'endless');
+    expect(levelUpToast(11, endless, 'Meteor')).toBe('Level 11! Veteran: +6% damage and HP');
+    expect(levelUpToast(23, endless, 'Meteor')).toBe('Level 23! Veteran: +6% damage and HP');
+    expect(levelUpToast(6, endless, 'Meteor')).toBe('Level 6! Meteor (R) unlocked');
+    expect(levelUpToast(10, TUNING, 'Meteor')).toBe('Level 10! Skill point ready');
   });
 });
 

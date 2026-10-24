@@ -4014,6 +4014,16 @@ body.layout-wide #emote-feed {
   font-size: 10px;
 }
 
+/* Endless: Reinforce +N on a branched tower (icon, cap, rank, price on one 60 px medallion). */
+.radial-btn.reinforce > .ico {
+  width: 18px;
+  height: 18px;
+}
+
+.radial-btn.reinforce .name {
+  font-size: 11px;
+}
+
 .radial-btn .cost {
   color: var(--gold);
 }

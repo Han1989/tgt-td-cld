@@ -35,6 +35,8 @@ import {
   buildCost,
   buildPreviewChip,
   nextPriority,
+  reinforceChip,
+  reinforceOffer,
   towerName,
   upgradeChip,
   upgradeCost,
@@ -891,7 +893,10 @@ export class TouchControls {
     this.menu = { type: 'build', padId };
   }
 
-  /** Radial ring around your tower: Upgrade, Priority, Sell (hold), and Repair while it is damaged. */
+  /**
+   * Radial ring around your tower: Upgrade (in Endless, on a branched tower: Reinforce +N), Priority, Sell (hold), and
+   * Repair while it is damaged.
+   */
   openTower(towerId: number): void {
     this.closeMenus();
     this.ui.selectedTowerId = towerId;
@@ -947,15 +952,18 @@ export class TouchControls {
       const tower = snap.towers.find((t) => t.id === m.towerId);
       if (!tower || tower.owner !== this.actions.me() || this.ui.selectedTowerId !== m.towerId) return this.actions.clearSelection();
       anchor = tower;
-      const repair = repairCost(tuningForMode(TUNING, snap.mode), tower);
+      const tuning = tuningForMode(TUNING, snap.mode);
+      const repair = repairCost(tuning, tower);
       extent = repair > 0 ? REPAIR_SPOT.y + TOWER_BTN / 2 : TOWER_RING_R + TOWER_BTN / 2;
       const next = upgradeCost(tower.kind, tower.tier);
       const choices = branchChoices(tower.kind, tower.tier, tower.branch);
-      const affordable = [next ?? Infinity, ...choices.map((c) => c.cost)].map((c) => gold >= c).join();
-      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.priority}:${affordable}:${repair > 0}`;
+      // Endless: a branched tower's next Reinforce rank (0: none, Full and Quick).
+      const reinforce = reinforceOffer(tuning, tower)?.cost ?? 0;
+      const affordable = [next ?? Infinity, reinforce || Infinity, ...choices.map((c) => c.cost)].map((c) => gold >= c).join();
+      const key = `t:${tower.id}:${tower.tier}:${tower.branch}:${tower.reinforced}:${tower.priority}:${affordable}:${repair > 0}`;
       if (key !== this.menuKey) {
         this.menuKey = key;
-        this.renderTowerRing(tower, gold);
+        this.renderTowerRing(tower, gold, reinforce);
       }
       // The price follows the HP; update it in place so the button isn't rebuilt under the finger.
       if (this.repairBtn) {
@@ -965,6 +973,7 @@ export class TouchControls {
         this.repairBtn.setAttribute('aria-label', `Repair ${TOWER_NAMES[tower.kind]} for ${repair} gold`);
       }
       if (choices.length > 0) chip = branchOfferChip(choices);
+      else if (tower.branch && reinforce > 0) chip = reinforceChip(tower.kind, tower.branch, tower.reinforced, TOWER_NAMES, tuning);
       else if (tower.branch) chip = `${towerName(tower.kind, tower.branch, TOWER_NAMES)}: ${BRANCH_BLURBS[tower.branch]}`;
       else
         chip = `${TOWER_NAMES[tower.kind]} T${tower.tier}: ${upgradeChip(tower.kind, tower.tier, TUNING, 2) || 'max tier'}`;
@@ -1055,7 +1064,8 @@ export class TouchControls {
     this.actions.clearSelection();
   }
 
-  private renderTowerRing(tower: TowerSnap, gold: number): void {
+  /** `reinforce`: the price of the tower's next Reinforce rank (Endless, a branched tower), else 0. */
+  private renderTowerRing(tower: TowerSnap, gold: number, reinforce: number): void {
     this.radial.innerHTML = '';
     this.radial.dataset.menu = 'tower';
     const [up, prio, sell] = [
@@ -1076,6 +1086,16 @@ export class TouchControls {
         b.classList.toggle('poor', gold < c.cost);
         this.onRadialTap(b, () => this.pickBranch(tower.id, c.branch, c.cost, b));
       });
+    } else if (reinforce > 0) {
+      // Endless: past the branch the tower buys rank after rank, one tap each; the ring stays open for the next.
+      const rank = tower.reinforced + 1;
+      const face = `${ico('upgrade')}<span class="cap">Reinforce</span><span class="name">+${rank}</span><span class="cost">${reinforce}</span>`;
+      const b = this.ringButton(up!, TOWER_BTN, face);
+      b.classList.add('reinforce');
+      b.dataset.action = 'reinforce';
+      b.classList.toggle('poor', gold < reinforce);
+      b.setAttribute('aria-label', `Reinforce ${towerName(tower.kind, tower.branch, TOWER_NAMES)} to rank ${rank} for ${reinforce} gold`);
+      this.onRadialTap(b, () => this.pickReinforce(tower.id, b));
     } else {
       const upgrade = this.ringButton(
         up!,
@@ -1148,6 +1168,22 @@ export class TouchControls {
       return;
     }
     this.actions.send({ type: 'repair', towerId });
+  }
+
+  /** One tap buys the next Reinforce rank (Endless). Not enough gold shakes the button and says so; nothing is spent. */
+  private pickReinforce(towerId: number, button: HTMLElement): void {
+    const snap = this.actions.latest();
+    const tower = snap?.towers.find((t) => t.id === towerId);
+    if (!snap || !tower) return;
+    const offer = reinforceOffer(tuningForMode(TUNING, snap.mode), tower);
+    if (!offer) return;
+    const gold = snap.players.find((p) => p.id === this.actions.me())?.gold ?? 0;
+    if (gold < offer.cost) {
+      this.shake(button);
+      this.actions.toast('Not enough gold');
+      return;
+    }
+    this.actions.send({ type: 'reinforce', towerId });
   }
 
   /** One tap buys the specialisation. The chip already says what each one does. The choice is final. */
