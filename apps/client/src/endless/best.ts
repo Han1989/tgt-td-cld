@@ -57,6 +57,15 @@ export function endlessEndCopy(run: EndlessRun): { title: string; line: string }
   return { title, line: run.previous === null ? 'New best!' : `New best! Your best was wave ${run.previous}.` };
 }
 
+/**
+ * The end screen's line on how far the run grew (Endless): the hero's level, which goes past 10, and the Reinforce ranks
+ * bought, once the host's report is in (null before it): "Level 14 · 9 Reinforce ranks."
+ */
+export function endlessRunLine(level: number, reinforces: number | null): string {
+  if (reinforces === null) return `Level ${level}.`;
+  return `Level ${level} · ${reinforces} Reinforce rank${reinforces === 1 ? '' : 's'}.`;
+}
+
 function readBests(): EndlessBests {
   try {
     return parseBests(localStorage.getItem(ENDLESS_BEST_KEY));

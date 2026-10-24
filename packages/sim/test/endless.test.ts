@@ -43,11 +43,19 @@ describe('Endless', () => {
     expect(ENDLESS.economy).toEqual(FULL.economy);
     expect(ENDLESS.playerScaling).toEqual(FULL.playerScaling);
     expect(ENDLESS.coop.bossShield.waves).toEqual([]);
-    expect({ ...ENDLESS, endless: FULL.endless }).toEqual(FULL);
+    // Past the loop, only veteran levels and Reinforce differ (Han's match of 24 Oct 2026), both on.
+    const levers = { reinforce: FULL.reinforce, hero: { ...ENDLESS.hero, veteran: FULL.hero.veteran } };
+    expect({ ...ENDLESS, endless: FULL.endless, ...levers }).toEqual(FULL);
     expect(E.on).toBe(true);
-    // The other modes keep their list and their difficulty: only Endless sets one.
+    expect(ENDLESS.hero.veteran).toEqual({ ...FULL.hero.veteran, on: true });
+    expect(ENDLESS.reinforce).toEqual({ ...FULL.reinforce, on: true });
+    // The other modes keep their list and their difficulty: only Endless sets one. Neither levels past 10 or reinforces.
     expect(FULL.endless.on).toBe(false);
     expect(tuningForMode(TUNING, 'quick').endless.on).toBe(false);
+    for (const t of [FULL, tuningForMode(TUNING, 'quick')]) {
+      expect(t.hero.veteran.on).toBe(false);
+      expect(t.reinforce.on).toBe(false);
+    }
     expect(lastWave(FULL)).toBe(30);
     expect(lastWave(tuningForMode(TUNING, 'quick'))).toBe(15);
     expect(game('full').difficulty).toBe('normal');
@@ -81,20 +89,23 @@ describe('Endless', () => {
   it('the multipliers grow once per full cycle: HP for every creep, counts for all but bosses', () => {
     for (const [wave, cycle] of [[31, 1], [40, 1], [41, 2], [55, 3]] as const) {
       const loop = endlessWave(ENDLESS, wave)!;
-      expect(loop.hp).toBeCloseTo(E.hpGrowthPerCycle ** cycle, 10);
+      // The step into the loop, then the climb: cycle 1 × hpFirstCycle, each cycle after × hpGrowthPerCycle.
+      expect(loop.hp).toBeCloseTo(E.hpFirstCycle * E.hpGrowthPerCycle ** (cycle - 1), 10);
       expect(loop.count).toBeCloseTo(E.countGrowthPerCycle ** cycle, 10);
     }
     const state = game('endless');
-    const fullHard = game('full', 'hard');
-    // Endless is Hard Full up to wave 30.
+    const fullNormal = game('full', 'normal');
+    // Up to wave 30 Endless is Full's waves on its own Hard band (round 6: ×1.07 for regular creeps, bosses as listed).
+    const band = ENDLESS.modes.endless.hard!.byPlayers![0]!;
+    expect(band).toMatchObject({ hp: 1.07, count: 1, bossHp: 1 });
     for (const wave of [1, 10, 21, 30]) {
-      expect(creepMaxHp(state, 'grunt', wave)).toBe(creepMaxHp(fullHard, 'grunt', wave));
-      expect(creepMaxHp(state, 'shardback', wave)).toBe(creepMaxHp(fullHard, 'shardback', wave));
+      expect(creepMaxHp(state, 'grunt', wave) / creepMaxHp(fullNormal, 'grunt', wave)).toBeCloseTo(band.hp, 2);
+      expect(creepMaxHp(state, 'shardback', wave)).toBe(creepMaxHp(fullNormal, 'shardback', wave));
     }
     // Wave 31 is wave 21's creeps at wave 21's growth (the team and Hard multipliers stay at the final wave's), × a cycle.
     const growth = (w: number) => 1 + TUNING.waves.hpGrowthPerWave * (w - 1);
     expect(creepMaxHp(state, 'grunt', 31) / creepMaxHp(state, 'grunt', 30)).toBeCloseTo(
-      (growth(21) / growth(30)) * E.hpGrowthPerCycle,
+      (growth(21) / growth(30)) * E.hpFirstCycle,
       2,
     );
     expect(creepMaxHp(state, 'brute', 41) / creepMaxHp(state, 'brute', 31)).toBeCloseTo(E.hpGrowthPerCycle, 2);

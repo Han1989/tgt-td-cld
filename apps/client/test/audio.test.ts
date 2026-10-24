@@ -663,6 +663,7 @@ describe('game audio', () => {
       { type: 'towerUpgraded', towerId: snap.towers[0]!.id, owner: 'me', tier: 4, branch: 'sniper' },
       { type: 'towerSold', towerId: snap.towers[1]!.id, owner: 'mate', refund: 10 },
       { type: 'towerRepaired', towerId: snap.towers[0]!.id, owner: 'me', cost: 12, hp: 300 },
+      { type: 'towerReinforced', towerId: snap.towers[0]!.id, owner: 'me', rank: 1, cost: 275 },
       { type: 'gameOver', result: 'victory' },
     ];
     audio.events(events, 1000);
@@ -680,6 +681,7 @@ describe('game audio', () => {
       'branch',
       'sell',
       'repair',
+      'reinforce',
       'victory',
     ]);
     const gain = (id: string) => sink.plays.filter((p) => p.id === id).map((p) => p.gain);

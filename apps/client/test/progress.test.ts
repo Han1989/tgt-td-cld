@@ -23,8 +23,8 @@ describe('progress dashboard data', () => {
     expect(PROGRESS.items.some((item) => item.status === 'todo')).toBe(true);
   });
 
-  it('seeds protocol 21, a finished polish path, and D-06 as the next gate', () => {
-    expect(PROGRESS.protocol).toBe(21);
+  it('seeds protocol 22, a finished polish path, and D-06 as the next gate', () => {
+    expect(PROGRESS.protocol).toBe(22);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -43,8 +43,9 @@ describe('progress dashboard data', () => {
     // time; PR #135), V-06f (the Oracle holds her staff; PR #136), V-07b (juice, every event lands; PR #137),
     // V-06h-concepts (the enemy faction, two concepts a kind, images only; PR #138), V-07a-fix (the match page
     // never scrolls, the plaques inside the bar, the rims slimmer; PR #139), V-06i (the ground creeps from Meshy into
-    // the game, enemy batch 1; PR #140) and V-06j (the Wisp, the Hatchling and the bosses from Meshy, batch 2; PR #141).
-    expect(summary.done).toBe(81);
+    // the game, enemy batch 1; PR #140), V-06j (the Wisp, the Hatchling and the bosses from Meshy, batch 2; PR #141)
+    // and p6d-endless-2 (Endless scaling, veteran levels and Reinforce; PR #142).
+    expect(summary.done).toBe(82);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -56,7 +57,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(121);
+    expect(summary.total).toBe(122);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -81,6 +82,7 @@ describe('progress dashboard data', () => {
       'T-07a': 124,
       'p6d-daily': 126,
       'p6d-endless': 129,
+      'p6d-endless-2': 142,
       'V-06e-concepts': 132,
       'V-06e': 134,
       'V-07a': 135,
@@ -283,7 +285,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('D-06');
-    expect(summary).toContain('21');
+    expect(summary).toContain('22');
     expect(summary).toContain('Complete');
   });
 

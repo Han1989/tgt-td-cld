@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -240,6 +240,11 @@ export type Command =
   | { type: 'setPriority'; towerId: EntityId; priority: TargetPriority }
   /** Your damaged tower back to full HP at once, for gold (`repairCost`): it keeps its tier, branch and target setting. */
   | { type: 'repair'; towerId: EntityId }
+  /**
+   * Endless only: one more Reinforce rank for your branched tower, for gold (`reinforceCost`): its damage and max HP
+   * grow; refused in Full and Quick and before the branch.
+   */
+  | { type: 'reinforce'; towerId: EntityId }
   | { type: 'callEarly' }
   /** Give some of your gold to a teammate. */
   | { type: 'gift'; to: PlayerId; amount: number }
@@ -301,6 +306,10 @@ export interface HeroSnap {
   /** Mana regenerated per second right now (level and Clarity Aura included); skill buttons count down from it. */
   manaRegen: number;
   level: number;
+  /**
+   * The last level with a skill point (10). In Endless a hero levels on past it (veteran levels): `level` can exceed it
+   * and the XP bar keeps filling (`xpNextLevel` > `xpLevelStart`); elsewhere the bar is full at it.
+   */
   maxLevel: number;
   xp: number;
   /** XP at which the current level started / the next level starts. */
@@ -357,6 +366,8 @@ export interface TowerSnap {
   tier: number;
   /** The specialisation picked at the top tier, else null. */
   branch: TowerBranch | null;
+  /** Reinforce ranks bought after the branch (Endless only; 0 elsewhere). */
+  reinforced: number;
   range: number;
   spent: number;
   priority: TargetPriority;
@@ -418,6 +429,8 @@ export type GameEvent =
   | { type: 'towerDestroyed'; towerId: EntityId; owner: PlayerId }
   /** `owner` paid `cost` gold to bring the tower back to full HP; `hp` is the HP it got back. */
   | { type: 'towerRepaired'; towerId: EntityId; owner: PlayerId; cost: number; hp: number }
+  /** `owner` paid `cost` gold for the tower's Reinforce rank `rank` (Endless). */
+  | { type: 'towerReinforced'; towerId: EntityId; owner: PlayerId; rank: number; cost: number }
   | { type: 'cast'; heroId: EntityId; slot: SkillSlot; x: number; y: number }
   /**
    * A living hero's R landed while another living hero's R was still inside `R_OVERLAP_SECONDS`.
@@ -551,6 +564,10 @@ export interface HeroReport {
   repairGold: number;
   /** This player's towers destroyed by creeps. Reports from before protocol 19 omit it: read as 0. */
   towersDestroyed: number;
+  /** Reinforce ranks bought (Endless). Reports from before protocol 22 omit it: read as 0. */
+  reinforces: number;
+  /** Gold paid for them (also counted in `goldSpent`). Reports from before protocol 22 omit it: read as 0. */
+  reinforceGold: number;
   /** Gold still held when the match ended. */
   goldUnspent: number;
   /** Waves this player called early. */
@@ -569,6 +586,14 @@ export function heroGiftTotals(hero: {
     goldGifted: hero.goldGifted ?? 0,
     goldReceived: hero.goldReceived ?? 0,
   };
+}
+
+/** Reinforce totals on a hero report. A report saved before protocol 22 omits them; those count as 0. */
+export function heroReinforceTotals(hero: { reinforces?: number; reinforceGold?: number }): {
+  reinforces: number;
+  reinforceGold: number;
+} {
+  return { reinforces: hero.reinforces ?? 0, reinforceGold: hero.reinforceGold ?? 0 };
 }
 
 /** Repair and tower-loss totals on a hero report. A report saved before protocol 19 omits them; those count as 0. */

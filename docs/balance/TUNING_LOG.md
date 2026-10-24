@@ -506,3 +506,69 @@ Gate seeds (1, 2, 3, 42, 1234), solo: expert 46.9 (43–49), casual 34.3 (32–3
 ## Replays
 
 Full and Quick are unchanged: the bots time their thirds, their forward post and their branches by the list's length (the same number as `totalWaves` there), and every wave of those modes is the list's. A match file from before protocol 21 re-runs as before.
+
+# Round 6: Endless, the hero and the gold keep pace (Han's match of 24 Oct 2026)
+
+Han's Endless match (Arcanist, seed 242266368) fell on wave 46: level 10 on wave 21, every pad built and branched by the mid-40s with about 2,000 gold and nothing to buy, the Heart 100 at wave 30, 89 at 31, 48 at 41, 44 at 46. Two levers that keep working (`docs/GAME_DESIGN.md` "Endless", Decision Log 24 Oct 2026): **veteran levels** (`hero.veteran`: past 10, each step 1.25 × the last; +6% damage, +6% HP, +4% mana regen a level) and **Reinforce** (`reinforce`: rank n of a branched tower at the tier-3 price × `priceGrowth`^(n − 1), × (1 + `perRank`) damage and max HP a rank), both Endless only; then the loop retuned around them. Targets: the expert falls on 60–90 (mean), the casual on 40–60, the novice before 40; no team loses more than 30 Heart in any ten waves on the mean curve; the expert's Heart at wave 31 is at least 80.
+
+Every probe is solo on the gate seeds (1, 2, 3, 42, 1234) through `--tuning` (`npm run balance:matrix -- endless solo --seeds 1,2,3,42,1234`), then the landed numbers on 30 seeds and every team. The matrix's Endless table gained the mean Heart curve (every seed's Heart as each wave starts, a fallen run 0) at waves 31–71, its worst ten waves over the match and from wave 31 on, the level at the end, Reinforce ranks (and their gold) and the gold left. "w10" below is the worst ten waves from 31 on, the worst team.
+
+## Runs (solo, gate seeds; mean wave fell on (range), Heart at wave 31, w10)
+
+| Run | Loop (first cycle / per cycle HP, count) | Levers | Waves 1–30 | novice | casual | expert |
+|---|---|---|---|---|---|---|
+| r0 | 1.8 / 1.8, × 1.25 (main) | veteran 1.25 / 6% / 6% / 4%, Reinforce 1.5 / 12% | Full's Hard | 24.6 (13–32), 4 | 35.4 (32–38), 35 | 47.9 (43–50), 67, w10 84 |
+| r1 | 1.5 / 1.5, × 1.2 (Han's first try) | as r0 | Full's Hard | 24.9 (13–34) | 42.1 (34–52), w10 33 | 58.5 (49–62), 67, w10 84 |
+| b100 | 1.5 / 1.5, × 1.2 | as r0 | × 1.0 (Normal's) | 41.9 (40–45), 71 | 56.2 (51–59), 97, w10 95 | 62.4 (60–69), 92, w10 99 |
+| c1–c4 | 1.3 × 1.3, 1.2 × 1.45, 1.5 × 1.2, 1.35 × 1.15 | as r0 | × 1.06 | 40.5–49.0 | 53.0–68.5 | 60.9–76.4, w10 82–96 |
+| d1–d3 | 1.6 / 1.8 / 2.0 a cycle, × 1.0 | as r0 | × 1.09 | 34.3–39.6 | 43.3–67.4, w10 43–68 | 52.5–69.0, w10 83–89 |
+| e1, e2 | 1.9, 2.1 a cycle, × 1.0 | Reinforce 1.2, 1.15 / 15% | × 1.09 | 34–35 | 40.5–47.8 | 51.1–56.5 |
+| f1–f3 | 1.8 / 1.4, 2.0 / 1.35 (step, then climb) | as r0 (f3: price 1.25) | × 1.09 | 34.3–36.9 | 59.3–72.5 (38–89) | 77.6–79.3, w10 66–71 |
+| g | 1.2–1.5 / 1.4–1.6 | as r0 | × 1.09 | 44–64 | 77–87 | 78–89 |
+| h | 2.0–2.2 / 1.4–1.5 | Reinforce 1.12 / 12% | × 1.09 | 33.7–34.3 | 40.6–54.0 | 61.5–75.7, w10 64–82 |
+| i | 2.0–2.3 / 1.3–1.4 | Reinforce 1.12 / 12% | × 1.07 | 33.9–35.6 | 37.6–59.1 | 77.8–94.7, w10 55–60 |
+| **landed** | **2.0 / 1.4, × 1.0** | **veteran 1.25 / 6% / 6% / 4%, Reinforce 1.12 / 12%** | **× 1.07** | **35.6 (33–38), 47** | **53.1 (37–79), 79, w10 74** | **77.8 (69–87), 83.2, w10 60** |
+
+From run g on, the expert also builds the pads it leaves empty in Full once its planned towers are branched (the runs before it reinforced at 20 of 26 pads).
+
+## What each step found
+
+- **The levers alone (r0).** With the loop as it was, the expert bot never reached "every pad branched" before it fell (18 of its 20 towers branched on wave 47, about 300–700 gold a wave going to repairs), so Reinforce bought 1–2 ranks; veteran levels took it to 17–18. The fall waves did not move.
+- **Han's first try, 1.5 / 1.2 (r1).** Every run, every bot, holds its Heart flat and then loses it in 2–6 waves. The breaking wave is each cycle's Runner wave (wave 28's creeps: 14 Runners, 8 Brutes, 7 Wisps a lane): it leaks nothing one cycle and 40–60 the next.
+- **Waves 1–30 (b100, the `_h31` probe).** The expert's Heart at wave 31 is decided by waves 1–15 (it loses nothing from 15 to 46): on Full's Hard bands it is 66 on the mean (the Warden 51). A band of its own for Endless: × 1.08 → expert 83.9, casual 76.4, novice 41.5 at wave 31; × 1.10 → 78.5 / 67.7 / 33.1; × 1.12 → 77.0 / 56.7 / 24.5; × 1.14 → 73.6 / 53.7 / 15.1. × 1.07 landed (83.2 on the gate).
+- **More creeps per cycle make the cliff (c, d).** With `countGrowthPerCycle` above 1, a late wave's spawning (36 creeps a lane × 0.9 s, × 1.2 a cycle) runs past the 40 s timer, the waves overlap and the lane's density jumps: the Brutes break through all at once. HP alone (× 1.0 creeps) gives a gradual phase of 1–3 Heart a wave for about ten waves before the end (d).
+- **A step, then a climb (f, h, i).** The bots' late defences converge (the casual fills all 26 pads, the expert 20 then 26 plus ranks), so a gentle loop leaves every bot alive past wave 80 (g; even the novice to 60). What separates them is where their defence stands when the loop starts: the expert's holds about 4× the wave-30 creeps, the casual's about 2.8×. `hpFirstCycle` (new) is that step, × 2 at wave 31; × 1.4 a cycle after it puts the expert on 70–87 and the casual on 37–79.
+- **Reinforce's price (h).** At × 1.5 a rank the third rank costs 3.4 × the first for the same 12%: the bots' gold piled up again once their towers had two ranks. Priced at its own multiplier (× 1.12) every rank is worth its gold, its power grows with the gold spent, and the expert now spends 17–23 k gold on 50–66 ranks before it falls, with 400–600 left.
+
+## Not met: the mean curve's worst ten waves
+
+No setting tried brings the worst ten waves from wave 31 under 30 Heart for any team: the casual loses 50–75 in the cycle after the step (32–42), the expert 50–64 in its last ten waves. Every run holds its Heart while its defence outgrows the creeps and loses it in 2–6 waves once a cycle's Runner or Brute wave breaks through, and the seeds fall within a few waves of each other, so the mean curve drops nearly as fast as one run. A gentler loop moves the break later, not slower (the gentlest left every bot alive past 80), and a steeper one makes it sharper. It needs a rule, not a number. Three that would spread a fall over several waves, for Han to choose from after his match:
+
+1. **A leak costs the Heart its creep's share of HP left** (a Brute that barely gets through costs a fraction): the same wave leaking a little more each cycle then drains the Heart over cycles instead of in one wave.
+2. **A wave can take at most N Heart** (say 10 past the list, bosses aside): falling takes several bad waves, and a strong player sees the slide and has waves to answer it.
+3. **The Heart mends a little after a wave with no leak** (say +2): a defence on the edge trades Heart back and forth before it breaks, which reads as a climb.
+
+## Where it lands (30 seeds, every team, `docs/balance/endless.txt`)
+
+Mean wave the Heart fell on (lowest–highest), and the Heart as wave 31 started:
+
+| Bot | Ranger | Warden | Arcanist | R+W | W+A | A+R | R+W+A | all |
+|---|---|---|---|---|---|---|---|---|
+| novice | 33.7 | 35.9 | 36.9 | 31.2 | 33.9 | 32.7 | 35.5 | **34.3** (29–39) |
+| casual | 61.7 | 59.4 | 62.2 | 49.1 | 48.6 | 51.9 | 43.7 | **53.8** (33–81) |
+| expert | 74.4 | 78.8 | 77.8 | 63.0 | 66.9 | 68.1 | 63.9 | **70.4** (51–87) |
+| expert, Heart at 31 | 82.2 | 73.7 | 97.8 | 72.5 | 93.5 | 96.3 | 85.6 | **85.9** |
+
+- **Expert:** every team on 60–90, solo 74–79, teams 63–68; 85.9 Heart at wave 31 on the mean (the Warden 74, the Warden's pair 73: his early waves on Hard). Solo it ends at level 19–20 and buys 47–67 Reinforce ranks (16–23 k gold), with 430–530 gold left: the gold no longer piles up.
+- **Casual:** 53.8 over every team; solo 59–62, at the band's top (the gate seeds give 53.1): a solo casual run either breaks in the cycle after the step (wave 33–42) or survives it with 20–30 Heart and limps on for 20–40 waves while its 26 towers branch and then reinforce. Pairs 49–52, the trio 44.
+- **Novice:** every team before 40 (29–39). It enters the loop with 33–73 Heart and falls in the first cycle.
+- **The mean curve:** the worst ten waves from wave 31 lose 33–73 Heart for every team (above: not met).
+- **Full and Quick** do not change: 120 headless matches (Full and Quick, Normal and Hard, the three bots, solo, a pair and the trio, two seeds) give the same reports and replay logs, byte for byte, as main; and the expert solo matrix on 30 seeds (`npm run balance:matrix -- full quick expert solo`) prints the same 12 rows as `docs/balance/final.txt`, character for character.
+
+## The gate
+
+`balanceEndless.test.ts` (casual 40 ≤ mean < 60, novice mean < 40) and `balanceEndlessExpert.test.ts` (every expert match 60 ≤ wave < 90, mean Heart at wave 31 ≥ 80), solo, every hero, the gate seeds; every match ends in defeat. The expert has a file of its own so the slow runs (past wave 80) run beside the others.
+
+## Replays
+
+An Endless replay recorded before protocol 22 is refused (`replayRefusal`), with the commit to check out: veteran levels, Reinforce and the loop's numbers make it run differently. Han's match file of 24 Oct 2026 is one. Full and Quick replays re-run as before.

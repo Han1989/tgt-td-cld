@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { heroGiftTotals, heroRepairTotals, PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
+import { heroGiftTotals, heroReinforceTotals, heroRepairTotals, PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
 import { matchReport, replayMatch, replayProblem, replayRefusal } from '../src';
 
 const path = process.argv[2];
@@ -25,7 +25,8 @@ if (problem) {
   console.error(`Not a replay: ${problem}`);
   process.exit(2);
 }
-// Match modifiers and Meteor Rain practice are gone (protocol 20): this build can't re-run those matches.
+// Match modifiers and Meteor Rain practice are gone (protocol 20), and Endless changed in 22: this build can't re-run
+// those matches.
 const refused = replayRefusal(replay);
 if (refused) {
   console.error(refused);
@@ -95,7 +96,8 @@ for (const h of report.heroes) {
       `R within 2 s of another R: ${h.rOverlaps}; ` +
       `towers ${h.towersBuilt}, upgrades ${h.upgrades}, branches ${h.branches}, ` +
       `gold spent ${h.goldSpent}, unspent ${h.goldUnspent}, waves called early ${h.wavesCalledEarly}, ` +
-      `gold gifted ${h.goldGifted ?? 0}, received ${h.goldReceived ?? 0}`,
+      `gold gifted ${h.goldGifted ?? 0}, received ${h.goldReceived ?? 0}` +
+      (report.mode === 'endless' ? `, reinforces ${h.reinforces} (${h.reinforceGold} gold)` : ''),
   );
   console.log(`  level by wave: ${h.levelByWave.join(' ')}`);
   console.log(`  levels reached at: ${h.levelUps.map((s, i) => `L${i + 2} ${mmss(s)}`).join(', ')}`);
@@ -108,12 +110,12 @@ if (state.phase !== end.result) problems.push(`result ${state.phase}, recorded $
 if (state.wave !== end.wave) problems.push(`wave ${state.wave}, recorded ${end.wave}`);
 if (state.heartHp !== end.heartHp) problems.push(`Heart ${state.heartHp}, recorded ${end.heartHp}`);
 // The build is checked above (a re-run of an unstamped file gets the default one), so compare the rest.
-// Reports saved before protocol 14 omit gift totals, before 19 repair totals; those count as 0.
+// Reports saved before protocol 14 omit gift totals, before 19 repair totals, before 22 reinforce totals; those count as 0.
 const comparable = (r: MatchReport) => {
   const body: MatchReport & { modifiers?: unknown } = {
     ...r,
     build: '',
-    heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h), ...heroRepairTotals(h) })),
+    heroes: r.heroes.map((h) => ({ ...h, ...heroGiftTotals(h), ...heroRepairTotals(h), ...heroReinforceTotals(h) })),
   };
   // Reports saved before protocol 20 list their modifiers (none here: a match with modifiers is refused above).
   delete body.modifiers;

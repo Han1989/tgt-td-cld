@@ -12,6 +12,7 @@ import {
   emit,
   heroCanHit,
   heroMaxHp,
+  heroPower,
   heroStats,
   newId,
   spawnProjectile,
@@ -256,7 +257,7 @@ function multishot(state: GameState, hero: Hero): string | null {
     spawnProjectile(state, hero, { kind: 'creep', id: c.id, x: c.x, y: c.y }, {
       style: 'multishot',
       speed: heroStats(state, hero).projectileSpeed,
-      damage: s.damage[i] ?? 0,
+      damage: (s.damage[i] ?? 0) * heroPower(state, hero),
       damageType: 'physical',
       source: hero.owner,
     });
@@ -303,7 +304,7 @@ function cleave(state: GameState, hero: Hero): string | null {
   const targets = creepsInRadius(state, hero.x, hero.y, s.radius, true);
   if (targets.length === 0) return 'No targets in range';
   pay(state, hero, 'Q');
-  const damage = s.damage[rankIndex(state, hero, 'Q')] ?? 0;
+  const damage = (s.damage[rankIndex(state, hero, 'Q')] ?? 0) * heroPower(state, hero);
   emit(state, { type: 'aoe', effect: 'cleave', x: hero.x, y: hero.y, radius: s.radius });
   const from = hitFrom(state, hero);
   let dealt = 0;
@@ -355,10 +356,11 @@ function ironVow(state: GameState, hero: Hero): string | null {
   emit(state, { type: 'aoe', effect: 'ironVow', x: hero.x, y: hero.y, radius: s.burstRadius });
   const from = hitFrom(state, hero);
   const stun = secondsToTicks(s.burstStun[i] ?? 0);
+  const burst = (s.burstDamage[i] ?? 0) * heroPower(state, hero);
   const killsBefore = state.ultStats.kills;
   for (const c of creepsInRadius(state, hero.x, hero.y, s.burstRadius, true)) {
     stunCreep(state, c, stun);
-    ultimateDamage(state, c, s.burstDamage[i] ?? 0, 'physical', hero.owner, from, 'ironVow');
+    ultimateDamage(state, c, burst, 'physical', hero.owner, from, 'ironVow');
   }
   emit(state, { type: 'ultResult', ult: 'ironVow', by: hero.owner, kills: state.ultStats.kills - killsBefore });
   onUltCast(state, hero, 'ironVow', null);
@@ -374,7 +376,7 @@ function fireball(state: GameState, hero: Hero, x: number, y: number): void {
   spawnProjectile(state, hero, { kind: 'point', id: -1, x, y }, {
     style: 'fireball',
     speed: s.projectileSpeed,
-    damage: s.damage[rankIndex(state, hero, 'Q')] ?? 0,
+    damage: (s.damage[rankIndex(state, hero, 'Q')] ?? 0) * heroPower(state, hero),
     damageType: 'magic',
     source: hero.owner,
     splash: s.radius,
@@ -386,7 +388,7 @@ function fireball(state: GameState, hero: Hero, x: number, y: number): void {
 function frostNova(state: GameState, hero: Hero, x: number, y: number): void {
   const s = state.tuning.hero.arcanist.frostNova;
   const i = rankIndex(state, hero, 'W');
-  const damage = s.damage[i] ?? 0;
+  const damage = (s.damage[i] ?? 0) * heroPower(state, hero);
   const slowTicks = secondsToTicks(s.slowDuration);
   emit(state, { type: 'aoe', effect: 'frostNova', x, y, radius: s.radius });
   const from = hitFrom(state, hero);

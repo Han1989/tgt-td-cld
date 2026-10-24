@@ -222,6 +222,7 @@ export class GameView {
       // The panel stays open after an upgrade or a priority change.
       upgrade: (towerId, branch) => sendCmd(branch ? { type: 'upgrade', towerId, branch } : { type: 'upgrade', towerId }),
       repair: (towerId) => controls.repair(towerId),
+      reinforce: (towerId) => controls.reinforce(towerId),
       setPriority: (towerId, priority) => sendCmd({ type: 'setPriority', towerId, priority }),
       callEarly: () => sendCmd({ type: 'callEarly' }),
       gift: (to, amount) => sendCmd({ type: 'gift', to, amount }),
@@ -618,6 +619,10 @@ export class GameView {
         damageTowers: () => view.transport?.debug?.('damageTowers'),
         /** Solo: wave `wave` starts on the next tick (an Endless match past wave 30). */
         skipTo: (wave: number) => view.transport?.debug?.('skipTo', wave),
+        /** Solo: your hero is at level `level` (past 10 in Endless: veteran levels). */
+        setLevel: (level: number) => view.transport?.debug?.('level', level),
+        /** The static tuning, for tests that check a price the HUD shows. */
+        tuning: TUNING,
         latest: (): Snapshot | undefined => buffer.latest,
         me: () => view.me,
         layout: () => layout,

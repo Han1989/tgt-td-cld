@@ -414,7 +414,12 @@ export interface EndlessTuning {
   on: boolean;
   /** Past the list, the waves repeat the listed waves from this one to the last, in order. */
   cycleFrom: number;
-  /** Creep HP (bosses' too) × this per full cycle past the list: cycle 1 (waves 31–40) × it, cycle 2 × it², … */
+  /**
+   * Creep HP (bosses' too) past the list: cycle 1 (waves 31–40) × `hpFirstCycle`, then × `hpGrowthPerCycle` for each
+   * further cycle (cycle 2 × first × growth, cycle 3 × first × growth², …). The step into the loop and the climb after it
+   * are two numbers, so the climb can be gentle (Han's match of 24 Oct 2026).
+   */
+  hpFirstCycle: number;
   hpGrowthPerCycle: number;
   /** Non-boss creep count × this per full cycle (like the difficulty's count: bosses stay one per wave). */
   countGrowthPerCycle: number;
@@ -426,6 +431,33 @@ export interface EndlessTuning {
   maxWave: number;
 }
 
+/**
+ * Veteran levels (Endless only; Han's match of 24 Oct 2026): a hero keeps levelling past `hero.maxLevel`. Off in Full
+ * and Quick, so their cap stays. Each level past the cap needs `xpGrowth` × the step before it (the first: × the step
+ * from maxLevel − 1 to maxLevel), gives no skill point (every skill is at its top rank by then) and multiplies the
+ * level-cap numbers: attack and skill damage × (1 + damagePerLevel × levels past the cap), max HP and mana regeneration
+ * likewise. Armour, max mana and the respawn time stay at the cap's.
+ */
+export interface VeteranTuning {
+  on: boolean;
+  xpGrowth: number;
+  damagePerLevel: number;
+  hpPerLevel: number;
+  manaRegenPerLevel: number;
+}
+
+/**
+ * Reinforce (Endless only; Han's match of 24 Oct 2026): a branched tower buys one rank after another, the gold sink
+ * that lasts as long as the match. Rank n costs the tower kind's tier-3 upgrade price × priceGrowth^(n − 1), whole gold
+ * (`reinforceCost`), and the tower's damage and max HP are × (1 + perRank)^rank (`towerStats`); range, attack speed,
+ * slows, freezes and every other branch effect are unchanged.
+ */
+export interface ReinforceTuning {
+  on: boolean;
+  priceGrowth: number;
+  perRank: number;
+}
+
 export interface ModeTuning {
   /**
    * The mode's difficulty, whatever the match config asks (Endless: Hard). Unset: the config's (Normal by default).
@@ -433,10 +465,13 @@ export interface ModeTuning {
   difficulty?: Difficulty;
   /** Endless only: the waves after the list (`tuning.endless`), merged over the top-level table. */
   endless?: Partial<EndlessTuning>;
+  /** Endless only: Reinforce (`tuning.reinforce`), merged over the top-level table. */
+  reinforce?: Partial<ReinforceTuning>;
   economy?: Partial<Tuning['economy']>;
   waves?: Partial<Tuning['waves']>;
   playerScaling?: Partial<Tuning['playerScaling']>;
-  hero?: Partial<Pick<Tuning['hero'], 'xpForLevel'>>;
+  /** `veteran` merges over the top-level table (Endless turns it on). */
+  hero?: Partial<Pick<Tuning['hero'], 'xpForLevel'>> & { veteran?: Partial<VeteranTuning> };
   /** Hard-only overrides for this match length, merged over `tuning.difficulty.hard`. */
   hard?: Partial<DifficultyScaling>;
   /**
@@ -557,6 +592,8 @@ export interface Tuning {
    * upgrades into one of its two branches (`TOWER_BRANCHES` in the protocol). The late-game gold sink.
    */
   branches: Record<TowerBranch, BranchStats>;
+  /** Ranks past a branch, in Endless only (`on` is false here; `modes.endless` turns it on). */
+  reinforce: ReinforceTuning;
   /** Per-mode changes to the numbers above; the top-level numbers are Full mode. */
   modes: Record<GameMode, ModeTuning>;
   /**
@@ -569,9 +606,12 @@ export interface Tuning {
   /** The waves after the list, in Endless only (`on` is false here; `modes.endless` turns it on). */
   endless: EndlessTuning;
   hero: {
+    /** The last level with a skill point; in Endless a hero levels on past it (`veteran`). */
     maxLevel: number;
-    /** Total XP needed to reach level i+1 (index 0 = level 1). */
+    /** Total XP needed to reach level i+1 (index 0 = level 1); levels past `maxLevel`: `heroLevelXp`. */
     xpForLevel: number[];
+    /** Levels past `maxLevel`, in Endless only (`on` is false here; `modes.endless` turns it on). */
+    veteran: VeteranTuning;
     /** Max rank of Q, W and E. */
     maxSkillRank: number;
     /** Hero level needed for each rank of R; its length is R's max rank. */
@@ -872,11 +912,32 @@ export const TUNING: Tuning = {
       hitsGround: true, groundDamage: 0.5,
     },
   },
+  // Endless only (`modes.endless` turns it on): rank n of a branched tower costs its tier-3 price × 1.12^(n − 1) and
+  // makes its damage and max HP × 1.12 per rank: the price grows as the power does, so each rank is worth its gold for as
+  // long as the match lasts (round 6; 1.5 left the bots' gold idle by the third rank).
+  reinforce: { on: false, priceGrowth: 1.12, perRank: 0.12 },
   modes: {
     full: { coop: { bossShield: { waves: [] } } },
-    // Endless (Han, 17 and 22 Oct 2026): Full's economy and wave list on Hard (Full's Hard bands), with no wave-10
-    // shield, then the loop in `endless` below.
-    endless: { difficulty: 'hard', endless: { on: true }, coop: { bossShield: { waves: [] } } },
+    // Endless (Han, 17 and 22 Oct 2026): Full's economy and wave list on Hard, with no wave-10 shield, then the loop in
+    // `endless` below.
+    // The hero and the gold keep pace past wave 30 (Han's match of 24 Oct 2026): veteran levels and Reinforce.
+    // Its waves 1–30 have Hard bands of their own (round 6): Full's (×1.18 solo) left the expert bot 66 Heart at wave 31
+    // on the mean and the casual 35, so the loop was over before the levers came in; ×1.07 for every team size brings the
+    // expert to wave 31 with 80 or more.
+    endless: {
+      difficulty: 'hard',
+      endless: { on: true },
+      hero: { veteran: { on: true } },
+      reinforce: { on: true },
+      hard: {
+        byPlayers: [
+          { hp: 1.07, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.07, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.07, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        ],
+      },
+      coop: { bossShield: { waves: [] } },
+    },
     // Quick mode (docs/MOBILE.md §6): 15 waves, about 11 minutes. Wave k plays like Full wave 2k (bosses on
     // waves 5, 10 and 15, air waves on 8 and 13): creep HP and armour grow about twice as fast per wave, and
     // each wave pays about as much as two Full waves. A little more starting gold, and heroes need 60% of the
@@ -955,13 +1016,17 @@ export const TUNING: Tuning = {
   // not surge. Bosses stay on the listed lane. Wisps stay on the portal they were listed on.
   // The spawn gap tightens only on a surged lane, so an ordinary wave keeps its natural gap.
   surges: { fromWave: 6, period: 9, share: 0.6, trioShare: 0.4, soloShare: 0.34 },
-  // Endless's loop: waves 31+ repeat 21–30, ×1.35 HP and ×1.15 creeps per cycle, a boss every fifth wave (Ironhorn,
-  // Matriarch, Shardback in turn), at most 200 waves. Tuned so a solo expert falls between waves 33 and 55 (Decision Log).
+  // Endless's loop: waves 31+ repeat 21–30, ×2 HP in the first cycle, then ×1.4 per cycle, no extra creeps; a boss every
+  // fifth wave (Ironhorn, Matriarch, Shardback in turn), at most 200 waves. With veteran levels and Reinforce (Han's
+  // match of 24 Oct 2026), the expert falls on 60–90, the casual bot on 40–60, the novice before 40
+  // (docs/balance/TUNING_LOG.md round 6). More creeps per cycle stretched a wave's spawning past the 40 s timer, so the
+  // waves stacked and every run broke at once: HP alone grows.
   endless: {
     on: false,
     cycleFrom: 21,
-    hpGrowthPerCycle: 1.8,
-    countGrowthPerCycle: 1.25,
+    hpFirstCycle: 2,
+    hpGrowthPerCycle: 1.4,
+    countGrowthPerCycle: 1,
     bossEvery: 5,
     bosses: ['ironhorn', 'matriarch', 'shardback'],
     maxWave: 200,
@@ -969,6 +1034,9 @@ export const TUNING: Tuning = {
   hero: {
     maxLevel: 10,
     xpForLevel: [0, 300, 750, 1350, 2100, 3000, 4050, 5250, 6600, 8100],
+    // Endless only (`modes.endless` turns it on): past level 10 each level needs 1.25 × the step before it and adds
+    // 6% damage, 6% max HP and 4% mana regeneration to the level-10 numbers.
+    veteran: { on: false, xpGrowth: 1.25, damagePerLevel: 0.06, hpPerLevel: 0.06, manaRegenPerLevel: 0.04 },
     maxSkillRank: 4,
     ultimateLevels: [6, 8, 10],
     startingSkills: ['Q', 'W'],
@@ -1102,10 +1170,11 @@ export function tuningForMode(tuning: Tuning, mode: GameMode): Tuning {
   return {
     ...tuning,
     endless: { ...tuning.endless, ...m.endless },
+    reinforce: { ...tuning.reinforce, ...m.reinforce },
     economy: { ...tuning.economy, ...m.economy },
     waves: { ...tuning.waves, ...m.waves },
     playerScaling: { ...tuning.playerScaling, ...m.playerScaling },
-    hero: { ...tuning.hero, ...m.hero },
+    hero: { ...tuning.hero, ...m.hero, veteran: { ...tuning.hero.veteran, ...m.hero?.veteran } },
     coop: {
       ...tuning.coop,
       ...m.coop,
@@ -1138,11 +1207,67 @@ export function branchTier(tuning: Tuning, kind: TowerKind): number {
 }
 
 /** Everything a tower of `kind` at `tier` (or with `branch`, its top tier) shoots with. */
-export function towerStats(tuning: Tuning, kind: TowerKind, tier: number, branch: TowerBranch | null): TowerLevelStats {
+export function towerStats(
+  tuning: Tuning,
+  kind: TowerKind,
+  tier: number,
+  branch: TowerBranch | null,
+  /** Reinforce ranks (Endless): damage and max HP × (1 + perRank)^rank, the HP whole. */
+  rank = 0,
+): TowerLevelStats {
   const s = tuning.towers[kind];
   const base = { ...NO_EFFECTS, hitsGround: s.hitsGround, hitsAir: s.hitsAir };
-  if (branch) return { ...base, ...tuning.branches[branch] };
-  return { ...base, ...towerTier(tuning, kind, tier) };
+  const stats: TowerLevelStats = branch ? { ...base, ...tuning.branches[branch] } : { ...base, ...towerTier(tuning, kind, tier) };
+  if (rank <= 0) return stats;
+  const mult = reinforceMultiplier(tuning, rank);
+  return { ...stats, damage: stats.damage * mult, hp: Math.round(stats.hp * mult) };
+}
+
+/** `base` to the power of `n` (a whole number ≥ 0) by repeated multiplication: the same double on every engine. */
+function power(base: number, n: number): number {
+  let out = 1;
+  for (let i = 0; i < n; i++) out *= base;
+  return out;
+}
+
+/** What `rank` Reinforce ranks multiply a tower's damage and max HP by: (1 + perRank)^rank. */
+export function reinforceMultiplier(tuning: Tuning, rank: number): number {
+  return power(1 + tuning.reinforce.perRank, Math.max(0, rank));
+}
+
+/**
+ * Gold for a branched tower's next Reinforce rank (Endless): its kind's tier-3 upgrade price × priceGrowth^rank (the
+ * ranks it has), whole gold. Shared by the sim and the client as `repairCost` is. 0 when the tower cannot be
+ * reinforced (not Endless, or no branch yet).
+ */
+export function reinforceCost(
+  tuning: Tuning,
+  tower: { kind: TowerKind; branch: TowerBranch | null; reinforced: number },
+): number {
+  if (!tuning.reinforce.on || !tower.branch) return 0;
+  const tiers = tuning.towers[tower.kind].tiers;
+  const top = tiers[tiers.length - 1]!.cost;
+  // The epsilon keeps a whole product (275 × 1.5 × 1.5 = 618.75 aside) from rounding up past itself.
+  return Math.ceil(top * power(tuning.reinforce.priceGrowth, tower.reinforced) - 1e-9);
+}
+
+/**
+ * Total XP to reach `level` (1-based). Up to `hero.maxLevel` the table's; past it, in Endless (`hero.veteran`), each
+ * step is `xpGrowth` × the one before it, whole XP, the first × the step from maxLevel − 1 to maxLevel. Without
+ * veteran levels a level past the cap needs the cap's XP (it is never reached).
+ */
+export function heroLevelXp(tuning: Tuning, level: number): number {
+  const { xpForLevel, maxLevel, veteran } = tuning.hero;
+  if (level <= maxLevel) return xpForLevel[Math.max(0, level - 1)] ?? 0;
+  const cap = xpForLevel[maxLevel - 1] ?? 0;
+  if (!veteran.on) return cap;
+  let step = cap - (xpForLevel[maxLevel - 2] ?? 0);
+  let total = cap;
+  for (let l = maxLevel + 1; l <= level; l++) {
+    step = Math.round(step * veteran.xpGrowth);
+    total += step;
+  }
+  return total;
 }
 
 export function secondsToTicks(seconds: number): number {

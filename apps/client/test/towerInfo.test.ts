@@ -1,5 +1,5 @@
 import { TOWER_KINDS } from '@tdt/protocol';
-import { TUNING } from '@tdt/sim';
+import { tuningForMode, TUNING } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import {
   BRANCH_NAMES,
@@ -11,6 +11,10 @@ import {
   buildPreviewChip,
   maxTier,
   nextPriority,
+  reinforceChip,
+  reinforcedText,
+  reinforceOffer,
+  reinforcePercent,
   targetsText,
   towerName,
   towerStatRows,
@@ -103,6 +107,38 @@ describe('tower ring helpers', () => {
     expect(chip).toContain('Ground + air');
     expect(buildPreviewChip('flak', TOWER_NAMES)).toContain('Air only');
     expect(chip).not.toContain('Tap again');
+  });
+
+  it('Reinforce (Endless): the offer on a branched tower, its rank line, chip and stats; none in Full or Quick', () => {
+    const endless = tuningForMode(TUNING, 'endless');
+    const sniper = { kind: 'arrow' as const, branch: 'sniper' as const, reinforced: 0 };
+    expect(reinforceOffer(endless, sniper)).toEqual({ rank: 1, cost: TUNING.towers.arrow.tiers[2]!.cost });
+    const top = TUNING.towers.arrow.tiers[2]!.cost;
+    expect(reinforceOffer(endless, { ...sniper, reinforced: 2 })).toEqual({ rank: 3, cost: Math.ceil(top * TUNING.reinforce.priceGrowth ** 2 - 1e-9) });
+    // Full and Quick: no Reinforce button, the ring keeps its Max tier.
+    for (const mode of ['full', 'quick'] as const) expect(reinforceOffer(tuningForMode(TUNING, mode), sniper)).toBeNull();
+    expect(reinforceOffer(endless, { ...sniper, branch: null })).toBeNull();
+    // Ranks compound: three of 12% are +40.5%, shown whole.
+    const per = TUNING.reinforce.perRank;
+    const three = Math.round(((1 + per) ** 3 - 1) * 100);
+    expect(reinforcePercent(3)).toBe(three);
+    expect(reinforcedText(3)).toBe(`Reinforced ×3: +${three}% damage and HP`);
+    expect(reinforcedText(0)).toBe('');
+    const next = `Reinforce: +${Math.round(per * 100)}% damage and HP`;
+    expect(reinforceChip('arrow', 'sniper', 0, TOWER_NAMES)).toBe(`Sniper: Long range, big crits, slow · ${next}`);
+    const two = Math.round(((1 + per) ** 2 - 1) * 100);
+    expect(reinforceChip('arrow', 'sniper', 2, TOWER_NAMES)).toBe(`Sniper ×2 (+${two}%): Long range, big crits, slow · ${next}`);
+    // The panel's stats: damage and max HP grown, the rank on a row of its own; the rest as the branch's.
+    const plain = towerStatRows('arrow', 4, endless, 'sniper');
+    const ranked = towerStatRows('arrow', 4, endless, 'sniper', 3);
+    const value = (rows: typeof plain, label: string) => rows.find((r) => r.label === label)?.value;
+    const mult = (1 + per) ** 3;
+    expect(value(ranked, 'Damage')).toBe(`${Math.round(TUNING.branches.sniper.damage * mult)} physical`);
+    expect(value(ranked, 'Max HP')).toBe(String(Math.round(TUNING.branches.sniper.hp * mult)));
+    expect(value(ranked, 'Reinforced')).toBe(`×3: +${three}% damage and HP`);
+    expect(value(plain, 'Reinforced')).toBeUndefined();
+    expect(value(ranked, 'Range')).toBe(value(plain, 'Range'));
+    expect(value(ranked, 'Crit')).toBe(value(plain, 'Crit'));
   });
 
   it('cycles the target priority', () => {

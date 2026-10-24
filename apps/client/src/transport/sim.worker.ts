@@ -58,6 +58,10 @@ ctx.onmessage = (e) => {
     host.debugDamageTowers();
     return;
   }
+  if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'level') {
+    host.debugLevel(Number(data.wave));
+    return;
+  }
   if (import.meta.env.MODE === 'e2e' && data && typeof data === 'object' && data.ctl === 'skipTo') {
     host.debugSkipTo(Number(data.wave));
     return;

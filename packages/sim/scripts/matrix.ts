@@ -1,5 +1,5 @@
 // The balance matrix: `npm run balance:matrix [-- quick|full|endless] [normal|hard] [novice|casual|expert]
-// [solo|pairs|trio] [--seeds N] [--jobs N] [--json file]`.
+// [solo|pairs|trio] [--seeds N | --seeds 1,2,3,42,1234] [--jobs N] [--json file]`.
 // Plays every bot (novice, casual, expert) on Normal and Hard, Full and Quick, for solo (each hero), each pair and the
 // three-player team, over seeds 1..N (default 30), and prints one table per bot / mode / difficulty:
 //   win%   share of seeds won
@@ -11,9 +11,14 @@
 //          share of all damage; ultimates' (combos included) share of all damage
 //   repair tower repairs per match and the gold they cost (novice: always 0); towers destroyed by creeps per match
 // Endless runs only when named (`endless`), on Hard alone (the mode sets it), with its own table: the wave the Heart fell
-// on (mean, lowest, highest), the share of seeds that reached wave 31 and the Heart they carried into it, deaths,
-// ultimates, towers and repairs.
-// `--team ranger,warden` runs only that team (hero order = lane order).
+// on (mean, lowest, highest), the share of seeds that reached wave 31 and the Heart they carried into it, the mean Heart
+// curve (every seed's Heart as each wave starts, a fallen one 0) at waves 31, 41, 51, 61 and 71 and its worst ten waves
+// (the most it drops from any wave to the tenth after it, and from which wave; over the whole match, and from wave 31
+// on, the loop), the heroes' level at the end, Reinforce
+// ranks per match (and their gold), gold left when the Heart fell, deaths, ultimates, towers and repairs.
+// `--team ranger,warden` runs only that team (hero order = lane order). `--seeds` takes a count (seeds 1..N) or a list
+// (`--seeds 1,2,3,42,1234`: the balance tests' gate seeds).
+// `--print file.json` prints the tables of a saved `--json` run again (after a change to the tables), playing nothing.
 // `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
 // arrays and numbers replace), so a number can be tried without editing tuning.ts.
 // Matches run in parallel (one process per core). Slow: the full matrix is about 2500 matches.
@@ -21,7 +26,7 @@
 import { spawn } from 'node:child_process';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { HERO_KINDS, type Difficulty, type GameMode, type HeroKind } from '@tdt/protocol';
 import {
   createBalanceBot,
@@ -60,6 +65,13 @@ interface Match {
   /** The wave the match ended on, and the Heart HP when wave 31 started (Endless; null: fell before it). */
   wave: number;
   heartAfterList: number | null;
+  /** Heart HP as each wave started (index 0 = wave 1), then at the end. */
+  heartByWave: number[];
+  /** The heroes' levels at the end, Reinforce ranks bought and their gold, and the gold left at the end. */
+  levels: number[];
+  reinforces: number;
+  reinforceGold: number;
+  goldLeft: number;
   lost: number[];
   fly: number;
   flyLane: number[];
@@ -109,6 +121,11 @@ function playMatch(row: Row, seed: number): Match {
     heart: r.result === 'victory' ? r.heartHp : 0,
     wave: r.wave,
     heartAfterList: r.heartAfterList,
+    heartByWave: r.heartByWave,
+    levels: r.heroLevels,
+    reinforces: r.reinforces,
+    reinforceGold: r.reinforceGold,
+    goldLeft: r.gold.reduce((a, b) => a + b, 0),
     lost: r.heartLost,
     fly: r.flyerHeartLost,
     flyLane: r.flyerHeartLostByLane,
@@ -131,10 +148,11 @@ const flag = (name: string): string | undefined => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const seedCount = Number(flag('--seeds') ?? 30);
+const seedArg = flag('--seeds') ?? '30';
 const jobs = Number(flag('--jobs') ?? Math.max(1, cpus().length));
 const jsonOut = flag('--json');
-const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && args[i - 1] !== '--tuning' && args[i - 1] !== '--json' && args[i - 1] !== '--team');
+const valued = ['--tuning', '--json', '--team', '--seeds', '--jobs', '--print'];
+const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && !valued.includes(args[i - 1] ?? ''));
 const pick = <T extends string>(all: T[]): T[] => (words.some((w) => (all as string[]).includes(w)) ? all.filter((x) => words.includes(x)) : all);
 const sizeWords = words.filter((w) => ['solo', 'pairs', 'trio'].includes(w));
 const teamArg = flag('--team');
@@ -150,7 +168,9 @@ for (const mode of modes) {
     for (const bot of pick(BOTS)) for (const team of teams) rows.push({ bot, mode, difficulty, team });
   }
 }
-const seeds = Array.from({ length: seedCount }, (_, i) => i + 1);
+const seeds = seedArg.includes(',')
+  ? seedArg.split(',').map(Number)
+  : Array.from({ length: Number(seedArg) }, (_, i) => i + 1);
 
 async function main(): Promise<void> {
   const results: Match[][] = rows.map(() => []);
@@ -197,16 +217,47 @@ function perCast(ms: Match[], tag: 'arrowStorm' | 'meteor'): string {
 /** Damage the combos did in one match. */
 const comboDamage = (m: Match): number => m.by.meteorRain.damage + m.by.stunStorm.damage + m.by.shockwave.damage;
 
+/**
+ * The mean Heart curve of an Endless row: index w − 1 is the mean over its matches of the Heart as wave w started (a
+ * match that fell before it counts 0), up to the wave after the last fall.
+ */
+function meanCurve(ms: { heartByWave: number[]; wave: number }[]): number[] {
+  const last = Math.max(0, ...ms.map((m) => m.wave)) + 1;
+  return Array.from({ length: last }, (_, i) => mean(ms.map((m) => (i < m.wave ? (m.heartByWave[i] ?? 0) : 0))));
+}
+
+/**
+ * The most the curve drops from a wave (`start` or later) to the `span`-th wave after it, and from which wave (1-based).
+ * Past its end the curve is 0 (every run has fallen), so a fall inside the last `span` waves counts in full.
+ */
+function worstDrop(curve: number[], span = 10, start = 1): { drop: number; from: number } {
+  let worst = { drop: 0, from: start };
+  for (let i = start - 1; i < curve.length; i++) {
+    const drop = curve[i]! - (curve[i + span] ?? 0);
+    if (drop > worst.drop) worst = { drop, from: i + 1 };
+  }
+  return worst;
+}
+
 /** The Endless table of one bot: where the Heart fell, and what the run had at wave 31. */
 function endlessRow(row: Row, ms: Match[]): string[] {
   const waves = ms.map((m) => m.wave);
   const reached = ms.filter((m) => m.heartAfterList !== null);
   const wardenAt = row.team.indexOf('warden');
+  const curve = meanCurve(ms);
+  const worst = worstDrop(curve);
+  const loop = worstDrop(curve, 10, 31);
   return [
     label(row.team),
     `${f(mean(waves), 1)}  ${Math.min(...waves)}  ${Math.max(...waves)}`,
     pct(reached.length / Math.max(1, ms.length)),
     reached.length ? f(mean(reached.map((m) => m.heartAfterList!)), 1) : '-',
+    [31, 41, 51, 61, 71].map((w) => f(curve[w - 1] ?? 0)).join('/'),
+    `${f(worst.drop, 1)} (${worst.from}–${worst.from + 10})`,
+    `${f(loop.drop, 1)} (${loop.from}–${loop.from + 10})`,
+    f(mean(ms.map((m) => mean(m.levels))), 1),
+    `${f(mean(ms.map((m) => m.reinforces)), 1)} (${f(mean(ms.map((m) => m.reinforceGold)))})`,
+    f(mean(ms.map((m) => m.goldLeft))),
     `${f(mean(ms.map((m) => sum(m.deaths))), 1)}${wardenAt >= 0 ? ` (${f(mean(ms.map((m) => m.deaths[wardenAt] ?? 0)), 1)})` : ''}`,
     f(sum(ms.map((m) => m.ults)) / Math.max(1, ms.length), 1),
     f(mean(ms.map((m) => m.combos)), 1),
@@ -216,9 +267,26 @@ function endlessRow(row: Row, ms: Match[]): string[] {
   ];
 }
 
-const ENDLESS_COLS = ['team', 'fell on (mean min max)', 'reached 31', 'heart at 31', 'dead (warden)', 'R', 'combo', 'towers', 'repair (gold)', 'destroyed'];
+const ENDLESS_COLS = [
+  'team',
+  'fell on (mean min max)',
+  'reached 31',
+  'heart at 31',
+  'curve 31/41/51/61/71',
+  'worst 10 waves',
+  'from 31',
+  'level',
+  'reinforce (gold)',
+  'gold left',
+  'dead (warden)',
+  'R',
+  'combo',
+  'towers',
+  'repair (gold)',
+  'destroyed',
+];
 
-function print(results: Match[][]): void {
+function print(results: Match[][], printed: Row[] = rows): void {
   const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers', 'repair (gold)', 'destroyed'];
   let group = '';
   let heads = cols;
@@ -232,7 +300,7 @@ function print(results: Match[][]): void {
     for (const r of table) console.log(line(r));
     table = [];
   };
-  rows.forEach((row, i) => {
+  printed.forEach((row, i) => {
     const g = `${row.bot} · ${row.mode} · ${row.difficulty}`;
     if (g !== group) {
       flush();
@@ -282,6 +350,12 @@ if (workerIndex >= 0) {
       if (idx++ % n === k) console.log(JSON.stringify({ ri, seed, m: playMatch(row, seed) }));
     }
   });
+} else if (flag('--print')) {
+  const saved = JSON.parse(readFileSync(flag('--print')!, 'utf8')) as { row: Row; matches: Match[] }[];
+  print(
+    saved.map((r) => r.matches),
+    saved.map((r) => r.row),
+  );
 } else {
   await main();
 }

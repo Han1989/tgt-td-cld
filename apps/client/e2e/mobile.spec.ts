@@ -681,10 +681,64 @@ test.describe('portrait phone layout', () => {
     await expect.poll(tier).toBe(4);
     await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id)?.branch, padId)).toBe('sniper');
 
-    // Tier 4 is the last: the ring shows Max tier and the chip names the branch.
+    // Tier 4 is the last: the ring shows Max tier and the chip names the branch. Quick has no Reinforce (Endless only).
     await expect(page.locator('.radial-btn[data-action="branch"]')).toHaveCount(0);
     await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeDisabled();
+    await expect(page.locator('.radial-btn[data-action="reinforce"]')).toHaveCount(0);
     await expect(page.locator('#radial-chip')).toContainText('Sniper');
+    await expect(page.locator('#radial-chip')).not.toContainText('Reinforce');
+  });
+
+  test('Endless: past the branch the ring offers Reinforce +N for its price; one tap buys a rank and the ring stays open', async ({ page }) => {
+    await startSolo(page, '?lab', 'endless');
+    const controls = await overlayBoxes(page);
+    const [padId] = await myPadsBottomFirst(page);
+    const tower = () => page.evaluate((id) => window.__tdt.latest()!.towers.find((t) => t.padId === id), padId);
+    await tapPad(page, padId!);
+    await page.locator('.radial-btn[data-tower="arrow"]').tap();
+    await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+    await tapPad(page, padId!);
+    for (const t of [2, 3]) {
+      await page.locator('.radial-btn[data-action="upgrade"]').tap();
+      await expect.poll(() => tower().then((x) => x?.tier)).toBe(t);
+    }
+    await page.locator('.radial-btn[data-branch="volley"]').tap();
+    await expect.poll(() => tower().then((t) => t?.branch)).toBe('volley');
+
+    // Where Upgrade was: Reinforce +1 with the sim's price (the tier-3 upgrade's), clear of the controls.
+    const reinforce = page.locator('.radial-btn[data-action="reinforce"]');
+    const price = (rank: number) =>
+      page.evaluate((r) => {
+        const t = window.__tdt.tuning;
+        return Math.ceil(t.towers.arrow!.tiers[2]!.cost * t.reinforce.priceGrowth ** r - 1e-9);
+      }, rank);
+    await expect(reinforce).toBeVisible();
+    await expect(reinforce).toContainText('Reinforce');
+    await expect(reinforce.locator('.name')).toHaveText('+1');
+    await expect(reinforce.locator('.cost')).toHaveText(String(await price(0)));
+    await expect(page.locator('.radial-btn[data-action="upgrade"]')).toHaveCount(0);
+    await expect(page.locator('#radial-chip')).toContainText('Reinforce: +');
+    const r = await box(page, '.radial-btn[data-action="reinforce"]');
+    for (const c of controls) expect(overlaps(r, c)).toBe(false);
+
+    // One tap a rank; the ring stays open and offers the next one at its price.
+    for (const rank of [1, 2]) {
+      await reinforce.tap();
+      await expect.poll(() => tower().then((t) => t?.reinforced)).toBe(rank);
+      await expect(reinforce.locator('.name')).toHaveText(`+${rank + 1}`);
+      await expect(reinforce.locator('.cost')).toHaveText(String(await price(rank)));
+    }
+    await expect.poll(() => sent(page, 'reinforce')).toEqual([
+      { type: 'reinforce', towerId: expect.any(Number) },
+      { type: 'reinforce', towerId: expect.any(Number) },
+    ]);
+    await expect(page.locator('#radial-chip')).toContainText('Volley ×2');
+    // The tower's max HP grew with the ranks.
+    const t = (await tower())!;
+    expect(t.maxHp).toBe(await page.evaluate(() => {
+      const tu = window.__tdt.tuning;
+      return Math.round(tu.branches.volley!.hp * (1 + tu.reinforce.perRank) ** 2);
+    }));
   });
 
   // Han's phone: a tier-3 Cannon in the right-hand column, Full match. Its chip wrapped into a tall column over the
