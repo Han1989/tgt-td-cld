@@ -1,8 +1,9 @@
-// The towers, the Heart and the portals made in 3D and rendered ahead of time (docs/ART.md §15, V-05d): what the
-// Blender pipeline wrote (tools/blender, `npm run art:3d -- structures`, kitbashed from the CC0 KayKit pieces in the
-// structure table tools/blender/structures.py), and the pure rules Tower3DRig and the Heart's and portals' 3D views
-// play them by. Nothing 3D runs here: they are one sheet of pictures. Generated files, not edited by hand:
-// structures.json and structures-match.png in this folder.
+// The towers, the Heart and the portals made in 3D and rendered ahead of time (docs/ART.md §15, V-05d; the towers the
+// game's own Meshy models since V-06l): what the Blender pipeline wrote (tools/blender, `npm run art:3d -- structures`,
+// the structure table tools/blender/structures.py: the towers' Meshy bodies and turrets with the kit's additions, the
+// Heart and the portals kitbashed from the CC0 KayKit pieces), and the pure rules Tower3DRig and the Heart's and
+// portals' 3D views play them by. Nothing 3D runs here: they are one sheet of pictures. Generated files, not edited by
+// hand: structures.json and structures-match.png in this folder.
 
 import type { TowerBranch, TowerKind } from '@tdt/protocol';
 

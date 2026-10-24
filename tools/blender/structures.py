@@ -1,7 +1,10 @@
-# The towers, the Heart and the portals, kitbashed from the CC0 KayKit pieces (docs/ART.md §15, Han's decision of
-# 17 Oct 2026): one table in the shape of hero.py and creeps.py. A row lists the pack pieces, where each goes, the
-# colour map that repaints every face in Runelight's tokens (no pack colour reaches a frame), the emissives, and for a
-# tower's turret its recoil. tdt3d.structure renders the rows into one sheet
+# The towers, the Heart and the portals (docs/ART.md §15, Han's decisions of 17 and 24 Oct 2026): one table in the
+# shape of hero.py and creeps.py. A row lists its pieces, where each goes, the colour map that repaints every face in
+# Runelight's tokens (no pack or texture colour reaches a frame), the emissives, and for a tower's turret its recoil.
+# Since V-06l (batch 1) every tower's body and turret are the game's own Meshy models, theme A, the Spire's wards
+# (docs/art/wards-style.md, `ward` pieces below), with the kit's KayKit pieces for the tier and branch additions; the
+# Heart and the portals are still kitbashed from the CC0 KayKit pieces until batch 2. tdt3d.structure renders the
+# rows into one sheet
 # (apps/client/src/render/art3d/structures-match.png and structures.json), played by Tower3DRig and the Heart's and
 # portals' 3D art.
 #
@@ -15,6 +18,7 @@
 
 import math
 
+import numpy as np
 from mathutils import Matrix, Vector
 
 from tdt3d import shading
@@ -25,10 +29,6 @@ d = shading.define
 
 # --- the pack files -------------------------------------------------------------------------------------------------
 
-TOWER = 'hexagon/buildings/building_tower_base_blue.gltf'
-CATAPULT = 'hexagon/buildings/building_tower_catapult_blue.gltf'
-WINDMILL = 'hexagon/buildings/building_windmill_blue.gltf'
-WELL = 'hexagon/buildings/building_well_blue.gltf'
 CORNER = 'hexagon/buildings/wall_corner_A_outside.gltf'
 BARREL = 'hexagon/props/barrel.gltf'
 BUCKET = 'hexagon/props/bucket_arrows.gltf'
@@ -46,14 +46,10 @@ CHEST = 'dungeon/chest_gold.gltf'
 BANNER = 'dungeon/banner_shield_white.gltf'
 RUBBLE_HALF = 'dungeon/rubble_half.gltf'
 RUBBLE = 'dungeon/rubble_large.gltf'
-COINS = 'dungeon/coin_stack_large.gltf'
 CASTLE = 'builder/castle.glb'
 GATE = 'builder/wall_gate.glb'
 DESTROYED = 'hexagon/buildings/building_destroyed.gltf'
-CROSSBOW = 'adventurers/assets/crossbow_2handed.gltf'
-STAFF = 'adventurers/assets/staff.gltf'
 WAND = 'adventurers/assets/wand.gltf'
-SK_CROSSBOW = 'skeletons/assets/Skeleton_Crossbow.gltf'
 
 # The palette cells (column, row from the top) of each pack, named by what the pack paints with them.
 # Medieval Hexagon (hexagons_medieval.png):
@@ -62,8 +58,6 @@ H_TRIM, H_PLASTER, H_STONE, H_STONE_DARK, H_PLANK, H_WOOD, H_SLATE, H_CANVAS, H_
 # Dungeon (dungeon_texture.png):
 D_STONE_DARK, D_STONE, D_WHITE, D_CREAM, D_LEATHER, D_WOOD, D_GOLD, D_RED = (
     (0, 0), (1, 0), (0, 1), (0, 3), (4, 0), (7, 0), (7, 2), (3, 2))
-# Adventurers' props (the character palettes):
-A_CREAM, A_METAL, A_PLANK, A_WOOD, A_GRIP, A_GEM = (0, 2), (3, 1), (5, 1), (6, 1), (2, 2), (6, 2)
 # Skeletons' props:
 S_METAL, S_WOOD, S_WOOD_DARK = (3, 0), (6, 1), (6, 2)
 
@@ -91,18 +85,6 @@ def kick(px, lift=0.0):
     return f
 
 
-def swing(mesh, axis, deg, then=None):
-    """A moving part turns about its own origin (the pack's pivot) by up to `deg` degrees about the file's `axis`;
-    `then` adds another move (a kick)."""
-    def f(p, a):
-        o = p.origin(mesh)
-        moves = {mesh: Matrix.Translation(o) @ Matrix.Rotation(math.radians(deg * a), 4, axis) @ Matrix.Translation(-o)}
-        if then:
-            moves.update(then(p, a))
-        return moves
-    return f
-
-
 # --- materials -------------------------------------------------------------------------------------------------------
 
 def glow(name, token, strength=0.95):
@@ -119,16 +101,6 @@ def rune_cap(mat):
 
 
 # --- shared pieces --------------------------------------------------------------------------------------------------
-
-def tower(scale, colours, turn=30.0, zscale=1.0, **extra):
-    """The hexagon pack's round stone tower (crenellated, its floor at 1.4 of its height): a tower's body seen from
-    above. Its floor height, world px, is `floor_of(scale)`."""
-    return piece(TOWER, colours, scale=(scale, scale, scale * zscale), turn=turn, **extra)
-
-
-def floor_of(scale, zscale=1.0):
-    return 1.5 * scale * zscale - 1.5
-
 
 def runes(n, r, z, mat, file=PILLAR, start=None, size=4.2, colours=None):
     """A tier's rune studs: n stone pillars round the rim, their caps glowing (seen from above)."""
@@ -154,321 +126,493 @@ def corners(h, s, colours, file=CORNER, start=0.0, z=0.0):
     return out
 
 
-# --- the Arrow tower: timber and stone, a crossbow, rune-teal glow --------------------------------------------------
+# --- the Spire's wards (V-06l, batch 1): the five towers from Meshy, theme A ------------------------------------------
+#
+# Han's pick of 24 Oct 2026: theme A, the moon-stone keep's family (docs/art/wards-style.md). Each tower kind's tier-1
+# body and its turret are two of the game's own Meshy models (tools/blender/assets/meshy/wards/<kind>/: body.glb and
+# turret.glb, a README a kind: the Meshy tasks, the prompts, what is wrong), painted from their texture to Runelight's
+# tokens as the Meshy creeps are (`paint`: each colour the row expects to a material; an unexpected colour stops the
+# build), the turret's pivot on the body's turntable, pointing +x at rest. Tiers 2 and 3 and the two branches are the
+# kit's additions on that body, as V-05d's were on the pack's: the tier's runes (rune-capped pillars, braziers, ice
+# columns, candles, posts: where each stands is said at each kind), gold on the body's trim at tier 3, a branch its own
+# outline. Under the wards' rule nothing on a ward glows warm: V-05d's ember braziers and flare posts are teal
+# runelight at the tiers and violet at a branch (the branches' kegs, drums and charged shot likewise); the other glows
+# (the frost columns, the Arcane's candles and crystal, the Sniper's runes) are as they were. The branch turrets are
+# the tier-1 turret composed as V-05d composed the pack's (three ballistas fanned, two rotors, a lance three times as
+# thick…), until batch 2 gives each its own.
+#
+# Model coordinates (`drop`, `paint` regions, `posed`) are glTF metres of the model as Meshy made it: x, y up, z, its
+# middle at 0 (tools/blender/assets/meshy/wards/<kind>/README.md gives each one's ground, floor and pivot).
+
+def ward(kind, part, paint, scale, at=(0.0, 0.0, 0.0), turn=0.0, rot=(0.0, 0.0, 0.0), **extra):
+    """One of the game's own Meshy models (assets/meshy/wards/<kind>/<part>.glb), painted from its texture (`paint`:
+    {'clusters': {name: (hex, material)}, 'regions': {cluster: f(centre, normal, bone) -> material or None}}) and
+    placed as a pack piece (`scale` world px per glTF metre, or (x, y, z) in Blender's axes)."""
+    return dict(meshy=f'wards/{kind}/{part}.glb', paint=paint, scale=scale, at=at, turn=turn, rot=rot, **extra)
+
+
+def ward_body(kind, paint, s, ground, **extra):
+    """A tower's body, standing on its pad's centre: the model's ground (glTF y) on z 0, `s` world px per metre."""
+    return ward(kind, 'body', paint, s, at=(0.0, 0.0, -ground * s), **extra)
+
+
+def ward_turret(kind, paint, s, pivot, foot, floor, turn, file='turret', rot=(0.0, 0.0, 0.0), **extra):
+    """A turret (or a piece of one) with the model's turntable (`pivot`, glTF (x, z), and `foot`, its y) on the
+    tower's centre at height `floor` (world px), turned `turn` degrees so it points +x; `s` world px per metre, or
+    (along, across, up) to thicken a thin piece."""
+    sx, sy, sz = (s, s, s) if isinstance(s, (int, float)) else s
+    px, pz = pivot
+    place = (Matrix.Rotation(math.radians(turn), 3, 'Z') @ Matrix.Rotation(math.radians(rot[1]), 3, 'Y')
+             @ Matrix.Rotation(math.radians(rot[0]), 3, 'X'))
+    r = place @ V((px * sx, -pz * sy, foot * sz))  # glTF (x, y, z) = Blender (x, -z, y)
+    return dict(ward(kind, 'turret', paint, (sx, sy, sz), at=(-r.x, -r.y, floor - r.z), turn=turn, rot=rot, **extra),
+                meshy=f'wards/{kind}/{file}.glb')
+
+
+def paint(clusters, **regions):
+    return dict(clusters=clusters, regions=regions)
+
+
+def tones(material, *hexes):
+    """Several painted tones of one material (Meshy's lit and shadow tones, a seam): each a cluster of its own."""
+    return {f'{material}{i}': (h, material) for i, h in enumerate(hexes)}
+
+
+def kick_turn(px, deg):
+    """A Meshy turret's recoil: slid back `px` world px along its aim and a part turned (`deg` of its `posed`
+    region named in the row)."""
+    def f(p, a):
+        return {'world': Matrix.Translation((-px * a, 0.0, 0.0)), 'deform': {k: v * a for k, v in deg.items()}}
+    return f
+
+
+def with_rest(rest, recoil):
+    """A recoil on top of a resting pose (the Flak's rotor tilted at the sky): the rest's regions, then the kick's."""
+    def f(p, a):
+        moves = recoil(p, a)
+        moves['deform'] = dict(rest, **{k: rest.get(k, 0.0) + v for k, v in moves.get('deform', {}).items()})
+        return moves
+    return f
+
+
+# --- the Arrow tower: a narrow round moon-stone tower, a ballista on its flat top -------------------------------------
+#
+# Body (arrow-a without its ballista): ground y -0.952, its parapet's merlons up to 0.951 round a timber floor at 0.80
+# (a turntable plate on it), the gallery under the parapet its widest (r 0.532): tall and thin, the smallest footprint.
+# Turret: the ballista on its turntable (pivot (0.122, 0), foot -0.361), its bolt along -x (turned 180°), the bow
+# 1.68 m across. Runes: rune-capped pillars on the merlons (r 0.47 of the body, on its top).
+
+ARROW_BODY = tones('arMoon', '#bab7d6', '#bebcdb', '#c8c6e0', '#a8a7c0')
+ARROW_BODY.update(tones('arMoonShade', '#757181', '#8989a1', '#65667e', '#474a60'))
+ARROW_BODY.update(tones('arTimber', '#201922', '#272129', '#0c0a0f'))
+ARROW_BODY.update(tones('arFloor', '#40363b'))
+ARROW_BODY.update(tones('arBand', '#252f44', '#111826'))
+ARROW_TURRET = tones('arStock', '#2e262f', '#2d242f', '#352c36', '#1b1620')
+ARROW_TURRET.update(tones('arBow', '#333e58', '#36435e', '#2a3247', '#424454', '#565e76'))
+ARROW_TURRET.update(tones('arPlate', '#50454d', '#534951'))
+ARROW_TURRET.update(tones('arString', '#bdbccb', '#6f748a', '#9093a8'))
+AR_GROUND, AR_TOP, AR_RIM = -0.952, 0.951, 0.47
+AR_PIVOT, AR_FOOT = (0.122, 0.0), -0.361
+
 
 def arrow_materials():
+    d('arMoon', color=mix('stone', 'snow', 0.3))
+    d('arMoonShade', 'stone')
+    d('arBastion', color=mix('stoneDark', 'obsidian', 0.55))
+    d('arBastionShade', color=mix('stoneDark', 'obsidian', 0.75))
+    # From straight down the top is the tower: the gallery's ring a mid timber, the floor inside it dark, so the
+    # ballista (lighter than the concept's) reads on it.
+    d('arTimber', 'woodDark')
+    d('arFloor', color=mix('woodDark', 'ink', 0.5))
+    d('arBand', 'iron', metal=0.5)
+    # The ballista lighter than the concept's (its dark stock and bow vanished on the timber floor at phone size).
+    d('arStock', 'wood')
+    d('arBow', 'steel', metal=0.6)
+    d('arPlate', 'ironDark', metal=0.3)
+    d('arString', 'string', line=0.7, tint=0.0)
     d('arWood', 'wood')
     d('arWoodDark', 'woodDark')
-    d('arPlank', 'wood')
     d('arStone', 'stone')
-    d('arStoneDark', 'stoneDark')
-    d('arBastion', color=mix('stoneDark', 'obsidian', 0.6))
-    d('arIron', 'iron', metal=0.5)
-    d('arSteel', 'steel', metal=0.7)
-    d('arString', 'string', line=0.7, tint=0.0)
     d('arFletch', 'leaf')
     gold('arGold')
     glow('arRune', 'rune')
     d('arRuneStone', 'stoneDark')
 
 
-def _crossbow(length, z, metal='arSteel', recoil=4.0, at_x=0.0, at_y=0.0, turn=0.0, file=CROSSBOW, wide=1.25):
-    s = length / 1.44
-    colours = ({A_CREAM: 'arString', A_METAL: metal, A_PLANK: 'arWood', A_WOOD: 'arWoodDark'} if file == CROSSBOW
-               else {S_METAL: metal, S_WOOD: 'arWood', S_WOOD_DARK: 'arWoodDark'})
-    x = at_x - 0.35 * s
-    c, sn = math.cos(math.radians(turn)), math.sin(math.radians(turn))
-    # Its limbs a quarter wider than the pack's (`wide`), so the bow reads from above at phone size.
-    return piece(file, colours, at=(x * c, x * sn + at_y, z + 0.18 * s), scale=(s * wide, s, s), turn=90 + turn,
-                 recoil=kick(recoil))
+def _arrow_paint(part, stone='arMoon', shade='arMoonShade', metal='arBand'):
+    if part == 'body':
+        return paint({k: (h, {'arMoon': stone, 'arMoonShade': shade, 'arBand': metal}.get(m, m))
+                      for k, (h, m) in ARROW_BODY.items()})
+    # Tier 3's gold: the bow and its turntable (the plate round its mount, what shows from above).
+    gilt = metal == 'arGold'
+    return paint({k: (h, metal if m == 'arBow' or (gilt and m == 'arPlate') else m)
+                  for k, (h, m) in ARROW_TURRET.items()})
 
 
-def _bucket(x, y, z, glow_mat='arRune'):
-    return piece(BUCKET, {H_TRIM: 'arFletch', H_STONE: 'arIron', H_PLANK: 'arWood', H_WOOD: 'arWoodDark'},
-                 at=(x, y, z), scale=70, recoil=kick(4.0))
+def _ballista(s, floor, metal='arBow', turn=0.0, at_y=0.0, recoil=4.0):
+    t = ward_turret('arrow', _arrow_paint('turret', metal=metal), s, AR_PIVOT, AR_FOOT, floor, 180.0 + turn,
+                    recoil=kick(recoil))
+    t['at'] = (t['at'][0], t['at'][1] + at_y, t['at'][2])
+    return t
+
+
+def _bucket(x, y, z):
+    return piece(BUCKET, {H_TRIM: 'arFletch', H_STONE: 'arBand', H_PLANK: 'arWood', H_WOOD: 'arWoodDark'},
+                 at=(x, y, z), scale=60, recoil=kick(4.0))
 
 
 def arrow_tier(tier):
-    s = {1: 55, 2: 62, 3: 65}[tier]
-    stone, dark = ('arWoodDark', 'arWoodDark') if tier == 1 else ('arStone', 'arStoneDark')
-    base = [tower(s, {H_STONE: stone, H_STONE_DARK: dark, H_PLANK: 'arPlank', H_WOOD: 'arWoodDark',
-                      H_TRIM: 'arGold' if tier == 3 else 'arIron'})]
-    floor = floor_of(s)
+    s = {1: 45, 2: 48, 3: 50}[tier]
+    top = (AR_TOP - AR_GROUND) * s
+    base = [ward_body('arrow', _arrow_paint('body', metal='arGold' if tier == 3 else 'arBand'), s, AR_GROUND)]
     if tier >= 2:
-        base += runes(2 if tier == 2 else 4, 0.53 * s, floor + 1.5, 'arRune')
-    turret = [_crossbow({1: 44, 2: 50, 3: 54}[tier], floor, metal='arGold' if tier == 3 else 'arSteel')]
-    if tier == 3:
-        turret.append(_bucket(-15, 0, floor))
+        # The tier's runes: pillars on the parapet's merlons, their caps glowing teal.
+        base += runes(2 if tier == 2 else 4, AR_RIM * s, top + 1.5, 'arRune', size=3.6)
+    floor = (0.80 - AR_GROUND) * s
+    turret = [_ballista({1: 24, 2: 26, 3: 27}[tier], floor, metal='arGold' if tier == 3 else 'arBow')]
     return dict(materials=arrow_materials, base=base, turret=turret, shadow=20)
 
 
 def arrow_sniper():
-    """A dark bastion crowned with six rune pillars (its spiky hexagon), a long arbalest with a rune bolt."""
-    s = 64
-    floor = floor_of(s)
-    base = [tower(s, {H_STONE: 'arBastion', H_STONE_DARK: 'arBastion', H_PLANK: 'arStoneDark', H_WOOD: 'arWoodDark',
-                      H_TRIM: 'arGold'}, turn=0)]
-    base += runes(6, 0.6 * s, floor + 1.5, 'arRune', start=90, size=4.8)
-    bow = _crossbow(56, floor, metal='arGold', file=SK_CROSSBOW, wide=1.15)
-    sx, sy, sz = bow['scale']
-    bow['scale'] = (sx, sy * 1.25, sz)  # a long arbalest
-    bolt = piece('adventurers/assets/arrow_crossbow.gltf', {(1, 2): 'arFletch', A_METAL: 'arRune', A_PLANK: 'arWood'},
-                 at=(4, 0, floor + 7), scale=44, turn=-90, recoil=kick(5.0))
-    return dict(materials=arrow_materials, base=base, turret=[bow, bolt], shadow=22)
+    """The tower dark as a bastion, crowned with six rune pillars (its spiky hexagon), a long gold ballista."""
+    s = 50
+    top = (AR_TOP - AR_GROUND) * s
+    base = [ward_body('arrow', _arrow_paint('body', 'arBastion', 'arBastionShade', 'arGold'), s, AR_GROUND)]
+    base += runes(6, AR_RIM * s, top + 1.5, 'arRune', start=90, size=4.2)
+    bow = _ballista((34, 27, 27), (0.80 - AR_GROUND) * s, metal='arGold', recoil=5.0)
+    return dict(materials=arrow_materials, base=base, turret=[bow], shadow=22)
 
 
 def arrow_volley():
-    """A square timber fort with a stone bartizan at each corner, three crossbows fanned out."""
-    base = corners(30, 30, {'Stone': 'arWood'}, file='builder/wall_corner.glb')
+    """A square timber fort round the tower (four Builder wall corners), a rune-lit bartizan at each corner, three
+    ballistas fanned out."""
+    s = 48
+    top = (AR_TOP - AR_GROUND) * s
+    base = [ward_body('arrow', _arrow_paint('body', metal='arGold'), s, AR_GROUND)]
+    base += corners(33, 30, {'Stone': 'arWood'}, file='builder/wall_corner.glb')
     base += [piece(PILLAR, {D_STONE_DARK: 'arStone', D_STONE: 'arStone'}, at=(x, y, 10), scale=(7, 7, 6),
-                   regions={D_STONE_DARK: rune_cap('arRune')}) for x, y in ((30, 30), (30, -30), (-30, 30), (-30, -30))]
-    floor = 14.0
-    turret = [_crossbow(40, floor, metal='arGold', turn=t) for t in (-26, 0, 26)]
-    turret += [_bucket(-16, y, floor - 2) for y in (-9, 9)]
-    return dict(materials=arrow_materials, base=base, turret=turret, shadow=16)
+                   regions={D_STONE_DARK: rune_cap('arRune')}) for x, y in ((33, 33), (33, -33), (-33, 33), (-33, -33))]
+    floor = (0.80 - AR_GROUND) * s
+    turret = [_ballista(19, floor + 2, metal='arGold', turn=t) for t in (-26, 0, 26)]
+    return dict(materials=arrow_materials, base=base, turret=turret, shadow=20)
 
 
 ARROW = {'1': arrow_tier(1), '2': arrow_tier(2), '3': arrow_tier(3), 'sniper': arrow_sniper(), 'volley': arrow_volley()}
 
 
-# --- the Cannon tower: grey stone and iron, a catapult, ember glow ---------------------------------------------------
+# --- the Cannon tower: a low wide octagonal bastion, a stone-thrower on its roof --------------------------------------
+#
+# Body (cannon-a without its stone-thrower): ground y -0.558, the merlons up to 0.556 round a flat roof, a turntable
+# plate at its centre (its top 0.36), the octagon 0.95 across its flats: squat and wide, the biggest footprint.
+# Turret: the stone-thrower on its turntable (pivot (0.219, 0), foot -0.548), throwing along +x: its arm rests back
+# from the axle at the frame's front ((0.6, -0.2), across z) to the sling-cup and boulder at -x, and swings up over the
+# frame on a shot (`arm`, a region of its vertices posed as tdt3d.posed poses a Meshy creep). Runes: braziers of teal
+# runelight on the merlons (r 0.82 of the body).
+
+# Meshy's painted shadows on the roof (the blue-grey patches) are the stone: the painter shades it.
+CANNON_BODY = tones('cnMoon', '#a8bcc8', '#b4cbd8', '#bed9e6', '#b5cdd9', '#93a8b5', '#7f93a0', '#657884')
+CANNON_BODY.update(tones('cnMoonShade', '#3c4b5f'))
+CANNON_BODY.update(tones('cnBand', '#24334b', '#2b3850', '#1d2b42', '#182336', '#0d1424'))
+CANNON_BODY.update(tones('cnTimber', '#4b3c36'))
+CANNON_TURRET = tones('cnFrame', '#463730', '#4a3932', '#473935', '#51443f', '#352b28', '#191412')
+CANNON_TURRET.update(tones('cnPlate', '#34465d', '#36475b', '#3b3f49'))
+CANNON_TURRET.update(tones('cnBoulder', '#b0c9d4', '#bcd9e3'))
+CANNON_TURRET.update(tones('cnBand', '#818387', '#565d67', '#4c4b4f'))
+CN_GROUND, CN_TOP, CN_RIM, CN_FLOOR = -0.558, 0.556, 0.82, 0.36
+CN_PIVOT, CN_FOOT = (0.219, 0.0), -0.548
+CN_ARM = (np.array([-0.62, 0.18, 0.0]), np.array([0.68, -0.2, 0.0]))
+CN_AXLE = (0.6, -0.2, 0.0)
+
+
+def _cannon_arm(x, y, z):
+    """The thrower's arm, its sling-cup and its boulder: near the arm's line (in the frame's middle, |z| < 0.2) or
+    the cup's end (x < -0.55, over the frame's base)."""
+    p = np.stack([x, y, z], -1)
+    a, b = CN_ARM
+    t = np.clip(((p - a) @ (b - a)) / ((b - a) @ (b - a)), 0, 1)
+    near = np.linalg.norm(p - (a + t[:, None] * (b - a)), axis=1)
+    mid = np.abs(z) < 0.21
+    return np.where(mid & ((near < 0.1) | ((x < -0.55) & (y > 0.05))), 1.0, np.where(mid & (near < 0.13), 0.5, 0.0))
+
+
+CANNON_POSED = dict(regions={'arm': dict(weight=_cannon_arm, at=CN_AXLE, axis=(0, 0, 1))})
+
 
 def cannon_materials():
-    d('cnField', color=mix('stone', 'pebble', 0.45))
-    d('cnStone', 'stone')
-    d('cnStoneDark', 'stoneDark')
+    d('cnMoon', color=mix('stone', 'snow', 0.25))
+    d('cnMoonShade', 'stone')
+    d('cnIronWall', color=mix('iron', 'stone', 0.25), metal=0.5)
+    d('cnIronWallShade', 'iron', metal=0.4)
+    d('cnBand', 'iron', metal=0.6)
     d('cnIron', 'iron', metal=0.6)
     d('cnIronDark', 'ironDark', metal=0.4)
-    d('cnWood', 'wood')
-    d('cnWoodDark', 'woodDark')
-    d('cnPlank', color=mix('wood', 'iron', 0.3))
-    d('cnFloor', color=mix('stoneDark', 'iron', 0.4))
-    d('cnFrame', color=mix('wood', 'snare', 0.35))
-    d('cnRock', color=mix('stoneDark', 'ink', 0.2))
-    d('cnRope', 'snare')
+    d('cnTimber', color=mix('woodDark', 'ink', 0.4))
+    d('cnFrame', 'woodDark')
+    d('cnPlate', 'ironDark', metal=0.3)
+    d('cnBoulder', color=mix('stone', 'snow', 0.25))
     gold('cnGold')
-    glow('cnEmber', 'ember')
+    glow('cnRune', 'rune')
+    glow('cnCharge', 'arcane')
 
 
-def _catapult(s, floor, band='cnIron', arm=1.0, load='cnRock', recoil_deg=75):
-    """The hexagon pack's catapult (its turret and arm), turned to throw along +x; it throws on a shot."""
-    colours = {H_TRIM: band, H_STONE: load, H_PLANK: 'cnFrame', H_WOOD: 'cnWood', H_CANVAS: 'cnRope'}
-    at = (0.0, 0.0, floor - 1.4 * s)
-    out = [piece(CATAPULT, colours, at=at, scale=s, turn=-90, meshes=['catapult_turret_blue'])]
-    out.append(piece(CATAPULT, colours, at=at, scale=(s * arm, s, s), turn=-90, meshes=['catapult_arm_blue'],
-                     recoil=swing('catapult_arm_blue', 'X', recoil_deg, then=kick(2.0))))
-    out[0]['recoil'] = kick(2.0)
-    return out
+def _cannon_paint(part, stone='cnMoon', shade='cnMoonShade', band='cnBand', boulder='cnBoulder'):
+    if part == 'body':
+        swap = {'cnMoon': stone, 'cnMoonShade': shade, 'cnBand': band}
+        return paint({k: (h, swap.get(m, m)) for k, (h, m) in CANNON_BODY.items()})
+    # Tier 3's gold: the bands and the turntable (the plate round the frame, what shows from above).
+    swap = {'cnBand': band, 'cnBoulder': boulder, **({'cnPlate': band} if band == 'cnGold' else {})}
+    return paint({k: (h, swap.get(m, m)) for k, (h, m) in CANNON_TURRET.items()})
+
+
+def _thrower(s, floor, band='cnBand', boulder='cnBoulder', throw=50.0):
+    """The stone-thrower: it kicks back 2 px and throws its arm up `throw` degrees over the frame on a shot."""
+    return ward_turret('cannon', _cannon_paint('turret', band=band, boulder=boulder), s, CN_PIVOT, CN_FOOT, floor, 0.0,
+                       posed=CANNON_POSED, recoil=kick_turn(2.0, {'arm': -throw}))
 
 
 def cannon_tier(tier):
-    s = {1: 55, 2: 62, 3: 65}[tier]
-    walls = {1: 'cnField', 2: 'cnStone', 3: 'cnStone'}[tier]
-    base = [tower(s, {H_STONE: walls, H_STONE_DARK: 'cnStoneDark', H_PLANK: 'cnFloor', H_WOOD: 'cnWoodDark',
-                      H_TRIM: 'cnGold' if tier == 3 else 'cnIron'})]
-    floor = floor_of(s)
+    s = {1: 37, 2: 39, 3: 41}[tier]
+    top = (CN_TOP - CN_GROUND) * s
+    band = 'cnGold' if tier == 3 else 'cnBand'
+    base = [ward_body('cannon', _cannon_paint('body', band=band), s, CN_GROUND)]
     if tier >= 2:
-        base += braziers(2 if tier == 2 else 4, 0.53 * s, floor, 'cnEmber', 'cnIronDark')
-    if tier == 3:
-        base += [piece(COINS, {D_GOLD: 'cnIronDark'}, at=(x, y, floor - 30), scale=10)
-                 for x, y in ring(2, 0.6 * s, 0)]
-    # The catapult's arm reaches 0.72 of its scale past the pivot: at most 62, so it swings inside the pad.
-    turret = _catapult({1: 56, 2: 60, 3: 62}[tier], floor, band='cnGold' if tier == 3 else 'cnIron')
-    return dict(materials=cannon_materials, base=base, turret=turret, shadow=20)
+        # The tier's runes: braziers of teal runelight on the merlons (V-05d's ember braziers, under the wards' rule).
+        base += braziers(2 if tier == 2 else 4, CN_RIM * s, top, 'cnRune', 'cnIronDark', size=22)
+    floor = (CN_FLOOR - CN_GROUND) * s
+    turret = [_thrower({1: 30, 2: 32, 3: 33}[tier], floor, band=band)]
+    return dict(materials=cannon_materials, base=base, turret=turret, shadow=16)
 
 
 def cannon_mortar():
-    """An octagonal iron emplacement (the windmill's stone foot) with ember studs, a wide-armed catapult loaded with
-    a glowing shot."""
-    base = [piece(WINDMILL, {H_PLASTER: 'cnIron', H_STONE: 'cnStone', H_STONE_DARK: 'cnIronDark', H_PLANK: 'cnGold',
-                             H_CANVAS: 'cnIronDark', H_WOOD: 'cnIron'}, scale=(66, 66, 50),
-                  meshes=['building_windmill_blue'])]
-    floor = 0.69 * 50
-    base += braziers(4, 30, floor, 'cnEmber', 'cnIronDark', start=0, size=20)
-    turret = _catapult(52, floor, band='cnGold', arm=1.6, load='cnEmber', recoil_deg=85)
+    """The bastion in dark iron, four braziers of violet light on its merlons, a thrower loaded with a charged shot
+    glowing violet."""
+    s = 40
+    top = (CN_TOP - CN_GROUND) * s
+    base = [ward_body('cannon', _cannon_paint('body', 'cnIronWall', 'cnIronWallShade', 'cnGold'), s, CN_GROUND)]
+    base += braziers(4, CN_RIM * s, top, 'cnCharge', 'cnIronDark', start=0, size=22)
+    turret = [_thrower((37, 33, 33), (CN_FLOOR - CN_GROUND) * s, band='cnGold', boulder='cnCharge', throw=60.0)]
     return dict(materials=cannon_materials, base=base, turret=turret, shadow=16)
 
 
 def cannon_shrapnel():
-    """A ring of powder kegs round an iron tower (its saw-toothed outline), a catapult loaded with a keg."""
-    s = 58
-    floor = floor_of(s)
-    base = [tower(s, {H_STONE: 'cnIronDark', H_STONE_DARK: 'cnIronDark', H_PLANK: 'cnFloor', H_WOOD: 'cnWoodDark',
-                      H_TRIM: 'cnGold'})]
-    base += [piece(BARREL, {H_STONE: 'cnIron', H_PLANK: 'cnEmber', H_WOOD: 'cnWoodDark'}, at=(x, y, floor - 12),
-                   scale=78) for x, y in ring(8, 0.62 * s, 22.5)]
-    turret = _catapult(60, floor, band='cnGold')
-    turret.append(piece(BARREL, {H_STONE: 'cnIron', H_PLANK: 'cnEmber', H_WOOD: 'cnWoodDark'}, at=(-14, 0, floor),
-                        scale=70, recoil=kick(2.0)))
-    return dict(materials=cannon_materials, base=base, turret=turret, shadow=20)
+    """A ring of eight powder kegs round the bastion (its saw-toothed outline), their bands glowing violet; a thrower
+    loaded with an iron bomb."""
+    s = 35
+    floor = (CN_FLOOR - CN_GROUND) * s
+    base = [ward_body('cannon', _cannon_paint('body', band='cnGold'), s, CN_GROUND)]
+    base += [piece(BARREL, {H_STONE: 'cnIron', H_PLANK: 'cnCharge', H_WOOD: 'cnTimber'}, at=(x, y, 0), scale=70)
+             for x, y in ring(8, 0.95 * s + 4, 22.5)]
+    turret = [_thrower(31, floor, band='cnGold', boulder='cnIronDark')]
+    return dict(materials=cannon_materials, base=base, turret=turret, shadow=16)
 
 
 CANNON = {'1': cannon_tier(1), '2': cannon_tier(2), '3': cannon_tier(3), 'mortar': cannon_mortar(),
           'shrapnel': cannon_shrapnel()}
 
 
-# --- the Frost tower: ice and snow, an ice lance, frost glow ---------------------------------------------------------
+# --- the Frost tower: the palest round tower, an ice column, an ice lance on its pivot --------------------------------
+#
+# Body (frost-a without its lance): ground y -0.951, a frosted rim up to 0.47 (r 0.7 to 0.81) round a pale six-sided
+# ice column up the middle to 0.951, its pivot plate on top: the palest disc with a column at its centre. Turret: the
+# ice lance on its pivot post (pivot (0.416, 0), foot -0.48), its blade along -x (turned 180°), thickened across (its
+# blade is 0.16 m wide: a line at phone size). Runes: ice columns with frost caps standing on the rim (r 0.76 of the
+# body, its top at 0.47).
+
+FROST_BODY = tones('frMoon', '#cac6de', '#c9c4df', '#bebad2', '#d7d6eb')
+FROST_BODY.update(tones('frRime', '#e6f1fd', '#e4f7fd', '#d0e7f2'))
+FROST_BODY.update(tones('frColumn', '#c5e6ee', '#bddeea', '#c6d9e8'))
+FROST_BODY.update(tones('frWood', '#483027'))
+FROST_BODY.update(tones('frPlate', '#253c4d', '#202024', '#707b83'))
+FROST_TURRET = tones('frIron', '#2b3c4e', '#2c3b4e', '#28394b', '#273749', '#2c3b4c')
+FROST_TURRET.update(tones('frLance', '#c8ecf9', '#c4e8f6', '#c4e8f5', '#cbf0fd', '#7893a0'))
+FROST_TURRET.update(tones('frCollar', '#181a29', '#1c1f2c', '#1b1e2d', '#151a2a'))
+FR_GROUND, FR_TOP, FR_RIM, FR_RIM_Y = -0.951, 0.951, 0.76, 0.47
+FR_PIVOT, FR_FOOT = (0.416, 0.0), -0.48
+
 
 def frost_materials():
-    d('frField', color=mix('stoneDark', 'iceDark', 0.35))
+    d('frMoon', color=mix('stone', 'snow', 0.55))
+    d('frRime', 'snow', fill=0.6)
+    d('frColumn', 'ice', metal=0.3)
+    d('frGlacier', color=mix('iceDark', 'ink', 0.3), metal=0.3)
+    d('frGlacierRime', 'iceDark', metal=0.3)
+    d('frWood', color=mix('woodDark', 'ink', 0.4))
+    d('frPlate', 'iron', metal=0.4)
+    d('frIron', 'iron', metal=0.4)
     d('frIce', 'ice', metal=0.3)
     d('frIceDark', 'iceDark', metal=0.3)
-    d('frGlacier', color=mix('iceDark', 'ink', 0.3), metal=0.3)
-    d('frSnow', color=mix('snow', 'iceDark', 0.45), fill=0.6)
-    d('frWood', 'woodDark')
+    d('frLance', 'ice', metal=0.6)
+    d('frCollar', 'ironDark', metal=0.3)
     gold('frGold')
     glow('frFrost', 'frost')
-    d('frFrostStone', 'iceDark')
-    d('frLanceCold', 'ice', metal=0.6)
 
 
-def _lance(length, z, gem, metal='frIceDark', thick=1.0):
-    """The KayKit two-handed sword laid flat, pointing +x, as an ice lance: its blade ice, its fuller and gem glowing
-    from tier 2."""
-    s = length / 2.36
-    return piece('adventurers/assets/sword_2handed.gltf', {A_METAL: 'frLanceCold', A_PLANK: metal, A_GRIP: gem},
-                 at=(-0.7 * s, 0, z + 0.15 * s * thick), scale=(s * thick, s * thick, s), rot=(0, 90, 0),
-                 recoil=kick(3.0))
+def _frost_paint(part, stone='frMoon', rime='frRime', metal='frPlate', lance='frLance', collar='frCollar'):
+    if part == 'body':
+        swap = {'frMoon': stone, 'frRime': rime, 'frPlate': metal}
+        return paint({k: (h, swap.get(m, m)) for k, (h, m) in FROST_BODY.items()})
+    swap = {'frIron': metal, 'frLance': lance, 'frCollar': collar}
+    return paint({k: (h, swap.get(m, m)) for k, (h, m) in FROST_TURRET.items()})
+
+
+def _ice_columns(n, r, z, start=None):
+    """The Frost's runes: ice columns standing on the rim (`z`, its top), their caps glowing frost."""
+    start = (90 if n == 2 else 45) if start is None else start
+    return [piece(COLUMN, {D_STONE: 'frIce'}, at=(x, y, z - 1), scale=(10, 10, 7),
+                  regions={D_STONE: lambda c, n: 'frFrost' if n.z > 0.7 and c.z > 1.3 else None})
+            for x, y in ring(n, r, start)]
+
+
+def _lance(s, floor, thick, metal='frIron', collar='frCollar', lance='frLance'):
+    return ward_turret('frost', _frost_paint('turret', metal=metal, collar=collar, lance=lance), (s, s * thick, s),
+                       FR_PIVOT, FR_FOOT, floor, 180.0, recoil=kick(3.0))
 
 
 def frost_tier(tier):
-    s = {1: 55, 2: 62, 3: 65}[tier]
-    walls = {1: 'frField', 2: 'frIce', 3: 'frIce'}[tier]
-    base = [tower(s, {H_STONE: walls, H_STONE_DARK: 'frIceDark', H_PLANK: 'frSnow', H_WOOD: 'frWood',
-                      H_TRIM: 'frGold' if tier == 3 else 'frIceDark'})]
-    floor = floor_of(s)
+    s = {1: 32, 2: 34, 3: 36}[tier]
+    metal = 'frGold' if tier == 3 else 'frPlate'
+    base = [ward_body('frost', _frost_paint('body', metal=metal), s, FR_GROUND)]
     if tier >= 2:
-        base += runes(2 if tier == 2 else 4, 0.53 * s, floor + 1.5, 'frFrost', file=COLUMN, size=9,
-                      colours={D_STONE: 'frIce'})
-        for b in base[1:]:
-            b['regions'] = {D_STONE: lambda c, n: 'frFrost' if n.z > 0.7 and c.z > 1.3 else None}
+        # The tier's runes: ice columns on the frosted rim, their caps glowing frost.
+        base += _ice_columns(2 if tier == 2 else 4, FR_RIM * s, (FR_RIM_Y - FR_GROUND) * s)
     if tier == 3:
-        base += [piece(ROCK, {H_STONE: 'frIce'}, at=(x, y, floor - 8), scale=26, turn=i * 70)
-                 for i, (x, y) in enumerate(ring(4, 0.6 * s, 0))]
-    turret = [_lance({1: 46, 2: 52, 3: 56}[tier], floor, 'frFrost' if tier >= 2 else 'frIceDark',
-                     metal='frGold' if tier == 3 else 'frIceDark', thick={1: 1.9, 2: 2.1, 3: 2.2}[tier])]
-    return dict(materials=frost_materials, base=base, turret=turret, shadow=20)
+        base += [piece(ROCK, {H_STONE: 'frIce'}, at=(x, y, (FR_RIM_Y - FR_GROUND) * s - 6), scale=20, turn=i * 70)
+                 for i, (x, y) in enumerate(ring(4, FR_RIM * s, 0))]
+    floor = (FR_TOP - FR_GROUND) * s
+    turret = [_lance({1: 19, 2: 20, 3: 21}[tier], floor, {1: 2.4, 2: 2.6, 3: 2.7}[tier],
+                     metal='frGold' if tier == 3 else 'frIron', collar='frGold' if tier == 3 else 'frCollar')]
+    return dict(materials=frost_materials, base=base, turret=turret, shadow=18)
 
 
 def frost_glacier():
-    """A jagged shelf of dark glacier ice (ice boulders all round the tower), a heavy blocky ice ram."""
-    s = 56
-    floor = floor_of(s)
-    base = [tower(s, {H_STONE: 'frGlacier', H_STONE_DARK: 'frGlacier', H_PLANK: 'frIceDark', H_WOOD: 'frWood',
-                      H_TRIM: 'frGold'})]
-    base += [piece(ROCK, {H_STONE: 'frIce' if i % 2 else 'frIceDark'}, at=(x, y, floor - 10), scale=40, turn=i * 53)
-             for i, (x, y) in enumerate(ring(7, 0.62 * s, 10))]
-    base += runes(4, 0.5 * s, floor + 1.5, 'frFrost', file=COLUMN, size=9, colours={D_STONE: 'frIce'})
-    for b in base[-4:]:
-        b['regions'] = {D_STONE: lambda c, n: 'frFrost' if n.z > 0.7 and c.z > 1.3 else None}
-    turret = [_lance(44, floor, 'frFrost', metal='frGold', thick=3.2)]
-    return dict(materials=frost_materials, base=base, turret=turret, shadow=20)
+    """The tower in dark glacier ice, a jagged shelf of ice boulders all round it, four frost columns; a heavy lance
+    three times as thick."""
+    s = 31
+    base = [ward_body('frost', _frost_paint('body', 'frGlacier', 'frGlacierRime', 'frGold'), s, FR_GROUND)]
+    base += [piece(ROCK, {H_STONE: 'frIce' if i % 2 else 'frIceDark'}, at=(x, y, 0), scale=40, turn=i * 53)
+             for i, (x, y) in enumerate(ring(7, 0.88 * s + 6, 10))]
+    base += _ice_columns(4, FR_RIM * s, (FR_RIM_Y - FR_GROUND) * s)
+    turret = [_lance(20, (FR_TOP - FR_GROUND) * s, 4.2, metal='frGold', collar='frGold')]
+    return dict(materials=frost_materials, base=base, turret=turret, shadow=18)
 
 
+# The Blizzard's rotor: the Flak's six sails laid flat (its rotor alone, everything else on the model left out),
+# painted in ice; the rotor's plane, centre and axis are the Flak turret's (below).
 def frost_blizzard():
-    """A round snowfield (a great snow drum, the barrel's round top), a four-bladed frost rotor laid flat."""
-    base = [piece(BARREL, {H_STONE: 'frIce', H_PLANK: 'frSnow', H_WOOD: 'frSnow'}, scale=(330, 330, 120))]
-    floor = 0.212 * 120
-    base += runes(4, 25, floor + 1.5, 'frFrost', file=COLUMN, size=8, colours={D_STONE: 'frIce'}, start=0)
-    for b in base[-4:]:
-        b['regions'] = {D_STONE: lambda c, n: 'frFrost' if n.z > 0.7 and c.z > 1.3 else None}
-    rotor = piece(WINDMILL, {H_PLANK: 'frFrost', H_CANVAS: 'frIce', H_WOOD: 'frIceDark'},
-                  at=(0, 0, floor + 4), scale=48, rot=(-90, 0, 0), meshes=['building_windmill_top_fan_blue'],
-                  centre='building_windmill_top_fan_blue', recoil=swing('building_windmill_top_fan_blue', 'Y', 30))
-    return dict(materials=frost_materials, base=base, turret=[rotor], shadow=10, pivot=(0.0, 0.0))
+    """A round snowfield (the tower in snow, four frost columns), the Flak's six sails laid flat in ice as a frost
+    rotor; on a pulse the sails turn 30°."""
+    s = 34
+    base = [ward_body('frost', _frost_paint('body', 'frRime', 'frRime', 'frGold'), s, FR_GROUND)]
+    base += _ice_columns(4, FR_RIM * s, (FR_RIM_Y - FR_GROUND) * s, start=0)
+    rotor = _flak_rotor_flat(24, (FR_TOP - FR_GROUND) * s + 4, 'frost')
+    return dict(materials=frost_materials, base=base, turret=[rotor], shadow=18)
 
 
-FROST = {'1': frost_tier(1), '2': frost_tier(2), '3': frost_tier(3), 'glacier': frost_glacier(),
-         'blizzard': frost_blizzard()}
+FROST = {'1': frost_tier(1), '2': frost_tier(2), '3': frost_tier(3)}  # the branches once the Flak's rotor is defined
 
 
-# --- the Arcane tower: violet stone, a staff's gem, arcane glow ------------------------------------------------------
+# --- the Arcane tower: a round tower under a big slate dome, a staff holding a crystal --------------------------------
+#
+# Body (arcane-a without its staff): ground y -0.952, the walls under a dark slate dome whose eaves are its widest
+# (r 0.963 at 0.16), a small iron cap at its tip (0.95): a round dome. Turret: the staff (its ring at (0.09, 0) held
+# over the cap, the staff's underside -0.1), two iron prongs holding the crystal at -x (turned 180°), thickened across.
+# Runes: candles burning violet on the eaves (r 0.86 of the body), as V-05d's in the well.
+
+ARCANE_BODY = tones('acMoon', '#d6cae8', '#c9c1de', '#aba7c0', '#938ca0')
+ARCANE_BODY.update(tones('acMoonShade', '#766f7f', '#615d69'))
+ARCANE_BODY.update(tones('acSlate', '#354b61', '#363c4b', '#57647c', '#49576f', '#7d869f'))
+ARCANE_BODY.update(tones('acTimber', '#161516', '#1a191b', '#242428'))
+ARCANE_TURRET = tones('acIron', '#374356', '#354257', '#343e52', '#3c485b', '#475264', '#535f6f')
+ARCANE_TURRET.update(tones('acGem', '#d8f4ff', '#d7f2fe', '#daf5fd', '#97aeb8', '#6a7987'))
+ARCANE_TURRET.update(tones('acShaft', '#1b161a', '#1e181a', '#262730'))
+AC_GROUND, AC_TOP, AC_EAVES, AC_EAVES_Y = -0.952, 0.95, 0.86, 0.2
+AC_PIVOT, AC_FOOT = (0.09, 0.0), -0.1
+
+
+def _dome_cap(c, n, bone):
+    """The iron cap at the dome's tip (the staff's mount): gold at tier 3."""
+    return c[1] > 0.84 and math.hypot(c[0], c[2]) < 0.16
+
 
 def arcane_materials():
-    d('acStone', color=mix('arcaneStone', 'stone', 0.3))
-    d('acStoneLight', color=mix('arcaneStone', 'stone', 0.4))
-    d('acDark', color=mix('arcaneStone', 'ink', 0.35))
-    d('acPool', 'amethyst')
-    d('acWood', 'woodDark')
+    d('acMoon', color=mix('stone', 'snow', 0.3))
+    d('acMoonShade', 'stone')
+    # The big dome takes the painter's rim light (rune teal, from behind on the right) as a wide crescent: a third.
+    d('acSlate', color=mix('steelDark', 'arcaneStone', 0.5), rim=0.35)
+    d('acPale', color=mix('crystal', 'amethyst', 0.45))
     d('acObsidian', 'obsidian', metal=0.4)
+    d('acTimber', color=mix('woodDark', 'ink', 0.4))
+    # The staff lighter than the concept's dark timber (it vanished on the dark dome at phone size).
+    d('acShaft', 'wood')
+    d('acIron', 'iron', metal=0.5)
+    d('acDark', color=mix('arcaneStone', 'ink', 0.35))
+    d('acStone', color=mix('arcaneStone', 'stone', 0.3))
     d('acCrystal', 'crystal', metal=0.6)
     d('acWax', color=mix('amethyst', 'ink', 0.3))
     gold('acGold')
     glow('acGlow', 'arcane')
     glow('acVoid', 'voidGlow')
     glow('acPrism', 'crystal', 0.9)
-    # The pools: their own stone-dark water, lit from inside (an emissive core over the albedo, not a white disc).
-    d('acPoolGlow', 'amethyst', emit=0.32, glow='arcane', line=False, rim=0.0, ao=0.0, grad=False)
-    d('acPrismPool', color=mix('crystal', 'amethyst', 0.55), emit=0.22, glow='crystal', line=False, rim=0.0, ao=0.0,
-      grad=False)
-    d('acVoidPool', 'obsidian', emit=0.45, glow='voidGlow', line=False, rim=0.0, ao=0.0, grad=False)
-    d('acSilver', 'steel', metal=0.7)
 
 
-# The well without its roof, posts, crank and bucket (all above its stone rim): an open pool. Only its stone and its
-# water are kept (`cells`).
-WELL_ROOF = lambda c: c.z > 0.22  # noqa: E731
-WELL_KEEP = {H_STONE, H_WATER}
+def _arcane_paint(part, slate='acSlate', cap='acIron', metal='acIron', gem='acCrystal', wood='acShaft'):
+    if part == 'body':
+        swap = {'acSlate': slate}
+        return paint({k: (h, swap.get(m, m)) for k, (h, m) in ARCANE_BODY.items()},
+                     **{k: (lambda c, n, b, cap=cap: cap if _dome_cap(c, n, b) else None)
+                        for k, (h, m) in ARCANE_BODY.items() if m in ('acSlate', 'acTimber')})
+    swap = {'acIron': metal, 'acGem': gem, 'acShaft': wood}
+    return paint({k: (h, swap.get(m, m)) for k, (h, m) in ARCANE_TURRET.items()})
 
 
-def _staff(length, z, gem, metal, wood='acWood'):
-    """The Mage's staff laid flat, pointing +x: two prongs holding a gem (the 2D Arcane focus)."""
-    s = length / 2.15
-    return piece(STAFF, {A_GRIP: wood, A_METAL: metal, A_PLANK: wood, A_GEM: gem}, at=(-0.2 * s, 0, z + 0.3 * s),
-                 scale=(s * 1.4, s * 1.4, s), rot=(0, 90, 0), recoil=kick(3.0))
+def _staff(s, floor, gem, metal, wood='acShaft', thick=1.8):
+    return ward_turret('arcane', _arcane_paint('turret', metal=metal, gem=gem, wood=wood), (s, s * thick, s * thick),
+                       AC_PIVOT, AC_FOOT, floor, 180.0, recoil=kick(3.0))
 
 
-def _candles(x, y, z, flame, size=40):
+def _candles(x, y, z, flame, size=34):
     """Three candles (the tier's runes): dark wax, the flames glowing in the tower's light."""
     return piece(CANDLES, {D_CREAM: 'acWax', D_WOOD: flame}, at=(x, y, z), scale=size)
 
 
 def arcane_tier(tier):
-    s = {1: 100, 2: 108, 3: 112}[tier]
-    base = [piece(WELL, {H_STONE: 'acStone', H_WATER: 'acPoolGlow' if tier >= 2 else 'acPool', H_TRIM: 'acStone',
-                         H_PLANK: 'acGold' if tier == 3 else 'acStoneLight', H_WOOD: 'acDark'},
-                  scale=s, drop=WELL_ROOF, cells=WELL_KEEP)]
-    floor = 0.38 * s
+    s = {1: 31, 2: 33, 3: 35}[tier]
+    base = [ward_body('arcane', _arcane_paint('body', cap='acGold' if tier == 3 else 'acIron'), s, AC_GROUND)]
     if tier >= 2:
-        base += [_candles(x, y, floor - 3, 'acGlow') for x, y in ring(2 if tier == 2 else 4, 0.3 * s, 90 if tier == 2 else 45)]
-    if tier == 3:
-        base += [piece(PILLAR_DECO, {D_STONE_DARK: 'acDark', D_STONE: 'acStone', D_WHITE: 'acStoneLight',
-                                     D_CREAM: 'acGold', D_LEATHER: 'acGold', D_WOOD: 'acDark'},
-                       at=(x, y, floor - 30), scale=(7, 7, 8), turn=math.degrees(math.atan2(y, x)) - 90)
-                 for x, y in ring(5, 0.34 * s, 90)]
-    turret = [_staff({1: 44, 2: 50, 3: 54}[tier], floor, 'acGlow' if tier >= 2 else 'acPool',
-                     'acGold' if tier == 3 else 'acSilver')]
+        # The tier's runes: candles burning violet on the dome's eaves.
+        z = (AC_EAVES_Y - AC_GROUND) * s
+        base += [_candles(x, y, z - 2, 'acGlow') for x, y in ring(2 if tier == 2 else 4, AC_EAVES * s,
+                                                                    90 if tier == 2 else 45)]
+    floor = (AC_TOP - AC_GROUND) * s
+    turret = [_staff({1: 23, 2: 25, 3: 26}[tier], floor, 'acGlow' if tier >= 2 else 'acCrystal',
+                     'acGold' if tier == 3 else 'acIron')]
     return dict(materials=arcane_materials, base=base, turret=turret, shadow=16)
 
 
 def arcane_prism():
-    """A pale triangular dais: three crystal pillars round a glowing pool; a great prism (a crystal rock) on the
-    staff."""
-    s = 104
-    base = [piece(WELL, {H_STONE: 'acStoneLight', H_WATER: 'acPrismPool', H_TRIM: 'acStone', H_PLANK: 'acGold',
-                         H_WOOD: 'acDark'}, scale=s, drop=WELL_ROOF, cells=WELL_KEEP)]
-    floor = 0.38 * s
+    """A pale dome, three crystal pillars round it (a triangle); a great prism (a crystal rock) on the staff."""
+    s = 33
+    base = [ward_body('arcane', _arcane_paint('body', slate='acPale', cap='acGold'), s, AC_GROUND)]
     base += [piece(PILLAR_DECO, {D_STONE_DARK: 'acCrystal', D_STONE: 'acCrystal', D_WHITE: 'acPrism',
                                  D_CREAM: 'acGold', D_LEATHER: 'acGold', D_WOOD: 'acStone'},
-                   at=(x, y, floor - 30), scale=(8.5, 8.5, 8), turn=math.degrees(math.atan2(y, x)) - 90)
-             for x, y in ring(3, 0.37 * s, 0)]
-    turret = [_staff(44, floor, 'acPrism', 'acGold'),
-              piece(ROCK, {H_STONE: 'acCrystal'}, at=(14, 0, floor + 6), scale=26, turn=30, recoil=kick(3.0))]
+                   at=(x, y, 0), scale=(8.5, 8.5, 8), turn=math.degrees(math.atan2(y, x)) - 90)
+             for x, y in ring(3, 0.96 * s + 7, 0)]
+    floor = (AC_TOP - AC_GROUND) * s
+    turret = [_staff(22, floor, 'acPrism', 'acGold'),
+              piece(ROCK, {H_STONE: 'acCrystal'}, at=(16, 0, floor + 3), scale=24, turn=30, recoil=kick(3.0))]
     return dict(materials=arcane_materials, base=base, turret=turret, shadow=16)
 
 
 def arcane_void():
-    """An obsidian black sun with blades for thorns all round it, a black staff with a magenta gem."""
-    s = 104
-    base = [piece(WELL, {H_STONE: 'acObsidian', H_WATER: 'acVoidPool', H_TRIM: 'acObsidian', H_PLANK: 'acGold',
-                         H_WOOD: 'acObsidian'}, scale=s, drop=WELL_ROOF, cells=WELL_KEEP)]
-    floor = 0.38 * s
+    """An obsidian dome with blades for thorns all round its eaves, a black staff with a magenta crystal."""
+    s = 33
+    base = [ward_body('arcane', _arcane_paint('body', slate='acObsidian', cap='acGold'), s, AC_GROUND)]
+    z = (AC_EAVES_Y - AC_GROUND) * s
     base += [piece('skeletons/assets/Skeleton_Blade.gltf', {S_METAL: 'acObsidian', (3, 1): 'acObsidian',
                                                             (6, 0): 'acDark', S_WOOD_DARK: 'acDark'},
-                   at=(x, y, floor - 6), scale=26, rot=(0, -90, 0), turn=math.degrees(math.atan2(y, x)))
-             for x, y in ring(8, 0.36 * s, 22.5)]
-    base += [_candles(x, y, floor - 3, 'acVoid') for x, y in ring(4, 0.3 * s, 45)]
-    turret = [_staff(48, floor, 'acVoid', 'acObsidian', wood='acObsidian')]
+                   at=(x, y, z - 4), scale=24, rot=(0, -90, 0), turn=math.degrees(math.atan2(y, x)))
+             for x, y in ring(8, 0.9 * s, 22.5)]
+    turret = [_staff(24, (AC_TOP - AC_GROUND) * s, 'acVoid', 'acObsidian', wood='acObsidian')]
     return dict(materials=arcane_materials, base=base, turret=turret, shadow=16)
 
 
@@ -476,95 +620,149 @@ ARCANE = {'1': arcane_tier(1), '2': arcane_tier(2), '3': arcane_tier(3), 'prism'
           'void': arcane_void()}
 
 
-# --- the Flak tower (anti-air): sandbags and steel, a skyward rotor, flare glow --------------------------------------
+# --- the Flak tower (anti-air): a low square stone emplacement, a skyward six-sailed rotor ----------------------------
+#
+# Body (flak-a without its rotor): ground y -0.532, a square 0.95 across its sides with merlons along them and iron
+# caps on its corners (up to 0.33), a timber deck at 0 with a turntable plate (a stray post of the rotor's mount the
+# image edit left on it is dropped). Turret: the rotor on its post (pivot (-0.009, -0.101), foot -0.951): the housing
+# and the rotor, which faces glTF +z, tilted at the sky 46° about the trunnion (so its face is 60° up: from above a
+# disc of sails) and turned to point +x; on a shot it kicks back 3 px and its sails turn half a step (30°). Runes:
+# posts on its corner caps, their caps glowing teal.
+
+FLAK_BODY = tones('fkMoon', '#cecbe6', '#d6d1e9', '#bcb8d8', '#b3b3c8', '#a4a3c6')
+FLAK_BODY.update(tones('fkMoonShade', '#828699', '#8386a9'))
+FLAK_BODY.update(tones('fkCap', '#263d4f', '#223342', '#3c4d62', '#111e2a', '#59647f'))
+FLAK_BODY.update(tones('fkDeck', '#262225', '#0f0e10'))
+FLAK_TURRET = tones('fkIron', '#2b3d4e', '#2c3f52', '#3c4d5d', '#253240', '#192430', '#4c5f71')
+FLAK_TURRET.update(tones('fkSail', '#e0e6f9', '#d0d5e6', '#aaafbf', '#999aa5', '#82838e'))
+FLAK_TURRET.update(tones('fkFrame', '#2b2427', '#19171c'))
+FLAK_TURRET.update(tones('fkIronDark', '#0c0c10'))
+FK_GROUND, FK_TOP, FK_HALF, FK_DECK = -0.532, 0.33, 0.95, 0.03
+FK_PIVOT, FK_FOOT = (-0.009, -0.101), -0.951
+FK_ROTOR_AT = np.array([0.06, 0.13, 0.42])           # the rotor's centre and its axis (normal to the sails)
+FK_ROTOR_AXIS = np.array([-0.043, 0.237, 0.971])
+FK_TRUNNION = (0.0, -0.04, -0.15)
+FK_TILT = -46.0                                      # about +x: the rotor's face up at the sky
+
+
+def _flak_post(x, y, z):
+    """The stray post on the deck (the rotor's mount, left by the image edit): above the deck, off the merlons."""
+    return (y > 0.12) & (np.hypot(x, z) < 0.62)
+
+
+def _rotor(x, y, z):
+    """The rotor: its sails, frames and hub, within 0.12 of the sails' plane (fading by 0.18) and 0.9 of its centre."""
+    p = np.stack([x, y, z], -1) - FK_ROTOR_AT
+    off = np.abs(p @ FK_ROTOR_AXIS)
+    return np.clip((0.18 - off) / 0.06, 0, 1) * (np.linalg.norm(p, axis=1) < 0.9)
+
+
+def _housing(x, y, z):
+    """Everything over the post's yoke (the housing and the rotor): what tilts."""
+    from tdt3d import posed
+    return posed.soft(-0.46, -0.36)(y)
+
+
+FLAK_POSED = dict(regions={
+    'spin': dict(weight=_rotor, at=tuple(FK_ROTOR_AT), axis=tuple(FK_ROTOR_AXIS)),
+    'tilt': dict(weight=_housing, at=FK_TRUNNION, axis=(1, 0, 0)),
+})
+FLAK_REST = {'tilt': FK_TILT}
+
 
 def flak_materials():
-    d('fkSand', 'sandbag')
-    d('fkSandDark', color=mix('sandbag', 'woodDark', 0.4))
-    d('fkSteel', 'steel', metal=0.6)
-    d('fkSteelDark', 'steelDark', metal=0.4)
-    d('fkSteelGold', color=mix('steel', 'gold', 0.3), metal=0.6)
-    d('fkPlank', 'woodDark')
-    d('fkSail', color=mix('steel', 'snow', 0.35), metal=0.3)
-    d('fkMoon', color=mix('steel', 'moon', 0.55), metal=0.6)
-    gold('fkGold')
-    glow('fkFlare', 'flare')
-    glow('fkLens', 'moon')
+    d('fkMoon', color=mix('stone', 'snow', 0.3))
+    d('fkMoonShade', 'stone')
+    d('fkCap', 'iron', metal=0.5)
+    d('fkDeck', color=mix('woodDark', 'ink', 0.4))
+    d('fkIron', 'steelDark', metal=0.5)
+    d('fkIronDark', 'ironDark', metal=0.3)
+    d('fkSail', color=mix('steel', 'snow', 0.6), metal=0.3)
+    d('fkMoonSail', color=mix('steel', 'moon', 0.55), metal=0.6)
+    d('fkFrame', color=mix('woodDark', 'ink', 0.4))
     d('fkRuneStone', 'steelDark')
+    gold('fkGold')
+    glow('fkRune', 'rune')
+    glow('fkLens', 'moon')
+    glow('fkCharge', 'arcane')
+    d('fkPlank', 'woodDark')
 
 
-def _rotor(s, z, sail='fkSail', hub='fkSteel', spin=30.0, at_y=0.0, fan_turn=0.0, cap=True):
-    """The windmill's cap and sails, aimed at the sky over +x (anti-air): it kicks back and its sails turn on a
-    shot."""
-    colours = {H_TRIM: hub, H_PLASTER: hub, H_STONE: 'fkSteelDark', H_PLANK: hub, H_CANVAS: sail, H_WOOD: 'fkSteelDark',
-               H_SLATE: 'fkSteelDark'}
-    at = (0.0, at_y, z + 0.15 * s)
-    hub = dict(centre='building_windmill_top_blue', turn=90, rot=(-35, 0, 0), scale=s)
-    out = []
-    if cap:
-        out.append(piece(WINDMILL, colours, at=at, meshes=['building_windmill_top_blue'], recoil=kick(3.0), **hub))
-    fan = piece(WINDMILL, colours, at=at, meshes=['building_windmill_top_fan_blue'],
-                recoil=swing('building_windmill_top_fan_blue', 'Y', spin, then=kick(3.0)), **hub)
-    if fan_turn:
-        fan['pose'] = lambda p, a, t=fan_turn: swing('building_windmill_top_fan_blue', 'Y', t)(p, 1.0)
-        fan['recoil'] = swing('building_windmill_top_fan_blue', 'Y', spin + fan_turn / max(1e-6, 1.0), then=kick(3.0))
-    out.append(fan)
-    return out
+def _flak_paint(part, cap='fkCap', metal='fkIron', sail='fkSail', frame='fkFrame', dark='fkIronDark'):
+    if part == 'body':
+        return paint({k: (h, cap if m == 'fkCap' else m) for k, (h, m) in FLAK_BODY.items()})
+    swap = {'fkIron': metal, 'fkSail': sail, 'fkFrame': frame, 'fkIronDark': dark}
+    return paint({k: (h, swap.get(m, m)) for k, (h, m) in FLAK_TURRET.items()})
 
 
-BARRIER = 'dungeon/barrier_column.gltf'
+def _skyward(s, floor, metal='fkIron', sail='fkSail', at_y=0.0, spin=30.0, rest_spin=0.0, sails_only=False):
+    """The rotor on its post, tilted at the sky; `rest_spin` turns its sails at rest (Hailstorm's second set),
+    `sails_only` keeps the rotor alone."""
+    rest = dict(FLAK_REST, spin=rest_spin)
+    t = ward_turret('flak', _flak_paint('turret', metal=metal, sail=sail), s, FK_PIVOT, FK_FOOT, floor, 90.0,
+                    posed=FLAK_POSED, pose=lambda p, a, r=rest: {'deform': r},
+                    recoil=with_rest(rest, kick_turn(3.0, {'spin': spin})),
+                    drop=(lambda x, y, z: _rotor(x, y, z) < 0.5) if sails_only else None)
+    t['at'] = (t['at'][0], t['at'][1] + at_y, t['at'][2])
+    return t
 
 
-def walls_square(h, mat, turn=0.0, scale=15.0):
-    """Four low walls between columns (the Dungeon pack's barrier) closing a square of half side h."""
-    out = []
-    for i in range(4):
-        a = math.radians(turn + 90 * i)
-        out.append(piece(BARRIER, {D_STONE: mat}, at=(h * math.cos(a), h * math.sin(a), 0), scale=(scale, 14, 14),
-                         turn=turn + 90 * i + 90))
-    return out
+def _flak_rotor_flat(s, floor, kind):
+    """The Flak's rotor alone, laid flat (its sails' plane level) with its centre over the tower's: the Blizzard's
+    frost rotor (`kind` 'frost': painted in ice); on a pulse the sails turn 30°."""
+    sail, metal, frame = ('frIce', 'frIceDark', 'frIceDark') if kind == 'frost' else ('fkSail', 'fkIron', 'fkFrame')
+    # The sails' axis (glTF) turned to Blender's up: glTF (x, y, z) = Blender (x, -z, y), then about Blender x.
+    ax = V((FK_ROTOR_AXIS[0], -FK_ROTOR_AXIS[2], FK_ROTOR_AXIS[1]))
+    tilt = math.degrees(math.atan2(ax.y, ax.z))
+    c = FK_ROTOR_AT
+    paint_ = _flak_paint('turret', metal=metal, sail=sail, frame=frame, dark=metal)
+    return ward_turret('flak', paint_, s, (c[0], c[2]), c[1], floor, 0.0, rot=(tilt, 0.0, 0.0), posed=FLAK_POSED,
+                       recoil=kick_turn(0.0, {'spin': 30.0}), drop=lambda x, y, z: _rotor(x, y, z) < 0.5)
 
 
 def flak_tier(tier):
-    floor = 10.0 if tier == 1 else 14.0
-    if tier == 1:
-        s = 50
-        base = [tower(s, {H_STONE: 'fkSand', H_STONE_DARK: 'fkSandDark', H_PLANK: 'fkPlank', H_WOOD: 'fkSandDark',
-                          H_TRIM: 'fkSandDark'}, zscale=0.3)]
-        floor = floor_of(s, 0.3)
-    else:
-        h = 27 if tier == 2 else 29
-        base = walls_square(h, 'fkSteel' if tier == 2 else 'fkSteelGold')
-        base += runes(2 if tier == 2 else 4, h * 1.42 if tier == 3 else h, 22, 'fkFlare',
-                      start=45 if tier == 3 else 90, colours={D_STONE_DARK: 'fkRuneStone', D_STONE: 'fkRuneStone'})
-        if tier == 3:
-            base += [piece(BARREL, {H_STONE: 'fkSteelDark', H_PLANK: 'fkGold', H_WOOD: 'fkPlank'}, at=(x, y, 0),
-                           scale=70) for x, y in ring(4, h * 0.62, 45)]
-    turret = _rotor({1: 40, 2: 44, 3: 48}[tier], floor, hub='fkGold' if tier == 3 else 'fkSteel')
+    s = {1: 31, 2: 33, 3: 35}[tier]
+    top = (FK_TOP - FK_GROUND) * s
+    base = [ward_body('flak', _flak_paint('body', cap='fkGold' if tier == 3 else 'fkCap'), s, FK_GROUND,
+                      drop=_flak_post)]
+    if tier >= 2:
+        # The tier's runes: posts on the corner caps, their caps glowing teal (V-05d's flare caps, under the rule).
+        base += runes(2 if tier == 2 else 4, 0.86 * math.sqrt(2) * s, top + 1.5, 'fkRune', start=45,
+                      colours={D_STONE_DARK: 'fkRuneStone', D_STONE: 'fkRuneStone'}, size=3.6)
+    floor = (FK_DECK - FK_GROUND) * s
+    turret = [_skyward({1: 25, 2: 27, 3: 28}[tier], floor, metal='fkGold' if tier == 3 else 'fkIron')]
     return dict(materials=flak_materials, base=base, turret=turret, shadow=14)
 
 
 def flak_skyguard():
-    """A diamond bastion (the square turned a quarter), twin rotors side by side and a sighting lens."""
-    h = 26
-    base = walls_square(h, 'fkSteelGold', turn=45)
-    base += runes(4, h * 1.42, 22, 'fkLens', start=0, colours={D_STONE_DARK: 'fkRuneStone', D_STONE: 'fkRuneStone'})
-    turret = _rotor(30, 16, sail='fkMoon', hub='fkGold', at_y=-11) + _rotor(30, 16, sail='fkMoon', hub='fkGold', at_y=11)
+    """The emplacement turned a quarter (a diamond), moon-glowing lenses on its points, twin rotors side by side
+    with moonlit sails."""
+    s = 31
+    top = (FK_TOP - FK_GROUND) * s
+    base = [ward_body('flak', _flak_paint('body', cap='fkGold'), s, FK_GROUND, drop=_flak_post, turn=45)]
+    base += runes(4, 0.86 * math.sqrt(2) * s, top + 1.5, 'fkLens', start=0,
+                  colours={D_STONE_DARK: 'fkRuneStone', D_STONE: 'fkRuneStone'}, size=3.6)
+    floor = (FK_DECK - FK_GROUND) * s
+    turret = [_skyward(17, floor, metal='fkGold', sail='fkMoonSail', at_y=y) for y in (-12, 12)]
     return dict(materials=flak_materials, base=base, turret=turret, shadow=14)
 
 
 def flak_hailstorm():
-    """A cross-shaped redoubt (four low walls in a cross, ammo drums in its corners), one rotor with twice the sails
-    (a second set turned an eighth)."""
-    base = [piece(BARRIER, {D_STONE: 'fkSteelGold'}, at=(0, 0, 0), scale=(18, 24, 14), turn=t) for t in (0, 90)]
-    base += [piece(BARREL, {H_STONE: 'fkSteelDark', H_PLANK: 'fkFlare', H_WOOD: 'fkSteelDark'}, at=(x, y, 0), scale=90)
-             for x, y in ring(4, 30, 45)]
-    turret = _rotor(44, 16, hub='fkGold', spin=22.5) + _rotor(44, 16, hub='fkGold', spin=22.5, fan_turn=45.0, cap=False)
-    return dict(materials=flak_materials, base=base, turret=turret, shadow=12)
+    """Four ammo drums against the emplacement's sides (a cross), their bands glowing violet; one rotor with twice
+    the sails (a second set turned a twelfth)."""
+    s = 30
+    base = [ward_body('flak', _flak_paint('body', cap='fkGold'), s, FK_GROUND, drop=_flak_post)]
+    base += [piece(BARREL, {H_STONE: 'fkIronDark', H_PLANK: 'fkCharge', H_WOOD: 'fkIronDark'}, at=(x, y, 0), scale=80)
+             for x, y in ring(4, FK_HALF * s + 6, 0)]
+    floor = (FK_DECK - FK_GROUND) * s
+    turret = [_skyward(26, floor, metal='fkGold'), _skyward(26, floor, metal='fkGold', rest_spin=30.0, sails_only=True)]
+    return dict(materials=flak_materials, base=base, turret=turret, shadow=14)
 
 
 FLAK = {'1': flak_tier(1), '2': flak_tier(2), '3': flak_tier(3), 'skyguard': flak_skyguard(),
         'hailstorm': flak_hailstorm()}
+
+FROST.update({'glacier': frost_glacier(), 'blizzard': frost_blizzard()})
 
 TOWERS = {'arrow': ARROW, 'cannon': CANNON, 'frost': FROST, 'arcane': ARCANE, 'flak': FLAK}
 

@@ -1,4 +1,4 @@
-# Meshy heroes (V-06a, added 22 Oct 2026) and creeps (V-06i and V-06j, 24 Oct 2026)
+# Meshy heroes (V-06a, added 22 Oct 2026), creeps (V-06i and V-06j, 24 Oct 2026) and wards (V-06l, 24 Oct 2026)
 
 The three heroes redesigned as original characters (**Han's decision of 22 Oct 2026**: the CC0 pack heroes were
 generic and the game lost its identity), designed by Claude from the style sheet `docs/art/meshy-style.md` and
@@ -6,8 +6,8 @@ generated in Meshy: a concept image, image to 3D, auto-rig and preset clips. Ses
 **session 2** puts them through the painter and the render-ahead-of-time pipeline (`docs/ART.md` §15), as V-05b did
 with the KayKit models. Nothing here ships to the client (`apps/client/test/art3d.test.ts`).
 
-**Licence:** Generated on a Meshy Pro plan, private licence, commercial use permitted (the creeps of V-06i and V-06j on
-a Meshy Premium plan, the same terms). These are **not CC0** (unlike `../kaykit/` and `../quaternius/`): they are this game's
+**Licence:** Generated on a Meshy Pro plan, private licence, commercial use permitted (the creeps of V-06i and V-06j and the
+wards of V-06l on a Meshy Premium plan, the same terms). These are **not CC0** (unlike `../kaykit/` and `../quaternius/`): they are this game's
 own assets.
 
 **Two rounds.** Round 1 (PR #127, not merged) drew the designs with realistic proportions; **Han, 22 Oct 2026, 11:44:
@@ -28,6 +28,7 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 | `wards-concepts/` | V-06l, images only | the towers, the Heart and the portals designed as one faction, the Spire's wards (Han, 24 Oct 2026), in two themes (A medieval, B East Asian), by the style sheet `docs/art/wards-style.md`; Han picks a theme ([README](wards-concepts/README.md)) | | concepts only: no model |
 | `creeps/grunt/`, `creeps/archer/`, `creeps/runner/`, `creeps/brute/` | V-06i, enemy batch 1 | the four ground creeps from Han's picks (Grunt a, Archer a, Runner b, Brute b), the game's since V-06i (24 Oct 2026): a README a kind ([Grunt](creeps/grunt/README.md), [Archer](creeps/archer/README.md), [Runner](creeps/runner/README.md), [Brute](creeps/brute/README.md)) | the ember eye sockets and core; the Grunt's notched cleaver, the Archer's tall bow, the Runner's bird legs and tail, the Brute's iron yoke | the Grunt's cleaver and the Archer's bow, part of the mesh (the Archer's model mirrored before its rig: its bow in its left hand) |
 | `creeps/wisp/`, `creeps/hatchling/`, `creeps/ironhorn/`, `creeps/matriarch/`, `creeps/shardback/` | V-06j, enemy batch 2 | the Wisp, the Hatchling and the three bosses from Han's picks (Wisp b, Hatchling b, Ironhorn a without its tufts, Matriarch a with her brood cage raised into her ribs, Shardback b), the game's since V-06j (24 Oct 2026): a README a kind ([Wisp](creeps/wisp/README.md), [Hatchling](creeps/hatchling/README.md), [Ironhorn](creeps/ironhorn/README.md), [Matriarch](creeps/matriarch/README.md), [Shardback](creeps/shardback/README.md)) | the Wisp's skull-lantern and flame, the Hatchling's shell on eight legs, the Ironhorn's horns and iron plates, the Matriarch's crown and her brood of ember eggs, the Shardback's ridge of shards (ember at rest) | none; only the Matriarch is rigged: the Wisp and the Hatchling need no skeleton, and Meshy's rig stood the two four-legged bosses on their hind legs (tried once each), so these four are posed from their bind pose |
+| `wards/arrow/`, `wards/cannon/`, `wards/frost/`, `wards/arcane/`, `wards/flak/` | V-06l, the Spire's wards, batch 1 | the five towers from theme A, Han's pick (24 Oct 2026, 18:51), the game's since V-06l: a tier-1 body and its turret a kind, each from an image edit of the concept, no rig (a README a kind: [Arrow](wards/arrow/README.md), [Cannon](wards/cannon/README.md), [Frost](wards/frost/README.md), [Arcane](wards/arcane/README.md), [Flak](wards/flak/README.md)) | the Arrow's ballista on a narrow tower, the Cannon's stone-thrower on an octagonal bastion, the Frost's ice lance over its column, the Arcane's crystal staff on its slate dome, the Flak's six-sailed rotor in a square | the turret is its own model; a welded moving part (the thrower's arm, the rotor's sails) is posed from its vertices in the pipeline |
 
 ## What each hero folder holds
 

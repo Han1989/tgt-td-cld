@@ -32,6 +32,7 @@
  * V-06i on 24 Oct 2026 (PR #140: the ground creeps from Meshy into the game, the enemy faction's batch 1).
  * V-06j on 24 Oct 2026 (PR #141: the Wisp, the Hatchling and the bosses from Meshy into the game, batch 2).
  * V-06l-concepts on 24 Oct 2026 (PR #143: the Spire's wards, the towers, the Heart and the portals in two themes, images only).
+ * V-06l-towers on 24 Oct 2026 (PR #145: the Spire's wards, batch 1, the five towers from Meshy, theme A).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -456,6 +457,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Concept pictures only: nothing in the game changes yet. Han, 24 Oct 2026: the heroes and every enemy are the game’s own designs now; the towers, the Heart and the portals are the last things still from free asset packs. So the defenders’ buildings are designed next, as one faction, in two themes, and Han picks a theme. They are the Spire’s wards, what the heroes build to hold the Heart: pale moon-stone, dark timber and dark iron, lit teal as a tower is upgraded and violet when it takes a branch, gold only at the top tier, and nothing on them glows orange, because orange embers are the enemy’s. Every tower keeps a base and a turret that turns and kicks, and each kind keeps one shape that reads from straight above on its pad: the Arrow tall and thin, the Cannon squat and wide, the Frost pale with a column, the Arcane a crystal and a dome, the Flak a rotor on top. Theme A is medieval: stone towers, slate roofs, a ballista, a stone-thrower, an ice lance, a crystal staff on a dome, a sail rotor; the Heart a keep with a tall spire, the portal a gatehouse. Theme B is East Asian: tiered roofs with upturned corners, dark lacquered timber, paper lanterns and bronze bells, a repeating crossbow, a battery of fire tubes, a frost bell, a lantern shrine, a wheel of kites; the Heart a tiered tower over a stone terrace, the portal a gate on two posts. Theme B matches the music (the garden lobby and the war epic). Fourteen pictures made in Meshy, one per kind and theme, on a sheet next to today’s buildings, each tower’s roof as its pad shows it, and both sets at phone size beside the heroes. Once Han picks, the models follow in two batches. Built by Claude Code (PR #143).',
     proof: pr(143),
+  },
+  {
+    id: 'V-06l-towers',
+    title: 'The Spire’s wards, batch 1: the five towers from Meshy (theme A)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change; every tower keeps its pad, range, upgrades and branches, and turns and kicks as before. Han, 24 Oct 2026, 18:51: theme A, the medieval moon-stone family (he liked the East Asian one but chose A for the broad audience). Each tower is now two models of the game’s own made in Meshy, its body and the turret on top that turns: the Arrow a narrow stone tower with a ballista, the Cannon a low eight-sided bastion with a stone-thrower whose arm swings over its frame when it fires, the Frost the palest tower with an ice column and an ice lance, the Arcane a tower under a big slate dome with a crystal staff, the Flak a square stone emplacement with a rotor of six sails tilted at the sky that turn when it fires. Upgrades look as before: two glowing runes at tier 2, four and gold at tier 3, and a branch its own shape round the tower; nothing on a tower glows orange any more (orange is the enemy’s), so the Cannon’s and the Flak’s lights are teal, and violet on a branch. A few colours are lighter or darker than the concept so each turret reads on its tower at phone size. The Heart and the portals and the branches’ own turrets come in batch 2. In review: Han judges the five on his phone. Built by Claude Code (PR #145).',
+    proof: pr(145),
   },
   {
     id: 'g1-render',
