@@ -31,6 +31,9 @@ pixels) beside the three heroes and a Grunt.
 `-a` is theme A (medieval), `-b` theme B (East Asian). All fourteen are PNG, as Meshy returned them. The brief asked for
 the towers at 1200 × 1200; `meshy_text_to_image` takes an aspect ratio and no size, and returns 1:1 at 1024 × 1024.
 
+**Han's pick, 24 Oct 2026, 18:51: theme A.** The five towers are made from the `-a` concepts in V-06l batch 1
+(`../wards/<kind>/`, a README a kind); the Heart and the portal follow in batch 2.
+
 ## How they were made
 
 `meshy_text_to_image`, `nano-banana-pro`, one image a task, no reference image, 14 tasks: each theme × (arrow, cannon,

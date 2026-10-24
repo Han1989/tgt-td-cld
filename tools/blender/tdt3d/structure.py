@@ -88,10 +88,21 @@ class Piece:
     """One piece of a kitbash: a pack file's meshes (all, or the ones named), repainted, placed by the table row
     (`at` world px, `turn` degrees about z, `rot` (x, y, z) degrees, `scale` world px per glTF metre, or (x, y, z)).
     Each mesh keeps its own node transform in the file's frame, so the moving parts of a pack model (the catapult's
-    arm, the windmill's fan) are posed about their own origins (`pose`)."""
+    arm, the windmill's fan) are posed about their own origins (`pose`).
+
+    V-06l: a piece may instead be one of the game's own Meshy models (`meshy`: its file under assets/meshy, a tower's
+    body or turret), painted from its texture as a Meshy creep is (`paint`, gltf.paint_by_texture) and placed the same
+    way. Meshy welds a model into one mesh, so its moving parts (the stone-thrower's arm, the rotor's sails) are its
+    vertices posed from the model as Meshy made it (`posed`: regions, as tdt3d.posed's; a `deform` move)."""
 
     def __init__(self, spec, index):
         self.spec = spec
+        self.bind = None
+        if 'meshy' in spec:
+            self._meshy(spec, index)
+            self.place = _placement(spec)
+            self.pose(None)
+            return
         path = os.path.join(gltf.KAYKIT, spec['file'])
         made = gltf._import(path)
         meshes = [o for o in made if o.type == 'MESH']
@@ -132,18 +143,55 @@ class Piece:
 
     def pose(self, moves):
         """Places the piece, with `moves` ({mesh name or '*': Matrix in the file's frame; 'world': a Matrix applied
-        after the placement}) applied first. With none, its row's resting pose (`pose`: the chest's lid open)."""
+        after the placement; 'deform': a Meshy piece's pose, tdt3d.posed's form, of its `posed` regions}) applied
+        first. With none, its row's resting pose (`pose`: the chest's lid open, the rotor tilted at the sky)."""
         if moves is None and 'pose' in self.spec:
             moves = self.spec['pose'](self, 1.0)
         world = (moves or {}).get('world', Matrix.Identity(4))
+        if self.bind is not None:
+            self._deform((moves or {}).get('deform') or {})
         for o in self.objects:
             name = o.name.split('.')[0]
             q = Matrix.Identity(4)
             if moves:
                 for key in ('*', name):
-                    if key in moves and key != 'world':
+                    if key in moves and key not in ('world', 'deform'):
                         q = moves[key] @ q
             o.matrix_world = world @ self.place @ q @ self.local[o]
+
+    def _meshy(self, spec, index):
+        """A Meshy model (V-06l): its one mesh, in centimetres as gltf.load_posed keeps an unrigged Meshy creep (so
+        the paint's regions and the row's `drop` and `posed` read glTF metres of the model as Meshy made it: x, y up, z),
+        its faces `drop(x, y, z)` names left out, painted from its texture, its bind pose kept when it has moving parts."""
+        where = f'meshy/{spec["meshy"]}'
+        made = gltf._import(os.path.join(gltf.MESHY, spec['meshy']))
+        meshes = [o for o in made if o.type == 'MESH']
+        if len(meshes) != 1 or len(made) != 1:
+            raise RuntimeError(f'{where}: expected one mesh (an image to 3D model)')
+        o = meshes[0]
+        o.data.transform(Matrix.Scale(100.0, 4))
+        o.matrix_world = Matrix.Identity(4)
+        if spec.get('drop') is not None:
+            _drop_gltf(o, spec['drop'])
+        gltf.paint_by_texture(o, spec['paint'], where)
+        o.pass_index = index
+        self.objects = [o]
+        self.file_mats = {o.name.split('.')[0]: Matrix.Scale(0.01, 4)}
+        self.local = {o: Matrix.Scale(0.01, 4)}
+        if spec.get('posed'):
+            self.posed = dict(dict(centre=(0.0, 0.0), ground=0.0), **spec['posed'])
+            g = gltf.bind_coords(o.data)
+            self.bind = {o: g}
+            self.weights = {o: {name: np.clip(np.asarray(r['weight'](g[:, 0], g[:, 1], g[:, 2]), float), 0, 1)
+                                * np.ones(len(g)) for name, r in self.posed.get('regions', {}).items()}}
+
+    def _deform(self, pose):
+        from . import posed
+
+        for o, g in self.bind.items():
+            co = posed.to_mesh(posed.deform(g, pose, self.posed, self.weights[o]))
+            o.data.vertices.foreach_set('co', co.astype(np.float32).ravel())
+            o.data.update()
 
     def origin(self, mesh):
         """A mesh's node origin in the file's frame (a moving part's pivot)."""
@@ -169,6 +217,26 @@ def _filter(o, spec, m):
         if (drop is not None and drop(c)) or (keep_cells is not None and keep_cells[i] not in cells):
             gone.append(f)
     bmesh.ops.delete(bm, geom=gone, context='FACES')
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+
+
+def _drop_gltf(o, drop):
+    """Leaves out a Meshy piece's faces whose centre `drop(x, y, z)` (glTF metres, vectorised) names: what the image
+    edit left standing where a turret goes (the Flak's stray post)."""
+    import bmesh
+
+    me = o.data
+    g = gltf.bind_coords(me)
+    tri = np.array([p.vertices[:] for p in me.polygons])
+    c = g[tri].mean(axis=1)
+    gone = np.nonzero(np.asarray(drop(c[:, 0], c[:, 1], c[:, 2]), bool))[0]
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[bm.faces[int(k)] for k in gone], context='FACES_ONLY')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     bm.to_mesh(me)
     bm.free()
     me.update()
@@ -703,12 +771,12 @@ def preview(sheet, layout, path, towers):
     on the ground: a picture to look at while working on the table."""
     cells = layout['cells']
     r = layout['res']
-    tile = 100 * r
+    tile = int(100 * r)
     rows = []
     for kind, variants in towers.items():
         rows.append([(kind, v) for v in variants])
     width = max(8, max(len(row) for row in rows) * 2) * tile
-    height = len(rows) * tile + 2 * 140 * r
+    height = len(rows) * tile + int(2 * 140 * r)
     out = np.zeros((height, width, 3), np.float32) + np.array(rgb('moss'), np.float32)
     pad = np.array(rgb('padStone'), np.float32)
     for ri, row in enumerate(rows):
@@ -723,7 +791,7 @@ def preview(sheet, layout, path, towers):
                 t = cells.get(f'{kind}/{v}/{turret}')
                 if t:
                     _put(out, sheet, t, cx, cy)
-    y = len(rows) * tile + 100 * r
+    y = len(rows) * tile + int(100 * r)
     for i in range(3):
         cx = i * 2 * tile + tile
         for key, add in ((f'heart/stage{i}', False), (f'heart/rubble{i}', False), ('heart/glow', True),
