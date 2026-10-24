@@ -57,16 +57,19 @@ Put this on the URL Han posts or sends. It wins over the referrer and over `utm_
 | r/WebGames | r/WebGames | `https://<vercel-app>/?src=reddit-webgames` |
 | r/TowerDefense | r/TowerDefense | `https://<vercel-app>/?src=reddit-towerdefense` |
 | CrazyGames | CrazyGames | `https://<vercel-app>/?src=crazygames` |
+| A player's share card (the Daily run's **Share my run**, Endless's **Share**) | Shared cards | `https://<vercel-app>/?src=share` |
 
 The order they are used in (Han, 8 Oct 2026, `TASKS.md` → Now): friends, the cold test, then r/PlayMyGame, r/WebGames and r/TowerDefense one at a time, each after the previous post's numbers are read; CrazyGames with Gate 2.
 
-`utm_source` or `utm_campaign` with the same id also works, plus the aliases `friend`, `coldtest`, `playmygame`, `webgames`, `web-games`, `towerdefense`, `tower-defense` and `crazygames`, and `r/playmygame`, `r/webgames`, `r/towerdefense` (any case; a trailing `-` or `_` suffix is fine, e.g. `playmygame-sept`, `friends-oct`, `cold-test`). The client list (`apps/client/src/analytics/channel.ts`) and the server list (`apps/server/src/analytics/channels.ts`) are the same; the server drops events, stored ones included, whose channel it does not know. The old `reddit-incremental` and `reddit-cozy` tags are gone (nothing was ever posted with them); a link that still has one counts as **Other**.
+**Shared cards** (`share`, p6d-share) are the one tag Han never posts: the game writes it. A share card carries `<the page's own origin>/?src=share` as text in the picture and as the share sheet's link (`apps/client/src/share/text.ts`), so a preview deploy's card links to the preview; a desktop download copies the same link. Every visit from a player's shared card counts here, and is remembered like the other acquisition channels.
+
+`utm_source` or `utm_campaign` with the same id also works, plus the aliases `friend`, `coldtest`, `playmygame`, `webgames`, `web-games`, `towerdefense`, `tower-defense`, `crazygames`, `shared` and `sharecard`, and `r/playmygame`, `r/webgames`, `r/towerdefense` (any case; a trailing `-` or `_` suffix is fine, e.g. `playmygame-sept`, `friends-oct`, `cold-test`). The client list (`apps/client/src/analytics/channel.ts`) and the server list (`apps/server/src/analytics/channels.ts`) are the same; the server drops events, stored ones included, whose channel it does not know. The old `reddit-incremental` and `reddit-cozy` tags are gone (nothing was ever posted with them); a link that still has one counts as **Other**.
 
 **Reddit's referrer is only `reddit.com`.** It does not name the subreddit, so a link without `?src=` lands in **Other** (or keeps a channel saved from an earlier tagged visit). Use the query param.
 
 A visit whose referrer host is `crazygames.com` (or a subdomain) counts as CrazyGames even without `?src=`. Set the portal URL with `?src=crazygames` anyway, in case the frame omits the referrer.
 
-Anything else with a referrer is **Other**. No referrer and no tag is **Direct**. A later visit with no tag keeps the last saved acquisition channel (Friends, Cold test, `reddit-*` or CrazyGames) in `localStorage`. `?src=direct` or `?src=other` clears that. Opening a tagged link yourself to check it saves that channel in your browser: open `?src=direct` afterwards, so your own visits stay out of that row.
+Anything else with a referrer is **Other**. No referrer and no tag is **Direct**. A later visit with no tag keeps the last saved acquisition channel (Friends, Cold test, `reddit-*`, CrazyGames or Shared cards) in `localStorage`. `?src=direct` or `?src=other` clears that. Opening a tagged link yourself to check it saves that channel in your browser: open `?src=direct` afterwards, so your own visits stay out of that row.
 
 ## What each panel means
 
@@ -249,6 +252,8 @@ Both are filled in as events arrive and rebuilt from `events.jsonl` when the fil
 **What the server keeps.** It derives the visitor id from the key exactly as for "Your data" (`visitorFromKey`) and never keeps the key. It re-runs the replay and keeps, per UTC day and per browser, the best run: the id, the nickname (after `normalizeName` and a short word filter; else "Player"), the hero, and the re-run's result (won, Heart left, wave, ticks), plus when it was posted. The replay and the client's report are dropped after the re-run. Each day is one file, `daily/YYYY-MM-DD.json` beside `events.jsonl` (the same `ANALYTICS_DIR` rule), kept **90 days** and deleted at startup and every 24 hours after that. The board shows the nickname and the result to anyone who plays; the id never leaves the server.
 
 **Reading your rank back.** The home tile asks `GET /daily/today` with no key, unless this browser posted a run today or yesterday (`tdt.dailyPosted`, the last three days posted, kept in the browser): then it sends the key in `x-data-key` to show its own rank. The server keeps nothing about a read.
+
+**The share card** (Share my run, after a post; Endless's Share): made on the device from what the end screen already holds (the board's rank, the run, the nickname as the board shows it, the hero) and handed to the share sheet or downloaded. Nothing is sent to the server to make or share it; visits from its link count as **Shared cards** (`?src=share`, "Tag the links").
 
 **Copy and deletion.** The same as play data: **Download my data** includes the posted runs, **Delete my data** and the dashboard-key deletion remove them from every day kept, and a post from a just-deleted id is refused for 15 minutes. An under-13 answer deletes them with everything else.
 

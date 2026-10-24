@@ -8,6 +8,7 @@ export const CHANNELS = [
   'reddit-webgames',
   'reddit-towerdefense',
   'crazygames',
+  'share',
   'other',
   'direct',
 ] as const;
@@ -32,6 +33,10 @@ const ALIASES: readonly (readonly [string, Channel])[] = [
   ['friend', 'friends'],
   ['cold', 'cold'],
   ['coldtest', 'cold'],
+  // A share card's link (share/text.ts): `?src=share`. Last, so `friends-share` stays Friends.
+  ['share', 'share'],
+  ['shared', 'share'],
+  ['sharecard', 'share'],
 ];
 
 export interface ChannelInput {
@@ -98,7 +103,7 @@ function referrerChannel(referrer: string | null): 'crazygames' | 'other' | null
  * Tag for this visit.
  *
  * Put `?src=friends` (or `cold`, `reddit-playmygame`, `reddit-webgames`, `reddit-towerdefense`,
- * `crazygames`) on the link. `utm_source` / `utm_campaign` with the same id, or a known alias, also work.
+ * `crazygames`) on the link; a share card's link carries `?src=share`. `utm_source` / `utm_campaign` with the same id, or a known alias, also work.
  * A crazygames.com referrer counts as CrazyGames. A reddit.com referrer does not name the
  * subreddit, so it stays `other` unless a channel was saved from a tagged visit.
  * A later visit with no tag keeps the saved channel.

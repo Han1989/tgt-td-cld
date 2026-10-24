@@ -30,11 +30,11 @@ describe('parseAnalyticsEvent', () => {
     expect(parseAnalyticsEvent(null)).toBeNull();
   });
 
-  it('accepts the link tags, Friends and Cold test among them, and no other channel', () => {
-    for (const channel of ['friends', 'cold', 'reddit-playmygame', 'reddit-webgames', 'reddit-towerdefense', 'crazygames', 'other', 'direct']) {
+  it('accepts the link tags, Friends, Cold test and shared cards among them, and no other channel', () => {
+    for (const channel of ['friends', 'cold', 'reddit-playmygame', 'reddit-webgames', 'reddit-towerdefense', 'crazygames', 'share', 'other', 'direct']) {
       expect(parseAnalyticsEvent({ ...base, t: 'session_start', channel })).toMatchObject({ channel });
     }
-    for (const channel of ['reddit-incremental', 'reddit-cozy', 'webgames', 'Friends', '']) {
+    for (const channel of ['reddit-incremental', 'reddit-cozy', 'webgames', 'Friends', 'shared', '']) {
       expect(parseAnalyticsEvent({ ...base, t: 'session_start', channel })).toBeNull();
     }
   });

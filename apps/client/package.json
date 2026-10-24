@@ -15,7 +15,8 @@
     "first-load": "tsx scripts/firstLoad.ts",
     "music-levels": "tsx scripts/musicLevels.ts",
     "creeps-contact": "tsx scripts/creepsContact.ts",
-    "structures-contact": "tsx scripts/structuresContact.ts"
+    "structures-contact": "tsx scripts/structuresContact.ts",
+    "share-cards": "tsx scripts/shareCards.ts"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",

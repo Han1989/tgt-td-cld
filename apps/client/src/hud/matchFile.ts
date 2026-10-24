@@ -44,31 +44,39 @@ export function parseMatchFile(text: string): { report: MatchReport; replay: Rep
   }
 }
 
+/** The share sheet takes this file: a touch device whose browser can share files (on a desktop a download is better). */
+export function shareSheetTakes(file: File): boolean {
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  return touch && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+}
+
+/** Saves a blob as a download named `name`. */
+export function downloadBlob(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 /**
  * Hands the file to the player: on a touch device that can share files, the share sheet (straight into a chat);
  * otherwise, or if sharing fails, a download.
  */
 export async function saveMatchFile(file: MatchFile): Promise<void> {
   const blob = new Blob([file.text], { type: 'application/json' });
-  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  if (touch && typeof navigator.canShare === 'function') {
-    const shared = new File([blob], file.name, { type: 'application/json' });
-    if (navigator.canShare({ files: [shared] })) {
-      try {
-        await navigator.share({ files: [shared], title: 'Match report' });
-        return;
-      } catch (err) {
-        // The player closed the share sheet: nothing to do. Anything else: download instead.
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-      }
+  const shared = new File([blob], file.name, { type: 'application/json' });
+  if (shareSheetTakes(shared)) {
+    try {
+      await navigator.share({ files: [shared], title: 'Match report' });
+      return;
+    } catch (err) {
+      // The player closed the share sheet: nothing to do. Anything else: download instead.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
     }
   }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadBlob(blob, file.name);
 }

@@ -34,6 +34,7 @@
  * V-06l-concepts on 24 Oct 2026 (PR #143: the Spire's wards, the towers, the Heart and the portals in two themes, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
+ * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -121,7 +122,7 @@ const sections: ProgressSection[] = [
   {
     id: 'p6d',
     title: 'Phase 6d · Competition',
-    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026), except the Daily run (Han, 17 Oct 2026): its first session is done; Endless and the share card come next.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026), except the Daily run (Han, 17 Oct 2026): all three sessions are done: the day board, Endless and the share card.',
     group: 'later',
   },
   {
@@ -1033,7 +1034,7 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'p6d',
-    note: 'Han, 17 Oct 2026: one seed a day for everyone, solo, Quick on Hard, unlimited tries, the best run counts (Heart left, then time). A tile on the home card starts it; the end screen’s Post my run (one tap, from 13, with a nickname) sends the run’s replay, and the server plays it again itself and keeps its own result, so scores are real. The rank comes first, counting up (“#14 of 212 · top 7 %”), then the gap to the next player, the best in gold and the five rows around you. No accounts; boards kept 90 days. Endless is session 2 (done, below); the share card is session 3. Built by Claude Code (PR #126).',
+    note: 'Han, 17 Oct 2026: one seed a day for everyone, solo, Quick on Hard, unlimited tries, the best run counts (Heart left, then time). A tile on the home card starts it; the end screen’s Post my run (one tap, from 13, with a nickname) sends the run’s replay, and the server plays it again itself and keeps its own result, so scores are real. The rank comes first, counting up (“#14 of 212 · top 7 %”), then the gap to the next player, the best in gold and the five rows around you. No accounts; boards kept 90 days. Endless is session 2 and the share card session 3 (both done, below). Built by Claude Code (PR #126).',
     proof: pr(126),
   },
   {
@@ -1053,6 +1054,15 @@ const items: ProgressItem[] = [
     section: 'p6d',
     note: 'Han’s Endless match of 24 Oct 2026: his hero hit level 10 on wave 21 and every pad was full and branched by the mid-40s, with 2,000 gold and nothing to buy, exactly when the waves got steep. In Endless only (Full and Quick do not change by a single number): the hero keeps levelling past 10 (+6% damage and HP a level, each level a little further off), and a branched tower buys Reinforce ranks, one tap each on the ring’s Reinforce +N, each +12% damage and HP for a price that grows as fast. The loop is retuned around them: the first cycle doubles creep HP, then ×1.4 every 10 waves, no extra creeps; waves 1–30 are a little gentler so a strong player reaches the loop near full. The expert bot now falls around wave 70 (77 solo), the casual bot around 54, the novice before 40. Protocol 22. Built by Claude Code (PR #142).',
     proof: pr(142),
+  },
+  {
+    id: 'p6d-share',
+    title: 'The share card, Daily run session 3 of 3',
+    owner: 'Team',
+    status: 'done',
+    section: 'p6d',
+    note: 'Han, 17 Oct 2026: after a posted Daily run (Share my run, under your five rows) and on an Endless end screen (Share, beside Save match report), one tap makes a 1200 × 630 picture of your result in the game’s own look: your hero on the moonlit clearing, the gold trim, the title, then your rank large (“#14 of 212 · top 7 %”), Heart and time, your nickname and hero; Endless shows the wave you fell on large. It goes straight into the phone’s share sheet with a link back to the game; on a computer it downloads and the link is copied. Never automatic, and nothing on it the public board does not already show. Visits from shared cards get their own row on the dashboard. Built by Claude Code (PR #144).',
+    proof: pr(144),
   },
   {
     id: 'p6d-weekly',
