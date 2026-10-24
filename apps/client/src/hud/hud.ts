@@ -40,7 +40,8 @@ import { healLines, NO_ULT_CUES, ultPops, type UltCues } from '../ult/cues';
 import { matchFlagFace, surgeToastCopy } from './surgeFace';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
-import { CoinFlyer } from './coins';
+import { VIGNETTE } from '../render/fx/juice';
+import { CoinBatcher, CoinFlyer } from './coins';
 import { Counter } from './counter';
 import { pop, POP_MS, pulse, reducedMotion, rimFlash, shake } from './press';
 import { addUltCueParts, applyUltCues } from './ultFace';
@@ -79,6 +80,15 @@ const HEART_LOW = 0.3;
 /** Gold coming in: the number pops (1.15×, settling over POP_MS) and glints; under reduced motion only the glint. */
 const GAIN_PULSE: Keyframe[] = [{ transform: 'scale(1.15)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }];
 const GAIN_CALM: Keyframe[] = [{ filter: 'brightness(1.6)' }, { filter: 'none' }];
+/** The skill points chip bounces once on a level up (V-07b); under reduced motion it dips and comes back. */
+const BOUNCE: Keyframe[] = [
+  { transform: 'none', offset: 0 },
+  { transform: 'translateY(-7px) scale(1.12)', offset: 0.35 },
+  { transform: 'translateY(0) scale(0.96, 1.04)', offset: 0.6 },
+  { transform: 'translateY(-2px)', offset: 0.8 },
+  { transform: 'none', offset: 1 },
+];
+const BOUNCE_CALM: Keyframe[] = [{ opacity: 0.5 }, { opacity: 1 }];
 const HIT_PULSE: Keyframe[] = [
   { transform: 'translateX(-4px)', backgroundColor: 'rgba(255, 60, 60, 0.55)' },
   { transform: 'translateX(4px)' },
@@ -269,6 +279,14 @@ export class Hud {
   private readonly goldCounter = new Counter();
   private readonly heartCounter = new Counter(160, 500);
   private readonly coins: CoinFlyer;
+  /** Every kill of yours launches a coin, at most five a second; past that they gather into one bigger coin. */
+  private readonly coinBatch = new CoinBatcher();
+  /** A defeat: when it was first seen (the vignette closes in over 0.8 s before the end card shows). */
+  private defeatSeenAt: number | null = null;
+  /** A victory's end card counts its numbers up: the Heart left and the kills. */
+  private readonly endHeart = new Counter(220, 900);
+  private readonly endKills = new Counter(220, 900);
+  private endCounting = false;
   private lastGold: number | null = null;
   private lastWave: number | null = null;
   private lastGainPulse = 0;
@@ -377,6 +395,7 @@ export class Hud {
     if (this.heartStat.classList.contains('cracked') !== cracked) this.heartStat.classList.toggle('cracked', cracked);
     if (this.lastWave !== null && snap.wave !== this.lastWave) this.popStat(this.wave);
     this.lastWave = snap.wave;
+    for (const c of this.coinBatch.update(now)) this.coins.fly(c.x, c.y, now, c.size);
     this.coins.update(now);
     const hard = snap.difficulty === 'hard';
     // Endless has no last wave to count to: "Wave 37" alone (it is always Hard).
@@ -410,11 +429,16 @@ export class Hud {
     this.updateNotice();
 
     const over = snap.phase === 'victory' || snap.phase === 'defeat';
-    this.endScreen.classList.toggle('hidden', !over);
+    // A defeat: the vignette closes in over the world first (V-07b), then the card.
+    if (snap.phase !== 'defeat') this.defeatSeenAt = null;
+    else this.defeatSeenAt ??= now;
+    const card = over && (this.defeatSeenAt === null || now - this.defeatSeenAt >= VIGNETTE.closeMs);
+    this.endScreen.classList.toggle('hidden', !card);
     this.daily.sync(over, this.report);
     if (!over) {
       if (this.outcomeSent) this.resetFeedback();
       this.outcomeSent = false;
+      this.endCounting = false;
       this.endless = null;
       this.renderGifts(null);
       this.renderUlts(null);
@@ -436,9 +460,20 @@ export class Hud {
       this.endTitle.classList.toggle('endless', !!fell);
       this.endTitle.classList.toggle('new-best', !!this.endless?.isNew);
       const onHard = snap.difficulty === 'hard' ? ' on Hard' : '';
-      const kills = `Kills: ${player?.kills ?? 0}.`;
+      // A victory counts its numbers up from 0 (V-07b); a defeat's card shows them as they are.
+      if (won && !this.endCounting) {
+        this.endCounting = true;
+        for (const c of [this.endHeart, this.endKills]) {
+          c.reset();
+          c.set(0);
+        }
+      }
+      this.endHeart.set(snap.heartHp);
+      this.endKills.set(player?.kills ?? 0);
+      const heartLeft = won ? this.endHeart.step(dt) : snap.heartHp;
+      const kills = `Kills: ${won ? this.endKills.step(dt) : (player?.kills ?? 0)}.`;
       const summary = won
-        ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${snap.heartHp} HP left. ${kills}`
+        ? `The Heart survived all ${snap.totalWaves} waves${onHard} with ${heartLeft} HP left. ${kills}`
         : fell
           ? `${fell.line ? `${fell.line} ` : ''}${kills}`
           : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. ${kills}`;
@@ -616,12 +651,12 @@ export class Hud {
         const boss = waveGroups(tuningForMode(TUNING, snap.mode), e.wave).map((g) => g.kind).find(isBossKind);
         const last = e.wave === snap.totalWaves ? 'Final wave' : `Wave ${e.wave}`;
         if (boss) {
-          this.showBanner(`${CREEP_NAMES[boss]} approaches!`, `${last} · Boss`, true);
+          this.showBanner(`${CREEP_NAMES[boss]} approaches!`, `${last} · Boss`, 'boss');
           this.toast(BOSS_HINTS[boss]);
           this.showLaneRoles(boss);
         } else {
           const surge = snap.surgeLane != null ? laneName(snap.surgeLane) : null;
-          this.showBanner(surge ? `${surge} surge` : last, e.income > 0 ? `+${e.income} gold` : surge ? last : '', false);
+          this.showBanner(surge ? `${surge} surge` : last, e.income > 0 ? `+${e.income} gold` : surge ? last : '', 'wave');
           this.hideLaneRoles();
         }
       } else if (e.type === 'surge') {
@@ -644,6 +679,9 @@ export class Hud {
       } else if (e.type === 'levelUp') {
         const hero = snap.heroes.find((h) => h.id === e.heroId && h.owner === me);
         if (hero) this.levelUp(hero, e.level);
+      } else if (e.type === 'kill' && TUNING.creeps[e.kind].boss) {
+        // Everyone sees a boss fall, whoever landed the blow.
+        this.showBanner(`${CREEP_NAMES[e.kind]} falls`, '', 'fell');
       }
     }
   }
@@ -658,6 +696,10 @@ export class Hud {
       void el.offsetWidth;
       el.classList.add('leveled');
     }
+    // The level badge pops and the skill points chip bounces once (V-07b).
+    pop(this.heroLevel);
+    pop(this.topLevelText);
+    for (const chip of [this.skillPoints, this.topPoints]) pulse(chip, reducedMotion() ? BOUNCE_CALM : BOUNCE, 420);
   }
 
   /**
@@ -781,9 +823,11 @@ export class Hud {
     setTimeout(() => el.remove(), 2600);
   }
 
-  /** A coin flies from a screen point (px) to the gold counter (not at Low quality). */
+  /** A kill of yours: a coin flies from its screen point (px) to the gold counter (batched past five a second; not at Low). */
   flyCoin(x: number, y: number): void {
-    if (this.particles) this.coins.fly(x, y, performance.now());
+    if (!this.particles) return;
+    const now = performance.now();
+    for (const c of this.coinBatch.kill(x, y, now)) this.coins.fly(c.x, c.y, now, c.size);
   }
 
   /** Coins that have flown to the gold counter so far (browser tests). */
@@ -799,6 +843,9 @@ export class Hud {
     this.coolingSlots.clear();
     this.lastGold = null;
     this.coins.clear();
+    this.coinBatch.reset();
+    this.defeatSeenAt = null;
+    this.endCounting = false;
     this.hideLaneRoles();
     this.renderGifts(null);
     this.renderUlts(null);
@@ -945,7 +992,8 @@ export class Hud {
     this.endUlts.classList.remove('hidden');
   }
 
-  private showBanner(text: string, sub: string, boss: boolean): void {
+  /** The banner: a wave (it slams in), a boss arriving (red, slam and tremble) or a boss that fell (gold). */
+  private showBanner(text: string, sub: string, kind: 'wave' | 'boss' | 'fell'): void {
     this.banner.innerHTML = '';
     const title = document.createElement('span');
     title.className = 'title';
@@ -957,7 +1005,8 @@ export class Hud {
       s.textContent = sub;
       this.banner.appendChild(s);
     }
-    this.banner.classList.toggle('boss', boss);
+    this.banner.classList.toggle('boss', kind === 'boss');
+    this.banner.classList.toggle('fell', kind === 'fell');
     this.banner.classList.remove('hidden');
     // Restart the CSS animation.
     this.banner.style.animation = 'none';

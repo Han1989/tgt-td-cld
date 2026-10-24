@@ -110,6 +110,109 @@ export class SnapshotBuffer {
   }
 }
 
+/** At most this much render time is held (hit-stop) in any HOLD_WINDOW_MS (ms). */
+export const HOLD_BUDGET_MS = 150;
+export const HOLD_WINDOW_MS = 1000;
+/** After a hold or a slow-down the clock runs this much faster than real time until it has caught up. */
+export const CATCH_UP_RATE = 1.25;
+
+/** How long [a, b) and [c, d) overlap (ms; 0 when they don't). */
+function overlap(a: number, b: number, c: number, d: number): number {
+  return Math.max(0, Math.min(b, d) - Math.max(a, c));
+}
+
+/**
+ * The render clock (V-07b, docs/ART.md §6 "Juice"): the time the snapshot buffer renders at and the world animates
+ * by. It follows real time, except that it can hold (a hit-stop: creeps, rigs and effects stand still) or run slow for
+ * a moment; then it runs at CATCH_UP_RATE until the time lost is made up, so the render delay returns to its usual
+ * length. The sim, the network, the HUD, the input and your own hero's prediction never read it. Never more than
+ * HOLD_BUDGET_MS held in any HOLD_WINDOW_MS. Pure (no DOM), tested.
+ */
+export class RenderClock {
+  /** The clock's time (ms), null until the first tick. */
+  private t: number | null = null;
+  /** Real time of the last tick. */
+  private last = 0;
+  /** The hold in progress (real ms): [holdFrom, holdUntil). */
+  private holdFrom = 0;
+  private holdUntil = -Infinity;
+  /** The slow-down after it: [slowFrom, slowUntil) at slowRate. */
+  private slowFrom = 0;
+  private slowUntil = -Infinity;
+  private slowRate = 1;
+  /** Holds granted (real ms), the last one possibly still running; kept for the budget's window. */
+  private holds: { from: number; until: number }[] = [];
+
+  /** Advances to real time `now` and returns the clock's time (the first call starts it at `now`). */
+  tick(now: number): number {
+    if (this.t === null) {
+      this.t = now;
+      this.last = now;
+      return now;
+    }
+    const a = this.last;
+    if (now <= a) return this.t;
+    this.last = now;
+    const held = overlap(a, now, this.holdFrom, this.holdUntil);
+    const both = overlap(a, now, Math.max(this.holdFrom, this.slowFrom), Math.min(this.holdUntil, this.slowUntil));
+    const slowed = overlap(a, now, this.slowFrom, this.slowUntil) - both;
+    const free = now - a - held - slowed;
+    const behind = a - this.t > 0.001;
+    this.t = Math.min(now, this.t + slowed * this.slowRate + free * (behind ? CATCH_UP_RATE : 1));
+    return this.t;
+  }
+
+  /**
+   * Holds the clock for `ms` from `now` (a hold already running is extended to the later end, not added to), within
+   * the budget: the extension granted (ms; 0 when the budget is spent or the running hold already covers it).
+   */
+  hold(now: number, ms: number): number {
+    if (!(ms > 0)) return 0;
+    const running = this.holdUntil > now;
+    const start = running ? this.holdUntil : now;
+    const want = now + ms - start;
+    if (want <= 0) return 0;
+    this.holds = this.holds.filter((h) => h.until > now - HOLD_WINDOW_MS);
+    let used = 0;
+    for (const h of this.holds) used += h.until - Math.max(h.from, now - HOLD_WINDOW_MS);
+    const grant = Math.min(want, HOLD_BUDGET_MS - used);
+    if (grant <= 0) return 0;
+    if (running) this.holds[this.holds.length - 1]!.until = start + grant;
+    else {
+      this.holdFrom = now;
+      this.holds.push({ from: now, until: now + grant });
+    }
+    this.holdUntil = start + grant;
+    return grant;
+  }
+
+  /** Runs the clock at `rate` (0..1) for `ms`, from the end of the hold in progress (or from `now`). */
+  slow(now: number, ms: number, rate: number): void {
+    if (!(ms > 0)) return;
+    this.slowFrom = Math.max(now, this.holdUntil);
+    this.slowUntil = this.slowFrom + ms;
+    this.slowRate = Math.max(0, Math.min(1, rate));
+  }
+
+  /** Whether the clock stands still at real time `now`. */
+  holding(now: number): boolean {
+    return now >= this.holdFrom && now < this.holdUntil;
+  }
+
+  /** How far the clock is behind real time (ms), as of the last tick. */
+  get lag(): number {
+    return this.t === null ? 0 : this.last - this.t;
+  }
+
+  /** Back to real time with nothing held (a new match, leaving one). */
+  reset(): void {
+    this.t = null;
+    this.holdUntil = -Infinity;
+    this.slowUntil = -Infinity;
+    this.holds = [];
+  }
+}
+
 /**
  * Interpolates positions of entities present in `from` and `to` (alpha > 1 extrapolates past `to`,
  * except across a jump). Entities only in `from` are dropped (they are gone by `to`); entities only

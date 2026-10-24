@@ -74,6 +74,11 @@ export const FX = {
   /** Damage numbers: warm white fill (the glyphs carry an ink outline); crits are pale gold. */
   number: 0xfff6e6,
   crit: 0xfff07a,
+  /** Your crit's number (V-07b): a hotter yellow than a crit's, so your Keen Eye reads at a glance. */
+  critYours: 0xffe23a,
+  /** The Heart's vignette at the screen's edges (a leak, under 30% HP), and the deep red it darkens to as a defeat closes in. */
+  vignette: 0xff2a40,
+  vignetteDeep: 0x5a0814,
   /** Motes drawn into a portal. */
   portalMote: 0xe9d5ff,
   /** Hero auras (Bulwark, Clarity): the dashed ring under the hero. */

@@ -26,9 +26,13 @@ export class Tower3DRig extends TowerRigBase {
     private readonly sheet: StructureFrames,
   ) {
     super(kit, true);
-    this.turret.addChild(this.gun);
+    this.mountGun(this.gun);
     this.body.addChild(this.base, this.turret);
     this.setTier(1, null);
+  }
+
+  protected get gunSprite(): Sprite {
+    return this.gun;
   }
 
   /** Whether the sheet has every frame of this kind (each tier and branch: its base and four turret frames). */
