@@ -1,4 +1,4 @@
-# Meshy heroes (V-06a, added 22 Oct 2026), creeps (V-06i and V-06j, 24 Oct 2026) and wards (V-06l, 24 Oct 2026)
+# Meshy heroes (V-06a, added 22 Oct 2026), creeps (V-06i and V-06j, 24 Oct 2026) and wards (V-06l batches 1 and 2, 24 Oct 2026)
 
 The three heroes redesigned as original characters (**Han's decision of 22 Oct 2026**: the CC0 pack heroes were
 generic and the game lost its identity), designed by Claude from the style sheet `docs/art/meshy-style.md` and
@@ -29,6 +29,8 @@ three-quarter and back views at rest, rendered with three.js in headless Chromiu
 | `creeps/grunt/`, `creeps/archer/`, `creeps/runner/`, `creeps/brute/` | V-06i, enemy batch 1 | the four ground creeps from Han's picks (Grunt a, Archer a, Runner b, Brute b), the game's since V-06i (24 Oct 2026): a README a kind ([Grunt](creeps/grunt/README.md), [Archer](creeps/archer/README.md), [Runner](creeps/runner/README.md), [Brute](creeps/brute/README.md)) | the ember eye sockets and core; the Grunt's notched cleaver, the Archer's tall bow, the Runner's bird legs and tail, the Brute's iron yoke | the Grunt's cleaver and the Archer's bow, part of the mesh (the Archer's model mirrored before its rig: its bow in its left hand) |
 | `creeps/wisp/`, `creeps/hatchling/`, `creeps/ironhorn/`, `creeps/matriarch/`, `creeps/shardback/` | V-06j, enemy batch 2 | the Wisp, the Hatchling and the three bosses from Han's picks (Wisp b, Hatchling b, Ironhorn a without its tufts, Matriarch a with her brood cage raised into her ribs, Shardback b), the game's since V-06j (24 Oct 2026): a README a kind ([Wisp](creeps/wisp/README.md), [Hatchling](creeps/hatchling/README.md), [Ironhorn](creeps/ironhorn/README.md), [Matriarch](creeps/matriarch/README.md), [Shardback](creeps/shardback/README.md)) | the Wisp's skull-lantern and flame, the Hatchling's shell on eight legs, the Ironhorn's horns and iron plates, the Matriarch's crown and her brood of ember eggs, the Shardback's ridge of shards (ember at rest) | none; only the Matriarch is rigged: the Wisp and the Hatchling need no skeleton, and Meshy's rig stood the two four-legged bosses on their hind legs (tried once each), so these four are posed from their bind pose |
 | `wards/arrow/`, `wards/cannon/`, `wards/frost/`, `wards/arcane/`, `wards/flak/` | V-06l, the Spire's wards, batch 1 | the five towers from theme A, Han's pick (24 Oct 2026, 18:51), the game's since V-06l: a tier-1 body and its turret a kind, each from an image edit of the concept, no rig (a README a kind: [Arrow](wards/arrow/README.md), [Cannon](wards/cannon/README.md), [Frost](wards/frost/README.md), [Arcane](wards/arcane/README.md), [Flak](wards/flak/README.md)) | the Arrow's ballista on a narrow tower, the Cannon's stone-thrower on an octagonal bastion, the Frost's ice lance over its column, the Arcane's crystal staff on its slate dome, the Flak's six-sailed rotor in a square | the turret is its own model; a welded moving part (the thrower's arm, the rotor's sails) is posed from its vertices in the pipeline |
+| `wards/<kind>/<branch>.glb` (ten: `sniper`, `volley`, `mortar`, `shrapnel`, `glacier`, `blizzard`, `prism`, `void`, `skyguard`, `hailstorm`) | V-06l, the Spire's wards, batch 2 | each branch's own turret, an image edit of its kind's turret image (`<branch>.png`), image to 3D at 8,000 triangles, no rig (each kind's README, "Batch 2") | the Sniper's sight, the Volley's three bolts, the Mortar's bowl, the Shrapnel's keg, the Glacier's column, the Blizzard's star of lances, the Prism's crystal, the Void's orb in a claw, the Skyguard's mast, the Hailstorm's drums | on its kind's tier-1 pivot; the Shrapnel's arm and the Skyguard's and Hailstorm's sails posed from their vertices |
+| `wards/heart/`, `wards/portal/` | V-06l, the Spire's wards, batch 2 | the Heart, the keep with the Spire and its rose-red crystal (an edit of `heart-a.png`, image to 3D at 20,000), and a portal, the gatehouse (image to 3D straight from `portal-a.png`, 20,000), no rig ([Heart](wards/heart/README.md), [portal](wards/portal/README.md)) | the Spire and its crystal; the gatehouse's open arch and its rune-stones | the Heart's three damage stages are this one model (cracks painted, merlons posed, its top third left out) |
 
 ## What each hero folder holds
 
@@ -170,3 +172,17 @@ README): Meshy's archery clips hold a bow in the left hand. 292 credits for the 
   first model, made from eggs drawn as a glow behind the ribs, lost them.
 - 279 credits in all (the Wisp 39, the Hatchling 39, the Ironhorn 44, the Shardback 44, the Matriarch 113):
   `meshy_check_balance` 1,934 before, 1,655 after.
+
+## The wards, batch 2 (V-06l)
+
+`wards/<kind>/<branch>.glb` and `.png`, `wards/heart/` and `wards/portal/` finish the Spire's wards (theme A), made as
+batch 1 was, with these differences:
+
+- **A branch turret is one image edit of its kind's turret image** (`wards/<kind>/turret.png`, the file as the
+  reference) that turns it into the branch, then image to 3D from that task, remeshed in the task at 8,000 triangles:
+  ten of each, all the first attempt (the Hailstorm's edit kept the Flak's wheel beside its drums; kept).
+- **The Heart** is an edit of `heart-a.png` onto a plain mid-grey ground (the concept's near-black ground would have
+  merged with its slate caps), then image to 3D at 20,000; its three damage stages are made from this one model in the
+  pipeline. **The portal** is image to 3D straight from `portal-a.png` (already on a plain ground), at 20,000.
+- 459 credits (ten edits 90, ten turrets 300, the Heart 39, the portal 30): `meshy_check_balance` 1,139 before, 680
+  after, above the 500 kept for the Drummer.

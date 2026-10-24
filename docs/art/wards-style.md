@@ -11,8 +11,8 @@ batches (the five towers with their turrets; then the ten branch turrets, the He
 temple, castle or game copied, no writing, no crests and no real symbols.
 
 **Han's pick, 24 Oct 2026, 18:51: theme A** (he liked theme B but chose A for the broad audience). Batch 1, the five towers, is in
-the game (V-06l, `docs/ART.md` §15 "The Spire's wards (V-06l), batch 1", `tools/blender/assets/meshy/wards/`); batch 2 is the ten
-branch turrets, the Heart and the portals.
+the game (V-06l, `docs/ART.md` §15 "The Spire's wards (V-06l), batch 1", `tools/blender/assets/meshy/wards/`), and batch 2, the ten
+branch turrets, the Heart and the portals (§15 "The Spire's wards (V-06l), batch 2").
 
 ## Who they are
 

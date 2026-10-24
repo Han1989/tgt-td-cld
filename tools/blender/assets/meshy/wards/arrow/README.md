@@ -52,7 +52,7 @@ Chibi toy proportions, like a small collectible toy or a tabletop miniature: chu
 
 ## In the game
 
-Body 45 / 48 / 50 world px per metre at tiers 1–3 (its radius 24–27 world px: the smallest footprint); the ballista 24 / 26 / 27 (its reach 26–29). Tier 2 and 3: two and four rune-capped pillars on the merlons (r 0.47 of the body); tier 3 the bands, the bow and the ballista's turntable in gold (the plate round its mount is the gold that shows from above). Sniper: the tower dark as a bastion, six rune pillars, the ballista 1.25× long in gold. Volley: four Builder wall corners round it, a rune-lit bartizan at each corner, three ballistas fanned 26° apart.
+Body 45 / 48 / 50 world px per metre at tiers 1–3 (its radius 24–27 world px: the smallest footprint); the ballista 24 / 26 / 27 (its reach 26–29). Tier 2 and 3: two and four rune-capped pillars on the merlons (r 0.47 of the body); tier 3 the bands, the bow and the ballista's turntable in gold (the plate round its mount is the gold that shows from above). Sniper: the tower dark as a bastion, six rune pillars, the ballista 1.25× long in gold. Volley: four Builder wall corners round it, a rune-lit bartizan at each corner, three ballistas fanned 26° apart. Batch 1 composed both branches' turrets from the tier-1 one as described here; since batch 2 each branch has its own turret (below), on the same bodies.
 
 ## Paint
 
@@ -62,3 +62,68 @@ The moon-stone (four painted tones) to `mix(stone, snow, 0.3)`, its painted shad
 
 - From straight down the tower is its top: the gallery's dark timber ring, the merlons' pale tops and the floor; its height (the arrow slits, the door) never shows.
 - The bowstring is a hair at phone size; the bow and the bolt carry the aim.
+
+## Batch 2: the branch turrets (V-06l, 24 Oct 2026)
+
+Each branch has its own turret since batch 2 (batch 1 composed the tier-1 ballista for both). Each is one image edit of `turret.png` (the ballista as batch 1 made it, `meshy_image_to_image`, `nano-banana-pro`, 1:1, the file as the reference) that turns it into the branch, then `meshy_image_to_3d` from that task with batch 1's settings and the remesh inside the task at 8,000 triangles. Both came out right the first time (no retry). The branch's body (its outline, the kit's additions) is batch 1's, unchanged.
+
+| File | What |
+|---|---|
+| `sniper.png` | the image the Sniper's turret was made from: a heavier ballista, its stock longer and banded, a sight on top of its stock (a short iron tube on two posts, its top painted pale violet) (1024 × 1024) |
+| `volley.png` | the image the Volley's turret was made from: three bolts fanned from one stock under two stacked bows, a small pale violet rune plate on the rack's front (1024 × 1024) |
+| `sniper.glb` | the Sniper's turret as `meshy_image_to_3d` returned it, **no skeleton**: 7,127 triangles in one mesh, a 2048 × 2048 JPEG base colour embedded, glTF Y up; 1.6 MB |
+| `volley.glb` | the Volley's turret as `meshy_image_to_3d` returned it, **no skeleton**: 7,161 triangles in one mesh, a 2048 × 2048 JPEG base colour embedded, glTF Y up; 3.0 MB |
+
+| Step | Task id | Credits | |
+|---|---|---|---|
+| Sniper (image to image) | `01a16de3-a7b4-7542-9d29-35b7e4f29d65` | 9 | **kept**: `sniper.png` |
+| Sniper (image to 3D) | `01a16de4-f557-73e5-92c5-d955dc239ac7` | 30 | **kept**, attempt 1 of 1 |
+| Volley (image to image) | `01a16de3-a817-72f9-9ca8-1d9251acbc0b` | 9 | **kept**: `volley.png` |
+| Volley (image to 3D) | `01a16de4-f57b-74c5-a165-fd7e24438ea3` | 30 | **kept**, attempt 1 of 1 |
+| | | **78** | |
+
+### The prompts (image to image, reference: `turret.png`)
+
+Each is one paragraph naming the branch, then the turret prompt's composition and finish paragraph (above) with "as in the picture" after "pointing toward the left of the picture":
+
+**Sniper**
+
+```text
+Redraw this tower's ballista as its Sniper: the same original design, colours and finish, a longer, heavier ballista on the same round dark iron turntable and short dark timber mount. Its dark timber stock half again as long and thicker, bound with more dark iron bands; its curved dark blue-grey iron bow heavier, with thick limbs; one long heavy bolt laid in it with a dark iron head; and on top of the stock, near its back, a sight: a short dark iron tube on two small posts with a small round pale violet crystal lens at its end. The bow as wide as before; the whole piece longer than before.
+```
+
+**Volley**
+
+```text
+Redraw this tower's ballista as its Volley: the same original design, colours and finish, a triple-bow rack on the same round dark iron turntable and short dark timber mount. One broad dark timber rack carries three crossbows side by side, each with its own dark timber stock, curved dark blue-grey iron bow, pale string and bolt; the three are fanned a little apart so their three bolts spread like a fan toward the left, the middle one straight ahead; each crossbow a little smaller than the original so the whole rack is about as wide as the original bow. A small pale violet rune plate on the front of the rack.
+```
+
+The composition and finish paragraph, word for word:
+
+```text
+Chibi toy proportions, like a small collectible toy or a tabletop miniature: chunky, thick and simple, every part big enough to read at 40 pixels seen from straight above. The piece alone, nothing else: no tower, no wall, no roof, no floor, no ground details. Three-quarter view from above, the camera high and looking down at about 45 degrees, the piece pointing toward the left of the picture as in the picture; the whole piece inside the frame with margin, on a plain flat mid-grey ground, nothing else in the picture. Flat cel colours in two tones per material, no wood grain, no metal scratches, no fine detail; even, readable lighting, no cast shadows, no glow, no motion blur, no text, no logo.
+```
+
+### Geometry (glTF metres of the model as Meshy made it: x, y up, z)
+
+| Model | |
+|---|---|
+| Sniper | its turntable (pivot) at (x, z) (0.163, 0), its foot y −0.389; the bolt's tip at x −0.95 (1.11 m from the pivot), the bow's tips at z ±0.82, the stock's back at +0.95; the sight on the stock, x 0.42..0.80, y up to 0.38 |
+| Volley | its turntable at (0.08, 0), its foot y −0.358; the three bolts' tips at x −0.85..−0.95, fanned to z ±0.37, the bows' tips at z ±0.85; the rune plate x −0.70..−0.59, y 0.10..0.24 |
+
+### In the game
+
+**Sniper.** On the Sniper's dark bastion (body 50 world px per metre, six rune pillars, batch 1's): 27 world px per metre, stretched 33 along its aim (its reach 37 world px); turned 180° so the bolt points +x; on a shot it kicks back 5 px. Its bow, bands and turntable gold (tier 3's gold), its sight's top glowing violet (`arLens`, `arcane`), the branch's glow.
+
+**Volley.** On the Volley's timber fort (body 48, four wall corners with rune-lit bartizans, batch 1's): 27 world px per metre (reach 29); turned 180°; on a shot it kicks back 4 px. Its bows, bands and turntable gold, the rune plate glowing violet.
+
+### Paint
+
+**Sniper.** The stock's four timber tones and its near-black bolt to `wood` (`arStock`), the iron (the bow, the bands, the sight's tube) to `arBow`, swapped for gold; the turntable's two tones to `arPlate` (gold); the string's pale tones to `string` and, on the sight's top (`_sight`), the pale violet to `arLens`. Every colour Meshy painted is listed in the row (`SNIPER_TURRET`); an unexpected one stops the build.
+
+**Volley.** The timber to `wood`, the iron and the bolts' heads to `arBow` (gold), the strings to `string`, the plate's pale violet to `arLens` (`_rune_plate`; elsewhere that colour is the string's). Every colour Meshy painted is listed in the row (`VOLLEY_TURRET`); an unexpected one stops the build.
+
+### What looks wrong
+
+- **Sniper:** Not much longer than the tier-1 ballista as Meshy made it, so the row stretches it 1.2× along its aim. From straight down the sight is a short tube on the stock's back; its violet top is a few pixels at phone size.
+- **Volley:** The edit drew three bolts on one stock under two stacked bows (the brief asked for three crossbows side by side): from above it reads as a fan of three bolts, which is the Volley's mark. The rune plate kept a rune-like mark (no symbols): painted plain violet.

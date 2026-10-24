@@ -52,7 +52,7 @@ Chibi toy proportions, like a small collectible toy or a tabletop miniature: chu
 
 ## In the game
 
-Body 31 / 33 / 35 world px per metre (half-width 29–33); the turret 25 / 27 / 28. The housing and the rotor (all over the post's yoke) are tilted 46° about the trunnion at rest, so the sails face 60° up: from above a disc of sails, blades radiating from a hub; turned to point +x. On a shot it kicks back 3 px and the sails turn 30° (half a step). Tier 2 and 3: two and four posts on the corner caps, their caps glowing teal; tier 3 the corner caps and the turret's iron in gold. Skyguard: the emplacement turned a quarter (a diamond), moon-glowing lenses on its points, two rotors side by side with moonlit sails. Hailstorm: four ammo drums against its sides (a cross), their bands violet, one rotor with a second set of sails turned 30° (twelve).
+Body 31 / 33 / 35 world px per metre (half-width 29–33); the turret 25 / 27 / 28. The housing and the rotor (all over the post's yoke) are tilted 46° about the trunnion at rest, so the sails face 60° up: from above a disc of sails, blades radiating from a hub; turned to point +x. On a shot it kicks back 3 px and the sails turn 30° (half a step). Tier 2 and 3: two and four posts on the corner caps, their caps glowing teal; tier 3 the corner caps and the turret's iron in gold. Skyguard: the emplacement turned a quarter (a diamond), moon-glowing lenses on its points, two rotors side by side with moonlit sails. Hailstorm: four ammo drums against its sides (a cross), their bands violet, one rotor with a second set of sails turned 30° (twelve). Batch 1 composed both branches' turrets from the tier-1 one as described here; since batch 2 each branch has its own turret (below), on the same bodies.
 
 ## Paint
 
@@ -62,3 +62,68 @@ The stone (five tones) to `mix(stone, snow, 0.3)`, its shade to `stone`; the cap
 
 - The image edit left a small post of the rotor's mount standing on the deck; the pipeline drops it (`drop`).
 - The rotor is tilted in the pipeline (a pose of its vertices), not by Meshy: its post stays upright, the housing's back dips toward the deck.
+
+## Batch 2: the branch turrets (V-06l, 24 Oct 2026)
+
+Each branch has its own turret since batch 2 (batch 1 composed the tier-1 skyward rotor for both). Each is one image edit of `turret.png` (the skyward rotor as batch 1 made it, `meshy_image_to_image`, `nano-banana-pro`, 1:1, the file as the reference) that turns it into the branch, then `meshy_image_to_3d` from that task with batch 1's settings and the remesh inside the task at 8,000 triangles. Both came out right the first time (no retry). The branch's body (its outline, the kit's additions) is batch 1's, unchanged.
+
+| File | What |
+|---|---|
+| `skyguard.png` | the image the Skyguard's turret was made from: the same six-sailed rotor raised on a tall slender iron mast braced by four struts, a pale violet lens on its hub (1024 × 1024) |
+| `hailstorm.png` | the image the Hailstorm's turret was made from: a battery of four short fat iron drums (a 2 × 2 block) tipped up at the sky, a pale violet band round each; the edit kept the Flak's wheel (eight sails) beside them (1024 × 1024) |
+| `skyguard.glb` | the Skyguard's turret as `meshy_image_to_3d` returned it, **no skeleton**: 7,604 triangles in one mesh, a 2048 × 2048 JPEG base colour embedded, glTF Y up; 3.6 MB |
+| `hailstorm.glb` | the Hailstorm's turret as `meshy_image_to_3d` returned it, **no skeleton**: 8,226 triangles in one mesh, a 2048 × 2048 JPEG base colour embedded, glTF Y up; 3.3 MB |
+
+| Step | Task id | Credits | |
+|---|---|---|---|
+| Skyguard (image to image) | `01a16de3-a7ee-777d-9a52-05a0501bdbcf` | 9 | **kept**: `skyguard.png` |
+| Skyguard (image to 3D) | `01a16de4-f5c4-7537-8487-565aca7aac70` | 30 | **kept**, attempt 1 of 1 |
+| Hailstorm (image to image) | `01a16de3-a7ff-75a9-a31f-d6670f31ff61` | 9 | **kept**: `hailstorm.png` |
+| Hailstorm (image to 3D) | `01a16de4-f5bb-7243-a2c0-8b12d3783dd0` | 30 | **kept**, attempt 1 of 1 |
+| | | **78** | |
+
+### The prompts (image to image, reference: `turret.png`)
+
+Each is one paragraph naming the branch, then the turret prompt's composition and finish paragraph (above) with "as in the picture" after "pointing toward the left of the picture":
+
+**Skyguard**
+
+```text
+Redraw this tower's skyward rotor as its Skyguard: the same original design, colours and finish, the same six-sailed rotor raised on a tall mast. A tall slender dark iron mast, about twice the old post's height, braced by four thin dark iron struts at its foot on the same round dark iron turntable; at its top the same dark iron housing and the same big wheel of six broad blades, dark timber frames with pale canvas sails, tilted up at the sky toward the left; a small round pale violet crystal lens capping the hub. From above it reads as a big six-bladed fan.
+```
+
+**Hailstorm**
+
+```text
+Redraw this tower's skyward rotor as its Hailstorm: the same original design, colours and finish, a drum battery on the same dark iron post and round dark iron turntable. Instead of the six-sailed wheel, a battery of four short fat round drums of dark iron bundled in a two by two block in a dark iron housing, the whole block tipped up at the sky toward the left at about 45 degrees, the drums' round mouths dark and empty, a broad band painted pale violet round each drum. From above it reads as a square block of four round drum mouths.
+```
+
+The composition and finish paragraph, word for word:
+
+```text
+Chibi toy proportions, like a small collectible toy or a tabletop miniature: chunky, thick and simple, every part big enough to read at 40 pixels seen from straight above. The piece alone, nothing else: no tower, no wall, no roof, no floor, no ground details. Three-quarter view from above, the camera high and looking down at about 45 degrees, the piece pointing toward the left of the picture as in the picture; the whole piece inside the frame with margin, on a plain flat mid-grey ground, nothing else in the picture. Flat cel colours in two tones per material, no wood grain, no metal scratches, no fine detail; even, readable lighting, no cast shadows, no glow, no motion blur, no text, no logo.
+```
+
+### Geometry (glTF metres of the model as Meshy made it: x, y up, z)
+
+| Model | |
+|---|---|
+| Skyguard | its foot at (−0.027, −0.034), y −0.952; the mast to y ≈ 0.2, the housing over it, the rotor's centre (0, 0.465, 0.32) facing glTF +z (its axis (0, 0, 1), radius 0.42), the lens on its hub |
+| Hailstorm | its foot at (−0.023, −0.155), y −0.952; the drums' axis (−0.26, 0.77, 0.59) (50° up, toward glTF (−0.26, 0.59) on the ground), their bands' centroid (−0.26, 0.32, 0.28); the wheel at (0.51, 0.19, −0.10), its axis (0.97, 0.25, 0.05) |
+
+### In the game
+
+**Skyguard.** On the Skyguard's diamond (body 31, moon lenses, batch 1's): 46 world px per metre (its rotor as big as the tier-1 rotor's; the mast never shows from above); everything over the mast's top (`tilt`) turned 60° about it so the sails face 60° up (from above a disc), turned 90° to point +x; on a shot it kicks back 3 px and its sails turn 30° (`spin`). Its iron gold, the lens glowing violet (`fkCharge`).
+
+**Hailstorm.** On the Hailstorm's cross of drums (body 30, batch 1's): 27 world px per metre, turned 113.9° so the drums point +x; on a shot it kicks back 3 px and the wheel turns 22.5° (half a step of its eight sails, `spin`). Its iron gold, the drums' bands glowing violet.
+
+### Paint
+
+**Skyguard.** The iron's eight tones to `fkIron` (gold), the sails' frames to `fkFrame`, the sails to `fkSail`, the lens to `fkCharge`. Every colour Meshy painted is listed in the row (`SKYGUARD_TURRET`); an unexpected one stops the build.
+
+**Hailstorm.** The iron to `fkIron` (gold), the frames to `fkFrame`, the sails to `fkSail`, the bands to `fkCharge`, the drums' mouths to `fkIronDark`. Every colour Meshy painted is listed in the row (`HAILSTORM_TURRET`); an unexpected one stops the build.
+
+### What looks wrong
+
+- **Skyguard:** From straight down the tall mast is hidden: the Skyguard reads by its single big tilted rotor (batch 1's placeholder had two side by side).
+- **Hailstorm:** The edit kept a wheel the brief left out (the drums were asked instead of the wheel). Kept: the drums dominate from above and the wheel keeps the Flak's mark, as batch 1's Hailstorm paired drums with a rotor. From straight down the wheel is nearly edge-on.

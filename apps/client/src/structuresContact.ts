@@ -7,6 +7,8 @@
 //
 // V-06l (`drawWards`): the five towers from Meshy, theme A, next to the KayKit ones they replace (a sheet and layout
 // read from git by the script), at phone size and close up, each tier 1 turret through its recoil, and a match frame.
+// Batch 2: `drawBranches`, each branch's own turret beside its tier 1 and batch 1's placeholder; `drawHeart`, the
+// Heart's three stages and a portal beside V-05d's, and a match frame with the Heart cracked.
 
 import { TOWER_BRANCHES, TOWER_KINDS, type TowerBranch, type TowerKind } from '@tdt/protocol';
 import { getMap } from '@tdt/sim';
@@ -254,10 +256,11 @@ function draw2dHeart(c: Ctx, stage: number, x: number, y: number, k: number): vo
 }
 
 function draw3dHeart(c: Ctx, a: Assets, stage: number, x: number, y: number, k: number): void {
-  cellAt(c, a, L.cells[`heart/stage${stage}`]!, x, y, k);
-  if (stage) cellAt(c, a, L.cells[`heart/rubble${stage}`]!, x, y, k);
-  cellAt(c, a, L.cells['heart/glow']!, x, y, k, 0, true);
-  if (stage === 2) cellAt(c, a, L.cells['heart/fire0']!, x, y, k, 0, true);
+  const cells = (a.layout ?? L).cells;
+  cellAt(c, a, cells[`heart/stage${stage}`]!, x, y, k);
+  if (stage) cellAt(c, a, cells[`heart/rubble${stage}`]!, x, y, k);
+  cellAt(c, a, cells['heart/glow']!, x, y, k, 0, true);
+  if (stage === 2) cellAt(c, a, cells['heart/fire0']!, x, y, k, 0, true);
 }
 
 function draw2dPortal(c: Ctx, x: number, y: number, k: number): void {
@@ -271,9 +274,10 @@ function draw2dPortal(c: Ctx, x: number, y: number, k: number): void {
 }
 
 function draw3dPortal(c: Ctx, a: Assets, x: number, y: number, k: number): void {
-  cellAt(c, a, L.cells['portal/body']!, x, y, k);
-  cellAt(c, a, L.cells['portal/glow']!, x, y, k, 0, true);
-  const o = L.portal.points.opening;
+  const l = a.layout ?? L;
+  cellAt(c, a, l.cells['portal/body']!, x, y, k);
+  cellAt(c, a, l.cells['portal/glow']!, x, y, k, 0, true);
+  const o = l.portal.points.opening;
   c.save();
   c.translate(x + o.x * k, y + o.y * k);
   c.scale(k * PORTAL_OPENING, k * PORTAL_OPENING);
@@ -313,7 +317,7 @@ export async function drawWards(
     c.font = '20px sans-serif';
     c.fillText(text, x, yy);
   };
-  title("V-06l, batch 1: the Spire's wards, theme A: the five towers from Meshy");
+  title("V-06l: the Spire's wards, theme A: the five towers from Meshy (batch 1, their branch turrets batch 2)");
   c.fillStyle = '#9fb0c2';
   c.font = '20px sans-serif';
   c.fillText(
@@ -412,4 +416,202 @@ export async function drawWards(
   out.height = Math.ceil(y + 10);
   out.getContext('2d')!.drawImage(canvas, 0, 0);
   return out.toDataURL('image/png');
+}
+
+/** The sheet's canvas, its title and label helpers, and the finished picture (V-06l batch 2's pages). */
+function page(height: number) {
+  const canvas = document.createElement('canvas');
+  canvas.width = WIDTH;
+  canvas.height = height;
+  const c = canvas.getContext('2d')!;
+  c.fillStyle = css(RL.ink);
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  const at = { y: 0 };
+  const title = (text: string, size = 34) => {
+    c.fillStyle = size > 30 ? '#e6dac0' : '#cfe6ff';
+    c.font = `${size > 30 ? 'bold ' : ''}${size}px sans-serif`;
+    c.fillText(text, 24, at.y + size + 10);
+    at.y += size + 26;
+  };
+  const label = (text: string, x: number, yy: number, colour = '#e6dac0') => {
+    c.fillStyle = colour;
+    c.font = '20px sans-serif';
+    c.fillText(text, x, yy);
+  };
+  const note = (text: string) => {
+    c.fillStyle = '#9fb0c2';
+    c.font = '20px sans-serif';
+    c.fillText(text, 24, at.y + 4);
+    at.y += 30;
+  };
+  const finish = () => {
+    const out = document.createElement('canvas');
+    out.width = WIDTH;
+    out.height = Math.ceil(at.y + 10);
+    out.getContext('2d')!.drawImage(canvas, 0, 0);
+    return out.toDataURL('image/png');
+  };
+  return { c, at, title, label, note, finish };
+}
+
+/** A match screenshot at half size and a crop of it at the screen's own pixels (or smaller to fit), with a caption. */
+async function matchShot(
+  p: ReturnType<typeof page>,
+  match: { shot: string; box: { x0: number; y0: number; x1: number; y1: number } },
+  what: string,
+): Promise<void> {
+  const { c, at, label } = p;
+  const shot = await load(match.shot);
+  const k = 0.5;
+  c.drawImage(shot, 24, at.y, shot.width * k, shot.height * k);
+  const { x0, y0, x1, y1 } = match.box;
+  const sx = Math.max(0, x0);
+  const sy = Math.max(0, y0);
+  const w = Math.min(shot.width, x1) - sx;
+  const h = Math.min(shot.height, y1) - sy;
+  const room = WIDTH - 24 - shot.width * k - 30 - 24;
+  const fit = Math.min(1, room / w);
+  const cx = 24 + shot.width * k + 30;
+  c.drawImage(shot, sx, sy, w, h, cx, at.y, w * fit, h * fit);
+  c.strokeStyle = '#e6dac0';
+  c.lineWidth = 2;
+  c.strokeRect(24 + sx * k, at.y + sy * k, w * k, h * k);
+  label(fit < 1 ? `${what} at ${fit.toFixed(2)}× the screen's pixels` : `${what} at the screen's own pixels`, cx, at.y + h * fit + 26, '#9fb0c2');
+  at.y += Math.max(shot.height * k, h * fit + 40) + 20;
+}
+
+/**
+ * V-06l, batch 2: every branch's own turret (Meshy, the shipped sheet) straight down, beside its kind's tier 1 and
+ * batch 1's placeholder (the tier-1 turret composed; `before`: that sheet and its layout, from git), at phone size
+ * and close up on the map plate's pad, then each branch turret at rest and through its three recoil frames.
+ */
+export async function drawBranches(before: { sheet: string; layout: StructureMatchLayout }): Promise<string> {
+  const plate = await load(`/map/${plateLayout.file.name}`);
+  const a: Assets = { sheet: await load(sheetUrl), plate };
+  const b: Assets = { sheet: await load(before.sheet), plate, layout: before.layout };
+  const p = page(9000);
+  const { c, at, title, label, note } = p;
+  title("V-06l, batch 2: the Spire's wards' ten branch turrets from Meshy, theme A");
+  note(`Per kind: tier 1 · then each branch, batch 1's placeholder (the tier-1 turret composed) · its own turret · on the map plate's pad · turrets turned ${(-AIM * 57.3).toFixed(0)}° towards a target`);
+  const win = 104;
+  const row = (kind: TowerKind, k: number, gap: number) => {
+    const cell = win * k;
+    let x = 24;
+    label('tier 1', x, at.y + 18);
+    drawPad(c, a, x, at.y + 26, win, k);
+    draw3dTower(c, a, kind, 1, null, x + cell / 2, at.y + 26 + cell / 2, k, 0);
+    x += cell + gap * 2;
+    for (const branch of TOWER_BRANCHES[kind]) {
+      label(`${branch}: batch 1 · own`, x, at.y + 18);
+      drawPad(c, a, x, at.y + 26, win, k);
+      draw3dTower(c, b, kind, 4, branch, x + cell / 2, at.y + 26 + cell / 2, k, 0);
+      drawPad(c, a, x + cell + 4, at.y + 26, win, k);
+      draw3dTower(c, a, kind, 4, branch, x + cell * 1.5 + 4, at.y + 26 + cell / 2, k, 0);
+      x += cell * 2 + 4 + gap * 2;
+    }
+    at.y += cell + 40;
+  };
+  title('In a match: a 412 × 839 phone on a 3× screen', 26);
+  for (const kind of TOWER_KINDS) {
+    label(towerArt(kind)!.name, 24, at.y + 22);
+    at.y += 32;
+    row(kind, PHONE_TOWER, 14);
+  }
+  title(`Close up: ${CLOSE} px per world px (the sheet has ${L.res})`, 26);
+  for (const kind of TOWER_KINDS) {
+    label(towerArt(kind)!.name, 24, at.y + 22);
+    at.y += 32;
+    row(kind, CLOSE, 14);
+  }
+  title('A shot (a pulse for the Blizzard): each branch turret at rest, then its three recoil frames', 26);
+  {
+    const k = CLOSE * 0.75;
+    const cell = win * k;
+    const all = TOWER_KINDS.flatMap((kind) => TOWER_BRANCHES[kind].map((branch) => [kind, branch] as const));
+    for (let i = 0; i < all.length; i += 2) {
+      let x = 24;
+      for (const [kind, branch] of all.slice(i, i + 2)) {
+        label(`${kind} · ${branch}`, x, at.y + 18);
+        for (const r of [0, 1, 2, 3] as const) {
+          drawPad(c, a, x, at.y + 26, win, k);
+          draw3dTower(c, a, kind, 4, branch, x + cell / 2, at.y + 26 + cell / 2, k, r);
+          x += cell + 8;
+        }
+        x += 60;
+      }
+      at.y += cell + 46;
+    }
+  }
+  return p.finish();
+}
+
+/**
+ * V-06l, batch 2: the Heart in its three stages and a portal (with its swirl in the arch) from Meshy (the shipped
+ * sheet), beside V-05d's KayKit ones (`before`, from git), at phone size on the map plate's own ground and close up;
+ * then `match` (wave 10 of Full on a 412 × 839 phone at 3×, the Heart cracked) and the Heart at the screen's pixels.
+ */
+export async function drawHeart(
+  before: { sheet: string; layout: StructureMatchLayout },
+  match: { shot: string; box: { x0: number; y0: number; x1: number; y1: number } } | null,
+): Promise<string> {
+  const plate = await load(`/map/${plateLayout.file.name}`);
+  const a: Assets = { sheet: await load(sheetUrl), plate };
+  const b: Assets = { sheet: await load(before.sheet), plate, layout: before.layout };
+  const p = page(7000);
+  const { c, at, title, label, note } = p;
+  title("V-06l, batch 2: the Spire's wards' Heart and portals from Meshy, theme A");
+  note("KayKit (V-05d) · Meshy, on the map plate's own ground (the Heart's clearing, the top of the Mid lane) · the Heart's light and flames as the game adds them, the portal's swirl in its arch");
+  const map = getMap();
+  const lane = map.lanes[1]!.waypoints[0]!;
+  const both = (k: number, hw: number) => {
+    const cell = hw * k;
+    let x = 24;
+    for (const [stage, name] of [[0, 'whole'], [1, 'under 60% HP'], [2, 'under 30% HP']] as const) {
+      label(`${name}: KayKit · Meshy`, x, at.y + 18);
+      for (const [i, s] of [b, a].entries()) {
+        drawGround(c, a, map.heart.x * 32, map.heart.y * 32 - 24, hw, hw, x + i * (cell + 4), at.y + 26, k);
+        draw3dHeart(c, s, stage, x + i * (cell + 4) + cell / 2, at.y + 26 + cell / 2 + 24 * k, k);
+      }
+      x += cell * 2 + 34;
+    }
+    label('a portal: KayKit · Meshy', x, at.y + 18);
+    for (const [i, s] of [b, a].entries()) {
+      drawGround(c, a, lane.x * 32, (lane.y + 1) * 32 + 20, hw, hw, x + i * (cell + 4), at.y + 26, k);
+      draw3dPortal(c, s, x + i * (cell + 4) + cell / 2, at.y + 26 + cell / 2 - 20 * k, k);
+    }
+    at.y += cell + 46;
+  };
+  title('In a match: a 412 × 839 phone on a 3× screen', 26);
+  both(PHONE_WORLD, 150);
+  title(`Close up: ${CLOSE} px per world px (the sheet has ${L.res})`, 26);
+  {
+    // Two rows: the Heart's three stages, then the portals.
+    const k = CLOSE;
+    const hw = 150;
+    const cell = hw * k;
+    let x = 24;
+    for (const [stage, name] of [[0, 'whole'], [1, 'under 60% HP'], [2, 'under 30% HP']] as const) {
+      label(`${name}: KayKit · Meshy`, x, at.y + 18);
+      for (const [i, s] of [b, a].entries()) {
+        const cx = x + (i ? cell * 0.75 + 4 : 0);
+        drawGround(c, a, map.heart.x * 32, map.heart.y * 32 - 24, hw * 0.75, hw, cx, at.y + 26, k);
+        draw3dHeart(c, s, stage, cx + cell * 0.375, at.y + 26 + cell / 2 + 24 * k, k);
+      }
+      x += cell * 1.5 + 34;
+    }
+    at.y += cell + 46;
+    x = 24;
+    label('a portal: KayKit · Meshy', x, at.y + 18);
+    for (const [i, s] of [b, a].entries()) {
+      // The ground round the portal's point (the top of the Mid lane), the portal on it.
+      drawGround(c, a, lane.x * 32, (lane.y + 1) * 32 + 20, hw, hw * 0.7, x + i * (cell + 10), at.y + 26, k);
+      draw3dPortal(c, s, x + i * (cell + 10) + cell / 2, at.y + 26 + cell * 0.35 - 20 * k, k);
+    }
+    at.y += cell * 0.7 + 46;
+  }
+  if (match) {
+    title('Wave 10 of Full on a 412 × 839 phone at 3×, the Heart cracked (under 60% HP), the five kinds built', 26);
+    await matchShot(p, match, 'the Heart');
+  }
+  return p.finish();
 }

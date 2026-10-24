@@ -1092,9 +1092,11 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     // Nothing else: the keys are exactly those.
     const towers = TOWER_KINDS.flatMap((kind) => variants(kind).flatMap((v) => [towerKeys(kind, v).base, ...towerKeys(kind, v).turret]));
     expect(Object.keys(m.cells).sort()).toEqual([...towers, ...heartKeys.map((k) => `heart/${k}`), 'portal/body', 'portal/glow'].sort());
-    // The effects' points: the chest in front of the castle, below its point; the keep above it; the gate's opening.
-    expect(m.heart.points.chest.y).toBeGreaterThan(0);
+    // The effects' points (V-06l batch 2): the Heart's light (`chest`, its crystal on the Spire's tip) above the keep's
+    // middle, both above its point on the map; the gatehouse's opening over the portal's point.
     expect(m.heart.points.keep.y).toBeLessThan(0);
+    expect(m.heart.points.chest.y).toBeLessThan(m.heart.points.keep.y);
+    expect(Math.abs(m.heart.points.chest.x)).toBeLessThan(4);
     expect(Math.abs(m.portal.points.opening.x)).toBeLessThan(4);
   });
 

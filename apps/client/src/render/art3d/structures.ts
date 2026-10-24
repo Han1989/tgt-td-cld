@@ -1,8 +1,8 @@
-// The towers, the Heart and the portals made in 3D and rendered ahead of time (docs/ART.md §15, V-05d; the towers the
-// game's own Meshy models since V-06l): what the Blender pipeline wrote (tools/blender, `npm run art:3d -- structures`,
-// the structure table tools/blender/structures.py: the towers' Meshy bodies and turrets with the kit's additions, the
-// Heart and the portals kitbashed from the CC0 KayKit pieces), and the pure rules Tower3DRig and the Heart's and
-// portals' 3D views play them by. Nothing 3D runs here: they are one sheet of pictures. Generated files, not edited by
+// The towers, the Heart and the portals made in 3D and rendered ahead of time (docs/ART.md §15, V-05d; the game's own
+// Meshy models since V-06l): what the Blender pipeline wrote (tools/blender, `npm run art:3d -- structures`, the
+// structure table tools/blender/structures.py: the towers' Meshy bodies, turrets and branch turrets with the kit's
+// additions, the Heart and the portals), and the pure rules Tower3DRig and the Heart's and portals' 3D views play
+// them by. Nothing 3D runs here: they are one sheet of pictures. Generated files, not edited by
 // hand: structures.json and structures-match.png in this folder.
 
 import type { TowerBranch, TowerKind } from '@tdt/protocol';
@@ -37,7 +37,7 @@ export interface StructureMatchLayout {
   /**
    * Every frame by key: `<tower kind>/<1|2|3|branch>/base` and `…/turret0..3` (at rest, then its recoil a third of
    * the way each); `heart/stage0..2` (whole, cracked, ruined) and `heart/flash0..2` (their white twins),
-   * `heart/rubble1..2`, `heart/glow` (the chest's light), `heart/fire0..2` (the flames); `portal/body`, `portal/glow`.
+   * `heart/rubble1..2`, `heart/glow` (its light), `heart/fire0..2` (the flames); `portal/body`, `portal/glow`.
    */
   cells: Record<string, StructureCell>;
   heart: { points: { chest: StructurePoint; keep: StructurePoint } };

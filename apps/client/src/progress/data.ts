@@ -33,6 +33,7 @@
  * V-06j on 24 Oct 2026 (PR #141: the Wisp, the Hatchling and the bosses from Meshy into the game, batch 2).
  * V-06l-concepts on 24 Oct 2026 (PR #143: the Spire's wards, the towers, the Heart and the portals in two themes, images only).
  * V-06l-towers on 24 Oct 2026 (PR #145: the Spire's wards, batch 1, the five towers from Meshy, theme A).
+ * V-06l-batch2 on 24 Oct 2026 (PR #146: the Spire's wards, batch 2, the branch turrets, the Heart and the portals).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -466,6 +467,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Art and tools only: no game rules, server or protocol change; every tower keeps its pad, range, upgrades and branches, and turns and kicks as before. Han, 24 Oct 2026, 18:51: theme A, the medieval moon-stone family (he liked the East Asian one but chose A for the broad audience). Each tower is now two models of the game’s own made in Meshy, its body and the turret on top that turns: the Arrow a narrow stone tower with a ballista, the Cannon a low eight-sided bastion with a stone-thrower whose arm swings over its frame when it fires, the Frost the palest tower with an ice column and an ice lance, the Arcane a tower under a big slate dome with a crystal staff, the Flak a square stone emplacement with a rotor of six sails tilted at the sky that turn when it fires. Upgrades look as before: two glowing runes at tier 2, four and gold at tier 3, and a branch its own shape round the tower; nothing on a tower glows orange any more (orange is the enemy’s), so the Cannon’s and the Flak’s lights are teal, and violet on a branch. A few colours are lighter or darker than the concept so each turret reads on its tower at phone size. The Heart and the portals and the branches’ own turrets come in batch 2. In review: Han judges the five on his phone. Built by Claude Code (PR #145).',
     proof: pr(145),
+  },
+  {
+    id: 'V-06l-batch2',
+    title: 'The Spire’s wards, batch 2: the branch turrets, the Heart and the portals from Meshy (theme A)',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Art and tools only: no game rules, server or protocol change; every tower keeps its pad, range and branches, and the Heart and the portals stand where they stood. Every building in a match is now the game’s own design. Each of the ten branches has its own turret made in Meshy from its tower’s turret picture: the Sniper a heavier, longer ballista with a sight, the Volley three bolts fanned under two bows, the Mortar a short wide bowl with a glowing shot, the Shrapnel the stone-thrower with a banded keg, the Glacier one thick frozen column, the Blizzard a star of six ice lances that turns on a pulse, the Prism a big many-faced crystal, the Void a dark orb in a claw, the Skyguard the sail rotor on a tall mast, the Hailstorm a battery of four drums beside the wheel. They turn and kick as before, gold as at tier 3, with the branch’s violet glow. The Heart is the moon-stone keep with the Spire rising from it and the rose-red crystal on its tip: under 60% cracks run down its walls and two merlons are knocked askew; under 30% the Spire breaks off below its roof, two turret caps fall, rubble lies round it and it burns, while the crystal still hovers where it was until the Heart falls. The portals are moon-stone gatehouses with an open arch where the swirl shows, their rune-stones glowing teal instead of torches. In review: Han judges them on his phone. Built by Claude Code (PR #146).',
+    proof: pr(146),
   },
   {
     id: 'g1-render',

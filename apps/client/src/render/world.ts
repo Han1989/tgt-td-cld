@@ -284,9 +284,9 @@ interface HeartSprite {
   blaze: Sprite;
   /** The 2D Heart (a gem over its pedestal), or null when it is drawn from the 3D sheet (`view`). */
   gem: HeartGem | null;
-  /** The 3D Heart (a castle keeping a glowing chest, render/art3d), or null. */
+  /** The 3D Heart (the keep with the Spire and its crystal, render/art3d), or null. */
   view: Heart3DView | null;
-  /** Where its effects start (shards, flash, embers: the gem or the chest), px from its point; the blaze's place. */
+  /** Where its effects start (shards, flash, embers: the gem or the crystal), px from its point; the blaze's place. */
   fxY: number;
   blazeY: number;
 }
@@ -1461,7 +1461,7 @@ export class WorldRenderer {
     fade(blaze, 0);
     blaze.position.set(0, art.gemY);
     if (view) {
-      // The castle (render/art3d): its chest's light where the gem's was, its blaze over the keep.
+      // The keep (render/art3d): its crystal's light where the gem's was, its blaze over the keep.
       fade(glow, 0);
       glow.scale.set(0.6);
       glow.position.set(view.chest.x, view.chest.y);
@@ -1511,7 +1511,7 @@ export class WorldRenderer {
       h.glow.alpha = 0.3 + beat * 0.25 + hit * 0.5 + (low ? 0.25 : 0);
       h.blaze.y = gem.body.y;
     } else if (h.view) {
-      // The castle: the chest's light beats, the castle flashes white when hit, the flames flicker.
+      // The keep: its light beats, it flashes white when hit, the flames flicker.
       h.view.setStage(stage);
       h.view.update(now, beat, hit);
       fade(h.glow, hit * 0.45 + (low ? 0.15 + beat * 0.1 : 0));
