@@ -45,7 +45,7 @@ describe('progress dashboard data', () => {
     // never scrolls, the plaques inside the bar, the rims slimmer; PR #139), V-06i (the ground creeps from Meshy into
     // the game, enemy batch 1; PR #140), V-06j (the Wisp, the Hatchling and the bosses from Meshy, batch 2; PR #141),
     // p6d-endless-2 (Endless scaling, veteran levels and Reinforce; PR #142) and p6d-share (the share card, the Daily
-    // run's session 3 of 3; PR #143).
+    // run's session 3 of 3; PR #144).
     expect(summary.done).toBe(83);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
@@ -84,7 +84,7 @@ describe('progress dashboard data', () => {
       'p6d-daily': 126,
       'p6d-endless': 129,
       'p6d-endless-2': 142,
-      'p6d-share': 143,
+      'p6d-share': 144,
       'V-06e-concepts': 132,
       'V-06e': 134,
       'V-07a': 135,

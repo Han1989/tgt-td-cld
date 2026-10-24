@@ -33,7 +33,7 @@
  * V-06j on 24 Oct 2026 (PR #141: the Wisp, the Hatchling and the bosses from Meshy into the game, batch 2).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
- * p6d-share on 24 Oct 2026 (PR #143: the share card, the Daily run's session 3 of 3).
+ * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1051,8 +1051,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'p6d',
-    note: 'Han, 17 Oct 2026: after a posted Daily run (Share my run, under your five rows) and on an Endless end screen (Share, beside Save match report), one tap makes a 1200 × 630 picture of your result in the game’s own look: your hero on the moonlit clearing, the gold trim, the title, then your rank large (“#14 of 212 · top 7 %”), Heart and time, your nickname and hero; Endless shows the wave you fell on large. It goes straight into the phone’s share sheet with a link back to the game; on a computer it downloads and the link is copied. Never automatic, and nothing on it the public board does not already show. Visits from shared cards get their own row on the dashboard. Built by Claude Code (PR #143).',
-    proof: pr(143),
+    note: 'Han, 17 Oct 2026: after a posted Daily run (Share my run, under your five rows) and on an Endless end screen (Share, beside Save match report), one tap makes a 1200 × 630 picture of your result in the game’s own look: your hero on the moonlit clearing, the gold trim, the title, then your rank large (“#14 of 212 · top 7 %”), Heart and time, your nickname and hero; Endless shows the wave you fell on large. It goes straight into the phone’s share sheet with a link back to the game; on a computer it downloads and the link is copied. Never automatic, and nothing on it the public board does not already show. Visits from shared cards get their own row on the dashboard. Built by Claude Code (PR #144).',
+    proof: pr(144),
   },
   {
     id: 'p6d-weekly',
