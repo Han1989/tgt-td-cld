@@ -7,6 +7,7 @@ import {
   TOWER_BRANCH_KINDS,
   bossLaneHint,
   heroGiftTotals,
+  heroReinforceTotals,
   heroRepairTotals,
   laneName,
 } from '../src';
@@ -48,6 +49,13 @@ describe('hero gift totals', () => {
     expect(heroGiftTotals({})).toEqual({ goldGifted: 0, goldReceived: 0 });
     expect(heroGiftTotals({ goldGifted: 40 })).toEqual({ goldGifted: 40, goldReceived: 0 });
     expect(heroGiftTotals({ goldGifted: 10, goldReceived: 25 })).toEqual({ goldGifted: 10, goldReceived: 25 });
+  });
+});
+
+describe('hero reinforce totals', () => {
+  it('reads a missing total as 0 (reports from before protocol 22)', () => {
+    expect(heroReinforceTotals({})).toEqual({ reinforces: 0, reinforceGold: 0 });
+    expect(heroReinforceTotals({ reinforces: 4, reinforceGold: 1875 })).toEqual({ reinforces: 4, reinforceGold: 1875 });
   });
 });
 

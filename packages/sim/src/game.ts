@@ -14,7 +14,7 @@ import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './
 import { emptyUltStats, type GameConfig, type GameState, type Hero } from './state';
 import { planSurgeLanes, surgeNotice } from './surges';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
-import { secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
+import { heroLevelXp, secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
 import { callEarlyBonus, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
@@ -205,8 +205,9 @@ export function snapshot(state: GameState): Snapshot {
         level: h.level,
         maxLevel: t.hero.maxLevel,
         xp: Math.floor(h.xp),
-        xpLevelStart: t.hero.xpForLevel[h.level - 1] ?? 0,
-        xpNextLevel: t.hero.xpForLevel[h.level] ?? t.hero.xpForLevel[h.level - 1] ?? 0,
+        xpLevelStart: heroLevelXp(t, h.level),
+        // At the cap the bar is full (the next level needs the cap's XP), except in Endless's veteran levels.
+        xpNextLevel: heroLevelXp(t, h.level + 1),
         skillPoints: h.skillPoints,
         skills: HERO_SKILLS[h.kind].map((slot: SkillSlot) => {
           const info = skillInfo(state, h, slot);
@@ -259,6 +260,7 @@ export function snapshot(state: GameState): Snapshot {
       maxHp: tw.maxHp,
       tier: tw.tier,
       branch: tw.branch,
+      reinforced: tw.reinforced,
       range: towerStats(t, tw.kind, tw.tier, tw.branch).range,
       spent: tw.spent,
       priority: tw.priority,

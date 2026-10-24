@@ -56,6 +56,11 @@ export interface HeadlessResult {
   towersDestroyed: number;
   /** Endless: Heart HP when the first wave past the list started (wave 31), or null if the Heart fell before it. */
   heartAfterList: number | null;
+  /** Heart HP when each wave started (index 0 = wave 1), then the Heart at the end as the last entry. */
+  heartByWave: number[];
+  /** Reinforce ranks bought (`towerReinforced` events) and their gold (Endless). */
+  reinforces: number;
+  reinforceGold: number;
   /** With `record`: the match's report and replay, as a host sends them when it ends. */
   file?: { report: MatchReport; replay: Replay };
 }
@@ -122,6 +127,9 @@ export function runHeadlessMatch(opts: {
   let repairs = 0;
   let repairGold = 0;
   let towersDestroyed = 0;
+  let reinforces = 0;
+  let reinforceGold = 0;
+  const heartByWave: number[] = [];
   const heroDeaths = state.heroes.map(() => 0);
   const kindById = new Map<number, string>();
   const casts = { Q: 0, W: 0, R: 0 };
@@ -140,6 +148,7 @@ export function runHeadlessMatch(opts: {
       }
     }
     for (const c of state.creeps) kindById.set(c.id, c.kind);
+    const heartBefore = state.heartHp;
     if (match) matchStep(match);
     else step(state);
     for (const c of state.creeps) if (state.tuning.creeps[c.kind].boss) bossIds.add(c.id);
@@ -159,6 +168,12 @@ export function runHeadlessMatch(opts: {
         repairGold += e.cost;
       }
       if (e.type === 'towerDestroyed') towersDestroyed++;
+      if (e.type === 'towerReinforced') {
+        reinforces++;
+        reinforceGold += e.cost;
+      }
+      // The Heart as the wave starts: this tick's leaks come after the spawn, so it is the Heart the wave before left.
+      if (e.type === 'waveStart') heartByWave[e.wave - 1] = Math.max(0, heartBefore);
       if (e.type === 'heroDied') {
         deaths++;
         const i = state.heroes.findIndex((h) => h.id === e.heroId);
@@ -205,6 +220,9 @@ export function runHeadlessMatch(opts: {
     repairs,
     repairGold,
     towersDestroyed,
+    reinforces,
+    reinforceGold,
+    heartByWave: [...heartByWave, Math.max(0, state.heartHp)],
     bossLeaks,
     deaths,
     earlyCalls,

@@ -15,7 +15,7 @@ import {
   type PlayerId,
   type ShieldState,
 } from '@tdt/protocol';
-import { creepsInRadius, emit, newId, stunCreep, ultimateDamage } from './combat';
+import { creepsInRadius, emit, heroPower, newId, stunCreep, ultimateDamage } from './combat';
 import { getMap, laneDistance, PAD_ZONES } from './map';
 import type { BossShield, Creep, GameState, Hero, HitFrom, RecentUlt, UltKind, UltTag, Zone } from './state';
 import { secondsToTicks } from './tuning';
@@ -294,6 +294,9 @@ function strikeOf(state: GameState, zone: Zone): Strike {
  */
 export function pulseRain(state: GameState, zone: Zone): void {
   const strike = strikeOf(state, zone);
+  // A veteran hero's rains hit harder too (Endless; 1 elsewhere): the rain's owner leads a combo.
+  const owner = state.heroes.find((h) => h.owner === zone.owner);
+  if (owner) strike.damage *= heroPower(state, owner);
   const from = ownerFrom(state, zone.owner);
   const reach = strike.pull ? strike.pull.radius : strike.radius;
   const hit = new Set<number>();

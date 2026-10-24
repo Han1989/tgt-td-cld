@@ -28,6 +28,7 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'build', padId: 3, tower: 'frost' } },
     { t: 'cmd', cmd: { type: 'sell', towerId: 7 } },
     { t: 'cmd', cmd: { type: 'repair', towerId: 7 } },
+    { t: 'cmd', cmd: { type: 'reinforce', towerId: 7 } },
     { t: 'cmd', cmd: { type: 'build', padId: 4, tower: 'arcane' } },
     { t: 'cmd', cmd: { type: 'build', padId: 5, tower: 'flak' } },
     { t: 'cmd', cmd: { type: 'upgrade', towerId: 7 } },
@@ -106,6 +107,11 @@ describe('client message codec', () => {
     ['repair with a string id', '{"t":"cmd","cmd":{"type":"repair","towerId":"7"}}'],
     ['repair with a fractional id', '{"t":"cmd","cmd":{"type":"repair","towerId":7.5}}'],
     ['repair with an amount', '{"t":"cmd","cmd":{"type":"repair","towerId":7,"hp":500}}'],
+    ['reinforce with no tower', '{"t":"cmd","cmd":{"type":"reinforce"}}'],
+    ['reinforce with a string id', '{"t":"cmd","cmd":{"type":"reinforce","towerId":"7"}}'],
+    ['reinforce with a negative id', '{"t":"cmd","cmd":{"type":"reinforce","towerId":-1}}'],
+    ['reinforce with a rank', '{"t":"cmd","cmd":{"type":"reinforce","towerId":7,"rank":3}}'],
+    ['reinforce with ranks to buy', '{"t":"cmd","cmd":{"type":"reinforce","towerId":7,"times":5}}'],
     ['unknown priority', '{"t":"cmd","cmd":{"type":"setPriority","towerId":7,"priority":"weakest"}}'],
     ['priority without a tower', '{"t":"cmd","cmd":{"type":"setPriority","priority":"first"}}'],
     ['create without a version', '{"t":"create","name":"a","hero":"ranger"}'],
@@ -176,6 +182,7 @@ describe('replay command encoding', () => {
     { type: 'build', padId: 3, tower: 'frost' },
     { type: 'sell', towerId: 9 },
     { type: 'repair', towerId: 9 },
+    { type: 'reinforce', towerId: 9 },
     { type: 'upgrade', towerId: 9 },
     { type: 'upgrade', towerId: 9, branch: 'glacier' },
     { type: 'setPriority', towerId: 9, priority: 'strongest' },
@@ -194,6 +201,7 @@ describe('replay command encoding', () => {
     expect(decodeReplayCommand(['move', 1])).toBeNull();
     expect(decodeReplayCommand(['move', 1, 2, 3])).toBeNull();
     expect(decodeReplayCommand(['build', 1, 'laser'])).toBeNull();
+    expect(decodeReplayCommand(['reinforce', 9, 2])).toBeNull();
     expect(decodeReplayCommand(['toString'])).toBeNull();
     expect(decodeReplayCommand([])).toBeNull();
   });

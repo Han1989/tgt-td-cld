@@ -5,7 +5,7 @@ import { hitFrom, shieldedDamage } from './coop';
 import { getMap } from './map';
 import { nextRandom } from './rng';
 import type { Creep, GameState, Hero, HitFrom, Projectile, ProjectileFx, TargetKind, Tower, UltTag } from './state';
-import { secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
+import { heroLevelXp, secondsToTicks, TICK_RATE, type HeroStats, type Tuning } from './tuning';
 import { dist } from './vec';
 
 /** Hit radius of a tower when creeps measure attack range to it. */
@@ -61,14 +61,38 @@ export function heroStats(state: GameState, hero: Hero): HeroStats {
   return state.tuning.hero[hero.kind];
 }
 
+/** Levels past `hero.maxLevel` (Endless's veteran levels): 0 everywhere else, where the cap holds. */
+export function veteranLevels(state: GameState, hero: Hero): number {
+  return Math.max(0, hero.level - state.tuning.hero.maxLevel);
+}
+
+/** The level the per-level numbers grow to: they stop at the cap, and veteran levels multiply them instead. */
+function statLevel(state: GameState, hero: Hero): number {
+  return Math.min(hero.level, state.tuning.hero.maxLevel);
+}
+
+/** 1 + `perLevel` × the hero's veteran levels (exactly 1 below the cap). */
+function veteranBonus(state: GameState, hero: Hero, perLevel: number): number {
+  return 1 + perLevel * veteranLevels(state, hero);
+}
+
+/**
+ * What the hero's attack and skill damage is multiplied by: 1 + damagePerLevel × veteran levels in Endless, exactly 1
+ * everywhere else. Every hero damage (auto-attacks, Q, W, the ultimates and the combos a hero leads) goes through it.
+ */
+export function heroPower(state: GameState, hero: Hero): number {
+  return veteranBonus(state, hero, state.tuning.hero.veteran.damagePerLevel);
+}
+
 export function heroMaxHp(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  return s.hp + s.hpPerLevel * (hero.level - 1);
+  const grown = s.hp + s.hpPerLevel * (statLevel(state, hero) - 1);
+  return grown * veteranBonus(state, hero, state.tuning.hero.veteran.hpPerLevel);
 }
 
 export function heroMaxMana(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  return s.mana + s.manaPerLevel * (hero.level - 1);
+  return s.mana + s.manaPerLevel * (statLevel(state, hero) - 1);
 }
 
 /**
@@ -112,7 +136,7 @@ export function heroArmor(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
   const vow = ironVow(state);
   const bonus = vow ? (state.tuning.hero.warden.ironVow.armor[vow.rank] ?? 0) : 0;
-  return s.armor + s.armorPerLevel * (hero.level - 1) + bonus;
+  return s.armor + s.armorPerLevel * (statLevel(state, hero) - 1) + bonus;
 }
 
 /** Health regenerated per second, including Iron Vow while it covers living heroes. */
@@ -124,7 +148,8 @@ export function heroHpRegen(state: GameState, hero: Hero): number {
 
 export function heroManaRegen(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  return s.manaRegen + s.manaRegenPerLevel * (hero.level - 1) + clarityBonus(state, hero);
+  const grown = s.manaRegen + s.manaRegenPerLevel * (statLevel(state, hero) - 1);
+  return grown * veteranBonus(state, hero, state.tuning.hero.veteran.manaRegenPerLevel) + clarityBonus(state, hero);
 }
 
 /**
@@ -137,7 +162,7 @@ export function heroCanHit(_state: GameState, _hero: Hero, _creep: Creep): boole
 
 export function heroDamage(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  return s.damage + s.damagePerLevel * (hero.level - 1);
+  return (s.damage + s.damagePerLevel * (statLevel(state, hero) - 1)) * heroPower(state, hero);
 }
 
 /** A creep's armour right now: its own, minus what Shrapnel towers stripped off (while it lasts). */
@@ -229,15 +254,18 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   for (const hero of nearby) grantXp(state, hero, stats.xp / nearby.length);
 }
 
+/**
+ * XP for `hero`; it levels up as often as it reaches the next level's XP. The cap (`hero.maxLevel`) stops XP and levels,
+ * except in Endless (`hero.veteran`), where the hero levels on past it with no skill point (`heroLevelXp`).
+ */
 export function grantXp(state: GameState, hero: Hero, amount: number): void {
-  const { xpForLevel, maxLevel } = state.tuning.hero;
-  const cap = xpForLevel[maxLevel - 1] ?? 0;
-  hero.xp = Math.min(cap, hero.xp + amount);
-  while (hero.level < maxLevel && hero.xp >= (xpForLevel[hero.level] ?? Infinity)) {
+  const { maxLevel, veteran } = state.tuning.hero;
+  hero.xp = veteran.on ? hero.xp + amount : Math.min(heroLevelXp(state.tuning, maxLevel), hero.xp + amount);
+  while ((veteran.on || hero.level < maxLevel) && hero.xp >= heroLevelXp(state.tuning, hero.level + 1)) {
     const oldHp = heroMaxHp(state, hero);
     const oldMana = heroMaxMana(state, hero);
     hero.level++;
-    hero.skillPoints++;
+    if (hero.level <= maxLevel) hero.skillPoints++;
     hero.hp += heroMaxHp(state, hero) - oldHp;
     hero.mana += heroMaxMana(state, hero) - oldMana;
     emit(state, { type: 'levelUp', heroId: hero.id, level: hero.level });
@@ -259,7 +287,8 @@ export function damageHero(state: GameState, hero: Hero, amount: number, type: D
   hero.order = { type: 'idle' };
   hero.path = [];
   const t = state.tuning.hero;
-  hero.respawnTick = state.tick + secondsToTicks(t.respawnBase + t.respawnPerLevel * hero.level);
+  // Veteran levels do not lengthen it: the respawn stays the cap's.
+  hero.respawnTick = state.tick + secondsToTicks(t.respawnBase + t.respawnPerLevel * statLevel(state, hero));
   emit(state, { type: 'heroDied', heroId: hero.id });
 }
 

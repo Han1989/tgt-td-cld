@@ -8,6 +8,7 @@ import {
   damageHero,
   damageTower,
   emit,
+  heroPower,
   random,
   shredArmor,
   spawnProjectile,
@@ -23,7 +24,7 @@ export function updateTowers(state: GameState): void {
     if (tower.dead) continue;
     if (tower.cooldown > 0) tower.cooldown--;
     if (state.tick < tower.stunUntil || tower.cooldown > 0) continue;
-    const st = towerStats(state.tuning, tower.kind, tower.tier, tower.branch);
+    const st = towerStats(state.tuning, tower.kind, tower.tier, tower.branch, tower.reinforced);
     if (st.pulse) {
       if (pulse(state, tower, st)) tower.cooldown = secondsToTicks(st.attackCooldown);
       continue;
@@ -151,6 +152,20 @@ export function upgradeTower(state: GameState, tower: Tower, branch: TowerBranch
   tower.hp += next.hp - tower.maxHp;
   tower.maxHp = next.hp;
   emit(state, { type: 'towerUpgraded', towerId: tower.id, owner: tower.owner, tier: tower.tier, branch });
+}
+
+/**
+ * One Reinforce rank for a branched tower (Endless) that cost `cost` gold: damage and max HP grow by the rank's
+ * multiplier, current HP with the max (the damage taken stays), and the price joins `spent` (sell refunds and repair
+ * prices follow it). `applyCommand` checks that it is allowed.
+ */
+export function reinforceTower(state: GameState, tower: Tower, cost: number): void {
+  tower.reinforced++;
+  const next = towerStats(state.tuning, tower.kind, tower.tier, tower.branch, tower.reinforced);
+  tower.spent += cost;
+  tower.hp += next.hp - tower.maxHp;
+  tower.maxHp = next.hp;
+  emit(state, { type: 'towerReinforced', towerId: tower.id, owner: tower.owner, rank: tower.reinforced, cost });
 }
 
 export function updateProjectiles(state: GameState, creepsById: Map<number, Creep>): void {
@@ -281,9 +296,9 @@ export function updateTraps(state: GameState): void {
     trap.done = true;
     const rank = trap.rank - 1;
     const duration = secondsToTicks(s.rootDuration[rank] ?? 0);
-    const damage = s.damage[rank] ?? 0;
     emit(state, { type: 'trapTriggered', x: trap.x, y: trap.y, radius: s.rootRadius });
     const owner = state.heroes.find((h) => h.owner === trap.owner);
+    const damage = (s.damage[rank] ?? 0) * (owner ? heroPower(state, owner) : 1);
     const from = owner ? hitFrom(state, owner) : null;
     for (const c of ground) {
       if (dist(trap.x, trap.y, c.x, c.y) > s.rootRadius) continue;

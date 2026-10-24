@@ -1,4 +1,4 @@
-import { applyCommand, createBalanceBot, createGame, setPlayerLeft, snapshot, step } from '@tdt/sim';
+import { applyCommand, createBalanceBot, createGame, heroLevelXp, setPlayerLeft, snapshot, step } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { applySnapshotDelta, diffSnapshot, type Snapshot } from '../src';
 
@@ -44,6 +44,38 @@ describe('snapshot deltas', () => {
     expect(server.pads.some((p) => p.owner === null)).toBe(true);
     // Deltas should be much smaller than full snapshots.
     expect(deltaBytes).toBeLessThan(fullBytes / 2);
+  });
+
+  it('reconstructs an Endless match exactly, with Reinforce ranks and veteran levels in the stream', () => {
+    const state = createGame({ players: [{ id: 'a', name: 'a', hero: 'warden' }], mode: 'endless' }, 9);
+    const bot = createBalanceBot('a');
+    let server: Snapshot = snapshot(state);
+    let client: Snapshot = JSON.parse(JSON.stringify(server)) as Snapshot;
+    for (let t = 0; t < 1600; t++) {
+      if (t % 5 === 0) for (const cmd of bot.decide(server)) applyCommand(state, 'a', cmd);
+      // Gold for a branched tower and its ranks, and a hero at level 11 a kill short of 12, so both cross the wire.
+      if (t === 600) {
+        state.players[0]!.gold += 200_000;
+        const hero = state.heroes[0]!;
+        hero.level = 11;
+        hero.xp = heroLevelXp(state.tuning, 12) - 1;
+      }
+      const tower = state.towers[0];
+      if (t >= 610 && t % 20 === 0 && tower) {
+        if (tower.branch) applyCommand(state, 'a', { type: 'reinforce', towerId: tower.id });
+        else applyCommand(state, 'a', tower.tier < 3 ? { type: 'upgrade', towerId: tower.id } : { type: 'upgrade', towerId: tower.id, branch: 'volley' });
+      }
+      step(state);
+      const next = snapshot(state);
+      const applied = applySnapshotDelta(client, JSON.parse(JSON.stringify(diffSnapshot(server, next))));
+      expect(applied).not.toBeNull();
+      client = applied!;
+      server = next;
+      if (t % 200 === 0) expect(client).toEqual(server);
+    }
+    expect(client).toEqual(server);
+    expect(server.towers.some((t) => t.reinforced >= 3)).toBe(true);
+    expect(server.heroes[0]!.level).toBeGreaterThan(server.heroes[0]!.maxLevel);
   });
 
   it('refuses a delta made against another tick', () => {
