@@ -1,6 +1,6 @@
 // 3D heroes, creeps, towers, the Heart and the portals in a match (docs/ART.md §15): each gets its 3D rig or view once
 // its sheet has loaded (`loadStructureSheet`, `loadCreepSheets`, `loadHeroSheets`, after the map plate, a second or so
-// after the first screen); before that, and in ?showcase's 2D cards, its 2D art.
+// after the first screen, in the order artLoad/order.ts keeps); before that, and in ?showcase's 2D cards, its 2D art.
 
 import { TOWER_BRANCHES, type CreepKind, type HeroKind, type TowerKind } from '@tdt/protocol';
 import type { ArtKit } from '../art/kit';
@@ -14,9 +14,9 @@ import { structureFrames } from './structureSheet';
 import { Tower3DRig } from './towerRig';
 
 export { Creep3DRig } from './creepRig';
-export { creepSheetsVersion, loadCreepSheets } from './creepSheet';
+export { CREEP_SHEETS, creepFrames, creepSheetsVersion, loadCreepSheet, loadCreepSheets, preferCreeps } from './creepSheet';
 export { Hero3DRig } from './heroRig';
-export { loadHeroSheets } from './sheet';
+export { HERO_SHEETS, heroFrames, loadHeroSheet, loadHeroSheets } from './sheet';
 export { Heart3DView, Portal3DView, PORTAL_FLARE, PORTAL_OPENING } from './buildings';
 export { loadStructureSheet, structuresVersion } from './structureSheet';
 export { Tower3DRig } from './towerRig';

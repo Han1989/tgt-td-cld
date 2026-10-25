@@ -98,6 +98,16 @@ function waitForInstalled(reg: ServiceWorkerRegistration): Promise<ServiceWorker
   });
 }
 
+/**
+ * The creeps' and heroes' match sheets the page has loaded (V-07d): the service worker keeps them for offline solo. They
+ * are not precached; a first visit's page loads them before the worker controls it, so it is told once they are in,
+ * and fetches each from the HTTP cache (no second download). Production builds only, as the worker.
+ */
+export function keepSheets(urls: readonly string[]): void {
+  if (!('serviceWorker' in navigator) || !import.meta.env.PROD || urls.length === 0) return;
+  void navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: 'KEEP_SHEETS', urls: [...urls] })).catch(() => {});
+}
+
 /** Running as an installed app (home screen / full screen). */
 export function isStandalone(): boolean {
   return (

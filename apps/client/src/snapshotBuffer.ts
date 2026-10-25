@@ -62,7 +62,12 @@ export class SnapshotBuffer {
     const last = this.entries.at(-1);
     // A new match restarts the tick counter.
     if (last && snap.tick < last.snap.tick) this.clear();
-    if (last && snap.tick === last.snap.tick) return;
+    if (last && snap.tick === last.snap.tick) {
+      // A local host's opening hero and mode picks each start its match afresh, all at tick 0: the last is the match
+      // (a solo start held for its art, V-07d, shows it until its first tick).
+      if (snap.tick === 0) last.snap = snap;
+      return;
+    }
 
     const sample = receivedAt - time;
     // Follow earlier arrivals immediately and later ones slowly, so jitter

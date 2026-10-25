@@ -3,7 +3,7 @@
 // structure table tools/blender/structures.py: the towers' Meshy bodies, turrets and branch turrets with the kit's
 // additions, the Heart and the portals), and the pure rules Tower3DRig and the Heart's and portals' 3D views play
 // them by. Nothing 3D runs here: they are one sheet of pictures. Generated files, not edited by
-// hand: structures.json and structures-match.png in this folder.
+// hand: structures.json and structures-match.webp in this folder.
 
 import type { TowerBranch, TowerKind } from '@tdt/protocol';
 
@@ -90,7 +90,7 @@ export function flameFrame(now: number): { i: number; alpha: number } {
 /**
  * Each tower variant's reach at scale 1, world px from its centre: the farther of its base's half width and its
  * turret's radius at rest or in recoil (the turret turns), over the drawing's opaque pixels (alpha 200 and up, its soft
- * shadow and glow aside), rounded up to half a world px. Measured from structures-match.png (a test keeps it so).
+ * shadow and glow aside), rounded up to half a world px. Measured from structures-match.webp (a test keeps it so).
  * `towerScale` (entityScale.ts) stops a tower's phone scale where this reaches its pad's edge (V-07e).
  */
 export const TOWER_REACH: Record<TowerKind, Record<string, number>> = {

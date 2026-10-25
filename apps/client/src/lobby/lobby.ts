@@ -14,6 +14,7 @@ import {
   type LobbyState,
   type PlayerId,
 } from '@tdt/protocol';
+import { wantHero } from '../artLoad/order';
 import { dailyTileLine, type DailyToday } from '../daily/text';
 import { endlessBest } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
@@ -218,10 +219,14 @@ export class LobbyUi {
     this.modePicker.showBest(endlessBest(this.hero));
   }
 
-  /** The home card's stage, the line under the hero buttons and the Mode row's best show the picked hero. */
+  /**
+   * The home card's stage, the line under the hero buttons and the Mode row's best show the picked hero; his match
+   * sheet starts loading now, ahead of the other two (V-07d).
+   */
   private syncStage(): void {
     const info = HERO_INFO[this.hero];
     this.stage.show(this.hero);
+    wantHero(this.hero);
     this.role.textContent = info.role;
     this.blurb.textContent = info.blurb;
     this.homeMode.showBest(endlessBest(this.hero));
@@ -302,6 +307,8 @@ export class LobbyUi {
     this.modePicker.setEnabled(isHost);
     hostLabel(this.modeLabel, 'Mode', isHost);
 
+    // Each seat's hero: his match sheet starts loading as the seat fills (V-07d).
+    for (const p of lobby.players) wantHero(p.hero);
     const seats = lobby.players.length;
     this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS} · one per lane`;
     this.players.replaceChildren(

@@ -48,13 +48,12 @@ const art = join(root, '..', '..', 'docs', 'art');
 const SHEETS = { '--wards': 'wards-towers-a.png', '--branches': 'wards-branches-a.png', '--heart': 'wards-heart-a.png' };
 const out = join(art, mode ? SHEETS[mode] : 'structures-3d.png');
 
-/** The structures' sheet (a data URL) and match layout as a commit shipped them. */
+/** The structures' sheet (a data URL) and match layout as a commit shipped them (a PNG until V-07d, then a WebP). */
 function fromGit(commit: string): { sheet: string; layout: unknown } {
   const show = (file: string) => execFileSync('git', ['show', `${commit}:apps/client/src/render/art3d/${file}`], { cwd: root, maxBuffer: 1 << 26 });
-  return {
-    sheet: `data:image/png;base64,${show('structures-match.png').toString('base64')}`,
-    layout: (JSON.parse(show('structures.json').toString('utf8')) as { match: unknown }).match,
-  };
+  const match = (JSON.parse(show('structures.json').toString('utf8')) as { match: { file: string } }).match;
+  const type = match.file.endsWith('.webp') ? 'image/webp' : 'image/png';
+  return { sheet: `data:${type};base64,${show(match.file).toString('base64')}`, layout: match };
 }
 
 /** Where on the screen (CSS px) a pad's centre is drawn. */

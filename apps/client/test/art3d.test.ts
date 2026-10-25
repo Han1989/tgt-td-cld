@@ -1045,7 +1045,7 @@ describe('nothing 3D runs on the device', () => {
   it('the towers, the Heart and the portals are one picture and its layout', () => {
     const own = readdirSync(ART3D).filter((f) => f.startsWith('structures'));
     // The sheet, its layout, and the code that reads them (structures.ts: the layout's types and the rig rules).
-    expect(own.sort()).toEqual(['structures-match.png', 'structures.json', 'structures.ts']);
+    expect(own.sort()).toEqual(['structures-match.webp', 'structures.json', 'structures.ts']);
   });
 
   it('the HUD frames are one picture and its layout', () => {
@@ -1061,15 +1061,19 @@ describe('nothing 3D runs on the device', () => {
 describe('3D towers, the Heart and the portals: the structures sheet', () => {
   const doc = structuresDoc as StructuresLayout;
   const m = doc.match;
-  const png = decodePng(readFileSync(join(ART3D, m.file)));
+  const file = readFileSync(join(ART3D, m.file));
+  const png = decodeWebp(file);
   const cells = Object.entries(m.cells);
   /** Every tower kind's variants: tiers 1–3 and its two branches (the fourth tier). */
   const variants = (kind: TowerKind) => ['1', '2', '3', ...TOWER_BRANCHES[kind]];
   const heartKeys = ['stage0', 'stage1', 'stage2', 'flash0', 'flash1', 'flash2', 'rubble1', 'rubble2', 'glow', 'fire0', 'fire1', 'fire2'];
 
-  it('is one RGBA sheet, at most one 2048 × 2048 page, the size the layout says, 2.75 px per world px', () => {
+  it('is one lossless RGBA WebP, at most one 2048 × 2048 page, the size the layout says, 2.75 px per world px, under 2 MB', () => {
     expect(doc.id).toBe('structures');
-    expect(m.file).toBe('structures-match.png');
+    expect(m.file).toBe('structures-match.webp');
+    expect(file.toString('ascii', 12, 16)).toBe('VP8L');
+    // Precached with the shell (V-07d): one file every match draws from its first frame.
+    expect(file.length).toBeLessThan(2_000_000);
     expect([png.width, png.height]).toEqual([m.w, m.h]);
     expect(png.channels).toBe(4);
     expect(m.w).toBe(2048);

@@ -25,7 +25,7 @@ import {
   type StructureMatchLayout,
   type StructuresLayout,
 } from './render/art3d/structures';
-import sheetUrl from './render/art3d/structures-match.png?url';
+import sheetUrl from './render/art3d/structures-match.webp?url';
 import plateLayout from './render/plate/spire.json';
 
 /** The reference phone: Spire's 26 tiles across 412 CSS px, on a 3× screen; towers drawn 1.2× (docs/ART.md §6). */

@@ -33,6 +33,8 @@ interface Hook {
     mode: string;
     /** The wave running (0 before the first). */
     wave: number;
+    /** Ticks until the next wave starts. */
+    nextWaveIn: number;
     phase: string;
     difficulty: string;
     surgeLane: number | null;
@@ -52,6 +54,8 @@ interface Hook {
   /** Coins launched to the gold counter so far. */
   coins(): number;
   clock(): { lag: number };
+  /** The match's first wave's art (V-07d): its start held (solo, `?arthold`), the line shown, its bar, each picture. */
+  firstArt(): { held: boolean; line: boolean; fraction: number; sheets: Record<string, { status: string; received: number; expected: number | null }> };
   art(): {
     display: 'normal' | 'bright';
     pads: number;

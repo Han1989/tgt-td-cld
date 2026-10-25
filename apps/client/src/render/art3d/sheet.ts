@@ -1,15 +1,17 @@
-// The 3D heroes' match sheets (docs/ART.md §15): loaded once the first screen is up (never in its way), turned into
-// textures, and from then on a hero that appears in a match gets its 3D rig. Until then, or if loading fails, it
-// gets its 2D rig.
+// The 3D heroes' match sheets (docs/ART.md §15): loaded once the first screen is up, the picked hero's the moment the
+// home card shows him (V-07d), the others after the creeps', turned into textures, and from then on a hero that
+// appears in a match gets its 3D rig. Until then, or if loading fails, it gets its 2D rig.
 
 import type { HeroKind } from '@tdt/protocol';
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
+import { fetchWithProgress, sheetOff, trackSheet } from '../../artLoad/track';
 import arcanistSheet from './arcanist-match.png?url';
 import { HERO_3D, kindBox, type Cell, type LayerName, type MatchLayout } from './layout';
 import rangerSheet from './ranger-match.png?url';
 import wardenSheet from './warden-match.png?url';
 
-const SHEETS: Partial<Record<HeroKind, string>> = { ranger: rangerSheet, warden: wardenSheet, arcanist: arcanistSheet };
+/** Each hero's sheet (a URL with its build hash). */
+export const HERO_SHEETS: Partial<Record<HeroKind, string>> = { ranger: rangerSheet, warden: wardenSheet, arcanist: arcanistSheet };
 
 export interface Frame {
   tex: Texture;
@@ -28,34 +30,43 @@ export interface HeroFrames {
 }
 
 const loaded = new Map<HeroKind, HeroFrames>();
-let started: Promise<void> | null = null;
+const pending = new Map<HeroKind, Promise<void>>();
 
 /** The frames of a 3D hero, once its sheet has loaded. */
 export function heroFrames(kind: HeroKind): HeroFrames | undefined {
   return loaded.get(kind);
 }
 
-/** Loads every 3D hero's sheet (once). Failures are logged and leave the 2D rigs in place. */
-export function loadHeroSheets(): Promise<void> {
-  started ??= Promise.all(
-    (Object.keys(SHEETS) as HeroKind[]).map(async (kind) => {
+/** Loads one 3D hero's sheet (once; at once). A failure is logged and leaves the 2D rig in place. */
+export function loadHeroSheet(kind: HeroKind): Promise<void> {
+  let p = pending.get(kind);
+  if (!p) {
+    p = (async () => {
       const layout = HERO_3D[kind]?.match;
-      const url = SHEETS[kind];
-      if (!layout || !url) return;
+      const url = HERO_SHEETS[kind];
+      // A hero with no 3D sheet is never awaited: his 2D rig is his art.
+      if (!layout || !url) return sheetOff(`hero:${kind}`);
+      const track = trackSheet(`hero:${kind}`);
       try {
-        loaded.set(kind, await load(url, layout));
+        loaded.set(kind, await load(url, layout, track.bytes));
+        track.done(true);
       } catch (e) {
+        track.done(false);
         console.warn(`3D ${kind}: the match sheet did not load; the 2D rig stays`, e);
       }
-    }),
-  ).then(() => undefined);
-  return started;
+    })();
+    pending.set(kind, p);
+  }
+  return p;
 }
 
-async function load(url: string, layout: MatchLayout): Promise<HeroFrames> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  const bitmap = await createImageBitmap(await res.blob());
+/** Loads every 3D hero's sheet (once each; those already asked for are not asked again). */
+export function loadHeroSheets(): Promise<void> {
+  return Promise.all((Object.keys(HERO_SHEETS) as HeroKind[]).map(loadHeroSheet)).then(() => undefined);
+}
+
+async function load(url: string, layout: MatchLayout, onBytes: (received: number, expected: number | null) => void): Promise<HeroFrames> {
+  const bitmap = await createImageBitmap(await fetchWithProgress(url, onBytes));
   if (bitmap.width !== layout.w || bitmap.height !== layout.h) throw new Error(`sheet is ${bitmap.width}×${bitmap.height}, layout says ${layout.w}×${layout.h}`);
   const source = new ImageSource({ resource: bitmap, scaleMode: 'linear' });
   const layers: Partial<Record<LayerName, Frames>> = {};

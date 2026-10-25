@@ -8,6 +8,8 @@
 //   npm run first-load -w @tdt/client -- --runs 9 --no-build
 //   npm run first-load -w @tdt/client -- --url https://tgt-td-cld.vercel.app/
 //   npm run first-load -w @tdt/client -- --sheets            also wait for the 3D match sheets
+//   npm run first-load -w @tdt/client -- --match             Play solo at once: until its first wave's art is in
+//   npm run first-load -w @tdt/client -- --match --hero warden       that hero picked on the home card
 //   npm run first-load -w @tdt/client -- --music             the first tap → the first music heard, instead
 //   npm run first-load -w @tdt/client -- --music --tap-after 12000   that tap 12 s after the lobby is usable
 //   npm run first-load -w @tdt/client -- --music --http-cache        the HTTP cache on (empty), as on a real first visit
@@ -21,6 +23,13 @@
 // and portals', the creeps', then the heroes'), and reports when they were in (`tdt:structures`, `tdt:creep-sheets`,
 // `tdt:hero-sheets`) and their bytes (all of them, and the creeps' alone); the first screen's numbers are taken
 // before, so they don't move.
+//
+// With `--match` (V-07d, docs/ART.md §15 "The first wave's art") each run taps Play solo the moment the lobby is
+// usable (the age question answered beforehand: a measurement is not a player) and reports how long from that tap
+// until every picture the match's first wave shows is in (`tdt:first-wave-art`: the map plate, the structures'
+// sheet, the first wave's creep sheets and the picked hero's, `--hero`, the Ranger by default, on Full), how long
+// the match held its start for them (`tdt:art-hold-end`: at most 6 s) and their bytes. Service workers stay blocked:
+// CDP's network throttling is the page's, so a worker would install at full speed and fill the HTTP cache for it.
 //
 // With `--music` (docs/ART.md §13) each run taps the home card once it is usable, on a spot that is no button (the
 // first tap, which starts the sound), and reports how long from that tap until the first audible sample (above
@@ -61,6 +70,11 @@ interface Run {
   /** `--music`: from the first tap (ms) to the first music heard, and to a decoded file starting. */
   heard: number;
   loop: number;
+  /** `--match`: from Play solo (ms) to every picture of the first wave in, and how long the start was held. */
+  firstArt: number;
+  held: number;
+  heldWhy: string;
+  artKb: number;
 }
 
 function arg(name: string): string | undefined {
@@ -71,6 +85,10 @@ function arg(name: string): string | undefined {
 const runs = Number(arg('runs') ?? 5);
 const sheets = process.argv.includes('--sheets');
 const music = process.argv.includes('--music');
+const match = process.argv.includes('--match');
+/** `--match`: the hero the home card has picked (his sheet is part of the first wave's art). */
+const hero = arg('hero') ?? 'ranger';
+if (!['ranger', 'warden', 'arcanist'].includes(hero)) throw new Error(`--hero ${hero}: ranger, warden or arcanist`);
 /** `--music`: how long after the lobby is usable the first tap comes (ms). */
 const tapAfter = Number(arg('tap-after') ?? 0);
 /** Keep the (empty) HTTP cache on: a real first visit's later requests for a file it has are answered from it. */
@@ -161,6 +179,13 @@ try {
     });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
     if (music) await page.addInitScript(MUSIC_PROBE);
+    if (match) {
+      // The home card's hero, and Play solo's tap time (performance.now()), as the page sees it.
+      await page.addInitScript(
+        `localStorage.setItem('tdt.hero', ${JSON.stringify(hero)});` +
+          `addEventListener('pointerdown', () => { window.__playAt ??= performance.now(); }, { capture: true });`,
+      );
+    }
     await page.goto(url, { waitUntil: 'commit', timeout: 120_000 });
     await page.waitForFunction(
       () => {
@@ -245,8 +270,76 @@ try {
         uiKb: NaN,
         heard,
         loop,
+        firstArt: NaN,
+        held: NaN,
+        heldWhy: '',
+        artKb: NaN,
       });
       console.log(`run ${i + 1}: usable ${ms(at)}, tapped ${ms(tapAfter)} later; first tap → music heard ${ms(heard)}, decoded file started ${ms(loop)}`);
+      await context.close();
+      continue;
+    }
+    if (match) {
+      // The age question answered (a measurement is not a player), then Play solo, as a thumb would.
+      await page.evaluate(() => localStorage.setItem('tdt.age', JSON.stringify({ age: 30, month: new Date().toISOString().slice(0, 7) })));
+      const b = (await page.locator('#lobby-offline').boundingBox())!;
+      await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+      const art = await page
+        .waitForFunction(() => performance.getEntriesByName('tdt:first-wave-art').length > 0, undefined, { polling: 100, timeout: 300_000 })
+        .then(() =>
+          page.evaluate(() => {
+            const tap = (window as unknown as { __playAt: number }).__playAt;
+            const start = performance.getEntriesByName('tdt:match-start').at(-1)?.startTime ?? NaN;
+            const end = performance.getEntriesByName('tdt:art-hold-end').at(-1) as PerformanceMark | undefined;
+            const inAt = performance.getEntriesByName('tdt:first-wave-art').at(-1)!.startTime;
+            const files = performance
+              .getEntriesByType('resource')
+              .filter((r) => /\/map\/spire\.webp|\/assets\/[a-z]+-match-/.test(r.name)) as PerformanceResourceTiming[];
+            return {
+              art: inAt - tap,
+              held: end ? end.startTime - start : 0,
+              why: end ? String(end.detail) : 'none',
+              files: files.map((r) => ({ name: r.name, kb: r.encodedBodySize / 1024, end: r.responseEnd, after: r.responseEnd - tap })),
+              inAt,
+            };
+          }),
+        );
+      // The set's bytes: the plate, the structures, the first wave's creeps (Full: Grunts) and the hero's sheet.
+      const set = new RegExp(`/map/spire\\.webp|/assets/(structures|grunt|${hero})-match-`);
+      const parts = art.files.filter((f) => set.test(f.name) && f.end <= art.inAt + 1);
+      const artKb = parts.reduce((a, f) => a + f.kb, 0);
+      // When each picture of the set had arrived, after the tap (a negative time: before it, the hero's from the home card).
+      const each = parts
+        .sort((a, b) => a.after - b.after)
+        .map((f) => `${/\/map\//.test(f.name) ? 'plate' : /\/assets\/([a-z]+)-match-/.exec(f.name)![1]} ${ms(f.after)}`)
+        .join(', ');
+      results.push({
+        firstPaint: timing.firstPaint,
+        fcp: timing.fcp,
+        ready: timing.ready,
+        usable: at,
+        kb: timing.bytes / 1024,
+        plate: NaN,
+        plateDecode: NaN,
+        plateKb: NaN,
+        ui: NaN,
+        uiKb: NaN,
+        structures: NaN,
+        heroSheets: NaN,
+        creepSheets: NaN,
+        sheetsKb: NaN,
+        creepKb: NaN,
+        heard: NaN,
+        loop: NaN,
+        firstArt: art.art,
+        held: art.held,
+        heldWhy: art.why,
+        artKb,
+      });
+      console.log(
+        `run ${i + 1}: usable ${ms(at)}; Play solo → first wave's art in ${ms(art.art)} (${artKb.toFixed(0)} KB), ` +
+          `start held ${ms(art.held)} (${art.why}); each in: ${each}`,
+      );
       await context.close();
       continue;
     }
@@ -308,6 +401,10 @@ try {
       creepKb: loaded.creepBytes / 1024,
       heard: NaN,
       loop: NaN,
+      firstArt: NaN,
+      held: NaN,
+      heldWhy: '',
+      artKb: NaN,
     });
     console.log(
       `run ${i + 1}: first contentful paint ${ms(timing.fcp)}, ready ${ms(timing.ready)}, usable ${Number.isNaN(at) ? 'never' : ms(at)}, ${(timing.bytes / 1024).toFixed(0)} KB; ` +
@@ -341,7 +438,13 @@ console.log(
   `\n${url} · Pixel 7 · ${profile.latencyMs} ms latency, ${profile.downKbps} kbps down, ${profile.upKbps} kbps up, ` +
     `CPU ${profile.cpu}× slower · ${httpCache ? 'empty HTTP cache' : 'cold cache'}, no service worker · ${runs} runs`,
 );
-if (music) {
+if (match) {
+  console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
+  console.log(`Play solo → art in:       ${stats(results.map((r) => r.firstArt))} (${hero}, Full)`);
+  const why = results.map((r) => r.heldWhy).reduce<Record<string, number>>((a, w) => ((a[w] = (a[w] ?? 0) + 1), a), {});
+  console.log(`start held:               ${stats(results.map((r) => r.held))} (${Object.entries(why).map(([k, v]) => `${k} ${v}`).join(', ')})`);
+  console.log(`first wave's art:         ${(results.reduce((s, r) => s + r.artKb, 0) / results.length).toFixed(0)} KB per load`);
+} else if (music) {
   console.log(`usable lobby:             ${stats(results.map((r) => r.usable))}`);
   console.log(`first tap → music heard:  ${stats(results.map((r) => r.heard))}`);
   console.log(`first tap → decoded file: ${stats(results.map((r) => r.loop))}`);
