@@ -125,6 +125,9 @@ export class StageBackdrop {
 
   stop(): void {
     this.running = false;
+    // A video still downloading gives the line back (V-07d): the match starting now needs its art first, and a paused
+    // video with `preload` set keeps loading. The stage loads it again the next time it plays.
+    if (this.video && !wholeBuffered(this.video)) this.dropVideo();
     this.sync();
   }
 
@@ -192,6 +195,8 @@ export class StageBackdrop {
     this.timer = window.setTimeout(() => {
       const go = () => {
         this.timer = 0;
+        // Stopped meanwhile (a match started): nothing to play, nothing to load.
+        if (!this.running) return;
         this.loadVideo();
         this.loadClearing();
       };
@@ -250,4 +255,10 @@ export class StageBackdrop {
     this.root.dataset.backdrop = shown;
     this.el.dataset.shown = shown;
   }
+}
+
+/** The whole video is downloaded (nothing left to load). */
+function wholeBuffered(v: HTMLVideoElement): boolean {
+  const b = v.buffered;
+  return b.length > 0 && Number.isFinite(v.duration) && b.end(b.length - 1) >= v.duration - 0.05;
 }

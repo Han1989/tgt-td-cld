@@ -389,3 +389,26 @@ test('Play solo on the home card is the match picked, never the lesson; Change h
   await page.locator('#lobby-offline').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
 });
+
+test('the service worker precaches the structures\' sheet with the shell; the creeps\' and heroes\' are kept once the page has them (V-07d)', async ({ page }) => {
+  await page.goto('/');
+  await waitForReady(page, 'solo');
+  const sw = await (await page.request.get('/sw.js')).text();
+  const shell = JSON.parse(/const SHELL = (\[.*\]);/.exec(sw)![1]!) as string[];
+  expect(shell).toContain('/map/spire.webp');
+  // Of the match sheets, only the structures' (one lossless WebP) is in the shell.
+  expect(shell.filter((f) => /-match-/.test(f))).toEqual([expect.stringMatching(/^\/assets\/structures-match-[\w-]+\.webp$/)]);
+  const cached = () =>
+    page.evaluate(async () => {
+      const out: string[] = [];
+      for (const name of await caches.keys()) for (const r of await (await caches.open(name)).keys()) out.push(new URL(r.url).pathname);
+      return out;
+    });
+  const sheets = (files: string[]) => files.filter((f) => /\/assets\/(?!structures)[a-z]+-match-/.test(f));
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await expect.poll(async () => (await cached()).some((f) => /\/assets\/structures-match-/.test(f))).toBe(true);
+  // This first visit's page is not the worker's: the sheets it loads after the first screen reach the worker once
+  // they are in, the nine creeps' and the three heroes', for offline solo.
+  await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 60_000 });
+  await expect.poll(async () => sheets(await cached()).length, { timeout: 15_000 }).toBe(12);
+});

@@ -1459,6 +1459,65 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   top: calc(var(--map-top, 48px) + 164px);
 }
 
+/* "Loading the art…" (V-07d): under the wave counter while a match's first wave's art downloads (a solo match's start
+   is held meanwhile; hud/artLine.ts places it). The HUD's look, see-through as the lesson's strip (it sits over the
+   portals, which online may already send the first wave): the panels' edge, the text inked, a thin rune-teal bar. It
+   fades out. The cards that sit under the top bar move down while it shows. */
+.art-line {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--topbar-bottom, 44px) + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding: 3px 9px 4px;
+  border-radius: 8px;
+  background: rgba(14, 16, 24, 0.38);
+  border: 1px solid rgba(207, 230, 255, 0.34);
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.18), 0 0 0 1px rgba(16, 12, 22, 0.4);
+  color: #f4f8ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 13px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-shadow: 0 0 1px #100c16, 0 1px 2px #100c16, 0 0 8px rgba(16, 12, 22, 0.95);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 300ms ease-out;
+}
+
+.art-line.out {
+  opacity: 0;
+}
+
+.art-line .art-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(16, 12, 22, 0.55);
+  box-shadow: 0 0 0 1px rgba(16, 12, 22, 0.5);
+  overflow: hidden;
+}
+
+.art-line .fill {
+  display: block;
+  height: 100%;
+  background: var(--rune);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 200ms linear;
+}
+
+body.art-loading .tutorial,
+body.art-loading .match-flags,
+body.art-loading .air-flag {
+  margin-top: 30px;
+}
+
 .surge-flag {
   display: flex;
   flex-direction: column;

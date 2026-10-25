@@ -100,6 +100,18 @@ describe('SnapshotBuffer', () => {
     expect(buf.latest!.tick).toBe(0);
     expect(buf.view(10)!.from.tick).toBe(0);
   });
+
+  it('shows the last of a local host\'s tick-0 matches (its hero and mode picks), and keeps the first of any later tick', () => {
+    const buf = new SnapshotBuffer(40);
+    buf.push({ ...snap(0, 0), mode: 'full' }, 0);
+    buf.push({ ...snap(0, 0), mode: 'quick' }, 1);
+    // A solo start held for its art (V-07d) draws this until its first tick.
+    expect(buf.latest!.mode).toBe('quick');
+    expect(buf.view(5)!.to.mode).toBe('quick');
+    buf.push(snap(1, 1), 50);
+    buf.push(snap(1, 9), 51);
+    expect(buf.latest!.creeps[0]!.x).toBe(1);
+  });
 });
 
 describe('lerpEntities', () => {

@@ -195,8 +195,8 @@ export function endSolo(view: GameView): void {
  * both picks).
  */
 export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home: () => void): void {
-  const transport = startLocal(view, home);
   const match = beginSolo(sharedSettings(), start, pick);
+  const transport = startLocal(view, home, match);
   // Each of these starts a new match in the local host; the last one is the match played.
   transport.send({ t: 'mode', mode: match.mode });
   transport.send({ t: 'hero', hero: match.hero });
@@ -209,7 +209,7 @@ export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home:
  * end screen offers Post my run; "Change hero / mode" comes back to the home card.
  */
 export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, home: () => void): void {
-  const transport = startLocal(view, home);
+  const transport = startLocal(view, home, { mode: 'quick', hero });
   // Counts as a solo start for the lesson offer, like Play solo; never the lesson.
   beginSolo(sharedSettings(), 'play', { hero, mode: 'quick' });
   transport.daily(today.seed);
@@ -218,13 +218,16 @@ export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, hom
   view.setDaily({ day: today.day, seed: today.seed });
 }
 
-/** A new local host attached to the view; "Change hero / mode" on its end screen ends it and calls `home`. */
-function startLocal(view: GameView, home: () => void): LocalTransport {
+/**
+ * A new local host attached to the view, its start held for the first wave's art of `pick` (V-07d); "Change hero /
+ * mode" on its end screen ends it and calls `home`.
+ */
+function startLocal(view: GameView, home: () => void, pick: { mode: GameMode; hero: HeroKind }): LocalTransport {
   endSolo(view);
   const transport = new LocalTransport();
   soloTransport = transport;
   view.attach(transport);
-  view.matchStarting();
+  view.matchStarting(pick);
   view.onChangeHero = () => {
     endSolo(view);
     home();

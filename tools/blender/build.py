@@ -15,8 +15,8 @@
 # <kind>-match.webp (lossless) and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
 # Map plates: apps/client/public/map/spire.webp and spire-extra.webp (the patches) with their layout in
 # apps/client/src/render/plate/spire.json; the link card's plate (dev only) in apps/client/src/render/plate/card.webp.
-# The towers, the Heart and the portals (tools/blender/structures.py): one sheet, structures-match.png, and its layout
-# structures.json in apps/client/src/render/art3d/; rendering some keeps the sheet's other frames.
+# The towers, the Heart and the portals (tools/blender/structures.py): one sheet, structures-match.webp (lossless, since
+# V-07d), and its layout structures.json in apps/client/src/render/art3d/; rendering some keeps the sheet's other frames.
 # The HUD's frames (tools/blender/ui.py, V-07a): one sheet, ui.webp (lossless), and its layout ui.json in
 # apps/client/src/render/art3d/, the fringe check's mask in apps/client/test/fixtures/ui-fringe/.
 
@@ -118,7 +118,7 @@ def structures_main(argv):
     args = ap.parse_args(argv)
 
     import bpy  # noqa: F401 (first: it registers mathutils)
-    from tdt3d import imageio, structure
+    from tdt3d import encode, structure
     import structures as table
 
     every = list(table.TOWERS) + ['heart', 'portal']
@@ -127,12 +127,16 @@ def structures_main(argv):
         if n not in every:
             raise SystemExit(f'No structure "{n}" in tools/blender/structures.py ({", ".join(every)})')
     out = args.out or MATCH_OUT
-    sheet_path = os.path.join(MATCH_OUT, 'structures-match.png')
+    sheet_path = os.path.join(MATCH_OUT, 'structures-match.webp')
     layout_path = os.path.join(MATCH_OUT, 'structures.json')
     previous = None
     if set(names) != set(every) and os.path.exists(layout_path):
+        import numpy as np
+        from PIL import Image
+
         layout = json.load(open(layout_path))
-        previous = (imageio.read_png(sheet_path), layout['match'])
+        # Lossless: the frames kept are the pixels shipped.
+        previous = (np.array(Image.open(sheet_path).convert('RGBA')), layout['match'])
     tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-structures-')
     os.makedirs(tmp, exist_ok=True)
     t0 = time.time()
@@ -142,7 +146,9 @@ def structures_main(argv):
         if not args.work:
             shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(out, exist_ok=True)
-    size = imageio.write_png(os.path.join(out, 'structures-match.png'), sheet)
+    # Lossless WebP, as the creeps' sheets (V-07d: a third smaller than the PNG, the same pixels): it is precached with
+    # the shell, so its bytes are every first visit's.
+    size = encode.sheet(sheet, os.path.join(out, 'structures-match.webp'))
     # Each frame's fringe check (the shares), kept for the frames not rendered this time.
     by_frame = {}
     if previous:
@@ -153,7 +159,7 @@ def structures_main(argv):
                                 'hard': round(c['hard'] / max(1, c['crossings']), 4)}
     worst_f = max(by_frame.items(), key=lambda kv: kv[1]['fringe'])
     worst_h = max(by_frame.items(), key=lambda kv: kv[1]['hard'])
-    doc = {'id': 'structures', 'match': dict(layout, file='structures-match.png'), 'checks': {
+    doc = {'id': 'structures', 'match': dict(layout, file='structures-match.webp'), 'checks': {
         'frames': len(by_frame), 'samples': notes['samples'], 'worstFringe': worst_f[1]['fringe'],
         'worstHard': worst_h[1]['hard'], 'byFrame': by_frame}}
     with open(os.path.join(out, 'structures.json'), 'w') as f:

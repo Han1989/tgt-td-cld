@@ -107,7 +107,9 @@ How long a stranger on a slow phone waits before they can play. Measured with `n
 - a **cold cache** (a fresh browser context per run and `Network.setCacheDisabled`) and **service workers blocked**;
 - analytics posts blocked, so measurement visits never reach the rollout dashboard.
 
-It records the **first contentful paint** (on this branch, the boot splash), main.ts's **`tdt:ready`** mark (the first screen is up), and **usable**: `<html data-ready>` is set, the home card is shown, and **Play solo** is enabled, on screen and the element a tap at its centre would hit. If Play solo never comes on screen, the run says so and where the button is. Flags: `--runs N` (default 5), `--no-build`, `--url <page>` (measure a deployed build instead), `--latency`, `--down`, `--up`, `--cpu`.
+It records the **first contentful paint** (on this branch, the boot splash), main.ts's **`tdt:ready`** mark (the first screen is up), and **usable**: `<html data-ready>` is set, the home card is shown, and **Play solo** is enabled, on screen and the element a tap at its centre would hit. If Play solo never comes on screen, the run says so and where the button is. Flags: `--runs N` (default 5), `--no-build`, `--url <page>` (measure a deployed build instead), `--latency`, `--down`, `--up`, `--cpu`; `--sheets` (also wait for every 3D sheet), `--match` (below), `--hero <kind>` (the home card's hero for `--match`, the Ranger by default), `--music` (docs/ART.md §13). Service workers stay blocked: CDP's throttling is the page's, so a worker would install at full speed and fill the HTTP cache the page then reads (a first try at measuring the precache that way found the art in 3.3 s, which no phone on Slow 4G would see).
+
+**`--match` (V-07d): Play solo → the first wave's art.** Each run taps **Play solo** the moment the lobby is usable (the age question answered beforehand: a measurement is not a player), on Full with the picked hero, and records how long from that tap until every picture the match's first wave shows is in (`tdt:first-wave-art`: the map plate, the structures' sheet, the first wave's creep sheets, the Grunts' on Full, and the hero's sheet), how long the match held its start for them (`tdt:art-hold-end`, at most 6 s, and why it ended: `in` or `timeout`) and their bytes. Tapping at once is the worst case: a player who reads the home card first gives the art that long to come in.
 
 **Results, 3 Oct 2026** (Playwright 1.56.1, Chromium headless, Node 22.14, a 4-core Intel Xeon VM; CPU 4× slower than that machine):
 
@@ -142,6 +144,25 @@ The same bytes on the first load (the new poster is the same size); the larger v
 | V-03 | 5 | median **2.13 s** (2.13–2.14 s) | median 5.09 s (5.00–5.20 s) | median **5.55 s** (5.45–5.63 s) | 393 KB |
 
 The lobby is usable about a second sooner: the game view behind it no longer paints the 2D ground at start-up (the ground is made on a match's first frame, from the plate when it has decoded). The plate is not part of the first load: it starts loading a second after `tdt:ready`, with the heroes' sheets, and on this cold Slow 4G load it was in at 22.2 s (median; 654 KB), its decode **0.16 s** (median, 0.13–0.18 s, `tdt:decode:spire.webp`) at 4× CPU. The script now waits for it after measuring the lobby and prints both. A match started before then shows the painted ground until the plate swaps in; the service worker precaches it, so every later visit has it at once.
+
+**Results, 25 Oct 2026** (V-07d, the first minute's art; this session's 4-core container, local `vite preview`; `main` is #147's head, V-07e):
+
+| Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Map plate ready |
+|---|---|---|---|---|---|
+| `main` (#147) | 6 | median **2.31 s** (1.79–2.38 s) | median 5.46 s (5.27–5.63 s) | median **6.02 s** (5.87–6.21 s) | median 14.45 s (14.15–14.92 s) |
+| V-07d | 6 | median **2.34 s** (1.74–2.41 s) | median 5.56 s (5.35–5.60 s) | median **6.12 s** (5.97–6.25 s) | median 15.49 s (15.29–15.92 s) |
+
+Two batches of three runs each, alternating between the builds. The lobby is usable 0.10 s later at the median (inside the runs' spread; the bound was 0.3 s): the same first-screen files; the picked hero's sheet now starts when the home card shows him, so the plate, which used to be the first thing on the line, is in about a second later. The service worker is blocked in these runs (as always), so moving the creeps' and heroes' sheets out of its precache cannot show here; on a real first visit it takes about 4 MB off the line the install shares with the page.
+
+**Play solo → the first wave's art** (`--match`, the Ranger on Full, tapped the moment the lobby is usable):
+
+| Build | Runs | Play solo → every picture of the first wave in | The set | Start held |
+|---|---|---|---|---|
+| `main` (#147) | 5 | median **75.98 s** (75.78–76.89 s) | 3,145 KB (the plate, the structures' PNG, the Grunts', the Ranger's) | never (no hold before V-07d) |
+| V-07d | 5 | median **22.00 s** (21.85–22.11 s) | 2,467 KB (the structures' sheet lossless WebP) | median 6.11 s (6.00–6.17 s): the 6 s limit in every run |
+| V-07d, the Warden (`--hero warden`) | 3 | median 24.71 s (24.25–24.75 s) | 3,012 KB (his sheet is 834 KB) | median 6.01 s, the limit |
+
+On `main` the hero's sheet came last, after all nine creeps' (the chain's order), so a first match on Slow 4G drew the 2D Ranger for over a minute. With V-07d, after the tap (three runs): the Ranger's sheet in at −0.05 to 0.61 s (it started on the home card), the Grunts' at about 5 s, the plate at about 10 s, the structures' at about 21.5 s; the first wave starts 30 s after the 6 s hold, so every creep of it is 3D from its first step even here; on this line the towers, the Heart and the portals are the last to swap (the structures' sheet, 1.4 MB, is the long pole). What else shares the line in those seconds: the stage video kept downloading its 1 MB into the match until V-07d drops it when the stage stops (27.8 s → 22.0 s, one probe run each), and the match music's stream (P2-11) takes about 1.5 MB of it (left as it is).
 
 **Not re-measured for the home card of 10 Oct 2026** (V-01, PR #100: a hero stage and Play solo under it, no dock). The session that built it could not run this script. Its layout was checked another way: on a 412 × 839 and a 390 × 664 screen Play solo is on screen with no scrolling and takes the tap at its centre (`e2e/lobby.spec.ts`). The stage adds one Canvas 2D drawing of the hero after `tdt:ready`. Re-run the script and add a row here.
 

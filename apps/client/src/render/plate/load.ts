@@ -4,6 +4,7 @@
 // drawn instead.
 
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
+import { fetchWithProgress, trackSheet } from '../../artLoad/track';
 import { plateUrl, SPIRE_PLATE, type PlateFile, type PlateLayout } from './layout';
 
 export interface Plate {
@@ -36,8 +37,10 @@ export function onPlate(cb: (p: Plate) => void): () => void {
 /** Loads the plate (once). A failure is logged and leaves the painted ground in place. */
 export function loadPlate(layout: PlateLayout = SPIRE_PLATE): Promise<Plate | null> {
   started ??= (async () => {
+    // The whole plate's bytes are the match's to wait for (V-07d); the patches are a few KB more.
+    const track = trackSheet('plate');
     try {
-      const whole = await bitmap(layout.file, layout.width, layout.height);
+      const whole = await bitmap(layout.file, layout.width, layout.height, track.bytes);
       const patches = new Map<number, { texture: Texture; x: number; y: number }>();
       if (layout.extra && layout.extra.patches.length > 0) {
         const atlas = new ImageSource({ resource: await bitmap(layout.extra.file), scaleMode: 'linear' });
@@ -48,10 +51,12 @@ export function loadPlate(layout: PlateLayout = SPIRE_PLATE): Promise<Plate | nu
       }
       plate = { layout, texture: new Texture({ source: new ImageSource({ resource: whole, scaleMode: 'linear' }) }), patches };
       performance.mark('tdt:plate');
+      track.done(true);
       for (const cb of waiting) cb(plate);
       waiting.clear();
       return plate;
     } catch (e) {
+      track.done(false);
       console.warn('The map plate did not load; the painted ground stays', e);
       return null;
     }
@@ -60,11 +65,8 @@ export function loadPlate(layout: PlateLayout = SPIRE_PLATE): Promise<Plate | nu
 }
 
 /** Fetches and decodes a plate file; `tdt:decode:<name>` (a performance measure) is its decode (`npm run first-load`). */
-async function bitmap(f: PlateFile, w?: number, h?: number): Promise<ImageBitmap> {
-  const url = plateUrl(f);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  const blob = await res.blob();
+async function bitmap(f: PlateFile, w?: number, h?: number, onBytes?: (received: number, expected: number | null) => void): Promise<ImageBitmap> {
+  const blob = await fetchWithProgress(plateUrl(f), onBytes);
   const start = performance.now();
   const img = await createImageBitmap(blob);
   performance.measure(`tdt:decode:${f.name}`, { start, end: performance.now() });

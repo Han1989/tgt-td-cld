@@ -5,7 +5,7 @@
 # the game's own Meshy models, theme A, the Spire's wards (docs/art/wards-style.md, `ward` pieces below), with the
 # kit's small KayKit pieces for the tier and branch additions (rune pillars, braziers, candles, columns, a branch's
 # outline) and the Heart's rubble and flames. tdt3d.structure renders the rows into one sheet
-# (apps/client/src/render/art3d/structures-match.png and structures.json), played by Tower3DRig and the Heart's and
+# (apps/client/src/render/art3d/structures-match.webp and structures.json), played by Tower3DRig and the Heart's and
 # portals' 3D art.
 #
 # Units are world px (1 tile = 32), Blender's axes: x right, y up the screen (north), z up. A tower stands on its

@@ -1381,3 +1381,90 @@ test.describe('pinch zoom on a phone (V-07e)', () => {
     expect(camera.x).toBeCloseTo(l.map.left, 0);
   });
 });
+
+test.describe('the first minute\'s art (V-07d)', () => {
+  // The page fetches every sheet itself (no service worker in the way), so the routes below see each one.
+  test.use({ serviceWorkers: 'block' });
+  test.beforeEach(({}, info) => test.skip(info.project.name !== 'pixel', 'once, on the Pixel'));
+
+  /** The map plate and the 3D sheets (the towers', the creeps', the heroes'), each answered once `wait(url)` resolves. */
+  async function slowArt(page: Page, wait: (url: string) => Promise<unknown>): Promise<void> {
+    await page.route(/\/(assets\/[a-z]+-match-[\w-]+\.(webp|png)|map\/spire\.webp)(\?|$)/, async (route) => {
+      await wait(route.request().url());
+      await route.continue();
+    });
+  }
+
+  /** When the hold ended (ms after the match started) and why. */
+  function holdEnd(page: Page): Promise<{ after: number; why: string } | null> {
+    return page.evaluate(() => {
+      const start = performance.getEntriesByName('tdt:match-start').at(-1);
+      const end = performance.getEntriesByName('tdt:art-hold-end').at(-1) as PerformanceMark | undefined;
+      return start && end ? { after: end.startTime - start.startTime, why: String(end.detail) } : null;
+    });
+  }
+
+  test('a solo match holds its start while the first wave\'s sheets load, says so under the wave counter, and starts once they are in', async ({ page }) => {
+    // Every picture waits until the test lets it through.
+    let open!: () => void;
+    const gate = new Promise<void>((ok) => (open = ok));
+    await slowArt(page, () => gate);
+    // A long cap: only the gate ends this hold, however slow the runner (the 6 s cap is the next test's).
+    await page.goto('/?lab&arthold=60000');
+    await waitForReady(page, 'solo');
+    await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
+    await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+    await page.locator('#lobby-offline').click();
+    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(15);
+    const line = page.locator('#art-line');
+    await expect(line).toBeVisible();
+    await expect(line).toContainText('Loading the art…');
+    const art = await page.evaluate(() => window.__tdt.firstArt());
+    expect(art.held).toBe(true);
+    expect(Object.keys(art.sheets).sort()).toEqual(['creep:grunt', 'creep:runner', 'hero:warden', 'plate', 'structures'].sort());
+    // Under the wave counter, below the top bar, over the map and off the controls.
+    const [l, wave, bar] = await Promise.all([box(page, '#art-line'), box(page, '#wave-stat'), box(page, '#topbar')]);
+    expect(l.top).toBeGreaterThanOrEqual(bar.bottom);
+    expect(l.top - bar.bottom).toBeLessThan(8);
+    expect(centre(l).x).toBeGreaterThan(wave.left - 1);
+    expect(centre(l).x).toBeLessThan(wave.right + 1);
+    for (const sel of OVERLAY) {
+      const b = await page.locator(sel).first().boundingBox();
+      if (b) expect(overlaps(l, { left: b.x, top: b.y, right: b.x + b.width, bottom: b.y + b.height }), sel).toBe(false);
+    }
+    // Held: no tick runs, so the first wave's timer has not started.
+    const before = await page.evaluate(() => ({ tick: window.__tdt.latest()!.tick, next: window.__tdt.latest()!.nextWaveIn }));
+    await page.waitForTimeout(800);
+    const still = await page.evaluate(() => ({ tick: window.__tdt.latest()!.tick, next: window.__tdt.latest()!.nextWaveIn }));
+    expect(still).toEqual(before);
+    expect(before.tick).toBe(0);
+    expect((await page.evaluate(() => window.__tdt.firstArt())).held).toBe(true);
+    // Every sheet in: the hold ends before 6 s, the line fades, the timer runs.
+    open();
+    await expect.poll(() => page.evaluate(() => window.__tdt.firstArt().held), { timeout: 15_000 }).toBe(false);
+    const end = await holdEnd(page);
+    expect(end?.why).toBe('in');
+    const sheets = await page.evaluate(() => window.__tdt.firstArt().sheets);
+    for (const [id, s] of Object.entries(sheets)) expect(s.status, id).toBe('in');
+    await expect(line).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(5);
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.nextWaveIn)).toBeLessThan(before.next);
+  });
+
+  test('a sheet that takes longer than 6 s does not hold the start past 6 s', async ({ page }) => {
+    // The structures' sheet takes 12 s; everything else is quick.
+    await slowArt(page, (url) => new Promise((ok) => setTimeout(ok, /structures-match/.test(url) ? 12_000 : 0)));
+    await startSolo(page, '?lab&arthold', 'full', 'Ranger');
+    await expect(page.locator('#art-line')).toBeVisible();
+    expect(await page.evaluate(() => window.__tdt.latest()!.tick)).toBe(0);
+    await expect.poll(() => page.evaluate(() => window.__tdt.firstArt().held), { timeout: 15_000 }).toBe(false);
+    const end = await holdEnd(page);
+    expect(end?.why).toBe('timeout');
+    expect(end!.after).toBeGreaterThanOrEqual(6000);
+    expect(end!.after).toBeLessThan(7500);
+    // The structures are still coming: the match plays on with the 2D towers until they are in; the line is gone.
+    expect((await page.evaluate(() => window.__tdt.firstArt().sheets)).structures?.status).toBe('loading');
+    await expect(page.locator('#art-line')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(5);
+  });
+});

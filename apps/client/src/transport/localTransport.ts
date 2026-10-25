@@ -30,8 +30,24 @@ export class LocalTransport implements Transport {
     if (import.meta.env.MODE === 'e2e') this.worker.postMessage({ ctl, wave });
   }
 
+  /** The page was hidden (docs/MOBILE.md §7). */
+  private hidden = false;
+  /** The match's start is held for its first wave's art (V-07d). */
+  private held = false;
+
   setPaused(paused: boolean): void {
-    this.worker.postMessage({ ctl: 'pause', paused });
+    this.hidden = paused;
+    this.pause();
+  }
+
+  hold(on: boolean): void {
+    this.held = on;
+    this.pause();
+  }
+
+  /** One clock control for both reasons: the simulation runs only while neither holds it. */
+  private pause(): void {
+    this.worker.postMessage({ ctl: 'pause', paused: this.hidden || this.held });
   }
 
   /** The Daily run: every match of this worker is the run of the day whose seed this is (a control message). */

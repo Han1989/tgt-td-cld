@@ -2,16 +2,30 @@
 // the snapshot buffer, the screen layout and the sound (music in the lobby too),
 // fed by whichever Transport is attached (local worker, game server or the stress scene).
 
-import { allowSocial, freshSocialClock, laneName, type ClientMessage, type Command, type PlayerId, type Snapshot, type SocialClock, type SocialKind } from '@tdt/protocol';
+import {
+  allowSocial,
+  freshSocialClock,
+  laneName,
+  type ClientMessage,
+  type Command,
+  type GameMode,
+  type HeroKind,
+  type PlayerId,
+  type Snapshot,
+  type SocialClock,
+  type SocialKind,
+} from '@tdt/protocol';
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, isWebGLSupported, UPDATE_PRIORITY, type TextureSource } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
 import { currentAnalytics } from './analytics/install';
 import { MatchTracker } from './analytics/matchTracker';
 import type { FunnelStep } from './analytics/session';
+import { FirstWaveArt } from './artLoad/firstWave';
 import type { ViewBox } from './audio/mix';
 import { emptyCues, playerTint, readCues, type CueMemory } from './coop/cues';
 import type { DailyRunInfo } from './daily/endCard';
+import { ArtLine } from './hud/artLine';
 import { EmoteMenu } from './hud/emotes';
 import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
@@ -111,6 +125,9 @@ export class GameView {
   /** Which events hold the render clock. */
   private readonly stops = new HitStop();
 
+  /** The match's first wave's art (V-07d): a solo match's start held for it, and "Loading the art…" while it loads. */
+  private readonly firstArt = new FirstWaveArt(new ArtLine());
+
   /** The first-match lesson is running on this solo match. */
   private lesson = false;
 
@@ -193,7 +210,9 @@ export class GameView {
         return;
       }
       if (E2E && msg.t === 'cmd') sent.push(msg.cmd);
-      if (msg.t === 'cmd' && view.transport) {
+      // While a solo match's start is held for its art (V-07d) the hero stands where the sim has him: the orders wait
+      // in the host's queue for its first tick.
+      if (msg.t === 'cmd' && view.transport && !view.firstArt.held) {
         const cmd = msg.cmd;
         if (cmd.type === 'move') predictor.move(cmd, performance.now());
         else if (cmd.type === 'stop') predictor.stop(performance.now());
@@ -497,6 +516,8 @@ export class GameView {
       predictor.frame(now, Math.min(100, ticker.deltaMS));
       // Before the early return: the lobby has music too.
       audio.game.frame(latest, view.me, hearing(), now);
+      // A match's first wave's art: its hold and its line (V-07d), from the first frame of the match.
+      view.firstArt.frame(now, latest);
       if (!latest || !frame) return;
       if (view.needsCentre && view.me) {
         view.needsCentre = false;
@@ -663,6 +684,8 @@ export class GameView {
         fx: () => ({ live: renderer.fx.liveCount, shaken: renderer.fx.shakeAdded, ...renderer.fx.level }),
         /** The render clock (V-07b): how far behind real time it is (ms; a hit-stop or a boss's slow-down). */
         clock: () => ({ lag: view.clock.lag }),
+        /** The match's first wave's art (V-07d): held, the line shown, its bar, each picture of the set. */
+        firstArt: () => view.firstArt.state(),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
         /** The textures on the GPU: how many, and their bytes (RGBA8, mipmaps counted where a source has them). */
@@ -762,7 +785,8 @@ export class GameView {
       zoomable: this.zoomable(),
       lesson: this.lesson,
       quiet,
-      playing: latest.phase === 'build' || latest.phase === 'waves',
+      // Not over "Loading the art…" (V-07d): a held start is not playing yet.
+      playing: (latest.phase === 'build' || latest.phase === 'waves') && !this.firstArt.held,
       sinceMs: now - (this.matchSeenAt ?? now),
     });
     if (zoom) {
@@ -821,10 +845,20 @@ export class GameView {
 
   /**
    * A match is being created (solo: Play solo or Learn to play, after `attach`; online: the room's match starts): its
-   * music starts downloading now, not at its first snapshot (docs/ART.md §13).
+   * music starts downloading now, not at its first snapshot (docs/ART.md §13), and so does its first wave's art
+   * (V-07d). A solo match (`pick`: the mode and hero picked) holds its start for that art, at most ART_HOLD_MS; an
+   * online room's never waits (the server starts it), the HUD only says so.
    */
-  matchStarting(): void {
+  matchStarting(pick?: { mode: GameMode; hero: HeroKind }): void {
     this.audio.game.matchStarting();
+    const t = this.transport;
+    const hold = pick && t?.hold && HOLD_ART ? (on: boolean) => t.hold!(on) : null;
+    this.firstArt.begin(performance.now(), {
+      solo: !!pick,
+      hold,
+      pick: pick ? { mode: pick.mode, heroes: [pick.hero] } : null,
+      limitMs: HOLD_LIMIT_MS,
+    });
   }
 
   /** Match start, wave milestones and the result, for analytics (the client drops them when play data is off). */
@@ -843,6 +877,7 @@ export class GameView {
   }
 
   detach(): void {
+    this.firstArt.end();
     this.matches.reset();
     this.unsubscribe?.();
     this.unsubscribe = null;
@@ -897,3 +932,11 @@ function markerView(layout: Layout, w: number, h: number): MarkerBox {
 
 /** Browser-test builds (`vite build --mode e2e`) expose a small debug hook on `window.__tdt`. */
 const E2E = import.meta.env.MODE === 'e2e';
+
+/**
+ * Solo holds its start for its first wave's art (V-07d). Browser-test builds only with `?arthold`: their tests drive a
+ * match from its first snapshot, and the hold has its own test (e2e/mobile.spec.ts).
+ */
+const HOLD_ART = !E2E || new URLSearchParams(location.search).has('arthold');
+/** Browser-test builds: `?arthold=<ms>` holds that long at most (a slow runner's checks take longer than 6 s). */
+const HOLD_LIMIT_MS = (E2E && Number(new URLSearchParams(location.search).get('arthold'))) || undefined;

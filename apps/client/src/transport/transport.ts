@@ -16,6 +16,12 @@ export interface Transport {
   readonly interpDelayMs?: number;
   /** Local play only: stops or restarts the simulation clock (the page was hidden, docs/MOBILE.md §7). */
   setPaused?(paused: boolean): void;
+  /**
+   * Local play only: holds the simulation clock at the match's start while its first wave's art loads (V-07d), with the
+   * same control as `setPaused`; the clock runs only while neither holds it. Held ticks are never stepped, so the
+   * match and its replay are the same as one that was never held.
+   */
+  hold?(on: boolean): void;
   /** The page is visible again: check the connection now instead of waiting for a timer. */
   wake?(): void;
   /**

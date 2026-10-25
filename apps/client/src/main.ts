@@ -1,6 +1,7 @@
 import { COMBO_KINDS } from '@tdt/protocol';
 import './style.css';
 import { countBootFailure, currentAnalytics, installAnalytics } from './analytics/install';
+import { scheduleArt } from './artLoad/order';
 import { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
@@ -8,10 +9,7 @@ import { storedMode } from './lobby/modePicker';
 import { OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
-import { loadUiFrames } from './hud/frames';
 import { installIcons } from './render/art/icons';
-import { loadCreepSheets, loadHeroSheets, loadStructureSheet } from './render/art3d';
-import { loadPlate } from './render/plate';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
 
@@ -52,40 +50,10 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   const boot = document.getElementById('boot');
   boot?.classList.add('done');
   setTimeout(() => boot?.remove(), 400);
-  // The map plate (docs/ART.md §16) and the 3D sheets (§15) load a second after the first screen, never in its way,
-  // one after another (Han, 17 Oct 2026): the plate first, then the towers', Heart's and portals' sheet, then the
-  // creeps' sheets (one kind after another), then the heroes'. The HUD's rendered frames (V-07a, a small sheet) come
-  // right after the plate. The painted ground, the 2D art and the CSS frames cover each until its picture is in.
-  // `<html data-plate>` ("ready" or "failed"), `data-ui` (the frames' CSS switches on it), `data-structures`,
-  // `data-creep-sheets` and `data-hero-sheets` say they are in (browser tests start a match after them to see the 3D
-  // art and the plate); `tdt:ui`, `tdt:structures`, `tdt:creep-sheets` and `tdt:hero-sheets` mark when
-  // (npm run first-load).
-  if (screen === 'solo' || screen === 'online' || screen === 'stress') {
-    setTimeout(() => void loadArt(), SHEETS_AFTER_MS);
-  }
-}
-
-async function loadArt(): Promise<void> {
-  const html = document.documentElement.dataset;
-  const plate = await loadPlate();
-  html.plate = plate ? 'ready' : 'failed';
-  // Browser-test builds: `?ui2d` keeps the CSS frames (as `?towers2d` and `?creeps2d` keep the 2D art).
-  if (!(import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has('ui2d'))) {
-    html.ui = (await loadUiFrames()) ? 'ready' : 'failed';
-    performance.mark('tdt:ui');
-  }
-  // Browser-test builds: `?towers2d` keeps the 2D towers, Heart and portals and `?creeps2d` the 2D creeps, to compare
-  // the two in the same build (e2e/perf.spec.ts's numbers, docs/ART.md §15).
-  const keep2d = (what: string) => import.meta.env.MODE === 'e2e' && new URLSearchParams(location.search).has(what);
-  if (!keep2d('towers2d')) await loadStructureSheet();
-  html.structures = 'ready';
-  performance.mark('tdt:structures');
-  if (!keep2d('creeps2d')) await loadCreepSheets();
-  html.creepSheets = 'ready';
-  performance.mark('tdt:creep-sheets');
-  await loadHeroSheets();
-  html.heroSheets = 'ready';
-  performance.mark('tdt:hero-sheets');
+  // The map plate (docs/ART.md §16), the HUD's rendered frames (§12) and the 3D sheets (§15) load a second after the
+  // first screen, never in its way, in the order artLoad/order.ts keeps (the picked hero's sheet and a match's first
+  // wave go first).
+  if (screen === 'solo' || screen === 'online' || screen === 'stress') scheduleArt(SHEETS_AFTER_MS);
 }
 
 /** How long after the first screen the map plate and then the 3D sheets start loading, ms. */

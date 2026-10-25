@@ -228,6 +228,16 @@ Solo Full with any hero, on the phone held upright. About 5 minutes; call waves 
 - [ ] 15.6 **Back to the whole map:** double-tap the bare ground (not a pad, a tower or a creep): the camera eases back in a fifth of a second. Or tap **⤢**. At the whole map, ⤢ says how to zoom. With the phone's **reduce motion** on, the way back is a quick fade instead of a zoom.
 - [ ] 15.7 A new match (Play again) starts at the whole map, whatever the last one ended at. In ⚙ there is no zoom setting.
 
+## 16. The first minute's art (V-07d)
+
+A first visit, as a cold tester's: a private / incognito tab (or Settings → clear the site's data), ideally on mobile data. About 3 minutes.
+
+- [ ] 16.1 **The picked hero first:** on the home card, pick a hero and tap **Play solo** at once. If the art is still downloading, **"Loading the art…"** with a thin rune-teal bar shows just under the wave counter, the wave timer stands still and your hero stays put (the stick does nothing yet). It never shows in the lobby.
+- [ ] 16.2 **The start waits, within reason:** within 6 s at most the line fades and the timer starts. The ground, the towers you build, the Heart, the portals, the first creeps and your hero are the 3D art from the start; no flat 2D Ranger or Heart swaps in mid-wave.
+- [ ] 16.3 **A second match** (Play again, or back to the home card and Play solo) starts at once, with no line.
+- [ ] 16.4 **Online** (a friend's room on a fresh tab): the room starts when the host taps Start, never held; the line shows only while the art loads, and never after the first wave.
+- [ ] 16.5 **Installed app, offline:** after one visit with the network that played a match for a minute (every sheet in), turn on airplane mode and start a solo match from the installed app: it plays, with the 3D creeps and heroes.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

@@ -2,7 +2,7 @@
 # CC0 KayKit pieces in tools/blender/assets/kaykit/ for the kit's small additions; never modelled in code), one row
 # each in tools/blender/structures.py, repainted in Runelight's tokens, lit by the map plate's moon (map.MOON: upper
 # left, 40° up, shadows down-right) and painted by the same look, rendered ahead of time into one sheet
-# (apps/client/src/render/art3d/structures-match.png) with its layout (structures.json).
+# (apps/client/src/render/art3d/structures-match.webp, lossless) with its layout (structures.json).
 #
 # Towers are seen straight down, as the map plate is (docs/ART.md §5): the base, which never turns, and the turret,
 # which the client turns towards its target, so a turret frame drawn from above stays true at any angle. Each tower
