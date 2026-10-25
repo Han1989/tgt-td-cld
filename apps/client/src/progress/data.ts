@@ -36,6 +36,7 @@
  * V-06l-batch2 on 24 Oct 2026 (PR #146: the Spire's wards, batch 2, the branch turrets, the Heart and the portals).
  * V-07e on 24 Oct 2026 (PR #147: closer, the art at a size you can see on a phone: bigger units and a pinch zoom).
  * V-07d on 25 Oct 2026 (PR #148: the first minute's art, no 2D stand-ins in a first match).
+ * V-07c-look on 25 Oct 2026 (PR #149: the map in grass green, three looks for Han, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -496,6 +497,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How the game loads its pictures: no game rules, server or protocol change. Han, 24 Oct 2026: his first match on a slow line showed the old flat Ranger and Heart for a minute while the new pictures downloaded, then everything swapped in the middle of a wave, and a new player’s first minute is the whole impression. Now the hero you pick starts downloading the moment the first screen shows him, before the other two (in a room, each friend’s hero as they sit down). When a match starts, everything its first wave shows that is not in yet downloads at once: the map, the towers, the Heart and the portals, the first creeps and your hero. A solo match waits for them before its first wave’s timer starts, at most 6 seconds, with “Loading the art…” and a thin bar under the wave counter; a slower picture after that still swaps in as before. Online the room never waits (the server starts it): the line only says why. The towers’ picture is a third smaller with the same pixels, and it now comes with the app on install, while the creeps’ and heroes’ pictures no longer do (they shared a first visit’s line with the very pictures the match was waiting for); each is kept the first time it is needed. Built by Claude Code (PR #148).',
     proof: pr(148),
+  },
+  {
+    id: 'V-07c-look',
+    title: 'The map in grass green: three looks for Han to pick from',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Pictures only: nothing in the game changes. Han, 25 Oct 2026: the match’s ground reads as a grey dungeon floor, and he wants it near grass green, with the match’s light done at the same time. Three looks, each with its own light: A, a spring meadow under a warm afternoon sun; B, a moonlit meadow, tonight’s look with grass that is truly green; C, golden hour, a low gold sun and a haze over the top. In all three the build pads are warm weathered stone with moss in their seams, the road is warm earth, and the trees are greener. One moment of a wave-10 match on a phone is shown on every ground, with soft glows round the Heart, the portals and the best towers mocked in, together with the Bright display and the heroes and creeps standing on each ground, and checks that the Ranger, the creeps, the health bars and the pad colours still stand out. Han picks one; the next session puts it in the game.',
+    proof: pr(149),
   },
   {
     id: 'g1-render',
