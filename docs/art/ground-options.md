@@ -1,5 +1,7 @@
 # V-07c look: the map in grass green, three options
 
+> **Han picked A, Spring meadow, on 28 Oct 2026** (08:41, from this sheet). It is in the game since V-07c's render (`docs/ART.md` §16, §6): A's numbers below are the plate's defaults (`tools/blender/tdt3d/map.py`) and the map's own palette rows (`tokens.ts`: `grass`, `road`, `padSand`…; the ground tokens in the first column keep their values for the figures, the lobby and the HUD), the light pools are in the client, and the measurements were taken again on the rendered plate (`npm run ground-check -w @tdt/client`; `docs/ART.md` §16 "Spring meadow, measured"). The tools that made this sheet are gone: `tdt3d/ground_options.py`, `build.py map --ground`, `npm run ground-options` (`scripts/groundOptions.ts`, `src/groundOptions.ts`). The pictures stay as the record of the choice.
+
 **Han, 25 Oct 2026:** the match's ground reads as a grey dungeon floor. He wants it near grass green, with the match's light (V-07c) done at the same time. This session makes **three looks for Han to pick from on his phone**, each a whole look (the ground, its light, the pads). It is **images only: nothing in the game changes.** The committed plate, the tokens and the client are as they were. The next session renders the pick into the game and adds the light pools (see "For the session that renders the pick").
 
 ## Why it reads grey (measured)

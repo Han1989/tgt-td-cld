@@ -100,7 +100,7 @@ async function fixedPerSecond(page: Page, cdp: CDPSession, n: number): Promise<n
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 
 test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({ page }) => {
-  test.setTimeout(240_000);
+  // Its time limit is the perf project's (playwright.config.ts): a harness number, raised as art lands, never the budget.
   // High quality (Auto could drop to Low mid-measurement): particles, trails, numbers and shake all on.
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ thumbs: 'one', quality: 'high', shake: true })));
   // No recorded music (e2e builds only): the code-made music, whose scheduler runs on the page, plays through the

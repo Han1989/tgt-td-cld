@@ -1,19 +1,26 @@
 # The map plate (docs/ART.md §16): a map's ground rendered once in Blender as one picture, seen straight from above,
-# lit by the same moon as the 3D heroes and painted by the same look (npr.py: cel bands, rims, tinted ink). Built from
-# the map's data (tools/blender/mapdata.ts: the tile grid, the lanes' waypoints, the pads, the safe zone and the prop
-# spots the 2D ground uses), never from coordinates typed here.
+# painted by the heroes' look (npr.py: cel bands, rims, tinted ink). Built from the map's data (tools/blender/mapdata.ts:
+# the tile grid, the lanes' waypoints, the pads, the safe zone and the prop spots the 2D ground uses), never from
+# coordinates typed here.
+#
+# The look is V-07c's Spring meadow (Han's pick of 28 Oct 2026, docs/art/ground-options.md, column A): yellow-green
+# grass under a warm afternoon sun from the moon's direction and height (MOON: so every sprite's light still agrees),
+# soft warm shadows (LOOK), a faint warm wash and a light vignette (WASH). The map has its own palette rows (tokens.ts:
+# `grass`, `road`, `padSand`, `mapCanopy`…, MAP_TOKENS): the figures', the lobby's clearing's and the HUD's renders keep
+# the ground tokens they share.
 #
 # What it shows, by tile kind:
-#   open ground  the clearing's moss and grass (a painted albedo of moss patches, tufts of grass, moss cushions, ferns,
-#                leaf litter, a few glowing motes), and the 2D ground's props at its spots (rocks, glowing mushrooms,
-#                runestones)
+#   open ground  grass (a painted albedo of grass patches, tufts of grass, moss cushions, ferns, leaf litter, a few
+#                glowing motes), and the 2D ground's props at its spots (rocks, glowing mushrooms, runestones)
 #   lanes        a worn earth road along the waypoints, a little sunken (its upper-left bank in shade, the lower-right
 #                one lit), its middle worn pale, a few flagstones, its edges breaking into moss
-#   pads         flat stone squares, exactly the pad's tiles, raised with a lit top edge, an inset groove, a faint build
-#                ring and four dim rune studs (the client tints them by zone over the picture, as before)
+#   pads         flat squares of warm weathered stone, exactly the pad's tiles, raised with a lit top edge, an inset
+#                groove, a faint build ring and four dim rune studs, moss and grass in their seams and creeping over one
+#                edge and half the next (PAD_MOSS; the client tints them by zone over the picture, as before)
 #   blockers     the border: a rocky ledge with small trees centred on the edge, leaning off the map; the safe zone: a
 #                dense canopy sinking into deep shade (night 0 → 62% over four tiles) under the touch controls
-# Nothing of the Heart, the portals or the hero spawn is painted: those stay sprites.
+# Nothing of the Heart, the portals or the hero spawn is painted: those stay sprites (the client lays the light pools
+# round them over the plate).
 #
 # One picture serves Normal and Bright (the client lays Bright's screen wash over it). Pads that exist only in some
 # matches (the extra pads of bigger teams) are left out of the plate and rendered as patches, drawn over it only in
@@ -34,7 +41,7 @@ import bpy
 import numpy as np
 from scipy import ndimage
 
-from . import encode, geom, imageio, npr, scene, shading
+from . import encode, geom, imageio, npr, palette, scene, shading
 from .clearing import Clearing, _hash, leafy, materials as clearing_materials
 from .geom import Part, V, Z, blob, finish, tube
 from .palette import mix, rgb
@@ -52,7 +59,9 @@ PATCH_BUDGET = 60_000
 PATCH_PAD = 16        # world px round a patch's pad it covers (its shadow, AO, ink); fades over the last half
 GROUND_ID = 100
 PAD_IDS = 300         # pad n is pass index PAD_IDS + n (measured in the render: the layout's pad squares)
-MOON = (-0.503, 0.578, 0.643)  # from the scene towards the moon: upper left, 40° up (shadows fall down-right)
+# From the scene towards the sun: upper left, 40° up (shadows fall down-right): the moon's direction and height, so the
+# map's light agrees with every sprite's.
+MOON = (-0.503, 0.578, 0.643)
 LANE_W = 2.15         # the road's width in tiles (the 2D ground's)
 LANE_DEPTH = 6.0      # world px the road is sunk
 BANK = (0.84, 1.22)   # tiles from the road's middle where its bank starts and meets the moss
@@ -63,21 +72,41 @@ LOOK = dict(
     outer=4.0, inner=1.6, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
     # Straight down and orthographic: depth is height, so an edge is a fixed step up (no share of the distance).
     depth_rel=0.0, depth_abs=0.8, big_jump=3.0,
-    rim_amount=0.45, mrim_amount=1.1, mrim_at=0.2, pool_amount=0.0,
-    # The terminator higher than the stage's: from straight above most of what faces the moon at all is lit, so a
+    mrim_amount=1.1, mrim_at=0.2, pool_amount=0.0,
+    # The terminator higher than the stage's: from straight above most of what faces the sun at all is lit, so a
     # slope turned away from it (the road's upper-left bank, a canopy's far side) must fall into shade to read.
     band=0.32, band_soft=0.07,
-    # More continuous light inside the bands, so the moss's gentle mounds and the banks shade softly.
+    # More continuous light inside the bands, so the grass's gentle mounds and the banks shade softly.
     form=0.3,
+    # Spring meadow's light (V-07c): soft warm shadows (the albedo × this in shade), a warm lit tone, the day sky's fill,
+    # the sun's lit edge, a faint sky rim on the lower right.
+    shadow=(0.62, 0.58, 0.58), lit=(1.12, 1.07, 0.96), fill='daySky', fill_amount=0.10, mrim='sun', rim='daySky',
+    rim_amount=0.20,
 )
 BLOOM = dict(sigma=1.6, amount=0.85)  # plate px
-WASH = dict(centre=0.35, r0=0.1, r1=0.7, cool=(160 / 255, 200 / 255, 1.0), cool_alpha=0.06, vignette=0.35)
+# A faint warm wash round the upper middle (the 2D ground's radial gradient), a light vignette towards the edges.
+WASH = dict(centre=0.35, r0=0.1, r1=0.7, light=(1.0, 0.94, 0.80), light_alpha=0.05, vignette=0.12)
 SAFE_SHADE = dict(start=-0.6, tiles=4.0, alpha=0.62)
-# V-07c look (dev only, tools/blender/tdt3d/ground_options.py sets them for a run): a haze over the top of the map
-# (dict(colour, alpha, rows: the share of the map's height it fades over)) and moss on the pads (dict(seams, edge,
-# cushions, tufts)). None: the plate as it ships.
-HAZE = None
-PAD_MOSS = None
+# The pads' moss and grass (pad_albedo, pad_moss): `seams` how far the seams grow toward grassDark where a noise lets
+# them (and widen there), `edge` the creep in over the east edge and the east half of the south one (texture-local),
+# `cushions` moss cushions over the bevel on the first of those edges (half as many on the second), `tufts` grass
+# tufts from the seams; each pad shows its top a quarter turn of its own (pad_turn), so the mossy edges differ.
+PAD_MOSS = dict(seams=0.55, edge=1.0, cushions=4, tufts=3)
+# The map's own palette rows (tokens.ts), painted under the ground tokens' names for the run (map_palette): the
+# clearing's scenery library the map borrows (clearing.py: moss cushions, grass, ferns, rocks, canopies, pines) then
+# takes the map's colours, and every other render (the lobby's clearing, the creeps', the structures', the HUD's)
+# keeps the ground tokens' own values.
+MAP_TOKENS = dict(
+    moss='grass', mossDark='grassDark', mossLight='grassLight', fern='grassFern',
+    lane='road', laneLight='roadLight', pebble='roadPebble',
+    forest='mapForest', tree='mapTree', canopy='mapCanopy', canopyLight='mapCanopyLight', pine='mapPine',
+    padStone='padSand', padStoneDark='padSandDark', padGroove='padSandGroove',
+)
+
+
+def map_palette():
+    """Paints this run with the map's own palette rows (MAP_TOKENS): idempotent, the map build's process only."""
+    palette.RL.update({ground: palette.RL[own] for ground, own in MAP_TOKENS.items()})
 
 
 # --- the map's data ----------------------------------------------------------------------------------------------
@@ -189,32 +218,34 @@ def define_materials(ground_img, pad_imgs):
     # The clearing's own scenery materials (canopies, rocks, moss cushions, ferns, mushrooms...), then the map's.
     clearing_materials(V((0, 1, 0)), V((1, 0, 0)))
     d = shading.define
-    d('mapGround', 'moss', albedo=textured(ground_img), grad=False, shade=1.0, rim=0.0, mrim=0.0, ao=0.9, dim=0.95,
+    d('mapGround', 'grass', albedo=textured(ground_img), grad=False, shade=1.0, rim=0.0, mrim=0.0, ao=0.9, dim=0.95,
       line=0.0)
-    # The pad's top; with PAD_MOSS one a quarter turn (its moss creeping in over another edge), padTop1–3.
+    # The pad's top, and the same a quarter turn each (its moss creeping in over other edges), padTop1–3.
     for k, img in enumerate(pad_imgs):
-        d('padTop' + (str(k) if k else ''), 'padStone', albedo=textured(img), grad=False, shade=0.9, rim=0.3, mrim=0.6,
+        d('padTop' + (str(k) if k else ''), 'padSand', albedo=textured(img), grad=False, shade=0.9, rim=0.3, mrim=0.6,
           ao=0.7, line=1.0, dim=0.84)
-    d('padEdge', 'padStone', grad=False, shade=1.0, rim=0.5, mrim=1.0, ao=0.6, line=1.0, dim=0.9)
-    d('padSide', 'padStoneDark', grad=False, shade=1.0, rim=0.3, mrim=0.6, ao=0.8, line=1.0)
-    d('padGroove', 'padGroove', grad=False, shade=0.9, rim=0.0, mrim=0.3, ao=0.8, line=0.6)
+    d('padEdge', 'padSand', grad=False, shade=1.0, rim=0.5, mrim=1.0, ao=0.6, line=1.0, dim=0.9)
+    d('padSide', 'padSandDark', grad=False, shade=1.0, rim=0.3, mrim=0.6, ao=0.8, line=1.0)
+    d('padGroove', 'padSandGroove', grad=False, shade=0.9, rim=0.0, mrim=0.3, ao=0.8, line=0.6)
     d('padStud', 'rune', emit=0.55, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
     d('runestone', 'stone', grad=False, shade=1.0, rim=0.2, mrim=0.9, dim=0.85)
     d('runeGlow', 'rune', emit=0.7, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
-    d('cliff', color=mix(mix('stoneDark', 'mossDark', 0.55), 'pebble', 0.1), grad=False, shade=1.0, rim=0.15, mrim=0.9,
+    d('cliff', color=mix(mix('stoneDark', 'grassDark', 0.55), 'roadPebble', 0.1), grad=False, shade=1.0, rim=0.15, mrim=0.9,
       dim=0.85)
     # The canopies a step lighter than in the lobby's clearing (no hero to stay the brightest; the safe zone's shade
     # darkens them enough), the same colours otherwise.
     for twin in ('', '2'):
-        d('canopy' + twin, 'canopy', grad=False, shade=0.75, rim=0.12, mrim=1.0, dim=0.95)
-        d('canopyLight' + twin, 'canopyLight', grad=False, shade=0.75, rim=0.12, mrim=1.0, dim=0.92)
-        d('canopyDark' + twin, color=mix('canopy', 'forest', 0.45), grad=False, shade=0.75, rim=0.1, mrim=1.0, dim=1.0)
-        d('canopyCool' + twin, color=mix('canopy', 'pine', 0.55), grad=False, shade=0.75, rim=0.1, mrim=1.0, dim=0.98)
-    d('pine', 'pine', grad=False, shade=0.8, rim=0.1, mrim=1.0, dim=1.0)
+        d('canopy' + twin, 'mapCanopy', grad=False, shade=0.75, rim=0.12, mrim=1.0, dim=0.95)
+        d('canopyLight' + twin, 'mapCanopyLight', grad=False, shade=0.75, rim=0.12, mrim=1.0, dim=0.92)
+        d('canopyDark' + twin, color=mix('mapCanopy', 'mapForest', 0.45), grad=False, shade=0.75, rim=0.1, mrim=1.0,
+          dim=1.0)
+        d('canopyCool' + twin, color=mix('mapCanopy', 'mapPine', 0.55), grad=False, shade=0.75, rim=0.1, mrim=1.0,
+          dim=0.98)
+    d('pine', 'mapPine', grad=False, shade=0.8, rim=0.1, mrim=1.0, dim=1.0)
     # A darker moss cushion for the road's edges (the lighter ones alone lined it like beads).
-    d('mossEdge', color=mix('moss', 'mossDark', 0.35), grad=False, shade=0.85, rim=0.05, mrim=0.6, ao=0.8, dim=0.92)
+    d('mossEdge', color=mix('grass', 'grassDark', 0.35), grad=False, shade=0.85, rim=0.05, mrim=0.6, ao=0.8, dim=0.92)
     # Pines from above in two tiers (twins, so the ink draws where the upper skirt lies on the lower).
-    d('pineTop', color=mix('pine', 'canopyLight', 0.18), grad=False, shade=0.8, rim=0.1, mrim=1.0, dim=1.0)
+    d('pineTop', color=mix('mapPine', 'mapCanopyLight', 0.18), grad=False, shade=0.8, rim=0.1, mrim=1.0, dim=1.0)
 
 
 # --- the ground --------------------------------------------------------------------------------------------------
@@ -236,7 +267,7 @@ def border_mask(m, x, y):
 
 
 def height(m, x, y):
-    """The ground's height (world px) at world points: the sunken lanes, the border's ledge, the moss's mounds."""
+    """The ground's height (world px) at world points: the sunken lanes, the border's ledge, the grass's mounds."""
     d = m.lane_dist(x, y)
     z = -LANE_DEPTH * (1 - smoothstep(BANK[0] * T, BANK[1] * T, d))
     ramp = lambda t: 1 - smoothstep(8.0, 24.0, t)  # noqa: E731
@@ -246,7 +277,7 @@ def height(m, x, y):
     return z + MOUNDS * mound(m, x, y) * flat_mask(m, x, y, d)
 
 
-MOUNDS = 3.0          # world px the moss's mounds rise and fall
+MOUNDS = 3.0          # world px the grass's mounds rise and fall
 
 
 def mound(m, x, y):
@@ -308,8 +339,8 @@ def ground_mesh(m):
 
 
 def ground_albedo(m):
-    """The ground's colour (display values) at 2 px per world px: moss in patches, forest floor on the blockers, the
-    earth road with its worn middle, flagstones and a darker rim where it meets the moss."""
+    """The ground's colour (display values) at 2 px per world px: grass in patches, forest floor on the blockers, the
+    earth road with its worn middle, flagstones and a darker rim where it meets the grass."""
     h, w = int(m.hpx * RES), int(m.wpx * RES)
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float64)
     x = (xs + 0.5) / RES
@@ -322,22 +353,22 @@ def ground_albedo(m):
         k = np.asarray(k, np.float32)[..., None]
         return base * (1 - k) + colour * k
 
-    # Moss: soft, low-contrast patches (darker hollows, lighter cushions), a fine mottle and specks, as the 2D ground's
+    # Grass: soft, low-contrast patches (darker hollows, lighter cushions), a fine mottle and specks, as the 2D ground's
     # blotches and speckle.
-    col = np.broadcast_to(c('moss'), (h, w, 3)).astype(np.float32)
-    col = blend(col, c('mossDark'), smoothstep(0.56, 0.3, noise((h, w), 80, 1)) * 0.55)
-    col = blend(col, c('mossLight'), smoothstep(0.6, 0.86, noise((h, w), 36, 2)) * 0.45)
-    col = blend(col, c('fern'), smoothstep(0.66, 0.8, noise((h, w), 20, 3)) * 0.4)
+    col = np.broadcast_to(c('grass'), (h, w, 3)).astype(np.float32)
+    col = blend(col, c('grassDark'), smoothstep(0.56, 0.3, noise((h, w), 80, 1)) * 0.55)
+    col = blend(col, c('grassLight'), smoothstep(0.6, 0.86, noise((h, w), 36, 2)) * 0.45)
+    col = blend(col, c('grassFern'), smoothstep(0.66, 0.8, noise((h, w), 20, 3)) * 0.4)
     col = col * (0.9 + 0.2 * noise((h, w), 4, 4))[..., None]
     rs = np.random.RandomState(12)
     speck = rs.rand(h, w)
-    col = blend(col, c('mossLight'), (speck > 0.994) * 0.7)
-    col = blend(col, c('mossDark'), (speck < 0.008) * 0.8)
+    col = blend(col, c('grassLight'), (speck > 0.994) * 0.7)
+    col = blend(col, c('grassDark'), (speck < 0.008) * 0.8)
 
     # Forest floor on the blocker tiles; the border's ledge (its cliff) a rockier floor.
     block = np.kron((m.tiles == m.BLOCK).astype(np.float32), np.ones((int(T * RES), int(T * RES)), np.float32))
-    col = blend(col, c('forest'), ndimage.gaussian_filter(block, 5.0) * 0.9)
-    rock = blend(np.broadcast_to(c('forest'), (h, w, 3)).astype(np.float32), c('stoneDark'),
+    col = blend(col, c('mapForest'), ndimage.gaussian_filter(block, 5.0) * 0.9)
+    rock = blend(np.broadcast_to(c('mapForest'), (h, w, 3)).astype(np.float32), c('stoneDark'),
                  0.25 + 0.25 * noise((h, w), 12, 13))
     col = blend(col, rock, border_mask(m, x, y) * smoothstep(0.4, 0.75, noise((h, w), 18, 14)))
 
@@ -346,15 +377,15 @@ def ground_albedo(m):
     jag = (noise((h, w), 16, 5) - 0.5) * 0.22 * T + (noise((h, w), 6, 6) - 0.5) * 0.05 * T
     half = LANE_W * T / 2
     on = 1 - smoothstep(half - 2.0, half + 2.0, d + jag)
-    earth = blend(np.broadcast_to(c('lane'), (h, w, 3)).astype(np.float32), c('pebble'),
+    earth = blend(np.broadcast_to(c('road'), (h, w, 3)).astype(np.float32), c('roadPebble'),
                   smoothstep(0.55, 0.8, noise((h, w), 14, 7)) * 0.25)
-    earth = blend(earth, c('mossDark'), smoothstep(0.6, 0.85, noise((h, w), 22, 8)) * 0.2)
+    earth = blend(earth, c('grassDark'), smoothstep(0.6, 0.85, noise((h, w), 22, 8)) * 0.2)
     earth = earth * (0.94 + 0.12 * noise((h, w), 3, 9))[..., None]
-    # Worn pale down the middle (the 2D ground: laneLight at 10% over 62% of its width).
-    earth = blend(earth, c('laneLight'), (1 - smoothstep(half * 0.5, half * 0.68, d)) * 0.12)
+    # Worn pale down the middle (the 2D ground: roadLight at 10% over 62% of its width).
+    earth = blend(earth, c('roadLight'), (1 - smoothstep(half * 0.5, half * 0.68, d)) * 0.12)
     # Flagstones: a few low-contrast stones set into the road (hash scatter along it, as the 2D ground).
     earth = flagstones(m, earth, x, y)
-    # A darker rim where the road meets the moss (the 2D ground's ink edge, here a soft one).
+    # A darker rim where the road meets the grass (the 2D ground's ink edge, here a soft one).
     rim = smoothstep(half - 5, half - 1, d + jag) * (1 - smoothstep(half + 1, half + 4, d + jag))
     earth = blend(earth, c('ink'), rim * 0.4)
     col = blend(col, earth, on)
@@ -362,7 +393,7 @@ def ground_albedo(m):
 
 
 def flagstones(m, earth, x, y):
-    tone_a, tone_b = np.array(rgb('pebble'), np.float32), np.array(rgb('laneLight'), np.float32)
+    tone_a, tone_b = np.array(rgb('roadPebble'), np.float32), np.array(rgb('roadLight'), np.float32)
     half = LANE_W * T / 2
     i = 0
     for li, pts in enumerate(m.lanes):
@@ -429,8 +460,9 @@ PAD_RINGS = [
 
 
 def pad_object(m, p):
-    """A pad: a slab of cool stone exactly its tiles across, raised, with a bevelled lit edge, an inset groove (its
-    lower-right wall catches the moon), its top's seams and build ring in the albedo, four dim rune studs."""
+    """A pad: a slab of warm weathered stone exactly its tiles across, raised, with a bevelled lit edge, an inset
+    groove (its lower-right wall catches the sun), its top's seams, moss and build ring in the albedo, four dim rune
+    studs, moss cushions over two of its edges and grass tufts from its seams (pad_moss)."""
     x0, y0, x1, y1 = m.pad_rect(p)
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     turn = pad_turn(p)
@@ -462,12 +494,12 @@ def pad_object(m, p):
             blob(s, c, (1.2, 1.2, 0.3), 'padStud', u=8, v=4)
     so = finish(s, layer='scene', index=PAD_IDS + p['id'])
     so['detail'] = 0
-    return [o, so] + (pad_moss(m, p, turn) if PAD_MOSS else [])
+    return [o, so] + pad_moss(m, p, turn)
 
 
 def pad_turn(p):
-    """Which quarter turn of the pad's top this pad shows (PAD_MOSS: its moss on other edges); 0 without moss."""
-    return int(_hash(p['id'], 77) * 4) % 4 if PAD_MOSS else 0
+    """Which quarter turn of the pad's top this pad shows (its moss on other edges): the pad id hashed."""
+    return int(_hash(p['id'], 77) * 4) % 4
 
 
 # The pad top's mossy edges at each quarter turn (np.rot90 turns the picture anticlockwise): the albedo's moss creeps
@@ -483,7 +515,7 @@ def turned(x, y, k):
 
 
 def pad_moss(m, p, k):
-    """V-07c look: moss cushions over the pad's mossy edges (half on its bevel, half on the ground: the moss creeping
+    """Moss cushions over the pad's mossy edges (half on its bevel, half on the ground: the moss creeping
     over it) and a few tufts of grass from its seams. Kept off the corners and off most of each edge, so the pad's
     square as the object pass sees it (measure_pads) stays the tiles'. Its own objects (the moss's and the props'
     pass index, never the pad's), hidden with the pad."""
@@ -524,15 +556,16 @@ def pad_moss(m, p, k):
 
 
 def pad_albedo():
-    """The pad's top (display values, 4 px per world px over its 96 px): cool stone, mottled, its flagstone seams, the
-    faint build ring with four ticks and the studs' sockets, as the 2D pad draws them."""
+    """The pad's top (display values, 4 px per world px over its 96 px): warm stone, mottled, its flagstone seams grown
+    with moss and grass, the moss creeping in over its east edge and the east half of its south one, the faint build
+    ring with four ticks and the studs' sockets, as the 2D pad draws them."""
     n = 384
     k = n / 96.0
     ys, xs = np.mgrid[0:n, 0:n].astype(np.float64)
     x = (xs + 0.5) / k - 48
     y = (ys + 0.5) / k - 48
-    base = np.array(rgb('padStone'), np.float32)
-    dark = np.array(rgb('padStoneDark'), np.float32)
+    base = np.array(rgb('padSand'), np.float32)
+    dark = np.array(rgb('padSandDark'), np.float32)
     col = base + (dark - base) * (smoothstep(0.5, 0.8, noise((n, n), 16, 31)) * 0.12)[..., None]
     col = col * (0.95 + 0.08 * noise((n, n), 4, 32))[..., None]
 
@@ -548,32 +581,26 @@ def pad_albedo():
             best = np.minimum(best, np.hypot(x - ax - t * vx, y - ay - t * vy))
         return best
 
-    groove = np.array(rgb('padGroove'), np.float32)
+    groove = np.array(rgb('padSandGroove'), np.float32)
     g = 36.0
     pm = PAD_MOSS
-    if pm:
-        # V-07c look: moss and grass grown into the seams (wider where the moss has taken), and the moss creeping in
-        # over the east edge and the east half of the south one, broken by noise.
-        grown = smoothstep(0.35, 0.7, noise((n, n), 24, 33)) * pm['seams']
-        seam = groove + (np.array(rgb('mossDark'), np.float32) - groove) * grown[..., None]
+    # Moss and grass grown into the seams (wider where the moss has taken), and the moss creeping in over the east edge
+    # and the east half of the south one, broken by noise.
+    grown = smoothstep(0.35, 0.7, noise((n, n), 24, 33)) * pm['seams']
+    seam = groove + (np.array(rgb('grassDark'), np.float32) - groove) * grown[..., None]
     for pts in ([-g, -4, -12, -2, 10, 3, g, 1], [-2, -g, 1, -9, -1, -3], [5, 2, 3, 12, 6, g], [-g, 20, -18, 18]):
         dd = line_dist(segs(pts))
-        if pm:
-            a = (1 - smoothstep(0.35 + 0.3 * grown, 0.75 + 0.6 * grown, dd)) * (0.45 + 0.2 * grown)
-            col = col * (1 - a[..., None]) + seam * a[..., None]
-            continue
-        a = (1 - smoothstep(0.35, 0.75, dd)) * 0.45
-        col = col * (1 - a[..., None]) + groove * a[..., None]
-    if pm:
-        wave = noise((n, n), 40, 34)
-        east = (4 + 9 * wave) * pm['edge']
-        south = (3 + 6 * wave) * pm['edge'] * smoothstep(-6, 10, x)
-        creep = np.maximum(1 - smoothstep(east - 2, east + 1.5, 48 - x), 1 - smoothstep(south - 2, south + 1.5, 48 - y))
-        creep = creep * smoothstep(0.25, 0.5, noise((n, n), 10, 35) * 0.6 + creep * 0.6)
-        moss = np.array(rgb('moss'), np.float32)
-        tuft = moss + (np.array(rgb('mossLight'), np.float32) - moss) * smoothstep(0.4, 0.8, noise((n, n), 6, 36))[..., None]
-        tuft = tuft * (0.88 + 0.2 * noise((n, n), 3, 37))[..., None]
-        col = col * (1 - creep[..., None]) + tuft * creep[..., None]
+        a = (1 - smoothstep(0.35 + 0.3 * grown, 0.75 + 0.6 * grown, dd)) * (0.45 + 0.2 * grown)
+        col = col * (1 - a[..., None]) + seam * a[..., None]
+    wave = noise((n, n), 40, 34)
+    east = (4 + 9 * wave) * pm['edge']
+    south = (3 + 6 * wave) * pm['edge'] * smoothstep(-6, 10, x)
+    creep = np.maximum(1 - smoothstep(east - 2, east + 1.5, 48 - x), 1 - smoothstep(south - 2, south + 1.5, 48 - y))
+    creep = creep * smoothstep(0.25, 0.5, noise((n, n), 10, 35) * 0.6 + creep * 0.6)
+    grass = np.array(rgb('grass'), np.float32)
+    tuft = grass + (np.array(rgb('grassLight'), np.float32) - grass) * smoothstep(0.4, 0.8, noise((n, n), 6, 36))[..., None]
+    tuft = tuft * (0.88 + 0.2 * noise((n, n), 3, 37))[..., None]
+    col = col * (1 - creep[..., None]) + tuft * creep[..., None]
     moon = np.array(rgb('moon'), np.float32)
     ring = 1 - smoothstep(0.45, 0.9, np.abs(np.hypot(x, y) - 15))
     for (ax, ay, bx, by) in ((0, -19, 0, -11), (0, 11, 0, 19), (-19, 0, -11, 0), (11, 0, 19, 0)):
@@ -864,8 +891,8 @@ def render_passes(cam, tmp, samples, ss, box=None):
 
 
 def finish_plate(m, col, emit, x0=0, y0=0):
-    """The finished picture (display values) from the painted colour: the glows' bloom, the 2D ground's cool
-    moonlight wash and vignette, the safe zone's shade. `x0`, `y0`: where this piece sits in the plate (plate px)."""
+    """The finished picture (display values) from the painted colour: the glows' bloom, the 2D ground's faint warm
+    wash and light vignette, the safe zone's shade. `x0`, `y0`: where this piece sits in the plate (plate px)."""
     h, w = col.shape[:2]
     out = col.copy()
     if emit.max() > 0:
@@ -876,18 +903,14 @@ def finish_plate(m, col, emit, x0=0, y0=0):
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float64)
     x = (xs + x0 + 0.5) / RES
     y = (ys + y0 + 0.5) / RES
-    # The 2D ground's radial gradient: a cool wash round the upper middle, night towards the edges.
+    # The 2D ground's radial gradient: a faint warm wash round the upper middle, night towards the edges.
     r = np.hypot(x - m.wpx / 2, y - m.hpx * WASH['centre'])
     t = np.clip((r - m.hpx * WASH['r0']) / (m.hpx * (WASH['r1'] - WASH['r0'])), 0, 1)[..., None]
-    cool = np.array(WASH['cool'], np.float32)
+    light = np.array(WASH['light'], np.float32)
     night = np.array(rgb('night'), np.float32)
-    colour = cool * (1 - t) + night * t
-    alpha = WASH['cool_alpha'] * (1 - t) + WASH['vignette'] * t
+    colour = light * (1 - t) + night * t
+    alpha = WASH['light_alpha'] * (1 - t) + WASH['vignette'] * t
     out = out * (1 - alpha) + colour * alpha
-    if HAZE:
-        # V-07c look: a faint haze over the top of the map (the low sun's side), fading out down it.
-        hz = (1 - smoothstep(0, m.hpx * HAZE['rows'], y))[..., None] * HAZE['alpha']
-        out = out * (1 - hz) + np.array(HAZE['colour'], np.float32) * hz
     # The safe zone sinks into deep shade, so the touch controls over it stay readable.
     top = (m.safe + SAFE_SHADE['start']) * T
     sh = smoothstep(top, top + SAFE_SHADE['tiles'] * T, y)[..., None] * SAFE_SHADE['alpha']
@@ -899,15 +922,23 @@ def to8(x):
     return np.clip(np.rint(np.clip(x, 0, 1) * 255), 0, 255).astype(np.uint8)
 
 
-def measure_pads(m, obj, ss):
-    """Each pad's square as rendered (plate px): the box its object covers in the render, from the object pass."""
+def measure_pads(m, obj, ss, x0=0, y0=0):
+    """Each pad's square as rendered (plate px): the box its object covers in the render, from the object pass, looked
+    for within PATCH_PAD of its tiles (`obj` starts at render px x0, y0). Far from it a pixel can only carry the pad's
+    number by accident: an edge pixel straddling two other pads whose ids average to it (V-07c: the moss's cushions on
+    the pads' edges made one, 28 tiles away)."""
     out = []
+    k = RES * ss
     for p in m.pads:
         if p['show'] == 'none':
             continue
-        ys, xs = np.nonzero(obj == PAD_IDS + p['id'])
+        rx0, ry0, rx1, ry1 = (int(round(v * k)) for v in m.pad_rect(p, PATCH_PAD))
+        bx0, by0 = max(0, rx0 - x0), max(0, ry0 - y0)
+        near = obj[by0:max(0, ry1 - y0), bx0:max(0, rx1 - x0)]
+        ys, xs = np.nonzero(near == PAD_IDS + p['id'])
         if len(xs) == 0:
             continue
+        xs, ys = xs + bx0 + x0, ys + by0 + y0
         out.append(dict(id=p['id'], show=p['show'], box=[round(xs.min() / ss, 2), round(ys.min() / ss, 2),
                                                         round((xs.max() + 1) / ss, 2), round((ys.max() + 1) / ss, 2)]))
     return out
@@ -956,6 +987,7 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False):
     """Builds the map's scene, renders the plate (and the patches) and writes `<map>.webp` (+ `<map>-extra.webp`) into
     out_dir and `<map>.json` (the layout) into layout_dir. Returns the layout."""
     t_all = time.time()
+    map_palette()
     data = load_data(which, tmp)
     m = Map(data)
     ss = 1 if draft else SS
@@ -964,9 +996,8 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False):
     t0 = time.time()
     ground_img = image('MapAlbedo', ground_albedo(m))
     top = pad_albedo()
-    turns = range(4) if PAD_MOSS else range(1)
     define_materials(ground_img, [image(f'PadAlbedo{k}' if k else 'PadAlbedo', np.ascontiguousarray(np.rot90(top, k)))
-                                  for k in turns])
+                                  for k in range(4)])
     lights()
     ground_mesh(m)
     pads = {p['id']: pad_object(m, p) for p in m.pads if p['show'] != 'none'}
@@ -1031,15 +1062,14 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False):
             dy = np.maximum(np.maximum(ry0 - (ys + 0.5), (ys + 0.5) - ry1), 0)
             dist = np.hypot(dx, dy) / RES
             alpha = 1 - smoothstep(PATCH_PAD * 0.45, PATCH_PAD * 0.95, dist)
-            cells.append((p, (px0, py0), np.concatenate([fin, alpha[..., None]], axis=2), measure_pads(m, po, ss)))
+            cells.append((p, (px0, py0), np.concatenate([fin, alpha[..., None]], axis=2),
+                          measure_pads(m, po, ss, bx[0], bx[1])))
         cw = max(c[2].shape[1] for c in cells)
         ch = max(c[2].shape[0] for c in cells)
         atlas = np.zeros((ch, cw * len(cells), 4), np.float32)
         for i, (p, (px0, py0), img, meas) in enumerate(cells):
             atlas[: img.shape[0], i * cw: i * cw + img.shape[1]] = img
             box = next((q['box'] for q in meas if q['id'] == p['id']), None)
-            if box is not None:
-                box = [box[0] + px0, box[1] + py0, box[2] + px0, box[3] + py0]
             patches.append(dict(pad=p['id'], x=px0, y=py0, w=img.shape[1], h=img.shape[0], atlas=[i * cw, 0], box=box))
         apng = os.path.join(tmp, f'{which}-extra.png')
         imageio.write_png(apng, to8(atlas), level=6)

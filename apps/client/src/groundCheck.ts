@@ -1,10 +1,10 @@
-// V-07c look, page side (dev only: scripts/groundOptions.ts imports it into a page of Vite's dev server; the game never
-// imports it, so no build carries it): the sheet for Han, today's ground and the three looks side by side as wave-10
-// match frames on a 412 × 839 phone, each one's readability checks measured under it, the Bright frames, the middle of
-// each ground at full quality at the phone's screen pixels (3×), and the three heroes, a Grunt and a Brute standing on
-// each ground, drawn by the match's own rigs at phone size, with a pad tinted yours and one a teammate's. The files
-// (frames, plates, middles) are served by the script under /__ground/. Returns the sheet as a PNG data URL and the
-// checks as text lines per look.
+// The map's readability check, page side (dev only: scripts/groundCheck.ts imports it into a page of Vite's dev
+// server; the game never imports it, so no build carries it). What V-07c's sheet measured on the draft looks
+// (docs/art/ground-options.md), measured on a plate as rendered: the grass, road and pad medians of the map's middle,
+// the three heroes, a Grunt and a Brute drawn by the match's own rigs at phone size and their contrast on that ground,
+// the HP bar's, and the pads' zone rims and washes as world.ts lays them. Also returns the middle at the phone's
+// screen pixels (3×) with the figures standing on it, a pad tinted yours and one a teammate's. The plate is served by
+// the script under /__ground/plate.webp.
 
 import type { CreepKind, HeroKind } from '@tdt/protocol';
 import { getMap, Tile } from '@tdt/sim';
@@ -13,7 +13,7 @@ import { createPainter } from './render/art/paint';
 import { padArt } from './render/art/registry';
 import { LIGHTING, RL } from './render/art/tokens';
 import { entityScales } from './render/entityScale';
-import { COLORS, PLAYER_COLORS } from './render/palette';
+import { COLORS, PAD_TINTS, PLAYER_COLORS } from './render/palette';
 
 /** The reference phone: Spire's 26 tiles across 412 CSS px, on a 3× screen. */
 const TILE_CSS = 412 / 26;
@@ -23,29 +23,13 @@ const TILE = TILE_CSS * DPR;
 const PER_WORLD = TILE / 32;
 /** Plate px per tile. */
 const PLATE_TILE = 64;
-const COL = 618;
-const GAP = 24;
-const WIDTH = COL * 4 + GAP * 5;
+/** The middle (plate px): tiles 7–19 × 11–19, the mid lane and four pads (the sheet's TDT_PLATE_BOX). */
+export const BOX = [448, 704, 1216, 1216] as const;
 const css = (hex: number) => `#${hex.toString(16).padStart(6, '0')}`;
-const TEXT = css(RL.bone);
-
-interface Look {
-  key: string;
-  name: string;
-  box: boolean;
-  lift: number;
-  pools: number;
-}
 
 type Box = readonly [number, number, number, number];
 type Ctx = CanvasRenderingContext2D;
 type Rgb = [number, number, number];
-
-const load = async (name: string) => {
-  const res = await fetch(`/__ground/${name}`);
-  if (!res.ok) throw new Error(`no ${name}`);
-  return createImageBitmap(await res.blob());
-};
 
 // --- colour ------------------------------------------------------------------------------------------------------
 
@@ -77,6 +61,11 @@ function hsv([r, g, b]: Rgb): Rgb {
 const hexRgb = (hex: number): Rgb => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 const toHex = (c: Rgb) => `#${c.map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
 const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => a.map((v, k) => v + (b[k]! - v) * t) as Rgb;
+/** Bright's "screen" wash over a colour (world.ts's wash sprite). */
+const lift = (c: Rgb, alpha: number): Rgb => {
+  const w = hexRgb(LIGHTING.bright.groundLift.color);
+  return c.map((v, k) => 1 - (1 - v) * (1 - w[k]! * alpha)) as Rgb;
+};
 
 /** The per-channel median of the chosen pixels (an RGBA byte array). */
 function median(px: Uint8ClampedArray, pick: (i: number) => boolean): Rgb | null {
@@ -100,7 +89,7 @@ interface Ground {
 }
 
 /** The middle's grass (open tiles a tile clear of the road, their inner part), road (its middle half) and pad tops
- * (their centres), from the full-quality crop of plate px box `box`. */
+ * (their centres), from the crop `img` of plate px box `box`. */
 function groundOf(img: ImageBitmap, box: Box): Ground {
   const map = getMap();
   const [x0, y0] = box;
@@ -157,8 +146,8 @@ interface Figure {
   y: number;
 }
 
-/** In the middle crop (tiles 7–19 × 11–19): the heroes on the grass between the pads, a Grunt and a Brute on the mid
- * lane's road, and on the grass beyond it. */
+/** In the middle (tiles 7–19 × 11–19): the heroes on the grass between the pads, a Grunt and a Brute on the mid lane's
+ * road, and on the grass beyond it. */
 const FIGURES: Figure[] = [
   { kind: 'ranger', hero: true, x: 8.15, y: 15.75 },
   { kind: 'warden', hero: true, x: 10.4, y: 15.75 },
@@ -269,36 +258,62 @@ function coloursOf(fig: { alone: Uint8ClampedArray[] }): Colours {
   return { hood: medianOf(hues), metal, bone, brute };
 }
 
-/** The readability checks, short, for the lines under a frame. */
-function checks(g: Ground, f: Colours, look: Look): string[] {
+/** The readability checks, as the sheet's table rows. */
+export interface Checks {
+  grass: string;
+  grassHue: number;
+  grassL: number;
+  grassChroma: number;
+  roadL: number;
+  padL: number;
+  /** Degrees between the Ranger's green and the grass's hue (at least 25). */
+  rangerApart: number;
+  wardenMetalDL: number;
+  gruntDL: [number, number];
+  bruteDL: [number, number];
+  hpDE: number;
+  padsDL: number;
+  /** ΔE of the zone rim / wash on a pad: yours, a teammate's. */
+  yours: [number, number];
+  teammate: [number, number];
+  /** The rim and wash alphas measured. */
+  alphas: { yours: [number, number]; teammate: [number, number] };
+  /** Bright: the grass under the wash (L, chroma) at the wash's alpha. */
+  bright: { alpha: number; grassL: number; grassChroma: number };
+}
+
+function measure(g: Ground, f: Colours, teammateRim: number, brightAlpha: number): Checks {
   const L = (c: Rgb) => lab(c)[0];
+  const chroma = (c: Rgb) => Math.hypot(lab(c)[1], lab(c)[2]);
   const [gh] = hsv(g.grass);
-  const apart = Math.abs(((f.hood - gh + 540) % 360) - 180);
-  const ok = (pass: boolean) => (pass ? '✓' : '✗');
   const dl = (a: Rgb, b: Rgb) => Math.round(L(a) - L(b));
-  const sign = (v: number) => (v > 0 ? `+${v}` : `${v}`);
   const pad = g.pad;
-  // The zone tints as world.ts lays them on a pad: yours rim 95%, wash 20%; a teammate's rim 50%, wash 8%.
-  const zone = (hex: number, rim: number, wash: number) =>
-    `${Math.round(deltaE(pad, mixRgb(pad, hexRgb(hex), rim)))} / ${Math.round(deltaE(pad, mixRgb(pad, hexRgb(hex), wash)))}`;
-  const hp = hexRgb(COLORS.hpHigh);
-  const r = Math.round;
-  const grunt = [dl(f.bone, g.road), dl(f.bone, g.grass)] as const;
-  const brute = [dl(f.brute, g.road), dl(f.brute, g.grass)] as const;
-  const lift = r(look.lift * 100);
-  const lines = [
-    `Grass ${toHex(g.grass)} (${r(gh)}°, L ${r(L(g.grass))}) · road L ${r(L(g.road))} · pads L ${r(L(pad))}`,
-    `Ranger's green ${Math.round(f.hood)}° vs grass ${Math.round(gh)}°: ${Math.round(apart)}° apart ${ok(apart >= 25)}`,
-    `Warden's metal on grass ΔL ${sign(dl(f.metal, g.grass))} ${ok(Math.abs(dl(f.metal, g.grass)) >= 15)}`,
-    `Grunt ΔL ${sign(grunt[0])} on road, ${sign(grunt[1])} on grass ${ok(Math.min(...grunt) >= 15)}`,
-    `Brute ΔL ${sign(brute[0])} on road, ${sign(brute[1])} on grass ${ok(Math.max(...brute) <= -15)}`,
-    `HP bar ΔE ${r(deltaE(hp, g.grass))} on grass ${ok(deltaE(hp, g.grass) >= 25)} · pads ΔL ${sign(dl(pad, g.grass))} ` +
-      ok(dl(pad, g.grass) >= 5),
-    `Zone tint ΔE rim / wash: yours ${zone(PLAYER_COLORS[0], 0.95, 0.2)}, ` +
-      `a teammate's ${zone(PLAYER_COLORS[1], 0.5, 0.08)}`,
-    look.key === 'now' ? `Bright: the game's wash, ${lift}%` : `Bright: wash at ${lift}% (the game's is 32%)`,
+  // The zone tints as world.ts lays them on a pad (PAD_TINTS).
+  const zone = (hex: number, rim: number, wash: number): [number, number] => [
+    Math.round(deltaE(pad, mixRgb(pad, hexRgb(hex), rim))),
+    Math.round(deltaE(pad, mixRgb(pad, hexRgb(hex), wash))),
   ];
-  return lines;
+  const r = Math.round;
+  const hp = hexRgb(COLORS.hpHigh);
+  const lifted = lift(g.grass, brightAlpha);
+  return {
+    grass: toHex(g.grass),
+    grassHue: r(gh),
+    grassL: r(L(g.grass)),
+    grassChroma: r(chroma(g.grass)),
+    roadL: r(L(g.road)),
+    padL: r(L(pad)),
+    rangerApart: r(Math.abs(((f.hood - gh + 540) % 360) - 180)),
+    wardenMetalDL: dl(f.metal, g.grass),
+    gruntDL: [dl(f.bone, g.road), dl(f.bone, g.grass)],
+    bruteDL: [dl(f.brute, g.road), dl(f.brute, g.grass)],
+    hpDE: r(deltaE(hp, g.grass)),
+    padsDL: dl(pad, g.grass),
+    yours: zone(PLAYER_COLORS[0], PAD_TINTS.mine.rim, PAD_TINTS.mine.wash),
+    teammate: zone(PLAYER_COLORS[1], teammateRim, PAD_TINTS.teammate.wash),
+    alphas: { yours: [PAD_TINTS.mine.rim, PAD_TINTS.mine.wash], teammate: [teammateRim, PAD_TINTS.teammate.wash] },
+    bright: { alpha: brightAlpha, grassL: r(L(lifted)), grassChroma: r(chroma(lifted)) },
+  };
 }
 
 // --- drawing -----------------------------------------------------------------------------------------------------
@@ -328,103 +343,50 @@ function tint(c: Ctx, x: number, y: number, colour: number, rim: number, wash: n
   }
 }
 
-function label(c: Ctx, text: string, x: number, y: number, size: number, bold = false): void {
-  c.fillStyle = TEXT;
-  c.font = `${bold ? 'bold ' : ''}${size}px sans-serif`;
-  c.fillText(text, x, y);
-}
-
-/** The sheet. `box`: the middle crop in plate px (the full-quality renders' TDT_PLATE_BOX). */
-export async function drawGroundOptions(
-  looks: Look[],
-  box: Box,
-): Promise<{ sheet: string; checks: Record<string, string[]> }> {
-  const frames = await Promise.all(
-    looks.map(async (l) => ({ normal: await load(`${l.key}-normal.png`), bright: await load(`${l.key}-bright.png`) })),
-  );
-  const plates = await Promise.all(looks.map((l) => load(`${l.key}-plate.webp`)));
-  // The middle of each ground at full quality: the render's crop, or today's plate (rendered at full quality) cut.
-  const middles = await Promise.all(
-    looks.map(async (l, i) => {
-      if (l.box) return load(`${l.key}-box.png`);
-      const c = new OffscreenCanvas(box[2] - box[0], box[3] - box[1]);
-      c.getContext('2d')!.drawImage(plates[i]!, -box[0], -box[1]);
-      return c.transferToImageBitmap();
-    }),
-  );
+/**
+ * Measures the plate at /__ground/plate.webp (its middle, `BOX`) with the figures, and draws the figures' band: the
+ * middle at 3× with the heroes, a Grunt and a Brute standing on it, the upper left pad tinted yours and the upper right
+ * one a teammate's (`teammateRim`: that rim's alpha; the game's by default). `brightAlpha`: Bright's wash (the game's by
+ * default). Returns the checks and the band as a JPEG data URL.
+ */
+export async function groundCheck(
+  teammateRim: number = PAD_TINTS.teammate.rim,
+  brightAlpha: number = LIGHTING.bright.groundLift.alpha,
+): Promise<{ checks: Checks; band: string }> {
+  const res = await fetch('/__ground/plate.webp');
+  if (!res.ok) throw new Error('no plate');
+  const plate = await createImageBitmap(await res.blob());
+  const box = BOX;
+  const mc = new OffscreenCanvas(box[2] - box[0], box[3] - box[1]);
+  mc.getContext('2d')!.drawImage(plate, -box[0], -box[1]);
+  const middle = mc.transferToImageBitmap();
   const fig = await figures(box);
-  const colours = coloursOf(fig);
-  const out: Record<string, string[]> = {};
-  for (const [i, l] of looks.entries()) out[l.key] = checks(groundOf(middles[i]!, box), colours, l);
+  const checks = measure(groundOf(middle, box), coloursOf(fig), teammateRim, brightAlpha);
 
-  const frameW = COL;
-  const frameH = Math.round((frames[0]!.normal.height * COL) / frames[0]!.normal.width);
   const midW = Math.round(((box[2] - box[0]) / PLATE_TILE) * TILE);
   const midH = Math.round(((box[3] - box[1]) / PLATE_TILE) * TILE);
   const bandTop = Math.round((BAND.y0 - box[1] / PLATE_TILE) * TILE);
   const bandH = Math.round((BAND.y1 - BAND.y0) * TILE);
-  const LINE = 29;
-  const checksH = LINE * 8 + 20;
-  const head = 120;
-  const rowLabel = 46;
-  const height = head + rowLabel + frameH + checksH + rowLabel + frameH + 30 + rowLabel + midH + 30 + rowLabel + bandH + 30;
-  const canvas = document.createElement('canvas');
-  canvas.width = WIDTH;
-  canvas.height = height;
-  const c = canvas.getContext('2d')!;
-  c.fillStyle = css(RL.ink);
-  c.fillRect(0, 0, WIDTH, height);
-  c.imageSmoothingQuality = 'high';
-  const title = 'V-07c look: the map in grass green — today’s ground and three looks for Han (nothing in the game changes)';
-  label(c, title, GAP, 50, 34, true);
-  const sub =
-    'Wave 10 of Full on a 412 × 839 phone, one held moment shot on each ground (drafts; V-07c’s light pools mocked ' +
-    'in: rose round the Heart, violet round the portals, teal under the tier-3 towers).';
-  label(c, sub, GAP, 90, 21);
-  const short = (l: Look) => (l.key === 'now' ? 'Now' : l.key.toUpperCase());
-  const colX = (i: number) => GAP + i * (COL + GAP);
-  let y = head;
-  // The frames in Normal, and the checks under each.
-  for (const [i, l] of looks.entries()) {
-    label(c, l.name, colX(i), y + 32, 28, true);
-    c.drawImage(frames[i]!.normal, colX(i), y + rowLabel, frameW, frameH);
-    out[l.key]!.forEach((line, k) => label(c, line, colX(i), y + rowLabel + frameH + 32 + k * LINE, 20));
-  }
-  y += rowLabel + frameH + checksH;
-  // The frames in Bright.
-  for (const [i, l] of looks.entries()) {
-    label(c, `${l.name} · Bright, wash ${Math.round(l.lift * 100)}%`, colX(i), y + 32, 24, true);
-    c.drawImage(frames[i]!.bright, colX(i), y + rowLabel, frameW, frameH);
-  }
-  y += rowLabel + frameH + 30;
-  // The middles at the phone's screen pixels.
-  for (const [i, l] of looks.entries()) {
-    label(c, `${short(l)}: the middle, full quality, at 3×`, colX(i), y + 32, 22, true);
-    c.drawImage(middles[i]!, colX(i) + (COL - midW) / 2, y + rowLabel, midW, midH);
-  }
-  y += rowLabel + midH + 30;
-  // The heroes, a Grunt and a Brute standing on each ground; a pad tinted yours, one a teammate's, the rest as solo.
+  const band = document.createElement('canvas');
+  band.width = midW;
+  band.height = midH;
+  const b = band.getContext('2d')!;
+  b.imageSmoothingQuality = 'high';
+  b.drawImage(middle, 0, 0, midW, midH);
   const map = getMap();
-  for (const [i, l] of looks.entries()) {
-    label(c, `${short(l)}: heroes, Grunt, Brute · pads yours / a teammate’s`, colX(i), y + 32, 20, true);
-    const band = document.createElement('canvas');
-    band.width = midW;
-    band.height = midH;
-    const b = band.getContext('2d')!;
-    b.imageSmoothingQuality = 'high';
-    b.drawImage(middles[i]!, 0, 0, midW, midH);
-    const inside = (v: number, lo: number, hi: number) => v * PLATE_TILE > lo && v * PLATE_TILE < hi;
-    const inBox = map.pads.filter((p) => !p.extra && inside(p.x, box[0], box[2]) && inside(p.y, box[1], box[3]));
-    for (const p of inBox) {
-      const px = (p.x - box[0] / PLATE_TILE) * TILE;
-      const py = (p.y - box[1] / PLATE_TILE) * TILE;
-      const top = p.y < 15;
-      if (top && p.x < 13) tint(b, px, py, PLAYER_COLORS[0], 0.95, 0.2);
-      else if (top) tint(b, px, py, PLAYER_COLORS[1], 0.5, 0.08);
-      else tint(b, px, py, RL.moon, 0.35, 0);
-    }
-    b.drawImage(fig.canvas, 0, 0);
-    c.drawImage(band, 0, bandTop, midW, bandH, colX(i) + (COL - midW) / 2, y + rowLabel, midW, bandH);
+  const inside = (v: number, lo: number, hi: number) => v * PLATE_TILE > lo && v * PLATE_TILE < hi;
+  for (const p of map.pads.filter((q) => !q.extra && inside(q.x, box[0], box[2]) && inside(q.y, box[1], box[3]))) {
+    const px = (p.x - box[0] / PLATE_TILE) * TILE;
+    const py = (p.y - box[1] / PLATE_TILE) * TILE;
+    const top = p.y < 15;
+    if (top && p.x < 13) tint(b, px, py, PLAYER_COLORS[0], PAD_TINTS.mine.rim, PAD_TINTS.mine.wash);
+    else if (top) tint(b, px, py, PLAYER_COLORS[1], teammateRim, PAD_TINTS.teammate.wash);
+    else tint(b, px, py, RL.moon, PAD_TINTS.open.rim, PAD_TINTS.open.wash);
   }
-  return { sheet: canvas.toDataURL('image/png'), checks: out };
+  b.drawImage(fig.canvas, 0, 0);
+  const out = document.createElement('canvas');
+  out.width = midW;
+  out.height = bandH;
+  out.getContext('2d')!.drawImage(band, 0, bandTop, midW, bandH, 0, 0, midW, bandH);
+  return { checks, band: out.toDataURL('image/jpeg', 0.88) };
 }

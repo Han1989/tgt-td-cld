@@ -27,7 +27,7 @@ import {
   type ZoneSnap,
 } from '@tdt/protocol';
 import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, waveGroups, type GameMap } from '@tdt/sim';
-import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Application, BufferImageSource, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
@@ -53,6 +53,7 @@ import {
   type ScreenBox,
   type VignettePulse,
 } from './fx/juice';
+import { POOL_PX, poolAlpha, poolFadeIn, POOLS, poolTexels, portalPoolLevel, towerLit, type PoolKind } from './fx/pools';
 import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
 import { vowLook } from './fx/vow';
 import {
@@ -64,6 +65,7 @@ import {
   HIDE_COLORS,
   hpColor,
   mixColor,
+  PAD_TINTS,
   PLAYER_COLORS,
   PROJECTILE_COLORS,
   shotColor,
@@ -305,16 +307,34 @@ interface HeartGem {
 }
 
 interface PadSprite {
+  /** The zone tints: the wash and the rim. */
   root: Container;
   rim: Sprite;
   wash: Sprite;
   /** Over the map plate: the plate round a pad it was rendered without (an extra pad of bigger teams). */
   patch?: Sprite;
+  /** On the painted ground (or for a pad the plate was rendered without): the stone slab. */
+  slab?: Container;
 }
 
 function destroyPad(s: PadSprite): void {
   s.root.destroy({ children: true });
   s.patch?.destroy();
+  s.slab?.destroy({ children: true });
+}
+
+/** A light pool on the ground (V-07c, fx/pools.ts): one quad that lays its tint and adds its glow, alpha only. */
+interface PoolSprite {
+  kind: PoolKind;
+  sprite: Sprite;
+  /** Its level as last drawn (1 its own; fading in less, a flaring portal's more). */
+  level: number;
+  /** When it appeared (a tower's fades in; the Heart's and the portals' are there from the start). */
+  born: number;
+}
+
+function destroyPool(p: PoolSprite): void {
+  p.sprite.destroy();
 }
 
 interface PortalSprite {
@@ -341,8 +361,32 @@ interface TextFx {
 
 export class WorldRenderer {
   readonly world = new Container();
+  /**
+   * The ground (the plate, or the painted ground until it decodes), then over it the pads' stone the plate lacks
+   * (`padBaseLayer`), the light pools (in the ground's batch) and Bright's wash.
+   */
   private readonly mapLayer = new Container();
-  /** Build pads of this match: a stone slab each, rimmed in the owner's zone colour; updated when owners change. */
+  /** The patches round the extra pads of bigger teams (over the plate) and, on the painted ground, the pads' slabs. */
+  private readonly padBaseLayer = new Container();
+  /**
+   * V-07c's light pools (fx/pools.ts): one quad each at the normal blend, its tint and its glow in one texture
+   * (`poolTexels`), so they batch with the ground under them.
+   */
+  private readonly poolLayer = new Container();
+  private readonly poolTexture = new Texture({
+    source: new BufferImageSource({
+      resource: poolTexels(POOL_PX * 2),
+      width: POOL_PX * 2,
+      height: POOL_PX * 2,
+      // Its colour is brighter than its alpha (the glow): uploaded as it is, never premultiplied again.
+      alphaMode: 'premultiplied-alpha',
+    }),
+  });
+  private readonly heartPool: PoolSprite;
+  private readonly portalPools: PoolSprite[] = [];
+  /** Under every tier-3 tower, by tower id; it goes with the tower. */
+  private readonly towerPools = new Map<number, PoolSprite>();
+  /** Build pads of this match: each one's zone tints, rimmed in the owner's zone colour; updated when owners change. */
   private readonly padLayer = new Container();
   private readonly pads = new Map<number, PadSprite>();
   private padKey = '';
@@ -492,7 +536,7 @@ export class WorldRenderer {
     this.brightWash.alpha = LIGHTING.bright.groundLift.alpha;
     this.brightWash.blendMode = 'screen';
     this.brightWash.visible = false;
-    this.mapLayer.addChild(this.brightWash);
+    this.mapLayer.addChild(this.padBaseLayer, this.poolLayer, this.brightWash);
     this.world.addChild(
       this.mapLayer,
       this.padLayer,
@@ -529,6 +573,8 @@ export class WorldRenderer {
     app.canvas.after(this.vignette);
     this.heart = this.makeHeart();
     this.makePortals();
+    this.heartPool = this.makePool('heart', this.map.heart.x, this.map.heart.y, -Infinity);
+    for (const p of this.portals) this.portalPools.push(this.makePool('portal', p.x, p.y, -Infinity));
   }
 
   /**
@@ -572,6 +618,8 @@ export class WorldRenderer {
     impacts: number;
     /** What the ground is: the map plate, the painted ground (until the plate decodes), or none yet (no match drawn). */
     ground: 'plate' | 'painted' | 'none';
+    /** The light pools (V-07c): how many of each kind show, and whether their layer is drawn (not at Low). */
+    pools: { heart: number; portal: number; tower: number; shown: boolean };
   } {
     const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
     const rigs3d = [...this.heroes.values()].map((s) => s.art).filter((a): a is Hero3DRig => a instanceof Hero3DRig);
@@ -594,6 +642,20 @@ export class WorldRenderer {
       creep3dStates: [...new Set(creeps3d.flatMap((r) => [...r.shownStates]))].sort(),
       impacts: this.impactsLanded,
       ground: this.plate ? 'plate' : this.ground ? 'painted' : 'none',
+      pools: this.poolStats(),
+    };
+  }
+
+  /** The light pools showing now, by kind (browser tests). */
+  private poolStats(): { heart: number; portal: number; tower: number; shown: boolean } {
+    const on = (p: PoolSprite) => (p.sprite.renderable && p.sprite.alpha > 0 ? 1 : 0);
+    let tower = 0;
+    for (const p of this.towerPools.values()) tower += on(p);
+    return {
+      heart: on(this.heartPool),
+      portal: this.portalPools.reduce((n, p) => n + on(p), 0),
+      tower,
+      shown: this.poolLayer.visible,
     };
   }
 
@@ -623,6 +685,8 @@ export class WorldRenderer {
       if (!level.particles) this.fx.clear();
       for (const p of this.projectiles.values()) p.trail.visible = level.particles;
       for (const pool of this.projectilePool.values()) for (const p of pool) p.trail.visible = level.particles;
+      // The light pools are not essential: gone at Low.
+      this.poolLayer.visible = level.particles;
     }
   }
 
@@ -1387,6 +1451,30 @@ export class WorldRenderer {
     }
   }
 
+  /**
+   * A light pool on the ground at (x, y) tiles (V-07c, fx/pools.ts): the pools' falloff tinted in its colour, one quad
+   * at the normal blend that lays the tint and adds the glow (`poolTexels`). Made once, then only its alpha changes
+   * (`setPool`). `born`: when it appeared, for a tower's fade in (-Infinity: already there).
+   */
+  private makePool(kind: PoolKind, x: number, y: number, born: number): PoolSprite {
+    const sprite = new Sprite(this.poolTexture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(x * S, y * S);
+    sprite.scale.set((POOLS[kind].radius * S) / POOL_PX);
+    sprite.tint = kind === 'heart' ? FX.poolHeart : kind === 'portal' ? FX.poolPortal : FX.poolRune;
+    this.poolLayer.addChild(sprite);
+    const pool: PoolSprite = { kind, sprite, level: -1, born };
+    this.setPool(pool, born === -Infinity ? 1 : 0);
+    return pool;
+  }
+
+  /** A pool's level (1 its own), written only when it changes; at 0 it is out of the draw. */
+  private setPool(pool: PoolSprite, level: number): void {
+    if (level === pool.level) return;
+    pool.level = level;
+    fade(pool.sprite, poolAlpha(pool.kind, level));
+  }
+
   /** The 3D sheet came in (or a new one): the Heart and the portals are made again from it. */
   private remakeBuildings(): void {
     this.structGen = structuresVersion();
@@ -1421,6 +1509,9 @@ export class WorldRenderer {
       p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
       const bossLane = this.portalFlareBoss && this.portalBossLanes.includes(i);
       fade(p.flare, Math.min(1, burst * (bossLane ? JUICE.bossFlare : 1)));
+      // Its pool on the ground brightens with the wave-start flare, a boss lane's more; nothing else animates it.
+      const pool = this.portalPools[i];
+      if (pool) this.setPool(pool, portalPoolLevel(flare, bossLane ? JUICE.bossFlare : 1));
       if (burst > 0) {
         p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? (bossLane ? 1.55 : 1.35) : 1) * (p.view ? PORTAL_FLARE : 1));
         p.flare.rotation = t * 0.6 + i;
@@ -1554,8 +1645,9 @@ export class WorldRenderer {
   }
 
   /**
-   * The pads that exist in this match, as stone slabs. Solo (and open pads, a leaver's): a faint
-   * moonlit rim. Multiplayer: the owner's zone colour, bright on yours, dimmer on teammates'.
+   * The pads that exist in this match: their stone (in the plate, its patches or, on the painted ground, slabs) and their
+   * zone tints over the light pools. Solo (and open pads, a leaver's): a faint moonlit rim. Multiplayer: the owner's
+   * zone colour, bright on yours, a step dimmer on teammates' (`PAD_TINTS`).
    */
   private syncPads(snap: Snapshot, me: PlayerId | null): void {
     const key = `${me}|${snap.pads.map((p) => `${p.id}:${p.owner ?? ''}`).join()}`;
@@ -1577,29 +1669,35 @@ export class WorldRenderer {
         root.scale.set(scale);
         const rim = this.art.sprite(art.id, 'rim');
         const wash = this.art.sprite(art.id, 'wash');
-        // Over the plate a pad's stone is in the picture (or its patch, under every pad's tints); the slab sprite
-        // only on the painted ground, or for a pad the plate was rendered without.
-        const look = plate ? padLook(plate.layout, p.id) : 'slab';
-        if (look === 'slab') root.addChild(this.art.sprite(art.id, 'slab'));
         root.addChild(wash, rim);
         this.padLayer.addChild(root);
         s = { root, rim, wash };
+        // Over the plate a pad's stone is in the picture (or its patch); the slab sprite only on the painted ground, or
+        // for a pad the plate was rendered without. Both under the light pools and Bright's wash, like the plate.
+        const look = plate ? padLook(plate.layout, p.id) : 'slab';
+        if (look === 'slab') {
+          s.slab = new Container();
+          s.slab.position.copyFrom(root.position);
+          s.slab.scale.set(scale);
+          s.slab.addChild(this.art.sprite(art.id, 'slab'));
+          this.padBaseLayer.addChild(s.slab);
+        }
         const patch = look === 'patch' ? plate?.patches.get(p.id) : undefined;
         if (patch && plate) {
           s.patch = new Sprite(patch.texture);
           s.patch.position.set(patch.x / plate.layout.res, patch.y / plate.layout.res);
           s.patch.scale.set(1 / plate.layout.res);
-          this.padLayer.addChildAt(s.patch, 0);
+          this.padBaseLayer.addChildAt(s.patch, 0);
         }
         this.pads.set(p.id, s);
       }
       const seat = snap.players.findIndex((pl) => pl.id === p.owner);
       const zone = solo || seat < 0 ? null : (PLAYER_COLORS[seat % PLAYER_COLORS.length] ?? null);
-      const mine = p.owner === me;
+      const tints = zone === null ? PAD_TINTS.open : p.owner === me ? PAD_TINTS.mine : PAD_TINTS.teammate;
       s.rim.tint = zone ?? RL.moon;
-      s.rim.alpha = zone === null ? 0.35 : mine ? 0.95 : 0.5;
+      s.rim.alpha = tints.rim;
       s.wash.tint = zone ?? RL.moon;
-      fade(s.wash, zone === null ? 0 : mine ? 0.2 : 0.08);
+      fade(s.wash, tints.wash);
     }
     for (const [id, s] of this.pads) {
       if (seen.has(id)) continue;
@@ -1923,6 +2021,13 @@ export class WorldRenderer {
       }
       this.aimTower(s, t, now, dtMs);
       this.animateTower(s, now);
+      // From tier 3 (or a branch) the tower lights its pad: its pool fades in over 0.4 s, then holds.
+      let pool = this.towerPools.get(t.id);
+      if (!pool && towerLit(t.tier)) {
+        pool = this.makePool('tower', t.x, t.y, now);
+        this.towerPools.set(t.id, pool);
+      }
+      if (pool && pool.level < 1) this.setPool(pool, poolFadeIn(now - pool.born));
     }
     for (const [id, s] of this.towers) {
       if (!seen.has(id)) {
@@ -1930,6 +2035,12 @@ export class WorldRenderer {
         s.root.destroy({ children: true });
         this.towers.delete(id);
       }
+    }
+    // A pool goes with its tower.
+    for (const [id, pool] of this.towerPools) {
+      if (this.towers.has(id)) continue;
+      destroyPool(pool);
+      this.towerPools.delete(id);
     }
     for (const [id, g] of this.goneTowers) if (now - g.at > GONE_TOWER_MS) this.goneTowers.delete(id);
   }

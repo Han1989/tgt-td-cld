@@ -423,7 +423,7 @@ export async function runShowcase(): Promise<void> {
   root.insertBefore(sounds, app.canvas);
 
   const paintStages = () => {
-    for (const { stage, ground } of stages) stage.style.background = toCss(liftColor(ground === 'lane' ? RL.lane : RL.moss, display));
+    for (const { stage, ground } of stages) stage.style.background = toCss(liftColor(ground === 'lane' ? RL.road : RL.grass, display));
   };
   const renderDisplayRow = () => {
     displayRow.innerHTML = 'Display: ';

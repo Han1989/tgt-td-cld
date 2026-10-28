@@ -238,6 +238,18 @@ A first visit, as a cold tester's: a private / incognito tab (or Settings → cl
 - [ ] 16.4 **Online** (a friend's room on a fresh tab): the room starts when the host taps Start, never held; the line shows only while the art loads, and never after the first wave.
 - [ ] 16.5 **Installed app, offline:** after one visit with the network that played a match for a minute (every sheet in), turn on airplane mode and start a solo match from the installed app: it plays, with the 3D creeps and heroes.
 
+## 17. The map in Spring meadow, and its light (V-07c)
+
+Solo Full with any hero, then a 2- or 3-player room if you can. About 5 minutes; call waves early to wave 10.
+
+- [ ] 17.1 **The grass reads green on your phone:** a yellow-green meadow under a warm afternoon light, not a grey or teal floor; the road is warm packed earth, about as light as the grass; the build pads are warm sand-grey stone with moss in their seams and creeping over an edge, still clearly lighter than the grass and still exactly their 3 × 3 tiles. The safe zone under the stick and the skills is still in deep shade, and the controls read over it.
+- [ ] 17.2 **The units stand out:** the Ranger's green reads apart from the grass; the Brute (dark) and the Grunt (bone-white) are easy to follow on the road and on the grass; the HP bars read.
+- [ ] 17.3 **The light pools show:** a soft rose glow on the ground round the Heart, a violet one round each portal (brighter for a moment as each wave starts, more on a boss's lane); no gold or grey halo where the rose or violet should be.
+- [ ] 17.4 **A tier-3 tower lights its pad:** upgrade a tower to tier 3: a teal glow fades in on the ground under it in under half a second; sell it and the glow goes with it. Pinch to 1.8×: the glows stay soft (no visible steps).
+- [ ] 17.5 **⚙ → Graphics → Low:** every pool goes; back to High, they return.
+- [ ] 17.6 **⚙ → Display → Bright:** the grass lifts a little and stays green (not minty or washed out); the pools still show.
+- [ ] 17.7 **In a room:** your pads' blue rim and a teammate's orange rim both read clearly on the sand pads (a teammate's is a step dimmer than yours, never lost).
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

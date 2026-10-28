@@ -1,5 +1,5 @@
-// Mossy rocks (clearing prop). From above: a carved-looking boulder with a moss cap, and a pair of
-// small stones. Low contrast: props are decoration, never mistaken for something to click.
+// Mossy rocks (clearing prop). From above: a carved-looking boulder with a moss cap (the map's `grassLight`, V-07c),
+// and a pair of small stones. Low contrast: props are decoration, never mistaken for something to click.
 
 import { box, ellipse, pathLine, poly } from '../paint';
 import { registerArt, type Draw } from '../registry';
@@ -8,7 +8,7 @@ const boulder: Draw = (c, p, k) => {
   p.shadow(c, 3, 4, 13, 9);
   const rock = poly([-11, 2, -8, -7, 1, -10, 9, -6, 11, 3, 5, 9, -5, 9], 3);
   p.part(c, rock, k.stoneDark, box(-11, -10, 11, 9));
-  p.part(c, poly([-8, -3, -5, -8, 2, -9, 5, -5, -1, -2], 2.5), k.mossLight, box(-8, -9, 5, -2), { noOutline: true, flat: true });
+  p.part(c, poly([-8, -3, -5, -8, 2, -9, 5, -5, -1, -2], 2.5), k.grassLight, box(-8, -9, 5, -2), { noOutline: true, flat: true });
   p.line(c, pathLine([2, -1, 6, 4, 4, 7]), k.ink, 1, 0.5);
 };
 

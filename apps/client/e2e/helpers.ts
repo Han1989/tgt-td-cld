@@ -76,6 +76,8 @@ interface Hook {
     impacts: number;
     /** The ground drawn: the map plate, the painted ground until it decodes, or none before a match. */
     ground: 'plate' | 'painted' | 'none';
+    /** V-07c's light pools showing, by kind, and whether their layer is drawn (not at Graphics → Low). */
+    pools: { heart: number; portal: number; tower: number; shown: boolean };
   };
   /** The Iron Vow rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
   vow(): { rings: number; reach: number; alpha: number };

@@ -343,7 +343,7 @@ test('Settings → Sound: music and effects volume and mute, remembered; the lob
 });
 
 /**
- * The ground as drawn at a few world points (tiles) on the open moss and the roads, next to the map plate's own
+ * The ground as drawn at a few world points (tiles) on the open grass and the roads (clear of the light pools), next to the map plate's own
  * pixels there (both averaged over a few px): the screen must show the plate (docs/ART.md §16), and in Bright the
  * plate under the same "screen" wash the painted ground bakes in.
  */
@@ -391,6 +391,9 @@ test('the map plate decodes, draws as the ground in one texture, and Bright lays
   await startSolo(page);
   await expect(page.locator('html')).toHaveAttribute('data-plate', 'ready');
   await expect.poll(() => page.evaluate(() => window.__tdt.art().ground)).toBe('plate');
+  // V-07c's light pools over it: round the Heart and every portal (no tower at tier 3 yet). Whether their layer is
+  // drawn follows Graphics (Auto drops to Low on a slow software GPU, and Low hides it), so it is not asserted here.
+  expect(await page.evaluate(() => window.__tdt.art().pools)).toMatchObject({ heart: 1, portal: 3, tower: 0 });
   const gpu = await page.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2') ?? document.createElement('canvas').getContext('webgl');
     return gl!.getParameter(gl!.MAX_TEXTURE_SIZE) as number;
@@ -400,14 +403,14 @@ test('the map plate decodes, draws as the ground in one texture, and Bright lays
   for (const { screen, plate } of await groundVsPlate(page)) {
     for (let k = 0; k < 3; k++) expect(Math.abs(screen[k]! - plate[k]!)).toBeLessThan(14);
   }
-  // Bright: the same pixels under the "screen" wash (tokens.ts LIGHTING.bright.groundLift: #9fb8c8 at 32%).
+  // Bright: the same pixels under the "screen" wash (tokens.ts LIGHTING.bright.groundLift: #9fb8c8 at 12%, V-07c).
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('tdt.settings') ?? '{}');
     localStorage.setItem('tdt.settings', JSON.stringify({ ...s, display: 'bright' }));
   });
   await startSolo(page);
   await expect.poll(() => page.evaluate(() => [window.__tdt.art().ground, window.__tdt.art().display])).toEqual(['plate', 'bright']);
-  const wash = [0x9f, 0xb8, 0xc8].map((c) => (c / 255) * 0.32);
+  const wash = [0x9f, 0xb8, 0xc8].map((c) => (c / 255) * 0.12);
   for (const { screen, plate } of await groundVsPlate(page)) {
     for (let k = 0; k < 3; k++) {
       const lifted = 255 * (1 - (1 - plate[k]! / 255) * (1 - wash[k]!));
