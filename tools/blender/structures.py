@@ -22,7 +22,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 from tdt3d import shading
-from tdt3d.palette import mix
+from tdt3d.palette import mix, rgb
 
 V = Vector
 d = shading.define
@@ -142,6 +142,28 @@ def corners(h, s, colours, file=CORNER, start=0.0, z=0.0):
 # Model coordinates (`drop`, `paint` regions, `posed`) are glTF metres of the model as Meshy made it: x, y up, z, its
 # middle at 0 (tools/blender/assets/meshy/wards/<kind>/README.md gives each one's ground, floor and pivot).
 
+# The wards' tones in the daylight meadow (retest fix A, Han, 28 Oct 2026: on the meadow's light ground the towers were
+# the darkest thing on the screen and the five kinds blurred; docs/ART.md §15 "In the meadow's light"): each a step
+# lighter than V-06l's, for the night plate. Moon-stone toward the pale (V-06l's mix(stone, snow, 0.25–0.3), its
+# painted shadow `stone`), the dark timber a warmer mid-brown (V-06l's woodDark, its darker parts woodDark toward ink),
+# the iron a step lighter (V-06l's iron and ironDark). Measured on the plate (tools/blender/relit.py towers): every body
+# at least 12 L from the pads (L 65) and 10 from the grass (L 56). The tier runes, the gold and a branch's own outline
+# and glow are as they were; nothing glows warm.
+MOON_STONE = mix('stone', 'snow', 0.5)
+MOON_SHADE = mix('stone', 'snow', 0.2)
+TIMBER = mix('wood', 'woodDark', 0.3)
+TIMBER_DARK = rgb('woodDark')
+IRON = mix('iron', 'steel', 0.5)
+IRON_DARK = rgb('iron')
+FROST_STONE = mix('stone', 'snow', 0.9)  # the Frost the palest (V-06l's 0.55)
+# Moon-stone's own lines at 0.6 of the bold 2.1 world px: a parapet is a few world px wide, and two full lines and its
+# crenels' left nothing of it but ink (a black ring with pale dashes from above).
+STONE_LINE = 0.6
+# The Frost's snow and moon-stone shaded less, so from above it stays the palest disc on the map, lighter than its pad
+# (the meadow's sand pads are lighter than V-06l's night pads; the floor inside its rim, in shade, sat between them).
+PALE_SHADE = 0.45
+
+
 def ward(kind, part, paint, scale, at=(0.0, 0.0, 0.0), turn=0.0, rot=(0.0, 0.0, 0.0), **extra):
     """One of the game's own Meshy models (assets/meshy/wards/<kind>/<part>.glb), painted from its texture (`paint`:
     {'clusters': {name: (hex, material)}, 'regions': {cluster: f(centre, normal, bone) -> material or None}}) and
@@ -216,19 +238,19 @@ AR_PIVOT, AR_FOOT = (0.122, 0.0), -0.361
 
 
 def arrow_materials():
-    d('arMoon', color=mix('stone', 'snow', 0.3))
-    d('arMoonShade', 'stone')
+    d('arMoon', color=MOON_STONE, line=STONE_LINE)
+    d('arMoonShade', color=MOON_SHADE, line=STONE_LINE)
     d('arBastion', color=mix('stoneDark', 'obsidian', 0.55))
     d('arBastionShade', color=mix('stoneDark', 'obsidian', 0.75))
     # From straight down the top is the tower: the gallery's ring a mid timber, the floor inside it dark, so the
     # ballista (lighter than the concept's) reads on it.
-    d('arTimber', 'woodDark')
-    d('arFloor', color=mix('woodDark', 'ink', 0.5))
-    d('arBand', 'iron', metal=0.5)
+    d('arTimber', color=TIMBER)
+    d('arFloor', color=TIMBER_DARK)
+    d('arBand', color=IRON, metal=0.5)
     # The ballista lighter than the concept's (its dark stock and bow vanished on the timber floor at phone size).
     d('arStock', 'wood')
     d('arBow', 'steel', metal=0.6)
-    d('arPlate', 'ironDark', metal=0.3)
+    d('arPlate', color=IRON_DARK, metal=0.3)
     d('arString', 'string', line=0.7, tint=0.0)
     d('arWood', 'wood')
     d('arWoodDark', 'woodDark')
@@ -381,17 +403,17 @@ CANNON_POSED = dict(regions={'arm': dict(weight=_cannon_arm, at=CN_AXLE, axis=(0
 
 
 def cannon_materials():
-    d('cnMoon', color=mix('stone', 'snow', 0.25))
-    d('cnMoonShade', 'stone')
-    d('cnIronWall', color=mix('iron', 'stone', 0.25), metal=0.5)
-    d('cnIronWallShade', 'iron', metal=0.4)
-    d('cnBand', 'iron', metal=0.6)
-    d('cnIron', 'iron', metal=0.6)
-    d('cnIronDark', 'ironDark', metal=0.4)
-    d('cnTimber', color=mix('woodDark', 'ink', 0.4))
-    d('cnFrame', 'woodDark')
-    d('cnPlate', 'ironDark', metal=0.3)
-    d('cnBoulder', color=mix('stone', 'snow', 0.25))
+    d('cnMoon', color=MOON_STONE, line=STONE_LINE)
+    d('cnMoonShade', color=MOON_SHADE, line=STONE_LINE)
+    d('cnIronWall', color=mix(IRON, 'stone', 0.25), metal=0.5)
+    d('cnIronWallShade', color=IRON, metal=0.4)
+    d('cnBand', color=IRON, metal=0.6)
+    d('cnIron', color=IRON, metal=0.6)
+    d('cnIronDark', color=IRON_DARK, metal=0.4)
+    d('cnTimber', color=TIMBER_DARK)
+    d('cnFrame', color=TIMBER)
+    d('cnPlate', color=IRON_DARK, metal=0.3)
+    d('cnBoulder', color=MOON_STONE)
     gold('cnGold')
     glow('cnRune', 'rune')
     glow('cnCharge', 'arcane')
@@ -514,18 +536,20 @@ FR_PIVOT, FR_FOOT = (0.416, 0.0), -0.48
 
 
 def frost_materials():
-    d('frMoon', color=mix('stone', 'snow', 0.55))
-    d('frRime', 'snow', fill=0.6)
+    d('frMoon', color=FROST_STONE, line=STONE_LINE, shade=PALE_SHADE, ao=0.5)
+    d('frRime', 'snow', fill=0.6, line=STONE_LINE, shade=PALE_SHADE)
     d('frColumn', 'ice', metal=0.3)
     d('frGlacier', color=mix('iceDark', 'ink', 0.3), metal=0.3)
     d('frGlacierRime', 'iceDark', metal=0.3)
-    d('frWood', color=mix('woodDark', 'ink', 0.4))
-    d('frPlate', 'iron', metal=0.4)
-    d('frIron', 'iron', metal=0.4)
+    d('frWood', color=TIMBER_DARK)
+    d('frPlate', color=IRON, metal=0.4)
+    d('frIron', color=IRON, metal=0.4)
     d('frIce', 'ice', metal=0.3)
+    # The tiers' ice columns and tier 3's chunks on the pale rim: paler ice, shaded and lined as the pale stone is.
+    d('frRuneIce', color=mix('ice', 'snow', 0.4), metal=0.3, line=STONE_LINE, shade=PALE_SHADE)
     d('frIceDark', 'iceDark', metal=0.3)
     d('frLance', 'ice', metal=0.6)
-    d('frCollar', 'ironDark', metal=0.3)
+    d('frCollar', color=IRON_DARK, metal=0.3)
     gold('frGold')
     glow('frFrost', 'frost')
     glow('frCharge', 'arcane', 0.9)
@@ -542,7 +566,7 @@ def _frost_paint(part, stone='frMoon', rime='frRime', metal='frPlate', collar='f
 def _ice_columns(n, r, z, start=None):
     """The Frost's runes: ice columns standing on the rim (`z`, its top), their caps glowing frost."""
     start = (90 if n == 2 else 45) if start is None else start
-    return [piece(COLUMN, {D_STONE: 'frIce'}, at=(x, y, z - 1), scale=(10, 10, 7),
+    return [piece(COLUMN, {D_STONE: 'frRuneIce'}, at=(x, y, z - 1), scale=(10, 10, 7),
                   regions={D_STONE: lambda c, n: 'frFrost' if n.z > 0.7 and c.z > 1.3 else None})
             for x, y in ring(n, r, start)]
 
@@ -560,7 +584,7 @@ def frost_tier(tier):
         # The tier's runes: ice columns on the frosted rim, their caps glowing frost.
         base += _ice_columns(2 if tier == 2 else 4, FR_RIM * s, (FR_RIM_Y - FR_GROUND) * s)
     if tier == 3:
-        base += [piece(ROCK, {H_STONE: 'frIce'}, at=(x, y, (FR_RIM_Y - FR_GROUND) * s - 6), scale=20, turn=i * 70)
+        base += [piece(ROCK, {H_STONE: 'frRuneIce'}, at=(x, y, (FR_RIM_Y - FR_GROUND) * s - 6), scale=20, turn=i * 70)
                  for i, (x, y) in enumerate(ring(4, FR_RIM * s, 0))]
     floor = (FR_TOP - FR_GROUND) * s
     turret = [_lance({1: 19, 2: 20, 3: 21}[tier], floor, {1: 2.4, 2: 2.6, 3: 2.7}[tier],
@@ -647,17 +671,19 @@ def _dome_cap(c, n, bone):
 
 
 def arcane_materials():
-    d('acMoon', color=mix('stone', 'snow', 0.3))
-    d('acMoonShade', 'stone')
+    d('acMoon', color=MOON_STONE, line=STONE_LINE)
+    d('acMoonShade', color=MOON_SHADE, line=STONE_LINE)
     # The big dome takes the painter's rim light (rune teal, from behind on the right) as a wide crescent: a third.
-    d('acSlate', color=mix('steelDark', 'arcaneStone', 0.5), rim=0.35)
-    d('acPale', color=mix('crystal', 'amethyst', 0.45))
+    d('acSlate', color=mix('steel', 'arcaneStone', 0.5), rim=0.35)
+    # The Prism's dome amethyst (V-06l's pale mix(crystal, amethyst, 0.45)): pale, it sat between the grass and the pads,
+    # and paler, a blind tester took it for a Frost (the palest disc is the Frost's rule); amethyst it is an Arcane.
+    d('acPale', color=mix('amethyst', 'crystal', 0.15), line=STONE_LINE)
     d('acObsidian', 'obsidian', metal=0.4)
-    d('acTimber', color=mix('woodDark', 'ink', 0.4))
+    d('acTimber', color=TIMBER_DARK)
     # The staff lighter than the concept's dark timber (it vanished on the dark dome at phone size).
     d('acShaft', 'wood')
-    d('acIron', 'iron', metal=0.5)
-    d('acDark', color=mix('arcaneStone', 'ink', 0.35))
+    d('acIron', color=IRON, metal=0.5)
+    d('acDark', 'arcaneStone')
     d('acStone', color=mix('arcaneStone', 'stone', 0.3))
     d('acCrystal', 'crystal', metal=0.6)
     d('acWax', color=mix('amethyst', 'ink', 0.3))
@@ -726,8 +752,8 @@ def _branch_staff(model, tones_, s, floor, gem, wood='acShaft', thick=2.0):
 
 
 def arcane_prism():
-    """A pale dome, three crystal pillars round it (a triangle); the Prism's own staff, its many-faced crystal glowing
-    in gold prongs."""
+    """An amethyst dome (pale before retest fix A), three crystal pillars round it (a triangle); the Prism's own staff,
+    its many-faced crystal glowing in gold prongs."""
     s = 33
     base = [ward_body('arcane', _arcane_paint('body', slate='acPale', cap='acGold'), s, AC_GROUND)]
     base += [piece(PILLAR_DECO, {D_STONE_DARK: 'acCrystal', D_STONE: 'acCrystal', D_WHITE: 'acPrism',
@@ -807,20 +833,20 @@ FLAK_REST = {'tilt': FK_TILT}
 
 
 def flak_materials():
-    d('fkMoon', color=mix('stone', 'snow', 0.3))
-    d('fkMoonShade', 'stone')
-    d('fkCap', 'iron', metal=0.5)
-    d('fkDeck', color=mix('woodDark', 'ink', 0.4))
-    d('fkIron', 'steelDark', metal=0.5)
-    d('fkIronDark', 'ironDark', metal=0.3)
+    d('fkMoon', color=MOON_STONE, line=STONE_LINE)
+    d('fkMoonShade', color=MOON_SHADE, line=STONE_LINE)
+    d('fkCap', color=IRON, metal=0.5)
+    d('fkDeck', color=TIMBER_DARK)
+    d('fkIron', color=mix('steelDark', 'steel', 0.5), metal=0.5)
+    d('fkIronDark', color=IRON_DARK, metal=0.3)
     d('fkSail', color=mix('steel', 'snow', 0.6), metal=0.3)
-    d('fkFrame', color=mix('woodDark', 'ink', 0.4))
+    d('fkFrame', color=TIMBER_DARK)
     d('fkRuneStone', 'steelDark')
     gold('fkGold')
     glow('fkRune', 'rune')
     glow('fkLens', 'moon')
     glow('fkCharge', 'arcane')
-    d('fkPlank', 'woodDark')
+    d('fkPlank', color=TIMBER)
 
 
 def _flak_paint(part, cap='fkCap', metal='fkIron'):

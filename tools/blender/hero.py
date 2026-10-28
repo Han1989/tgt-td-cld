@@ -170,13 +170,18 @@ WARDEN = dict(
         'ember': ('#ee9a48', 'ember'),
         'emberDim': ('#8d6038', 'ember'),
     }, regions={'black': _at_head('helmDark'), 'ironDeep': _on_shield('shield'), 'shieldFace': _on_shield('shield'),
-                'iron': _on_shield('shield'), 'ironLit': _on_shield('shield')}),
+                'iron': _on_shield('shield'), 'ironLit': _on_shield('shield'),
+                # The shield's rim (its edge tones on the shield): the bevels' own material in a match, its own on the
+                # stage (retest fix A: a soft sheen there and not on every bevel).
+                'steel': _on_shield('shieldRim'), 'steelLit': _on_shield('shieldRim'), 'edge': _on_shield('shieldRim'),
+                'edgeLit': _on_shield('shieldRim')}),
     materials={
         # Dark iron in the design, toned for the night: gun-metal plates with bright edges, the shield's face a step
         # darker so its ember rune and its rim read.
         'plate': dict(token='steel', metal=0.6),
         'shield': dict(token='iron', metal=0.4, rim=0.3, mrim=0.5),
         'edge': dict(token='plate', metal=0.9),
+        'shieldRim': dict(token='plate', metal=0.9),
         'mail': dict(token='ironDark', metal=0.2),
         'surcoat': dict(color=mix('brute', 'woodDark', 0.35)),
         'leather': LEATHER,
@@ -386,11 +391,17 @@ WARDEN['stage'] = dict(
     # as their leather: V-06b's plate 0.6 and bevels 0.9 put full-white highlights on every bevel and the helm), the
     # rune rim and the moonlit edge at 0.3, the painted bevels a step from the plate instead of near white. The ember
     # rune and eyes stay the only glow. His match sheet keeps the row's materials (`staged` in tdt3d.stage).
+    # Retest fix A (Han, 28 Oct 2026: the friends could not tell him from the clearing; his dark iron melted into the
+    # trees): the rim and the moonlit edge back to 0.5 on his metal (the cloth heroes keep 0.3), a soft sheen (metal
+    # 0.35: a highlight where the moon catches a round form, never V-06b's white blobs) on the plates, so on the helm and
+    # the pauldron, and on the shield's rim, never on the bevels; the ember rune and eyes a touch brighter.
     materials={
-        'plate': dict(metal=0.0, rim=0.3, mrim=0.3, pool=0.55),
-        'shield': dict(metal=0.0, rim=0.3, mrim=0.3, pool=0.55),
-        'edge': dict(token=None, color=mix('steel', 'plate', 0.15), metal=0.0, rim=0.3, mrim=0.3, pool=0.55),
-        'mail': dict(metal=0.0, rim=0.3, mrim=0.3),
+        'plate': dict(metal=0.35, rim=0.5, mrim=0.5, pool=0.55),
+        'shield': dict(metal=0.0, rim=0.5, mrim=0.5, pool=0.55),
+        'edge': dict(token=None, color=mix('steel', 'plate', 0.15), metal=0.0, rim=0.5, mrim=0.5, pool=0.55),
+        'shieldRim': dict(token=None, color=mix('steel', 'plate', 0.15), metal=0.35, rim=0.5, mrim=0.5, pool=0.55),
+        'mail': dict(metal=0.0, rim=0.5, mrim=0.5),
+        'ember': dict(emit=1.2),
     },
     moves=[
         dict(clip='cast', at=2.2, frm=0.3, to=0.85, ease_in=0.35, hold=0.45, ease_out=0.45),

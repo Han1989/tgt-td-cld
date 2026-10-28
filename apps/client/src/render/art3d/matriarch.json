@@ -2,7 +2,7 @@
  "checks": {
   "frames": 19,
   "samples": 24,
-  "worstFringe": 0.0023,
+  "worstFringe": 0.0008,
   "worstHard": 0.0312
  },
  "id": "matriarch",

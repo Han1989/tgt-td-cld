@@ -21,7 +21,7 @@ import time
 import bpy
 import numpy as np
 
-from . import encode, figure, fringe, imageio, match, motion, npr, scene, shading
+from . import encode, figure, fringe, imageio, map as plate, match, motion, npr, scene, shading
 from .palette import rgb
 
 RES = 4            # sheet px per world px
@@ -31,16 +31,18 @@ VIEW = match.VIEWS['body']
 WINDOW = 110       # world px rendered round the feet, each way (a boss's arms and its death throw)
 PAD = 1            # sheet px kept round each trimmed frame (bilinear sampling reads at most half a texel past it)
 FIT_SAMPLES = 8    # the silhouette whose area sets the size
-# The painter as the heroes' match frames (match.LOOK, tuned for a figure drawn ~2× on a phone), at 1×, with lighter
-# shadows (creeps are the brightest things on a lane; a skeleton's big skull would leave its whole body in shadow) and
-# less of the player side's teal rim.
-LOOK = dict(match.LOOK, ao_blur=0.6, shadow=(0.68, 0.7, 0.86), rim_amount=0.6, ao=0.5)
+# The painter as the heroes' match frames (match.LOOK, tuned for a figure drawn ~2× on a phone), at 1×, in the map
+# plate's shade and rim (map.LIGHT: Spring meadow's warm shade, the day sky's faint rim; retest fix A, 28 Oct 2026, so
+# the host stands in the ground's afternoon, where before it had the night's blue shade (0.68, 0.7, 0.86) and the
+# player side's teal rim at 0.6), and less AO (a skeleton's big skull would leave its whole body in shadow).
+LOOK = dict(match.LOOK, ao_blur=0.6, ao=0.5, shadow=plate.LIGHT['shadow'], rim=plate.LIGHT['rim'],
+            rim_amount=plate.LIGHT['rim_amount'])
 # The contact shadow, as the 2D painter's (`p.shadow`, Normal display): an ellipse of the radius under the feet.
 SHADOW = dict(rx=0.95, ry=0.42, alpha=0.6)
 # Frames with a white twin: the flinch only. A hit shows the flinch, and so does a death's first quarter, while its
 # flash fades (Creep3DRig), before the death frames fall.
 TWIN_KINDS = ('hit',)
-LANE = 'lane'      # the fringe check composites each frame over the lane it walks on
+LANE = 'road'      # the fringe check composites each frame over the road it walks on (the map's own row, V-07c)
 STATE_ORDER = ('walk', 'idle', 'attack', 'hit', 'death', 'ability')
 
 

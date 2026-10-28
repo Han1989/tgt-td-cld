@@ -1279,6 +1279,15 @@ const items: ProgressItem[] = [
     proof: pr(116),
   },
   {
+    id: 'f3-look',
+    title: 'The towers and the first screen’s Warden readable in the new light',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'How the towers, the creeps and the Warden’s first screen look: no game rules, server or protocol change. The friends’ retest of the green map: “the towers are too dark, can’t see what is what”, and on the first screen the Warden melted into the trees. The towers, the Heart, the portals and the creeps were still lit for the old night map; now they are lit by the same afternoon sun as the grass, from one shared setting, so they cannot drift apart again. That alone left the towers dark, so their stone is paler, their wood a warm mid-brown and their iron a step lighter (the shapes, the glowing runes, the gold and every branch as before): each tower now stands clearly apart from its pad and the grass, measured, and a reader who had never seen them named every kind from phone-size pictures. The Prism branch’s dome is amethyst instead of pale (pale, it looked like a Frost tower). The creeps keep their design, only their shade is the daylight one. The Warden on the first screen gets back a soft shine on his helm, shoulders and shield rim, brighter edges and a brighter rune: easier to see, though by the measure asked for his edge still matches the dark trees along a third of its length; Han decides whether he should go further. Built by Claude Code (PR #151).',
+    proof: pr(151),
+  },
+  {
     id: 'p5-rest',
     title: 'More maps',
     owner: 'Team',

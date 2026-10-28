@@ -27,6 +27,11 @@
 // wave 10 of Full (the Ironhorn's) on the phone and a crop round the Ironhorn; to docs/art/enemy-creeps-2.png, the
 // match frame alone to docs/art/enemy-wave10.png, and the family (the three heroes and all nine kinds at phone size,
 // drawn by the match's rigs) to docs/art/enemy-family.png.
+//
+//   npm run creeps-contact -w @tdt/client -- --family FILE [label]
+//
+// Retest fix A: the family alone, on the match's ground (a road band through the meadow's grass), to FILE (a PNG),
+// titled with `label` (before / after the creeps took the plate's light).
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -38,6 +43,29 @@ import { decodePng, encodeIndexedPng } from './png';
 import { quantize } from './quantize';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+const familyAt = process.argv.indexOf('--family');
+if (familyAt >= 0) {
+  const file = process.argv[familyAt + 1];
+  if (!file) throw new Error('--family FILE');
+  const label = process.argv[familyAt + 2] ?? 'after';
+  const server = await createServer({ root, logLevel: 'warn', server: { port: 0, host: '127.0.0.1' } });
+  await server.listen();
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    page.on('pageerror', (e) => console.error('page error:', e.message));
+    await page.goto(`${server.resolvedUrls!.local[0]}privacy.html`);
+    const title = `The family on the meadow's road (${label}): the three heroes and the Spire's host at phone size (412 × 839, 3×)`;
+    const data = (await page.evaluate(`import('/src/creepsContact.ts').then((m) => m.drawFamily(${JSON.stringify(title)}))`)) as string;
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, Buffer.from(data.slice(data.indexOf(',') + 1), 'base64'));
+    console.log(file);
+  } finally {
+    await browser.close();
+    await server.close();
+  }
+  process.exit(0);
+}
 const mode = process.argv.includes('--host2')
   ? 'host2'
   : process.argv.includes('--host')

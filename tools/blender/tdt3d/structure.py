@@ -44,16 +44,19 @@ PAGE = 2048        # the sheet is at most one page of PAGE × PAGE
 PAD = 1            # sheet px kept round each trimmed frame
 VIEW_TOP = (0.0, 90.0)     # azimuth, elevation: straight down (towers)
 VIEW_SOUTH = (90.0, 55.0)  # from the south (the bottom of the screen), 55° up (the Heart, the portals)
-# The painter for structures on the plate: the plate's light (a terminator higher than a figure's, more continuous
-# light inside the bands, the moonlit edge) and the plate's ink (2.1 world px round a form, 0.75 inside: the 2D
-# towers' bold silhouette, so a tower reads at phone size).
+# The painter for structures on the plate: the plate's light, from the plate's own table (map.LIGHT, Spring meadow's warm
+# shade, warm lit tone, the day sky's fill and rim, the sun's lit edge: retest fix A, 28 Oct 2026; before it, the
+# night's cool blue shade and a rune-teal rim), a terminator higher than a figure's, more continuous light inside the
+# bands, and the plate's ink (2.1 world px round a form, 0.75 inside: the 2D towers' bold silhouette, so a tower reads
+# at phone size).
 LOOK = dict(
     outer=2.1 * RES, inner=0.75 * RES, inner_alpha=0.8, line_tint=0.6, line_dark=0.24,
     depth_rel=0.0, depth_abs=0.8, big_jump=3.0,
-    band=0.3, band_soft=0.07, form=0.3, lit=(1.14, 1.14, 1.15), shadow=(0.5, 0.54, 0.74),
-    rim_amount=0.45, rim_at=0.16, mrim_amount=1.0, mrim_at=0.22,
-    ao=0.55, ao_blur=0.8, darken=0.0, fill_amount=0.08,
+    band=0.3, band_soft=0.07, form=0.3,
+    rim_at=0.16, mrim_amount=1.0, mrim_at=0.22,
+    ao=0.55, ao_blur=0.8, darken=0.0,
     bloom=0.6 * RES, bloom_amount=0.8, sheen_amount=0.6,
+    **plate.LIGHT,
 )
 SHADOW_ALPHA = 0.5     # the cast shadow's darkness on the ground (the plate's shadow tone over its pads)
 SHADOW_RUN = 1 / math.tan(math.radians(40))  # how far the moon (40° up, map.MOON) throws a shadow per unit of height
@@ -61,7 +64,9 @@ SHADOW_SOFT = 0.8      # sheet px: the cast shadow's edge, as soft as the plate'
 GLOW_BLOOM = (1.2 * RES, 0.9)  # a glow layer's halo: sigma (sheet px), strength
 GLOW_DOWN = 2      # glow layers (soft additive light) are kept at half the sheet's px per world px
 PAD_HALF = 48.0     # world px: a tower (its base, and its turret at any angle) stays on its 3 × 3 tile pad
-CHECK_OVER = {'tower': 'padStone', 'heart': 'moss', 'portal': 'lane'}  # what the fringe check composites a frame over
+# The ground under each (the map's own palette rows, V-07c): the fringe check composites a frame over it, and the cast
+# shadow is coloured so that over it, lit by the plate's sun, it gives the plate's own shade (shadow_colour).
+GROUND = {'tower': 'padSand', 'heart': 'grass', 'portal': 'road'}
 
 
 class CheckFailed(RuntimeError):
@@ -415,13 +420,22 @@ def _bloom(glow, sigma, amount):
     return (b + 0.5 * wide) * amount
 
 
-def with_shadow(img, shadow):
-    """The frame over its cast shadow (the ground's night colour, SHADOW_ALPHA at its darkest): premultiplied."""
+def shadow_colour(ground):
+    """The cast shadow's colour: laid at SHADOW_ALPHA over `ground` in the plate's sun, it gives the plate's own shade of
+    that ground (map.flat: the warm shade and the day sky's fill), so a tower's shadow on its pad is the plate's shadow
+    (before retest fix A it was the night's colour, a neutral black)."""
+    lit, shade = plate.flat(ground, True), plate.flat(ground, False)
+    return np.clip((shade - lit * (1 - SHADOW_ALPHA)) / SHADOW_ALPHA, 0, 1)
+
+
+def with_shadow(img, shadow, colour):
+    """The frame over its cast shadow (`colour`, the shadow_colour of the ground it falls on, SHADOW_ALPHA at its
+    darkest): premultiplied."""
     if shadow is None or not shadow.any():
         return img
     sh = np.zeros_like(img)
     a = shadow * SHADOW_ALPHA
-    sh[..., :3] = np.array(rgb('night'), np.float32) * a[..., None]
+    sh[..., :3] = np.asarray(colour, np.float32) * a[..., None]
     sh[..., 3] = a
     return img + sh * (1 - img[..., 3:4])
 
@@ -569,8 +583,8 @@ def render_tower(name, variant, row, tmp, samples, frames, checks):
     show_only(everything, base)
     img, glow, sh = shoot(cam, tmp, look, objects_of(base), samples, catcher=catcher, squash=squash,
                           reach=row.get('shadow', 22.0))
-    full = with_shadow(img, sh)
-    res, _ = check(full, glow, CHECK_OVER['tower'], img)
+    full = with_shadow(img, sh, shadow_colour(GROUND['tower']))
+    res, _ = check(full, glow, GROUND['tower'], img)
     res['frame'] = f'{key}/base'
     res['reach'] = _reach(img, anchor, square=True)
     checks.append(res)
@@ -585,7 +599,7 @@ def render_tower(name, variant, row, tmp, samples, frames, checks):
             p.pose(moves)
         bpy.context.view_layer.update()
         img, glow, _ = shoot(cam, tmp, look, objects_of(turret), samples)
-        res, _ = check(img, glow, CHECK_OVER['tower'])
+        res, _ = check(img, glow, GROUND['tower'])
         res['frame'] = f'{key}/turret{k}'
         px, py, _ = cam.px(V((pivot[0], pivot[1], 0.0)))
         res['reach'] = _reach(img, (px, py), square=False)
@@ -629,8 +643,8 @@ def render_heart(row, tmp, samples, frames, checks):
         shot = shoot(cam, tmp, look, objects_of(body), samples, catcher=catcher, squash=squash,
                      reach=row.get('shadow', 30.0))
         img, glow, sh = shot
-        full = with_shadow(img, sh)
-        res, _ = check(full, glow, CHECK_OVER['heart'], img)
+        full = with_shadow(img, sh, shadow_colour(GROUND['heart']))
+        res, _ = check(full, glow, GROUND['heart'], img)
         res['frame'] = f'heart/stage{stage}'
         checks.append(res)
         frames[f'heart/stage{stage}'] = trim(npr.to8(full), anchor)
@@ -642,8 +656,8 @@ def render_heart(row, tmp, samples, frames, checks):
             # The rubble in front of the castle and round it: the castle holds out what it hides.
             show_only(everything, rubble, holdout=body)
             img, glow, sh = shoot(cam, tmp, look, objects_of(rubble), samples)
-            full = with_shadow(img, sh)
-            res, _ = check(full, glow, CHECK_OVER['heart'], img)
+            full = with_shadow(img, sh, shadow_colour(GROUND['heart']))
+            res, _ = check(full, glow, GROUND['heart'], img)
             res['frame'] = f'heart/rubble{stage}'
             checks.append(res)
             frames[f'heart/rubble{stage}'] = trim(npr.to8(full), anchor)
@@ -672,8 +686,8 @@ def render_portal(row, tmp, samples, frames, checks):
     shot = shoot(cam, tmp, look, objects_of(body), samples, catcher=catcher, squash=squash,
                  reach=row.get('shadow', 24.0))
     img, glow, sh = shot
-    full = with_shadow(img, sh)
-    res, _ = check(full, glow, CHECK_OVER['portal'], img)
+    full = with_shadow(img, sh, shadow_colour(GROUND['portal']))
+    res, _ = check(full, glow, GROUND['portal'], img)
     res['frame'] = 'portal/body'
     checks.append(res)
     frames['portal/body'] = trim(npr.to8(full), anchor)
@@ -778,8 +792,8 @@ def preview(sheet, layout, path, towers):
         rows.append([(kind, v) for v in variants])
     width = max(8, max(len(row) for row in rows) * 2) * tile
     height = len(rows) * tile + int(2 * 140 * r)
-    out = np.zeros((height, width, 3), np.float32) + np.array(rgb('moss'), np.float32)
-    pad = np.array(rgb('padStone'), np.float32)
+    out = np.zeros((height, width, 3), np.float32) + np.array(rgb(GROUND['heart']), np.float32)
+    pad = np.array(rgb(GROUND['tower']), np.float32)
     for ri, row in enumerate(rows):
         for ci, (kind, v) in enumerate(row):
             for k, turret in enumerate(('turret0', 'turret3')):
