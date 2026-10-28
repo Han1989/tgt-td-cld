@@ -1292,6 +1292,14 @@ describe('the HUD frames rendered ahead of time: the UI sheet (V-07a)', () => {
     expect(file.length).toBeLessThan(400_000);
   });
 
+  it('no colour hides under a fully transparent pixel (encode.sheet writes every sheet so, as a render on main does)', () => {
+    // CSS never shows it, but a sheet that keeps libwebp's guess there (V-07a's) is not what the build writes since
+    // V-06j, so a render no longer reproduces the committed sheet (docs/ART.md §15 "The HUD's frames").
+    let hidden = 0;
+    for (let i = 0; i < img.data.length; i += 4) if (img.data[i + 3] === 0 && (img.data[i] || img.data[i + 1] || img.data[i + 2])) hidden++;
+    expect(hidden).toBe(0);
+  });
+
   it('has every piece the HUD uses, each drawn at 2× the size it is shown at', () => {
     expect(Object.keys(m.pieces).sort()).toEqual([...WANT].sort());
     for (const [name, p] of pieces) {
