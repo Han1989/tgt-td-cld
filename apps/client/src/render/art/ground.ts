@@ -1,13 +1,15 @@
-// The ground painter (docs/ART.md §4): moss, lanes and forest painted once into one canvas (2 px
-// per world px) and shown as a single sprite. Switching Display repaints the same canvas.
+// The ground painter (docs/ART.md §4): grass, lanes and forest painted once into one canvas (2 px
+// per world px) and shown as a single sprite, the fallback until the map plate has decoded (§16), so
+// it paints the plate's look: Spring meadow (V-07c), in the map's own palette rows (`grass`, `road`,
+// `mapForest`…). Switching Display repaints the same canvas.
 //
-// Lanes are smooth strokes along the lane waypoints (the tile grid is only for pathing): an ink
-// edge, packed earth, a moon-worn centre and sparse low-contrast flagstones, so creeps stay the
-// brightest thing on the lane. The moss has speckle, dark ferns and a few glowing motes. Props
+// Lanes are smooth strokes along the lane waypoints (the tile grid is only for pathing): a soft dark
+// edge, packed earth, a worn pale centre and sparse low-contrast flagstones, so creeps stay the
+// brightest thing on the lane. The grass has patches, speckle, ferns and a few glowing motes. Props
 // (entities/ with category `prop`) are drawn in with the painter at the spots `scatter.ts` picks:
 // rocks, mushrooms and runestones on open ground, trees over the blocker tiles (the cliff border and
-// the safe zone, which gets a deeper shade so the touch controls read well over it). A cool
-// moonlight wash and an edge vignette finish it; Bright lifts everything with a "screen" wash.
+// the safe zone, which gets a deeper shade so the touch controls read well over it). The plate's
+// faint warm wash and light vignette finish it; Bright lifts everything with a "screen" wash.
 
 import { Tile, TILE_PX, tileAt, type GameMap } from '@tdt/sim';
 import { CanvasSource, Texture } from 'pixi.js';
@@ -49,9 +51,11 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
   const H = map.height * S;
   c.setTransform(RES, 0, 0, RES, 0, 0);
   c.globalCompositeOperation = 'source-over';
-  c.fillStyle = css(RL.moss);
+  // The grass as the plate shows it: its albedo a step into its own shade (the plate's painter lights it so), then
+  // patches, speckle and ferns.
+  c.fillStyle = css(mix(RL.grass, RL.grassDark, 0.5));
   c.fillRect(0, 0, W, H);
-  moss(c, W, H);
+  grass(c, W, H);
 
   // Lanes. West and East end on the trunk above the Heart, which Mid already covers.
   const lanes = map.lanes.map((l) => l.waypoints.map((p, i) => ({ x: p.x * S, y: (i === 0 ? p.y - 1.5 : p.y) * S })));
@@ -67,9 +71,10 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
       c.stroke();
     }
   };
-  stroke(LANE_W + 6, css(RL.ink));
-  stroke(LANE_W, css(RL.lane));
-  stroke(LANE_W * 0.62, css(RL.laneLight, 0.1));
+  // The road's edge a soft dark rim, as the plate's (a full ink line round light earth on light grass reads as a cut).
+  stroke(LANE_W + 6, css(RL.ink, 0.45));
+  stroke(LANE_W, css(RL.road));
+  stroke(LANE_W * 0.62, css(RL.roadLight, 0.12));
   scatterAlong(lanes, 0.95, (x, y, h1, h2, i, nx, ny) => {
     if (h2 > 0.6) return;
     const off = (hash(i, 5) - 0.5) * LANE_W * 0.55;
@@ -85,7 +90,7 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
       else path.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8);
     }
     path.closePath();
-    const tone = mix(RL.pebble, RL.laneLight, hash(i, 11) * 0.5);
+    const tone = mix(RL.roadPebble, RL.roadLight, hash(i, 11) * 0.5);
     c.save();
     c.clip(path);
     c.fillStyle = css(shade(tone, 0.25), 0.55);
@@ -105,9 +110,9 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
   const byId = new Map(props.map((p) => [p.id, p]));
   drawProps(c, painter, byId, spots.filter((s) => byId.get(s.id)?.where === 'clearing'));
 
-  // Moonlight: a cool wash near the top, darker towards the edges.
+  // The plate's finish (tools/blender/tdt3d/map.py WASH): a faint warm wash near the top, darker towards the edges.
   const g = c.createRadialGradient(W / 2, H * 0.35, H * 0.1, W / 2, H * 0.35, H * 0.7);
-  g.addColorStop(0, 'rgba(160,200,255,0.06)');
+  g.addColorStop(0, css(RL.sun, 0.05));
   g.addColorStop(1, css(RL.night, light.vignette));
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
@@ -128,7 +133,7 @@ export function paintGround(c: Ctx, map: GameMap, display: Display): void {
 
 /** Forest floor on blocker tiles (the trees go on top). */
 function forest(c: Ctx, map: GameMap): void {
-  c.fillStyle = css(RL.forest);
+  c.fillStyle = css(RL.mapForest);
   for (let ty = 0; ty < map.height; ty++) {
     for (let tx = 0; tx < map.width; tx++) if (tileAt(map, tx, ty) === Tile.Blocker) c.fillRect(tx * S, ty * S, S, S);
   }
@@ -185,20 +190,21 @@ function scatter(W: number, H: number, n: number, draw: (x: number, y: number, h
   for (let i = 0; i < n; i++) draw(hash(i, 1) * W, hash(i, 2) * H, hash(i, 3));
 }
 
-/** Mossy blotches and speckle, dark ferns, and a few glowing motes (mushrooms / fireflies). */
-function moss(c: Ctx, W: number, H: number): void {
-  scatter(W, H, 80, (x, y, h) => {
+/** Grass in lighter and darker patches, speckle, ferns, and a few glowing motes (mushrooms / fireflies). */
+function grass(c: Ctx, W: number, H: number): void {
+  scatter(W, H, 240, (x, y, h) => {
+    const tone = h > 0.55 ? RL.grassLight : RL.grassDark;
     radialFill(c, x, y, 26 + h * 40, 18 + h * 24, [
-      [0, h > 0.55 ? 'rgba(80,130,100,0.22)' : 'rgba(5,15,12,0.3)'],
-      [1, 'rgba(0,0,0,0)'],
+      [0, css(tone, h > 0.55 ? 0.3 : 0.45)],
+      [1, css(tone, 0)],
     ]);
   });
   scatter(W, H, 2400, (x, y, h) => {
-    c.fillStyle = css(h > 0.5 ? RL.mossLight : RL.mossDark, 0.8);
+    c.fillStyle = css(h > 0.5 ? RL.grassLight : RL.grassDark, 0.8);
     c.fillRect(x, y, 1.2, 1.2);
   });
   c.lineCap = 'round';
-  c.strokeStyle = css(RL.fern, 0.9);
+  c.strokeStyle = css(RL.grassFern, 0.9);
   c.lineWidth = 1.2;
   scatter(W, H, 200, (x, y, h) => {
     c.beginPath();

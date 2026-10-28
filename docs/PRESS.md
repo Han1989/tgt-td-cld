@@ -154,6 +154,15 @@ The lobby is usable about a second sooner: the game view behind it no longer pai
 
 Two batches of three runs each, alternating between the builds. The lobby is usable 0.10 s later at the median (inside the runs' spread; the bound was 0.3 s): the same first-screen files; the picked hero's sheet now starts when the home card shows him, so the plate, which used to be the first thing on the line, is in about a second later. The service worker is blocked in these runs (as always), so moving the creeps' and heroes' sheets out of its precache cannot show here; on a real first visit it takes about 4 MB off the line the install shares with the page.
 
+**Results, 28 Oct 2026** (V-07c, the map in Spring meadow: the plate 670 → 682 KB, its WebP at quality 87; this session's container, local `vite preview`, 3 runs each, `main` then this branch then this branch again):
+
+| Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Map plate ready (transferred) |
+|---|---|---|---|---|---|
+| `main` (#149) | 3 | median **2.30 s** (1.71–2.31 s) | median 5.11 s (5.09–5.12 s) | median **5.53 s** (5.51–5.60 s) | median 15.26 s (15.25–15.29 s; 654 KB) |
+| V-07c | 3 + 3 | median **2.31 / 2.32 s** (2.09–2.33 s) | median 4.98 / 5.02 s (4.87–5.12 s) | median **5.44 / 5.43 s** (5.25–5.58 s) | median 15.49 / 15.59 s (15.35–15.65 s; 666 KB) |
+
+The first screen loads the same files (374 KB), so the lobby is usable as before (inside the runs' spread). The plate is 12 KB bigger on the line and in about 0.3 s later on Slow 4G, a second after the lobby is usable either way; its decode stays at about 0.16 s at 4× CPU. It is precached with the shell, so every later visit has it at once.
+
 **Play solo → the first wave's art** (`--match`, the Ranger on Full, tapped the moment the lobby is usable):
 
 | Build | Runs | Play solo → every picture of the first wave in | The set | Start held |

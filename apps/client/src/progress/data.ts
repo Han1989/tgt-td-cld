@@ -37,6 +37,7 @@
  * V-07e on 24 Oct 2026 (PR #147: closer, the art at a size you can see on a phone: bigger units and a pinch zoom).
  * V-07d on 25 Oct 2026 (PR #148: the first minute's art, no 2D stand-ins in a first match).
  * V-07c-look on 25 Oct 2026 (PR #149: the map in grass green, three looks for Han, images only).
+ * V-07c on 28 Oct 2026 (PR #150: the map in Spring meadow, Han's pick A, with the light pools).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -506,6 +507,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Pictures only: nothing in the game changes. Han, 25 Oct 2026: the match’s ground reads as a grey dungeon floor, and he wants it near grass green, with the match’s light done at the same time. Three looks, each with its own light: A, a spring meadow under a warm afternoon sun; B, a moonlit meadow, tonight’s look with grass that is truly green; C, golden hour, a low gold sun and a haze over the top. In all three the build pads are warm weathered stone with moss in their seams, the road is warm earth, and the trees are greener. One moment of a wave-10 match on a phone is shown on every ground, with soft glows round the Heart, the portals and the best towers mocked in, together with the Bright display and the heroes and creeps standing on each ground, and checks that the Ranger, the creeps, the health bars and the pad colours still stand out. Han picks one; the next session puts it in the game.',
     proof: pr(149),
+  },
+  {
+    id: 'V-07c',
+    title: 'The map in Spring meadow, with light round the Heart, the portals and the best towers',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'How the match’s map looks: no game rules, server or protocol change, and nothing you tap moves. Han picked A, the spring meadow, from the three looks. The map is now yellow-green grass under a warm afternoon light, from the same side as before so every picture’s shadows still agree; the road is warm packed earth and the build pads warm weathered stone with moss in their seams and creeping over an edge, each pad a little different. The shade under the controls stays. A soft rose glow lies round the Heart, a violet one round each portal (it brightens as a wave starts) and a teal one under every tower from tier 3; they go when Graphics is set to Low. The Bright display lifts the light grass less, so it stays green. A teammate’s pad colour is stronger, so it still reads on the lighter stone. Only the match changed: the first screen, the menus and the heroes’, creeps’ and towers’ pictures are as they were. The link preview card shows the new grass. Built by Claude Code (PR #150).',
+    proof: pr(150),
   },
   {
     id: 'g1-render',

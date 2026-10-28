@@ -93,10 +93,26 @@ export const FX = {
   heartWarn: 0xff2a4a,
   heartBlaze: 0xff5a4a,
   heartShard: 0xffb0c0,
+  /** V-07c's light pools on the ground (fx/pools.ts): rose round the Heart, violet round the portals, teal under the
+   * tier-3 towers. */
+  poolHeart: RL.heart,
+  poolPortal: RL.portal,
+  poolRune: RL.rune,
 } as const;
 
 /** Pad-zone tints by seat (index in the snapshot's player list; a match holds at most 3 players). */
 export const PLAYER_COLORS = [0x4f9dff, 0xff9f43, 0xb56cff] as const;
+
+/**
+ * How a pad's zone tint is laid (world.ts `syncPads`): its rim's and its wash's alpha on your pads, a teammate's and an
+ * open one (solo, or a leaver's: moonlight). A teammate's rim is 80% since V-07c: on the Spring meadow's sand pads its
+ * orange at 50% fell from ΔE 43 to 26 against the stone; 80% measures 42 on the rendered plate (65% only 34).
+ */
+export const PAD_TINTS = {
+  mine: { rim: 0.95, wash: 0.2 },
+  teammate: { rim: 0.8, wash: 0.08 },
+  open: { rim: 0.35, wash: 0 },
+} as const;
 
 export const CREEP_COLORS: Record<CreepKind, number> = {
   grunt: RL.grunt,

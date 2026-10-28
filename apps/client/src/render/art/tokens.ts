@@ -41,6 +41,31 @@ export const RL = {
   padStoneDark: 0x3c4052,
   padGroove: 0x2a2d3b,
 
+  // The match's map (V-07c, Spring meadow; docs/ART.md §16): the map has its own rows, the figures keep theirs. The map
+  // plate (tools/blender/tdt3d/map.py), the painted ground (ground.ts), its props and the pad slab read these; the
+  // ground rows above stay the lobby's clearing's and the creeps', towers' and HUD's renders' (docs/art/ground-options.md).
+  /** Yellow-green grass under a warm afternoon sun. */
+  grass: 0x63a046,
+  grassDark: 0x498035,
+  grassLight: 0x87bd60,
+  grassFern: 0x33632a,
+  /** The road: warm packed earth at about the grass's lightness, so the creeps stay the brightest thing on it. */
+  road: 0x8a7252,
+  roadLight: 0xcbb48a,
+  roadPebble: 0xa18b68,
+  mapForest: 0x223a1c,
+  mapTree: 0x2e4e24,
+  mapCanopy: 0x3f7634,
+  mapCanopyLight: 0x66a248,
+  mapPine: 0x2c5e3a,
+  /** The pads: warm sand-grey weathered stone, lighter than the grass so they read as "build here". */
+  padSand: 0xc2bba6,
+  padSandDark: 0x847d6a,
+  padSandGroove: 0x4e4a3b,
+  /** The map's sun (from the moon's direction and height: every sprite's light still agrees) and its day sky's fill. */
+  sun: 0xfff0c8,
+  daySky: 0xc4dcff,
+
   // Materials
   wood: 0x8f5d38,
   woodDark: 0x5c3a22,
@@ -157,9 +182,13 @@ export interface Lighting {
   vignette: number;
 }
 
+/**
+ * The ground's vignette follows the map plate's (Spring meadow: 12%, V-07c), Bright's a step lighter; Bright's lift is
+ * 12% on the meadow's light grass, which a 32% wash (the night ground's) took to a minty L 66 (docs/art/ground-options.md).
+ */
 export const LIGHTING: Record<Display, Lighting> = {
-  normal: { bodyDarken: 0.42, shadowAlpha: 0.6, groundLift: { color: 0x9fb8c8, alpha: 0 }, vignette: 0.35 },
-  bright: { bodyDarken: 0.28, shadowAlpha: 0.38, groundLift: { color: 0x9fb8c8, alpha: 0.32 }, vignette: 0.12 },
+  normal: { bodyDarken: 0.42, shadowAlpha: 0.6, groundLift: { color: 0x9fb8c8, alpha: 0 }, vignette: 0.12 },
+  bright: { bodyDarken: 0.28, shadowAlpha: 0.38, groundLift: { color: 0x9fb8c8, alpha: 0.12 }, vignette: 0.05 },
 };
 
 /** A colour as the ground shows it in a display mode (Bright's "screen" lift), e.g. for DOM swatches. */

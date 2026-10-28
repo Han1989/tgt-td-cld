@@ -1,6 +1,7 @@
 // Trees (forest prop). From above: round canopies of leaf clumps, lit from the upper left, with a
 // soft shadow falling down-right. They cover the blocker tiles: the cliff border and the safe zone
-// under the touch controls. Three variants: a broad oak, a small bush-tree and a pine.
+// under the touch controls. Three variants: a broad oak, a small bush-tree and a pine. Painted into
+// the match's ground, so in the map's own greens (`mapCanopy`…, V-07c).
 
 import { box, circle, hash, ngon, pathLine, poly, type Ctx, type Painter } from '../paint';
 import { registerArt, type Draw } from '../registry';
@@ -23,19 +24,19 @@ function canopy(c: Ctx, p: Painter, k: Tokens, clumps: readonly (readonly [numbe
   p.shadow(c, (x0 + x1) / 2 + 6, (y0 + y1) / 2 + 7, (x1 - x0) * 0.55, (y1 - y0) * 0.5);
   // Outline the union only: a double-width ink stroke under the fill.
   p.line(c, all, k.ink, 4.8);
-  p.part(c, all, k.canopy, box(x0, y0, x1, y1), { noOutline: true });
+  p.part(c, all, k.mapCanopy, box(x0, y0, x1, y1), { noOutline: true });
   // Lighter clumps towards the upper left of each big clump, and a few leaf ticks.
   for (const [i, [x, y, r]] of clumps.entries()) {
     if (r < 7) continue;
     const cx = x - r * 0.28;
     const cy = y - r * 0.3;
-    p.part(c, circle(cx, cy, r * 0.5), k.canopyLight, box(cx - r * 0.5, cy - r * 0.5, cx + r * 0.5, cy + r * 0.5), { noOutline: true, flat: true });
+    p.part(c, circle(cx, cy, r * 0.5), k.mapCanopyLight, box(cx - r * 0.5, cy - r * 0.5, cx + r * 0.5, cy + r * 0.5), { noOutline: true, flat: true });
     for (let j = 0; j < 3; j++) {
       const a = hash(seed, i, j) * Math.PI * 2;
       const d = r * (0.35 + 0.4 * hash(j, seed, i));
       const lx = x + Math.cos(a) * d;
       const ly = y + Math.sin(a) * d;
-      p.line(c, pathLine([lx - 1.6, ly + 1.2, lx + 1.6, ly - 1.2]), k.tree, 1.1, 0.8);
+      p.line(c, pathLine([lx - 1.6, ly + 1.2, lx + 1.6, ly - 1.2]), k.mapTree, 1.1, 0.8);
     }
   }
 }
@@ -80,8 +81,8 @@ const pine: Draw = (c, p, k) => {
     }
     return poly(pts, 2.4);
   };
-  p.part(c, star(20, 9, 0), k.pine, box(-20, -20, 20, 20));
-  p.part(c, star(12.5, 7, 0.4), k.pine, box(-12.5, -12.5, 12.5, 12.5), { line: 0.7, flat: true });
+  p.part(c, star(20, 9, 0), k.mapPine, box(-20, -20, 20, 20));
+  p.part(c, star(12.5, 7, 0.4), k.mapPine, box(-12.5, -12.5, 12.5, 12.5), { line: 0.7, flat: true });
   p.part(c, ngon(0, 0, 4.5, 6, 0, 0.6), k.woodDark, box(-4.5, -4.5, 4.5, 4.5), { line: 0.6 });
 };
 
