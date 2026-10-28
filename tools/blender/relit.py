@@ -3,9 +3,11 @@
 # docs/art/ground-options.md measured the ground (medians in CIELAB, ΔL). No Blender: numpy, scipy and Pillow (the
 # system Python or .venv-blender).
 #
-#   python3 tools/blender/relit.py towers [--rev REV] [--label after] [--out DIR]
-#   python3 tools/blender/relit.py warden [--rev REV] [--label after] [--out DIR]
-#   python3 tools/blender/relit.py blind [--out DIR]
+#   python3 tools/blender/relit.py towers [--rev REV | --sheets DIR] [--label after] [--out DIR]
+#   python3 tools/blender/relit.py warden [--rev REV | --sheets DIR] [--label after] [--out DIR]
+#   python3 tools/blender/relit.py blind [--rev REV] [--out DIR]
+#
+# --out defaults to docs/screenshots/relit; --sheets reads the sheets, layouts and stage fixtures from a render's --out.
 #
 # towers  every tower kind at tiers 1–3 and both branches: its base and resting turret over a real pad of the plate
 #         (cropped with the grass round it, at the sheet's 2.75 px per world px), the body's median L (its own pixels
@@ -16,8 +18,9 @@
 # warden  the Warden's stage poster (the loop's first frame, the fixture apps/client/test/fixtures/stage-fringe/
 #         warden-0000): along his silhouette, walked as the fringe check walks it (fringe.py), the L of the scene
 #         just outside against his own just inside, past his ink line (the median of the clean pixels LINE to INSIDE
-#         px past the first one in): the share of the edge with ΔL ≥ 12 (the bar: 90%). Writes <out>/warden-stage-<label>.png and a greyscale copy
-#         from the shipped poster.
+#         px past the first one in): the share of the edge with ΔL ≥ 12 (the bar: 90%). Writes the shipped poster as
+#         <out>/warden-stage-<label>.jpg, a greyscale copy, him close up in colour beside grey, and the measured edge
+#         (green where it clears the bar, red where it does not) as warden-edge-<label>.png.
 # blind   the blind contact test's crops: each tower at phone size (the pad 40 px, shown at 3× with no smoothing),
 #         shuffled under neutral names in <out>/blind/, and the key in <out>/blind/key.json (not for the tester).
 
@@ -51,6 +54,7 @@ PAD_WORLD = 96      # a pad: 3 × 3 tiles
 PHONE_PAD = 40      # CSS px a pad is drawn on a 412 px phone in the test (the bar's 40 px)
 BODY_MIN, GRASS_MIN = 12, 10  # the bar: a body's ΔL from the pads, and from the grass
 EDGE_MIN, EDGE_SHARE = 12, 0.9  # the Warden's bar: ΔL along that share of his silhouette
+WARDEN_BOX = (864, 292, 1536, 800)  # stage.BOX: the box the three heroes' loops share (video px)
 INSIDE = 7          # px walked into the hero past the first clean pixel
 LINE = 3            # ... of which his ink line (2.4 px round the silhouette on the 2400 px stage) and its edge
 GROUND_BOX = (448, 704, 1216, 1216)  # plate px: the middle of the map, as src/groundCheck.ts measures it
@@ -361,8 +365,14 @@ def warden(args):
                           ok=share >= EDGE_SHARE), indent=1))
     os.makedirs(args.out, exist_ok=True)
     poster = Image.open(io.BytesIO(read('apps/client/public/stage/warden-poster.webp', args.rev))).convert('RGB')
-    poster.save(os.path.join(args.out, f'warden-stage-{args.label}.png'), optimize=True)
-    poster.convert('L').save(os.path.join(args.out, f'warden-stage-{args.label}-grey.png'), optimize=True)
+    poster.save(os.path.join(args.out, f'warden-stage-{args.label}.jpg'), quality=92)
+    poster.convert('L').save(os.path.join(args.out, f'warden-stage-{args.label}-grey.jpg'), quality=92)
+    # Close up: the stage's shared box round him (stage.BOX, video px), in colour and in grey side by side.
+    box = poster.crop(WARDEN_BOX)
+    pair = Image.new('RGB', (box.width * 2 + 12, box.height), (16, 12, 22))
+    pair.paste(box, (0, 0))
+    pair.paste(box.convert('L').convert('RGB'), (box.width + 12, 0))
+    pair.save(os.path.join(args.out, f'warden-stage-close-{args.label}.jpg'), quality=92)
     # Where the edge falls short, in red over the band (to look at).
     show = band.copy()
     for (py, px), v in zip(where, dl):
