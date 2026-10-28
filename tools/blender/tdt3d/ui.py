@@ -26,10 +26,13 @@ SAMPLES = 48       # a pixel, at 1×: twice #109's 24, as the pieces are small (
 DRAFT_SAMPLES = 6
 PAGE = 1024        # the sheet is one page, at most PAGE × PAGE
 GAP = 2            # sheet px between pieces
-# The towers' look (tdt3d.structure.LOOK, the plate's light) with a frame's ink: 1.2 CSS px round a form, 0.5 inside,
-# as the CSS outlines were (1 px ink).
+# The towers' look (tdt3d.structure.LOOK) with a frame's ink: 1.2 CSS px round a form, 0.5 inside, as the CSS outlines
+# were (1 px ink). The HUD keeps the moon it was rendered in (NIGHT: V-07a's structure light, a cool shade, the moon's
+# fill and edge, a rune-teal rim, and the night's gutter shadow) when the structures took the meadow's (retest fix A).
+NIGHT = dict(lit=(1.14, 1.14, 1.15), shadow=(0.5, 0.54, 0.74), fill='moon', fill_amount=0.08, mrim='moon', rim='rune',
+             rim_amount=0.45)
 LOOK = dict(outer=1.2 * RES, inner=0.5 * RES, inner_alpha=0.8, depth_abs=0.5, big_jump=1.6,
-            bloom=0.9 * RES, bloom_amount=0.75)
+            bloom=0.9 * RES, bloom_amount=0.75, **NIGHT)
 CHECK_OVER = 'moss'  # the HUD floats over the map
 CHECK_PAD = 6        # sheet px of moss round a piece in the fringe check
 GUTTER_SQUASH = 0.45  # the moon's shadow of a frame on its panel: its bars squashed to this, a short gutter
@@ -66,7 +69,7 @@ def _render(row, w, h, tmp, samples):
     if row.get('gutter'):
         catcher = structure._ground(min(zs) - 0.01, half=max(w, h) + 40)
         sh = structure._shadow(cam, tmp, objs, samples, catcher, GUTTER_SQUASH, (0, 0, W, H))
-        full = structure.with_shadow(img, sh)
+        full = structure.with_shadow(img, sh, np.array(rgb('night'), np.float32))
     return full, img, glow.max(axis=2)
 
 

@@ -530,18 +530,18 @@
     "name": "clearing.webp"
    },
    "mp4": {
-    "bytes": 1109667,
-    "hash": "7b39bf98f093",
+    "bytes": 1073378,
+    "hash": "d0feb33ce00e",
     "name": "warden.mp4"
    },
    "poster": {
-    "bytes": 59428,
-    "hash": "30b46d1dc957",
+    "bytes": 59968,
+    "hash": "69258efbf593",
     "name": "warden-poster.webp"
    },
    "webm": {
-    "bytes": 1159640,
-    "hash": "3576432e0540",
+    "bytes": 1139614,
+    "hash": "a2590daf3f4e",
     "name": "warden.webm"
    }
   },

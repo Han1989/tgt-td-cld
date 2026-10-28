@@ -95,8 +95,8 @@ export function flameFrame(now: number): { i: number; alpha: number } {
  */
 export const TOWER_REACH: Record<TowerKind, Record<string, number>> = {
   arrow: { '1': 26, '2': 28, '3': 29, sniper: 42.5, volley: 45 },
-  cannon: { '1': 36, '2': 39, '3': 39.5, mortar: 39.5, shrapnel: 42 },
-  frost: { '1': 28.5, '2': 30, '3': 33.5, blizzard: 30, glacier: 43 },
+  cannon: { '1': 35.5, '2': 39, '3': 39.5, mortar: 39.5, shrapnel: 42 },
+  frost: { '1': 28, '2': 30, '3': 33, blizzard: 30, glacier: 43 },
   arcane: { '1': 30, '2': 37, '3': 34, prism: 46, void: 35.5 },
   flak: { '1': 30, '2': 32, '3': 34, hailstorm: 43.5, skyguard: 42 },
 };

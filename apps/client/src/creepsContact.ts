@@ -509,9 +509,10 @@ async function ironhornAt(shot: ImageBitmap): Promise<{ x: number; y: number }> 
  * V-06j, the final family: the three heroes and the nine kinds of the Spire's host standing on the lane at the size a
  * 412 × 839 phone draws them in a match, at the screen's own pixels (3×), each drawn by the match's own rig from its
  * sheet (Hero3DRig, Creep3DRig) at V-04's scales (the Wisp at its flyer's size), with no ring under the heroes. The
- * heroes face the host.
+ * heroes face the host. `meadow` (retest fix A): its title, on the match's ground (a road band through the grass)
+ * instead of the night lane.
  */
-export async function drawFamily(): Promise<string> {
+export async function drawFamily(meadow?: string): Promise<string> {
   const { Application, Container } = await import('pixi.js');
   const { ArtKit } = await import('./render/art/kit');
   const { creepRig3d, heroRig3d, loadCreepSheets, loadHeroSheets } = await import('./render/art3d');
@@ -574,12 +575,24 @@ export async function drawFamily(): Promise<string> {
   const c = canvas.getContext('2d')!;
   c.fillStyle = css(RL.ink);
   c.fillRect(0, 0, width, height);
-  c.fillStyle = css(RL.lane);
-  c.fillRect(0, top, width, bandH);
+  if (meadow) {
+    // Retest fix A: on the match's ground (V-07c's map rows), a road band through the grass, as a lane in the meadow.
+    c.fillStyle = css(RL.grass);
+    c.fillRect(0, top, width, bandH);
+    c.fillStyle = css(RL.road);
+    c.fillRect(0, top + bandH * 0.2, width, bandH * 0.6);
+  } else {
+    c.fillStyle = css(RL.lane);
+    c.fillRect(0, top, width, bandH);
+  }
   c.drawImage(app.canvas, 0, 0);
   c.fillStyle = '#e6dac0';
   c.font = 'bold 30px sans-serif';
-  c.fillText('V-06j: the family at phone size — the three heroes and the Spire’s host (412 × 839, 3× screen pixels)', 24, 46);
+  c.fillText(
+    meadow ?? 'V-06j: the family at phone size — the three heroes and the Spire’s host (412 × 839, 3× screen pixels)',
+    24,
+    46,
+  );
   c.font = '20px sans-serif';
   c.textAlign = 'center';
   for (const [name, cx] of labels) c.fillText(name, cx, height - 14);

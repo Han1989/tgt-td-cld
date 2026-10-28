@@ -68,6 +68,13 @@ BANK = (0.84, 1.22)   # tiles from the road's middle where its bank starts and m
 LEDGE = 6.0           # world px the border's rocky ledge stands
 PAD_H = 8.0           # world px a pad stands
 
+# Spring meadow's light (V-07c): soft warm shadows (the albedo × `shadow` in shade), a warm lit tone, the day sky's fill,
+# the sun's lit edge, a faint sky rim on the lower right. One table: the towers', the Heart's and the portals' renders
+# (structure.LOOK) and the creeps' (creep.LOOK) read it from here too, so what stands on the ground is lit as the ground
+# is and the two cannot drift apart again (retest fix A, 28 Oct 2026: the wards and the host were still lit for the
+# night, with cool blue shadows, on the daylight ground).
+LIGHT = dict(shadow=(0.62, 0.58, 0.58), lit=(1.12, 1.07, 0.96), fill='daySky', fill_amount=0.10, mrim='sun',
+             rim='daySky', rim_amount=0.20)
 LOOK = dict(
     outer=4.0, inner=1.6, inner_alpha=0.7, line_tint=0.82, line_dark=0.3, bloom_amount=0.0,
     # Straight down and orthographic: depth is height, so an edge is a fixed step up (no share of the distance).
@@ -78,10 +85,7 @@ LOOK = dict(
     band=0.32, band_soft=0.07,
     # More continuous light inside the bands, so the grass's gentle mounds and the banks shade softly.
     form=0.3,
-    # Spring meadow's light (V-07c): soft warm shadows (the albedo × this in shade), a warm lit tone, the day sky's fill,
-    # the sun's lit edge, a faint sky rim on the lower right.
-    shadow=(0.62, 0.58, 0.58), lit=(1.12, 1.07, 0.96), fill='daySky', fill_amount=0.10, mrim='sun', rim='daySky',
-    rim_amount=0.20,
+    **LIGHT,
 )
 BLOOM = dict(sigma=1.6, amount=0.85)  # plate px
 # A faint warm wash round the upper middle (the 2D ground's radial gradient), a light vignette towards the edges.
@@ -102,6 +106,21 @@ MAP_TOKENS = dict(
     forest='mapForest', tree='mapTree', canopy='mapCanopy', canopyLight='mapCanopyLight', pine='mapPine',
     padStone='padSand', padStoneDark='padSandDark', padGroove='padSandGroove',
 )
+
+
+def flat(token, sun):
+    """What the plate's light paints a flat ground of `token` seen from above (npr.shade's terms for a surface facing
+    up, with no crease, edge or rim): in the sun (the moon pass is the sun's height on it) or in full shade, where the
+    day sky's fill lifts it. A cast shadow laid over the plate is coloured from these (structure.shadow_colour)."""
+    look = dict(npr.LOOK, **LOOK)
+    albedo = np.array(palette.rgb(token), np.float32)
+    key = MOON[2] if sun else 0.0
+    lit = npr.smoothstep(look['band'] - look['band_soft'], look['band'] + look['band_soft'], key)
+    sh, lt = np.array(look['shadow'], np.float32), np.array(look['lit'], np.float32)
+    tone = (sh + (lt - sh) * lit) * (1 - look['form'] + look['form'] * (0.35 + 0.65 * key))
+    col = albedo * tone
+    col += np.array(palette.rgb(look['fill']), np.float32) * (albedo * 0.5 + 0.5) * look['fill_amount'] * (1 - lit)
+    return col
 
 
 def map_palette():
