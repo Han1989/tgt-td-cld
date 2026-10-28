@@ -391,8 +391,8 @@ test('the map plate decodes, draws as the ground in one texture, and Bright lays
   await startSolo(page);
   await expect(page.locator('html')).toHaveAttribute('data-plate', 'ready');
   await expect.poll(() => page.evaluate(() => window.__tdt.art().ground)).toBe('plate');
-  // V-07c's light pools over it: round the Heart and every portal (no tower at tier 3 yet). Whether their layers are
-  // drawn follows Graphics (Auto drops to Low on a slow software GPU, and Low hides them), so it is not asserted here.
+  // V-07c's light pools over it: round the Heart and every portal (no tower at tier 3 yet). Whether their layer is
+  // drawn follows Graphics (Auto drops to Low on a slow software GPU, and Low hides it), so it is not asserted here.
   expect(await page.evaluate(() => window.__tdt.art().pools)).toMatchObject({ heart: 1, portal: 3, tower: 0 });
   const gpu = await page.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2') ?? document.createElement('canvas').getContext('webgl');

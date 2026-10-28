@@ -27,13 +27,13 @@ import {
   type ZoneSnap,
 } from '@tdt/protocol';
 import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, waveGroups, type GameMap } from '@tdt/sim';
-import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Application, BufferImageSource, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
 import { towerScale, UNIT_SCALES, type EntityScales } from './entityScale';
-import { createFxAtlas, RING_PX, DISC_PX, POOL_PX, type FxAtlas } from './fx/atlas';
+import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
 import { MeteorShow, type MeteorStats } from './fx/meteorShow';
@@ -53,7 +53,7 @@ import {
   type ScreenBox,
   type VignettePulse,
 } from './fx/juice';
-import { poolAlphas, poolFadeIn, POOLS, portalPoolLevel, towerLit, type PoolKind } from './fx/pools';
+import { POOL_PX, poolAlpha, poolFadeIn, POOLS, poolTexels, portalPoolLevel, towerLit, type PoolKind } from './fx/pools';
 import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
 import { vowLook } from './fx/vow';
 import {
@@ -323,11 +323,10 @@ function destroyPad(s: PadSprite): void {
   s.slab?.destroy({ children: true });
 }
 
-/** A light pool on the ground (V-07c, fx/pools.ts): its tint under its glow, alpha only. */
+/** A light pool on the ground (V-07c, fx/pools.ts): one quad that lays its tint and adds its glow, alpha only. */
 interface PoolSprite {
   kind: PoolKind;
-  tint: Sprite;
-  glow: Sprite;
+  sprite: Sprite;
   /** Its level as last drawn (1 its own; fading in less, a flaring portal's more). */
   level: number;
   /** When it appeared (a tower's fades in; the Heart's and the portals' are there from the start). */
@@ -335,8 +334,7 @@ interface PoolSprite {
 }
 
 function destroyPool(p: PoolSprite): void {
-  p.tint.destroy();
-  p.glow.destroy();
+  p.sprite.destroy();
 }
 
 interface PortalSprite {
@@ -365,14 +363,25 @@ export class WorldRenderer {
   readonly world = new Container();
   /**
    * The ground (the plate, or the painted ground until it decodes), then over it the pads' stone the plate lacks
-   * (`padBaseLayer`), the light pools (their tints, then their glows: one batch each) and Bright's wash.
+   * (`padBaseLayer`), the light pools (in the ground's batch) and Bright's wash.
    */
   private readonly mapLayer = new Container();
   /** The patches round the extra pads of bigger teams (over the plate) and, on the painted ground, the pads' slabs. */
   private readonly padBaseLayer = new Container();
-  /** V-07c's light pools (fx/pools.ts): every tint (normal blend) under every glow (add), so each is one batch. */
-  private readonly poolTints = new Container();
-  private readonly poolGlows = new Container();
+  /**
+   * V-07c's light pools (fx/pools.ts): one quad each at the normal blend, its tint and its glow in one texture
+   * (`poolTexels`), so they batch with the ground under them.
+   */
+  private readonly poolLayer = new Container();
+  private readonly poolTexture = new Texture({
+    source: new BufferImageSource({
+      resource: poolTexels(POOL_PX * 2),
+      width: POOL_PX * 2,
+      height: POOL_PX * 2,
+      // Its colour is brighter than its alpha (the glow): uploaded as it is, never premultiplied again.
+      alphaMode: 'premultiplied-alpha',
+    }),
+  });
   private readonly heartPool: PoolSprite;
   private readonly portalPools: PoolSprite[] = [];
   /** Under every tier-3 tower, by tower id; it goes with the tower. */
@@ -527,7 +536,7 @@ export class WorldRenderer {
     this.brightWash.alpha = LIGHTING.bright.groundLift.alpha;
     this.brightWash.blendMode = 'screen';
     this.brightWash.visible = false;
-    this.mapLayer.addChild(this.padBaseLayer, this.poolTints, this.poolGlows, this.brightWash);
+    this.mapLayer.addChild(this.padBaseLayer, this.poolLayer, this.brightWash);
     this.world.addChild(
       this.mapLayer,
       this.padLayer,
@@ -609,7 +618,7 @@ export class WorldRenderer {
     impacts: number;
     /** What the ground is: the map plate, the painted ground (until the plate decodes), or none yet (no match drawn). */
     ground: 'plate' | 'painted' | 'none';
-    /** The light pools (V-07c): how many of each kind show, and whether their layers are drawn (not at Low). */
+    /** The light pools (V-07c): how many of each kind show, and whether their layer is drawn (not at Low). */
     pools: { heart: number; portal: number; tower: number; shown: boolean };
   } {
     const count = (list: Iterable<{ art: unknown }>) => [...list].filter((s) => s.art).length;
@@ -639,14 +648,14 @@ export class WorldRenderer {
 
   /** The light pools showing now, by kind (browser tests). */
   private poolStats(): { heart: number; portal: number; tower: number; shown: boolean } {
-    const on = (p: PoolSprite) => (p.glow.renderable && p.glow.alpha > 0 ? 1 : 0);
+    const on = (p: PoolSprite) => (p.sprite.renderable && p.sprite.alpha > 0 ? 1 : 0);
     let tower = 0;
     for (const p of this.towerPools.values()) tower += on(p);
     return {
       heart: on(this.heartPool),
       portal: this.portalPools.reduce((n, p) => n + on(p), 0),
       tower,
-      shown: this.poolGlows.visible,
+      shown: this.poolLayer.visible,
     };
   }
 
@@ -677,7 +686,7 @@ export class WorldRenderer {
       for (const p of this.projectiles.values()) p.trail.visible = level.particles;
       for (const pool of this.projectilePool.values()) for (const p of pool) p.trail.visible = level.particles;
       // The light pools are not essential: gone at Low.
-      this.poolTints.visible = this.poolGlows.visible = level.particles;
+      this.poolLayer.visible = level.particles;
     }
   }
 
@@ -1443,24 +1452,18 @@ export class WorldRenderer {
   }
 
   /**
-   * A light pool on the ground at (x, y) tiles (V-07c, fx/pools.ts): the atlas's radial falloff tinted in the pool's
-   * colour twice, a tint (normal blend) under a glow (add). Made once, then only its alpha changes (`setPool`). `born`:
-   * when it appeared, for a tower's fade in (-Infinity: already there).
+   * A light pool on the ground at (x, y) tiles (V-07c, fx/pools.ts): the pools' falloff tinted in its colour, one quad
+   * at the normal blend that lays the tint and adds the glow (`poolTexels`). Made once, then only its alpha changes
+   * (`setPool`). `born`: when it appeared, for a tower's fade in (-Infinity: already there).
    */
   private makePool(kind: PoolKind, x: number, y: number, born: number): PoolSprite {
-    const colour = kind === 'heart' ? FX.poolHeart : kind === 'portal' ? FX.poolPortal : FX.poolRune;
-    const scale = (POOLS[kind].radius * S) / POOL_PX;
-    const layer = (parent: Container, blend: 'normal' | 'add') => {
-      const sprite = new Sprite(this.atlas.frames.pool);
-      sprite.anchor.set(0.5);
-      sprite.position.set(x * S, y * S);
-      sprite.scale.set(scale);
-      sprite.tint = colour;
-      sprite.blendMode = blend;
-      parent.addChild(sprite);
-      return sprite;
-    };
-    const pool: PoolSprite = { kind, tint: layer(this.poolTints, 'normal'), glow: layer(this.poolGlows, 'add'), level: -1, born };
+    const sprite = new Sprite(this.poolTexture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(x * S, y * S);
+    sprite.scale.set((POOLS[kind].radius * S) / POOL_PX);
+    sprite.tint = kind === 'heart' ? FX.poolHeart : kind === 'portal' ? FX.poolPortal : FX.poolRune;
+    this.poolLayer.addChild(sprite);
+    const pool: PoolSprite = { kind, sprite, level: -1, born };
     this.setPool(pool, born === -Infinity ? 1 : 0);
     return pool;
   }
@@ -1469,9 +1472,7 @@ export class WorldRenderer {
   private setPool(pool: PoolSprite, level: number): void {
     if (level === pool.level) return;
     pool.level = level;
-    const a = poolAlphas(pool.kind, level);
-    fade(pool.tint, a.tint);
-    fade(pool.glow, a.glow);
+    fade(pool.sprite, poolAlpha(pool.kind, level));
   }
 
   /** The 3D sheet came in (or a new one): the Heart and the portals are made again from it. */

@@ -7,7 +7,6 @@ import { CanvasSource, Rectangle, Texture } from 'pixi.js';
 import { css } from '../art/paint';
 import { RL } from '../art/tokens';
 import { GLYPHS } from './numbers';
-import { POOL_STOPS } from './pools';
 
 const INK = css(RL.ink, 0.92);
 
@@ -30,8 +29,7 @@ export type FxFrame =
   | 'arrow'
   | 'leaf'
   | 'rock'
-  | 'warn'
-  | 'pool';
+  | 'warn';
 
 /** Glyph height in the atlas (px); numbers are scaled from it. */
 export const GLYPH_PX = 34;
@@ -39,8 +37,6 @@ export const GLYPH_PX = 34;
 export const RING_PX = 60;
 /** Radius of the disc and glow frames (px). */
 export const DISC_PX = 30;
-/** Radius of the light pools' frame (px): V-07c's falloff (fx/pools.ts) reaches 0 at its edge. */
-export const POOL_PX = 64;
 
 export interface FxAtlas {
   source: CanvasSource;
@@ -118,15 +114,6 @@ export function createFxAtlas(): FxAtlas {
     c.fillStyle = g;
     c.fillRect(0, 0, w, h);
   });
-  // V-07c's light pools: one radial falloff, white, tinted per pool (fx/pools.ts).
-  place('pool', POOL_PX * 2, POOL_PX * 2, (c, w, h) =>
-    radial(
-      c,
-      w,
-      h,
-      POOL_STOPS.map(([at, share]): [number, string] => [at, `rgba(255,255,255,${share})`]),
-    ),
-  );
   place('arc', 128, 128, (c, w, h) => {
     // A crescent swipe, thick in the middle and thin at the tips (opens to the right).
     for (let i = 0; i < 24; i++) {

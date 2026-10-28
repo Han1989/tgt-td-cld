@@ -68,6 +68,12 @@ export default defineConfig({
       name: 'perf',
       // A measurement: one slow run is a result, not a flake to retry.
       retries: 0,
+      // A harness number, not the budget (the 33.3 ms a frame the test asserts is the product's requirement; Decision Log,
+      // 17 Oct 2026). On CI's software GPU the scene draws at about 1.2 FPS: the 60 warm-up, 90 measured and 15 profiled
+      // frames take 165 / 1.2 ≈ 140 s, the page, the plate, the sheets and the sound bake about 100 s more, and closing
+      // the page with its trace about 15 s: ≈ 255 s, over the 240 s this was. 360 s holds those 165 frames down to about
+      // 0.7 FPS ((360 − 100 − 15) / 165 ≈ 1.5 s a frame) and gives a 1.2 FPS runner 40% room.
+      timeout: 360_000,
       testMatch: /perf\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
       dependencies: ['iphone', 'pixel', 'desktop'],
