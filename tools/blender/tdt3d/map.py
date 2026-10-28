@@ -73,6 +73,11 @@ LOOK = dict(
 BLOOM = dict(sigma=1.6, amount=0.85)  # plate px
 WASH = dict(centre=0.35, r0=0.1, r1=0.7, cool=(160 / 255, 200 / 255, 1.0), cool_alpha=0.06, vignette=0.35)
 SAFE_SHADE = dict(start=-0.6, tiles=4.0, alpha=0.62)
+# V-07c look (dev only, tools/blender/tdt3d/ground_options.py sets them for a run): a haze over the top of the map
+# (dict(colour, alpha, rows: the share of the map's height it fades over)) and moss on the pads (dict(seams, edge,
+# cushions, tufts)). None: the plate as it ships.
+HAZE = None
+PAD_MOSS = None
 
 
 # --- the map's data ----------------------------------------------------------------------------------------------
@@ -180,13 +185,16 @@ def textured(img):
     return build
 
 
-def define_materials(ground_img, pad_img):
+def define_materials(ground_img, pad_imgs):
     # The clearing's own scenery materials (canopies, rocks, moss cushions, ferns, mushrooms...), then the map's.
     clearing_materials(V((0, 1, 0)), V((1, 0, 0)))
     d = shading.define
     d('mapGround', 'moss', albedo=textured(ground_img), grad=False, shade=1.0, rim=0.0, mrim=0.0, ao=0.9, dim=0.95,
       line=0.0)
-    d('padTop', 'padStone', albedo=textured(pad_img), grad=False, shade=0.9, rim=0.3, mrim=0.6, ao=0.7, line=1.0, dim=0.84)
+    # The pad's top; with PAD_MOSS one a quarter turn (its moss creeping in over another edge), padTop1–3.
+    for k, img in enumerate(pad_imgs):
+        d('padTop' + (str(k) if k else ''), 'padStone', albedo=textured(img), grad=False, shade=0.9, rim=0.3, mrim=0.6,
+          ao=0.7, line=1.0, dim=0.84)
     d('padEdge', 'padStone', grad=False, shade=1.0, rim=0.5, mrim=1.0, ao=0.6, line=1.0, dim=0.9)
     d('padSide', 'padStoneDark', grad=False, shade=1.0, rim=0.3, mrim=0.6, ao=0.8, line=1.0)
     d('padGroove', 'padGroove', grad=False, shade=0.9, rim=0.0, mrim=0.3, ao=0.8, line=0.6)
@@ -425,18 +433,20 @@ def pad_object(m, p):
     lower-right wall catches the moon), its top's seams and build ring in the albedo, four dim rune studs."""
     x0, y0, x1, y1 = m.pad_rect(p)
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    turn = pad_turn(p)
+    top_mat = 'padTop' + (str(turn) if turn else '')
     part = Part(f'Pad{p["id"]}')
     bm = part.bm
     uv = bm.loops.layers.uv.new('UVMap')
     rings = [[bm.verts.new(W(cx, cy) + q) for q in rsquare(hf, r, z)] for hf, r, z, _ in PAD_RINGS]
     n = len(rings[0])
     for i in range(len(rings) - 1):
-        mat = part.m(PAD_RINGS[i][3])
+        mat = part.m(top_mat if PAD_RINGS[i][3] == 'padTop' else PAD_RINGS[i][3])
         for j in range(n):
             f = bm.faces.new((rings[i][j], rings[i][(j + 1) % n], rings[i + 1][(j + 1) % n], rings[i + 1][j]))
             f.material_index = mat
     top = bm.faces.new(rings[-1])
-    top.material_index = part.m('padTop')
+    top.material_index = part.m(top_mat)
     for f in bm.faces:
         for loop in f.loops:
             co = loop.vert.co
@@ -452,7 +462,65 @@ def pad_object(m, p):
             blob(s, c, (1.2, 1.2, 0.3), 'padStud', u=8, v=4)
     so = finish(s, layer='scene', index=PAD_IDS + p['id'])
     so['detail'] = 0
-    return [o, so]
+    return [o, so] + (pad_moss(m, p, turn) if PAD_MOSS else [])
+
+
+def pad_turn(p):
+    """Which quarter turn of the pad's top this pad shows (PAD_MOSS: its moss on other edges); 0 without moss."""
+    return int(_hash(p['id'], 77) * 4) % 4 if PAD_MOSS else 0
+
+
+# The pad top's mossy edges at each quarter turn (np.rot90 turns the picture anticlockwise): the albedo's moss creeps
+# in over its east edge and the east half of its south one.
+MOSS_EDGES = (('e', 's'), ('n', 'e'), ('w', 'n'), ('s', 'w'))
+
+
+def turned(x, y, k):
+    """A point of the pad's top (local world px, y down) as the quarter turn `k` shows it."""
+    for _ in range(k):
+        x, y = y, -x
+    return x, y
+
+
+def pad_moss(m, p, k):
+    """V-07c look: moss cushions over the pad's mossy edges (half on its bevel, half on the ground: the moss creeping
+    over it) and a few tufts of grass from its seams. Kept off the corners and off most of each edge, so the pad's
+    square as the object pass sees it (measure_pads) stays the tiles'. Its own objects (the moss's and the props'
+    pass index, never the pad's), hidden with the pad."""
+    pm = PAD_MOSS
+    x0, y0, x1, y1 = m.pad_rect(p)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    moss = Part(f'PadMoss{p["id"]}')
+    tufts = Part(f'PadTufts{p["id"]}')
+    seed = p['id'] * 37
+    main, side = MOSS_EDGES[k]
+    for edge, count, reach in ((main, pm['cushions'], (-30, 30)), (side, max(1, pm['cushions'] // 2), (8, 34))):
+        for j in range(count):
+            h = _hash(seed + j, 91 + (edge == side))
+            along = reach[0] + (reach[1] - reach[0]) * (j + 0.2 + 0.6 * h) / count
+            # Texture-local: the east edge is x = 48, the south one y = 48 (`along` the other axis), then turned.
+            lx, ly = (47.0, along) if edge == main else (along, 47.0)
+            lx, ly = turned(lx, ly, k)
+            rr = 3.2 + 2.6 * _hash(seed + j, 93)
+            blob(moss, W(cx + lx, cy + ly, PAD_H - 1.8), (rr, rr * (0.75 + 0.3 * h), rr * 0.45),
+                 'mossClump' if j % 2 == 0 else 'mossEdge', u=10, v=6)
+    # Grass from the seams: a few tufts where the albedo's seams run (the paths in pad_albedo, texture-local).
+    for j, (lx, ly) in enumerate(((-12, -2), (3, 12), (-1, -9), (-18, 18))[: pm['tufts']]):
+        lx, ly = turned(lx, ly, k)
+        size = 0.55 + 0.25 * _hash(seed + j, 95)
+        c = W(cx + lx, cy + ly, PAD_H + 0.05)
+        for q in range(5):
+            a = 2 * math.pi * (q + 0.6 * _hash(seed + j, q + 96)) / 5
+            lean = V((math.cos(a), math.sin(a), 0)) * (2.0 + 1.6 * _hash(seed + j, q + 101)) * size
+            hh = (1.0 + 0.8 * _hash(seed + j, q + 106)) * size
+            tube(tufts, [c, c + lean * 0.45 + Z * hh, c + lean + Z * hh * 0.4],
+                 [(0.55 * size, 0.12), (0.4 * size, 0.1), (0.05, 0.05)], ['grass'], sides=4, n0=Z)
+    out = [leafy(finish(moss, layer='scene', index=121), cell=1.4, depth=0.55)]
+    if tufts.bm.faces:
+        to = finish(tufts, layer='scene', index=120)
+        to['detail'] = 1
+        out.append(to)
+    return out
 
 
 def pad_albedo():
@@ -482,10 +550,30 @@ def pad_albedo():
 
     groove = np.array(rgb('padGroove'), np.float32)
     g = 36.0
+    pm = PAD_MOSS
+    if pm:
+        # V-07c look: moss and grass grown into the seams (wider where the moss has taken), and the moss creeping in
+        # over the east edge and the east half of the south one, broken by noise.
+        grown = smoothstep(0.35, 0.7, noise((n, n), 24, 33)) * pm['seams']
+        seam = groove + (np.array(rgb('mossDark'), np.float32) - groove) * grown[..., None]
     for pts in ([-g, -4, -12, -2, 10, 3, g, 1], [-2, -g, 1, -9, -1, -3], [5, 2, 3, 12, 6, g], [-g, 20, -18, 18]):
         dd = line_dist(segs(pts))
+        if pm:
+            a = (1 - smoothstep(0.35 + 0.3 * grown, 0.75 + 0.6 * grown, dd)) * (0.45 + 0.2 * grown)
+            col = col * (1 - a[..., None]) + seam * a[..., None]
+            continue
         a = (1 - smoothstep(0.35, 0.75, dd)) * 0.45
         col = col * (1 - a[..., None]) + groove * a[..., None]
+    if pm:
+        wave = noise((n, n), 40, 34)
+        east = (4 + 9 * wave) * pm['edge']
+        south = (3 + 6 * wave) * pm['edge'] * smoothstep(-6, 10, x)
+        creep = np.maximum(1 - smoothstep(east - 2, east + 1.5, 48 - x), 1 - smoothstep(south - 2, south + 1.5, 48 - y))
+        creep = creep * smoothstep(0.25, 0.5, noise((n, n), 10, 35) * 0.6 + creep * 0.6)
+        moss = np.array(rgb('moss'), np.float32)
+        tuft = moss + (np.array(rgb('mossLight'), np.float32) - moss) * smoothstep(0.4, 0.8, noise((n, n), 6, 36))[..., None]
+        tuft = tuft * (0.88 + 0.2 * noise((n, n), 3, 37))[..., None]
+        col = col * (1 - creep[..., None]) + tuft * creep[..., None]
     moon = np.array(rgb('moon'), np.float32)
     ring = 1 - smoothstep(0.45, 0.9, np.abs(np.hypot(x, y) - 15))
     for (ax, ay, bx, by) in ((0, -19, 0, -11), (0, 11, 0, 19), (-19, 0, -11, 0), (11, 0, 19, 0)):
@@ -796,6 +884,10 @@ def finish_plate(m, col, emit, x0=0, y0=0):
     colour = cool * (1 - t) + night * t
     alpha = WASH['cool_alpha'] * (1 - t) + WASH['vignette'] * t
     out = out * (1 - alpha) + colour * alpha
+    if HAZE:
+        # V-07c look: a faint haze over the top of the map (the low sun's side), fading out down it.
+        hz = (1 - smoothstep(0, m.hpx * HAZE['rows'], y))[..., None] * HAZE['alpha']
+        out = out * (1 - hz) + np.array(HAZE['colour'], np.float32) * hz
     # The safe zone sinks into deep shade, so the touch controls over it stay readable.
     top = (m.safe + SAFE_SHADE['start']) * T
     sh = smoothstep(top, top + SAFE_SHADE['tiles'] * T, y)[..., None] * SAFE_SHADE['alpha']
@@ -871,8 +963,10 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False):
     scene.reset(fps=30)
     t0 = time.time()
     ground_img = image('MapAlbedo', ground_albedo(m))
-    pad_img = image('PadAlbedo', pad_albedo())
-    define_materials(ground_img, pad_img)
+    top = pad_albedo()
+    turns = range(4) if PAD_MOSS else range(1)
+    define_materials(ground_img, [image(f'PadAlbedo{k}' if k else 'PadAlbedo', np.ascontiguousarray(np.rot90(top, k)))
+                                  for k in turns])
     lights()
     ground_mesh(m)
     pads = {p['id']: pad_object(m, p) for p in m.pads if p['show'] != 'none'}

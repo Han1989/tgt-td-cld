@@ -3,6 +3,7 @@
 #
 #   python tools/blender/build.py <hero|creep>[,…] [stage|match|all|plate] [--draft] [--frames 0,40,120] [--out DIR]
 #   python tools/blender/build.py map [spire|card|all] [--draft] [--out DIR] [--work DIR]
+#   python tools/blender/build.py map spire --ground a|b|c --out DIR [--draft]   (V-07c's looks, dev only)
 #   python tools/blender/build.py structures [arrow,heart,…] [--draft] [--out DIR] [--work DIR]
 #   python tools/blender/build.py arrow,heart                 (tower kinds, heart, portal: the same)
 #   python tools/blender/build.py ui [--draft] [--out DIR]     (the HUD's frames, tools/blender/ui.py)
@@ -225,11 +226,18 @@ def map_main(argv):
     ap.add_argument('--draft', action='store_true', help='rendered at 1× with a few samples (a quick look)')
     ap.add_argument('--out', default=None, help='write the pictures and layouts here instead (a preview)')
     ap.add_argument('--work', default=None, help='a working folder kept after the run')
+    ap.add_argument('--ground', default=None, choices=['a', 'b', 'c'],
+                    help='V-07c: one of the ground looks for Han (tdt3d/ground_options.py), with --out')
     args = ap.parse_args(argv)
+    if args.ground and not args.out:
+        raise SystemExit('--ground renders a look the game does not ship: give --out DIR')
 
     import bpy  # noqa: F401 (first: it registers mathutils)
     from tdt3d import map as plate
 
+    if args.ground:
+        from tdt3d import ground_options
+        ground_options.apply(args.ground, plate)
     tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-map-')
     os.makedirs(tmp, exist_ok=True)
     t0 = time.time()

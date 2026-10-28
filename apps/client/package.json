@@ -16,6 +16,7 @@
     "music-levels": "tsx scripts/musicLevels.ts",
     "creeps-contact": "tsx scripts/creepsContact.ts",
     "structures-contact": "tsx scripts/structuresContact.ts",
+    "ground-options": "tsx scripts/groundOptions.ts",
     "share-cards": "tsx scripts/shareCards.ts"
   },
   "dependencies": {
