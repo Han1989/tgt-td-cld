@@ -4,12 +4,14 @@
 // (GET /analytics/visitor?id=) or deletion (POST /analytics/forget?id=) asked for by email.
 // A player's own copy and deletion (POST /analytics/mine, /analytics/mine/forget) take the
 // browser's data key instead (dataKey.ts): the server derives the id, so no request can name one.
-// Both kinds of copy and deletion also cover the browser's posted Daily runs (daily/store.ts).
+// Both kinds of copy and deletion also cover the browser's posted Daily runs (daily/store.ts) and Endless runs
+// (endless/store.ts).
 // Origins follow the WebSocket allow-list.
 
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DailyStore } from '../daily/store';
+import type { EndlessStore } from '../endless/store';
 import { TokenBucket } from '../rateLimit';
 import { parseCount } from './counts';
 import { DATA_KEY, visitorFromKey } from './dataKey';
@@ -49,6 +51,8 @@ export interface AnalyticsHttpOptions {
   now?: () => number;
   /** The Daily run's board: its entries go with a copy and a deletion, its counts on the dashboard. */
   daily?: Pick<DailyStore, 'forget' | 'visitorRuns' | 'stats' | 'flush'>;
+  /** Endless's board: the same. */
+  endless?: Pick<EndlessStore, 'forget' | 'visitorRuns' | 'stats' | 'flush'>;
 }
 
 function presentedKey(req: IncomingMessage, url: URL): string {
@@ -191,16 +195,25 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
     }
   }
 
-  /** Every event, the retention line and the Daily runs of an id, from memory and the files. */
-  async function forgetVisitor(visitor: string, at: number): Promise<{ visitor: string; removedEvents: number; removedDailyRuns: number }> {
+  /** Every event, the retention line and the Daily and Endless runs of an id, from memory and the files. */
+  async function forgetVisitor(
+    visitor: string,
+    at: number,
+  ): Promise<{ visitor: string; removedEvents: number; removedDailyRuns: number; removedEndlessRuns: number }> {
     const removed = opts.store.forget(visitor, at);
     const removedDailyRuns = opts.daily?.forget(visitor, at) ?? 0;
-    await Promise.all([opts.store.flush(), opts.daily?.flush()]);
-    return { visitor, removedEvents: removed, removedDailyRuns };
+    const removedEndlessRuns = opts.endless?.forget(visitor, at) ?? 0;
+    await Promise.all([opts.store.flush(), opts.daily?.flush(), opts.endless?.flush()]);
+    return { visitor, removedEvents: removed, removedDailyRuns, removedEndlessRuns };
   }
 
   function copyOf(visitor: string) {
-    return { visitor, ...opts.store.visitorData(visitor), daily: opts.daily?.visitorRuns(visitor) ?? [] };
+    return {
+      visitor,
+      ...opts.store.visitorData(visitor),
+      daily: opts.daily?.visitorRuns(visitor) ?? [],
+      endless: opts.endless?.visitorRuns(visitor) ?? [],
+    };
   }
 
   return async (req, res) => {
@@ -328,6 +341,7 @@ export function createAnalyticsHttp(opts: AnalyticsHttpOptions): (req: IncomingM
       opts.store.retentionTable(),
       opts.store.countTable(),
       opts.daily?.stats() ?? [],
+      opts.endless?.stats() ?? [],
     );
     if (path === '/analytics/summary') {
       send(res, 200, JSON.stringify(summary), 'application/json; charset=utf-8');

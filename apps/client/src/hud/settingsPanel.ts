@@ -1,12 +1,15 @@
 // Settings popup (the ⚙ in the top bar): sound (mute, music and effects volume, docs/ART.md §13),
 // touch controls layout (docs/MOBILE.md §5), graphics quality (§7), screen shake (Off / Normal / Strong), display (Normal /
 // Bright, docs/ART.md §2), play data on / off with this browser's own copy and deletion (docs/ANALYTICS.md; its own key,
-// analytics/preference.ts; on asks the age question first if it is still to be answered) and installing the app
-// (Android prompt / iPhone sheet). The lobby's speaker button mutes too.
+// analytics/preference.ts; on asks the age question first if it is still to be answered), "Post Endless runs to the
+// board" (`endlessPost`, endless/board.ts; in a build with a game server; on asks the age first too) and installing the
+// app (Android prompt / iPhone sheet). The lobby's speaker button mutes too.
 
 import { AGE_KEY, currentAgeBand, readAgeAnswer } from '../analytics/age';
 import { setAnalyticsChoice } from '../analytics/install';
 import { ANALYTICS_KEY, browserSignals, playDataStatus, readAnalyticsChoice, type AnalyticsChoice } from '../analytics/preference';
+import { dailyServer } from '../daily/api';
+import { switchStatus } from '../endless/board';
 import { askAge } from '../privacy/ageCheck';
 import { wireMyData } from '../privacy/myDataUi';
 import type { SkillsPlace, StickAnchor, StickMode } from '../layout';
@@ -46,6 +49,9 @@ export class SettingsPanel {
   private readonly display = $('settings-display');
   private readonly analytics = $('settings-analytics');
   private readonly analyticsState = $('settings-analytics-state');
+  private readonly endlessRow = $('settings-endless-row');
+  private readonly endless = $('settings-endless');
+  private readonly endlessState = $('settings-endless-state');
   private readonly app = $('settings-app');
   private readonly install = $('install-btn');
   private readonly iosInstall = $('ios-install-btn');
@@ -157,11 +163,30 @@ export class SettingsPanel {
     const onBtn = this.analytics.querySelector<HTMLButtonElement>('[data-value="on"]');
     if (onBtn) onBtn.disabled = playData.locked;
     this.analyticsState.textContent = playData.line;
+    this.renderEndless();
     const android = canInstall();
     const ios = isIos() && !isStandalone();
     this.install.classList.toggle('hidden', !android);
     this.iosInstall.classList.toggle('hidden', !ios);
     this.app.classList.toggle('hidden', !android && !ios);
+  }
+
+  /** "Post Endless runs to the board": On / Off; On asks the age first if it was never answered; locked under 16. */
+  private renderEndless(): void {
+    this.endlessRow.classList.toggle('hidden', dailyServer() === '');
+    const status = switchStatus(this.store.get().endlessPost, currentAgeBand());
+    const pick = (v: AnalyticsChoice) => {
+      if (v === 'on' && readAgeAnswer() === null) {
+        void askAge().then(() => pick('on'));
+        return;
+      }
+      if (v === 'on' && switchStatus('on', currentAgeBand()).locked) return this.render();
+      this.store.set({ endlessPost: v });
+    };
+    this.choices(this.endless, Object.entries(PLAY_DATA_NAMES) as [AnalyticsChoice, string][], status.on ? 'on' : 'off', pick);
+    const onBtn = this.endless.querySelector<HTMLButtonElement>('[data-value="on"]');
+    if (onBtn) onBtn.disabled = status.locked;
+    this.endlessState.textContent = status.line;
   }
 
   private choices<T extends string>(el: HTMLElement, options: [T, string][], current: T, pick: (v: T) => void): void {

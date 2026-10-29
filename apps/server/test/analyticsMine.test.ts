@@ -96,7 +96,7 @@ describe('POST /analytics/mine and /analytics/mine/forget', () => {
     expect(copy.retention).toMatchObject({ session: 'session-0001' });
 
     const gone = await mine({ key }, true);
-    expect(await gone.json()).toEqual({ visitor, removedEvents: 2, removedDailyRuns: 0 });
+    expect(await gone.json()).toEqual({ visitor, removedEvents: 2, removedDailyRuns: 0, removedEndlessRuns: 0 });
     expect(await readFile(path.join(dir, 'events.jsonl'), 'utf8')).not.toContain(visitor);
     expect(await readFile(path.join(dir, 'retention.json'), 'utf8')).not.toContain(visitor);
     expect(await readFile(path.join(dir, 'events.jsonl'), 'utf8')).toContain('visitor-stay');
@@ -126,7 +126,7 @@ describe('POST /analytics/mine and /analytics/mine/forget', () => {
     expect(guess.status).toBe(200);
     const body = (await guess.json()) as { visitor: string; events: unknown[]; retention: unknown };
     expect(body.visitor).not.toBe(visitor);
-    expect(body).toEqual({ visitor: body.visitor, events: [], retention: null, daily: [] });
+    expect(body).toEqual({ visitor: body.visitor, events: [], retention: null, daily: [], endless: [] });
     const miss = (await (await mine({ key: newKey() }, true)).json()) as { removedEvents: number };
     expect(miss.removedEvents).toBe(0);
     // Nothing was deleted by those attempts.
@@ -168,6 +168,6 @@ describe('POST /analytics/mine and /analytics/mine/forget', () => {
     const copy = await fetch(`${http}/analytics/visitor?id=visitor-mail&key=top-secret`);
     expect(((await copy.json()) as { events: unknown[] }).events).toHaveLength(1);
     const res = await fetch(`${http}/analytics/forget?id=visitor-mail`, { method: 'POST', headers: { 'x-analytics-key': 'top-secret' } });
-    expect(await res.json()).toEqual({ visitor: 'visitor-mail', removedEvents: 1, removedDailyRuns: 0 });
+    expect(await res.json()).toEqual({ visitor: 'visitor-mail', removedEvents: 1, removedDailyRuns: 0, removedEndlessRuns: 0 });
   });
 });

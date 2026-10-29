@@ -55,7 +55,7 @@ export default defineConfig({
     {
       name: 'pixel',
       retries: RETRIES,
-      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy|meteor|boot|share)\.spec\.ts/,
+      testMatch: /(mobile|platform|art|lobby|hook|ultimates|privacy|meteor|boot|share|endless)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
     {

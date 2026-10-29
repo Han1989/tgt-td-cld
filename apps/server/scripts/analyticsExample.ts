@@ -10,6 +10,7 @@ import { renderDashboard } from '../src/analytics/page';
 import { DAY_MS, expireRetention, retentionFromEvents } from '../src/analytics/retention';
 import { summarize, type StoredEvent } from '../src/analytics/summary';
 import type { DailyDayStat } from '../src/daily/store';
+import type { EndlessDayStat } from '../src/endless/store';
 
 let seed = 20261005;
 function rand(): number {
@@ -160,7 +161,19 @@ const daily: DailyDayStat[] = Array.from({ length: 14 }, (_, i) => {
     mismatches: rand() < 0.15 ? 1 : 0,
   };
 });
-const summary = summarize(events, now, { connectedPlayers: 2, persistent: true, durable: true, dir: '/var/data' }, table, counts, daily);
+// Endless's board over the same two weeks: fewer players (it posts only after a yes), each posting a few runs.
+const endless: EndlessDayStat[] = Array.from({ length: 14 }, (_, i) => {
+  const players = Math.round(3 + rand() * 14);
+  return {
+    day: new Date(now - i * DAY_MS).toISOString().slice(0, 10),
+    posts: players + Math.round(players * rand() * 3),
+    players,
+    failures: rand() < 0.2 ? 1 : 0,
+    mismatches: rand() < 0.1 ? 1 : 0,
+    topWave: 48 + Math.round(rand() * 30),
+  };
+});
+const summary = summarize(events, now, { connectedPlayers: 2, persistent: true, durable: true, dir: '/var/data' }, table, counts, daily, endless);
 const out = process.argv[2] ?? 'analytics-example.html';
 writeFileSync(out, renderDashboard(summary, { example: true }));
 console.log(`Wrote ${out} (${events.length} made-up events, ${CHANNELS.length} channels).`);

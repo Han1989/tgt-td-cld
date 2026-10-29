@@ -1,7 +1,8 @@
-// Verifying a posted Daily run (docs/GAME_DESIGN.md "Daily run"): the file's checks before anything else, then the
+// Verifying a posted run (docs/GAME_DESIGN.md "Daily run", "Endless"): the file's checks before anything else, then the
 // server's own re-run of the replay with the sim. The board keeps what the re-run ends with, never what the client's
 // report says; a report that disagrees is counted as a mismatch. Re-runs go one at a time, a few milliseconds per
-// slice, so the rooms' 20 Hz ticks keep running while a run is verified (a Quick run is 0.1–0.5 s of re-run).
+// slice, so the rooms' 20 Hz ticks keep running while a run is verified (a Quick run is 0.1–0.5 s of re-run, an Endless
+// run to wave 80 2–3 s). The Daily run's routes and Endless's share one queue (server.ts).
 
 import type { HeroKind, MatchReport, Replay } from '@tdt/protocol';
 import { dailyRefusal, matchOver, replayProblem, replayRefusal, replaySteps, TICK_RATE, type DailyRun, type Match } from '@tdt/sim';
@@ -25,8 +26,12 @@ export interface VerifiedRun extends DailyRun {
   hero: HeroKind;
 }
 
-/** Why a file is not a daily run of the day whose seed is `seed`, or null. Before the re-run, on the file alone. */
-export function fileRefusal(file: unknown, seed: number): string | null {
+/**
+ * Why a file is not a run a board takes, or null. Before the re-run, on the file alone: `{ report, replay }` and
+ * nothing else, the replay's shape, rules that are gone, the board's own refusal (`refusal`), no tick past `maxTicks`,
+ * and a report that is this replay's.
+ */
+export function boardFileRefusal(file: unknown, refusal: (replay: Replay) => string | null, maxTicks: number): string | null {
   if (typeof file !== 'object' || file === null || Array.isArray(file)) return 'not a match file';
   const keys = Object.keys(file);
   if (keys.length !== 2 || !keys.includes('report') || !keys.includes('replay')) return 'not a match file';
@@ -34,10 +39,15 @@ export function fileRefusal(file: unknown, seed: number): string | null {
   const problem = replayProblem(replay);
   if (problem) return `bad replay: ${problem}`;
   const r = replay as Replay;
-  const refused = replayRefusal(r) ?? dailyRefusal(r, seed);
+  const refused = replayRefusal(r) ?? refusal(r);
   if (refused) return refused;
-  if (r.end.tick > MAX_RUN_TICKS || r.log.some((e) => e[0] > MAX_RUN_TICKS)) return 'the run is too long';
+  if (r.end.tick > maxTicks || r.log.some((e) => e[0] > maxTicks)) return 'the run is too long';
   return reportRefusal(report, r);
+}
+
+/** Why a file is not a daily run of the day whose seed is `seed`, or null. Before the re-run, on the file alone. */
+export function fileRefusal(file: unknown, seed: number): string | null {
+  return boardFileRefusal(file, (r) => dailyRefusal(r, seed), MAX_RUN_TICKS);
 }
 
 /** The report must be this replay's: same seed, mode, difficulty and hero, one player, a result. */
@@ -104,21 +114,24 @@ export class ReplayQueue {
     return this.waiting;
   }
 
-  /** Null when the queue is full. */
-  verify(replay: Replay): Promise<ReRun> | null {
-    if (this.waiting >= this.maxQueued) return null;
+  /**
+   * Null when the queue is full, or holds `room` runs or more (a board whose runs are long keeps room for the others).
+   * A re-run that passes `maxTicks` is refused.
+   */
+  verify(replay: Replay, maxTicks = MAX_RUN_TICKS, room = this.maxQueued): Promise<ReRun> | null {
+    if (this.waiting >= Math.min(room, this.maxQueued)) return null;
     this.waiting++;
-    const job = this.chain.then(() => this.run(replay));
+    const job = this.chain.then(() => this.run(replay, maxTicks));
     this.chain = job.catch(() => {});
     return job.finally(() => {
       this.waiting--;
     });
   }
 
-  private async run(replay: Replay): Promise<ReRun> {
+  private async run(replay: Replay, maxTicks: number): Promise<ReRun> {
     const started = this.clock();
     try {
-      const steps = replaySteps(replay, undefined, undefined, SLICE_TICKS, MAX_RUN_TICKS);
+      const steps = replaySteps(replay, undefined, undefined, SLICE_TICKS, maxTicks);
       let sliceStart = this.clock();
       for (;;) {
         const next = steps.next();

@@ -1297,6 +1297,15 @@ const items: ProgressItem[] = [
     proof: pr(152),
   },
   {
+    id: 'f3-boards',
+    title: 'Endless’s daily top 10, posted on its own',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Game server and client; no game rules or protocol change (the merge restarts the game server). From the friends’ retest: “no leaderboard, so nobody to beat”. Endless now has a public board of each day’s top 10, by the wave reached and then the shorter time, one best per player a day, every run checked by the server playing it again (the server’s result counts, never the phone’s). After your first finished Endless match the game asks once: “Post my Endless runs to the daily board?” Yes, every time, and your solo runs post themselves from then on: “#3 today · top wave 54” under “Fallen on wave 46”, or “Not in today’s top 10 · #27 of 112”. From 13 to 15 it asks before each run; under 13 nothing is posted and there is no board; online rooms never post. A “Today’s top 10” link on the Mode row opens the board, one phone screen, your row pinned under the ten; ⚙ Settings → Play data has the switch; the share card adds “#3 today”; the privacy page says what is sent and kept (90 days, deleted with your data). Built by Claude Code (PR #153).',
+    proof: pr(153),
+  },
+  {
     id: 'p5-rest',
     title: 'More maps',
     owner: 'Team',

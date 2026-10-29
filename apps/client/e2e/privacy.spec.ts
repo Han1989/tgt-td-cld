@@ -148,6 +148,47 @@ test('the privacy page fits a phone and its switch turns play data off for this 
   expect(await page.evaluate(() => localStorage.getItem('tdt.analytics'))).toBe('on');
 });
 
+test('a posted Endless run: the page says what is sent and how to stop; ⚙ → Play data has its switch, off until a yes', async ({ page }) => {
+  await page.goto('/privacy.html');
+  await waitForReady(page, 'privacy');
+  const section = page.locator('section', { has: page.locator('h2#endless') });
+  await expect(section.locator('h2')).toHaveText('A posted Endless run');
+  await expect(section).toContainText('Post my Endless runs to the daily board?');
+  await expect(section).toContainText('The post sends the nickname you give, the replay of your inputs in that run');
+  await expect(section).toContainText('public board under your nickname');
+  await expect(section).toContainText('kept 90 days');
+  await expect(section).toContainText('it works whether play data is on or off');
+  await expect(section).toContainText('turn off Post Endless runs to the board in ⚙ Settings → Play data');
+  await expect(section).toContainText('include your posted Endless runs');
+  await noHorizontalScroll(page);
+
+  // In the game (a build with a game server): the switch under Play data, off until the yes; On asks the age first.
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ tutorial: 'skipped' })));
+  await page.goto('/?lobby&daily');
+  await waitForReady(page, 'online');
+  await page.locator('#lobby-offline').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+  await page.locator('#settings-btn').click();
+  const row = page.locator('#settings-endless-row');
+  await row.scrollIntoViewIfNeeded();
+  await expect(row).toBeVisible();
+  await expect(page.locator('#settings-endless-label')).toHaveText('Post Endless runs to the board');
+  await expect(page.locator('#settings-endless [data-value="off"]')).toHaveClass(/active/);
+  await expect(page.locator('#settings-endless-state')).toHaveText('Off: the game asks after your first Endless match.');
+  await page.locator('#settings-endless [data-value="on"]').click();
+  await expect(page.locator('#age-check')).toBeVisible();
+  await page.locator('#age-input').fill('30');
+  await page.locator('#age-continue').click();
+  await expect(page.locator('#settings-endless [data-value="on"]')).toHaveClass(/active/);
+  await expect(page.locator('#settings-endless-state')).toContainText("On: each solo Endless run you finish goes on today's public board");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).endlessPost)).toBe('on');
+  await page.locator('#settings-endless [data-value="off"]').click();
+  await expect(page.locator('#settings-endless-state')).toHaveText('Off: your Endless runs stay on this device.');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).endlessPost)).toBe('off');
+  // The switch does not touch play data: it is its own act.
+  expect(await page.evaluate(() => localStorage.getItem('tdt.analytics'))).toBeNull();
+});
+
 test('a browser that sends Global Privacy Control starts with play data off', async ({ page }) => {
   await adult(page);
   await page.addInitScript(() => Object.defineProperty(Navigator.prototype, 'globalPrivacyControl', { get: () => true }));

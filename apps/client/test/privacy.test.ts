@@ -128,7 +128,7 @@ describe('your data: copy and delete', () => {
     expect(myDataLine(result)).toBe('Downloaded: 1 event and nothing more.');
   });
 
-  it('puts the posted Daily runs in the copy and says so', async () => {
+  it('puts the posted Daily and Endless runs in the copy and says so', async () => {
     const store = memory({ [DATA_KEY_KEY]: KEY, [VISITOR_KEY]: visitorFromKey(KEY) });
     const run = { day: '2026-10-22', name: 'Kim', heart: 40, wave: 15, ticks: 13_000, won: true, hero: 'ranger', at: 1 };
     const reply = { visitor: visitorFromKey(KEY), events: [], retention: null, daily: [run, { ...run, day: '2026-10-23' }] };
@@ -136,9 +136,17 @@ describe('your data: copy and delete', () => {
     expect(JSON.parse((result as { text: string }).text)).toMatchObject({ daily: reply.daily });
     expect(String(JSON.parse((result as { text: string }).text).about)).toContain('Daily runs');
     expect(myDataLine(result)).toBe('Downloaded: 0 events and 2 posted Daily runs, nothing more.');
+    // And the posted Endless runs beside them.
+    const endless = { day: '2026-10-29', name: 'Kim', hero: 'warden', wave: 46, ticks: 46_000, at: 2 };
+    const both = await copyMyData(server, store, fakeFetch(200, { ...reply, endless: [endless] }, []), () => new Date(2026, 9, 29, 9));
+    expect(JSON.parse((both as { text: string }).text)).toMatchObject({ daily: reply.daily, endless: [endless] });
+    expect(String(JSON.parse((both as { text: string }).text).about)).toContain('Endless runs');
+    expect(myDataLine(both)).toBe('Downloaded: 0 events, 2 posted Daily runs and 1 posted Endless run, nothing more.');
+    const onlyEndless = await copyMyData(server, store, fakeFetch(200, { visitor: 'x', events: [{}], retention: null, endless: [endless] }, []));
+    expect(myDataLine(onlyEndless)).toBe('Downloaded: 1 event and 1 posted Endless run, nothing more.');
     // An older server sends no runs: the file has none.
     const old = await copyMyData(server, store, fakeFetch(200, { visitor: 'x', events: [], retention: null }, []));
-    expect(JSON.parse((old as { text: string }).text).daily).toEqual([]);
+    expect(JSON.parse((old as { text: string }).text)).toMatchObject({ daily: [], endless: [] });
     expect(myDataLine(old)).toBe('Downloaded. The server holds nothing for this browser right now.');
   });
 

@@ -550,6 +550,107 @@ for (const size of [
   });
 }
 
+/** Endless's board as /endless/today answers it (apps/server/src/endless/http.ts): ten rows, and this browser 27th. */
+function endlessToday(mine: boolean) {
+  const names = ['Kael', 'Mira the Bold', 'Wren', 'Aster', 'Oro', 'Tamsin', 'Ilse', 'Bram', 'Juno', 'Pellinore Ash'];
+  return {
+    day: '2026-10-29',
+    closesAt: Date.now() + 3 * 3600_000 + 60_000,
+    runs: 112,
+    top: names.map((name, i) => ({
+      rank: i + 1,
+      name,
+      wave: 54 - i * 2,
+      ticks: 50_000 + i * 900,
+      hero: ['warden', 'ranger', 'arcanist'][i % 3],
+      mine: false,
+    })),
+    you: mine ? { rank: 27, wave: 31, ticks: 30_000 } : null,
+  };
+}
+
+test('Today’s top 10 stays hidden in a build with no game server, and when the server does not answer', async ({ page }) => {
+  let asked = 0;
+  await page.route('**/endless/today', (route) => {
+    asked++;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
+  });
+  await openHome(page);
+  await page.waitForTimeout(500);
+  await expect(page.locator('#lobby-board-link')).toBeHidden();
+  expect(asked).toBe(0);
+  await page.unroute('**/endless/today');
+  await page.route('**/endless/today', (route) => route.fulfill({ status: 503, body: 'down' }));
+  await openHome(page, undefined, '&daily');
+  await page.waitForTimeout(500);
+  await expect(page.locator('#lobby-board-link')).toBeHidden();
+});
+
+for (const size of [
+  { width: 412, height: 839 },
+  { width: 360, height: 640 },
+]) {
+  test(`Endless's board at ${size.width} × ${size.height}: the link keeps the Mode row's height, the card is one screen`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.addInitScript(() => {
+      localStorage.setItem('tdt.endlessBest', JSON.stringify({ ranger: 37 }));
+      // This browser posted today: the read sends its key, and the server marks its row (27th, under the ten).
+      localStorage.setItem('tdt.endlessPosted', JSON.stringify([new Date().toISOString().slice(0, 10)]));
+      localStorage.setItem('tdt.visitorKey', 'ab'.repeat(32));
+    });
+    let key: string | undefined;
+    await page.route('**/endless/today', (route) => {
+      key = route.request().headers()['x-data-key'];
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(true)) });
+    });
+    await openHome(page, undefined, '&daily');
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    const before = await box(page, '#lobby-offline');
+    await expect(page.locator('#lobby-board-link')).toBeVisible();
+    await expect(page.locator('#lobby-board-link')).toHaveText("Today's top 10");
+    // On the Mode label's line with the best: Play solo has not moved, the segments still fit.
+    const link = await box(page, '#lobby-board-link');
+    const best = await box(page, '#lobby-mode-home-best');
+    const endless = await box(page, '#lobby-mode-home .mode-pick[data-mode="endless"]');
+    expect(link.bottom).toBeLessThanOrEqual(endless.top + 1);
+    expect(link.left).toBeGreaterThanOrEqual(best.right);
+    expect(Math.abs((await box(page, '#lobby-offline')).top - before.top)).toBeLessThanOrEqual(1);
+    await modeRowFits(page);
+    await onScreen(page, 'lobby-offline');
+
+    await page.locator('#lobby-board-link').click();
+    await expect(page.locator('#lobby-board')).toBeVisible();
+    await expect(page.locator('#lobby-home')).toBeHidden();
+    await expect(page.locator('#lobby-board-title')).toHaveText("Endless · Today's top 10");
+    await expect(page.locator('#lobby-board-day')).toHaveText(/^29 Oct · 3 h left today$/);
+    await expect(page.locator('#lobby-board-rows li')).toHaveCount(10);
+    await expect(page.locator('#lobby-board-rows li').first()).toHaveText('#1KaelWave 5441:40');
+    // Your row, pinned under the ten.
+    await expect(page.locator('#lobby-board-you li')).toHaveText('#27YouWave 3125:00');
+    expect(key).toBe('ab'.repeat(32));
+    // One screen: the card does not scroll; the rows, the pinned row and Back are all on it.
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    const vp = page.viewportSize()!;
+    for (const sel of ['#lobby-board-day', '#lobby-board-you', '#lobby-board-back']) {
+      const b = await box(page, sel);
+      expect(b.top, sel).toBeGreaterThanOrEqual(0);
+      expect(b.bottom, sel).toBeLessThanOrEqual(vp.height);
+    }
+    // Every row's parts on its line: a long nickname is cut, not wrapped; the hero icons are drawn.
+    const rows = await page.locator('#lobby-board-rows li').evaluateAll((els) =>
+      els.map((el) => ({ height: el.getBoundingClientRect().height, cut: el.scrollWidth - el.clientWidth, icon: getComputedStyle(el.querySelector('.hero-ico')!).backgroundImage })),
+    );
+    for (const r of rows) {
+      expect(r.height).toBeLessThan(40);
+      expect(r.cut).toBeLessThanOrEqual(0);
+      expect(r.icon).not.toBe('none');
+    }
+    await page.locator('#lobby-board-back').click();
+    await expect(page.locator('#lobby-home')).toBeVisible();
+    await expect(page.locator('#lobby-board')).toBeHidden();
+  });
+}
+
 test('Play solo on Endless: Hard with no last wave, "Wave 1" alone, "Fallen on wave 1", then the best on the Mode row', async ({ page }) => {
   await openHome(page, 'skipped');
   await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();

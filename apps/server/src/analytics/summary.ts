@@ -7,6 +7,7 @@ import { summarizeFunnel, type FunnelSummary } from './funnel';
 import { summarizeMatches, type MatchBreakdown } from './matches';
 import type { ParsedEvent } from './parse';
 import type { DailyDayStat } from '../daily/store';
+import type { EndlessDayStat } from '../endless/store';
 import {
   COHORT_KEEP_DAYS,
   cohortDays,
@@ -83,6 +84,8 @@ export interface AnalyticsSummary {
   errors: ErrorSummary;
   /** The Daily run, per UTC day, newest first (daily/store.ts): runs posted, players, refused posts, mismatches. */
   daily: DailyDayStat[];
+  /** Endless's board, per UTC day, newest first (endless/store.ts): the same, and the day's top wave. */
+  endless: EndlessDayStat[];
   feedback: {
     count: number;
     comments: number;
@@ -175,6 +178,7 @@ export function summarize(
   retention?: RetentionState,
   counts: CountState = emptyCounts(),
   daily: DailyDayStat[] = [],
+  endless: EndlessDayStat[] = [],
 ): AnalyticsSummary {
   const recent = events.filter((event) => now - event.at <= RETAIN_MS && event.at <= now + 60_000);
   const table = retention ?? retentionFromEvents(recent);
@@ -318,6 +322,7 @@ export function summarize(
     matches: summarizeMatches(recent),
     errors: summarizeErrors(recent),
     daily,
+    endless,
     feedback: {
       count: ratings.length,
       comments,

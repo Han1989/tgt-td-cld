@@ -82,7 +82,7 @@ After changing it: Render → *Environment* → edit → **Save, rebuild and dep
 | `WS_COMPRESSION` | on | `off` disables permessage-deflate. |
 | `RENDER_GIT_COMMIT` | `dev` | Set by Render itself (the deployed commit); stamped into every online match report and replay and the `match …` log line. Don't set it by hand. |
 | `ANALYTICS_DASHBOARD_KEY` | unset (dashboard off) | Shared secret for `GET /analytics`. See [`docs/ANALYTICS.md`](ANALYTICS.md). Do not commit it. |
-| `ANALYTICS_DIR` | system temp dir | Where the analytics JSONL is written, and the Daily run's day files in its `daily/` directory. A Render Disk path keeps them across deploys; the default temp directory does not. `memory` keeps RAM only. |
+| `ANALYTICS_DIR` | system temp dir | Where the analytics JSONL is written, the Daily run's day files in its `daily/` directory and Endless's board's in its `endless/` directory. A Render Disk path keeps them across deploys; the default temp directory does not. `memory` keeps RAM only. |
 
 Startup logs one analytics line: where events are stored, and whether the dashboard is on. The page itself is [`docs/ANALYTICS.md`](ANALYTICS.md).
 
@@ -99,6 +99,15 @@ Startup logs one analytics line: where events are stored, and whether the dashbo
 | `POST /daily/post` | `{ key, name, file: { report, replay } }`, up to 448 KB. Checked, then re-run by the server one at a time (a few ms per slice, so rooms keep ticking); answers the caller's rank, total, best, this run, whether it improved the best, the personal best over the days kept and five rows. Refusals are JSON `{ error, message }`: 400 (`body`, `file`, `rerun`), 409 (`day`: another day's seed; `forgotten`), 413, 429 (`Retry-After: 20`), 503 (`busy`). |
 
 Each post logs one line: `daily <day> accepted: <result> wave … heart … ticks … rank r/n (best) re-run N ms`, or `daily <day> refused: <why>` (no name, id or key). Day files are `daily/YYYY-MM-DD.json` in `ANALYTICS_DIR` (each browser's best run: its id, nickname, hero and result, plus the day's counts), rewritten through a temp file and a rename on every change, read back at startup, and deleted after 90 days (at startup and every 24 hours, with the event log). With `memory` they stay in RAM; with `ANALYTICS_DIR` unset they go in the temp directory and a deploy clears them. The dashboard's **Daily run** table reads them. A deploy or restart drains rooms as below; a post that arrives while the server restarts fails, and the player taps again.
+
+**Endless board** (docs/GAME_DESIGN.md "Endless", "The board"). Two more HTTP routes, built on the Daily run's (the same checks, CORS and refusals; the Daily run's re-run queue, one run at a time for both boards; the Daily run's all-addresses post bucket):
+
+| Route | What |
+|---|---|
+| `GET /endless/today` | `{ day, closesAt, runs, top, you }`: today's UTC date, the next UTC midnight (ms), how many browsers are on today's board, the top 10, each `{ rank, name, wave, ticks, hero, mine }`, and, with a data key in `x-data-key`, the caller's row marked and `you: { rank, wave, ticks }` (else null). Reads share the Daily run's limit: 10 at once, then one a second per address. |
+| `POST /endless/post` | `{ key, name, file: { report, replay } }`, up to 1.5 MB (a person's run to the hard stop at wave 200 is about 1.35 MB). Checked (one player, Endless, recorded on the server's own `PROTOCOL_VERSION`, the report this replay's), then re-run on the queue in 8 ms slices: a wave-50 run about 1.4 s, a wave-80 run 2–3 s (`npm run endless:rerun -w @tdt/server` measures it), refused past `endlessRunTicks` (every wave timer to the hard stop plus ten minutes); it joins the queue only while fewer than 5 runs wait. Answers today's view as the caller sees it, this run (`{ wave, ticks, hero }`, the server's own) and whether it improved the browser's best today. Refusals: 400 (`body`, `file`, `rerun`), 409 (`version`: another protocol; `forgotten`), 413, 429 (`slow`: one post a minute per address, two at once; `Retry-After: 60`), 503 (`busy`). |
+
+Each post logs one line: `endless <day> accepted: wave … ticks … rank r/n (best) re-run N ms`, or `endless <day> refused: <why>` (no name, id or key). Day files are `endless/YYYY-MM-DD.json` in `ANALYTICS_DIR` (each browser's best run: its id, nickname, hero, wave and ticks, plus the day's counts), written, read back and deleted after 90 days exactly as the Daily run's (one store, `daily/days.ts`), and copied and deleted with a browser's play data. The dashboard's **Endless board** table reads them. **The first deploy creates `endless/` beside `daily/` on the disk by itself**; nothing to set up.
 
 **Health.** `GET /health` returns JSON:
 

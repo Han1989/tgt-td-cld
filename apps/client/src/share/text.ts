@@ -45,6 +45,8 @@ export interface EndlessFace {
   /** A better wave this browser holds for this hero (null: none, or this run is the best). */
   best: number | null;
   hero: HeroKind;
+  /** The run was posted to today's Endless board: this browser's rank there ("#3 today"). Absent when not posted. */
+  today?: number;
 }
 
 export type ShareFace = DailyFace | EndlessFace;
@@ -68,10 +70,10 @@ export function dailyFace(result: Pick<PostResult, 'day' | 'rank' | 'total' | 'b
   };
 }
 
-/** The card of an Endless run that fell on `run.wave` after `seconds`. */
-export function endlessFace(run: EndlessRun, seconds: number, hero: HeroKind): EndlessFace {
+/** The card of an Endless run that fell on `run.wave` after `seconds`; `today`, its rank on today's board once posted. */
+export function endlessFace(run: EndlessRun, seconds: number, hero: HeroKind, today: number | null = null): EndlessFace {
   const best = !run.isNew && run.best > run.wave ? run.best : null;
-  return { kind: 'endless', wave: run.wave, seconds, best, hero };
+  return { kind: 'endless', wave: run.wave, seconds, best, hero, ...(today !== null ? { today } : {}) };
 }
 
 /** 9999 → "9,999". */
@@ -104,7 +106,10 @@ export function linkLabel(origin: string): string {
 
 /** The words handed to the share sheet with the card and the link. */
 export function shareText(face: ShareFace): string {
-  if (face.kind === 'endless') return `I held out to wave ${groupDigits(face.wave)} in Endless. How far can you get?`;
+  if (face.kind === 'endless') {
+    const today = face.today !== undefined ? `, #${groupDigits(face.today)} on today's board` : '';
+    return `I held out to wave ${groupDigits(face.wave)} in Endless${today}. How far can you get?`;
+  }
   return `I finished #${groupDigits(face.rank)} of ${groupDigits(face.total)} in today's Daily run of Tower Defense Together. Beat me:`;
 }
 
@@ -159,7 +164,7 @@ export function cardLines(face: ShareFace): Line[] {
   const hero = HERO_INFO[face.hero].name;
   if (face.kind === 'endless') {
     const lines: Line[] = [
-      { id: 'eyebrow', gap: 0, runs: [run('Endless', 32, 'gold', 'title')] },
+      { id: 'eyebrow', gap: 0, runs: [run(face.today !== undefined ? `Endless · #${groupDigits(face.today)} today` : 'Endless', 32, 'gold', 'title')] },
       { id: 'lead', gap: 20, runs: [run('Fallen on wave', 52, 'moon', 'title')] },
       { id: 'wave', gap: 18, runs: [run(groupDigits(face.wave), 150, 'gold', 'title', 700, true)] },
       { id: 'run', gap: 26, runs: [run(`Held out ${clock(face.seconds)}`, 38, 'moon')] },

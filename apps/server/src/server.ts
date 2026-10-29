@@ -19,7 +19,11 @@ import { createAnalyticsHttp } from './analytics/http';
 import { AnalyticsStore } from './analytics/store';
 import type { ServerConfig } from './config';
 import { createDailyHttp } from './daily/http';
+import { allPostsBucket } from './daily/routing';
 import { DailyStore } from './daily/store';
+import { ReplayQueue } from './daily/verify';
+import { createEndlessHttp } from './endless/http';
+import { EndlessStore } from './endless/store';
 import { TokenBucket } from './rateLimit';
 import { CLOSE_SERVICE_RESTART, Room, type Member } from './room';
 import { generateRoomCode, shardOf } from './roomCode';
@@ -101,16 +105,33 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
   const dailyStore = new DailyStore(config.analyticsDir);
   dailyStore.open();
   dailyStore.startPruning();
+  // Endless's board's day files too (endless/store.ts), in `endless/`.
+  const endlessStore = new EndlessStore(config.analyticsDir);
+  endlessStore.open();
+  endlessStore.startPruning();
   const analyticsHttp = createAnalyticsHttp({
     store: analyticsStore,
     dashboardKey: config.analyticsDashboardKey,
     isOriginAllowed: (origin) => config.isOriginAllowed(origin),
     connectedPlayers: () => health().players,
     daily: dailyStore,
+    endless: endlessStore,
   });
+  // Both boards re-run posted runs on one queue, one at a time, and share the all-addresses post bucket.
+  const replayQueue = new ReplayQueue();
+  const allPosts = allPostsBucket(Date.now());
   const dailyHttp = createDailyHttp({
     store: dailyStore,
     isOriginAllowed: (origin) => config.isOriginAllowed(origin),
+    queue: replayQueue,
+    allPosts,
+    log,
+  });
+  const endlessHttp = createEndlessHttp({
+    store: endlessStore,
+    isOriginAllowed: (origin) => config.isOriginAllowed(origin),
+    queue: replayQueue,
+    allPosts,
     log,
   });
 
@@ -139,6 +160,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
     try {
       if (await analyticsHttp(req, res)) return;
       if (await dailyHttp(req, res)) return;
+      if (await endlessHttp(req, res)) return;
     } catch {
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -369,6 +391,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     analyticsStore.stopPruning();
     dailyStore.stopPruning();
+    endlessStore.stopPruning();
     for (const room of rooms.values()) room.closeAll(CLOSE_SERVICE_RESTART, 'Server restarting');
     rooms.clear();
     for (const conn of conns) conn.ws.close(CLOSE_SERVICE_RESTART, 'Server restarting');
@@ -381,7 +404,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
         httpServer.closeAllConnections();
       }, 250);
     });
-    return Promise.all([analyticsStore.flush(), dailyStore.flush()]).then(
+    return Promise.all([analyticsStore.flush(), dailyStore.flush(), endlessStore.flush()]).then(
       () => closed,
       () => closed,
     );
