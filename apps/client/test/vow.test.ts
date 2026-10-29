@@ -5,7 +5,7 @@ import { NO_VOW, VOW_BLOOM_MS, VOW_END_TICKS, VOW_WARN_TICKS, vowLook } from '..
 /** Ticks of vow left that are comfortably before the warning. */
 const PLENTY = 6 * TICK_RATE;
 
-describe('the Iron Vow ring', () => {
+describe('the Rampart Slam ring', () => {
   it('is gone when no vow is left', () => {
     expect(vowLook(0, 5000, 5000, false)).toEqual(NO_VOW);
     expect(vowLook(-3, 5000, 5000, true)).toEqual(NO_VOW);

@@ -572,3 +572,108 @@ Mean wave the Heart fell on (lowest–highest), and the Heart as wave 31 started
 ## Replays
 
 An Endless replay recorded before protocol 22 is refused (`replayRefusal`), with the commit to check out: veteran levels, Reinforce and the loop's numbers make it run differently. Han's match file of 24 Oct 2026 is one. Full and Quick replays re-run as before.
+
+# Round 7: retest fix B, mana, the Snare Trap, wave 5 and the Warden as a bruiser (Han, 28 Oct 2026)
+
+The friends' retest of 28 Oct 2026: the casters' mana never went down, the Warden's did; the Snare Trap was ineffective; the
+Warden could not win alone and his ultimate was useless alone (the matrix: Iron Vow 0% of his damage, 200–440 a cast);
+wave 5 was a wall (the first Wisps with Archers). Protocol 23. Before: `docs/balance/final.txt` (main was re-run for this
+round and gives the same tables to the line), `retest-before-targets.txt`; after: `retest-final.txt`,
+`retest-final-targets.txt`.
+
+## Every number, before → after
+
+| What | Before | After |
+|---|---|---|
+| Ranger mana / per level / regen / per level | 140 / 25 / 2.5 / 0.5 | 190 / 8 / 3.35 / 0.19 |
+| Multishot mana | 25 / 30 / 35 / 40 | 28 / 25 / 21 / 18 (the same mana a second at every rank) |
+| Snare Trap mana | 30 / 35 / 40 / 45 | 35 / 33 / 30 / 28 |
+| Snare Trap damage / arm delay | 20 / 35 / 50 / 65, 0.5 s | 145 / 180 / 215 / 250, 0.2 s |
+| Snare Trap: Exposed | none | +25% damage from everything while rooted (`snareTrap.exposed`) |
+| Warden mana / per level / regen / per level | 110 / 26 / 2.1 / 0.4 | 150 / 7 / 2.4 / 0.15 |
+| Cleave mana / damage | 20 / 25 / 30 / 35, 28 / 45 / 62 / 80 | 17 / 15 / 14 / 13, 70 / 120 / 165 / 210 |
+| Taunt mana | 30 / 35 / 40 / 45 | 32 / 30 / 28 / 26 |
+| Blood Hunger | lifesteal 15 / 22 / 30 / 38% | the same, + 1.5 / 2 / 2.5 / 3% of max HP a hit (`hpShare`) |
+| Warden R | Iron Vow: 50 / 46 / 42 s, heal 40 / 50 / 60%, burst 100 / 150 / 200 (r 3.5), stun 0.75 / 1 / 1.25 | Rampart Slam: 70 / 65 / 60 s, r 3.5, 340 / 465 / 590 + 85 / 110 / 135 per other creep (12 at most; a boss the base), stun 1 s, heal 25 / 30 / 35%; the guard (6 / 7 / 8 s, armour 5 / 8 / 11, regen 5 / 7 / 10) unchanged |
+| Arcanist mana / per level / regen / per level | 260 / 34 / 4.4 / 0.6 | 260 / 8 / 4.55 / 0.14 |
+| Fireball mana | 30 / 35 / 45 / 50 | 32 / 30 / 28 / 25 |
+| Frost Nova mana | 40 / 45 / 50 / 55 | 42 / 39 / 35 / 32 |
+| Clarity Aura | 1 / 1.75 / 2.5 / 3.25 | 0.75 / 1.25 / 1.75 / 2.25 |
+| Full wave 5 / 6 | 4 Grunts, 2 Archers, 2 Wisps / 5 Runners, 2 Brutes, 2 Wisps | 4 Grunts, 3 Archers / unchanged (first Wisps) |
+| Quick wave 3 / 4 | 4 Grunts, 2 Archers, 1 Brute, 2 Wisps / … 2 Wisps | 4 Grunts, 3 Archers, 1 Brute / unchanged (first Wisps) |
+| `playerScaling.hp` (Full; Quick unchanged) | 1.04 / 1.5 / 1.52 | 1.14 / 1.54 / 1.52 |
+| Full Hard bands (solo / pairs / three) | 1.18 / 1.18 / 1.17 | 1.32 / 1.32 / 1.4 |
+| Quick Hard bands (solo / pairs) | 1.2 / 1.28 | 1.35 / 1.22 (the Daily run is the solo band) |
+| Bots | the Warden cast R on 3 creeps, a boss within 8 tiles or a hurt hero | the slam on 4 creeps (the novice on any), held for a teammate's ultimate about to be ready; the expert keeps Taunt for it, gathers the pack (1.5 s) and walks to the densest fresh pack (solo the whole map, in a team 24 tiles), slamming on 7, or 5 where nothing denser is near |
+
+## The drill (`npm run mana drill`; share = casts once dry / casts on cooldown alone)
+
+| Hero | level 1: dry, share | level 6 | level 10 |
+|---|---|---|---|
+| Ranger before | 42 s, 51% | 57% | 60% |
+| Warden before | 30 s, 47% | 52% | 56% |
+| Arcanist before (Clarity counted) | 63 s, 66% | 72% | 77% |
+| Ranger after | 56 s, 59% | 73% | 80% |
+| Warden after | 48 s, 62% | 77% | 81% |
+| Arcanist after | 60 s, 63% | 78% | 88% |
+
+The drill alone said the casters already ran dry. What the friends saw was the build they played: points spread over Q,
+W and E, so a level-10 Arcanist casting rank-2 skills spent 9.5 mana a second against 9.8 + her aura's regeneration. A rank
+now shortens a skill's cooldown and its cost together (the same mana a second at every rank), so the drill's bands hold
+for any build, and regeneration grows only a little with level (the pools likewise).
+
+## What each step found
+
+- **The kits alone (`after1`)** made every bot stronger: the casual Full Normal solo means 99–100, the expert Full Hard
+  solo 90–97 (main 54–84), Quick Hard solo 82–92. The creeps pay it back. First Full Normal solo × 1.1 and pairs × 1.58
+  (× 1.2 solo is a cliff: the novice Arcanist wins 60%), Full Hard 1.32 / 1.32 / 1.4, Quick Hard solo 1.35; the gate
+  tests then still had the casual solo Ranger at 100 on every gate seed and the novice Ranger + Warden pair winning 60%
+  of its gate seeds, so solo × 1.14 and pairs × 1.54; Quick Hard pairs fell under the band on most gate seeds, 1.28 →
+  1.22. Quick Normal is unchanged.
+- **The slam is bounded by the pack, not its numbers.** Cast on 4 creeps the expert's slam took 930 a cast (towers had
+  worn the pack down); Taunt to gather it 1,600; walking to a fresh pack up the lanes 2,200; doubling its damage moved the
+  mean 2%. Every slam already kills nearly everything it catches. 2,473 a cast over 30 seeds, 4.5% of his damage: short
+  of the 2,500 and 5% asked, by the creeps' HP on his feet.
+- **Wave 5** costs the novices next to nothing now (0.2–1.3 Heart); their first third is waves 2–4 (Runners leaking past
+  a half-spending novice), so its share stays 71% for the Ranger and 76% for the Arcanist (34% the Warden; 91 / 85 / 81% on main): not met. The
+  second lever (the early team bonus) does nothing solo (it is 0); a solo early discount would also lift the casual bot
+  past main.
+- **The Arcanist's mana bump** (to the top of the bands) changed no table: the bots never run her dry. She is now the
+  weakest hero for every bot (the other two got the buffs).
+
+## Where it lands (30 seeds, `retest-final.txt`; main in brackets)
+
+- Novice Normal: every team wins at least 97% (Full) and 100% (Quick); solo Full 74 / 77 / 58 Heart (61 / 71 / 72),
+  Quick 61 / 66 / 50 (24 / 40 / 44).
+- Casual Normal: Full solo 96 / 96 / 89 (95 / 95 / 95), pairs 91–97 (81–88); Quick solo 93 / 96 / 81 (88 / 79 / 84).
+- Expert Normal: Full solo 99.9 / 93.9 / 97.8 (93.5 / **81.7** / 100), Quick 98.3 / 92.3 / 97.2 (93 / 82 / 98): within
+  10.
+- Expert Hard: Full solo 56 / 70 / 47 (62 / 54 / 84), Quick 62 / 65 / 46 (68 / 40 / 78); pairs and three 49–72 (18–79).
+- Casual Hard loses more often than on main (allowed: casual Hard may lose).
+- The Warden's slam: 2,473 HP a cast, 4.5% of his damage (Iron Vow: 196, 0.5%); the casual Warden dies 0.0–0.2 times a
+  Quick match.
+- The Arcanist trails the other two for every bot (spreads of 13–23 Heart on Hard and with novices); main's trailing
+  hero was the Warden by 19–38.
+- Targets missed: 42 (main 45).
+
+## Gates that moved
+
+The gates' bounds are unchanged; the new tuning passes them (`npm test`). `test/heroes.test.ts` has the mana rule's bands,
+the constant mana a second, Blood Hunger in a pack, two Cleaves, the slam's echo and its boss rule, the trap's Exposed and
+its Quick wave 8–10 targets; `test/ultimates.test.ts` the slam's heal and its share of a boss. The repair bounds stay
+provisional: no friends' match reports were attached to this round, so the bots' repair frequency is unchanged.
+`waves.lateHpGrowthPerWave` stays 0.
+
+## Replays
+
+Anything recorded before protocol 23 is refused (`replayRefusal`), with the commit to check out; `npm run counterfactual`
+stamps the playtest files with today's protocol on purpose.
+
+## Endless with the new kits (`npm run balance:matrix -- endless`, 30 seeds, `docs/balance/endless.txt`)
+
+Mean wave fell on, solo Ranger / Warden / Arcanist (round 6 in brackets): novice 35.3 / 38.2 / 34.6 (33.7 / 35.9 / 36.9),
+casual 58.4 / **80.0** / 58.4 (61.7 / 59.4 / 62.2), expert 75.7 / 82.8 / 75.2 (74.4 / 78.8 / 77.8); every expert run
+reaches wave 31, Heart 93–99 there. The gate (`balanceEndless*.test.ts`, the gate seeds) holds, so `tuning.endless` is
+unchanged. The casual Warden is the outlier: Blood Hunger's share of max HP and the slam (both grow with his veteran
+levels) keep him alive into the 70s and 80s, 20 waves past the other heroes. If Han wants the casual band per hero, the
+Warden's Endless share is the number to look at (`hpShare` or the slam under `hero.veteran`), not the loop.

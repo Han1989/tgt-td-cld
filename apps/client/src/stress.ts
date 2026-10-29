@@ -29,7 +29,7 @@ const ALLY = 'ally';
 /** The tick (of every 240) the fuse lands on. A global rain starts on it, and the 80-tick leak does not. */
 const FUSE_TICK = 80;
 /** Skill effects the scene cycles through, one every 1.5 s. */
-const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'ironVow', 'arrowStorm', 'meteorRain'];
+const AOES: AoeEffect[] = ['meteor', 'fireball', 'frostNova', 'cleave', 'taunt', 'rampartSlam', 'arrowStorm', 'meteorRain'];
 
 export class StressTransport implements Transport {
   private handlers: ((msg: ServerMessage) => void)[] = [];
@@ -113,6 +113,7 @@ export class StressTransport implements Transport {
         maxHp,
         slowed: i % 11 === 0,
         rooted: false,
+        exposed: false,
         armor: 0,
         magicResist: 0,
         stunned: false,
@@ -132,7 +133,7 @@ export class StressTransport implements Transport {
         });
       }
     });
-    // Both heroes wear an Iron Vow ring all the time, so its sprites are part of the load. The Arcanist stands on
+    // Both heroes wear a Rampart Slam guard ring all the time, so its sprites are part of the load. The Arcanist stands on
     // the Mid lane, where the fused rain is marked.
     const spot = midSpot();
     // Their ultimates are learned and ready (the R button's pulse and "Combo!" ring).
@@ -185,7 +186,7 @@ export class StressTransport implements Transport {
       const k = t % 240;
       // The ally casts alone first: your R shows the "Combo!" ring until the fuse.
       if (k === 20) events.push({ type: 'cast', heroId: arcanist.id, slot: 'R', x: arcanist.x, y: arcanist.y });
-      // The fuse ends the Arrow Storm, and Iron Vow's heal reaches both heroes.
+      // The fuse ends the Arrow Storm, and Rampart Slam's heal reaches both heroes.
       if (k === FUSE_TICK + 1) events.push({ type: 'ultResult', ult: 'arrowStorm', by: PLAYER, kills: 4 });
       if (k === FUSE_TICK + 2) {
         events.push({ type: 'heal', heroId: ranger.id, amount: 150 }, { type: 'heal', heroId: arcanist.id, amount: 90 });
@@ -193,6 +194,13 @@ export class StressTransport implements Transport {
       // Rains end: yours, then the ally's.
       if (k === 150) events.push({ type: 'ultResult', ult: this.comboAt(t), by: PLAYER, kills: 12 });
       if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
+      // A Rampart Slam lands by the ally: its ring at once, its count with it (retest fix B).
+      if (k === 215) {
+        events.push(
+          { type: 'aoe', effect: 'rampartSlam', x: arcanist.x, y: arcanist.y, radius: 3.5 },
+          { type: 'ultResult', ult: 'rampartSlam', by: ALLY, kills: 9 },
+        );
+      }
     }
     // While the fused rain runs, a strike every 0.3 s and the creep under it dies.
     const since = this.rainSince(t);

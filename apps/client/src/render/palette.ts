@@ -19,6 +19,8 @@ export const COLORS = {
   mana: 0x4a8cff,
   slow: 0x8fd3ff,
   root: 0xc8a165,
+  /** A creep a Snare Trap left Exposed (more damage from everything while rooted). */
+  exposed: 0xb48cff,
   stun: 0xffe066,
   good: 0x5bff9c,
   bad: 0xff5b5b,
@@ -138,7 +140,7 @@ export const HERO_COLORS: Record<HeroKind, { fill: number; edge: number }> = {
 export const AOE_COLORS: Record<AoeEffect, number> = {
   cleave: 0xdfe8f5,
   taunt: 0xff5b5b,
-  ironVow: 0xffd24a,
+  rampartSlam: 0xffd24a,
   fireball: 0xff8a3d,
   frostNova: 0x9fe3ff,
   meteor: 0xff5a1f,

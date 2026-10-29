@@ -4,7 +4,7 @@
 
 import type { CreepKind, GameMode, TowerBranch, TowerKind } from '@tdt/protocol';
 import { TOWER_KINDS } from '@tdt/protocol';
-import { TICK_RATE, TUNING, towerStats, tuningForMode, waveGroups, type Tuning } from '@tdt/sim';
+import { getMap, TICK_RATE, TUNING, towerStats, tuningForMode, waveGroups, type Tuning } from '@tdt/sim';
 import { branchChoices, buildCost, upgradeCost } from '../hud/towerInfo';
 
 /**
@@ -38,7 +38,6 @@ export function airRelevant(sample: { mode: GameMode; wave: number; flyers: bool
   return waveListsFlyers(sample.mode, sample.wave + 1, tuning);
 }
 
-export const AIR_ARRIVAL = 'Wisps are flying — Arrow, Frost, Arcane or Flak';
 export const AIR_CANNON = "Cannon can't hit flyers";
 export const AIR_CHIP_TITLE = 'Air';
 export const AIR_CHIP_NEED = 'Cannon misses them';
@@ -53,15 +52,39 @@ export const GOLD_NUDGE_CAP = 2;
 /** Wave 0 and wave 1 stay quiet so the opening is not a second lecture. */
 export const GOLD_MIN_WAVE = 2;
 
+const TOWER_WORD: Record<TowerKind, string> = { arrow: 'Arrow', cannon: 'Cannon', frost: 'Frost', arcane: 'Arcane', flak: 'Flak' };
+
+/**
+ * The tower to name against flyers (retest fix B): the cheapest build that hits air the player can pay for now
+ * ("Arrow 60 hits air" before "Flak 80"), else the cheapest one that hits air at all.
+ */
+export function airPick(gold: number, tuning: Tuning = TUNING): string {
+  const air = TOWER_KINDS.filter((k) => hitsAir(k, null, tuning)).sort((a, b) => buildCost(a, tuning) - buildCost(b, tuning));
+  const kind = air.find((k) => buildCost(k, tuning) <= gold) ?? air[0]!;
+  return `${TOWER_WORD[kind]} ${buildCost(kind, tuning)} hits air`;
+}
+
+/** The line a wave ahead of the first flyers. */
+export function airAhead(gold: number, tuning: Tuning = TUNING): string {
+  return `Wisps fly in next wave — ${airPick(gold, tuning)}`;
+}
+
+/** The line once flyers are here (the first time, or on their wave when their lane has no tower that hits air). */
+export function airArrival(gold: number, tuning: Tuning = TUNING): string {
+  return `Wisps are flying — ${airPick(gold, tuning)}`;
+}
+
 export interface AirMemory {
-  /** The arrival line has already been used this match (or the lesson card took its place). */
+  /** The first flyer line (a wave ahead, or on arrival) has been used this match (or the lesson card took its place). */
   announced: boolean;
+  /** The on-the-wave line (no tower that hits air on a flyer lane) has been used this match. */
+  repeated: boolean;
   /** The ground-only build line has already been used this match. */
   warnedGround: boolean;
 }
 
 export function freshAir(): AirMemory {
-  return { announced: false, warnedGround: false };
+  return { announced: false, repeated: false, warnedGround: false };
 }
 
 export interface AirSample {
@@ -73,6 +96,10 @@ export interface AirSample {
   builtGround: boolean;
   /** I already own a tower that can. */
   haveAir: boolean;
+  /** My gold now: the line names what I can afford. */
+  gold: number;
+  /** A lane this wave's flyers walk, where I may build, has no tower (anyone's) that hits air. */
+  laneUncovered: boolean;
   /**
    * The one-time Wisps card has not been acknowledged yet. It teaches the arrival,
    * so this match does not also toast it.
@@ -91,14 +118,24 @@ export interface AirBeat {
   chip: AirChip | null;
 }
 
+/**
+ * The flyer lines: once a wave before the first flyers (naming the cheapest tower that hits air the player can
+ * afford), once more on a flyer wave if a lane they walk has no tower that hits air, and once for a ground-only
+ * build while air is here or next.
+ */
 export function readAir(memory: AirMemory, sample: AirSample): { memory: AirMemory; beat: AirBeat } {
-  let announced = memory.announced;
-  let warnedGround = memory.warnedGround;
+  let { announced, repeated, warnedGround } = memory;
   let toast: string | null = null;
-  const arriving = sample.flyers || waveListsFlyers(sample.mode, sample.wave);
-  if (!announced && arriving) {
+  const here = sample.flyers || waveListsFlyers(sample.mode, sample.wave);
+  const next = waveListsFlyers(sample.mode, sample.wave + 1);
+  if (!announced && (here || next)) {
     announced = true;
-    if (!sample.lessonPending) toast = AIR_ARRIVAL;
+    if (!sample.lessonPending) toast = here ? airArrival(sample.gold) : airAhead(sample.gold);
+    // Said on the flyers' own wave already: no second line for the same wave.
+    if (here) repeated = true;
+  } else if (announced && !repeated && here && sample.laneUncovered && !sample.lessonPending) {
+    repeated = true;
+    toast = airArrival(sample.gold);
   } else if (!warnedGround && sample.builtGround && airRelevant(sample)) {
     warnedGround = true;
     toast = AIR_CANNON;
@@ -106,7 +143,31 @@ export function readAir(memory: AirMemory, sample: AirSample): { memory: AirMemo
   const chip: AirChip | null = sample.flyers
     ? { title: AIR_CHIP_TITLE, sub: sample.haveAir ? '' : AIR_CHIP_NEED }
     : null;
-  return { memory: { announced, warnedGround }, beat: { toast, chip } };
+  return { memory: { announced, repeated, warnedGround }, beat: { toast, chip } };
+}
+
+/**
+ * Whether a lane this wave's flyers walk, with a pad `me` may build on, has no tower (anyone's) that hits air: the
+ * on-the-wave line's condition.
+ */
+export function flyerLaneUncovered(
+  snap: { mode: GameMode; wave: number; pads: readonly SpendPad[]; towers: readonly { padId: number; kind: TowerKind; branch: TowerBranch | null }[] },
+  me: string,
+  tuning: Tuning = TUNING,
+): boolean {
+  const lanes = new Set<number>();
+  for (const g of waveGroups(tuningForMode(tuning, snap.mode), snap.wave)) {
+    if (tuning.creeps[g.kind].flying) for (const lane of g.lanes) lanes.add(lane);
+  }
+  if (lanes.size === 0) return false;
+  const pads = getMap().pads;
+  const laneOf = (padId: number) => pads.find((p) => p.id === padId)?.lane ?? -1;
+  for (const lane of lanes) {
+    const mine = snap.pads.some((p) => (p.owner === me || p.owner === null) && laneOf(p.id) === lane);
+    if (!mine) continue;
+    if (!snap.towers.some((t) => laneOf(t.padId) === lane && hitsAir(t.kind, t.branch, tuning))) return true;
+  }
+  return false;
 }
 
 export interface SpendTower {

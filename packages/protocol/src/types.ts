@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 22;
+export const PROTOCOL_VERSION = 23;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -92,7 +92,7 @@ export function laneName(lane: LaneId): (typeof LANE_NAMES)[number] {
 
 /**
  * Two ultimates this close together (either order) overlap: the match report's `rOverlaps`,
- * and one live `syncCast` when the later cast lands. Two that pair up (Arrow Storm, Meteor and Iron Vow, any two)
+ * and one live `syncCast` when the later cast lands. Two that pair up (Arrow Storm, Meteor and Rampart Slam, any two)
  * fuse into a combo (`COMBO_KINDS`). Same number as `tuning.coop.comboWindow`.
  */
 export const R_OVERLAP_SECONDS = 5;
@@ -148,14 +148,14 @@ export interface SurgeNotice {
  * Combos: two ultimates cast within `R_OVERLAP_SECONDS` of each other fuse into one stronger lane rain, wherever
  * the heroes stand, and both originals end. Three inside the window fire only the strongest pair, once.
  * - `meteorRain`: Arrow Storm + Meteor (one denser rain on all three lanes).
- * - `stunStorm`: Iron Vow + Arrow Storm (every arrow strike hits harder and stuns).
- * - `shockwave`: Meteor + Iron Vow (every impact pulls the creeps around it together, then lands harder).
+ * - `stunStorm`: Rampart Slam + Arrow Storm (every arrow strike hits harder and stuns).
+ * - `shockwave`: Meteor + Rampart Slam (every impact pulls the creeps around it together, then lands harder).
  */
 export const COMBO_KINDS = ['meteorRain', 'stunStorm', 'shockwave'] as const;
 export type ComboKind = (typeof COMBO_KINDS)[number];
 
-/** The three hero ultimates (Arrow Storm, Meteor, Iron Vow), and with the combos every named effect an R can make. */
-export const ULTIMATE_KINDS = ['arrowStorm', 'meteor', 'ironVow'] as const;
+/** The three hero ultimates (Arrow Storm, Meteor, Rampart Slam), and with the combos every named effect an R can make. */
+export const ULTIMATE_KINDS = ['arrowStorm', 'meteor', 'rampartSlam'] as const;
 export type UltimateKind = (typeof ULTIMATE_KINDS)[number];
 export type UltimateTag = UltimateKind | ComboKind;
 export const ULTIMATE_TAGS: readonly UltimateTag[] = [...ULTIMATE_KINDS, ...COMBO_KINDS];
@@ -163,8 +163,8 @@ export const ULTIMATE_TAGS: readonly UltimateTag[] = [...ULTIMATE_KINDS, ...COMB
 /** The two ultimates each combo fuses (any two different ultimates fuse into exactly one combo). */
 export const COMBO_PARTS: Record<ComboKind, readonly [UltimateKind, UltimateKind]> = {
   meteorRain: ['arrowStorm', 'meteor'],
-  stunStorm: ['ironVow', 'arrowStorm'],
-  shockwave: ['meteor', 'ironVow'],
+  stunStorm: ['rampartSlam', 'arrowStorm'],
+  shockwave: ['meteor', 'rampartSlam'],
 };
 
 /** The combo two ultimates make cast close together, or null (the same ultimate twice makes none). */
@@ -180,7 +180,7 @@ export function comboOfUltimates(a: UltimateKind, b: UltimateKind): ComboKind | 
 export const HERO_ULTIMATE: Record<HeroKind, UltimateKind> = {
   ranger: 'arrowStorm',
   arcanist: 'meteor',
-  warden: 'ironVow',
+  warden: 'rampartSlam',
 };
 
 /**
@@ -198,8 +198,8 @@ export type ZoneKind = (typeof ZONE_KINDS)[number];
 export type AoeEffect =
   | 'cleave'
   | 'taunt'
-  /** Warden's Iron Vow: the burst around him (damage and a short stun). Ally rings use `shielded` / `shieldFor`. */
-  | 'ironVow'
+  /** Warden's Rampart Slam: the burst around him (damage and a short stun). Ally rings use `shielded` / `shieldFor`. */
+  | 'rampartSlam'
   | 'fireball'
   | 'frostNova'
   | 'meteor'
@@ -324,14 +324,14 @@ export interface HeroSnap {
   facing: number;
   stunned: boolean;
   /**
-   * A living hero covered by a Warden's Iron Vow (team armour and regeneration).
+   * A living hero covered by a Warden's Rampart Slam (team armour and regeneration).
    * True for every living hero while any vow still has time left, including the caster.
    */
   shielded: boolean;
   /**
-   * Ticks of Iron Vow still left on this hero (0 when none). The same remaining time
+   * Ticks of Rampart Slam still left on this hero (0 when none). The same remaining time
    * for every living hero: the longest vow still running. Client rings last this long;
-   * armour is the highest active rank and does not stack (see tuning `ironVow`).
+   * armour is the highest active rank and does not stack (see tuning `rampartSlam`).
    */
   shieldFor: number;
 }
@@ -345,6 +345,8 @@ export interface CreepSnap {
   maxHp: number;
   slowed: boolean;
   rooted: boolean;
+  /** Caught by a Snare Trap: takes more damage from everything while the root lasts (protocol 23). */
+  exposed: boolean;
   /** Current armour and magic resist (bosses can change theirs). */
   armor: number;
   magicResist: number;
@@ -472,14 +474,14 @@ export type GameEvent =
    */
   | { type: 'combo'; combo: ComboKind; x: number; y: number; radius: number; heroes: EntityId[] }
   /**
-   * An ultimate's effect is over: a lane rain ended (its time ran out, or it fused into a combo) or Iron Vow's burst
+   * An ultimate's effect is over: a lane rain ended (its time ran out, or it fused into a combo) or Rampart Slam's burst
    * landed. `ult` is the rain's kind (a combo's rain carries the combo's name), `by` its owner, `kills` the creeps
    * that rain (or burst) killed, all of them, wherever they stood. Emitted once per rain. Client Polish: the
    * kill-count popup ("Arrow Storm: 12").
    */
   | { type: 'ultResult'; ult: UltimateTag; by: PlayerId; kills: number }
   /**
-   * Iron Vow healed a hero: `amount` HP actually gained (0 when the hero was already at full health). One per
+   * Rampart Slam healed a hero: `amount` HP actually gained (0 when the hero was already at full health). One per
    * living hero when the vow is cast, wherever they stand.
    */
   | { type: 'heal'; heroId: EntityId; amount: number }
@@ -637,9 +639,10 @@ export interface CoopReport {
   /**
    * Casts and kills of every ultimate and combo over the match. A combo's rain counts under the combo's name, and the
    * two ultimates that fused into it are not counted again as casts (their kills before the fuse stay theirs). Kills
-   * are every creep the rain or burst killed. Reports from before protocol 18 omit it.
+   * are every creep the rain or slam killed; `damage` the HP it took (whole), from protocol 23. Reports from before
+   * protocol 18 omit it.
    */
-  ultimates?: Record<UltimateTag, { casts: number; kills: number }>;
+  ultimates?: Record<UltimateTag, { casts: number; kills: number; damage?: number }>;
   /**
    * Combos fired by each pair of players (seat order inside a pair, pairs in seat order of their first player), by
    * kind. Only pairs that fused at least one. Reports from before protocol 18 omit it.

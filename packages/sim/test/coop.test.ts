@@ -166,7 +166,7 @@ describe('combos', () => {
     expect(fused).toBeGreaterThanOrEqual(apart * 1.5);
   });
 
-  it('Stun Storm (Iron Vow + Arrow Storm) is clearly stronger than the two cast apart, in either order, and stuns every strike', () => {
+  it('Stun Storm (Rampart Slam + Arrow Storm) is clearly stronger than the two cast apart, in either order, and stuns every strike', () => {
     const apart = castAll(['ranger', 'warden'], [0]).lost + castAll(['warden', 'ranger'], [0]).lost;
     for (const order of [[0, 1], [1, 0]]) {
       const run1 = castAll(['ranger', 'warden'], order);
@@ -176,7 +176,7 @@ describe('combos', () => {
     }
   });
 
-  it('Shockwave (Meteor + Iron Vow) pulls the creeps together and is clearly stronger than the two cast apart', () => {
+  it('Shockwave (Meteor + Rampart Slam) pulls the creeps together and is clearly stronger than the two cast apart', () => {
     const apart = castAll(['arcanist', 'warden'], [0]).lost + castAll(['warden', 'arcanist'], [0]).lost;
     const { state } = labRain(['arcanist', 'warden']);
     const a = standOn(state, 'grunt', 1, 3, -1.5);
@@ -220,8 +220,8 @@ describe('combos', () => {
 
   it('every pair of heroes has exactly one combo', () => {
     expect(comboOf('arrowStorm', 'meteor')).toBe('meteorRain');
-    expect(comboOf('ironVow', 'arrowStorm')).toBe('stunStorm');
-    expect(comboOf('meteor', 'ironVow')).toBe('shockwave');
+    expect(comboOf('rampartSlam', 'arrowStorm')).toBe('stunStorm');
+    expect(comboOf('meteor', 'rampartSlam')).toBe('shockwave');
     expect(comboOf('meteor', 'meteor')).toBeNull();
     expect(comboPartners('warden')).toEqual(['ranger', 'arcanist']);
   });

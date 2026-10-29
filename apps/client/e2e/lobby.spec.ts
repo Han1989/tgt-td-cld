@@ -154,8 +154,8 @@ test('picking a hero puts it on the stage with its role and its line, and the pi
   await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
   await expect(page.locator('#lobby-stage')).toHaveAttribute('data-hero', 'warden');
   await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
-  await expect(page.locator('#lobby-hero-role')).toHaveText('Melee tank');
-  await expect(page.locator('#lobby-hero-blurb')).toContainText('Melee frontliner');
+  await expect(page.locator('#lobby-hero-role')).toHaveText('Bruiser');
+  await expect(page.locator('#lobby-hero-blurb')).toContainText('Clears packs with a slam');
   // The Warden stands in the same clearing as his own 3D picture (nothing on the canvas), and the main button has
   // not moved.
   await expect.poll(() => backdrop(page)).toMatch(/^(poster|video)$/);

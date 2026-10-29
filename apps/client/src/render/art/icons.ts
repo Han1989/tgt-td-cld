@@ -210,14 +210,16 @@ const SKILL_ICONS: Record<HeroKind, Record<SkillSlot, IconDraw>> = {
       p.part(c, poly([0, -16, 7, 2, 0, 6, -7, 2], 0.6), k.brute, box(-7, -16, 7, 6), { line: 0.7 });
     },
     R: (c, p, k) => {
-      // Iron Vow: a sword planted before golden rays (the team ward).
-      for (let i = 0; i < 8; i++) {
-        const a = -Math.PI / 2 + ((i - 3.5) * Math.PI) / 9;
-        glowLine(c, p, pathLine([Math.cos(a) * 8, 2 + Math.sin(a) * 8, Math.cos(a) * 17, 2 + Math.sin(a) * 17]), k.gold, 2);
+      // Rampart Slam: an iron gauntlet driven into cracked ground, golden shock arcs thrown out to both sides.
+      for (const side of [-1, 1]) {
+        glowLine(c, p, pathLine([side * 7, 12, side * 12, 6, side * 17, 4]), k.gold, 2);
+        glowLine(c, p, pathLine([side * 9, 15, side * 14, 12, side * 18, 12]), k.gold, 1.6);
       }
-      p.part(c, poly([-2.5, -16, 2.5, -16, 2.5, 8, 0, 12, -2.5, 8], 0.8), k.stone, box(-2.5, -16, 2.5, 12), { line: 0.8 });
-      p.part(c, rrect(-9, 7, 18, 4, 1.5), k.gold, box(-9, 7, 9, 11), { line: 0.8 });
-      p.part(c, rrect(-2.2, 11, 4.4, 7, 1.5), k.woodDark, box(-2.2, 11, 2.2, 18), { line: 0.7 });
+      p.part(c, rrect(-16, 12, 32, 5, 1.5), k.stone, box(-16, 12, 16, 17), { line: 0.7 });
+      for (const x of [-7, 0, 7]) p.line(c, pathLine([x * 0.4, 12, x, 15, x * 1.3, 17]), k.woodDark, 1.2, 0.9);
+      p.part(c, rrect(-6, -17, 12, 10, 2), k.gold, box(-6, -17, 6, -7), { line: 0.7 });
+      p.part(c, rrect(-8, -8, 16, 19, 4), k.stone, box(-8, -8, 8, 11), { line: 0.8 });
+      for (const x of [-4, 0, 4]) p.line(c, pathLine([x, 4, x, 10]), k.woodDark, 1, 0.8);
     },
   },
   arcanist: {

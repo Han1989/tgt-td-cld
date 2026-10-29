@@ -5,7 +5,8 @@
 // is learned with R off cooldown but unaffordable; then when R is learned (match minute) and the share of time after
 // that with R off cooldown (the bot only casts it on a group, `MIN_TARGETS.R` in bots.ts, so a ready R can wait).
 // First, the cast drill (`runManaDrill`): a hero at level 1, 6 and 10 with a full pool casts Q and W whenever they're
-// ready; seconds until one is first ready but unaffordable, and Q + W casts per minute after that (vs cooldowns only).
+// ready (the Arcanist's Clarity Aura at the bots' E rank counted); seconds until one is first ready but unaffordable,
+// and Q + W casts per minute after that (vs cooldowns only, and as a share): the mana rule's bands (retest fix B).
 
 import { HERO_KINDS, type GameMode, type HeroKind } from '@tdt/protocol';
 import { createBalanceBot, runHeadlessMatch, runManaDrill, TICK_RATE, type HeroMatchStats } from '../src';
@@ -22,14 +23,16 @@ const TEAMS: HeroKind[][] = [
 ];
 
 console.log('Cast drill (Q and W whenever ready, from a full pool)');
-console.log('hero       level  Q/W ranks  seconds to dry  casts/min dry  casts/min, cooldowns only');
+console.log('hero       level  Q/W/E ranks  seconds to dry  casts/min dry  casts/min, cooldowns only  share  regen  cost/s');
 for (const hero of HERO_KINDS) {
   for (const level of [1, 6, 10]) {
     const d = runManaDrill(hero, level);
     console.log(
-      `${hero.padEnd(10)} ${String(level).padStart(5)}  ${`${d.ranks.Q}/${d.ranks.W}`.padStart(9)}  ` +
+      `${hero.padEnd(10)} ${String(level).padStart(5)}  ${`${d.ranks.Q}/${d.ranks.W}/${d.ranks.E}`.padStart(11)}  ` +
         `${d.secondsToDry.toFixed(0).padStart(14)}  ${d.castsPerMinuteDry.toFixed(1).padStart(13)}  ` +
-        `${d.castsPerMinuteFull.toFixed(1).padStart(10)}`,
+        `${d.castsPerMinuteFull.toFixed(1).padStart(25)}  ` +
+        `${`${((100 * d.castsPerMinuteDry) / d.castsPerMinuteFull).toFixed(0)}%`.padStart(5)}  ` +
+        `${d.regen.toFixed(1).padStart(5)}  ${d.costPerSecond.toFixed(1).padStart(6)}`,
     );
   }
 }

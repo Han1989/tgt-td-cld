@@ -45,9 +45,9 @@ describe('player-count scaling', () => {
     expect(creepMaxHp(game(1), 'grunt', total)).toBe(Math.round(base * lastMult * (hp[0]! + late[0]!)));
     expect(late[0]).toBeGreaterThan(0);
     expect(late[0]!).toBeLessThan(late[1]!);
-    // Solo gets at most a small nudge (Decision Log, hero mana rework).
+    // Solo gets a small nudge (Decision Log, hero mana rework), a little more since retest fix B paid for the kits.
     expect(hp[0]).toBeGreaterThanOrEqual(1);
-    expect(hp[0]).toBeLessThanOrEqual(1.05);
+    expect(hp[0]).toBeLessThanOrEqual(1.15);
     expect(bonus[0]).toBe(0);
     // Bigger teams are pressed harder early.
     expect(bonus[1]!).toBeLessThan(bonus[2]!);

@@ -119,8 +119,8 @@ export function startRain(state: GameState, hero: Hero, kind: 'arrowStorm' | 'me
 
 const COMBOS: { a: UltKind; b: UltKind; combo: ComboKind }[] = [
   { a: 'arrowStorm', b: 'meteor', combo: 'meteorRain' },
-  { a: 'ironVow', b: 'arrowStorm', combo: 'stunStorm' },
-  { a: 'meteor', b: 'ironVow', combo: 'shockwave' },
+  { a: 'rampartSlam', b: 'arrowStorm', combo: 'stunStorm' },
+  { a: 'meteor', b: 'rampartSlam', combo: 'shockwave' },
 ];
 
 /** The combo two ultimate kinds make, or null (the same kind twice never does). */
@@ -145,7 +145,7 @@ function comboStrength(state: GameState, combo: ComboKind): number {
 }
 
 /**
- * A hero just cast an ultimate: Arrow Storm or Meteor (`zone`, its rain) or Iron Vow (no zone). If another hero's
+ * A hero just cast an ultimate: Arrow Storm or Meteor (`zone`, its rain) or Rampart Slam (no zone). If another hero's
  * ultimate that pairs with it (`comboOf`) was cast inside the combo window, they fuse, wherever the heroes stand:
  * both rains end and one combo rain takes their place. Three ultimates inside the window fire only the strongest
  * pair (`coop.comboOrder`), once: a third cast that makes a stronger pair swaps the combo, the one left over casts

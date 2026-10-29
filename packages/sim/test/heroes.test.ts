@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../src/commands';
 import {
   armorMultiplier,
+  damageCreep,
   damageHero,
   damageTower,
   grantXp,
@@ -20,8 +21,10 @@ import { DRIVE_HOLD_TICKS } from '../src/heroes';
 import { getMap } from '../src/map';
 import type { GameState, Hero } from '../src/state';
 import { runManaDrill } from '../src/headless';
+import { skillInfo } from '../src/skills';
+import { spawnCreep } from '../src/waves';
 import { heroLevelXp, secondsToTicks, tuningForMode, TUNING, type Tuning } from '../src/tuning';
-import { labGame, MID, placeCreep, run, runCollect, tuningCopy } from './helpers';
+import { labGame, MID, parkHero, placeCreep, run, runCollect, tuningCopy } from './helpers';
 
 /** A lab game whose heroes don't auto-attack (so skill damage is measurable). */
 function lab(heroes: HeroKind[], tuning: Tuning = TUNING): { state: GameState; heroes: Hero[] } {
@@ -243,9 +246,9 @@ describe('mana', () => {
   });
 
   it.each([
-    ['ranger', 7],
-    ['warden', 5.7],
-    ['arcanist', 9.8],
+    ['ranger', 5.06],
+    ['warden', 3.75],
+    ['arcanist', 5.81],
   ] as const)('%s mana regeneration grows with level (level 10: %s/s)', (kind, atTen) => {
     const { state, heroes } = lab([kind]);
     const hero = heroes[0]!;
@@ -257,24 +260,44 @@ describe('mana', () => {
     expect(hero.mana).toBeCloseTo(10 * atTen);
   });
 
-  // Casting Q and W whenever they're ready (the cast drill: Q and W ranked first) should last about a minute
-  // before a skill is ready but unaffordable, the Arcanist longest, and a dry hero still casts often.
-  it.each(['ranger', 'warden', 'arcanist'] as const)(
-    '%s: a full pool lasts 30+ s of Q and W on cooldown (45+ s at level 10), then still casts ≥ 40%% as often',
-    (kind) => {
-      for (const level of [1, 6, 10]) {
-        const d = runManaDrill(kind, level);
-        expect(d.secondsToDry).toBeGreaterThanOrEqual(level === 10 ? 45 : 30);
-        expect(d.castsPerMinuteDry).toBeGreaterThanOrEqual(0.4 * d.castsPerMinuteFull);
-      }
-    },
-  );
-
-  it('the Arcanist runs dry last at every level', () => {
+  // The mana rule (retest fix B, docs/GAME_DESIGN.md "Mana"): casting Q and W whenever they're ready (the cast drill,
+  // Q and W ranked first, the Arcanist's Clarity Aura at the bots' rank), a level-1 hero runs dry after 45–75 s and then
+  // affords 55–65% of its casts; at level 6 70–80%, at level 10 80–90%, never all of them. The same bands for all three.
+  it.each(['ranger', 'warden', 'arcanist'] as const)('%s: mana binds by the one rule at levels 1, 6 and 10', (kind) => {
+    const bands: Record<number, [number, number]> = { 1: [0.55, 0.65], 6: [0.7, 0.8], 10: [0.8, 0.9] };
     for (const level of [1, 6, 10]) {
-      const arcanist = runManaDrill('arcanist', level).secondsToDry;
-      expect(arcanist).toBeGreaterThan(runManaDrill('ranger', level).secondsToDry);
-      expect(arcanist).toBeGreaterThan(runManaDrill('warden', level).secondsToDry);
+      const d = runManaDrill(kind, level);
+      if (level === 1) {
+        expect(d.secondsToDry, `${kind} dry at 1`).toBeGreaterThanOrEqual(45);
+        expect(d.secondsToDry, `${kind} dry at 1`).toBeLessThanOrEqual(75);
+      }
+      const share = d.castsPerMinuteDry / d.castsPerMinuteFull;
+      expect(share, `${kind} level ${level}`).toBeGreaterThanOrEqual(bands[level]![0]);
+      expect(share, `${kind} level ${level}`).toBeLessThanOrEqual(bands[level]![1]);
+      expect(d.regen, `${kind} level ${level}: regen under the kit's cost`).toBeLessThan(d.costPerSecond);
+    }
+  });
+
+  it('every Q and W costs about the same mana a second at every rank, so a spread build runs dry too', () => {
+    for (const kind of HERO_KINDS) {
+      for (const slot of ['Q', 'W'] as const) {
+        const { state, heroes } = lab([kind]);
+        const hero = heroes[0]!;
+        const perSecond = [1, 2, 3, 4].map((rank) => {
+          hero.ranks[slot] = rank;
+          const info = skillInfo(state, hero, slot);
+          return info.manaCost / info.cooldown;
+        });
+        for (const x of perSecond) expect(x / perSecond[0]!, `${kind} ${slot}`).toBeGreaterThan(0.9);
+        for (const x of perSecond) expect(x / perSecond[0]!, `${kind} ${slot}`).toBeLessThan(1.1);
+      }
+      // Level 10 with every rank at 1 (or Clarity at rank 4): the kit still costs more than the hero regenerates.
+      const { state, heroes } = lab([kind]);
+      const hero = heroes[0]!;
+      hero.level = 10;
+      hero.ranks.E = kind === 'arcanist' ? 4 : 0;
+      const cost = (['Q', 'W'] as const).reduce((sum, slot) => sum + skillInfo(state, hero, slot).manaCost / skillInfo(state, hero, slot).cooldown, 0);
+      expect(heroManaRegen(state, hero), kind).toBeLessThan(cost);
     }
   });
 });
@@ -620,30 +643,83 @@ describe('Warden', () => {
     expect(wisp.y).toBeGreaterThan(y);
   });
 
-  it('Blood Hunger heals a share of auto-attack damage and of Cleave', () => {
+  it('Blood Hunger heals a share of the damage and of his max HP on every auto-attack hit and every creep Cleave hits', () => {
     const { state, heroes } = lab(['warden']);
     const hero = heroes[0]!;
     hero.ranks.E = 1;
     hero.attackCd = 0;
     hero.hp = 200;
+    const bh = TUNING.hero.warden.bloodHunger;
     const grunt = placeCreep(state, 'grunt', hero.x, hero.y - 1);
     grunt.rootUntil = 1_000_000;
     grunt.attackCd = 1_000_000; // never strikes back
     const dealt = TUNING.hero.warden.damage * armorMultiplier(TUNING, grunt.armor);
     const before = hero.hp;
     run(state, 1);
-    const heal = dealt * TUNING.hero.warden.bloodHunger.lifesteal[0]!;
+    const max = heroMaxHp(state, hero);
+    const heal = dealt * bh.lifesteal[0]! + max * bh.hpShare[0]!;
     expect(hero.hp - before).toBeCloseTo(TUNING.hero.warden.hpRegen / 20 + heal);
 
+    // A Cleave on three creeps heals the lifesteal of all it dealt and three shares of max HP.
     hero.hp = 180;
     const at = hero.hp;
-    const g2 = placeCreep(state, 'grunt', hero.x + 1, hero.y);
-    const cleaveDealt = TUNING.hero.warden.cleave.damage[0]! * armorMultiplier(TUNING, g2.armor);
+    const caught = [placeCreep(state, 'grunt', hero.x + 1, hero.y), placeCreep(state, 'grunt', hero.x - 1, hero.y)];
+    for (const c of caught) c.hp = c.maxHp = 10_000;
+    grunt.hp = grunt.maxHp = 10_000;
+    const cleaveDealt = 3 * TUNING.hero.warden.cleave.damage[0]! * armorMultiplier(TUNING, grunt.armor);
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
-    expect(hero.hp - at).toBeGreaterThanOrEqual(cleaveDealt * TUNING.hero.warden.bloodHunger.lifesteal[0]! - 1e-6);
+    expect(hero.hp - at).toBeCloseTo(cleaveDealt * bh.lifesteal[0]! + 3 * max * bh.hpShare[0]!);
   });
 
-  it('Iron Vow heals every living hero at once, wherever they are, by a large share of their max HP', () => {
+  it('a level-6 Warden in a Quick wave-8 Grunt pack holds his HP for 10 s with Cleave on cooldown', () => {
+    const state = createGame({ players: [{ id: 'p1', name: 'P1', hero: 'warden' }], mode: 'quick' }, 7);
+    state.nextWaveTick = -1;
+    const hero = state.heroes[0]!;
+    hero.level = 6;
+    // The bots' order at level 6: Q2 W2 E2 R1 (drillRanks).
+    hero.ranks = { Q: 2, W: 2, E: 2, R: 1 };
+    hero.skillCd.Q = 1_000_000;
+    hero.skillCd.R = 1_000_000;
+    hero.hp = heroMaxHp(state, hero);
+    hero.x = 13;
+    hero.y = 14;
+    const pack = [];
+    for (let i = 0; i < state.tuning.waves.list[7]!.find((g) => g.kind === 'grunt')!.perLane; i++) {
+      const c = spawnCreep(state, 'grunt', 1, 8);
+      c.x = 13 + ((i % 3) - 1) * 0.8;
+      c.y = 13 + Math.floor(i / 3) * 0.8;
+      c.offX = c.offY = 0;
+      pack.push(c);
+    }
+    const start = hero.hp;
+    let lowest = hero.hp;
+    for (let t = 0; t < secondsToTicks(10); t++) {
+      run(state, 1);
+      lowest = Math.min(lowest, hero.hp);
+    }
+    expect(hero.alive).toBe(true);
+    expect(hero.hp, 'holds or gains').toBeGreaterThanOrEqual(start - 1e-6);
+    expect(lowest / start).toBeGreaterThan(0.8);
+  });
+
+  it('two rank-2 Cleaves kill a Quick wave-8 Grunt', () => {
+    const state = createGame({ players: [{ id: 'p1', name: 'P1', hero: 'warden' }], mode: 'quick' }, 7);
+    state.nextWaveTick = -1;
+    const hero = state.heroes[0]!;
+    hero.ranks.Q = 2;
+    hero.attackCd = 1_000_000;
+    const grunt = spawnCreep(state, 'grunt', 1, 8);
+    grunt.x = hero.x + 1;
+    grunt.y = hero.y;
+    grunt.offX = grunt.offY = 0;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
+    expect(grunt.dead).toBe(false);
+    hero.skillCd.Q = 0;
+    expect(applyCommand(state, 'p1', { type: 'cast', slot: 'Q' })).toBe(true);
+    expect(grunt.dead).toBe(true);
+  });
+
+  it('Rampart Slam heals every living hero at once, wherever they are, by a share of their max HP', () => {
     const { state, heroes } = lab(['warden', 'ranger', 'arcanist']);
     const [warden, ranger, arcanist] = heroes as [Hero, Hero, Hero];
     warden.ranks.R = 1;
@@ -652,47 +728,70 @@ describe('Warden', () => {
     arcanist.hp = 20;
     arcanist.alive = false;
     warden.hp = 50;
-    const s = TUNING.hero.warden.ironVow;
-    expect(s.heal[0]!).toBeGreaterThanOrEqual(0.35);
+    const s = TUNING.hero.warden.rampartSlam;
+    expect(s.heal).toEqual([0.25, 0.3, 0.35]);
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     expect(ranger.hp).toBeCloseTo(10 + s.heal[0]! * heroMaxHp(state, ranger));
     expect(warden.hp).toBeCloseTo(50 + s.heal[0]! * heroMaxHp(state, warden));
     expect(arcanist.hp).toBe(20);
+    expect(state.pendingEvents.filter((e) => e.type === 'heal').map((e) => e.type === 'heal' && e.heroId)).toEqual([
+      warden.id,
+      ranger.id,
+    ]);
   });
 
-  it('Iron Vow bursts around the Warden: damage and a short stun on ground and air, nothing beyond', () => {
+  it('Rampart Slam hits every creep it catches harder the more it catches, stuns them, and nothing beyond', () => {
+    const s = TUNING.hero.warden.rampartSlam;
+    const slam = (n: number) => {
+      const { state, heroes } = lab(['warden']);
+      const warden = heroes[0]!;
+      warden.ranks.R = 1;
+      const caught = Array.from({ length: n }, (_, i) => {
+        const c = placeCreep(state, i === 1 ? 'wisp' : 'grunt', warden.x + Math.cos(i) * 1.5, warden.y + Math.sin(i) * 1.5);
+        c.hp = c.maxHp = 10_000;
+        return c;
+      });
+      const far = placeCreep(state, 'grunt', warden.x + s.radius + 2, warden.y);
+      expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
+      expect(far.hp).toBe(far.maxHp);
+      expect(far.stunUntil).toBe(0);
+      expect(caught[0]!.stunUntil).toBe(state.tick + secondsToTicks(s.stun[0]!));
+      expect(state.pendingEvents).toContainEqual(expect.objectContaining({ type: 'aoe', effect: 'rampartSlam', radius: s.radius }));
+      return caught[0]!.maxHp - caught[0]!.hp;
+    };
+    const mult = armorMultiplier(TUNING, TUNING.creeps.grunt.armor);
+    expect(slam(1)).toBeCloseTo(s.base[0]! * mult);
+    expect(slam(5)).toBeCloseTo((s.base[0]! + 4 * s.echo[0]!) * mult);
+    // At most `echoCap` other creeps count.
+    expect(slam(s.echoCap + 6)).toBeCloseTo((s.base[0]! + s.echoCap * s.echo[0]!) * mult);
+  });
+
+  it('a boss in the slam takes the base hit alone, and the boss share of it', () => {
     const { state, heroes } = lab(['warden']);
     const warden = heroes[0]!;
     warden.ranks.R = 1;
-    const s = TUNING.hero.warden.ironVow;
-    const grunt = placeCreep(state, 'grunt', warden.x + 1, warden.y);
-    grunt.hp = grunt.maxHp = 1000;
-    const wisp = placeCreep(state, 'wisp', warden.x - 1, warden.y);
-    const far = placeCreep(state, 'grunt', warden.x + s.burstRadius + 2, warden.y);
+    for (let i = 0; i < 8; i++) placeCreep(state, 'grunt', warden.x + Math.cos(i), warden.y + Math.sin(i));
+    const boss = placeCreep(state, 'ironhorn', warden.x + 1.5, warden.y);
+    boss.abilityCd = 1_000_000;
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
-    expect(grunt.stunUntil).toBe(state.tick + secondsToTicks(s.burstStun[0]!));
-    expect(wisp.stunUntil).toBeGreaterThan(state.tick);
-    expect(grunt.maxHp - grunt.hp).toBeCloseTo(s.burstDamage[0]! * armorMultiplier(TUNING, grunt.armor));
-    expect(far.hp).toBe(far.maxHp);
-    expect(far.stunUntil).toBe(0);
-    expect(state.pendingEvents).toContainEqual(
-      expect.objectContaining({ type: 'aoe', effect: 'ironVow', radius: s.burstRadius }),
-    );
+    const s = TUNING.hero.warden.rampartSlam;
+    expect(boss.maxHp - boss.hp).toBeCloseTo(s.base[0]! * TUNING.combat.ultimateBossFactor * armorMultiplier(TUNING, boss.armor));
+    expect(boss.stunUntil).toBe(state.tick + Math.round(secondsToTicks(s.stun[0]!) * TUNING.combat.bossControlFactor));
   });
 
-  it('Iron Vow armours and regenerates every living hero for the whole duration', () => {
+  it('Rampart Slam armours and regenerates every living hero for the whole duration', () => {
     const { state, heroes } = lab(['warden', 'ranger']);
     const [warden, ranger] = heroes as [Hero, Hero];
     warden.ranks.R = 1;
     ranger.x = warden.x + 30;
-    const s = TUNING.hero.warden.ironVow;
+    const s = TUNING.hero.warden.rampartSlam;
     const ticks = secondsToTicks(s.duration[0]!);
     const baseW = heroArmor(state, warden);
     const baseR = heroArmor(state, ranger);
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     expect(heroArmor(state, warden)).toBe(baseW + s.armor[0]!);
     expect(heroArmor(state, ranger)).toBe(baseR + s.armor[0]!);
-    expect(state.pendingEvents).toContainEqual(expect.objectContaining({ type: 'aoe', effect: 'ironVow' }));
+    expect(state.pendingEvents).toContainEqual(expect.objectContaining({ type: 'aoe', effect: 'rampartSlam' }));
     const snap = snapshot(state);
     expect(snap.heroes.map((h) => h.shielded)).toEqual([true, true]);
     expect(snap.heroes.map((h) => h.shieldFor)).toEqual([ticks, ticks]);
@@ -712,14 +811,14 @@ describe('Warden', () => {
     expect(snapshot(state).heroes.map((h) => h.shieldFor)).toEqual([0, 0]);
   });
 
-  it('two Iron Vows do not stack, and towers are not armoured', () => {
+  it('two Rampart Slams do not stack, and towers are not armoured', () => {
     const { state, heroes } = lab(['warden', 'warden']);
     const [a, b] = heroes as [Hero, Hero];
     a.ranks.R = 1;
     b.ranks.R = 2;
     expect(applyCommand(state, 'p1', { type: 'cast', slot: 'R' })).toBe(true);
     expect(applyCommand(state, 'p2', { type: 'cast', slot: 'R' })).toBe(true);
-    const bonus = TUNING.hero.warden.ironVow.armor[1]!;
+    const bonus = TUNING.hero.warden.rampartSlam.armor[1]!;
     expect(heroArmor(state, a)).toBe(TUNING.hero.warden.armor + bonus);
     expect(heroArmor(state, b)).toBe(TUNING.hero.warden.armor + bonus);
 
@@ -730,6 +829,91 @@ describe('Warden', () => {
     tower.hp = tower.maxHp;
     damageTower(state, tower, 100, 'physical');
     expect(tower.maxHp - tower.hp).toBeCloseTo(100 * armorMultiplier(TUNING, TUNING.towers.arrow.armor));
+  });
+});
+
+describe('Snare Trap', () => {
+  /** A Quick game, the Ranger far off, a rank-1 trap armed at the Mid lane point and this wave's creeps on it. */
+  function trapped(wave: number, kinds: CreepKind[]) {
+    const state = createGame({ players: [{ id: 'p1', name: 'P1', hero: 'ranger' }], mode: 'quick' }, 7);
+    state.nextWaveTick = -1;
+    state.pads = getMap().pads.map((p) => ({ id: p.id, owner: null }));
+    const hero = state.heroes[0]!;
+    hero.x = 3.5;
+    hero.y = 46.5;
+    hero.attackCd = 1_000_000;
+    const at = { x: 13, y: 14 };
+    state.traps.push({ id: 9_999, owner: 'p1', ...at, rank: 1, armTick: 0, expireTick: 1_000_000, done: false });
+    const creeps = [];
+    let i = 0;
+    for (const g of state.tuning.waves.list[wave - 1]!) {
+      if (!kinds.includes(g.kind)) continue;
+      for (let n = 0; n < g.perLane; n++, i++) {
+        const c = spawnCreep(state, g.kind, 1, wave);
+        c.x = at.x + ((i % 3) - 1) * 0.6;
+        c.y = at.y - 0.4 - Math.floor(i / 3) * 0.5;
+        c.offX = c.offY = 0;
+        creeps.push(c);
+      }
+    }
+    return { state, creeps, at };
+  }
+
+  it('arms in 0.2 s and leaves what it roots Exposed: every hit on it lands 25% harder while the root lasts', () => {
+    const s = TUNING.hero.ranger.snareTrap;
+    expect(s.armDelay).toBe(0.2);
+    const state = labGame();
+    const at = { x: 13, y: 14 };
+    state.traps.push({ id: 9_999, owner: 'p1', ...at, rank: 1, armTick: 0, expireTick: 1_000_000, done: false });
+    const c = placeCreep(state, 'brute', at.x, at.y);
+    c.hp = c.maxHp = 10_000;
+    parkHero(state);
+    run(state, 1);
+    const root = secondsToTicks(s.rootDuration[0]!);
+    expect(c.rootUntil).toBe(state.tick + root);
+    expect(c.exposedUntil).toBe(c.rootUntil);
+    expect(snapshot(state).creeps[0]!.exposed).toBe(true);
+    const mult = armorMultiplier(TUNING, c.armor);
+    expect(c.maxHp - c.hp).toBeCloseTo(s.damage[0]! * (1 + s.exposed) * mult);
+    const hp = c.hp;
+    damageCreep(state, c, 100, 'magic', null);
+    expect(hp - c.hp).toBeCloseTo(100 * (1 + s.exposed));
+    run(state, root);
+    expect(snapshot(state).creeps[0]!.exposed).toBe(false);
+    const after = c.hp;
+    damageCreep(state, c, 100, 'magic', null);
+    expect(after - c.hp).toBeCloseTo(100);
+  });
+
+  it.each([8, 9, 10])('on Quick wave %i a rank-1 trap kills the Runners and takes a third of the Grunts', (wave) => {
+    const { state, creeps } = trapped(wave, ['grunt', 'runner']);
+    if (creeps.length === 0) return;
+    const hp = new Map(creeps.map((c) => [c, c.hp]));
+    run(state, 1);
+    for (const c of creeps) {
+      if (c.kind === 'runner') expect(c.dead, `wave ${wave} runner`).toBe(true);
+      else expect((hp.get(c)! - c.hp) / hp.get(c)!, `wave ${wave} grunt`).toBeGreaterThanOrEqual(1 / 3);
+    }
+  });
+
+  it.each([8, 10])('on Quick wave %i a Grunt pack under the lane towers dies inside the root', (wave) => {
+    const { state, creeps, at } = trapped(wave, ['grunt']);
+    const player = state.players[0]!;
+    player.gold = 100_000;
+    // The lane's towers at wave 8–10: two Cannons and two Arrows at tier 2 on the pads nearest the trap.
+    const pads = getMap().pads
+      .filter((p) => !p.extra)
+      .sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y))
+      .slice(0, 4);
+    pads.forEach((p, i) => {
+      expect(applyCommand(state, 'p1', { type: 'build', padId: p.id, tower: i < 2 ? 'cannon' : 'arrow' })).toBe(true);
+    });
+    for (const t of state.towers) expect(applyCommand(state, 'p1', { type: 'upgrade', towerId: t.id })).toBe(true);
+    run(state, 1);
+    const end = Math.min(...creeps.map((c) => c.rootUntil));
+    expect(end).toBeGreaterThan(state.tick);
+    while (state.tick < end) run(state, 1);
+    expect(creeps.filter((c) => !c.dead).map((c) => c.hp)).toEqual([]);
   });
 });
 

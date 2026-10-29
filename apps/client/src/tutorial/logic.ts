@@ -328,7 +328,7 @@ export function tutorialPrompt(
 
 /**
  * The Wisps note. It is not one of `TUTORIAL_STEPS`: those finish in the opening,
- * and the first flyers are later (Quick wave 3, Full wave 5). The card shows once,
+ * and the first flyers are later (Quick wave 4, Full wave 6). The card shows once,
  * the first time flyers are on the map, including after the early lesson is done
  * or skipped, until the player taps Got it or builds a tower that hits air.
  */

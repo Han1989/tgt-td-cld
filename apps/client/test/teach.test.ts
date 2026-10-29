@@ -1,8 +1,10 @@
 import { TOWER_KINDS } from '@tdt/protocol';
-import { TICK_RATE, TUNING, tuningForMode } from '@tdt/sim';
+import { getMap, TICK_RATE, TUNING, tuningForMode, waveGroups, type Tuning } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import {
-  AIR_ARRIVAL,
+  airAhead,
+  airArrival,
+  airPick,
   AIR_CANNON,
   AIR_CHIP_NEED,
   AIR_CHIP_TITLE,
@@ -22,6 +24,7 @@ import {
   ZOOM_HINT_AFTER_MS,
   zoomHint,
   kindFlies,
+  flyerLaneUncovered,
   readAir,
   readGold,
   waveListsFlyers,
@@ -31,6 +34,8 @@ import {
 } from '../src/teach/cues';
 import { airPrompt, parseAirLesson } from '../src/tutorial/logic';
 
+const tuningCopy = (): Tuning => JSON.parse(JSON.stringify(TUNING)) as Tuning;
+
 function air(patch: Partial<AirSample> = {}): AirSample {
   return {
     mode: 'quick',
@@ -38,6 +43,8 @@ function air(patch: Partial<AirSample> = {}): AirSample {
     flyers: false,
     builtGround: false,
     haveAir: false,
+    gold: 0,
+    laneUncovered: false,
     lessonPending: false,
     ...patch,
   };
@@ -73,16 +80,16 @@ describe('flyer readability', () => {
 });
 
 describe('anti-air teaching', () => {
-  it('knows the first flyer wave in each mode, and that Cannon is the ground-only build', () => {
+  it('knows the first flyer wave in each mode (wave 6 in Full, 4 in Quick), and that Cannon is the ground-only build', () => {
     const first = (mode: 'quick' | 'full') =>
       tuningForMode(TUNING, mode).waves.list.findIndex((groups) => groups.some((g) => TUNING.creeps[g.kind].flying)) + 1;
-    expect(first('quick')).toBe(3);
-    expect(first('full')).toBe(5);
-    expect(waveListsFlyers('quick', 3)).toBe(true);
-    expect(waveListsFlyers('quick', 1)).toBe(false);
+    expect(first('quick')).toBe(4);
+    expect(first('full')).toBe(6);
+    expect(waveListsFlyers('quick', 4)).toBe(true);
+    expect(waveListsFlyers('quick', 3)).toBe(false);
     expect(waveListsFlyers('quick', 0)).toBe(false);
-    expect(waveListsFlyers('full', 5)).toBe(true);
-    expect(waveListsFlyers('full', 4)).toBe(false);
+    expect(waveListsFlyers('full', 6)).toBe(true);
+    expect(waveListsFlyers('full', 5)).toBe(false);
     expect(TOWER_KINDS.filter((k) => !hitsAir(k, null))).toEqual(['cannon']);
     expect(hitsAir('arrow', null)).toBe(true);
     expect(hitsAir('flak', 'skyguard')).toBe(true);
@@ -90,44 +97,80 @@ describe('anti-air teaching', () => {
     expect(hitsAir('cannon', 'mortar')).toBe(false);
   });
 
-  it('toasts once when flyers arrive, and lets the lesson card take that line', () => {
-    const first = readAir(freshAir(), air({ wave: 3, flyers: true }));
-    expect(first.beat.toast).toBe(AIR_ARRIVAL);
-    expect(first.beat.chip).toEqual({ title: AIR_CHIP_TITLE, sub: AIR_CHIP_NEED });
-    const again = readAir(first.memory, air({ wave: 8, flyers: true }));
-    expect(again.beat.toast).toBeNull();
-    expect(again.beat.chip?.sub).toBe(AIR_CHIP_NEED);
+  it('names the cheapest tower that hits air the player can afford, else the cheapest one', () => {
+    expect(airPick(200)).toBe('Arrow 60 hits air');
+    expect(airPick(60)).toBe('Arrow 60 hits air');
+    expect(airPick(10)).toBe('Arrow 60 hits air');
+    const t = tuningCopy();
+    t.towers.arrow.tiers[0]!.cost = 90;
+    expect(airPick(75, t)).toBe('Frost 70 hits air');
+    expect(airPick(85, t)).toBe('Frost 70 hits air');
+    t.towers.frost.tiers[0]!.cost = 95;
+    expect(airPick(85, t)).toBe('Flak 80 hits air');
+    expect(airAhead(85, t)).toBe('Wisps fly in next wave — Flak 80 hits air');
+  });
 
-    const taught = readAir(freshAir(), air({ wave: 3, flyers: true, lessonPending: true }));
+  it('speaks a wave ahead of the first flyers, again on their wave if a lane has no tower that hits air', () => {
+    const ahead = readAir(freshAir(), air({ wave: 3, gold: 70 }));
+    expect(ahead.beat.toast).toBe('Wisps fly in next wave — Arrow 60 hits air');
+    expect(ahead.beat.chip).toBeNull();
+    const covered = readAir(ahead.memory, air({ wave: 4, flyers: true, laneUncovered: false }));
+    expect(covered.beat.toast).toBeNull();
+    expect(covered.beat.chip).toEqual({ title: AIR_CHIP_TITLE, sub: AIR_CHIP_NEED });
+    const bare = readAir(ahead.memory, air({ wave: 4, flyers: true, laneUncovered: true, gold: 65 }));
+    expect(bare.beat.toast).toBe('Wisps are flying — Arrow 60 hits air');
+    expect(readAir(bare.memory, air({ wave: 8, flyers: true, laneUncovered: true })).beat.toast).toBeNull();
+
+    // First heard on the flyers' own wave: one line, not two.
+    const late = readAir(freshAir(), air({ wave: 4, flyers: true, laneUncovered: true }));
+    expect(late.beat.toast).toBe(airArrival(0));
+    expect(readAir(late.memory, air({ wave: 4, flyers: true, laneUncovered: true })).beat.toast).toBeNull();
+
+    const taught = readAir(freshAir(), air({ wave: 4, flyers: true, lessonPending: true }));
     expect(taught.beat.toast).toBeNull();
     expect(taught.memory.announced).toBe(true);
-    expect(readAir(taught.memory, air({ wave: 3, flyers: true, lessonPending: false })).beat.toast).toBeNull();
+    expect(readAir(taught.memory, air({ wave: 4, flyers: true, lessonPending: false })).beat.toast).toBeNull();
+  });
+
+  it('finds a flyer lane with no tower that hits air, on the lanes the player may build', () => {
+    const pads = getMap().pads;
+    const mid = pads.find((p) => p.lane === 1)!;
+    const all = pads.map((p) => ({ id: p.id, owner: null }));
+    const snap = { mode: 'quick' as const, wave: 4, pads: all, towers: [] as { padId: number; kind: 'arrow' | 'cannon'; branch: null }[] };
+    expect(flyerLaneUncovered(snap, 'p1')).toBe(true);
+    expect(flyerLaneUncovered({ ...snap, wave: 3 }, 'p1')).toBe(false);
+    const lanes = new Set(waveGroups(tuningForMode(TUNING, 'quick'), 4).filter((g) => g.kind === 'wisp').flatMap((g) => g.lanes));
+    const arrows = [...lanes].map((lane) => ({ padId: pads.find((p) => p.lane === lane)!.id, kind: 'arrow' as const, branch: null }));
+    expect(flyerLaneUncovered({ ...snap, towers: arrows }, 'p1')).toBe(false);
+    const cannons = arrows.map((t) => ({ ...t, kind: 'cannon' as const }));
+    expect(flyerLaneUncovered({ ...snap, towers: cannons }, 'p1')).toBe(true);
+    // Lanes the player cannot build on are a teammate's call.
+    const theirs = pads.map((p) => ({ id: p.id, owner: p.id === mid.id ? 'p1' : 'p2' }));
+    const midOnly = lanes.has(1);
+    expect(flyerLaneUncovered({ ...snap, pads: theirs }, 'p1')).toBe(midOnly);
   });
 
   it('drops the chip nag once the player has a tower that hits air, and hides it with no flyers', () => {
-    const covered = readAir(freshAir(), air({ flyers: true, haveAir: true, wave: 3 }));
+    const covered = readAir(freshAir(), air({ flyers: true, haveAir: true, wave: 4 }));
     expect(covered.beat.chip).toEqual({ title: AIR_CHIP_TITLE, sub: '' });
-    const clear = readAir(covered.memory, air({ flyers: false, wave: 4 }));
+    const clear = readAir(covered.memory, air({ flyers: false, wave: 5 }));
     expect(clear.beat.chip).toBeNull();
   });
 
   it('warns once for a ground-only build when air is here or next, and not for an Arrow', () => {
-    expect(airRelevant(air({ mode: 'quick', wave: 2 }))).toBe(true);
-    expect(airRelevant(air({ mode: 'quick', wave: 1 }))).toBe(false);
-    expect(airRelevant(air({ mode: 'full', wave: 4 }))).toBe(true);
+    expect(airRelevant(air({ mode: 'quick', wave: 3 }))).toBe(true);
+    expect(airRelevant(air({ mode: 'quick', wave: 2 }))).toBe(false);
+    expect(airRelevant(air({ mode: 'full', wave: 5 }))).toBe(true);
+    expect(airRelevant(air({ mode: 'full', wave: 4 }))).toBe(false);
 
     const early = readAir(freshAir(), air({ wave: 1, builtGround: true }));
     expect(early.beat.toast).toBeNull();
     expect(early.memory.warnedGround).toBe(false);
 
-    const cannon = readAir(freshAir(), air({ wave: 2, builtGround: true }));
+    const ahead = readAir(freshAir(), air({ wave: 3 }));
+    const cannon = readAir(ahead.memory, air({ wave: 3, builtGround: true }));
     expect(cannon.beat.toast).toBe(AIR_CANNON);
-    const second = readAir(cannon.memory, air({ wave: 3, flyers: true, builtGround: true }));
-    expect(second.beat.toast).toBe(AIR_ARRIVAL);
-    expect(second.memory.warnedGround).toBe(true);
-
-    const arrow = readAir(freshAir(), air({ wave: 3, flyers: true, builtGround: false, haveAir: true }));
-    expect(arrow.beat.toast).toBe(AIR_ARRIVAL);
+    expect(readAir(cannon.memory, air({ wave: 4, builtGround: true })).beat.toast).toBeNull();
   });
 
   it('tells a ranged hero their shots hit, and a Warden that swings do not', () => {

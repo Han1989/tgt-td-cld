@@ -248,31 +248,44 @@ export function runHeadlessMatch(opts: {
 export interface ManaDrillResult {
   kind: HeroKind;
   level: number;
-  /** Q and W ranks the drill uses (Q and W first: the most mana-hungry build). */
-  ranks: { Q: number; W: number };
+  /** Q and W ranks the drill uses (Q and W first: the most mana-hungry build), and E's (the bots' order). */
+  ranks: { Q: number; W: number; E: number };
   /** Seconds from a full pool until Q or W is first ready but unaffordable, or -1 if never (within 10 minutes). */
   secondsToDry: number;
   /** Q + W casts per minute once dry (over the 2 minutes after), and with unlimited mana (cooldowns only). */
   castsPerMinuteDry: number;
   castsPerMinuteFull: number;
+  /** Mana per second the hero regenerates, and the two skills' cost per second on cooldown alone. */
+  regen: number;
+  costPerSecond: number;
 }
 
 /**
  * Q / W ranks at `level` when every point goes to R when it can, else to Q and W (Q first): level 1 Q1 W1,
- * level 6 Q3 W3 (R1), level 10 Q4 W4 (R3).
+ * level 6 Q3 W3 (R1), level 10 Q4 W4 (R3). E is the rank the balance bots have at that level (R first, else the
+ * lowest rank: level 6 and 10 E2), so the Arcanist's Clarity Aura is counted (retest fix B: one mana rule for all).
  */
-export function drillRanks(tuning: Tuning, level: number): { Q: number; W: number } {
+export function drillRanks(tuning: Tuning, level: number): { Q: number; W: number; E: number } {
   let points = level - 1;
   const r = tuning.hero.ultimateLevels.filter((l) => l <= level).length;
   points -= r;
   const q = Math.min(tuning.hero.maxSkillRank, 1 + Math.ceil(points / 2));
   const w = Math.min(tuning.hero.maxSkillRank, 1 + Math.floor(points / 2));
-  return { Q: q, W: w };
+  // The bots' learn order (bots.ts): R the moment it can rank, else the lowest of Q, W, E (in that order).
+  const bot = { Q: 1, W: 1, E: 0, R: 0 };
+  for (let l = 2; l <= level; l++) {
+    if (bot.R < tuning.hero.ultimateLevels.filter((u) => u <= l).length) bot.R++;
+    else {
+      const slot = (['Q', 'W', 'E'] as const).reduce((a, b) => (bot[b] < bot[a] ? b : a));
+      bot[slot]++;
+    }
+  }
+  return { Q: q, W: w, E: bot.E };
 }
 
 /**
  * A hero at `level` with a full pool casts Q and W whenever each is ready and affordable (nothing else spends
- * or refills mana: no Clarity Aura, since the drill's build has no E). Uses the sim's own mana numbers
+ * mana; the Arcanist's own Clarity Aura refills hers at the bots' E rank). Uses the sim's own mana numbers
  * (`heroMaxMana`, `heroManaRegen`, `skillInfo`), tick by tick.
  */
 export function runManaDrill(kind: HeroKind, level: number, tuning: Tuning = TUNING): ManaDrillResult {
@@ -280,7 +293,7 @@ export function runManaDrill(kind: HeroKind, level: number, tuning: Tuning = TUN
   const hero = state.heroes[0]!;
   const ranks = drillRanks(state.tuning, level);
   hero.level = level;
-  hero.ranks = { Q: ranks.Q, W: ranks.W, E: 0, R: 0 };
+  hero.ranks = { Q: ranks.Q, W: ranks.W, E: ranks.E, R: 0 };
   hero.mana = heroMaxMana(state, hero);
   const slots = ['Q', 'W'] as const;
   const limit = 10 * 60 * TICK_RATE;
@@ -310,5 +323,7 @@ export function runManaDrill(kind: HeroKind, level: number, tuning: Tuning = TUN
     secondsToDry: dryTick < 0 ? -1 : dryTick / TICK_RATE,
     castsPerMinuteDry: dryTick < 0 ? full : dryCasts / 2,
     castsPerMinuteFull: full,
+    regen: heroManaRegen(state, hero),
+    costPerSecond: slots.reduce((sum, slot) => sum + skillInfo(state, hero, slot).manaCost / skillInfo(state, hero, slot).cooldown, 0),
   };
 }

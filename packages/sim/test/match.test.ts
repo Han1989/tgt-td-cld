@@ -182,7 +182,7 @@ describe('match reports and replays', () => {
     expect(() => replayMatch({ ...ok, log: [[1, 5, 'stop']] })).toThrow(/player 5/);
   });
 
-  it('refuses a replay saved with match modifiers or Meteor Rain practice, and re-runs one saved with none', () => {
+  it('refuses a replay saved with match modifiers, Meteor Rain practice or before protocol 23, and re-runs one saved with none', () => {
     const match = createMatch({ players: [{ id: 'p1', name: 'A', hero: 'ranger' }] }, 4, '0123abcd');
     for (let i = 0; i < 40; i++) matchStep(match);
     const replay = matchReplay(match);
@@ -190,8 +190,9 @@ describe('match reports and replays', () => {
     // Protocol 19 wrote `modifiers` on every replay: an empty list is a plain match and re-runs as before.
     const plain = { ...replay, protocol: 19, modifiers: [] };
     expect(replayProblem(plain)).toBeNull();
-    expect(replayRefusal(plain)).toBeNull();
-    expect(replayMatch(plain).state.tick).toBe(replay.end.tick);
+    expect(replayRefusal(plain)).toMatch(/protocol 19, before the heroes' kits.*protocol 23.*git checkout 0123abcd/);
+    expect(replayRefusal({ ...replay, modifiers: [] })).toBeNull();
+    expect(replayMatch({ ...replay, modifiers: [] }).state.tick).toBe(replay.end.tick);
     const swift = { ...replay, protocol: 19, modifiers: ['swift', 'fog'] };
     expect(replayProblem(swift)).toBeNull();
     expect(() => replayMatch(swift)).toThrow(/modifiers \(swift \+ fog\), which were removed in protocol 20.*git checkout 0123abcd/);

@@ -79,7 +79,7 @@ export interface Hero {
   alive: boolean;
   respawnTick: number;
   stunUntil: number;
-  /** Iron Vow: team armour and regeneration last until this tick (0 = never cast). Survives the caster dying. */
+  /** Rampart Slam: team armour and regeneration last until this tick (0 = never cast). Survives the caster dying. */
   guardianUntil: number;
   /**
    * Joystick steering: auto-chase stays off until this tick. Each `move` refreshes it; `stop` clears it.
@@ -146,6 +146,8 @@ export interface Creep {
   slowPct: number;
   slowUntil: number;
   rootUntil: number;
+  /** Snare Trap: Exposed until this tick (every hit on it deals `snareTrap.exposed` more; the root's duration). */
+  exposedUntil: number;
   /** Stunned creeps neither move nor attack. */
   stunUntil: number;
   /** A taunted creep keeps chasing its target, past its leash, the chase cap and the time limit, until this tick. */
@@ -348,16 +350,16 @@ export interface UltStats {
 
 export function emptyUltStats(): UltStats {
   const by = {} as UltStats['by'];
-  for (const tag of ['arrowStorm', 'meteor', 'ironVow', 'meteorRain', 'stunStorm', 'shockwave'] as const) {
+  for (const tag of ['arrowStorm', 'meteor', 'rampartSlam', 'meteorRain', 'stunStorm', 'shockwave'] as const) {
     by[tag] = { casts: 0, damage: 0, kills: 0 };
   }
   return { damage: 0, kills: 0, by };
 }
 
-/** The three ultimates that combo (Arrow Storm, Meteor and Iron Vow, in pairs). */
-export type UltKind = 'arrowStorm' | 'meteor' | 'ironVow';
+/** The three ultimates that combo (Arrow Storm, Meteor and Rampart Slam, in pairs). */
+export type UltKind = 'arrowStorm' | 'meteor' | 'rampartSlam';
 
-/** An ultimate cast still inside the combo window. `zoneId` is its rain (-1: Iron Vow has none, or it fused). */
+/** An ultimate cast still inside the combo window. `zoneId` is its rain (-1: Rampart Slam has none, or it fused). */
 export interface RecentUlt {
   heroId: EntityId;
   kind: UltKind;

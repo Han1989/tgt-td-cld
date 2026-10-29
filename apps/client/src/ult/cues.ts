@@ -3,7 +3,7 @@
 // - the kill-count popup after a rain or burst ("Arrow Storm: 12"), from the `ultResult` event;
 // - the R button's two cues: a pulse once the ultimate has been ready for 20 s of a wave (`NUDGE_SECONDS`), and the
 //   "Combo!" ring for 5 s after a teammate casts one that fuses with yours (`R_OVERLAP_SECONDS`);
-// - the Iron Vow heal seen on every healed hero's portrait (`healLines`).
+// - the Rampart Slam heal seen on every healed hero's portrait (`healLines`).
 
 import {
   comboOfUltimates,
@@ -27,7 +27,7 @@ export const NUDGE_SECONDS = 20;
 export const ULT_NAMES: Record<UltimateTag, string> = {
   arrowStorm: HERO_INFO.ranger.skills.R.name,
   meteor: HERO_INFO.arcanist.skills.R.name,
-  ironVow: HERO_INFO.warden.skills.R.name,
+  rampartSlam: HERO_INFO.warden.skills.R.name,
   meteorRain: 'Meteor Rain',
   stunStorm: 'Stun Storm',
   shockwave: 'Shockwave',
@@ -35,7 +35,7 @@ export const ULT_NAMES: Record<UltimateTag, string> = {
 
 /** The colour an ultimate or combo is drawn in (palette), for its popup. */
 export function ultColor(tag: UltimateTag): number {
-  return tag === 'ironVow' ? AOE_COLORS.ironVow : ZONE_COLORS[tag];
+  return tag === 'rampartSlam' ? AOE_COLORS.rampartSlam : ZONE_COLORS[tag];
 }
 
 export function ultName(hero: HeroKind): string {
@@ -161,7 +161,7 @@ export function readUltCues(prev: UltCueMemory, snap: Snapshot, events: readonly
 }
 
 // ---------------------------------------------------------------------------
-// Iron Vow heals on the portraits
+// Rampart Slam heals on the portraits
 // ---------------------------------------------------------------------------
 
 export interface HealLine {
@@ -172,7 +172,7 @@ export interface HealLine {
   amount: number;
 }
 
-/** Every hero Iron Vow healed in this batch whose owner is on the snapshot, in event order. */
+/** Every hero Rampart Slam healed in this batch whose owner is on the snapshot, in event order. */
 export function healLines(events: readonly GameEvent[], snap: Snapshot): HealLine[] {
   const lines: HealLine[] = [];
   for (const e of events) {

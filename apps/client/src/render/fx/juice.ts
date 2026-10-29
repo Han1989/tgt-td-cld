@@ -52,7 +52,7 @@ export const JUICE = {
 const ULT_EFFECTS: Record<HeroKind, readonly string[]> = {
   ranger: ['arrowStorm', ...COMBO_KINDS],
   arcanist: ['meteor', ...COMBO_KINDS],
-  warden: ['ironVow', ...COMBO_KINDS],
+  warden: ['rampartSlam', ...COMBO_KINDS],
 };
 
 /** Who you are this frame, for `HitStop.feed`. */

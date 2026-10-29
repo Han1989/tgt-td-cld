@@ -6,7 +6,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { MatchReport, Replay } from '@tdt/protocol';
+import { PROTOCOL_VERSION, type MatchReport, type Replay } from '@tdt/protocol';
 import { matchReport, replayMatch, replayProblem, TUNING, type Tuning } from '../src';
 
 function merge(base: unknown, patch: unknown): unknown {
@@ -27,7 +27,8 @@ const SEEDS = Number(process.env.SEEDS ?? 0);
 
 for (const file of files) {
   const data = JSON.parse(readFileSync(file, 'utf8')) as { report?: MatchReport; replay: Replay };
-  const replay = data.replay;
+  // Re-run on today's rules on purpose: stamped with today's protocol, so `replayRefusal` lets the old inputs through.
+  const replay = { ...data.replay, protocol: PROTOCOL_VERSION };
   const problem = replayProblem(replay);
   if (problem) throw new Error(`${file}: ${problem}`);
   if (SEEDS > 0) {

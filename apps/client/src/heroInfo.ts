@@ -23,20 +23,20 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
     blurb: 'Long-range archer. Shoots flyers, roots groups with traps and rains arrows along the lanes.',
     skills: {
       Q: { name: 'Multishot', desc: 'Fire an arrow at each of the nearest creeps.' },
-      W: { name: 'Snare Trap', desc: 'Place a trap that roots and damages ground creeps.' },
+      W: { name: 'Snare Trap', desc: 'Place a trap that roots and damages ground creeps. Rooted creeps are Exposed: they take 25% more damage from everything, towers too.' },
       E: { name: 'Keen Eye', desc: 'Passive: attacks can critically strike.' },
       R: { name: 'Arrow Storm', desc: 'Arrows fall on every lane for a few seconds. Hits flyers.' },
     },
   },
   warden: {
     name: 'Warden',
-    role: 'Melee tank',
-    blurb: 'Melee frontliner. Taunts creeps and flyers onto him, heals from his hits, and heals and shields the team.',
+    role: 'Bruiser',
+    blurb: 'Bruiser. Clears packs with a slam that hits harder the more it catches, and heals on every blow.',
     skills: {
       Q: { name: 'Cleave', desc: 'Strike every creep around you, flyers too.' },
       W: { name: 'Taunt', desc: 'Nearby creeps, flyers too, turn on you and forget their lane.' },
-      E: { name: 'Blood Hunger', desc: 'Passive: your attacks and Cleave heal you for a share of the damage dealt.' },
-      R: { name: 'Iron Vow', desc: 'Heals every living ally at once and armours them for a few seconds; a burst around you hurts and stuns.' },
+      E: { name: 'Blood Hunger', desc: 'Passive: every hit heals you: a share of the damage, plus a share of your max HP per creep struck (Cleave on five heals five times).' },
+      R: { name: 'Rampart Slam', desc: 'Slam the ground: every creep around you is hit and stunned, harder for each other creep caught. Then every ally heals and is armoured for a few seconds.' },
     },
   },
   arcanist: {

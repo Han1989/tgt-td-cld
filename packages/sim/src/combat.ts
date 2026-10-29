@@ -111,10 +111,10 @@ function auraRank(state: GameState, target: { x: number; y: number }, kind: Hero
 }
 
 /**
- * The strongest Iron Vow still running: highest Warden R rank, and how many ticks are left
- * on the longest vow. Two vows do not stack. Null when none is up.
+ * The strongest Rampart Slam guard still running (the armour and regeneration it leaves on every living hero): highest
+ * Warden R rank, and how many ticks are left on the longest. Two guards do not stack. Null when none is up.
  */
-export function ironVow(state: GameState): { rank: number; ticksLeft: number } | null {
+export function slamGuard(state: GameState): { rank: number; ticksLeft: number } | null {
   let rank = -1;
   let ticksLeft = 0;
   for (const h of state.heroes) {
@@ -134,15 +134,15 @@ export function clarityBonus(state: GameState, hero: Hero): number {
 
 export function heroArmor(state: GameState, hero: Hero): number {
   const s = heroStats(state, hero);
-  const vow = ironVow(state);
-  const bonus = vow ? (state.tuning.hero.warden.ironVow.armor[vow.rank] ?? 0) : 0;
+  const vow = slamGuard(state);
+  const bonus = vow ? (state.tuning.hero.warden.rampartSlam.armor[vow.rank] ?? 0) : 0;
   return s.armor + s.armorPerLevel * (statLevel(state, hero) - 1) + bonus;
 }
 
-/** Health regenerated per second, including Iron Vow while it covers living heroes. */
+/** Health regenerated per second, including Rampart Slam while it covers living heroes. */
 export function heroHpRegen(state: GameState, hero: Hero): number {
-  const vow = ironVow(state);
-  const bonus = vow ? (state.tuning.hero.warden.ironVow.regen[vow.rank] ?? 0) : 0;
+  const vow = slamGuard(state);
+  const bonus = vow ? (state.tuning.hero.warden.rampartSlam.regen[vow.rank] ?? 0) : 0;
   return heroStats(state, hero).hpRegen + bonus;
 }
 
@@ -193,6 +193,8 @@ export function damageCreep(
 ): number {
   if (creep.dead) return 0;
   amount = shieldedDamage(state, creep, amount, from);
+  // Exposed (a Snare Trap's root): every hit, from anyone, lands harder while it lasts.
+  if (state.tick < creep.exposedUntil) amount *= 1 + state.tuning.hero.ranger.snareTrap.exposed;
   const mult = pierce ? 1 : damageMultiplier(state.tuning, type, effectiveArmor(state, creep), creep.magicResist);
   const dealt = Math.min(creep.hp, Math.max(0, amount * mult));
   if (dealt > 0) {

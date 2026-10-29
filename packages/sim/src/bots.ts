@@ -94,6 +94,20 @@ const ANSWER_MIN_CREEPS = 6;
 const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: [], arcanist: [] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
+/** Creeps inside Rampart Slam's radius before the casual and expert Warden slams (it grows with the pack; the novice: 1). */
+const SLAM_CREEPS = 4;
+/** The expert slams at once on this many; with fewer, where no denser pack is within `SLAM_LOOK` tiles. */
+const SLAM_FULL = 7;
+const SLAM_LOOK = 6;
+/** The expert never slams on fewer than this. */
+const SLAM_EXPERT_MIN = 5;
+/** How far from his post the expert Warden goes for a fresh pack with the slam ready: solo the whole map, in a team his
+ * own lane's reach. */
+const SLAM_SEEK = { solo: 60, team: 24 };
+/** Seconds the expert Warden waits after a Taunt for the pack to close on him before it slams. */
+const SLAM_GATHER = 1.5;
+/** Seconds before the slam is ready that the expert Warden stops spending Taunt on its own. */
+const SLAM_SAVE = 4;
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
 const GUARD_DISTANCE = 9;
 /**
@@ -194,6 +208,8 @@ export function createBalanceBot(
   let flyerLeaks = 0;
   /** Novice: the tick before which it has forgotten about its ultimate. */
   let ultForgottenUntil = -1;
+  /** The expert Warden taunted to gather a pack for the slam: it holds the slam until this tick (or a full pack). */
+  let slamHoldUntil = -1;
   /** Tick of this bot's last repair: players do not watch every tower, so it repairs one at a time (`REPAIR_EVERY`). */
   let lastRepairTick = -Infinity;
   const repairReady = (snap: Snapshot): boolean =>
@@ -363,15 +379,17 @@ export function createBalanceBot(
       // creep nearest its post; otherwise the post itself.
       const straggler =
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
-      const ultReady = later && r.cooldown === 0;
       const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
-      // Iron Vow's burst is around the Warden: he walks into a pack so the burst, Cleave and Taunt connect.
+      // Rampart Slam lands at the Warden's feet: the expert walks into the densest pack near his post whenever it is
+      // ready (from the first wave he has it), the casual bot in the later waves.
       const ultRadius = r !== undefined ? r.radius : 0;
       const hittable = snap.creeps;
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
-      // Arrow Storm and Meteor rain on every lane wherever the hero stands: only the Warden's burst needs a pack.
-      const group = ultReady && hero.kind === 'warden'
-        ? densestGroup(nearPost(SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? 2 : MIN_TARGETS.R)
+      const slamReady = r !== undefined && r.rank > 0 && r.cooldown === 0 && (expert || later);
+      // Arrow Storm and Meteor rain on every lane wherever the hero stands: only the Warden's slam needs a pack.
+      // The expert goes up the lanes to meet a fresh pack before the towers have worn it down.
+      const group = slamReady && hero.kind === 'warden' && !novice
+        ? densestGroup(nearPost(expert ? (snap.players.length === 1 ? SLAM_SEEK.solo : SLAM_SEEK.team) : SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? SLAM_FULL - 2 : SLAM_CREEPS)
         : undefined;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
       // A shielded boss takes no damage until two lanes hit it. Standing at the Heart lets it
@@ -414,7 +432,7 @@ export function createBalanceBot(
         lastGoal = goal;
         lastMoveTick = snap.tick;
       }
-      // The casual bot runs home without casting. The expert still casts (Iron Vow, a trap, a shot) on the way.
+      // The casual bot runs home without casting. The expert still casts (Rampart Slam, a trap, a shot) on the way.
       if (retreating && !expert) return cmds;
 
       const near = (range: number, ground: boolean): CreepSnap[] =>
@@ -432,21 +450,40 @@ export function createBalanceBot(
         ultForgottenUntil = snap.tick + NOVICE_ULT_FORGET_SECONDS * snap.tickRate;
         return true;
       };
+      let tauntedNow = false;
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
+        if (slot === 'W' && tauntedNow) continue;
+        // The expert Warden keeps Taunt for the slam when the slam is ready or nearly: it gathers the pack.
+        if (slot === 'W' && expert && hero.kind === 'warden' && r && r.rank > 0 && r.cooldown <= SLAM_SAVE * snap.tickRate) continue;
         // A player answers a teammate's ultimate (inside the combo window) so the two fuse.
         if (slot === 'R' && !novice && snap.creeps.length >= ANSWER_MIN_CREEPS && teammateUltimateJustCast(snap, hero)) {
           cmds.push({ type: 'cast', slot: 'R' });
           continue;
         }
         if (slot === 'R' && hero.kind === 'warden') {
-          // Heals the whole team and bursts around him: cast when a pack is on the Warden, a boss is close,
-          // or he or a teammate is hurt.
-          const pack = near(s.radius, false).length >= mins.R;
-          const bossNear = bosses.some((b) => dist(hero.x, hero.y, b.x, b.y) <= 8);
-          const hurt = snap.heroes.some((h) => h.alive && h.hp / h.maxHp < (h.id === hero.id ? 0.55 : 0.45));
-          if ((pack || bossNear || hurt) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
+          // The slam hits harder the more it catches: cast on a pack of SLAM_CREEPS at his feet (a novice on any
+          // creep), held a few seconds, as a rain is, for a teammate whose ultimate is about to be ready.
+          const caught = near(s.radius, false).length;
+          // The expert gathers the pack first, as a player would: Taunt pulls the creeps around onto him, and the slam
+          // waits up to SLAM_GATHER seconds for them (or a full pack).
+          const w = skill('W');
+          if (expert && caught < SLAM_FULL && w && w.rank > 0 && w.cooldown === 0 && mana >= w.manaCost) {
+            if (near(w.radius, false).length >= SLAM_CREEPS) {
+              cmds.push({ type: 'cast', slot: 'W' });
+              mana -= w.manaCost;
+              slamHoldUntil = snap.tick + SLAM_GATHER * snap.tickRate;
+              tauntedNow = true;
+              continue;
+            }
+          }
+          if (expert && caught < SLAM_FULL && snap.tick < slamHoldUntil) continue;
+          // The expert walks into the pack first: it slams on SLAM_FULL, or where no denser pack is a few steps away.
+          const densest = expert ? packSize(near(SLAM_LOOK, false), s.radius) : 0;
+          const least = novice ? 1 : expert ? SLAM_EXPERT_MIN : SLAM_CREEPS;
+          const pack = caught >= least && (!expert || caught >= SLAM_FULL || caught >= densest - 1);
+          if (pack && (novice || !teammateUltimateSoon(snap, hero)) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
           continue;
         }
         if (slot === 'R') {
@@ -1029,6 +1066,13 @@ function nearest<T extends { x: number; y: number }>(items: T[], from: { x: numb
 }
 
 /** Centre creep of the biggest group within `radius` (at least `min` creeps), or undefined. */
+/** The most creeps of `creeps` inside `radius` of any one of them. */
+function packSize(creeps: CreepSnap[], radius: number): number {
+  let best = 0;
+  for (const c of creeps) best = Math.max(best, creeps.filter((o) => dist(o.x, o.y, c.x, c.y) <= radius).length);
+  return best;
+}
+
 function densestGroup(
   creeps: CreepSnap[],
   radius: number,

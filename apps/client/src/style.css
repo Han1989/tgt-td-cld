@@ -4625,7 +4625,7 @@ body.layout-rotate .rotate {
 
 /* Ultimate presentation (hud/ultHud.ts, hud/ultFace.ts, ult/cues.ts) ------------------------------------------
    A blink of the ultimate's colour on every cast, a kill-count popup when a rain or burst ends, a chip for every
-   teammate (health, and Iron Vow's heal), and the R button's pulse and "Combo!" ring. */
+   teammate (health, and Rampart Slam's heal), and the R button's pulse and "Combo!" ring. */
 
 #ult-flash {
   position: absolute;
@@ -4769,7 +4769,7 @@ body.layout-tall .mates {
   filter: grayscale(1);
 }
 
-/* Iron Vow reached them: a green ring from the portrait and a "+N" rising beside the chip. */
+/* Rampart Slam reached them: a green ring from the portrait and a "+N" rising beside the chip. */
 .mate.healed::before {
   content: '';
   position: absolute;

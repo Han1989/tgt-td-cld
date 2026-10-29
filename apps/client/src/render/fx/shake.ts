@@ -18,7 +18,7 @@ export const SHAKE_AT = {
   /** An ultimate cast, anyone's: the Meteor kicks hardest, Arrow Storm is a lighter rain. */
   arrowStorm: 0.5,
   meteor: 0.65,
-  ironVow: 0.65,
+  rampartSlam: 0.65,
   /** Two ultimates fused: on top of the cast's own kick. */
   combo: 0.8,
   /** Boss abilities: Ironhorn's stomp, the Matriarch's hatch and Shardback's shifting hide. */

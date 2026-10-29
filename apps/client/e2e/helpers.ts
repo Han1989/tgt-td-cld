@@ -79,7 +79,7 @@ interface Hook {
     /** V-07c's light pools showing, by kind, and whether their layer is drawn (not at Graphics → Low). */
     pools: { heart: number; portal: number; tower: number; shown: boolean };
   };
-  /** The Iron Vow rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
+  /** The Rampart Slam rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
   vow(): { rings: number; reach: number; alpha: number };
   /** Falling meteors (fx/meteorShow.ts): launched, landed on a strike, strikes with none, render ticks of the firsts. */
   meteors(): {

@@ -1288,6 +1288,15 @@ const items: ProgressItem[] = [
     proof: pr(151),
   },
   {
+    id: 'f2-rebalance',
+    title: 'Mana that runs out, a Snare Trap that bites, no wall at wave 5, and the Warden as a bruiser',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Game rules, the bots and the hero texts; protocol 23 (the merge restarts the game server). From the friends’ retest: the mage’s and the ranger’s mana never ran out, the Snare Trap did little, the Warden could not win alone, and wave 5 was a sudden wall. Mana now runs out by one rule for all three heroes: about a minute of casting at level 1, then you afford a bit over half your casts, and more as you level, never all of them, whichever skills you rank. The Warden is a bruiser: his new ultimate, Rampart Slam, hits every creep around him harder the more it catches and stuns them, then heals the team a little; he heals on every blow. The Snare Trap hits hard, arms almost at once, and leaves what it catches Exposed (25% more damage from everything, a violet ring). The first flying Wisps come a wave later, and the air hint names the cheapest tower that hits them that you can afford. The creeps got a little tougher to keep the game as hard as before. First-time players still win at least 97% of matches with every team; Han plays the Warden solo on his phone to judge him. Built by Claude Code (PR #152).',
+    proof: pr(152),
+  },
+  {
     id: 'p5-rest',
     title: 'More maps',
     owner: 'Team',
@@ -1307,7 +1316,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 22,
+  protocol: 23,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

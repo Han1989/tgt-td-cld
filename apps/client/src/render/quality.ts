@@ -66,7 +66,7 @@ export interface FxLevel {
   /** Floating damage numbers alive at once. */
   maxNumbers: number;
   /**
-   * The device asks for reduced motion (`prefers-reduced-motion`). The Iron Vow ring and the rain effects
+   * The device asks for reduced motion (`prefers-reduced-motion`). The Rampart Slam ring and the rain effects
    * keep their rings and flashes but drop what moves: streaks, turning, blinking and shake.
    */
   calm: boolean;

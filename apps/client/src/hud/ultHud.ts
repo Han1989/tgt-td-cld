@@ -1,5 +1,5 @@
 // The HUD half of the ultimate presentation (docs/MOBILE_TESTING.md §10): the kill-count popup, the screen flash on a cast,
-// and a portrait chip for every teammate that shows their health and, when Iron Vow heals them, a ring and a green
+// and a portrait chip for every teammate that shows their health and, when Rampart Slam heals them, a ring and a green
 // number (also when they are off screen). DOM only; the world's flares, rings and numbers are the renderer's.
 
 import type { HeroSnap, PlayerId, Snapshot } from '@tdt/protocol';
@@ -71,7 +71,7 @@ export class UltHud {
     this.flashTimer = window.setTimeout(() => this.flash.classList.remove('on'), FLASH_MS);
   }
 
-  /** Iron Vow healed a teammate: their chip rings green and a "+N" floats beside it. Yours is the renderer's and the hero panel's. */
+  /** Rampart Slam healed a teammate: their chip rings green and a "+N" floats beside it. Yours is the renderer's and the hero panel's. */
   heal(line: HealLine, me: PlayerId | null): void {
     if (line.owner === me) return;
     const chip = this.chips.get(line.heroId);

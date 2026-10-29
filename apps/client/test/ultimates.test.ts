@@ -1,4 +1,4 @@
-// Ultimate presentation (protocol 18): the kill-count popup, the R button's 20 s pulse and 5 s "Combo!" ring, Iron Vow's
+// Ultimate presentation (protocol 18): the kill-count popup, the R button's 20 s pulse and 5 s "Combo!" ring, Rampart Slam's
 // heal lines, and the end screen's kills per ultimate and combos per pair.
 
 import {
@@ -78,7 +78,7 @@ describe('kill-count popup', () => {
     expect(ULT_NAMES).toEqual({
       arrowStorm: 'Arrow Storm',
       meteor: 'Meteor',
-      ironVow: 'Iron Vow',
+      rampartSlam: 'Rampart Slam',
       meteorRain: 'Meteor Rain',
       stunStorm: 'Stun Storm',
       shockwave: 'Shockwave',
@@ -102,10 +102,10 @@ describe('kill-count popup', () => {
 
   it('lists several in order', () => {
     const pops = ultPops([
-      { type: 'ultResult', ult: 'ironVow', by: 'p2', kills: 3 },
+      { type: 'ultResult', ult: 'rampartSlam', by: 'p2', kills: 3 },
       { type: 'ultResult', ult: 'arrowStorm', by: 'p1', kills: 9 },
     ]);
-    expect(pops.map((p) => p.text)).toEqual(['Iron Vow: 3', 'Arrow Storm: 9']);
+    expect(pops.map((p) => p.text)).toEqual(['Rampart Slam: 3', 'Arrow Storm: 9']);
   });
 });
 
@@ -204,7 +204,7 @@ describe('the Combo! ring', () => {
   });
 });
 
-describe('Iron Vow heal lines', () => {
+describe('Rampart Slam heal lines', () => {
   it('lists every healed hero on the snapshot, with the HP gained', () => {
     const lines = healLines(
       [
@@ -253,7 +253,7 @@ describe('the end screen lines', () => {
     ultimates: {
       arrowStorm: { casts: 3, kills: 41 },
       meteor: { casts: 1, kills: 1 },
-      ironVow: none,
+      rampartSlam: none,
       meteorRain: { casts: 2, kills: 80 },
       stunStorm: { casts: 1, kills: 12 },
       shockwave: none,
@@ -273,6 +273,14 @@ describe('the end screen lines', () => {
       'Meteor Rain · 2 combos · 80 kills',
       'Stun Storm · 1 combo · 12 kills',
     ]);
+  });
+
+  it('adds the damage an ultimate did when the report has it (protocol 23)', () => {
+    const c = JSON.parse(JSON.stringify(coop)) as NonNullable<MatchReport['coop']>;
+    c.ultimates!.rampartSlam = { casts: 4, kills: 19, damage: 12_480 };
+    expect(ultimateLines(report(c)).find((l) => l.tag === 'rampartSlam')!.text).toBe(
+      'Rampart Slam · 4 casts · 19 kills · 12,480 damage',
+    );
   });
 
   it('an ultimate that only ever fused still shows the kills it made before', () => {

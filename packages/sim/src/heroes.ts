@@ -261,9 +261,10 @@ function tryAttack(state: GameState, hero: Hero, target: Creep): void {
   const mult = keenEyeMultiplier(state, hero, () => random(state));
   const damage = heroDamage(state, hero) * mult;
   if (!s.ranged) {
-    // Melee hits land at once. Blood Hunger heals from the damage that actually landed.
+    // Melee hits land at once. Blood Hunger heals from the damage that actually landed, and a share of max HP a hit.
+    const alive = !target.dead;
     const dealt = damageCreep(state, target, damage, s.damageType, hero.owner, false, hitFrom(state, hero));
-    bloodHungerHeal(state, hero, dealt);
+    bloodHungerHeal(state, hero, dealt, alive ? 1 : 0);
     return;
   }
   spawnProjectile(state, hero, { kind: 'creep', id: target.id, x: target.x, y: target.y }, {

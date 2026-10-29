@@ -137,7 +137,7 @@ const RECOIL_MS = 140;
 const RECOIL_PX = 4;
 /** Towers just removed (sold, destroyed) are remembered this long (ms), for their event's effect a moment later. */
 const GONE_TOWER_MS = 3000;
-/** Iron Vow ring radii beyond a hero's body radius (px): the glow, the thin ring, the dashed ring. */
+/** Rampart Slam ring radii beyond a hero's body radius (px): the glow, the thin ring, the dashed ring. */
 const VOW_GLOW = 22;
 const VOW_INNER = 9;
 const VOW_OUTER = 17;
@@ -219,7 +219,7 @@ interface HeroSprite extends EntitySprite {
   mana: Sprite;
   aura: Sprite;
   vow: VowSprites;
-  /** When the current Iron Vow reached this hero (ms), or -1 when it is not covered. */
+  /** When the current Rampart Slam reached this hero (ms), or -1 when it is not covered. */
   vowOnAt: number;
   /** The ring is showing, so it needs updating (and one last time when it goes). */
   vowShown: boolean;
@@ -274,7 +274,7 @@ interface RainSprite {
   column: Sprite;
 }
 
-/** An ally's Iron Vow ring, under the hero: a glow, a thin ring and a dashed ring that turns (fx/vow.ts). */
+/** An ally's Rampart Slam ring, under the hero: a glow, a thin ring and a dashed ring that turns (fx/vow.ts). */
 interface VowSprites {
   glow: Sprite;
   inner: Sprite;
@@ -660,7 +660,7 @@ export class WorldRenderer {
   }
 
   /**
-   * The Iron Vow rings drawn right now (browser tests): how many, the shortest reach of an outer ring past its hero's
+   * The Rampart Slam rings drawn right now (browser tests): how many, the shortest reach of an outer ring past its hero's
    * body and the faintest outer ring, on screen (px; 0..1). Reach stays about 13 px whatever the zoom: the entity scale
    * grows the ring as the map shrinks, which is what keeps it readable on a phone.
    */
@@ -1045,7 +1045,7 @@ export class WorldRenderer {
           this.heroes.get(e.heroId)?.art?.cast(now, e.slot);
           break;
         case 'heal': {
-          // Iron Vow reached this hero, wherever they stand: a green number and a ring over them.
+          // Rampart Slam reached this hero, wherever they stand: a green number and a ring over them.
           const hero = this.heroes.get(e.heroId);
           if (!hero) break;
           const hx = hero.root.x / S;
@@ -1209,9 +1209,9 @@ export class WorldRenderer {
           this.drawnCreeps.filter((c) => !TUNING.creeps[c.kind].flying && Math.hypot(c.x - x, c.y - y) <= radius),
         );
         break;
-      case 'ironVow':
+      case 'rampartSlam':
         // The vow is global. The burst is the cast; ally rings follow HeroSnap.shielded for shieldFor ticks.
-        fx.ironVow(x, y, radius > 0.5 ? radius : 3.2);
+        fx.rampartSlam(x, y, radius > 0.5 ? radius : 3.2);
         break;
       case 'fireball':
         fx.fireball(x, y, radius);
@@ -1324,9 +1324,9 @@ export class WorldRenderer {
         this.punch(JUICE.castPunch);
         break;
       case 'warden.R':
-        // The vow's own burst is the `aoe`; the cast adds the flare and the kick.
-        fx.ultimateCast(hx, hy, AOE_COLORS.ironVow);
-        fx.bump(SHAKE_AT.ironVow);
+        // The slam's own ring is the `aoe`; the cast adds the flare and the kick.
+        fx.ultimateCast(hx, hy, AOE_COLORS.rampartSlam);
+        fx.bump(SHAKE_AT.rampartSlam);
         this.punch(JUICE.castPunch);
         break;
       default:
@@ -1740,13 +1740,15 @@ export class WorldRenderer {
       updateBar(s, c.hp, c.maxHp, Math.max(18, r * 2.4), s.art?.barY ?? -r - 7);
       const hide = c.kind === 'shardback' ? shardbackHide(c) : '';
       const shield = c.shield ?? '';
-      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${c.stunned ? 't' : ''}${hide}${shield}`;
+      const statusKey = `${c.slowed ? 's' : ''}${c.rooted ? 'r' : ''}${c.exposed ? 'x' : ''}${c.stunned ? 't' : ''}${hide}${shield}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
         if (hide) s.status.circle(0, 0, r + 1).stroke({ width: 4, color: HIDE_COLORS[hide] });
         if (c.slowed) s.status.circle(0, 0, r + 3).stroke({ width: 2, color: COLORS.slow });
         if (c.rooted) s.status.circle(0, 0, r + 6).stroke({ width: 3, color: COLORS.root });
+        // Exposed (a Snare Trap's root): a violet ring outside the root's while every hit lands harder.
+        if (c.exposed) s.status.circle(0, 0, r + 9).stroke({ width: 2, color: COLORS.exposed, alpha: 0.9 });
         if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
         if (c.shield && c.shield !== 'off') {
           s.status.circle(0, 0, r + 10).stroke({ width: 3, color: FX.bossShield, alpha: c.shield === 'up' ? 0.45 : 0.95 });
@@ -2103,7 +2105,7 @@ export class WorldRenderer {
         this.heroes.set(h.id, s);
       }
       if (!h.alive) {
-        // A dead hero wears no Iron Vow ring (and blooms it again if it respawns while the vow still lasts).
+        // A dead hero wears no Rampart Slam ring (and blooms it again if it respawns while the vow still lasts).
         for (const v of [s.vow.glow, s.vow.inner, s.vow.outer]) fade(v, 0);
         s.vowOnAt = -1;
         s.vowShown = false;
@@ -2160,7 +2162,7 @@ export class WorldRenderer {
         s.status.clear();
         if (h.stunned) s.status.star(0, -S * 0.9, 5, 7, 3).fill(COLORS.stun);
       }
-      // Iron Vow: a living ally wears the ring for as long as the snapshot says the vow lasts (shieldFor).
+      // Rampart Slam: a living ally wears the ring for as long as the snapshot says the vow lasts (shieldFor).
       const vowOn = h.shielded && h.shieldFor > 0;
       if (vowOn && s.vowOnAt < 0) s.vowOnAt = now;
       else if (!vowOn) s.vowOnAt = -1;
@@ -2175,7 +2177,7 @@ export class WorldRenderer {
         s.vow.outer.scale.set(((r + VOW_OUTER) / 28) * v.scale);
         s.vowShown = vowOn;
       }
-      // Learned passives: a slowly turning ring (Blood Hunger, Clarity). Iron Vow uses the shield ring.
+      // Learned passives: a slowly turning ring (Blood Hunger, Clarity). Rampart Slam uses the shield ring.
       const auraOn = h.kind !== 'ranger' && (h.skills.find((k) => k.slot === 'E')?.rank ?? 0) > 0;
       if (auraOn !== s.auraOn) {
         s.auraOn = auraOn;
@@ -2528,7 +2530,7 @@ export class WorldRenderer {
     return { root, ring, column };
   }
 
-  /** The three sprites of an Iron Vow ring for a hero of body radius `r` (px); the ring sits under the body. */
+  /** The three sprites of an Rampart Slam ring for a hero of body radius `r` (px); the ring sits under the body. */
   private makeVow(r: number): VowSprites {
     const glow = new Sprite(this.atlas.frames.glow);
     glow.anchor.set(0.5);

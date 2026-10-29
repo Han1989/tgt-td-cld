@@ -2,7 +2,7 @@
 // applyCommand lives in commands.ts.
 
 import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
-import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana, ironVow } from './combat';
+import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana, slamGuard } from './combat';
 import { shieldSnap, updateCoop } from './coop';
 import { updateCreeps } from './creeps';
 import { lastWave } from './endless';
@@ -190,7 +190,7 @@ export function snapshot(state: GameState): Snapshot {
     })),
     heroes: state.heroes.map((h) => {
       const s = t.hero[h.kind];
-      const vowLeft = h.alive ? (ironVow(state)?.ticksLeft ?? 0) : 0;
+      const vowLeft = h.alive ? (slamGuard(state)?.ticksLeft ?? 0) : 0;
       return {
         id: h.id,
         owner: h.owner,
@@ -244,6 +244,7 @@ export function snapshot(state: GameState): Snapshot {
       maxHp: c.maxHp,
       slowed: state.tick < c.slowUntil,
       rooted: state.tick < c.rootUntil,
+      exposed: state.tick < c.exposedUntil,
       armor: r2(effectiveArmor(state, c)),
       magicResist: r2(c.magicResist),
       stunned: state.tick < c.stunUntil,

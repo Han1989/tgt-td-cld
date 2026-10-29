@@ -56,8 +56,10 @@ describe('match modes', () => {
   it('Quick mode compresses difficulty: wave 15 has about the creep HP of Full wave 30', () => {
     const full = game('full');
     const quick = game('quick');
-    const ratio = creepMaxHp(quick, 'grunt', 15) / creepMaxHp(full, 'grunt', 30);
-    // Full's solo late bonus makes wave 30 a little tougher than Quick wave 15.
+    // The two modes' solo multipliers apart (Full's rose in retest fix B, Quick's did not): Full's solo late bonus makes
+    // wave 30 a little tougher than Quick wave 15.
+    const solo = QUICK.playerScaling.hp[0]! / TUNING.playerScaling.hp[0]!;
+    const ratio = creepMaxHp(quick, 'grunt', 15) / creepMaxHp(full, 'grunt', 30) / solo;
     expect(ratio).toBeGreaterThan(0.9);
     expect(ratio).toBeLessThan(1.05);
     // And its last wave is as big as Full mode's last wave.

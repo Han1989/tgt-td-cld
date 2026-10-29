@@ -55,6 +55,7 @@ import { skillFace } from './skillFace';
 import {
   cheapestSpend,
   airRelevant,
+  flyerLaneUncovered,
   freshAir,
   freshGold,
   hitsAir,
@@ -101,7 +102,7 @@ const HIT_PULSE: Keyframe[] = [
   { transform: 'translateX(-2px)' },
   { transform: 'none', backgroundColor: 'transparent' },
 ];
-/** Iron Vow healed this hero: a green glow behind the bar. */
+/** Rampart Slam healed this hero: a green glow behind the bar. */
 const HEAL_PULSE: Keyframe[] = [
   { boxShadow: '0 0 0 0 rgba(76, 217, 100, 0.9)' },
   { boxShadow: '0 0 0 10px rgba(76, 217, 100, 0)' },
@@ -646,7 +647,7 @@ export class Hud {
 
   /**
    * Ultimates in this batch of events: a flash for every cast (anyone's), a kill-count popup for every rain or burst
-   * that ended, and Iron Vow's heal on the teammate chips (and your own panel).
+   * that ended, and Rampart Slam's heal on the teammate chips (and your own panel).
    */
   feedUltimates(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
     for (const e of events) {
@@ -770,6 +771,8 @@ export class Hud {
       flyers,
       builtGround,
       haveAir: myAirTowers > 0,
+      gold: snap.players.find((p) => p.id === me)?.gold ?? 0,
+      laneUncovered: flyerLaneUncovered(snap, me),
       lessonPending: opts.lessonPending,
     });
     this.airMemory = air.memory;

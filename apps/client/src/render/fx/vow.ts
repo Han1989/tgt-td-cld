@@ -1,4 +1,4 @@
-// The Iron Vow ring an ally wears while the vow lasts (pure, tested). The snapshot says whether a
+// The Rampart Slam ring an ally wears while the vow lasts (pure, tested). The snapshot says whether a
 // living hero is covered (`shielded`) and for how many ticks more (`shieldFor`, the longest vow
 // still running), so the ring needs no wire of its own: it blooms in when the vow lands, turns
 // and breathes while it lasts, blinks over its last 1.5 seconds so nobody is surprised when the
