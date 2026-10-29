@@ -79,4 +79,6 @@ export {
   shiftDailyKey,
 } from './daily';
 export type { DailyRun } from './daily';
+export { ENDLESS_BOARD_SIZE, endlessRankOrder, endlessRefusal, endlessRunTicks } from './endlessBoard';
+export type { EndlessRun } from './endlessBoard';
 export { comboOf, comboPartners, heroHitLane, shieldStandPoint } from './coop';

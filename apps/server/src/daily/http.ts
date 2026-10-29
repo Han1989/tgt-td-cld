@@ -8,11 +8,12 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dailyClosesAt, dailyKey, dailySeed, shiftDailyKey } from '@tdt/sim';
-import { clientIp, readBody, send } from '../analytics/http';
-import { DATA_KEY, visitorFromKey } from '../analytics/dataKey';
+import { clientIp, readBody } from '../analytics/http';
+import { visitorFromKey } from '../analytics/dataKey';
 import { TokenBucket } from '../rateLimit';
 import { boardView, champion, type DailyEntry } from './board';
 import { boardName } from './names';
+import { allPostsBucket, guard, headerVisitor, json, parsePost, refuse, slowReads, take, type Buckets } from './routing';
 import type { DailyStore } from './store';
 import { fileRefusal, reportMismatch, ReplayQueue, type PostedFile } from './verify';
 
@@ -25,80 +26,29 @@ const ROUTES = ['/daily/today', '/daily/board', '/daily/post'];
  */
 export const POST_BODY_LIMIT = 448 * 1024;
 /** Reads (today, board): the analytics events' limit, one a second and a burst of 10, per address. */
-const READ_PER_SECOND = 1;
-const READ_BURST = 10;
+export const READ_PER_SECOND = 1;
+export const READ_BURST = 10;
 /** Posts: three at once, then one every 20 seconds, per address; all addresses together as for /analytics/mine. */
 const POST_PER_SECOND = 1 / 20;
 const POST_BURST = 3;
-const POST_ALL_PER_SECOND = 1;
-const POST_ALL_BURST = 60;
 
 export interface DailyHttpOptions {
   store: DailyStore;
   isOriginAllowed: (origin: string | undefined) => boolean;
   now?: () => number;
+  /** The re-run queue (shared with Endless's board on the game server). */
   queue?: ReplayQueue;
+  /** Posts from all addresses together (shared with Endless's board on the game server; else its own). */
+  allPosts?: TokenBucket;
   /** One line per post (accepted or refused), for the host's logs. No name, id or key. */
   log?: (msg: string) => void;
-}
-
-type Buckets = Map<string, { bucket: TokenBucket; seen: number }>;
-
-function take(table: Buckets, ip: string, at: number, perSecond: number, burst: number): boolean {
-  let row = table.get(ip);
-  if (!row) {
-    row = { bucket: new TokenBucket(perSecond, burst, at), seen: at };
-    table.set(ip, row);
-    if (table.size > 4000) {
-      const cutoff = at - 10 * 60 * 1000;
-      for (const [key, value] of table) if (value.seen < cutoff) table.delete(key);
-    }
-  }
-  row.seen = at;
-  return row.bucket.take(at);
-}
-
-function applyCors(req: IncomingMessage, res: ServerResponse): void {
-  const origin = req.headers.origin;
-  if (typeof origin !== 'string' || !origin) return;
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type, x-data-key');
-  res.setHeader('Access-Control-Max-Age', '600');
-}
-
-const json = (res: ServerResponse, status: number, body: unknown) =>
-  send(res, status, JSON.stringify(body), 'application/json; charset=utf-8');
-
-/** A refused post: a short code the client words, and the reason in plain text. */
-const refuse = (res: ServerResponse, status: number, error: string, message: string) => json(res, status, { error, message });
-
-/** The caller's visitor id from `x-data-key`, or null with none (or a malformed one). */
-function headerVisitor(req: IncomingMessage): string | null {
-  const key = req.headers['x-data-key'];
-  return typeof key === 'string' && DATA_KEY.test(key) ? visitorFromKey(key) : null;
-}
-
-/** The post's body: exactly `{ key, name, file }` with a data key. Null when it is not. */
-function parsePost(raw: string): { key: string; name: unknown; file: unknown } | null {
-  try {
-    const body = JSON.parse(raw) as unknown;
-    if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
-    const keys = Object.keys(body);
-    if (keys.length !== 3 || !['key', 'name', 'file'].every((k) => keys.includes(k))) return null;
-    const { key, name, file } = body as { key: unknown; name: unknown; file: unknown };
-    return typeof key === 'string' && DATA_KEY.test(key) ? { key, name, file } : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Handles `/daily` routes. Returns false when the URL is not one of them. */
 export function createDailyHttp(opts: DailyHttpOptions): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   const reads: Buckets = new Map();
   const posts: Buckets = new Map();
-  let postAll: TokenBucket | null = null;
+  let postAll: TokenBucket | null = opts.allPosts ?? null;
   const queue = opts.queue ?? new ReplayQueue();
   const now = () => opts.now?.() ?? Date.now();
   const log = opts.log ?? (() => {});
@@ -141,7 +91,7 @@ export function createDailyHttp(opts: DailyHttpOptions): (req: IncomingMessage, 
       refuse(res, 429, 'slow', 'Slow down: one post every 20 seconds.');
       return;
     }
-    postAll ??= new TokenBucket(POST_ALL_PER_SECOND, POST_ALL_BURST, at);
+    postAll ??= allPostsBucket(at);
     if (!postAll.take(at)) {
       res.setHeader('Retry-After', '5');
       refuse(res, 429, 'slow', 'The board is busy. Try again in a moment.');
@@ -206,38 +156,15 @@ export function createDailyHttp(opts: DailyHttpOptions): (req: IncomingMessage, 
   }
 
   return async (req, res) => {
-    let url: URL;
-    try {
-      url = new URL(req.url ?? '/', 'http://localhost');
-    } catch {
-      return false;
-    }
-    let path = url.pathname;
-    if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-    if (!ROUTES.includes(path)) return false;
-    const origin = req.headers.origin;
-    if (!opts.isOriginAllowed(typeof origin === 'string' ? origin : undefined)) {
-      send(res, 403, 'Forbidden\n', 'text/plain; charset=utf-8');
-      return true;
-    }
-    applyCors(req, res);
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, { 'Cache-Control': 'no-store' });
-      res.end();
-      return true;
-    }
-    const posting = path === '/daily/post';
-    if (posting ? req.method !== 'POST' : req.method !== 'GET') {
-      send(res, 405, 'Method not allowed\n', 'text/plain; charset=utf-8');
-      return true;
-    }
-    if (posting) {
+    const route = guard(req, res, ROUTES, '/daily/post', opts.isOriginAllowed);
+    if (typeof route === 'boolean') return route;
+    const { path, url } = route;
+    if (path === '/daily/post') {
       await post(req, res);
       return true;
     }
     if (!take(reads, clientIp(req), now(), READ_PER_SECOND, READ_BURST)) {
-      res.setHeader('Retry-After', '1');
-      send(res, 429, 'Slow down\n', 'text/plain; charset=utf-8');
+      slowReads(res);
       return true;
     }
     if (path === '/daily/today') today(req, res);

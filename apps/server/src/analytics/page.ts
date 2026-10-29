@@ -7,6 +7,7 @@ import type { MatchRow } from './matches';
 import { DAY_MS } from './retention';
 import type { AnalyticsSummary, Ratio } from './summary';
 import type { DailyDayStat } from '../daily/store';
+import type { EndlessDayStat } from '../endless/store';
 
 function esc(value: string): string {
   return value.replace(/[&<>"']/g, (ch) => {
@@ -124,6 +125,24 @@ function dailyPanel(days: DailyDayStat[]): string {
   return `<section class="span">
       <h2>Daily run</h2>
       <p class="note">Runs the server re-ran and accepted (every try, not only bests), browsers on the day's board, posts refused (wrong seed, mode or shape, or a re-run that failed) and accepted runs whose own report did not match the re-run (the re-run's result stands). Day files are kept 90 days.</p>
+      ${body}
+    </section>`;
+}
+
+/** Endless's board per UTC day: runs posted (verified), players on it, refused posts, mismatches and the top wave. */
+function endlessPanel(days: EndlessDayStat[]): string {
+  const body =
+    days.length === 0
+      ? '<p class="note">No Endless run posted yet.</p>'
+      : `<div class="scroll"><table><thead><tr><th>Day (UTC)</th><th>Runs posted</th><th>Players</th><th>Refused</th><th>Report mismatches</th><th>Top wave</th></tr></thead><tbody>${days
+          .map(
+            (d) =>
+              `<tr><td>${esc(d.day)}</td><td>${d.posts}</td><td>${d.players}</td><td>${d.failures}</td><td>${d.mismatches}</td><td>${d.topWave ?? '—'}</td></tr>`,
+          )
+          .join('')}</tbody></table></div>`;
+  return `<section class="span">
+      <h2>Endless board</h2>
+      <p class="note">Solo Endless runs posted by themselves once the player said yes: runs the server re-ran and accepted (every try, not only bests), browsers on the day's top-10 board, posts refused (not solo Endless, another protocol, a bad shape, or a re-run that failed), accepted runs whose own report did not match the re-run, and the day's top wave. Day files are kept 90 days.</p>
       ${body}
     </section>`;
 }
@@ -407,6 +426,7 @@ export function renderDashboard(summary: AnalyticsSummary, options: DashboardOpt
       ${matchTable('Channel', matches.byChannel)}
     </section>
     ${dailyPanel(summary.daily)}
+    ${endlessPanel(summary.endless)}
     <section class="span">
       <h2>Crashes and errors</h2>
       <p class="note">${errors.reports} reports from ${errors.sessions} sessions (${pct(errors.sessions, summary.sessionStarts)} of sessions). Each browser sends a given error once a session, at most 5 a session.</p>

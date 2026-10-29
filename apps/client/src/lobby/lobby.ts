@@ -1,7 +1,8 @@
-// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode, the Daily run's
-// tile, Play solo, then nickname and create / join for friends), the room card (code + invite link, the seats, your
-// hero, the host's mode, ready / start) and a busy state. A build with no game server shows the home card alone, with
-// no friends' controls and no Daily tile.
+// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode with Endless's
+// "Today's top 10" link, the Daily run's tile, Play solo, then nickname and create / join for friends), Endless's board
+// card (lobby/boardCard.ts), the room card (code + invite link, the seats, your hero, the host's mode, ready / start)
+// and a busy state. A build with no game server shows the home card alone, with no friends' controls, no Daily tile
+// and no board.
 
 import {
   HERO_KINDS,
@@ -14,8 +15,10 @@ import {
   type LobbyState,
   type PlayerId,
 } from '@tdt/protocol';
+import { currentAgeBand } from '../analytics/age';
 import { wantHero } from '../artLoad/order';
 import { dailyTileLine, type DailyToday } from '../daily/text';
+import type { EndlessToday } from '../endless/board';
 import { endlessBest } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
 import { heroIcon, iconVar } from '../render/art/icons';
@@ -23,6 +26,7 @@ import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
 import { sharedSettings } from '../settings';
 import { lessonOffer, type SoloPick } from '../tutorial/logic';
+import { BoardCard } from './boardCard';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
 import { dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
@@ -42,6 +46,12 @@ export interface DailyActions {
   today(): Promise<DailyToday | null>;
   /** One tap on the tile: today's run on the card's hero. */
   play(hero: HeroKind, today: DailyToday): void;
+}
+
+/** Endless's board (a build with a game server). */
+export interface BoardActions {
+  /** Today's top 10, or null: the link stays hidden (the request failed). */
+  today(): Promise<EndlessToday | null>;
 }
 
 /** The friends' controls and the room card (a build with a game server). */
@@ -109,15 +119,21 @@ export class LobbyUi {
   /** Today's run as the tile last heard it, and which request is the latest (an older answer is dropped). */
   private dailyToday: DailyToday | null = null;
   private dailyAsk = 0;
+  private readonly boardLink = $('lobby-board-link');
+  private readonly boardCard: BoardCard;
+  /** Endless's board as the link last heard it, and the latest request (as the Daily tile's). */
+  private boardToday: EndlessToday | null = null;
+  private boardAsk = 0;
 
   /**
-   * `room` and `daily` are null in a build with no game server: the home card has no friends' controls, no room card
-   * and no Daily tile.
+   * `room`, `daily` and `board` are null in a build with no game server: the home card has no friends' controls, no
+   * room card, no Daily tile and no board.
    */
   constructor(
     solo: SoloActions,
     room: RoomActions | null,
     private readonly daily: DailyActions | null = null,
+    private readonly board: BoardActions | null = null,
   ) {
     dropStoredDifficulty();
     this.name.value = storedName();
@@ -156,6 +172,49 @@ export class LobbyUi {
     this.dailyTile.addEventListener('click', () => {
       if (this.daily && this.dailyToday) this.daily.play(this.hero, this.dailyToday);
     });
+    this.boardCard = new BoardCard(() => this.showHome());
+    this.boardLink.addEventListener('click', () => this.showBoard());
+  }
+
+  /**
+   * Asks for Endless's board and shows the Mode row's "Today's top 10" when it answers. Under 13 there is no board: no
+   * request, no link.
+   */
+  private syncBoard(): void {
+    if (!this.board || currentAgeBand() === 'child') return this.showBoardLink(null);
+    const ask = ++this.boardAsk;
+    void this.board.today().then(
+      (today) => {
+        if (ask === this.boardAsk) this.showBoardLink(today);
+      },
+      () => {
+        if (ask === this.boardAsk) this.showBoardLink(null);
+      },
+    );
+  }
+
+  private showBoardLink(today: EndlessToday | null): void {
+    this.boardToday = today;
+    this.boardLink.classList.toggle('hidden', !today);
+  }
+
+  /** The board card in place of the home card: the board as last heard, then fresh. Back is the home card. */
+  showBoard(): void {
+    if (!this.boardToday) return;
+    this.stage.stop();
+    this.home.classList.add('hidden');
+    this.room.classList.add('hidden');
+    this.busy.classList.add('hidden');
+    this.boardCard.root.classList.remove('hidden');
+    this.boardCard.render(this.boardToday);
+    this.showError('');
+    const ask = ++this.boardAsk;
+    void this.board?.today().then((today) => {
+      if (ask !== this.boardAsk || !today) return;
+      this.boardToday = today;
+      if (!this.boardCard.root.classList.contains('hidden')) this.boardCard.render(today);
+    });
+    $('lobby-board-back').focus({ preventScroll: true });
   }
 
   /** Asks for today's run and shows the tile with its live line, or hides it when the server does not answer. */
@@ -253,6 +312,7 @@ export class LobbyUi {
     this.home.classList.remove('hidden');
     this.room.classList.add('hidden');
     this.busy.classList.add('hidden');
+    this.boardCard.root.classList.add('hidden');
     this.refresh.classList.add('hidden');
     // The hero may have been picked in a room since (every hero picker stores it).
     this.hero = storedHero();
@@ -262,6 +322,7 @@ export class LobbyUi {
     this.stage.start();
     this.syncLesson();
     this.syncDaily();
+    this.syncBoard();
     // A nickname typed on a Daily run's end screen fills the field.
     if (!this.name.value) this.name.value = storedName();
     this.showError(error);
@@ -283,6 +344,7 @@ export class LobbyUi {
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.room.classList.add('hidden');
+    this.boardCard.root.classList.add('hidden');
     this.busy.classList.remove('hidden');
     this.busyText.textContent = text;
     this.showError('');
@@ -294,6 +356,7 @@ export class LobbyUi {
     this.root.classList.remove('hidden');
     this.home.classList.add('hidden');
     this.busy.classList.add('hidden');
+    this.boardCard.root.classList.add('hidden');
     this.room.classList.remove('hidden');
     this.roomCode.textContent = lobby.code;
 

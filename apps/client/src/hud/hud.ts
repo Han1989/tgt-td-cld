@@ -30,8 +30,10 @@ import {
 import { getMap, repairCost, TILE_PX, tuningForMode, TUNING, waveGroups } from '@tdt/sim';
 import { currentAnalytics } from '../analytics/install';
 import { analyticsOn } from '../analytics/preference';
+import { dailyServer } from '../daily/api';
 import { DailyEndCard, type DailyRunInfo } from '../daily/endCard';
 import { endlessEndCopy, endlessRunLine, recordEndlessRun, type EndlessRun } from '../endless/best';
+import { EndlessEndCard } from '../endless/endCard';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
@@ -278,6 +280,13 @@ export class Hud {
   private endless: EndlessRun | null = null;
   /** A Daily run's Post my run and rank reveal (hidden for any other match). */
   private readonly daily = new DailyEndCard(undefined, (text) => this.endToast(text));
+  /** An Endless run's board: the consent card or the post by itself, then the rank (hidden for any other match). */
+  private readonly board = new EndlessEndCard(
+    () => dailyServer() !== '',
+    (rank) => this.postedRank(rank),
+  );
+  /** The rank today of the Endless run just posted (the share card adds "#3 today"), or null. */
+  private boardRank: number | null = null;
   private readonly team = $('team');
   private readonly teamCode = $('team-code');
   private readonly teamList = $('team-list');
@@ -457,11 +466,13 @@ export class Hud {
     const card = over && (this.defeatSeenAt === null || now - this.defeatSeenAt >= VIGNETTE.closeMs);
     this.endScreen.classList.toggle('hidden', !card);
     this.daily.sync(over, this.report);
+    this.board.sync({ over: card, endless: snap.mode === 'endless', solo: this.room === null, file: this.report });
     if (!over) {
       if (this.outcomeSent) this.resetFeedback();
       this.outcomeSent = false;
       this.endCounting = false;
       this.endless = null;
+      this.boardRank = null;
       if (this.shareFace) this.cards.forget();
       this.shareFace = null;
       this.endShare.classList.add('hidden');
@@ -482,7 +493,7 @@ export class Hud {
       // An Endless run that fell: Share beside Save match report once the card is up and the report (its time) is in.
       // The picture is drawn then, ahead of the tap (after the defeat's vignette, so it never competes with it).
       if (card && this.endless && this.endless.wave >= 1 && this.report && hero && !this.shareFace) {
-        this.shareFace = endlessFace(this.endless, this.report.report.seconds, hero.kind);
+        this.shareFace = endlessFace(this.endless, this.report.report.seconds, hero.kind, this.boardRank);
         this.cards.prepare(this.shareFace);
       }
       this.endShare.classList.toggle('hidden', this.shareFace === null);
@@ -540,6 +551,14 @@ export class Hud {
   /** The host's report and replay of the match that just ended (null: none yet, or a new match started). */
   setReport(report: { report: MatchReport; replay: Replay } | null): void {
     this.report = report;
+  }
+
+  /** An Endless run went on today's board at `rank`: its share card says so ("#3 today"). */
+  private postedRank(rank: number): void {
+    this.boardRank = rank;
+    if (!this.shareFace) return;
+    this.shareFace = { ...this.shareFace, today: rank };
+    this.cards.prepare(this.shareFace);
   }
 
   /** The match being played is this Daily run (null: any other match): its end screen offers Post my run. */

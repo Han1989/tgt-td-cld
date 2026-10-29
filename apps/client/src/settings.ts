@@ -5,6 +5,7 @@ import { SKILL_PLACES, STICK_MODES, type SkillsPlace, type StickAnchor, type Sti
 import type { StickFeelName } from './touch/gestures';
 import type { Display } from './render/art/tokens';
 import { parseAirLesson, parseRepairHint, type AirLesson, type RepairHint, type TutorialStatus } from './tutorial/logic';
+import { parseEndlessPost, type EndlessPost } from './endless/board';
 
 export type Quality = 'auto' | 'high' | 'low';
 /** Screen shake: off, the normal kick, or a stronger one (ultimates, boss abilities and Heart hits). */
@@ -58,6 +59,14 @@ export interface Settings {
    * during it); then `seen`.
    */
   zoomHint: ZoomHint;
+  /**
+   * Endless's daily board (endless/board.ts): `unasked` until the consent card after the first finished Endless match,
+   * then `on` (Yes, every time: solo runs post by themselves from 16) or `off` (Not now). ⚙ Settings → Play data's
+   * "Post Endless runs to the board" switches it.
+   */
+  endlessPost: EndlessPost;
+  /** The online room's "Solo runs post to the board" line on an Endless end screen: `new` until it showed once. */
+  endlessRoomLine: ZoomHint;
 }
 
 export type ZoomHint = 'new' | 'seen';
@@ -131,6 +140,8 @@ export const DEFAULT_SETTINGS: Settings = {
   airLesson: 'new',
   repairHint: 'new',
   zoomHint: 'new',
+  endlessPost: 'unasked',
+  endlessRoomLine: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -168,6 +179,8 @@ export function parseSettings(raw: string | null): Settings {
     out.airLesson = parseAirLesson(v.airLesson);
     out.repairHint = parseRepairHint(v.repairHint);
     out.zoomHint = v.zoomHint === 'seen' ? 'seen' : 'new';
+    out.endlessPost = parseEndlessPost(v.endlessPost);
+    out.endlessRoomLine = v.endlessRoomLine === 'seen' ? 'seen' : 'new';
   } catch {
     // Corrupt value: defaults.
   }

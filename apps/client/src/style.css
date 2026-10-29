@@ -2120,6 +2120,43 @@ body.art-loading .air-flag {
   }
 }
 
+/* Endless's board on its end screen (endless/endCard.ts): the consent card or the one-tap post, then the rank under the
+   title. Its parts are the Daily run's; the rank line may wrap ("Not in today's top 10 · #27 of 112"). */
+.end-card p.end-board-q {
+  margin: 0;
+  font-family: var(--title-font);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.end-board-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn.end-board-no {
+  min-height: 46px;
+}
+
+.end-board-place {
+  white-space: normal;
+}
+
+.end-board-place .lead,
+.end-board-place .rest {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.end-board-place .num {
+  font-size: 38px;
+  text-shadow: 0 0 16px rgba(255, 210, 74, 0.45), 0 2px 0 var(--ink);
+}
+
 /* Under the note box: no personal details, and the privacy page (privacy.html). */
 .end-comment-hint {
   margin: 10px 0 0;
@@ -2128,6 +2165,7 @@ body.art-loading .air-flag {
 }
 
 .end-comment-hint a,
+.end-daily-note a,
 .lobby-foot a,
 .settings .settings-note a {
   color: var(--accent);
@@ -2144,12 +2182,14 @@ body.art-loading .air-flag {
 
 /* Small text links with a finger-sized hit area that does not move the layout. */
 .lobby-foot a,
-.end-comment-hint a {
+.end-comment-hint a,
+.end-daily-note a {
   position: relative;
 }
 
 .lobby-foot a::after,
-.end-comment-hint a::after {
+.end-comment-hint a::after,
+.end-daily-note a::after {
   content: '';
   position: absolute;
   inset: -10px -8px;
@@ -2259,7 +2299,8 @@ body.art-loading .air-flag {
 
 /* The card's own title is the stage's on the home card; the room card leads with its code. */
 .lobby-card:has(> #lobby-home:not(.hidden)) > .logo,
-.lobby-card:has(> #lobby-room:not(.hidden)) > .logo {
+.lobby-card:has(> #lobby-room:not(.hidden)) > .logo,
+.lobby-card:has(> #lobby-board:not(.hidden)) > .logo {
   display: none;
 }
 
@@ -2732,6 +2773,139 @@ body.art-loading .air-flag {
   color: var(--gold);
 }
 
+/* "Today's top 10": Endless's board (lobby/boardCard.ts), on the same line, so the row keeps its height. */
+.pick-label .mode-board {
+  display: block;
+  padding: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: inherit;
+  text-transform: none;
+  color: var(--rune);
+  text-underline-offset: 2px;
+}
+
+/* Endless's board card (lobby/boardCard.ts): one phone screen, only the list scrolls when the window is short. */
+#lobby-board {
+  gap: 10px;
+  min-height: 0;
+}
+
+.board-head {
+  /* Clear of the sound button. */
+  padding-right: 46px;
+}
+
+.board-title {
+  margin: 0;
+  font-family: var(--title-font);
+  font-size: 21px;
+  color: #eef6ff;
+  text-shadow: 0 2px 0 var(--ink);
+}
+
+.lobby-card p.board-day {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.board-rows {
+  list-style: none;
+  margin: 0;
+  padding: 4px 6px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(8, 6, 12, 0.55);
+  border: 1px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 8, 0.8), 0 0 0 1px rgba(207, 230, 255, 0.06);
+}
+
+.board-rows li {
+  display: grid;
+  grid-template-columns: 2.4em 20px minmax(0, 1fr) auto 3.4em;
+  align-items: center;
+  gap: 7px;
+  min-height: 31px;
+  padding: 2px 6px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-rows li + li {
+  border-top: 1px solid rgba(207, 230, 255, 0.06);
+}
+
+.board-rows li.mine {
+  color: var(--gold);
+  font-weight: 700;
+  background: rgba(255, 210, 74, 0.1);
+  border-radius: 6px;
+}
+
+.board-rows .hero-ico {
+  width: 20px;
+  height: 20px;
+}
+
+.board-rows .r {
+  color: var(--muted);
+}
+
+.board-rows li.mine .r {
+  color: var(--gold);
+}
+
+.board-rows .n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-rows .w {
+  font-weight: 700;
+}
+
+.board-rows .t {
+  text-align: right;
+  color: var(--muted);
+}
+
+/* Your own row, under the ten when you are not in them: never scrolls away. */
+.board-rows.board-you {
+  flex-shrink: 0;
+  border-color: rgba(232, 185, 74, 0.45);
+}
+
+.lobby-card p.board-empty,
+.lobby-card p.board-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lobby-card p.board-empty {
+  font-size: 14px;
+  color: var(--text);
+}
+
+#lobby-board .board-dock {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+/* A short screen (360 × 640): the ten rows a little tighter, so all ten show without the list scrolling. */
+@media (max-height: 700px) {
+  .board-rows li {
+    min-height: 26px;
+  }
+}
+
 /* The one main button, docked at the bottom of the card: it stays on screen while the picks scroll under it. */
 .pick-dock {
   position: sticky;
@@ -2915,6 +3089,14 @@ body.art-loading .air-flag {
 
   .mode-row .pick-label .mode-best {
     margin-left: auto;
+  }
+
+  .mode-row .pick-label .mode-board {
+    margin-left: auto;
+  }
+
+  .mode-row .pick-label .mode-best:not(.hidden) + .mode-board {
+    margin-left: 10px;
   }
 
   .pick-dock {

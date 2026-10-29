@@ -153,7 +153,7 @@
           <div id="lobby-heroes-home" class="hero-picks hero-tabs" role="group" aria-label="Hero"></div>
           <p class="hero-blurb" aria-live="polite"><b id="lobby-hero-role" class="hero-role"></b><span id="lobby-hero-blurb"></span></p>
           <div class="pick-row mode-row">
-            <span class="pick-label">Mode<small id="lobby-mode-home-best" class="mode-best hidden"></small></span>
+            <span class="pick-label">Mode<small id="lobby-mode-home-best" class="mode-best hidden"></small><button id="lobby-board-link" class="link mode-board hidden" type="button">Today's top 10</button></span>
             <div id="lobby-mode-home" class="segmented"></div>
           </div>
           <!-- The Daily run (docs/GAME_DESIGN.md "Daily run"): shown once the game server answers; it takes its height
@@ -206,6 +206,21 @@
             <button id="lobby-leave" class="btn" type="button">Leave</button>
             <button id="lobby-ready" class="btn big" type="button">Ready</button>
             <button id="lobby-start" class="btn big hidden" type="button">Start match</button>
+          </div>
+        </section>
+
+        <section id="lobby-board" class="board-card hidden" aria-labelledby="lobby-board-title">
+          <!-- Endless's daily board (lobby/boardCard.ts): today's top 10, your row under them, Back. -->
+          <div class="board-head">
+            <h2 id="lobby-board-title" class="board-title">Endless · Today's top 10</h2>
+            <p id="lobby-board-day" class="board-day"></p>
+          </div>
+          <ol id="lobby-board-rows" class="board-rows"></ol>
+          <p id="lobby-board-empty" class="board-empty hidden">No runs on today's board yet. Finish a solo Endless match to be the first.</p>
+          <ol id="lobby-board-you" class="board-rows board-you hidden" aria-label="Your best today"></ol>
+          <p class="board-note">Solo Endless runs, best per player: the wave reached, then the shorter time. A new board every day at midnight UTC.</p>
+          <div class="pick-dock board-dock">
+            <button id="lobby-board-back" class="btn big" type="button">Back</button>
           </div>
         </section>
 
@@ -334,6 +349,12 @@
           <h3>Play data</h3>
           <div id="settings-analytics" class="choices row"></div>
           <p class="settings-note"><span id="settings-analytics-state"></span> It is playtime, platform, match results and ratings, kept 30 days. No accounts, no trackers. <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a></p>
+          <!-- Endless's daily board (endless/board.ts): shown in a build with a game server. -->
+          <div id="settings-endless-row" class="hidden">
+            <h3 id="settings-endless-label">Post Endless runs to the board</h3>
+            <div id="settings-endless" class="choices row" role="group" aria-labelledby="settings-endless-label"></div>
+            <p class="settings-note"><span id="settings-endless-state"></span> Each post sends your nickname, the run's replay of your inputs and this browser's id, with play data on or off; the run shows on that day's public board under your nickname, is kept 90 days, and goes with Delete my data. <a href="/privacy.html#endless" target="_blank" rel="noopener">Privacy</a></p>
+          </div>
           <h3>Your data</h3>
           <div class="choices row">
             <button id="settings-data-copy" class="btn" type="button">Download my data</button>
@@ -397,6 +418,26 @@
           <h1 id="end-title">Victory</h1>
           <!-- The middle scrolls inside the card when it is taller than the screen; the buttons stay (style.css). -->
           <div class="end-body">
+            <!-- An Endless run (endless/endCard.ts): the board's consent card or one-tap post, then the rank. -->
+            <div id="end-board" class="end-daily end-board hidden">
+              <div id="end-board-ask" class="end-daily-ask">
+                <p id="end-board-q" class="end-board-q"></p>
+                <label id="end-board-name-row" class="end-daily-name hidden">
+                  <span>Nickname for the board</span>
+                  <input id="end-board-name" maxlength="16" autocomplete="nickname" placeholder="Your name" enterkeyhint="go" />
+                </label>
+                <div class="end-board-buttons">
+                  <button id="end-board-yes" class="btn end-daily-post" type="button">Yes, every time</button>
+                  <button id="end-board-no" class="btn end-board-no" type="button">Not now</button>
+                </div>
+                <p class="end-daily-note">Today's public board, under your nickname; kept 90 days. · <a href="/privacy.html#endless" target="_blank" rel="noopener">Privacy</a></p>
+              </div>
+              <p id="end-board-msg" class="end-daily-msg" role="status"></p>
+              <div id="end-board-rank" class="end-daily-rank hidden" aria-live="polite">
+                <div id="end-board-place" class="end-daily-place end-board-place"></div>
+                <div id="end-board-best" class="end-daily-gap hidden"></div>
+              </div>
+            </div>
             <!-- A Daily run (daily/endCard.ts): Post my run before the stats; once posted, the rank, then the stats. -->
             <div id="end-daily" class="end-daily hidden">
               <div id="end-daily-ask" class="end-daily-ask">

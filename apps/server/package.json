@@ -9,7 +9,8 @@
     "start": "node dist/index.cjs",
     "typecheck": "tsc -p tsconfig.json",
     "loadtest": "tsx scripts/loadtest.ts",
-    "analytics:example": "tsx scripts/analyticsExample.ts"
+    "analytics:example": "tsx scripts/analyticsExample.ts",
+    "endless:rerun": "tsx scripts/endlessRerun.ts"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",

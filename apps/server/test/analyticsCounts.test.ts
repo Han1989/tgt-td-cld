@@ -290,10 +290,11 @@ describe('POST /analytics/count', () => {
     expect((await post(http, { ...open, what: 'webgl_context_lost', platform: 'ios', browser: 'safari' })).status).toBe(204);
     await current!.close();
     current = null;
-    // Only the two side files and the (empty) log, beside the Daily run's (empty) directory: no line per request, no
-    // address.
-    expect((await readdir(dir)).sort()).toEqual(['counts.json', 'daily', 'events.jsonl', 'retention.json']);
+    // Only the two side files and the (empty) log, beside the Daily run's and Endless's (empty) directories: no line
+    // per request, no address.
+    expect((await readdir(dir)).sort()).toEqual(['counts.json', 'daily', 'endless', 'events.jsonl', 'retention.json']);
     expect(await readdir(path.join(dir, 'daily'))).toEqual([]);
+    expect(await readdir(path.join(dir, 'endless'))).toEqual([]);
     expect(await readFile(path.join(dir, 'events.jsonl'), 'utf8')).toBe('');
     const raw = await readFile(path.join(dir, 'counts.json'), 'utf8');
     expect(raw).not.toMatch(/127\.0\.0\.1|::1|ffff|visitor|session/);

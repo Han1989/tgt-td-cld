@@ -419,7 +419,7 @@ describe('store and HTTP: retention across restarts, copy and deletion', () => {
     expect(copy.retention).toMatchObject({ session: 'session-0001' });
 
     const res = await fetch(`${http}/analytics/forget?id=visitor-gone`, { method: 'POST', headers: { 'x-analytics-key': 'top-secret' } });
-    expect(await res.json()).toEqual({ visitor: 'visitor-gone', removedEvents: 2, removedDailyRuns: 0 });
+    expect(await res.json()).toEqual({ visitor: 'visitor-gone', removedEvents: 2, removedDailyRuns: 0, removedEndlessRuns: 0 });
     const log = await readFile(path.join(dir, 'events.jsonl'), 'utf8');
     const table = await readFile(path.join(dir, 'retention.json'), 'utf8');
     expect(log).not.toContain('visitor-gone');

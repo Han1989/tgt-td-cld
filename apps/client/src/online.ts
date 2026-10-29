@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION, type GameMode, type HeroKind, type LobbyState, type S
 import { currentAnalytics } from './analytics/install';
 import { fetchToday } from './daily/api';
 import type { DailyToday } from './daily/text';
+import { fetchEndlessToday } from './endless/api';
 import type { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
@@ -49,6 +50,7 @@ export class OnlineController {
         today: () => fetchToday(),
         play: (hero, today) => gated(() => this.playDaily(hero, today)),
       },
+      { today: () => fetchEndlessToday() },
     );
     view.onLeave = () => this.leave();
     // ⚙ → Learn to play: the lesson at once, leaving an online room or ending a solo match first.

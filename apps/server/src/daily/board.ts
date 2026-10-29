@@ -1,17 +1,14 @@
 // A day's scoreboard (docs/GAME_DESIGN.md "Daily run"): one entry per browser, its best run of the day, ranked by the
-// sim's `rankOrder`. Pure: the store keeps the entries, the routes ask for views of them.
+// sim's `rankOrder`. Pure: the store keeps the entries, the routes ask for views of them. `sortBy` and `ranksBy` are
+// any board's (Endless's too, ../endless/board.ts).
 
 import type { HeroKind } from '@tdt/protocol';
 import { rankOrder, type DailyRun } from '@tdt/sim';
+import type { DayEntry } from './days';
 
 /** One browser's best run of a day, as the server re-ran it. The data key is never kept, only the id derived from it. */
-export interface DailyEntry extends DailyRun {
-  /** The visitor id derived from the data key (analytics/dataKey.ts). */
-  visitor: string;
-  name: string;
+export interface DailyEntry extends DailyRun, DayEntry {
   hero: HeroKind;
-  /** When the best run was posted (server time, ms). */
-  at: number;
 }
 
 /** A row as the board shows it. `mine`: the caller's own row. */
@@ -42,19 +39,29 @@ export interface BoardView {
 /** How many rows a board view holds. */
 export const BOARD_ROWS = 5;
 
-/** Best first; a tie keeps the earlier post first. */
-export function sortBoard(entries: Iterable<DailyEntry>): DailyEntry[] {
-  return [...entries].sort((a, b) => rankOrder(a, b) || a.at - b.at);
+/** Best first by `order`; a tie keeps the earlier post first. */
+export function sortBy<E extends DayEntry>(entries: Iterable<E>, order: (a: E, b: E) => number): E[] {
+  return [...entries].sort((a, b) => order(a, b) || a.at - b.at);
 }
 
-/** Ranks of a sorted board: a tie shares the rank of the first of its group (1, 2, 2, 4). */
-export function ranksOf(sorted: readonly DailyEntry[]): number[] {
+/** Ranks of a board sorted by `order`: a tie shares the rank of the first of its group (1, 2, 2, 4). */
+export function ranksBy<E>(sorted: readonly E[], order: (a: E, b: E) => number): number[] {
   const ranks: number[] = [];
   sorted.forEach((entry, i) => {
     const prev = sorted[i - 1];
-    ranks.push(prev && rankOrder(prev, entry) === 0 ? ranks[i - 1]! : i + 1);
+    ranks.push(prev && order(prev, entry) === 0 ? ranks[i - 1]! : i + 1);
   });
   return ranks;
+}
+
+/** The Daily board, best first. */
+export function sortBoard(entries: Iterable<DailyEntry>): DailyEntry[] {
+  return sortBy(entries, rankOrder);
+}
+
+/** Ranks of a sorted Daily board. */
+export function ranksOf(sorted: readonly DailyEntry[]): number[] {
+  return ranksBy(sorted, rankOrder);
 }
 
 export function bestRun(entry: DailyEntry): BestRun {
