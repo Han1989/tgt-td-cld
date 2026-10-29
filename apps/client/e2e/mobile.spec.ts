@@ -364,7 +364,9 @@ test.describe('portrait phone layout', () => {
     await expect(page.locator('#lobby-home')).toBeVisible();
     await expect(page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"] .hero-mark')).toHaveText('2');
     await expect(page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]')).toHaveAttribute('aria-label', 'Ranger, 2 wins');
-    await expect(page.locator('#lobby-record')).toHaveText('Ranger · 2 wins · best 100 Heart in Quick');
+    // The name gives way first if the line is too wide for this font (lobby.spec.ts measures the fit).
+    await expect(page.locator('#lobby-record')).toHaveText(/^(Ranger · )?2 wins · best 100 Heart in Quick$/);
+    expect(await page.locator('#lobby-record').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
   });
 
   test('the joystick and the skills keep 12 px over the bottom inset, also when a gesture bar\'s inset comes mid-match (412 × 839, 412 × 760)', async ({ page }) => {

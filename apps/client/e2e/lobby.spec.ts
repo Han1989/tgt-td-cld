@@ -533,6 +533,34 @@ function heroMarks(page: Page) {
   );
 }
 
+/**
+ * The record's line is one line, uncut, at 12 or 11 px, and its box is the nameplate's one height (24 px) in any font.
+ */
+async function lineFits(page: Page): Promise<void> {
+  const fit = await page.locator('#lobby-record').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { cut: el.scrollWidth - el.clientWidth, height: el.getBoundingClientRect().height, size: cs.fontSize, wrap: cs.whiteSpace };
+  });
+  expect(fit.cut, 'the line is cut').toBeLessThanOrEqual(0);
+  expect(fit.height).toBe(24);
+  expect(['12px', '11px']).toContain(fit.size);
+  expect(fit.wrap).toBe('nowrap');
+}
+
+/** Whether `text` would overflow the record's line even at its smaller size (11 px), in this page's font. */
+function wouldNotFit(page: Page, text: string): Promise<boolean> {
+  return page.locator('#lobby-record').evaluate((el, words) => {
+    const probe = el.cloneNode() as HTMLElement;
+    probe.removeAttribute('id');
+    probe.style.fontSize = '11px';
+    probe.textContent = words;
+    el.parentElement!.append(probe);
+    const over = probe.scrollWidth > probe.clientWidth;
+    probe.remove();
+    return over;
+  }, text);
+}
+
 for (const size of [
   { width: 412, height: 839 },
   { width: 360, height: 640 },
@@ -581,14 +609,16 @@ for (const size of [
       'rgb(255, 210, 74)',
     );
     // The line under the picked hero, on the stage under the title: Full is picked and the Ranger has only won Quick,
-    // so it names Quick; the Daily rank too where it fits. One line, uncut.
+    // so it names Quick. Its words depend on the font (Inter here, DejaVu Sans on CI, 18% wider): the Daily rank where
+    // it fits, then the name, but never the best; the exact words of each are record.test.ts's.
     const line = page.locator('#lobby-record');
     await expect(line).toBeVisible();
-    await expect(line).toHaveText(/^Ranger · 7 wins · best 94 Heart in Quick( · Daily best #3)?$/);
-    if (size.width >= 412) await expect(line).toHaveText('Ranger · 7 wins · best 94 Heart in Quick · Daily best #3');
-    const fit = await line.evaluate((el) => ({ cut: el.scrollWidth - el.clientWidth, height: el.getBoundingClientRect().height }));
-    expect(fit.cut).toBeLessThanOrEqual(0);
-    expect(fit.height).toBeLessThan(26);
+    await expect(line).toHaveText(/^(Ranger · )?7 wins · best 94 Heart in Quick( · Daily best #3)?$/);
+    await lineFits(page);
+    // A part gave way only because it did not fit, at the smaller size either: measured here, in this font.
+    expect(await wouldNotFit(page, 'Ranger · 7 wins · best 94 Heart in Quick · Daily best #3')).toBe(
+      (await line.textContent()) !== 'Ranger · 7 wins · best 94 Heart in Quick · Daily best #3',
+    );
     const stage = await box(page, '#lobby-stage');
     const logo = await box(page, '#lobby-stage .stage-logo');
     const lineBox = await box(page, '#lobby-record');
@@ -602,15 +632,21 @@ for (const size of [
     expect(await overflow(page)).toBe(before.overflow);
     expect((await box(page, '#lobby-learn')).bottom).toBeLessThanOrEqual(size.height);
     await onScreen(page, 'lobby-offline');
-    // Another hero, another line; the picked mode's best comes first.
+    // Another hero, another line; the picked mode's best comes first. On a narrow phone or in a wide font the name gives
+    // way before the best does.
+    const nameplate = await box(page, '#lobby-record');
     await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();
-    await expect(line).toHaveText('Warden · 3 matches played');
+    await expect(line).toHaveText(/^(Warden · )?3 matches played$/);
+    await lineFits(page);
     await page.locator('#lobby-heroes-home .hero-pick[data-hero="arcanist"]').click();
-    await expect(line).toHaveText('Arcanist · 5 wins · best 61 Heart in Full');
+    await expect(line).toHaveText(/^(Arcanist · )?5 wins · best 61 Heart in Full$/);
+    await lineFits(page);
     await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
-    // The longest line: on a 360 px phone the name gives way before the best does.
-    await expect(line).toHaveText(size.width >= 412 ? 'Arcanist · 5 wins · best 100 Heart in Quick co-op' : /^(Arcanist · )?5 wins · best 100 Heart in Quick co-op$/);
-    expect(await line.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    await expect(line).toHaveText(/^(Arcanist · )?5 wins · best 100 Heart in Quick co-op$/);
+    await lineFits(page);
+    // The nameplate keeps its height and its foot whatever it says and at either size; the card has not moved.
+    const after = await box(page, '#lobby-record');
+    expect([after.top, after.bottom]).toEqual([nameplate.top, nameplate.bottom]);
     expect(await box(page, '#lobby-offline')).toEqual(before.offline);
   });
 }

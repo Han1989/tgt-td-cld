@@ -2419,13 +2419,16 @@ body.art-loading .air-flag {
 }
 
 /* The picked hero's record in this browser (record/), under him on the stage: a nameplate on the clearing's moss, one
-   line, the longest that fits (lobby.ts). Over the stage, so the card's height and Play solo never move for it. */
+   line, the richest that fits at 12 px or 11 px in the device's own font (lobby.ts measures it; CI's DejaVu Sans is
+   18% wider than Inter). Out of the flow, over the stage, and one height (24 px) at either size and with no record, so
+   neither its text, its font nor its absence can move the stage, the card or Play solo. */
 .stage-record {
   position: absolute;
   left: 50%;
   bottom: 8px;
   z-index: 2;
   box-sizing: border-box;
+  height: 24px;
   max-width: calc(100% - 24px);
   margin: 0;
   padding: 3px 11px;
@@ -2434,7 +2437,7 @@ body.art-loading .air-flag {
   white-space: nowrap;
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 16px;
   color: var(--text);
   text-shadow: 0 1px 1px rgba(0, 0, 8, 0.7);
   background: rgba(12, 10, 18, 0.74);
@@ -2445,7 +2448,8 @@ body.art-loading .air-flag {
 }
 
 /* A hero button's mark from the record: his wins on a small gold-rimmed plaque at its corner, a gold star once he has
-   won Full. Over the button's edge, so the button's size and text do not change. */
+   won Full. Out of the flow, over the button's edge, one height in any font (19 px, its line 17 px), so the button's
+   size and text do not change. */
 .hero-pick {
   position: relative;
 }

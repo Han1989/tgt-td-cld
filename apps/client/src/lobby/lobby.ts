@@ -200,7 +200,8 @@ export class LobbyUi {
 
   /**
    * "Ranger · 7 wins · best 94 Heart in Quick" under the picked hero, the picked mode's best first: the richest line
-   * that fits the stage on one line (none before his first finished match).
+   * that fits the stage on one line, at 12 px or one step down, measured here in whatever font the device has (none
+   * before his first finished match). Its box keeps one height at either size (style.css).
    */
   private syncRecordLine(record = storedRecord()): void {
     const el = this.recordLine;
@@ -209,10 +210,13 @@ export class LobbyUi {
     // Not on screen (a match, the room card): nothing to measure; showHome fits it again.
     const away = this.root.classList.contains('hidden') || this.home.classList.contains('hidden');
     if (lines.length === 0 || away) return void (el.textContent = lines[0] ?? '');
-    el.textContent = fittedLine(lines, (line) => {
-      el.textContent = line;
+    const fit = fittedLine(lines, (text, size) => {
+      el.style.fontSize = `${size}px`;
+      el.textContent = text;
       return el.scrollWidth <= el.clientWidth;
     });
+    el.style.fontSize = `${fit.size}px`;
+    el.textContent = fit.text;
   }
 
   /**

@@ -63,9 +63,23 @@ export function recordLines(name: string, hero: HeroRecord | undefined, mode: Ga
   return lines;
 }
 
-/** The first of `lines` that `fits` (the last one whatever it measures), or '' for none. */
-export function fittedLine(lines: readonly string[], fits: (text: string) => boolean): string {
-  return lines.find((line) => fits(line)) ?? lines[lines.length - 1] ?? '';
+/** The line's font sizes in px, largest first: each line tries the next step down before a part of it gives way. */
+export const LINE_SIZES = [12, 11] as const;
+
+/**
+ * The first of `lines`, at the first of `sizes`, that `fits` its column as the page measures it (so it holds in any
+ * font: Inter, or CI's DejaVu Sans, 18% wider); the last line at the smallest size whatever it measures; '' for none.
+ */
+export function fittedLine(
+  lines: readonly string[],
+  fits: (text: string, size: number) => boolean,
+  sizes: readonly number[] = LINE_SIZES,
+): { text: string; size: number } {
+  const smallest = sizes[sizes.length - 1] ?? LINE_SIZES[0];
+  for (const text of lines) {
+    for (const size of sizes) if (fits(text, size)) return { text, size };
+  }
+  return { text: lines[lines.length - 1] ?? '', size: smallest };
 }
 
 /** The end screen's line when a won match beats the slot's best: "Personal best: 94 Heart · Quick solo (was 88)". */

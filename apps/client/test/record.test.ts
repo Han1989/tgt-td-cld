@@ -16,7 +16,7 @@ import {
   type HeroRecord,
   type PlayRecord,
 } from '../src/record/record';
-import { dailyBestLine, fittedLine, headlineHeart, heartBestLine, heroMark, recordLines, slotName } from '../src/record/text';
+import { dailyBestLine, fittedLine, headlineHeart, heartBestLine, heroMark, LINE_SIZES, recordLines, slotName } from '../src/record/text';
 
 function hero(player: string, kind: HeroReport['hero'], kills = 100): HeroReport {
   return { player, name: player, hero: kind, kills } as unknown as HeroReport;
@@ -211,11 +211,34 @@ describe('what the record says', () => {
     ]);
   });
 
-  it('shows the first line that fits, the last whatever it measures', () => {
+  it('shows the richest line that fits, a size step down before a part gives way, the last whatever it measures', () => {
     const lines = ['a long line here', 'a line', 'a'];
-    expect(fittedLine(lines, (t) => t.length <= 6)).toBe('a line');
-    expect(fittedLine(lines, () => false)).toBe('a');
-    expect(fittedLine([], () => true)).toBe('');
+    expect(fittedLine(lines, (t) => t.length <= 6)).toEqual({ text: 'a line', size: 12 });
+    expect(fittedLine(lines, (t, size) => t.length * size <= 66)).toEqual({ text: 'a line', size: 11 });
+    expect(fittedLine(lines, () => false)).toEqual({ text: 'a', size: 11 });
+    expect(fittedLine([], () => true)).toEqual({ text: '', size: 11 });
+    expect(LINE_SIZES).toEqual([12, 11]);
+  });
+
+  it('fits the stage in Inter and in CI’s wider DejaVu Sans alike: the Daily rank, then the name give way, never the best', () => {
+    // A font as the page measures it: a glyph's mean advance in em on these lines (Inter 0.47, DejaVu Sans 0.56, as
+    // measured in Chromium at 12 px), in the nameplate's content box: 330 px on a 412 px phone, 278 px at 360.
+    const font = (em: number, column: number) => (text: string, size: number) => text.length * em * size <= column;
+    const inter = 0.47;
+    const dejavu = 0.56;
+    const ranger = rec({ heart: { 'quick-solo': 94 }, daily: { rank: 3, total: 212, day: '2026-10-28' } });
+    const lines = recordLines('Ranger', ranger, 'full');
+    const full = 'Ranger · 7 wins · best 94 Heart in Quick · Daily best #3';
+    expect(fittedLine(lines, font(inter, 330))).toEqual({ text: full, size: 12 });
+    expect(fittedLine(lines, font(inter, 300))).toEqual({ text: full, size: 11 });
+    expect(fittedLine(lines, font(inter, 278))).toEqual({ text: 'Ranger · 7 wins · best 94 Heart in Quick', size: 12 });
+    expect(fittedLine(lines, font(dejavu, 330))).toEqual({ text: 'Ranger · 7 wins · best 94 Heart in Quick', size: 12 });
+    expect(fittedLine(lines, font(dejavu, 278))).toEqual({ text: 'Ranger · 7 wins · best 94 Heart in Quick', size: 12 });
+    const coop = recordLines('Arcanist', rec({ wins: 5, heart: { 'quick-coop': 100 } }), 'quick');
+    expect(fittedLine(coop, font(dejavu, 330))).toEqual({ text: 'Arcanist · 5 wins · best 100 Heart in Quick co-op', size: 12 });
+    expect(fittedLine(coop, font(dejavu, 278))).toEqual({ text: '5 wins · best 100 Heart in Quick co-op', size: 12 });
+    // However narrow, a line is chosen and nothing is cut: the count alone.
+    expect(fittedLine(lines, font(dejavu, 40))).toEqual({ text: '7 wins', size: 11 });
   });
 
   it('says "Personal best" on the end screen only when a number improves', () => {
