@@ -3,11 +3,19 @@
 // so nobody can ask for another browser's data by id. After a deletion this browser's id and key are gone; the next
 // event, if play data is on, starts a new id. Never throws.
 
+import { ENDLESS_BEST_KEY } from '../endless/best';
+import { RECORD_KEY } from '../record/record';
 import { clearVisitor, storedDataKey, VISITOR_KEY, type IdStore } from './dataKey';
 import { analyticsEndpoint } from './session';
 
 /** The acquisition channel saved from a tagged link (channel.ts). Deleted with the id. */
 export const CHANNEL_KEY = 'tdt.channel';
+
+/**
+ * What this browser keeps of the player's own progress and never sends: the record per hero (record/record.ts) and
+ * Endless's best waves (endless/best.ts). Delete my data clears them here at once, whatever the server answers.
+ */
+export const LOCAL_RECORD_KEYS = [RECORD_KEY, ENDLESS_BEST_KEY] as const;
 
 /** The game server this page posts play data to, or '' when this build sends none. */
 export function analyticsServer(): string {
@@ -37,7 +45,7 @@ export interface ServerCopy {
   endless?: unknown[];
 }
 
-export type MyDataResult =
+export type MyDataResult = (
   | { kind: 'file'; name: string; text: string; events: number; daily?: number; endless?: number }
   /** No id or key in this browser: nothing was ever sent from it. */
   | { kind: 'nothing' }
@@ -49,7 +57,11 @@ export type MyDataResult =
   /** This build has no game server: nothing is ever sent. */
   | { kind: 'no-server' }
   | { kind: 'busy' }
-  | { kind: 'error' };
+  | { kind: 'error' }
+) & {
+  /** A deletion also cleared this browser's record (`LOCAL_RECORD_KEYS`). */
+  local?: true;
+};
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -71,8 +83,14 @@ export function myDataFile(copy: ServerCopy, date: Date): { name: string; text: 
   return { name: `tdt-play-data-${day}.json`, text: `${JSON.stringify(body, null, 1)}\n` };
 }
 
-/** The line shown after a copy or deletion. */
+/** The line shown after a copy or deletion; a deletion that cleared the record here says so too. */
 export function myDataLine(result: MyDataResult): string {
+  if (!result.local) return serverLine(result);
+  if (result.kind === 'nothing') return 'Nothing has been sent from this browser. Your record here (matches, wins and bests) is cleared.';
+  return `${serverLine(result)} Your record here (matches, wins and bests) is cleared too.`;
+}
+
+function serverLine(result: MyDataResult): string {
   switch (result.kind) {
     case 'file': {
       const daily = result.daily ?? 0;
@@ -150,9 +168,25 @@ export async function copyMyData(
   }
 }
 
+/** Clears this browser's record (`LOCAL_RECORD_KEYS`); true when there was one. */
+function clearRecord(store: IdStore): boolean {
+  let had = false;
+  for (const key of LOCAL_RECORD_KEYS) {
+    try {
+      if (store.getItem(key) === null) continue;
+      had = true;
+      store.removeItem(key);
+    } catch {
+      // Storage is gone anyway.
+    }
+  }
+  return had;
+}
+
 /**
- * Deletes this browser's data on the server, then its id, key and saved channel here. `cleared` runs once they are
- * gone (the analytics client forgets its id). With no key, only the local id is cleared.
+ * Clears this browser's record at once (it never left it), then deletes this browser's data on the server, then its
+ * id, key and saved channel here. `cleared` runs once they are gone (the analytics client forgets its id). With no
+ * key, only the local id is cleared.
  */
 export async function deleteMyData(
   server: string,
@@ -160,6 +194,12 @@ export async function deleteMyData(
   cleared: () => void = () => {},
   fetchFn: Fetch = fetch,
 ): Promise<MyDataResult> {
+  const local = clearRecord(store);
+  const result = await deleteOnServer(server, store, cleared, fetchFn);
+  return local ? { ...result, local: true } : result;
+}
+
+async function deleteOnServer(server: string, store: IdStore, cleared: () => void, fetchFn: Fetch): Promise<MyDataResult> {
   const clearHere = () => {
     try {
       clearVisitor(store);

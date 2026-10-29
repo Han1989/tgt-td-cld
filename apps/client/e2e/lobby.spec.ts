@@ -508,6 +508,149 @@ for (const size of [
   });
 }
 
+/** A record per hero in this browser (record/record.ts): the Ranger has won Quick, the Arcanist Full, the Warden nothing. */
+const RECORD = {
+  heroes: {
+    ranger: { played: 9, wins: 7, heart: { 'quick-solo': 94 }, daily: { rank: 3, total: 212, day: '2026-10-28' } },
+    warden: { played: 3, wins: 0, heart: {} },
+    arcanist: { played: 12, wins: 5, heart: { 'full-solo': 61, 'quick-coop': 100 } },
+  },
+  last: null,
+};
+
+/** Each hero button's mark: its text (null: none shown), whether it is the star, the name a screen reader hears. */
+function heroMarks(page: Page) {
+  return page.locator('#lobby-heroes-home .hero-pick').evaluateAll((els) =>
+    els.map((el) => {
+      const mark = el.querySelector('.hero-mark')!;
+      return {
+        hero: (el as HTMLElement).dataset.hero,
+        text: mark.classList.contains('hidden') ? null : mark.textContent,
+        star: mark.classList.contains('star'),
+        label: el.getAttribute('aria-label'),
+      };
+    }),
+  );
+}
+
+/**
+ * The record's line is one line, uncut, at 12 or 11 px, and its box is the nameplate's one height (24 px) in any font.
+ */
+async function lineFits(page: Page): Promise<void> {
+  const fit = await page.locator('#lobby-record').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { cut: el.scrollWidth - el.clientWidth, height: el.getBoundingClientRect().height, size: cs.fontSize, wrap: cs.whiteSpace };
+  });
+  expect(fit.cut, 'the line is cut').toBeLessThanOrEqual(0);
+  expect(fit.height).toBe(24);
+  expect(['12px', '11px']).toContain(fit.size);
+  expect(fit.wrap).toBe('nowrap');
+}
+
+/** Whether `text` would overflow the record's line even at its smaller size (11 px), in this page's font. */
+function wouldNotFit(page: Page, text: string): Promise<boolean> {
+  return page.locator('#lobby-record').evaluate((el, words) => {
+    const probe = el.cloneNode() as HTMLElement;
+    probe.removeAttribute('id');
+    probe.style.fontSize = '11px';
+    probe.textContent = words;
+    el.parentElement!.append(probe);
+    const over = probe.scrollWidth > probe.clientWidth;
+    probe.remove();
+    return over;
+  }, text);
+}
+
+for (const size of [
+  { width: 412, height: 839 },
+  { width: 360, height: 640 },
+]) {
+  test(`the record at ${size.width} × ${size.height}: a mark on each hero button, a line under the picked hero, and the card does not move`, async ({ page }) => {
+    await page.setViewportSize(size);
+    // With the Daily tile, the stage is at its shortest.
+    await page.route('**/daily/today', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ day: '2026-10-28', seed: 1, closesAt: Date.now() + 3 * 3600_000, runs: 212, champion: { name: 'Kael', heart: 82, ticks: 13_000 } }),
+      }),
+    );
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-daily')).toBeVisible();
+    // A new player: no marks, no line.
+    await expect(page.locator('#lobby-record')).toBeHidden();
+    expect((await heroMarks(page)).map((m) => m.text)).toEqual([null, null, null]);
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    const buttons = () => page.locator('#lobby-heroes-home .hero-pick').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()));
+    const before = { offline: await box(page, '#lobby-offline'), learn: await box(page, '#lobby-learn'), buttons: await buttons(), overflow: await overflow(page) };
+
+    // The record as matches leave it; a pick on the home card reads it again (no reload: the service worker would fetch
+    // the Daily tile's request past this test's route).
+    await page.evaluate((r) => localStorage.setItem('tdt.record', JSON.stringify(r)), RECORD);
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    // The Ranger's wins; the Arcanist's star (he has won Full); the Warden has no win, so no mark.
+    expect(await heroMarks(page)).toEqual([
+      { hero: 'ranger', text: '7', star: false, label: 'Ranger, 7 wins' },
+      { hero: 'warden', text: null, star: false, label: null },
+      { hero: 'arcanist', text: '★', star: true, label: 'Arcanist, Won Full · 5 wins' },
+    ]);
+    // Each mark sits on its button's top-right corner, on screen, gold; the buttons keep their boxes.
+    expect(await buttons()).toEqual(before.buttons);
+    for (const hero of ['ranger', 'arcanist']) {
+      const b = await box(page, `#lobby-heroes-home .hero-pick[data-hero="${hero}"]`);
+      const m = await box(page, `#lobby-heroes-home .hero-pick[data-hero="${hero}"] .hero-mark`);
+      expect(m.top, hero).toBeLessThan(b.top + 4);
+      expect(m.right, hero).toBeGreaterThan(b.right - 4);
+      expect(m.top, hero).toBeGreaterThanOrEqual(0);
+      expect(m.right, hero).toBeLessThanOrEqual(size.width);
+    }
+    expect(await page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"] .hero-mark').evaluate((el) => getComputedStyle(el).color)).toBe(
+      'rgb(255, 210, 74)',
+    );
+    // The line under the picked hero, on the stage under the title: Full is picked and the Ranger has only won Quick,
+    // so it names Quick. Its words depend on the font (Inter here, DejaVu Sans on CI, 18% wider): the Daily rank where
+    // it fits, then the name, but never the best; the exact words of each are record.test.ts's.
+    const line = page.locator('#lobby-record');
+    await expect(line).toBeVisible();
+    await expect(line).toHaveText(/^(Ranger · )?7 wins · best 94 Heart in Quick( · Daily best #3)?$/);
+    await lineFits(page);
+    // A part gave way only because it did not fit, at the smaller size either: measured here, in this font.
+    expect(await wouldNotFit(page, 'Ranger · 7 wins · best 94 Heart in Quick · Daily best #3')).toBe(
+      (await line.textContent()) !== 'Ranger · 7 wins · best 94 Heart in Quick · Daily best #3',
+    );
+    const stage = await box(page, '#lobby-stage');
+    const logo = await box(page, '#lobby-stage .stage-logo');
+    const lineBox = await box(page, '#lobby-record');
+    expect(lineBox.top).toBeGreaterThanOrEqual(logo.bottom);
+    expect(lineBox.bottom).toBeLessThanOrEqual(stage.bottom);
+    expect(lineBox.left).toBeGreaterThanOrEqual(stage.left);
+    expect(lineBox.right).toBeLessThanOrEqual(stage.right);
+    // Nothing moved: Play solo, the lesson line and the card's height are as they were with no record.
+    expect(await box(page, '#lobby-offline')).toEqual(before.offline);
+    expect(await box(page, '#lobby-learn')).toEqual(before.learn);
+    expect(await overflow(page)).toBe(before.overflow);
+    expect((await box(page, '#lobby-learn')).bottom).toBeLessThanOrEqual(size.height);
+    await onScreen(page, 'lobby-offline');
+    // Another hero, another line; the picked mode's best comes first. On a narrow phone or in a wide font the name gives
+    // way before the best does.
+    const nameplate = await box(page, '#lobby-record');
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();
+    await expect(line).toHaveText(/^(Warden · )?3 matches played$/);
+    await lineFits(page);
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="arcanist"]').click();
+    await expect(line).toHaveText(/^(Arcanist · )?5 wins · best 61 Heart in Full$/);
+    await lineFits(page);
+    await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+    await expect(line).toHaveText(/^(Arcanist · )?5 wins · best 100 Heart in Quick co-op$/);
+    await lineFits(page);
+    // The nameplate keeps its height and its foot whatever it says and at either size; the card has not moved.
+    const after = await box(page, '#lobby-record');
+    expect([after.top, after.bottom]).toEqual([nameplate.top, nameplate.bottom]);
+    expect(await box(page, '#lobby-offline')).toEqual(before.offline);
+  });
+}
+
 /** Each Mode segment shows its name and its waves on one line, inside the segment: the labels shrink before they wrap. */
 async function modeRowFits(page: Page, row = '#lobby-mode-home'): Promise<void> {
   const segs = await page.locator(`${row} .mode-pick`).evaluateAll((els) =>

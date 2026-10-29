@@ -34,6 +34,8 @@ import { dailyServer } from '../daily/api';
 import { DailyEndCard, type DailyRunInfo } from '../daily/endCard';
 import { endlessEndCopy, endlessRunLine, recordEndlessRun, type EndlessRun } from '../endless/best';
 import { EndlessEndCard } from '../endless/endCard';
+import { recordDailyRank, recordMatch, type MatchGain } from '../record/record';
+import { dailyBestLine, heartBestLine } from '../record/text';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
@@ -279,7 +281,19 @@ export class Hud {
   /** An Endless match that ended: the wave it fell on against this hero's best (counted once, when it ended). */
   private endless: EndlessRun | null = null;
   /** A Daily run's Post my run and rank reveal (hidden for any other match). */
-  private readonly daily = new DailyEndCard(undefined, (text) => this.endToast(text));
+  private readonly daily = new DailyEndCard(
+    undefined,
+    (text) => this.endToast(text),
+    (result, hero) => {
+      this.dailyBest = dailyBestLine(recordDailyRank(hero, { rank: result.rank, total: result.total, day: result.day }));
+    },
+  );
+  /** "Personal best", under the stats: the record per hero (record/), counted once when the report is in. */
+  private readonly endRecord = $('end-record');
+  private recordGain: MatchGain | null = null;
+  private recorded = false;
+  /** A posted Daily run's place, when it beat the hero's best ('' otherwise). */
+  private dailyBest = '';
   /** An Endless run's board: the consent card or the post by itself, then the rank (hidden for any other match). */
   private readonly board = new EndlessEndCard(
     () => dailyServer() !== '',
@@ -472,6 +486,9 @@ export class Hud {
       this.outcomeSent = false;
       this.endCounting = false;
       this.endless = null;
+      this.recorded = false;
+      this.recordGain = null;
+      this.dailyBest = '';
       this.boardRank = null;
       if (this.shareFace) this.cards.forget();
       this.shareFace = null;
@@ -525,6 +542,15 @@ export class Hud {
           ? `${fell.line ? `${fell.line} ` : ''}${kills}${grew}`
           : `The Heart fell during wave ${snap.wave} of ${snap.totalWaves}${onHard}. ${kills}`;
       setText(this.endText, online && !isHost ? `${summary} Waiting for the host…` : summary);
+      // The record per hero in this browser counts the match once its report is in (online rooms too), and the end
+      // screen says "Personal best" when a number improved.
+      if (this.report && !this.recorded) {
+        this.recorded = true;
+        this.recordGain = recordMatch(this.report.report, me);
+      }
+      const best = [heartBestLine(this.recordGain?.heart ?? null), this.dailyBest].filter(Boolean).join(' · ');
+      setText(this.endRecord, best);
+      if (this.endRecord.classList.contains('hidden') === !!best) this.endRecord.classList.toggle('hidden', !best);
       this.renderGifts(this.report?.report ?? null);
       this.renderUlts(this.report?.report ?? null);
       if (!this.outcomeSent) {

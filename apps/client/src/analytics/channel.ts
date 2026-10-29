@@ -8,6 +8,10 @@ export const CHANNELS = [
   'reddit-webgames',
   'reddit-towerdefense',
   'crazygames',
+  'itch',
+  'newgrounds',
+  'hn',
+  'discord',
   'share',
   'other',
   'direct',
@@ -33,6 +37,20 @@ const ALIASES: readonly (readonly [string, Channel])[] = [
   ['friend', 'friends'],
   ['cold', 'cold'],
   ['coldtest', 'cold'],
+  // The portals and sites of 28 Oct 2026. After the older ids, so `friends-discord` and `cold-hn` keep theirs.
+  ['itch', 'itch'],
+  ['itchio', 'itch'],
+  ['itch.io', 'itch'],
+  ['newgrounds', 'newgrounds'],
+  ['newground', 'newgrounds'],
+  ['new-grounds', 'newgrounds'],
+  ['hn', 'hn'],
+  ['hackernews', 'hn'],
+  ['hacker-news', 'hn'],
+  ['showhn', 'hn'],
+  ['ycombinator', 'hn'],
+  ['discord', 'discord'],
+  ['discordapp', 'discord'],
   // A share card's link (share/text.ts): `?src=share`. Last, so `friends-share` stays Friends.
   ['share', 'share'],
   ['shared', 'share'],
@@ -103,7 +121,7 @@ function referrerChannel(referrer: string | null): 'crazygames' | 'other' | null
  * Tag for this visit.
  *
  * Put `?src=friends` (or `cold`, `reddit-playmygame`, `reddit-webgames`, `reddit-towerdefense`,
- * `crazygames`) on the link; a share card's link carries `?src=share`. `utm_source` / `utm_campaign` with the same id, or a known alias, also work.
+ * `crazygames`, `itch`, `newgrounds`, `hn`, `discord`) on the link; a share card's link carries `?src=share`. `utm_source` / `utm_campaign` with the same id, or a known alias, also work.
  * A crazygames.com referrer counts as CrazyGames. A reddit.com referrer does not name the
  * subreddit, so it stays `other` unless a channel was saved from a tagged visit.
  * A later visit with no tag keeps the saved channel.

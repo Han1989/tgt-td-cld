@@ -94,6 +94,10 @@ describe('tagged links (docs/ANALYTICS.md)', () => {
       '?src=reddit-webgames',
       '?src=reddit-towerdefense',
       '?src=crazygames',
+      '?src=itch',
+      '?src=newgrounds',
+      '?src=hn',
+      '?src=discord',
       '?src=share',
     ]);
     for (const search of tagged) {

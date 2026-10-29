@@ -191,6 +191,33 @@ describe('your data: copy and delete', () => {
     expect(await copyMyData('', memory({ [DATA_KEY_KEY]: KEY }))).toEqual({ kind: 'no-server' });
   });
 
+  it('clears the record this browser keeps (never sent) with every deletion, whatever the server answers', async () => {
+    const record = JSON.stringify({ heroes: { ranger: { played: 3, wins: 2, heart: { 'quick-solo': 94 } } }, last: null });
+    const kept = { 'tdt.record': record, 'tdt.endlessBest': '{"ranger":37}', 'tdt.name': 'Kim' };
+    // With a key: deleted on the server, the id, key, channel and record gone here.
+    const store = memory({ ...kept, [DATA_KEY_KEY]: KEY, [VISITOR_KEY]: visitorFromKey(KEY), [CHANNEL_KEY]: 'itch' });
+    const result = await deleteMyData(server, store, () => {}, fakeFetch(200, { visitor: 'x', removedEvents: 2 }, []));
+    expect(result).toEqual({ kind: 'deleted', removed: 2, local: true });
+    expect([...store.map.keys()]).toEqual(['tdt.name']);
+    expect(myDataLine(result)).toBe(
+      'Deleted from the server. This browser has a new id from now on. Turn play data off to stop sending. Your record here (matches, wins and bests) is cleared too.',
+    );
+    // Nothing ever sent (play data off): the record still goes.
+    const offline = memory(kept);
+    const nothing = await deleteMyData(server, offline, () => {}, fakeFetch(200, {}, []));
+    expect(nothing).toEqual({ kind: 'nothing', local: true });
+    expect([...offline.map.keys()]).toEqual(['tdt.name']);
+    expect(myDataLine(nothing)).toBe('Nothing has been sent from this browser. Your record here (matches, wins and bests) is cleared.');
+    // The server busy: the key stays for another try, the record is gone already.
+    const busy = memory({ ...kept, [DATA_KEY_KEY]: KEY });
+    const later = await deleteMyData(server, busy, () => {}, fakeFetch(429, null, []));
+    expect(later).toEqual({ kind: 'busy', local: true });
+    expect(storedDataKey(busy)).toBe(KEY);
+    expect(busy.map.has('tdt.record')).toBe(false);
+    // No record here: the lines are as before.
+    expect(myDataLine({ kind: 'nothing' })).toBe('Nothing has been sent from this browser, so there is nothing to copy or delete.');
+  });
+
   it('builds the file name from the local date', () => {
     expect(myDataFile({ visitor: 'v', events: [], retention: null }, new Date(2026, 0, 9)).name).toBe('tdt-play-data-2026-01-09.json');
   });

@@ -18,6 +18,7 @@ import {
   createMatch,
   dailyConfig,
   heroLevelXp,
+  lastWave,
   matchCommand,
   matchOver,
   matchReplay,
@@ -105,6 +106,20 @@ export class SimHost {
   /** Browser tests only (the worker's e2e `lose` control): the Heart drops to 0, so the match ends next tick. */
   debugLose(): void {
     this.state.heartHp = 0;
+  }
+
+  /**
+   * Browser tests only (the worker's e2e `win` control): the last wave is out and its creeps gone, so the next tick ends
+   * the match in victory with the Heart as it is (the record's "Personal best").
+   */
+  debugWin(): void {
+    const s = this.state;
+    if (s.phase === 'victory' || s.phase === 'defeat') return;
+    s.phase = 'waves';
+    s.wave = lastWave(s.tuning);
+    s.nextWaveTick = -1;
+    s.spawnQueue = [];
+    s.creeps = [];
   }
 
   /** Browser tests only (the worker's e2e `damageTowers` control): every tower drops to 30% of its HP. */

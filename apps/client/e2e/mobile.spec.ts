@@ -329,6 +329,46 @@ test.describe('portrait phone layout', () => {
     }
   });
 
+  test('the record per hero: a defeat counts a match, a won match says "Personal best" once, and the home card shows it', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 839 });
+    const record = () => page.evaluate(() => JSON.parse(localStorage.getItem('tdt.record') ?? 'null')?.heroes ?? null);
+    await startSolo(page);
+    // A defeat: one match, no win, nothing to celebrate.
+    await page.evaluate(() => window.__tdt.lose());
+    await expect(page.locator('#end-screen')).toBeVisible();
+    await expect.poll(record).toEqual({ ranger: { played: 1, wins: 0, heart: {}, daily: null } });
+    await expect(page.locator('#end-record')).toBeHidden();
+    // A won Quick match alone: its Heart is the first best in Quick solo, said in gold under the summary.
+    await page.locator('#restart').click();
+    await expect(page.locator('#end-screen')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.phase)).toBe('build');
+    await page.evaluate(() => window.__tdt.win());
+    await expect(page.locator('#end-title')).toHaveText('Victory!');
+    await expect(page.locator('#end-record')).toHaveText('Personal best: 100 Heart · Quick solo');
+    expect(await page.locator('#end-record').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 210, 74)');
+    await expect.poll(record).toEqual({ ranger: { played: 2, wins: 1, heart: { 'quick-solo': 100 }, daily: null } });
+    // The line sits under the summary, inside the card, on screen.
+    const [text, best, restart] = [await box(page, '#end-text'), await box(page, '#end-record'), await box(page, '#restart')];
+    expect(best.top).toBeGreaterThanOrEqual(text.bottom - 1);
+    expect(best.bottom).toBeLessThanOrEqual(restart.top);
+    // The same Heart again is no new best: no line.
+    await page.locator('#restart').click();
+    await expect(page.locator('#end-screen')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.phase)).toBe('build');
+    await page.evaluate(() => window.__tdt.win());
+    await expect(page.locator('#end-title')).toHaveText('Victory!');
+    await expect.poll(record).toEqual({ ranger: { played: 3, wins: 2, heart: { 'quick-solo': 100 }, daily: null } });
+    await expect(page.locator('#end-record')).toBeHidden();
+    // Back on the home card: the Ranger's mark and his line under him on the stage.
+    await page.locator('#end-change-hero').click();
+    await expect(page.locator('#lobby-home')).toBeVisible();
+    await expect(page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"] .hero-mark')).toHaveText('2');
+    await expect(page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]')).toHaveAttribute('aria-label', 'Ranger, 2 wins');
+    // The name gives way first if the line is too wide for this font (lobby.spec.ts measures the fit).
+    await expect(page.locator('#lobby-record')).toHaveText(/^(Ranger · )?2 wins · best 100 Heart in Quick$/);
+    expect(await page.locator('#lobby-record').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  });
+
   test('the joystick and the skills keep 12 px over the bottom inset, also when a gesture bar\'s inset comes mid-match (412 × 839, 412 × 760)', async ({ page }) => {
     for (const height of [839, 760]) {
       const at = `412 × ${height}`;

@@ -25,9 +25,9 @@ export interface Transport {
   /** The page is visible again: check the connection now instead of waiting for a timer. */
   wake?(): void;
   /**
-   * Browser-test builds, local play only: a debug control for the host (`'lose'`: the Heart drops to 0;
-   * `'damageTowers'`: every tower drops to 30% of its HP; `'skipTo'`: wave `wave` starts on the next tick; `'level'`:
+   * Browser-test builds, local play only: a debug control for the host (`'lose'`: the Heart drops to 0; `'win'`: the
+   * last wave is cleared, so the match ends in victory; `'damageTowers'`: every tower drops to 30% of its HP; `'skipTo'`: wave `wave` starts on the next tick; `'level'`:
    * your hero is at level `wave`, one XP short of the next, past 10 in Endless).
    */
-  debug?(ctl: 'lose' | 'damageTowers' | 'skipTo' | 'level', wave?: number): void;
+  debug?(ctl: 'lose' | 'win' | 'damageTowers' | 'skipTo' | 'level', wave?: number): void;
 }

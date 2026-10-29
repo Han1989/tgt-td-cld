@@ -118,6 +118,14 @@ test('the tile starts the day’s run; Post my run asks the age and a nickname i
   await expect(page.locator('#end-daily-rows li.mine')).toContainText('Wren');
   await expect.poll(() => page.locator('#end-stats').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
   await expect(page.locator('#end-text')).toContainText('The Heart fell');
+  // The record per hero in this browser (record/) keeps the Warden's best place: his first, so a personal best.
+  await expect(page.locator('#end-record')).toHaveText('Personal best: #14 in the Daily run');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.record')!).heroes.warden)).toEqual({
+    played: 1,
+    wins: 0,
+    heart: {},
+    daily: { rank: 14, total: 212, day: DAY },
+  });
   // The rank line fits the card on one line.
   const place = await page.locator('#end-daily-place').evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth, height: el.getBoundingClientRect().height }));
   expect(place.scroll).toBeLessThanOrEqual(place.width);

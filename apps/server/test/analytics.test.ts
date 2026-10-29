@@ -31,10 +31,24 @@ describe('parseAnalyticsEvent', () => {
   });
 
   it('accepts the link tags, Friends, Cold test and shared cards among them, and no other channel', () => {
-    for (const channel of ['friends', 'cold', 'reddit-playmygame', 'reddit-webgames', 'reddit-towerdefense', 'crazygames', 'share', 'other', 'direct']) {
+    for (const channel of [
+      'friends',
+      'cold',
+      'reddit-playmygame',
+      'reddit-webgames',
+      'reddit-towerdefense',
+      'crazygames',
+      'itch',
+      'newgrounds',
+      'hn',
+      'discord',
+      'share',
+      'other',
+      'direct',
+    ]) {
       expect(parseAnalyticsEvent({ ...base, t: 'session_start', channel })).toMatchObject({ channel });
     }
-    for (const channel of ['reddit-incremental', 'reddit-cozy', 'webgames', 'Friends', 'shared', '']) {
+    for (const channel of ['reddit-incremental', 'reddit-cozy', 'webgames', 'Friends', 'shared', 'itchio', 'hackernews', 'Discord', '']) {
       expect(parseAnalyticsEvent({ ...base, t: 'session_start', channel })).toBeNull();
     }
   });
@@ -179,6 +193,33 @@ describe('summarize', () => {
     );
     expect(summary.activeSessions).toBe(1);
     expect(summary.avgPlaytimeMs).toBeNull();
+  });
+});
+
+describe('the channels of 28 Oct 2026', () => {
+  const labels = { itch: 'itch.io', newgrounds: 'Newgrounds', hn: 'Hacker News', discord: 'Discord', crazygames: 'CrazyGames' } as const;
+
+  it('gives itch.io, Newgrounds, Hacker News, Discord and CrazyGames their rows in the channel tables and the per-link funnel', () => {
+    const now = Date.UTC(2026, 9, 28, 12, 0, 0);
+    const events = Object.keys(labels).flatMap((channel, i) => {
+      const who = { visitor: `visitor-new${i}`, session: `session-new${i}`, channel: channel as keyof typeof labels };
+      return [
+        event({ ...who, t: 'session_start', at: now - 60_000 }),
+        event({ ...who, t: 'match_start', at: now - 50_000, mode: 'quick', difficulty: 'normal', players: 1, heroes: ['ranger'], online: false }),
+        event({ ...who, t: 'session_end', at: now - 1000 }),
+      ];
+    });
+    const summary = summarize(events, now, { connectedPlayers: 0, persistent: false, durable: false, dir: null });
+    for (const [channel, label] of Object.entries(labels)) {
+      expect(summary.channels.find((row) => row.channel === channel), channel).toMatchObject({ label, sessions: 1, visitors: 1 });
+      const link = summary.funnel.byChannel.find((row) => row.channel === channel)!;
+      expect(link, channel).toMatchObject({ label, newPlayers: 1 });
+      expect(link.steps.find((step) => step.stage === 'match_start'), channel).toMatchObject({ reached: 1, share: 1 });
+    }
+    // In CHANNELS order, after CrazyGames and before Shared cards.
+    expect(summary.funnel.byChannel.map((row) => row.channel)).toEqual(['crazygames', 'itch', 'newgrounds', 'hn', 'discord']);
+    const html = renderDashboard(summary);
+    for (const label of Object.values(labels)) expect(html).toContain(label);
   });
 });
 

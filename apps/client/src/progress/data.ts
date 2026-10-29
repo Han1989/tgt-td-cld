@@ -41,6 +41,7 @@
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
+ * n-stars on 29 Oct 2026 (PR #154: progress saved in this browser, L-02 pulled ahead of D-06 into Now; the new link tags).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -104,13 +105,13 @@ const sections: ProgressSection[] = [
   {
     id: 'after',
     title: 'Later · after D-06 passes',
-    blurb: 'On hold until D-06 passes (Han, 9 Oct 2026). In this order: a bot teammate in solo, progress saved in the browser, then Phase 6a. No matchmaking yet: too few players for a queue, and the room link is how friends join.',
+    blurb: 'On hold until D-06 passes (Han, 9 Oct 2026). In this order: a bot teammate in solo, then Phase 6a (progress saved in the browser was pulled ahead on 28 Oct 2026 and is done). No matchmaking yet: too few players for a queue, and the room link is how friends join.',
     group: 'later',
   },
   {
     id: 'p6a',
     title: 'Phase 6a · Accounts and data',
-    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026), then after L-01 and L-02. Analytics and privacy basics are done; accounts are not started.',
+    blurb: 'On hold until D-06 is called (Han, 8 Oct 2026), then after L-01. Analytics and privacy basics are done; accounts are not started.',
     group: 'later',
   },
   {
@@ -214,6 +215,15 @@ const items: ProgressItem[] = [
     section: 'order',
     note: 'Sim only, protocol stays 20; the merge restarts the game server. Han, 21 Oct 2026, from the first Reddit cold tester, who beat 30 Normal waves by leading creeps through their towers and letting them walk back through them. Now only the nearest creeps chase a hero (the rest walk on and strike him as they pass), a chase ends at a short leash or a time limit, and a creep that stops chasing joins its lane ahead, never walking back. Han’s first numbers made every team lose most of its Heart, so the balance matrix retuned them (cap 10, leash 5 tiles, 12 s, 3 s cooldown) and eased the early team waves; first-time players still win at least 87% of matches with every team.',
     proof: pr(124),
+  },
+  {
+    id: 'n-stars',
+    title: 'Progress saved in this browser',
+    owner: 'Team',
+    status: 'done',
+    section: 'order',
+    note: 'Client, plus four new link tags on the game server; protocol stays 23. Was L-02 in Later: Han pulled it ahead of the gate on 28 Oct 2026, so a returning player has something to beat. Each hero keeps a record in this browser only, never sent: matches, wins, the best Heart left in Full and in Quick (alone and with friends apart) and the best Daily rank. The hero buttons wear his wins, or a star once he has won Full; a line under the picked hero says it (“Ranger · 7 wins · best 94 Heart in Quick”); the end screen says “Personal best” when a number improves. Delete my data clears it. New link tags: itch.io, Newgrounds, Hacker News and Discord.',
+    proof: pr(154),
   },
   {
     id: 'D-10',
@@ -988,14 +998,6 @@ const items: ProgressItem[] = [
     status: 'todo',
     section: 'after',
     note: 'A lone player gets a bot hero on another lane, so combos happen without a friend. Builds on the practice ally and needs a balance run. On hold until D-06 passes.',
-  },
-  {
-    id: 'L-02',
-    title: 'Progress saved in the browser',
-    owner: 'Team',
-    status: 'todo',
-    section: 'after',
-    note: 'For example stars per hero, mode and difficulty. No accounts. After L-01; on hold until D-06 passes.',
   },
   {
     id: 'p6a-db',
