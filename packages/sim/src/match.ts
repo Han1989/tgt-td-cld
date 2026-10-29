@@ -321,7 +321,7 @@ function coopReport(match: Match): CoopReport {
   const ultimates = {} as NonNullable<CoopReport['ultimates']>;
   for (const tag of ULTIMATE_TAGS) {
     const u = match.state.ultStats.by[tag];
-    ultimates[tag] = { casts: u.casts, kills: u.kills };
+    ultimates[tag] = { casts: u.casts, kills: u.kills, damage: Math.round(u.damage) };
   }
   const seat = (id: PlayerId) => match.state.players.findIndex((p) => p.id === id);
   return {
@@ -359,7 +359,7 @@ export function matchReplay(match: Match): Replay {
 /**
  * Re-runs a replay with the simulation: every logged input at its tick, then steps until the match ends (or
  * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry, and on a match
- * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice, Endless before protocol 22).
+ * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice, Endless before protocol 22, anything before protocol 23).
  */
 export function replayMatch(
   replay: Replay,
@@ -467,6 +467,8 @@ const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.flo
 
 /** The protocol that brought Endless its veteran levels and Reinforce: an Endless replay from before it is refused. */
 const ENDLESS_RULES_PROTOCOL = 22;
+/** Retest fix B: the Warden's Rampart Slam, the mana rule, the Snare Trap's Exposed and wave 5 without Wisps. */
+const KIT_RULES_PROTOCOL = 23;
 
 /**
  * Why this build cannot re-run a replay whose rules are gone, or null. Match modifiers (Swift, Ironclad, Sky Tide,
@@ -493,6 +495,13 @@ export function replayRefusal(
   }
   if (replay.practice) {
     return `This was a Meteor Rain practice match, which was removed in protocol 20; only a build from before then can re-run it${where}.`;
+  }
+  if (replay.protocol < KIT_RULES_PROTOCOL) {
+    return (
+      `This match was recorded under protocol ${replay.protocol}, before the heroes' kits and the wave list changed in ` +
+      `protocol ${KIT_RULES_PROTOCOL} (the Warden's Rampart Slam, mana, the Snare Trap, wave 5); only a build from ` +
+      `before then can re-run it${where}.`
+    );
   }
   return null;
 }

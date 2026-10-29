@@ -1,4 +1,4 @@
-// The soft-launch hook's presentation on every layout (protocol 16): the Iron Vow ring, and the Meteor Rain fuse ribbon
+// The soft-launch hook's presentation on every layout (protocol 16): the Rampart Slam ring, and the Meteor Rain fuse ribbon
 // (`combo`). The stress scene keeps both heroes under a ring and sends the four events the sim sends when Arrow Storm
 // and Meteor fuse (two R casts, a syncCast and the combo) every 12 s, so these check what a player gets: a ring that
 // reaches clear of the hero and stays bright, the rain's name and both casters in their seat colours, a band that stays
@@ -79,8 +79,8 @@ function nextFuse(page: Page): Promise<Seen> {
 /** The ribbon's kicker colour for each combo: fire, violet, gold. */
 const COMBOS = [
   { kind: 'meteorRain', word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor', color: 'rgb(255, 162, 74)' },
-  { kind: 'stunStorm', word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm', color: 'rgb(201, 167, 255)' },
-  { kind: 'shockwave', word: 'Shockwave', kicker: 'Meteor + Iron Vow', color: 'rgb(255, 210, 74)' },
+  { kind: 'stunStorm', word: 'Stun Storm', kicker: 'Rampart Slam + Arrow Storm', color: 'rgb(201, 167, 255)' },
+  { kind: 'shockwave', word: 'Shockwave', kicker: 'Meteor + Rampart Slam', color: 'rgb(255, 210, 74)' },
 ] as const;
 
 // One test per combo: each waits for a 12 s fuse, and a slow machine needs more than the default.
@@ -161,7 +161,7 @@ test('with motion allowed the ribbon unrolls', async ({ page }) => {
   expect(seen.earlyWidth).toBeLessThan((seen.box.right - seen.box.left) * 0.9);
 });
 
-test('the Iron Vow ring reaches clear of the hero and stays bright', async ({ page }) => {
+test('the Rampart Slam ring reaches clear of the hero and stays bright', async ({ page }) => {
   await page.goto('/?stress=12');
   await waitForReady(page, 'stress');
   // Both stress heroes wear the ring all the time. It blooms in over 0.28 s; wait for it to settle.

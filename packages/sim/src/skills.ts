@@ -83,7 +83,7 @@ function activeStats(
     case 'ranger':
       return { Q: t.ranger.multishot, W: t.ranger.snareTrap, E: null, R: t.ranger.arrowStorm }[slot];
     case 'warden':
-      return { Q: t.warden.cleave, W: t.warden.taunt, E: null, R: t.warden.ironVow }[slot];
+      return { Q: t.warden.cleave, W: t.warden.taunt, E: null, R: t.warden.rampartSlam }[slot];
     case 'arcanist':
       return { Q: t.arcanist.fireball, W: t.arcanist.frostNova, E: null, R: t.arcanist.meteor }[slot];
   }
@@ -107,7 +107,7 @@ function geometry(state: GameState, hero: Hero, slot: SkillSlot): { range: numbe
         Q: { range: 0, radius: w.cleave.radius },
         W: { range: 0, radius: w.taunt.radius },
         E: { range: 0, radius: 0 },
-        R: { range: 0, radius: w.ironVow.burstRadius },
+        R: { range: 0, radius: w.rampartSlam.radius },
       }[slot];
     }
     case 'arcanist': {
@@ -177,7 +177,7 @@ export function castInstant(state: GameState, hero: Hero, slot: SkillSlot): stri
       result = taunt(state, hero);
       break;
     case 'warden.R':
-      result = ironVow(state, hero);
+      result = rampartSlam(state, hero);
       break;
     case 'ranger.R':
       result = rain(state, hero, 'arrowStorm');
@@ -279,11 +279,16 @@ function snareTrap(state: GameState, hero: Hero, x: number, y: number): void {
   });
 }
 
-/** Blood Hunger: heal the Warden for a share of the damage an auto-attack actually dealt. */
-export function bloodHungerHeal(state: GameState, hero: Hero, dealt: number): void {
-  if (hero.kind !== 'warden' || hero.ranks.E === 0 || dealt <= 0) return;
-  const pct = state.tuning.hero.warden.bloodHunger.lifesteal[rankIndex(state, hero, 'E')] ?? 0;
-  hero.hp = Math.min(heroMaxHp(state, hero), hero.hp + dealt * pct);
+/**
+ * Blood Hunger: heal the Warden for a share of the damage an auto-attack or a Cleave actually dealt, plus `hpShare` of
+ * his max HP for every creep it hit (`hits`: 1 for an auto-attack, the creeps caught for a Cleave).
+ */
+export function bloodHungerHeal(state: GameState, hero: Hero, dealt: number, hits: number): void {
+  if (hero.kind !== 'warden' || hero.ranks.E === 0 || hits <= 0) return;
+  const s = state.tuning.hero.warden.bloodHunger;
+  const i = rankIndex(state, hero, 'E');
+  const max = heroMaxHp(state, hero);
+  hero.hp = Math.min(max, hero.hp + Math.max(0, dealt) * (s.lifesteal[i] ?? 0) + hits * max * (s.hpShare[i] ?? 0));
 }
 
 /** Keen Eye: the multiplier for one auto-attack (1 = no crit). Rolls the seeded RNG only if learned. */
@@ -309,7 +314,7 @@ function cleave(state: GameState, hero: Hero): string | null {
   const from = hitFrom(state, hero);
   let dealt = 0;
   for (const c of targets) dealt += damageCreep(state, c, damage, 'physical', hero.owner, false, from);
-  bloodHungerHeal(state, hero, dealt);
+  bloodHungerHeal(state, hero, dealt, targets.length);
   return null;
 }
 
@@ -339,13 +344,26 @@ function taunt(state: GameState, hero: Hero): string | null {
 }
 
 /**
- * Iron Vow: every living hero, anywhere, heals a share of their max HP at once, and gains armour and regeneration
- * until the duration ends. A burst around the Warden damages and briefly stuns the creeps there (flyers too).
+ * Rampart Slam: a slam at the Warden's feet. Every creep within the radius (flyers too) takes `base` plus `echo` for
+ * every other creep caught (at most `echoCap` counted; a boss takes `base` alone) and is stunned. Then every living
+ * hero, anywhere, heals a share of their max HP and gains armour and regeneration until the guard ends.
  */
-function ironVow(state: GameState, hero: Hero): string | null {
-  const s = state.tuning.hero.warden.ironVow;
+function rampartSlam(state: GameState, hero: Hero): string | null {
+  const s = state.tuning.hero.warden.rampartSlam;
   const i = rankIndex(state, hero, 'R');
   pay(state, hero, 'R');
+  emit(state, { type: 'aoe', effect: 'rampartSlam', x: hero.x, y: hero.y, radius: s.radius });
+  const from = hitFrom(state, hero);
+  const stun = secondsToTicks(s.stun[i] ?? 0);
+  const caught = creepsInRadius(state, hero.x, hero.y, s.radius, true);
+  const echo = (s.echo[i] ?? 0) * Math.min(s.echoCap, Math.max(0, caught.length - 1));
+  const power = heroPower(state, hero);
+  const killsBefore = state.ultStats.kills;
+  for (const c of caught) {
+    stunCreep(state, c, stun);
+    const hit = (s.base[i] ?? 0) + (state.tuning.creeps[c.kind].boss ? 0 : echo);
+    ultimateDamage(state, c, hit * power, 'physical', hero.owner, from, 'rampartSlam');
+  }
   hero.guardianUntil = state.tick + secondsToTicks(s.duration[i] ?? 0);
   for (const h of state.heroes) {
     if (!h.alive) continue;
@@ -353,17 +371,8 @@ function ironVow(state: GameState, hero: Hero): string | null {
     h.hp = Math.min(heroMaxHp(state, h), h.hp + heroMaxHp(state, h) * (s.heal[i] ?? 0));
     emit(state, { type: 'heal', heroId: h.id, amount: Math.round(h.hp - before) });
   }
-  emit(state, { type: 'aoe', effect: 'ironVow', x: hero.x, y: hero.y, radius: s.burstRadius });
-  const from = hitFrom(state, hero);
-  const stun = secondsToTicks(s.burstStun[i] ?? 0);
-  const burst = (s.burstDamage[i] ?? 0) * heroPower(state, hero);
-  const killsBefore = state.ultStats.kills;
-  for (const c of creepsInRadius(state, hero.x, hero.y, s.burstRadius, true)) {
-    stunCreep(state, c, stun);
-    ultimateDamage(state, c, burst, 'physical', hero.owner, from, 'ironVow');
-  }
-  emit(state, { type: 'ultResult', ult: 'ironVow', by: hero.owner, kills: state.ultStats.kills - killsBefore });
-  onUltCast(state, hero, 'ironVow', null);
+  emit(state, { type: 'ultResult', ult: 'rampartSlam', by: hero.owner, kills: state.ultStats.kills - killsBefore });
+  onUltCast(state, hero, 'rampartSlam', null);
   return null;
 }
 

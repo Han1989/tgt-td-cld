@@ -173,7 +173,7 @@ describe('reinforce in the match report and the replay', () => {
     expect(reportSummary(matchReport(full))).not.toMatch(/reinforce/);
   });
 
-  it('refuses an Endless replay recorded under protocol 21 (its rules changed); Full and Quick ones re-run', () => {
+  it('refuses an Endless replay recorded under protocol 21 (its rules changed), a Quick one for the kits of protocol 23', () => {
     const endless = createMatch({ players: [{ id: 'p1', name: 'A', hero: 'arcanist' }], mode: 'endless' }, 5, '0123abcd');
     for (let i = 0; i < 40; i++) matchStep(endless);
     const old: Replay = { ...matchReplay(endless), protocol: 21 };
@@ -183,8 +183,9 @@ describe('reinforce in the match report and the replay', () => {
     const quick = createMatch({ players: [{ id: 'p1', name: 'A', hero: 'arcanist' }], mode: 'quick' }, 5);
     for (let i = 0; i < 40; i++) matchStep(quick);
     const quick21: Replay = { ...matchReplay(quick), protocol: 21 };
-    expect(replayRefusal(quick21)).toBeNull();
-    expect(replayMatch(quick21).state.tick).toBe(quick21.end.tick);
+    expect(replayRefusal(quick21)).toMatch(/protocol 21, before the heroes' kits and the wave list changed in protocol 23/);
+    expect(replayRefusal(matchReplay(quick))).toBeNull();
+    expect(replayMatch(matchReplay(quick)).state.tick).toBe(quick21.end.tick);
   });
 });
 

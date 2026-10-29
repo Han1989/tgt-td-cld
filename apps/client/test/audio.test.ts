@@ -822,5 +822,5 @@ describe('game audio', () => {
 });
 
 function fakeCreep(): Snapshot['creeps'][number] {
-  return { id: 1, kind: 'grunt', x: 1, y: 1, hp: 10, maxHp: 10, slowed: false, rooted: false, armor: 0, magicResist: 0, stunned: false };
+  return { id: 1, kind: 'grunt', x: 1, y: 1, hp: 10, maxHp: 10, slowed: false, rooted: false, exposed: false, armor: 0, magicResist: 0, stunned: false };
 }

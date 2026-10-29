@@ -37,6 +37,8 @@ export function ultimateLines(report: MatchReport): UltLine[] {
     const parts = [
       ...(u.casts > 0 ? [combo ? plural(u.casts, 'combo') : plural(u.casts, 'cast')] : []),
       plural(u.kills, 'kill'),
+      // From protocol 23: the HP it took, so a slam that killed little but softened a pack still shows.
+      ...(u.damage ? [`${u.damage.toLocaleString('en-US')} damage`] : []),
     ];
     lines.push({ tag, name: ULT_NAMES[tag], casts: u.casts, kills: u.kills, text: `${ULT_NAMES[tag]} · ${parts.join(' · ')}` });
   }

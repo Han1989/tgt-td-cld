@@ -304,6 +304,8 @@ export function updateTraps(state: GameState): void {
       if (dist(trap.x, trap.y, c.x, c.y) > s.rootRadius) continue;
       const ticks = state.tuning.creeps[c.kind].boss ? Math.round(duration * s.bossRootFactor) : duration;
       c.rootUntil = Math.max(c.rootUntil, state.tick + ticks);
+      // Exposed for the root's duration, so the trap's own hit already lands harder.
+      c.exposedUntil = Math.max(c.exposedUntil, state.tick + ticks);
       damageCreep(state, c, damage, 'physical', trap.owner, false, from);
     }
   }

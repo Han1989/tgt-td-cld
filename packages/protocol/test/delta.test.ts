@@ -26,6 +26,17 @@ describe('snapshot deltas', () => {
         applyCommand(state, 'c', { type: 'cast', slot: 'R' });
       }
       if (t === 1540) expect(server.zones.length).toBeGreaterThan(0);
+      // The Warden's Rampart Slam (protocol 23), and creeps left Exposed by a Snare Trap, in the stream.
+      if (t === 1600) {
+        const warden = state.heroes[1]!;
+        warden.skillCd.R = 0;
+        applyCommand(state, 'b', { type: 'cast', slot: 'R' });
+        for (const c of state.creeps.slice(0, 3)) c.exposedUntil = state.tick + 40;
+      }
+      if (t === 1601) {
+        expect(server.events).toContainEqual(expect.objectContaining({ type: 'ultResult', ult: 'rampartSlam' }));
+        expect(server.creeps.some((c) => c.exposed)).toBe(true);
+      }
       // A leaver's pads open up (pad owners change).
       if (t === 1800) setPlayerLeft(state, 'b');
       step(state);

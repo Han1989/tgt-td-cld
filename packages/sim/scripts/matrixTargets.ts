@@ -13,7 +13,10 @@ interface Match {
   ults: number;
   ultKills: number;
   ultDamage: number;
-  by: Record<'arrowStorm' | 'meteor' | 'ironVow' | 'meteorRain' | 'stunStorm' | 'shockwave', { casts: number; damage: number; kills: number }>;
+  by: Record<'arrowStorm' | 'meteor' | 'rampartSlam' | 'meteorRain' | 'stunStorm' | 'shockwave', { casts: number; damage: number; kills: number }> & {
+    /** A run from before protocol 23: the Warden's R was Iron Vow. */
+    ironVow?: { casts: number; damage: number; kills: number };
+  };
   damage: number;
   combos: number;
 }
@@ -117,4 +120,28 @@ for (const bot of ['casual', 'expert'])
     const share = sum(ms.map((m) => m.ultDamage)) / Math.max(1, sum(ms.map((m) => m.damage)));
     report(share >= 0.08 && share <= 0.15, `${bot} ${mode} normal teams: ultimates are 8-15% of damage`, `${(100 * share).toFixed(1)}%`);
   }
+// Retest fix B (28 Oct 2026). The Warden as a bruiser: one expert Rampart Slam in Quick Normal takes at least 2,500 HP
+// (one lane's worth), and his ultimate is 5-10% of his damage.
+for (const e of pick('expert', 'quick', 'normal').filter((x) => x.row.team.length === 1 && x.row.team[0] === 'warden')) {
+  const slam = (m: Match) => m.by.rampartSlam ?? m.by.ironVow ?? { casts: 0, damage: 0, kills: 0 };
+  const casts = sum(e.matches.map((m) => slam(m).casts));
+  const dmg = sum(e.matches.map((m) => slam(m).damage)) / Math.max(1, casts);
+  report(dmg >= 2500, 'expert quick normal warden: damage per Rampart Slam >= 2500', `${dmg.toFixed(0)} over ${casts} casts`);
+  const share = sum(e.matches.map((m) => m.ultDamage)) / Math.max(1, sum(e.matches.map((m) => m.damage)));
+  report(share >= 0.05 && share <= 0.1, 'expert quick normal warden: ult% 5-10%', `${(100 * share).toFixed(1)}%`);
+}
+// Solo parity for every bot that wins (the expert Warden was 81.7 against the Arcanist's 100), within 10 Heart.
+for (const bot of ['expert', 'novice'])
+  for (const mode of ['full', 'quick'])
+    for (const difficulty of ['normal', 'hard']) {
+      if (bot === 'novice' && difficulty === 'hard') continue;
+      const solo = pick(bot, mode, difficulty).filter((e) => size(e) === 1).map((e) => mean(e.matches.map((m) => m.heart)));
+      if (solo.length > 1) report(Math.max(...solo) - Math.min(...solo) <= 10, `${bot} ${mode} ${difficulty} solo parity (spread <= 10)`, solo.map((x) => x.toFixed(1)).join(' / '));
+    }
+// Wave 5 is no wall: a novice solo hero in Full Normal loses at most 70% of what it loses in the first third.
+for (const e of pick('novice', 'full', 'normal').filter((x) => size(x) === 1)) {
+  const lost = [0, 1, 2].map((t) => sum(e.matches.map((m) => m.lost[t] ?? 0)));
+  const first = lost[0]! / Math.max(1, sum(lost));
+  report(first <= 0.7, `novice full normal ${e.row.team[0]}: first third <= 70% of the Heart lost`, `${Math.round(100 * first)}%`);
+}
 console.log(fails.length === 0 ? '\nAll targets met.' : `\n${fails.length} targets missed.`);

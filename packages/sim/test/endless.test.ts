@@ -99,7 +99,8 @@ describe('Endless', () => {
     const band = ENDLESS.modes.endless.hard!.byPlayers![0]!;
     expect(band).toMatchObject({ hp: 1.07, count: 1, bossHp: 1 });
     for (const wave of [1, 10, 21, 30]) {
-      expect(creepMaxHp(state, 'grunt', wave) / creepMaxHp(fullNormal, 'grunt', wave)).toBeCloseTo(band.hp, 2);
+      // Whole HP on a wave-1 Grunt (93 at Full's solo × 1.14) rounds the ratio by up to 0.01.
+      expect(Math.abs(creepMaxHp(state, 'grunt', wave) / creepMaxHp(fullNormal, 'grunt', wave) - band.hp)).toBeLessThan(0.01);
       expect(creepMaxHp(state, 'shardback', wave)).toBe(creepMaxHp(fullNormal, 'shardback', wave));
     }
     // Wave 31 is wave 21's creeps at wave 21's growth (the team and Hard multipliers stay at the final wave's), × a cycle.

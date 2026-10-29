@@ -159,6 +159,8 @@ export interface SnareTrapStats extends ActiveSkillStats {
   damage: number[];
   /** Bosses are rooted for this fraction of the duration. */
   bossRootFactor: number;
+  /** A rooted creep is Exposed while the root lasts: every hit on it (towers', heroes', anyone's) deals this share more. */
+  exposed: number;
 }
 
 /** Passive: auto-attacks sometimes crit. */
@@ -196,30 +198,40 @@ export interface TauntStats extends ActiveSkillStats {
   duration: number[];
 }
 
-/** Passive: a share of auto-attack damage dealt returns as health. */
+/**
+ * Passive: a share of auto-attack and Cleave damage dealt returns as health, and every blow heals a share of max HP
+ * besides: each auto-attack hit and each creep a Cleave hits (a Cleave on five creeps heals five times).
+ */
 export interface BloodHungerStats {
   /** Fraction of the damage the attack actually dealt (after armour). One entry per rank. */
   lifesteal: number[];
+  /** Share of the Warden's max HP healed per auto-attack hit and per creep a Cleave hits. One entry per rank. */
+  hpShare: number[];
 }
 
 /**
- * Ultimate: at once, every living hero (anywhere on the map) heals a share of their max HP, and a burst around the
- * Warden damages and briefly stuns the creeps there. For a while every living hero also gains armour and health
- * regeneration. Two vows do not stack; the higher rank applies.
+ * Ultimate (retest fix B, Han 28 Oct 2026): a ground slam at the Warden's feet that hits harder the more it catches.
+ * Every creep within `radius` (ground and air) takes `base` plus `echo` for every other creep caught (at most
+ * `echoCap` of them counted) and is stunned for `stun` (bosses `combat.bossControlFactor` as long; a boss takes `base`
+ * alone, no echo). Then every living hero, anywhere, heals `heal` of their max HP and gains `armor` and `regen` for
+ * `duration`. Two guards do not stack; the higher rank applies.
  */
-export interface IronVowStats extends CooldownSkillStats {
+export interface RampartSlamStats extends CooldownSkillStats {
+  radius: number;
+  /** Physical damage to each creep caught, by rank. */
+  base: number[];
+  /** Extra physical damage to each creep caught for every other creep caught, by rank. */
+  echo: number[];
+  /** The other creeps counted for the echo, at most. */
+  echoCap: number;
+  /** Stun seconds, by rank. */
+  stun: number[];
+  /** Share of max HP every living hero heals at once, by rank. */
+  heal: number[];
+  /** The guard after it: seconds, armour and extra health per second, by rank. */
   duration: number[];
   armor: number[];
-  /** Extra health per second. */
   regen: number[];
-  /** Share of max HP healed at once, by rank. */
-  heal: number[];
-  /** The burst around the Warden (ground and air). */
-  burstRadius: number;
-  /** Physical damage of the burst, by rank. */
-  burstDamage: number[];
-  /** Stun seconds of the burst, by rank. */
-  burstStun: number[];
 }
 
 // Arcanist -------------------------------------------------------------------
@@ -294,7 +306,7 @@ export interface WardenStats extends HeroStats {
   cleave: CleaveStats;
   taunt: TauntStats;
   bloodHunger: BloodHungerStats;
-  ironVow: IronVowStats;
+  rampartSlam: RampartSlamStats;
 }
 
 export interface ArcanistStats extends HeroStats {
@@ -652,10 +664,10 @@ export interface CoopTuning {
     damage: number[];
     stun: number;
   };
-  /** Iron Vow + Arrow Storm: the storm with every strike harder and stunning. */
+  /** Rampart Slam + Arrow Storm: the storm with every strike harder and stunning. */
   stunStorm: { damageMult: number; stun: number };
   /**
-   * Meteor + Iron Vow: the Meteor's rain where every impact first pulls the ground creeps within `pullRadius` of it
+   * Meteor + Rampart Slam: the Meteor's rain where every impact first pulls the ground creeps within `pullRadius` of it
    * `pullDistance` tiles together (bosses half as far), then lands harder.
    */
   shockwave: {
@@ -713,8 +725,9 @@ export const TUNING: Tuning = {
       w({ grunt: 4, runner: 2 }),
       w({ grunt: 4, archer: 3 }),
       w({ grunt: 3, runner: 3, brute: 1 }),
-      w({ grunt: 4, archer: 2, wisp: 2 }), // 5: first wisps
-      w({ runner: 5, brute: 2, wisp: 2 }),
+      // Retest fix B (28 Oct 2026): the first Wisps wait for wave 6, so wave 5 is not a wall before anti-air.
+      w({ grunt: 4, archer: 3 }),
+      w({ runner: 5, brute: 2, wisp: 2 }), // 6: first wisps
       w({ grunt: 5, archer: 3, brute: 2 }),
       w({ grunt: 4, runner: 4, archer: 2, wisp: 3 }),
       w({ grunt: 5, brute: 3, archer: 3, wisp: 3 }),
@@ -745,7 +758,9 @@ export const TUNING: Tuning = {
   },
   // Teams: a small early bonus and a bigger late one, so the last third of a match is the tensest (balance gate).
   playerScaling: {
-    hp: [1.04, 1.5, 1.52],
+    // Retest fix B (round 7): solo 1.04 → 1.14 and pairs 1.5 → 1.54 give back what the kits added (the trap's Exposed,
+    // the Warden's slam and Blood Hunger), so the casual bot stays where it was. Quick Normal is unchanged.
+    hp: [1.14, 1.54, 1.52],
     // Halved with the chase cap (21 Oct 2026): heroes no longer hold the early waves of a lane.
     earlyHpBonus: [0, 0.1, 0.5],
     earlyWaves: 20,
@@ -951,8 +966,8 @@ export const TUNING: Tuning = {
         list: [
           w({ grunt: 4, runner: 2 }),
           w({ grunt: 4, archer: 3, runner: 1 }),
-          w({ grunt: 4, archer: 2, brute: 1, wisp: 2 }), // 3: first wisps
-          w({ grunt: 5, archer: 3, brute: 2, wisp: 2 }),
+          w({ grunt: 4, archer: 3, brute: 1 }), // the first Wisps wait a wave, as in Full (retest fix B)
+          w({ grunt: 5, archer: 3, brute: 2, wisp: 2 }), // 4: first wisps
           w({ grunt: 5, archer: 3, brute: 2, wisp: 3 }, 'ironhorn'), // 5: boss (Stomp)
           w({ grunt: 5, runner: 2, archer: 3, brute: 3, wisp: 3 }),
           w({ grunt: 7, archer: 4, brute: 3, wisp: 4 }),
@@ -978,8 +993,9 @@ export const TUNING: Tuning = {
       // Quick is shorter, so the same Full bands either walk over a 3-player team or cliff a solo seed.
       hard: {
         byPlayers: [
-          { hp: 1.2, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-          { hp: 1.28, count: 1.1, lateHp: 0.12, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          // Retest fix B (round 7): solo 1.2 → 1.35 for the stronger kits (the Daily run is this band), pairs 1.28 → 1.22.
+          { hp: 1.35, count: 1.05, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+          { hp: 1.22, count: 1.1, lateHp: 0.12, lateCount: 0, bossHp: 1, lateBossHp: 0 },
           { hp: 1.3, count: 1.12, lateHp: 0.3, lateCount: 0.05, bossHp: 1, lateBossHp: 0 },
         ],
       },
@@ -1003,9 +1019,10 @@ export const TUNING: Tuning = {
       bossHp: 1,
       lateBossHp: 0,
       byPlayers: [
-        { hp: 1.18, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-        { hp: 1.18, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
-        { hp: 1.17, count: 1.06, lateHp: 0.35, lateCount: 0.08, bossHp: 1, lateBossHp: 0 },
+        // Retest fix B (round 7): solo and pairs 1.18 → 1.32, three 1.17 → 1.4, for the stronger kits.
+        { hp: 1.32, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.32, count: 1, lateHp: 0, lateCount: 0, bossHp: 1, lateBossHp: 0 },
+        { hp: 1.4, count: 1.06, lateHp: 0.35, lateCount: 0.08, bossHp: 1, lateBossHp: 0 },
       ],
     },
   },
@@ -1045,29 +1062,33 @@ export const TUNING: Tuning = {
     autoEngage: { range: 2.5, leash: 4, memory: 1 },
     ranger: {
       hp: 360, hpPerLevel: 45, hpRegen: 2.5,
-      mana: 140, manaPerLevel: 25, manaRegen: 2.5, manaRegenPerLevel: 0.5,
+      // Mana (retest fix B): the one rule in docs/GAME_DESIGN.md "Mana", measured by `npm run mana drill`.
+      mana: 190, manaPerLevel: 8, manaRegen: 3.35, manaRegenPerLevel: 0.19,
       armor: 4, armorPerLevel: 0.5, magicResist: 0.1,
       damage: 24, damagePerLevel: 3.5, damageType: 'physical',
       attackCooldown: 0.9, attackRange: 5.6, ranged: true, projectileSpeed: 16,
       speed: 4.6, radius: 0.4, acquireRange: 6.6,
       multishot: {
-        manaCost: [25, 30, 35, 40],
+        // The same mana a second at every rank: a rank shortens the cooldown and the cost with it.
+        manaCost: [28, 25, 21, 18],
         cooldown: [8, 7, 6, 5],
         targets: [3, 4, 5, 6],
         damage: [30, 45, 60, 75],
         bonusRange: 1.4,
       },
       snareTrap: {
-        manaCost: [30, 35, 40, 45],
+        manaCost: [35, 33, 30, 28],
         cooldown: [14, 13, 12, 11],
         castRange: 8,
-        armDelay: 0.5,
+        armDelay: 0.2,
         lifetime: 25,
         triggerRadius: 1.2,
         rootRadius: 2.5,
         rootDuration: [2, 2.5, 3, 3.5],
-        damage: [20, 35, 50, 65],
+        // A rank-1 trap kills a Quick wave-9 pack's Runners and takes a third of a wave-10 Grunt (heroes.test.ts).
+        damage: [145, 180, 215, 250],
         bossRootFactor: 0.5,
+        exposed: 0.25,
       },
       keenEye: {
         critChance: [0.15, 0.2, 0.25, 0.3],
@@ -1084,46 +1105,52 @@ export const TUNING: Tuning = {
     },
     warden: {
       hp: 620, hpPerLevel: 50, hpRegen: 3,
-      mana: 110, manaPerLevel: 26, manaRegen: 2.1, manaRegenPerLevel: 0.4,
+      mana: 150, manaPerLevel: 7, manaRegen: 2.4, manaRegenPerLevel: 0.15,
       armor: 6, armorPerLevel: 0.8, magicResist: 0.1,
       damage: 24, damagePerLevel: 3.6, damageType: 'physical',
       attackCooldown: 1.1, attackRange: 1, ranged: false, projectileSpeed: 0,
       speed: 4.3, radius: 0.5, acquireRange: 5.5,
       cleave: {
-        manaCost: [20, 25, 30, 35],
+        manaCost: [17, 15, 14, 13],
         cooldown: [6, 5.5, 5, 4.5],
         radius: 2.2,
-        damage: [28, 45, 62, 80],
+        // Two Cleaves kill a Quick wave-8 Grunt at rank 2 (heroes.test.ts).
+        damage: [70, 120, 165, 210],
       },
       taunt: {
-        manaCost: [30, 35, 40, 45],
+        manaCost: [32, 30, 28, 26],
         cooldown: [16, 15, 14, 13],
         radius: 4.5,
         duration: [2, 2.5, 3, 3.5],
       },
       bloodHunger: {
         lifesteal: [0.15, 0.22, 0.3, 0.38],
+        hpShare: [0.015, 0.02, 0.025, 0.03],
       },
-      ironVow: {
-        cooldown: [50, 46, 42],
+      // The bruiser's ultimate (retest fix B): a slam that grows with the pack it catches, then the team's heal and guard.
+      rampartSlam: {
+        cooldown: [70, 65, 60],
+        radius: 3.5,
+        // The expert Warden's slam takes about 2,600 HP a cast in Quick Normal, 5% of his damage (round 7).
+        base: [340, 465, 590],
+        echo: [85, 110, 135],
+        echoCap: 12,
+        stun: [1, 1, 1],
+        heal: [0.25, 0.3, 0.35],
         duration: [6, 7, 8],
         armor: [5, 8, 11],
         regen: [5, 7, 10],
-        heal: [0.4, 0.5, 0.6],
-        burstRadius: 3.5,
-        burstDamage: [100, 150, 200],
-        burstStun: [0.75, 1, 1.25],
       },
     },
     arcanist: {
       hp: 320, hpPerLevel: 42, hpRegen: 2,
-      mana: 260, manaPerLevel: 34, manaRegen: 4.4, manaRegenPerLevel: 0.6,
+      mana: 260, manaPerLevel: 8, manaRegen: 4.55, manaRegenPerLevel: 0.14,
       armor: 3, armorPerLevel: 0.4, magicResist: 0.2,
       damage: 24, damagePerLevel: 3.5, damageType: 'magic',
       attackCooldown: 1, attackRange: 5.1, ranged: true, projectileSpeed: 12,
       speed: 4.5, radius: 0.4, acquireRange: 6.1,
       fireball: {
-        manaCost: [30, 35, 45, 50],
+        manaCost: [32, 30, 28, 25],
         cooldown: [7, 6.5, 6, 5.5],
         castRange: 8,
         radius: 2,
@@ -1131,7 +1158,7 @@ export const TUNING: Tuning = {
         projectileSpeed: 12,
       },
       frostNova: {
-        manaCost: [40, 45, 50, 55],
+        manaCost: [42, 39, 35, 32],
         cooldown: [12, 11, 10, 9],
         castRange: 7,
         radius: 2.5,
@@ -1141,7 +1168,8 @@ export const TUNING: Tuning = {
       },
       clarityAura: {
         radius: 8,
-        manaRegen: [1, 1.75, 2.5, 3.25],
+        // Counted in the drill at the bots' rank; at rank 4 her own regen still stays under her kit's cost.
+        manaRegen: [0.75, 1.25, 1.75, 2.25],
       },
       // A lane rain again: 4 magic impacts, each stunning every creep it hits.
       meteor: {

@@ -99,8 +99,8 @@ export interface SyncRibbon {
 /** What the fuse ribbon says for each combo: the new rain's name, and the skills that went into it. */
 export const FUSE_COPY: Record<ComboKind, { word: string; kicker: string; effect: string }> = {
   meteorRain: { word: 'Meteor Rain', kicker: 'Arrow Storm + Meteor', effect: 'Denser rain · stuns' },
-  stunStorm: { word: 'Stun Storm', kicker: 'Iron Vow + Arrow Storm', effect: 'Harder arrows · stuns' },
-  shockwave: { word: 'Shockwave', kicker: 'Meteor + Iron Vow', effect: 'Pulls creeps in · harder hit' },
+  stunStorm: { word: 'Stun Storm', kicker: 'Rampart Slam + Arrow Storm', effect: 'Harder arrows · stuns' },
+  shockwave: { word: 'Shockwave', kicker: 'Meteor + Rampart Slam', effect: 'Pulls creeps in · harder hit' },
 };
 
 /**

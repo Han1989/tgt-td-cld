@@ -165,7 +165,7 @@ describe('what shakes the screen', () => {
   const px = (trauma: number) => trauma * trauma * 9;
 
   it('every ultimate cast kicks the screen enough to feel on a phone (about 2 px or more)', () => {
-    for (const k of ['arrowStorm', 'meteor', 'ironVow'] as const) expect(px(SHAKE_AT[k])).toBeGreaterThanOrEqual(2);
+    for (const k of ['arrowStorm', 'meteor', 'rampartSlam'] as const) expect(px(SHAKE_AT[k])).toBeGreaterThanOrEqual(2);
     expect(SHAKE_AT.combo).toBeGreaterThan(SHAKE_AT.arrowStorm);
   });
 

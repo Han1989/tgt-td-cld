@@ -1,6 +1,6 @@
 // What the playtest-2 targets ask of the ultimates (docs/GAME_DESIGN.md §13): one Arrow Storm or Meteor at rank 1,
 // on a Quick wave 8–10, kills the Runners, Wisps and Grunts on every lane and takes at least half the HP of the rest
-// (Brutes and bosses aside); a boss loses about 8% or less of its HP to one ultimate; Iron Vow heals every teammate
+// (Brutes and bosses aside); a boss loses about 8% or less of its HP to one ultimate; Rampart Slam heals every teammate
 // by at least 35% of their max HP.
 
 import type { HeroKind } from '@tdt/protocol';
@@ -113,11 +113,50 @@ describe('ultimates are not boss killers', () => {
         expect(hp - b.hp).toBeGreaterThan(0);
       }
     }
+    // Rampart Slam on a boss in a full pack: the boss takes the base hit alone, so the pack does not raise it.
+    for (const rank of ranks) {
+      const state = lab('warden', rank);
+      const b = spawnCreep(state, boss, 1, wave);
+      b.x = 13;
+      b.y = 16;
+      b.rootUntil = 1_000_000;
+      b.abilityCd = 1_000_000;
+      state.shields = [];
+      for (let i = 0; i < 14; i++) {
+        const c = spawnCreep(state, 'grunt', 1, wave);
+        c.x = 13 + Math.cos(i) * 1.6;
+        c.y = 16 + Math.sin(i) * 1.6;
+        c.offX = c.offY = 0;
+        c.rootUntil = 1_000_000;
+      }
+      const hero = state.heroes[0]!;
+      hero.x = 13;
+      hero.y = 17.5;
+      const hp = b.hp;
+      cast(state);
+      expect((hp - b.hp) / b.maxHp, `warden R${rank} on ${boss}`).toBeLessThanOrEqual(limit);
+    }
   });
 });
 
-describe('Iron Vow', () => {
-  it('heals every teammate by at least 35% of their max HP at every rank', () => {
-    for (const heal of TUNING.hero.warden.ironVow.heal) expect(heal).toBeGreaterThanOrEqual(0.35);
+describe('Rampart Slam', () => {
+  it('heals every teammate by 25 / 30 / 35% of their max HP (a bruiser now, not a healer)', () => {
+    expect(TUNING.hero.warden.rampartSlam.heal).toEqual([0.25, 0.3, 0.35]);
+  });
+
+  // One lane's pack, not three: the Warden is melee and the slam is local. A wave 8-10 lane pack at his feet loses its
+  // weak creeps and a good share of the rest.
+  it.each([8, 9, 10])('one rank-1 slam on a Quick wave %i lane pack kills its Grunts, Runners and Wisps', (wave) => {
+    const state = lab('warden');
+    const hero = state.heroes[0]!;
+    const creeps = pack(state, wave).filter((c) => c.lane === 1);
+    for (const c of state.creeps) if (c.lane !== 1) c.dead = true;
+    // He stands in the middle of the pack.
+    hero.x = creeps.reduce((s, c) => s + c.x, 0) / creeps.length;
+    hero.y = creeps.reduce((s, c) => s + c.y, 0) / creeps.length;
+    const caught = creeps.filter((c) => Math.hypot(c.x - hero.x, c.y - hero.y) <= TUNING.hero.warden.rampartSlam.radius);
+    expect(caught.length).toBeGreaterThanOrEqual(8);
+    cast(state);
+    for (const c of caught) if (!c.dead) expect(['grunt', 'runner', 'wisp'], `${c.kind} lives`).not.toContain(c.kind);
   });
 });

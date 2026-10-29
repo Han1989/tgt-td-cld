@@ -27,7 +27,9 @@ describe('battle sound (waves 10–14, solo Quick, Ranger, seed 1)', () => {
     late = m.plays.filter((p) => p.t >= from && p.t < to);
   }, 30_000);
 
-  it('plays half as many effects: at most 9 a second (16 in any one second), tower shots at most 6 (8)', () => {
+  // The busiest second may hold 17 since retest fix B (protocol 23): the Ranger's mana lets Multishot and the trap
+  // (its cast and its snap) come round more often; the mean is unchanged at about 7.
+  it('plays half as many effects: at most 9 a second (17 in any one second), tower shots at most 6 (8)', () => {
     const all = playRate(late, from, to);
     const shots = playRate(late.filter((p) => isTowerShot(p.id)), from, to);
     console.log(
@@ -35,7 +37,7 @@ describe('battle sound (waves 10–14, solo Quick, Ranger, seed 1)', () => {
         `tower shots ${shots.mean.toFixed(1)} (most ${shots.most})`,
     );
     expect(all.mean).toBeLessThanOrEqual(9);
-    expect(all.most).toBeLessThanOrEqual(16);
+    expect(all.most).toBeLessThanOrEqual(17);
     expect(shots.mean).toBeLessThanOrEqual(6);
     expect(shots.most).toBeLessThanOrEqual(8);
   });

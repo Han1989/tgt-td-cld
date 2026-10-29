@@ -1,5 +1,5 @@
 // Ultimate presentation (protocol 18) on both layouts: the kill-count popup, the cast flash and shake, the R button's pulse
-// and "Combo!" ring, Iron Vow's heal on the teammate chip, and reduced motion. The stress scene (`?stress=12&pace=3`: three
+// and "Combo!" ring, Rampart Slam's heal on the teammate chip, and reduced motion. The stress scene (`?stress=12&pace=3`: three
 // ticks a beat, so a slow CI runner's clock keeps up) sends what the sim sends: every 240 ticks the ally casts alone
 // (tick 20), the two fuse (tick 80), a heal reaches both heroes (82), yours and the ally's rains end (150, 190). Runs on the
 // iPhone and Pixel (tall) and desktop (wide) projects; the 412 × 839 test fixes the viewport the layout is designed for.
@@ -28,7 +28,7 @@ const rButton = (layout: 'tall' | 'wide'): RButton => (layout === 'tall' ? '.tsk
 /** The stress scene's cycle, in ticks (stress.ts). */
 const CYCLE = 240;
 /** The ally's lone cast, the fuse, the heal, and the two rains ending: ticks into each cycle. */
-const AT = { allyCast: 20, fuse: 80, heal: 82, myRain: 150, allyRain: 190 };
+const AT = { allyCast: 20, fuse: 80, heal: 82, myRain: 150, allyRain: 190, allySlam: 215 };
 /** The R button pulses after this many ready ticks with creeps on the map (cues.ts: 20 s at 20 Hz). */
 const NUDGE_TICKS = 400;
 /** Render delay and the pace's batching, in ticks. */
@@ -196,7 +196,7 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
     expect(closed.minLeft).toBeLessThan(ring.left);
   });
 
-  await test.step("Iron Vow's heal: the teammate's chip rings with a green number", async () => {
+  await test.step("Rampart Slam's heal: the teammate's chip rings with a green number", async () => {
     const chip = page.locator('#mates .mate');
     await expect(chip).toHaveCount(1);
     const heal = await cue(page, { kind: 'heal' }, byCycle(AT.heal));
@@ -232,6 +232,15 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
     const theirs = await cue(page, { kind: 'pop', text: 'Meteor: 7' }, byCycle(AT.allyRain));
     expect(theirs.text).toBe('Ally Meteor: 7');
     expect(theirs.color).not.toBe(mine.color);
+  });
+
+  await test.step("the Warden's Rampart Slam: its ring and its count", async () => {
+    const slam = await cue(page, { kind: 'pop', text: 'Rampart Slam: 9' }, byCycle(AT.allySlam));
+    expect(slam.text).toBe('Ally Rampart Slam: 9');
+    expect(slam.box.left).toBeGreaterThanOrEqual(0);
+    expect(slam.box.right).toBeLessThanOrEqual(vp.width);
+    // The slam's golden ring is drawn with it.
+    expect(await page.evaluate(() => window.__tdt.fx().live)).toBeGreaterThan(0);
   });
 
   await test.step('ready for 20 s of a wave: the R button pulses', async () => {

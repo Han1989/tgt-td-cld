@@ -131,13 +131,13 @@ describe('waves', () => {
     expect(state.creeps.length).toBeGreaterThan(0);
   });
 
-  it('has 30 waves, wisps from wave 5 and a different boss at waves 10, 20 and 30', () => {
+  it('has 30 waves, wisps from wave 6 and a different boss at waves 10, 20 and 30', () => {
     const list = TUNING.waves.list;
     expect(list).toHaveLength(30);
     const bosses = new Map<number, string>();
     list.forEach((groups, i) => {
       const kinds = groups.map((g) => g.kind);
-      if (i + 1 < 5) expect(kinds).not.toContain('wisp');
+      if (i + 1 < 6) expect(kinds).not.toContain('wisp');
       expect(kinds).not.toContain('hatchling');
       for (const g of groups) {
         if (!TUNING.creeps[g.kind].boss) continue;
@@ -150,7 +150,7 @@ describe('waves', () => {
       [20, 'matriarch'],
       [30, 'shardback'],
     ]);
-    expect(list[4]!.some((g) => g.kind === 'wisp')).toBe(true);
+    expect(list[5]!.some((g) => g.kind === 'wisp')).toBe(true);
   });
 
   it('grows from 12 creeps in wave 1 to 120 in wave 30', () => {

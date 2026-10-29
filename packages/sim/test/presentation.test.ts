@@ -1,5 +1,5 @@
 // What the client needs to show an ultimate (protocol 18): `ultResult` (how many creeps a rain or burst killed, once, when
-// it ends), `heal` (every hero Iron Vow healed, with the HP gained), and the match report's per-ultimate kills and
+// it ends), `heal` (every hero Rampart Slam healed, with the HP gained), and the match report's per-ultimate kills and
 // combos per pair of players. Nothing here changes how the game plays.
 
 import { COMBO_KINDS, COMBO_PARTS, comboOfUltimates, HERO_ULTIMATE, ULTIMATE_KINDS, type GameEvent, type HeroKind, type LaneId } from '@tdt/protocol';
@@ -87,7 +87,7 @@ describe('ultResult', () => {
     expect(got.filter((r) => r.ult === 'arrowStorm')).toHaveLength(1);
   });
 
-  it('Iron Vow reports the creeps its burst killed, at the cast', () => {
+  it('Rampart Slam reports the creeps it killed, at the cast', () => {
     const state = lab(['warden']);
     const hero = state.heroes[0]!;
     hero.x = 13;
@@ -95,12 +95,12 @@ describe('ultResult', () => {
     placeCreep(state, 'grunt', 13.5, 12, 1).hp = 1;
     placeCreep(state, 'grunt', 12.5, 12.5, 1).hp = 1;
     expect(applyCommand(state, 'p1', R)).toBe(true);
-    expect(results(runCollect(state, 2))).toEqual([{ type: 'ultResult', ult: 'ironVow', by: 'p1', kills: 2 }]);
+    expect(results(runCollect(state, 2))).toEqual([{ type: 'ultResult', ult: 'rampartSlam', by: 'p1', kills: 2 }]);
   });
 });
 
 describe('heal', () => {
-  it('Iron Vow reports the HP each living hero gained, and skips the fallen', () => {
+  it('Rampart Slam reports the HP each living hero gained, and skips the fallen', () => {
     const state = lab(['warden', 'ranger', 'arcanist']);
     const [warden, ranger, arcanist] = state.heroes as [(typeof state.heroes)[0], (typeof state.heroes)[0], (typeof state.heroes)[0]];
     ranger.hp = 10;
@@ -109,7 +109,7 @@ describe('heal', () => {
     arcanist.hp = 0;
     expect(applyCommand(state, 'p1', R)).toBe(true);
     const heals = runCollect(state, 1).filter((e): e is Extract<GameEvent, { type: 'heal' }> => e.type === 'heal');
-    const want = Math.round(Math.min(heroMaxHp(state, ranger), 10 + heroMaxHp(state, ranger) * TUNING.hero.warden.ironVow.heal[0]!) - 10);
+    const want = Math.round(Math.min(heroMaxHp(state, ranger), 10 + heroMaxHp(state, ranger) * TUNING.hero.warden.rampartSlam.heal[0]!) - 10);
     expect(heals.map((h) => h.heroId).sort()).toEqual([warden.id, ranger.id].sort());
     expect(heals.find((h) => h.heroId === ranger.id)!.amount).toBe(want);
     expect(want).toBeGreaterThan(0);
@@ -141,7 +141,7 @@ describe('the match report', () => {
     for (let i = 0; i < secondsToTicks(TUNING.hero.ranger.arrowStorm.pulseInterval) + 2; i++) matchStep(match);
     matchCommand(match, 'p3', R);
     for (let i = 0; i < secondsToTicks(TUNING.coop.meteorRain.duration) + 60; i++) matchStep(match);
-    // Later, Bo's Iron Vow and Ana's Arrow Storm: a Stun Storm for Ana + Bo.
+    // Later, Bo's Rampart Slam and Ana's Arrow Storm: a Stun Storm for Ana + Bo.
     state.heroes[0]!.skillCd.R = 0;
     state.heroes[1]!.skillCd.R = 0;
     matchCommand(match, 'p2', R);
@@ -154,7 +154,7 @@ describe('the match report', () => {
       { players: ['p1', 'p3'], combos: { meteorRain: 1, stunStorm: 0, shockwave: 0 } },
     ]);
     const u = coop.ultimates!;
-    expect(Object.keys(u).sort()).toEqual(['arrowStorm', 'ironVow', 'meteor', 'meteorRain', 'shockwave', 'stunStorm']);
+    expect(Object.keys(u).sort()).toEqual(['arrowStorm', 'meteor', 'meteorRain', 'rampartSlam', 'shockwave', 'stunStorm']);
     expect(u.arrowStorm.kills).toBe(3);
     expect(u.meteorRain.casts).toBe(1);
     expect(u.stunStorm.casts).toBe(1);
