@@ -21,6 +21,8 @@ import { dailyTileLine, type DailyToday } from '../daily/text';
 import type { EndlessToday } from '../endless/board';
 import { endlessBest } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
+import { storedRecord } from '../record/record';
+import { fittedLine, recordLines } from '../record/text';
 import { heroIcon, iconVar } from '../render/art/icons';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
@@ -94,6 +96,8 @@ export class LobbyUi {
   private readonly joinBtn = $('lobby-join');
   private readonly role = $('lobby-hero-role');
   private readonly blurb = $('lobby-hero-blurb');
+  /** The picked hero's record in this browser, on the stage under him (record/). */
+  private readonly recordLine = $('lobby-record');
   private readonly roomRole = $('lobby-room-role');
   private readonly roomBlurb = $('lobby-room-blurb');
   private readonly roomCode = $('lobby-room-code');
@@ -150,7 +154,15 @@ export class LobbyUi {
 
     // Play solo starts the match with the card's hero and mode at once, never the lesson; the line under it is how a
     // new player picks the lesson.
-    this.homeMode = new ModePicker($('lobby-mode-home'), storedMode(), storeMode, $('lobby-mode-home-best'));
+    this.homeMode = new ModePicker(
+      $('lobby-mode-home'),
+      storedMode(),
+      (mode) => {
+        storeMode(mode);
+        this.syncRecordLine();
+      },
+      $('lobby-mode-home-best'),
+    );
     this.offline.addEventListener('click', () => solo.playSolo({ hero: this.hero, mode: this.homeMode.mode }));
     $('lobby-learn-btn').addEventListener('click', () => solo.learnToPlay(this.hero));
     // Through the service worker, so a cached old app shell can't survive the refresh.
@@ -174,6 +186,33 @@ export class LobbyUi {
     });
     this.boardCard = new BoardCard(() => this.showHome());
     this.boardLink.addEventListener('click', () => this.showBoard());
+    // The record's line is the longest that fits the stage, so a turned phone or a resized window fits it again.
+    window.addEventListener('resize', () => this.syncRecordLine());
+  }
+
+  /** The hero buttons' marks (both cards) and the line under the picked hero, from this browser's record. */
+  private syncRecord(): void {
+    const record = storedRecord();
+    this.homePicker.showMarks(record);
+    this.roomPicker.showMarks(record);
+    this.syncRecordLine(record);
+  }
+
+  /**
+   * "Ranger · 7 wins · best 94 Heart in Quick" under the picked hero, the picked mode's best first: the richest line
+   * that fits the stage on one line (none before his first finished match).
+   */
+  private syncRecordLine(record = storedRecord()): void {
+    const el = this.recordLine;
+    const lines = recordLines(HERO_INFO[this.hero].name, record.heroes[this.hero], this.homeMode.mode);
+    el.classList.toggle('hidden', lines.length === 0);
+    // Not on screen (a match, the room card): nothing to measure; showHome fits it again.
+    const away = this.root.classList.contains('hidden') || this.home.classList.contains('hidden');
+    if (lines.length === 0 || away) return void (el.textContent = lines[0] ?? '');
+    el.textContent = fittedLine(lines, (line) => {
+      el.textContent = line;
+      return el.scrollWidth <= el.clientWidth;
+    });
   }
 
   /**
@@ -276,6 +315,7 @@ export class LobbyUi {
     this.roomRole.textContent = HERO_INFO[this.hero].role;
     this.roomBlurb.textContent = HERO_INFO[this.hero].blurb;
     this.modePicker.showBest(endlessBest(this.hero));
+    this.roomPicker.showMarks(storedRecord());
   }
 
   /**
@@ -289,6 +329,7 @@ export class LobbyUi {
     this.role.textContent = info.role;
     this.blurb.textContent = info.blurb;
     this.homeMode.showBest(endlessBest(this.hero));
+    this.syncRecord();
   }
 
   /** "New here? Learn to play" until the first solo match; it does not come back on its own (⚙ → Lesson stays). */

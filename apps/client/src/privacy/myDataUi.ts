@@ -44,7 +44,7 @@ export function wireMyData({ copy, erase, state, onDeleted }: MyDataControls): v
     if (armed === null) {
       erase.textContent = 'Tap again to delete';
       erase.classList.add('armed');
-      state.textContent = 'This deletes everything the server holds for this browser and gives it a new id.';
+      state.textContent = 'This deletes everything the server holds for this browser, gives it a new id and clears your record here.';
       armed = window.setTimeout(disarm, CONFIRM_MS);
       return;
     }

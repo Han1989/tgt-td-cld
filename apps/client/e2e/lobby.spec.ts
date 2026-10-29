@@ -508,6 +508,113 @@ for (const size of [
   });
 }
 
+/** A record per hero in this browser (record/record.ts): the Ranger has won Quick, the Arcanist Full, the Warden nothing. */
+const RECORD = {
+  heroes: {
+    ranger: { played: 9, wins: 7, heart: { 'quick-solo': 94 }, daily: { rank: 3, total: 212, day: '2026-10-28' } },
+    warden: { played: 3, wins: 0, heart: {} },
+    arcanist: { played: 12, wins: 5, heart: { 'full-solo': 61, 'quick-coop': 100 } },
+  },
+  last: null,
+};
+
+/** Each hero button's mark: its text (null: none shown), whether it is the star, the name a screen reader hears. */
+function heroMarks(page: Page) {
+  return page.locator('#lobby-heroes-home .hero-pick').evaluateAll((els) =>
+    els.map((el) => {
+      const mark = el.querySelector('.hero-mark')!;
+      return {
+        hero: (el as HTMLElement).dataset.hero,
+        text: mark.classList.contains('hidden') ? null : mark.textContent,
+        star: mark.classList.contains('star'),
+        label: el.getAttribute('aria-label'),
+      };
+    }),
+  );
+}
+
+for (const size of [
+  { width: 412, height: 839 },
+  { width: 360, height: 640 },
+]) {
+  test(`the record at ${size.width} × ${size.height}: a mark on each hero button, a line under the picked hero, and the card does not move`, async ({ page }) => {
+    await page.setViewportSize(size);
+    // With the Daily tile, the stage is at its shortest.
+    await page.route('**/daily/today', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ day: '2026-10-28', seed: 1, closesAt: Date.now() + 3 * 3600_000, runs: 212, champion: { name: 'Kael', heart: 82, ticks: 13_000 } }),
+      }),
+    );
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-daily')).toBeVisible();
+    // A new player: no marks, no line.
+    await expect(page.locator('#lobby-record')).toBeHidden();
+    expect((await heroMarks(page)).map((m) => m.text)).toEqual([null, null, null]);
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    const buttons = () => page.locator('#lobby-heroes-home .hero-pick').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()));
+    const before = { offline: await box(page, '#lobby-offline'), learn: await box(page, '#lobby-learn'), buttons: await buttons(), overflow: await overflow(page) };
+
+    // The record as matches leave it; a pick on the home card reads it again (no reload: the service worker would fetch
+    // the Daily tile's request past this test's route).
+    await page.evaluate((r) => localStorage.setItem('tdt.record', JSON.stringify(r)), RECORD);
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
+    await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
+    // The Ranger's wins; the Arcanist's star (he has won Full); the Warden has no win, so no mark.
+    expect(await heroMarks(page)).toEqual([
+      { hero: 'ranger', text: '7', star: false, label: 'Ranger, 7 wins' },
+      { hero: 'warden', text: null, star: false, label: null },
+      { hero: 'arcanist', text: '★', star: true, label: 'Arcanist, Won Full · 5 wins' },
+    ]);
+    // Each mark sits on its button's top-right corner, on screen, gold; the buttons keep their boxes.
+    expect(await buttons()).toEqual(before.buttons);
+    for (const hero of ['ranger', 'arcanist']) {
+      const b = await box(page, `#lobby-heroes-home .hero-pick[data-hero="${hero}"]`);
+      const m = await box(page, `#lobby-heroes-home .hero-pick[data-hero="${hero}"] .hero-mark`);
+      expect(m.top, hero).toBeLessThan(b.top + 4);
+      expect(m.right, hero).toBeGreaterThan(b.right - 4);
+      expect(m.top, hero).toBeGreaterThanOrEqual(0);
+      expect(m.right, hero).toBeLessThanOrEqual(size.width);
+    }
+    expect(await page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"] .hero-mark').evaluate((el) => getComputedStyle(el).color)).toBe(
+      'rgb(255, 210, 74)',
+    );
+    // The line under the picked hero, on the stage under the title: Full is picked and the Ranger has only won Quick,
+    // so it names Quick; the Daily rank too where it fits. One line, uncut.
+    const line = page.locator('#lobby-record');
+    await expect(line).toBeVisible();
+    await expect(line).toHaveText(/^Ranger · 7 wins · best 94 Heart in Quick( · Daily best #3)?$/);
+    if (size.width >= 412) await expect(line).toHaveText('Ranger · 7 wins · best 94 Heart in Quick · Daily best #3');
+    const fit = await line.evaluate((el) => ({ cut: el.scrollWidth - el.clientWidth, height: el.getBoundingClientRect().height }));
+    expect(fit.cut).toBeLessThanOrEqual(0);
+    expect(fit.height).toBeLessThan(26);
+    const stage = await box(page, '#lobby-stage');
+    const logo = await box(page, '#lobby-stage .stage-logo');
+    const lineBox = await box(page, '#lobby-record');
+    expect(lineBox.top).toBeGreaterThanOrEqual(logo.bottom);
+    expect(lineBox.bottom).toBeLessThanOrEqual(stage.bottom);
+    expect(lineBox.left).toBeGreaterThanOrEqual(stage.left);
+    expect(lineBox.right).toBeLessThanOrEqual(stage.right);
+    // Nothing moved: Play solo, the lesson line and the card's height are as they were with no record.
+    expect(await box(page, '#lobby-offline')).toEqual(before.offline);
+    expect(await box(page, '#lobby-learn')).toEqual(before.learn);
+    expect(await overflow(page)).toBe(before.overflow);
+    expect((await box(page, '#lobby-learn')).bottom).toBeLessThanOrEqual(size.height);
+    await onScreen(page, 'lobby-offline');
+    // Another hero, another line; the picked mode's best comes first.
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();
+    await expect(line).toHaveText('Warden · 3 matches played');
+    await page.locator('#lobby-heroes-home .hero-pick[data-hero="arcanist"]').click();
+    await expect(line).toHaveText('Arcanist · 5 wins · best 61 Heart in Full');
+    await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+    // The longest line: on a 360 px phone the name gives way before the best does.
+    await expect(line).toHaveText(size.width >= 412 ? 'Arcanist · 5 wins · best 100 Heart in Quick co-op' : /^(Arcanist · )?5 wins · best 100 Heart in Quick co-op$/);
+    expect(await line.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await box(page, '#lobby-offline')).toEqual(before.offline);
+  });
+}
+
 /** Each Mode segment shows its name and its waves on one line, inside the segment: the labels shrink before they wrap. */
 async function modeRowFits(page: Page, row = '#lobby-mode-home'): Promise<void> {
   const segs = await page.locator(`${row} .mode-pick`).evaluateAll((els) =>

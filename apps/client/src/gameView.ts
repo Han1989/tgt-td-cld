@@ -659,6 +659,8 @@ export class GameView {
         sent,
         /** Solo: ends the match in defeat at once (the Heart drops to 0), to reach the end screen. */
         lose: () => view.transport?.debug?.('lose'),
+        /** Solo: ends the match in victory on the next tick, the Heart as it is (the record's "Personal best"). */
+        win: () => view.transport?.debug?.('win'),
         /** Solo: every tower drops to 30% of its HP (the Repair button and the repair hint). */
         damageTowers: () => view.transport?.debug?.('damageTowers'),
         /** Solo: wave `wave` starts on the next tick (an Endless match past wave 30). */

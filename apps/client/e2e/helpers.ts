@@ -14,6 +14,8 @@ export interface Box {
 interface Hook {
   sent: { type: string; [k: string]: unknown }[];
   lose: () => void;
+  /** Solo: the last wave is cleared, so the match ends in victory on the next tick with the Heart as it is. */
+  win: () => void;
   /** Solo: every tower drops to 30% of its HP. */
   damageTowers: () => void;
   /** Solo: wave `wave` starts on the next tick (an Endless match past wave 30). */

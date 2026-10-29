@@ -51,15 +51,16 @@ describe('progress dashboard data', () => {
     // V-07e (closer: the art at a size you can see on a phone, bigger units and a pinch zoom; PR #147), V-07d (the
     // first minute's art, no 2D stand-ins in a first match; PR #148), V-07c-look (the map in grass green, three looks
     // for Han, images only; PR #149), V-07c (the map in Spring meadow, Han's pick, with the light pools; PR #150) and
-    // f3-look (retest fix A: the towers and the lobby Warden readable in the new light; PR #151), and f3-boards
-    // (retest fix C: Endless's daily top 10, posted on its own; PR #153).
-    expect(summary.done).toBe(93);
+    // f3-look (retest fix A: the towers and the lobby Warden readable in the new light; PR #151), f3-boards
+    // (retest fix C: Endless's daily top 10, posted on its own; PR #153), and n-stars (progress saved in this
+    // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154).
+    expect(summary.done).toBe(94);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
     // round 2 PR #120), V-05d (the towers, the Heart and the portals in 3D, PR #118) and V-05e (the stress budget after
     // the 3D sprites, PR #121) are done, and V-05a (PR #106) is closed as superseded by V-05b.
-    expect(summary.open).toBe(40);
+    expect(summary.open).toBe(39);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
     // The presentation pass has no open row.
@@ -110,6 +111,7 @@ describe('progress dashboard data', () => {
       'V-07c': 150,
       'f3-look': 151,
       'f3-boards': 153,
+      'n-stars': 154,
       'D-09': 98,
       'H-07': 98,
     };
@@ -155,7 +157,7 @@ describe('progress dashboard data', () => {
     expect(byId('P2-05').note).toContain('P2-04b');
     expect(byId('P2-04').note.toLowerCase()).toContain('combo');
     expect(byId('P2-05').owner).toBe('Han');
-    for (const id of ['H-09', 'T-07', 'D-02', 'D-03', 'D-04', 'D-06', 'L-01', 'L-02', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
+    for (const id of ['H-09', 'T-07', 'D-02', 'D-03', 'D-04', 'D-06', 'L-01', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
       expect(byId(id).status).toBe('todo');
     }
     for (const id of ['H-02', 'H-06', 'H-07', 'H-08', 'D-09']) expect(byId(id).status).toBe('done');
@@ -183,11 +185,13 @@ describe('progress dashboard data', () => {
   it('lists the order from here first, top to bottom, and holds the Later rows until D-06', () => {
     const order = PROGRESS.items.filter((item) => item.section === 'order').map((item) => item.id);
     // D-10 is needed before the first post, not before the retest or the cold test. T-07a (creeps that cannot be
-    // kited, from the first cold tester) sits with the fix round.
-    expect(order).toEqual(['D-09', 'H-08', 'P2-05', 'H-09', 'T-07', 'T-07a', 'D-10', 'D-02', 'D-03', 'D-04', 'D-06']);
+    // kited, from the first cold tester) sits with the fix round, and so does n-stars (progress saved in this browser,
+    // L-02 pulled ahead of the gate by Han on 28 Oct 2026).
+    expect(order).toEqual(['D-09', 'H-08', 'P2-05', 'H-09', 'T-07', 'T-07a', 'n-stars', 'D-10', 'D-02', 'D-03', 'D-04', 'D-06']);
     expect(PROGRESS.sections[0]!.id).toBe('order');
     expect(PROGRESS.sections[0]!.blurb).toContain('On hold until D-06 is called');
-    expect(PROGRESS.items.filter((item) => item.section === 'after').map((item) => item.id)).toEqual(['L-01', 'L-02']);
+    expect(PROGRESS.items.filter((item) => item.section === 'after').map((item) => item.id)).toEqual(['L-01']);
+    expect(PROGRESS.items.some((item) => item.id === 'L-02')).toBe(false);
     // The presentation pass (Han, 10 Oct 2026) is the one exception to the hold: current work, in its own section
     // after the order, not on the overnight auto-pull list.
     expect(PROGRESS.sections[1]!.id).toBe('visual');

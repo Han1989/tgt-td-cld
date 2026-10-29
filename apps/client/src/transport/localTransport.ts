@@ -26,7 +26,7 @@ export class LocalTransport implements Transport {
     this.worker.postMessage(encodeClientMessage(msg));
   }
 
-  debug(ctl: 'lose' | 'damageTowers' | 'skipTo' | 'level', wave?: number): void {
+  debug(ctl: 'lose' | 'win' | 'damageTowers' | 'skipTo' | 'level', wave?: number): void {
     if (import.meta.env.MODE === 'e2e') this.worker.postMessage({ ctl, wave });
   }
 

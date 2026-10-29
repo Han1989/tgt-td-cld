@@ -7,7 +7,7 @@
 // after a post that went through, **Share my run** hands over the share card (share/: the rank, the run, the nickname
 // as the board shows it, the hero) with a link back; never by itself.
 
-import { MAX_NAME_LENGTH, normalizeName, type MatchReport, type Replay } from '@tdt/protocol';
+import { MAX_NAME_LENGTH, normalizeName, type HeroKind, type MatchReport, type Replay } from '@tdt/protocol';
 import { currentAgeBand } from '../analytics/age';
 import { storedName, storeName } from '../lobby/nickname';
 import { askAge } from '../privacy/ageCheck';
@@ -64,10 +64,14 @@ export class DailyEndCard {
   private face: DailyFace | null = null;
   private readonly cards = new CardShare();
 
-  /** `toast` shows the share's outcome on the end card ("Card saved, link copied"). */
+  /**
+   * `toast` shows the share's outcome on the end card ("Card saved, link copied"); `posted` hears a post that went
+   * through, with the hero that ran it (the record per hero keeps the best rank, record/).
+   */
   constructor(
     private readonly send: Post = postRun,
     private readonly toast: (text: string) => void = () => {},
+    private readonly posted: (result: PostResult, hero: HeroKind) => void = () => {},
   ) {
     this.name.maxLength = MAX_NAME_LENGTH;
     this.placeNum.className = 'num';
@@ -145,6 +149,7 @@ export class DailyEndCard {
     if (outcome.ok) {
       const played = file.replay.players[0]?.hero ?? 'ranger';
       this.face = dailyFace(outcome.result, name, played);
+      this.posted(outcome.result, played);
       return this.reveal(outcome.result);
     }
     this.msg.textContent = postErrorLine(outcome.code);

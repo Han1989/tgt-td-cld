@@ -28,7 +28,7 @@ const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebK
 const android = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 describe('acquisition channel', () => {
-  it('uses the nine channel ids the server accepts', () => {
+  it('uses the thirteen channel ids the server accepts', () => {
     expect(CHANNELS).toEqual([
       'friends',
       'cold',
@@ -36,6 +36,10 @@ describe('acquisition channel', () => {
       'reddit-webgames',
       'reddit-towerdefense',
       'crazygames',
+      'itch',
+      'newgrounds',
+      'hn',
+      'discord',
       'share',
       'other',
       'direct',
@@ -58,6 +62,32 @@ describe('acquisition channel', () => {
     expect(channelFromSearch('', '', 'friends')).toEqual({ channel: 'friends', save: false, clear: false });
     expect(channelFromSearch('', 'https://discord.com/', 'cold')).toEqual({ channel: 'cold', save: false, clear: false });
     expect(channelFromSearch('?src=direct', '', 'cold')).toEqual({ channel: 'direct', save: false, clear: true });
+  });
+
+  it('reads the itch.io, Newgrounds, Hacker News, Discord and CrazyGames tags and their aliases, and remembers them', () => {
+    const tags: [string, string[]][] = [
+      ['itch', ['itch', 'ITCH', 'itchio', 'itch.io', 'itch-io', 'itch_devlog']],
+      ['newgrounds', ['newgrounds', 'NewGrounds', 'newground', 'new-grounds', 'newgrounds-portal']],
+      ['hn', ['hn', 'HN', 'hackernews', 'hacker-news', 'showhn', 'show-hn', 'ycombinator', 'hn_launch']],
+      ['discord', ['discord', 'Discord', 'discordapp', 'discord-td-server', 'td_discord']],
+      ['crazygames', ['crazygames', 'crazy-games', 'crazygames-portal']],
+    ];
+    for (const [channel, aliases] of tags) {
+      for (const tag of aliases) {
+        expect(channelFromSearch(`?src=${encodeURIComponent(tag)}`, '', null), tag).toEqual({ channel, save: true, clear: false });
+        expect(channelFromSearch(`?utm_source=${encodeURIComponent(tag)}`, '', 'friends'), tag).toMatchObject({ channel, save: true });
+      }
+      // A later visit with no tag keeps it, also behind another site's referrer; ?src=direct forgets it.
+      expect(channelFromSearch('', '', channel)).toEqual({ channel, save: false, clear: false });
+      expect(channelFromSearch('', 'https://www.reddit.com/', channel)).toEqual({ channel, save: false, clear: false });
+      expect(channelFromSearch('?src=direct', '', channel)).toEqual({ channel: 'direct', save: false, clear: true });
+    }
+    // The older ids keep a tag that also names one of these.
+    expect(channelFromSearch('?src=friends-discord', '', null).channel).toBe('friends');
+    expect(channelFromSearch('?src=cold-hn', '', null).channel).toBe('cold');
+    // A boundary is needed: a word that merely contains one is no tag of ours.
+    expect(channelFromSearch('?src=switch', '', null)).toEqual({ channel: 'other', save: false, clear: true });
+    expect(channelFromSearch('?src=john', '', null)).toEqual({ channel: 'other', save: false, clear: true });
   });
 
   it('reads a share card’s tag and its aliases, remembers it, and leaves another channel’s share-suffixed tag alone', () => {

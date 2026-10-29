@@ -80,7 +80,13 @@ Every post, and every message to testers, uses its channel's link (ANALYTICS.md)
 | r/WebGames | `https://tgt-td-cld.vercel.app/?src=reddit-webgames` |
 | r/TowerDefense | `https://tgt-td-cld.vercel.app/?src=reddit-towerdefense` |
 | CrazyGames | `https://tgt-td-cld.vercel.app/?src=crazygames` |
+| itch.io (the game's page and its devlog) | `https://tgt-td-cld.vercel.app/?src=itch` |
+| Newgrounds | `https://tgt-td-cld.vercel.app/?src=newgrounds` |
+| Hacker News (Show HN) | `https://tgt-td-cld.vercel.app/?src=hn` |
+| Discord (any server or DM) | `https://tgt-td-cld.vercel.app/?src=discord` |
 | Players' share cards (written by the game, never posted by hand) | `https://tgt-td-cld.vercel.app/?src=share` |
+
+**itch.io, Newgrounds, Hacker News and Discord** (Han, 28 Oct 2026): each its own link, so each gets its row and its first-visit funnel. Only the tag counts (their referrers land in **Other**), so a portal page that frames the game uses the tagged URL as the frame's address too, as CrazyGames does.
 
 **Players' share cards** (p6d-share, `docs/GAME_DESIGN.md` "Daily run"): after a posted Daily run (**Share my run**) and on an Endless end screen (**Share**), a player's tap makes a 1200 × 630 picture of their result in the game's own look (the hero's stage poster, the gold trim, the wordmark) and shares it with the link `<the page's origin>/?src=share`, so every visit from one counts under **Shared cards** in the dashboard. It is not the link card above: that one is `og-card.png`, what crawlers show under any link. Examples: `docs/screenshots/daily-share/`.
 

@@ -149,6 +149,8 @@
           <div id="lobby-stage" class="hero-stage">
             <h1 class="logo stage-logo">Tower Defense <span>Together</span></h1>
             <canvas class="hero-stage-figure" aria-hidden="true"></canvas>
+            <!-- The picked hero's record in this browser (record/), under him: shown after his first finished match. -->
+            <p id="lobby-record" class="stage-record hidden" aria-live="polite"></p>
           </div>
           <div id="lobby-heroes-home" class="hero-picks hero-tabs" role="group" aria-label="Hero"></div>
           <p class="hero-blurb" aria-live="polite"><b id="lobby-hero-role" class="hero-role"></b><span id="lobby-hero-blurb"></span></p>
@@ -361,6 +363,7 @@
             <button id="settings-data-delete" class="btn" type="button">Delete my data</button>
           </div>
           <p id="settings-data-state" class="settings-note" role="status" aria-live="polite">A copy of what the game server holds for this browser, or delete it. Delete also gives this browser a new id.</p>
+          <p id="settings-record-note" class="settings-note">Kept in this browser only, never sent: your record per hero (matches played, wins, best Heart in Full and Quick, best Daily rank) and Endless's best waves. Delete my data clears them too.</p>
           <p class="settings-note">A Daily run's Post my run sends your nickname, the run's replay of your inputs and this browser's id, with play data on or off. The run shows on that day's public board under your nickname, is kept 90 days, and goes with Delete my data. <a href="/privacy.html#daily" target="_blank" rel="noopener">Privacy</a></p>
         </section>
         <section>
@@ -460,6 +463,8 @@
             </div>
             <div id="end-stats" class="end-stats">
               <p id="end-text"></p>
+              <!-- The record per hero, kept in this browser (record/): shown when a number improved. -->
+              <p id="end-record" class="end-record hidden" role="status"></p>
               <ul id="end-gifts" class="end-gifts hidden"></ul>
               <ul id="end-ults" class="end-gifts end-ults hidden"></ul>
             </div>
