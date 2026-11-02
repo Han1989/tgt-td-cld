@@ -8,6 +8,7 @@ dist-e2e/
 test-results/
 playwright-report/
 dist-firstload/
+dist-press/
 # Hosted builds (npm run build:embed): built, never committed.
 dist-embed-*/
 embed-*.zip

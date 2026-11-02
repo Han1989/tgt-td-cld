@@ -11,6 +11,6 @@ Spire's ground rendered ahead of time in Blender as one picture (`docs/ART.md` �
 | `crop-300-lane-edge.webp` | The West road's edge and the moss beside it, the same way |
 | `crop-300-safe-zone-shade.webp` | The safe zone's edge sinking into shade (under the touch controls), the same way |
 | `plate-overview.webp` | The plate itself, scaled to half (832 × 1600) |
-| `press/1-quick-build-phase.webp`, `press/2-boss-wave.webp`, `press/3-practice-meteor-rain.webp` | The press screenshots (`docs/PRESS.md` §2) at Pixel 7 size (412 × 915): a Quick build phase with a tower ring open, the wave-5 boss on the Mid lane, Practice Meteor Rain as the rains land |
+| (the press screenshots) | Moved: the current set is in [`docs/screenshots/press/`](../press/) (`npm run press-shots -w @tdt/client`, `docs/PRESS.md` §2); the V-03 set taken here was replaced on 2 Nov 2026 |
 
 Taken in headless Chromium (software GL) from the e2e build; the game draws the same frame on a phone's GPU.

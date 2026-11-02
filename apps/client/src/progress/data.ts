@@ -43,6 +43,7 @@
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
  * n-stars on 29 Oct 2026 (PR #154: progress saved in this browser, L-02 pulled ahead of D-06 into Now; the new link tags).
  * e-embed on 2 Nov 2026 (PR #155: the hosted build, one zip that runs inside itch.io, Newgrounds and CrazyGames).
+ * e-press on 2 Nov 2026 (PR #156: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1316,6 +1317,15 @@ const items: ProgressItem[] = [
     section: 'earlier',
     note: 'How the game is built and served, plus the hosts’ origins on the game server; no game rules or protocol change. Han, 2 Nov 2026: the game goes on itch.io as a game played in itch.io’s own page, not a link to the site, and Newgrounds and CrazyGames take the same zip later. One command builds the zip; inside the host’s frame the game is never installed and shows no update banner, its invite links, share cards and privacy links go to the real site (a friend invited from itch.io plays on the site, in the same room), every visit counts under the host’s link tag, a fullscreen button sits on the first screen where the host allows it, and with no storage it sends no play data at all. The site’s own build is unchanged byte for byte. A local harness serves the zip as a host does, and a browser test plays it there: a match, a tower, a room joined from the site. Han uploads it to itch.io as a draft and tries it on his phone first.',
     proof: pr(155),
+  },
+  {
+    id: 'e-press',
+    title: 'Press stills on the current build, and the store covers',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Images, one script and docs; nothing in the game changes. The game goes on itch.io this week, then Newgrounds and CrazyGames (Han, 2 Nov 2026). Seven screenshots of real matches on today’s build, a phone’s whole screen and one desktop, each also at twice the size for sharp screens: the build phase with a tower’s ring open, the Ironhorn under its banner, Meteor Rain in a room of two, the Warden’s slam, a victory, Endless’s daily top 10 and the desktop view. And the store covers, made from the game’s own art only (the heroes from their first-screen posters, the meadow in a wave, the title as the lobby draws it): itch.io, Newgrounds and CrazyGames in each store’s sizes, a 2400 × 900 banner of the three heroes, and one labelled sheet to pick from. Built by Claude Code (PR #156).',
+    proof: pr(156),
   },
   {
     id: 'p5-rest',

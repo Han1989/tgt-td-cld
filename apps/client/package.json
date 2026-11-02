@@ -18,6 +18,7 @@
     "structures-contact": "tsx scripts/structuresContact.ts",
     "ground-check": "tsx scripts/groundCheck.ts",
     "share-cards": "tsx scripts/shareCards.ts",
+    "press-shots": "tsx scripts/pressShots.ts",
     "build:embed": "tsx scripts/buildEmbed.ts",
     "embed:serve": "tsx scripts/embedServe.ts"
   },
