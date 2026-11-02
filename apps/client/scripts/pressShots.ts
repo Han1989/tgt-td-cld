@@ -718,6 +718,9 @@ async function bossBannerHeld(page: Page, start: () => Promise<void>): Promise<v
   );
 }
 
+/** The Ironhorn out of its portal and on the Mid road. */
+const IRONHORN_OUT = `(() => { const b = window.__tdt.latest().creeps.find((c) => c.kind === 'ironhorn'); return !!b && b.y > 4; })()`;
+
 /** The Ironhorn is between the banner (rows 8–12 on a phone) and the lane roles under it (row 22 on): rows 13–19. */
 const IRONHORN_UNDER_BANNER = `(() => { const b = window.__tdt.latest().creeps.find((c) => c.kind === 'ironhorn'); return !!b && b.y > 13.5; })()`;
 
@@ -1011,9 +1014,12 @@ async function shot7(browser: Browser, url: string): Promise<void> {
   await skipTo(page, 9);
   await page.waitForTimeout(8000);
   await skipTo(page, 10);
-  await until(page, 'the Ironhorn on its road', IRONHORN_ON_ROAD, 90_000);
+  await until(page, 'the Ironhorn out of its portal', IRONHORN_OUT, 90_000);
   await learnDesktop(page);
-  await noToast(page, 6000);
+  // Wave 10 again, as in shot 2: its banner and a new stream of creeps out of the three portals, the first Ironhorn
+  // coming down the Mid road to the Warden.
+  await bossBannerHeld(page, () => skipTo(page, 10));
+  await page.waitForTimeout(900);
   await hold(page);
   await clean(page);
   await shoot(page, 7);
@@ -1031,9 +1037,12 @@ async function coverFrame(page: Page): Promise<void> {
   await page.waitForTimeout(800);
   await page.addStyleTag({ content: '#hud, #hud * { visibility: hidden !important; } .vignette { display: none !important; }' });
   await page.evaluate(() => {
-    const c = (window as any).__tdt.camera;
+    const t = (window as any).__tdt;
+    const c = t.camera;
+    // Round the wave: the Ironhorn on the Mid road and the creeps out of the portals, the towers either side.
+    const b = t.latest().creeps.find((x: any) => x.kind === 'ironhorn');
     c.zoomAt(4, c.viewW / 2, c.viewH / 2);
-    c.centerOn(13 * 32, 25 * 32);
+    c.centerOn(13 * 32, Math.max(8, Math.min(20, (b?.y ?? 10) + 1)) * 32);
   });
   await page.waitForTimeout(900);
   writeFileSync(join(work, 'cover-meadow.png'), await page.screenshot({ type: 'png' }));
@@ -1125,7 +1134,28 @@ window.press = (() => {
       if (y > 0) stack.push(i - w);
       if (y < h - 1) stack.push(i + w);
     }
-    const outside = grow(out, 3, 1);
+    const grown = grow(out, 3, 1);
+    // Only the hero: the largest piece inside (the posters' fireflies are pieces of their own).
+    const label = new Int32Array(n);
+    let best = 0, bestSize = 0, next = 0;
+    for (let i = 0; i < n; i++) {
+      if (grown[i] || label[i]) continue;
+      next++;
+      let size = 0;
+      const todo = [i];
+      label[i] = next;
+      while (todo.length) {
+        const j = todo.pop();
+        size++;
+        const x = j % w, y = (j - x) / w;
+        for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) {
+          if (k >= 0 && !grown[k] && !label[k]) { label[k] = next; todo.push(k); }
+        }
+      }
+      if (size > bestSize) { bestSize = size; best = next; }
+    }
+    const outside = new Uint8Array(n);
+    for (let i = 0; i < n; i++) outside[i] = label[i] === best ? 0 : 1;
     const fig = canvas(w, h), fg = fig.getContext('2d'), F = fg.createImageData(w, h);
     const sh = canvas(w, h), sg = sh.getContext('2d'), S = sg.createImageData(w, h);
     const lum = (A, k) => 0.2126 * A[k] + 0.7152 * A[k + 1] + 0.0722 * A[k + 2];
@@ -1352,9 +1382,13 @@ async function covers(browser: Browser): Promise<void> {
           logo: square ? [0.5, 0.05, 0.62] : [0.33, c.w / c.h > 1.9 ? 0.2 : 0.16, 0.4],
         });
         const shot = await grab(c.w * S, c.h * S);
-        const [png] = await scale(browserOf, shot, [{ w: c.w, h: c.h, type: 'image/png' }]);
-        writeFileSync(join(pressDir, c.file), png!);
-        console.log(`${join(pressDir, c.file)}: ${c.w} × ${c.h}, ${(png!.length / 1024).toFixed(0)} KB`);
+        const [full] = await scale(browserOf, shot, [{ w: c.w, h: c.h, type: 'image/png' }]);
+        // 256 colours with a light dither, as the link card (scripts/ogImage.ts): a third the bytes, the same look.
+        const img = decodePng(full!);
+        const q = quantize(img, 256, 0.5);
+        const png = encodeIndexedPng(img.width, img.height, q.indices, q.palette);
+        writeFileSync(join(pressDir, c.file), png);
+        console.log(`${join(pressDir, c.file)}: ${c.w} × ${c.h}, ${(png.length / 1024).toFixed(0)} KB (${(full!.length / 1024).toFixed(0)} KB before)`);
       }
     }
   } finally {
