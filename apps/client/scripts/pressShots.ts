@@ -836,7 +836,8 @@ async function shot3(browser: Browser): Promise<void> {
       { at: { x: 9, y: 13 }, kind: 'arcane', tier: 1 },
       { at: { x: 2.5, y: 13 }, kind: 'arrow', tier: 1 },
     ]);
-    await walkTo(page, ROAD.mid - 1.5, 17);
+    const SPOT = { x: ROAD.mid - 3.6, y: 31.5 };
+    await walkTo(page, SPOT.x, SPOT.y);
     const mine = () =>
       page.evaluate(() => {
         const t = (window as any).__tdt;
@@ -860,10 +861,10 @@ async function shot3(browser: Browser): Promise<void> {
       if (Date.now() > end) throw new Error(`no full wave with both ultimates ready: ${JSON.stringify(await mine())}`);
       await learnAll(page);
       const m = await mine();
-      // On wave 6 the Ranger takes his spot above where the fuse ribbon sits (rows 20–28 on a phone), before the lanes
-      // fill: a ranged hero drifts toward his targets as waves come.
+      // On wave 6 the Ranger takes his spot beside the Heart, under where the fuse ribbon sits (rows 20–28 on a
+      // phone) and clear of the Arcanist, who keeps to the Heart.
       if (m.wave >= 6 && !placed) {
-        await walkTo(page, ROAD.mid - 1.5, 17);
+        await walkTo(page, SPOT.x, SPOT.y);
         placed = true;
         continue;
       }
@@ -878,6 +879,9 @@ async function shot3(browser: Browser): Promise<void> {
     }
     // Both ultimates within a moment of each other: the bot stops deciding, the Ranger casts, the bot answers.
     bot.acting = false;
+    // Back on his spot if he drifted or fell (a few steps from where he rises).
+    const at = await heroAt(page);
+    if (Math.hypot(at.x - SPOT.x, at.y - SPOT.y) > 1.2) await walkTo(page, SPOT.x, SPOT.y);
     console.log('  the Ranger at', JSON.stringify(await heroAt(page)));
     // The fuse held 1.1 s into the ribbon's own animation (`fuse-ribbon`, 2 s), when the combo's meteors are falling
     // on the three lanes (its first instant is a white burst).
