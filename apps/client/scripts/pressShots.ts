@@ -576,6 +576,7 @@ async function clean(page: Page): Promise<void> {
 }
 
 /** Taps a skill button (smart cast). */
+const castSlot = (page: Page, slot: 'Q' | 'W' | 'E' | 'R') => cast(page, slot);
 async function cast(page: Page, slot: 'Q' | 'W' | 'E' | 'R'): Promise<void> {
   const b = page.locator(`.tskill[data-slot="${slot}"] .tskill-btn`);
   const box = (await b.boundingBox())!;
@@ -911,17 +912,33 @@ async function shot4(browser: Browser, url: string): Promise<void> {
 async function shot5(browser: Browser, url: string): Promise<void> {
   const ctx = await context(browser, false);
   const page = await newPage(ctx);
-  await solo(page, url, 'arcanist', 'quick');
-  await buildPhone(page, WAVE10.slice(0, 10));
-  await walkTo(page, ROAD.mid - 1.5, 18);
-  for (const w of [4, 7, 10, 13]) {
+  // A won Quick match: shot 1's map (the lab's gold spent), the Arcanist by the Heart with her Meteor, waves played
+  // with their kills, then the e2e `win()`.
+  await solo(page, url, 'arcanist', 'quick', '?lab&ult');
+  await buildPhone(page, BUILT);
+  await walkTo(page, ROAD.mid - 1.6, 26);
+  let cast = false;
+  for (const w of [5, 9, 13]) {
     await skipTo(page, w);
-    await page.waitForTimeout(12_000);
+    const end = Date.now() + 14_000;
+    while (Date.now() < end) {
+      // Her Meteor on a full wave, once, so the end card lists its kills.
+      if (!cast && (await latest(page)).creeps.length >= 14) {
+        await castSlot(page, 'R');
+        cast = true;
+      }
+      await page.waitForTimeout(500);
+    }
   }
+  await page.evaluate(() => (window as any).__tdt.setLevel(9));
+  await learnAll(page);
+  await spendDown(page);
+  await until(page, 'the Arcanist standing', `(() => { const t = window.__tdt; return t.latest().heroes.find((h) => h.owner === t.me()).alive; })()`, 30_000);
   await page.evaluate(() => (window as any).__tdt.win());
   await page.waitForSelector('#end-screen:not(.hidden)', { timeout: 20_000 });
-  // The numbers counted up (the end card's count-up), and the emblem landed.
+  // The emblem landed and the numbers counted up.
   await page.waitForTimeout(5000);
+  await hold(page);
   await shoot(page, 5, { art: false });
   await ctx.close();
 }
@@ -977,8 +994,8 @@ async function shot7(browser: Browser, url: string): Promise<void> {
   const page = await newPage(ctx);
   await solo(page, url, 'warden', 'full', '?lab&ult');
   await buildDesktop(page, WAVE10);
-  await page.evaluate(() => (window as any).__tdt.setLevel(7));
-  await walkToDesktop(page, ROAD.mid - 0.5, 15);
+  await page.evaluate(() => (window as any).__tdt.setLevel(8));
+  await walkToDesktop(page, ROAD.mid - 0.5, 18.5);
   await skipTo(page, 9);
   await page.waitForTimeout(8000);
   await skipTo(page, 10);
