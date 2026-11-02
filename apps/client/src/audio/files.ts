@@ -153,3 +153,14 @@ export function fitFile(channels: readonly Float32Array[], rate: number, target:
  * doesn't jump.
  */
 export const MUSIC_TARGET_DB = -15;
+
+/**
+ * A hosted build's files (docs/DEPLOY.md "Hosted builds"): the site's paths (`/music/lobby.mp3?v=…`) resolved against
+ * the page's own folder, wherever the host put the upload (`base`, the document's base URL).
+ */
+export function rebaseSoundFiles(files: SoundFiles, base: string): SoundFiles {
+  const at = (url: string) => new URL(url.replace(/^\//, ''), base).href;
+  const map = <K extends string>(rec: Partial<Record<K, string>>) =>
+    Object.fromEntries(Object.entries(rec).map(([k, v]) => [k, at(v as string)])) as Partial<Record<K, string>>;
+  return { music: map(files.music), sfx: map(files.sfx) as Record<string, string>, gains: { ...files.gains } };
+}

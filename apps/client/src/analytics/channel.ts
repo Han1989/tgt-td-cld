@@ -161,3 +161,15 @@ export function channelFromSearch(search: string, referrer: string, stored: stri
     stored,
   });
 }
+
+/**
+ * A hosted build's channel (`npm run build:embed`, docs/ANALYTICS.md "Hosted builds"): the host's own (`baked`) for
+ * every visit whose URL carries no tag, never a referrer's or one saved from an earlier visit; a tag (`?src=`,
+ * `utm_source`, `utm_campaign`) still wins, as on the site. Nothing is saved: every visit from the host has it.
+ */
+export function hostedChannel(search: string, referrer: string, stored: string | null, baked: Channel): ChannelChoice {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const tagged = ['src', 'utm_source', 'utm_campaign'].some((k) => (params.get(k) ?? '').trim() !== '');
+  if (!tagged) return { channel: baked, save: false, clear: false };
+  return channelFromSearch(search, referrer, stored);
+}

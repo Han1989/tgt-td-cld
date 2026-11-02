@@ -74,7 +74,33 @@ function $(id: string): HTMLElement {
   return el;
 }
 
-/** Invite link for a room: the current page with `?room=CODE`. */
+/**
+ * A hosted build's copy where the frame may not use the clipboard API: the text selected in a field off screen and
+ * copied the old way, inside the tap. True when the browser says it copied.
+ */
+function copySelected(text: string): boolean {
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.readOnly = true;
+  field.setAttribute('aria-hidden', 'true');
+  field.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(field);
+  try {
+    field.select();
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    field.remove();
+  }
+}
+
+/** A hosted build's way to the real game, in a new tab (the host's page stays). */
+function openCanonical(canonical: string): void {
+  window.open(`${canonical}/`, '_blank', 'noopener');
+}
+
+/** Invite link for a room: the current page with `?room=CODE` (a hosted build: the real game's, `__EMBED__`). */
 export function inviteLink(code: string, href = location.href): string {
   const url = new URL(href);
   url.search = '';
@@ -165,8 +191,9 @@ export class LobbyUi {
     );
     this.offline.addEventListener('click', () => solo.playSolo({ hero: this.hero, mode: this.homeMode.mode }));
     $('lobby-learn-btn').addEventListener('click', () => solo.learnToPlay(this.hero));
-    // Through the service worker, so a cached old app shell can't survive the refresh.
-    this.refresh.addEventListener('click', () => void updateAndReload());
+    // Through the service worker, so a cached old app shell can't survive the refresh. A hosted build's upload is fixed:
+    // a reload would load the same files, so it opens the real game instead.
+    this.refresh.addEventListener('click', () => void (__EMBED__ ? openCanonical(__EMBED__.canonical) : updateAndReload()));
     this.stage = new HeroStage($('lobby-stage'), HERO_KINDS, this.hero);
     this.homePicker = new HeroPicker($('lobby-heroes-home'), this.hero, (hero) => {
       this.hero = hero;
@@ -306,10 +333,12 @@ export class LobbyUi {
     this.start.addEventListener('click', () => actions.start());
     $('lobby-copy').addEventListener('click', () => {
       if (!this.current) return;
-      const link = inviteLink(this.current.code);
+      // A hosted build's invite opens the real game, never the host's frame URL (docs/DEPLOY.md "Hosted builds").
+      const link = __EMBED__ ? inviteLink(this.current.code, `${__EMBED__.canonical}/`) : inviteLink(this.current.code);
       navigator.clipboard?.writeText(link).then(
         () => this.flash('Invite link copied'),
-        () => this.flash(link),
+        // A host's frame may not write the clipboard (itch.io's has no clipboard-write): copy the selected link instead.
+        () => (__EMBED__ && copySelected(link) ? this.flash('Invite link copied') : this.flash(link)),
       );
     });
   }
@@ -379,7 +408,8 @@ export class LobbyUi {
 
   /** The server runs another protocol version: ask for a reload. */
   showVersionMismatch(): void {
-    this.showHome('New version available — refresh');
+    this.showHome(__EMBED__ ? `New version available at ${new URL(__EMBED__.canonical).host}` : 'New version available — refresh');
+    if (__EMBED__) this.refresh.textContent = 'Play the new version';
     this.refresh.classList.remove('hidden');
     this.refresh.focus();
   }

@@ -18,6 +18,10 @@ let reloading = false;
 
 /** Registers the service worker (production builds only) and shows the update banner when a new version waits. */
 export function setupPwa(): void {
+  if (__EMBED__) {
+    setupHosted();
+    return;
+  }
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     installEvent = e as InstallPromptEvent;
@@ -59,6 +63,44 @@ export function setupPwa(): void {
         // No offline support (e.g. private mode); the game still works online.
       });
   });
+}
+
+/**
+ * A hosted build (docs/DEPLOY.md "Hosted builds"): a game site serves one fixed upload in its frame, so there is no
+ * install (no manifest, no prompt, no iPhone sheet) and no update banner (a reload would load the same files). The
+ * service worker (`sw.js` beside index.html, its caches named after the upload's folder) is registered where it can
+ * work: a secure context whose browser lets this frame have one. If it can't, the game runs without it: the sheets load
+ * as they do on a first visit. `<html data-sw>` says which (`registered`, `failed`, `unavailable`).
+ */
+function setupHosted(): void {
+  const root = document.documentElement;
+  const sw = hostedWorkers();
+  if (!sw) {
+    root.dataset.sw = 'unavailable';
+    return;
+  }
+  const register = () =>
+    sw.register('./sw.js').then(
+      (reg) => {
+        registration = reg;
+        root.dataset.sw = 'registered';
+      },
+      () => {
+        root.dataset.sw = 'failed';
+      },
+    );
+  if (document.readyState === 'complete') void register();
+  else window.addEventListener('load', () => void register());
+}
+
+/** The service worker container where this page may have a worker: a secure context, a production build. */
+function hostedWorkers(): ServiceWorkerContainer | null {
+  try {
+    return window.isSecureContext && import.meta.env.PROD ? (navigator.serviceWorker ?? null) : null;
+  } catch {
+    // An opaque origin (a sandbox without allow-same-origin) refuses even the question.
+    return null;
+  }
 }
 
 /**
@@ -104,6 +146,7 @@ function waitForInstalled(reg: ServiceWorkerRegistration): Promise<ServiceWorker
  * and fetches each from the HTTP cache (no second download). Production builds only, as the worker.
  */
 export function keepSheets(urls: readonly string[]): void {
+  if (__EMBED__ && !registration) return;
   if (!('serviceWorker' in navigator) || !import.meta.env.PROD || urls.length === 0) return;
   void navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: 'KEEP_SHEETS', urls: [...urls] })).catch(() => {});
 }

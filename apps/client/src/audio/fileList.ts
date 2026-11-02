@@ -3,7 +3,7 @@
 // server starts), so a file uploaded to either folder plays after the next deploy, with no code change.
 
 import found from 'virtual:tdt-sound-files';
-import { soundFiles, type FoundFile, type SoundFiles } from './files';
+import { rebaseSoundFiles, soundFiles, type FoundFile, type SoundFiles } from './files';
 import { SOUND_IDS } from './sounds';
 
 /** The files to play. Browser tests can hand in their own (`window.__tdtSoundFiles`, e2e builds only). */
@@ -13,5 +13,6 @@ export function buildSoundFiles(): SoundFiles {
     const test = (window as unknown as { __tdtSoundFiles?: FoundFile[] }).__tdtSoundFiles;
     if (test) list = test;
   }
-  return soundFiles(list, SOUND_IDS);
+  // A hosted build: from the upload's own folder, not the host's root (docs/DEPLOY.md "Hosted builds").
+  return __EMBED__ ? rebaseSoundFiles(soundFiles(list, SOUND_IDS), document.baseURI) : soundFiles(list, SOUND_IDS);
 }
