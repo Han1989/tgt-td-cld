@@ -34,7 +34,7 @@ npm run build:e2e -w @tdt/client
 npm run press-shots -w @tdt/client
 ```
 
-It takes about 25 minutes on a 4-core machine (each shot plays a real match in real time; a wrong moment is played again). `-- --only 2,7,covers,sheet` takes some of it: the numbers are the stills, `covers` the banner and the covers (they need shot 7's wide frame in `apps/client/dist-press/`), `sheet` the contact sheet from the files on disk. In a container whose Chromium is another revision than Playwright's own, `CHROMIUM_PATH=/path/to/chrome`. The script's header (`apps/client/scripts/pressShots.ts`) says how each shot is made.
+It takes half an hour or more on a 4-core machine: each shot plays a real match in real time, and a wrong moment is played again in another match. `-- --only 2,7,covers,sheet` takes some of it: the numbers are the stills, `covers` the banner and the covers (they need shot 7's wide frame in `apps/client/dist-press/`), `sheet` the contact sheet from the files on disk. In a container whose Chromium is another revision than Playwright's own, `CHROMIUM_PATH=/path/to/chrome`. The script's header (`apps/client/scripts/pressShots.ts`) says how each shot is made.
 
 ![The press sheet](press/press-sheet.png)
 
@@ -45,10 +45,10 @@ It takes about 25 minutes on a 4-core machine (each shot plays a real match in r
 | `1-build-phase` | Solo, **Quick**, between waves 3 and 4 | The whole Spire, towers on the pads, the Ranger by the Mid road, a tier-2 Arrow's ring open (Upgrade 275, Target, Sell), the wave timer at 0:17. `?lab` gold, spent on the towers, so the top bar shows what a player keeps (about 700). |
 | `2-boss-wave` | Solo, **Full wave 10** | The Ironhorn on the Mid road under "Ironhorn approaches! · Wave 10 · Boss" and its lane roles, the towers firing, the Arcanist (level 8, R ready) fighting it, the Heart's rose pool. The banner is wave 10's own: the script starts wave 10 a second time once the first Ironhorn is down its road (the e2e `skipTo`), so the banner and the boss are in one frame. |
 | `3-meteor-rain` | A **room of two**, Quick | The Ranger (this browser) and the Arcanist (a bot teammate) at level 6 cast R within a moment: Meteor Rain on the three lanes and the combo ribbon, as the strikes land. A game server started by the script itself (apps/server, as the integration tests start one), the bot from `apps/server/src/testing/botClient.ts`. That server's copy of the tuning gives each player the gold of a Quick player by wave 3 and makes the first kill's XP level 6, so both have R within a minute; the rest is the game. |
-| `4-rampart-slam` | Solo, **Full wave 8** | The Warden (level 7) slams a pack he gathered with Taunt on the Mid road: his guard ring and heal, the pack falling, "Rampart Slam: N". |
+| `4-rampart-slam` | Solo, **Full wave 8** | The Warden slams a pack he gathered with Taunt on the Mid road: the burst round him, his heal, the pack's damage numbers as it falls, "Rampart Slam: 7". `?lab&ult` and `setLevel`, the gold spent. |
 | `5-victory` | Solo, a won **Quick** match | The end screen, the stats counted up (waves played with their kills, then the e2e `win()`). |
 | `6-endless-board` | The home card's "Today's top 10" | Endless's board with ten made-up rows and this browser's row pinned under them (`/endless/today` answered by the script, as `e2e/lobby.spec.ts` does). |
-| `7-desktop-1280x800` | Solo, **Full wave 10**, desktop | The match at desktop size, for stores that want a landscape shot: the Ironhorn down its road, the Warden in the fight. |
+| `7-desktop-1280x800` | Solo, **Full wave 10**, desktop | The match at desktop size, for stores that want a landscape shot: the wave out of the three portals, the Ironhorn stomping down the Mid road under its banner, the Warden in the fight, the side panels. Wave 10 started a second time, as in `2-boss-wave`. |
 
 A shot whose frame carries a lane surge's notice (its chip over the Mid portal and its toast) or whose hero is down is played again in another match (another seed). The previous set (17 Oct 2026, the V-03 map and Practice Meteor Rain) is gone; `docs/screenshots/map/README.md` points here.
 
@@ -58,7 +58,7 @@ A shot whose frame carries a lane surge's notice (its chip over the Mid portal a
 |---|---|---|
 | `heroes-banner.webp` | 2400 × 900 | The three heroes on their clearing, the wordmark over them: a store page's banner or header (itch.io: the page's banner image; a devlog's header) |
 | `itch-cover-630x500.png` | 630 × 500 | itch.io: **Edit game → Cover image** (630 × 500 is itch's own size) |
-| `itch-cover-315x250.png` | 315 × 250 | itch.io: the same cover at half size, for embeds and collections where the full one is scaled down |
+| `itch-cover-315x250.png` | 315 × 250 | itch.io: the same cover at half size (itch's smallest), for embeds and collections |
 | `ng-thumb-2x1.png` | 1200 × 600 | Newgrounds: the submission's 2:1 thumbnail |
 | `ng-icon-1x1.png` | 512 × 512 | Newgrounds: the square icon |
 | `cg-cover-16x9.png` | 1920 × 1080 | CrazyGames: the 16:9 cover (landscape) |

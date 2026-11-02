@@ -822,7 +822,8 @@ async function shot3(browser: Browser): Promise<void> {
       { at: { x: 9, y: 13 }, kind: 'arcane', tier: 1 },
       { at: { x: 2.5, y: 13 }, kind: 'arrow', tier: 1 },
     ]);
-    await walkTo(page, ROAD.mid - 1.5, 24);
+    // Above where the fuse ribbon sits (rows 21–29 on a phone), in the rain.
+    await walkTo(page, ROAD.mid - 1.5, 18.5);
     const mine = () =>
       page.evaluate(() => {
         const t = (window as any).__tdt;
@@ -1309,7 +1310,7 @@ window.press = (() => {
 /** The covers (docs/press/): file, size, hero, where the title and the hero stand, and where each goes. */
 const COVERS = [
   { file: 'itch-cover-630x500.png', w: 630, h: 500, hero: 'warden', where: 'itch.io: the cover image (Edit game → Cover image)' },
-  { file: 'itch-cover-315x250.png', w: 315, h: 250, hero: 'warden', where: 'itch.io: the small cover (browse grids, embeds)' },
+  { file: 'itch-cover-315x250.png', w: 315, h: 250, hero: 'warden', where: 'itch.io: the same cover at half size (itch\'s smallest), for embeds and collections' },
   { file: 'ng-thumb-2x1.png', w: 1200, h: 600, hero: 'ranger', where: 'Newgrounds: the 2:1 thumbnail' },
   { file: 'ng-icon-1x1.png', w: 512, h: 512, hero: 'warden', where: 'Newgrounds: the square icon' },
   { file: 'cg-cover-16x9.png', w: 1920, h: 1080, hero: 'arcanist', where: 'CrazyGames: the 16:9 cover' },
