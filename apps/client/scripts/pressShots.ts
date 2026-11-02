@@ -536,9 +536,15 @@ async function noToast(page: Page, ms = 8000): Promise<void> {
  * an element's CSS animation starts frames late and its clock runs behind, so at the hold the element's own animation
  * is brought to `settle` ms in (an entrance shown as it stands a moment later; the world is the held instant).
  */
-async function armHold(page: Page, selector: string, ms: number, settle = 0): Promise<{ held: () => Promise<void> }> {
+async function armHold(
+  page: Page,
+  selector: string,
+  ms: number,
+  settle = 0,
+  clock: 'wall' | 'animation' = 'wall',
+): Promise<{ held: () => Promise<void> }> {
   await page.evaluate(
-    ([sel, delay, to]) => {
+    ([sel, delay, to, byAnimation]) => {
       const w = window as any;
       w.__pressHeld = false;
       const freeze = () => {
@@ -551,14 +557,21 @@ async function armHold(page: Page, selector: string, ms: number, settle = 0): Pr
         window.requestAnimationFrame = (cb) => (w.__pressFrames.push(cb), 0);
         w.__pressHeld = true;
       };
+      // By the element's own animation: `delay` ms into it (on this page it runs behind the wall clock).
+      const due = () => {
+        const a = document.querySelector(sel as string)?.getAnimations({ subtree: true })[0];
+        if (a && Number(a.currentTime ?? 0) >= (delay as number)) freeze();
+        else setTimeout(due, 8);
+      };
       const seen = new MutationObserver(() => {
         if (!document.querySelector(sel as string)) return;
         seen.disconnect();
-        setTimeout(freeze, delay as number);
+        if (byAnimation) due();
+        else setTimeout(freeze, delay as number);
       });
       seen.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     },
-    [selector, ms, settle] as const,
+    [selector, ms, settle, clock === 'animation'] as const,
   );
   return {
     held: async () => {
@@ -858,8 +871,11 @@ async function shot3(browser: Browser): Promise<void> {
     // Both ultimates within a moment of each other: the bot stops deciding, the Ranger casts, the bot answers.
     bot.acting = false;
     await noToast(page, 3000);
-    // A second into the fuse: the combo's strikes landing on the three lanes, the ribbon as it stands a second in.
-    const { held } = await armHold(page, '#fuse-ribbon:not(.hidden)', 1000, 1000);
+    // Back to his spot (a ranged hero drifts to his targets), then the fuse: held 1.1 s into the ribbon's own
+    // animation, when the combo's meteors are falling on the three lanes (the first instant is a white burst).
+    await walkTo(page, ROAD.mid - 1.5, 18.5);
+    console.log('  the Ranger at', JSON.stringify(await heroAt(page)));
+    const { held } = await armHold(page, '#fuse-ribbon:not(.hidden)', 1100, 0, 'animation');
     await cast(page, 'R');
     bot.send({ t: 'cmd', cmd: { type: 'cast', slot: 'R' } });
     await held();
