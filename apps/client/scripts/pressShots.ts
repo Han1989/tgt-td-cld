@@ -550,8 +550,10 @@ async function armHold(
       const freeze = () => {
         w.__tdt.pause?.(true);
         const el = document.querySelector(sel as string);
-        for (const a of el?.getAnimations({ subtree: true }) ?? []) if (Number(a.currentTime ?? 0) < (to as number)) a.currentTime = to as number;
         for (const a of document.getAnimations()) a.pause();
+        // The element's own animation set to `settle` ms in: what the page reads of it runs behind what the
+        // compositor already shows, so a fade or an entrance is pinned where it stands in full.
+        if ((to as number) > 0) for (const a of el?.getAnimations() ?? []) a.currentTime = to as number;
         w.__pressRaf ??= window.requestAnimationFrame;
         w.__pressFrames = [];
         window.requestAnimationFrame = (cb) => (w.__pressFrames.push(cb), 0);
@@ -884,8 +886,8 @@ async function shot3(browser: Browser): Promise<void> {
     if (Math.hypot(at.x - SPOT.x, at.y - SPOT.y) > 1.2) await walkTo(page, SPOT.x, SPOT.y);
     console.log('  the Ranger at', JSON.stringify(await heroAt(page)));
     // The fuse held 1.1 s into the ribbon's own animation (`fuse-ribbon`, 2 s), when the combo's meteors are falling
-    // on the three lanes (its first instant is a white burst).
-    const { held } = await armHold(page, '#fuse-ribbon.on', 1100, 0, 'animation');
+    // on the three lanes (its first instant is a white burst); the ribbon pinned at 0.9 s, in full (14% to 70%).
+    const { held } = await armHold(page, '#fuse-ribbon.on', 1100, 900, 'animation');
     await cast(page, 'R');
     bot.send({ t: 'cmd', cmd: { type: 'cast', slot: 'R' } });
     await held();
