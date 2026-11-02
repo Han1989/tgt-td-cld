@@ -4,10 +4,22 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { listSoundFiles, MUSIC_LEVELS, readMusicLevels } from './scripts/soundFiles.ts';
+import { CHANNELS } from './src/analytics/channel.ts';
+import { embedConfigFromEnv, hostedHtml, type EmbedConfig } from './src/platform/embedHost.ts';
 import { swSource } from './src/platform/swSource.ts';
 
 /** The site's pages: the game, and the static privacy notice (docs/ANALYTICS.md), which loads none of the game. */
-const PAGES = ['index.html', 'privacy.html'];
+const SITE_PAGES = ['index.html', 'privacy.html'];
+
+/**
+ * A hosted build (`npm run build:embed -- <host>`, docs/DEPLOY.md "Hosted builds"): one zip a game site serves from its
+ * own origin, under a path of its choosing, in a frame. Set by `VITE_EMBED_HOST` (with `VITE_CHANNEL` and
+ * `VITE_CANONICAL_ORIGIN`); null for the site's own build, which this leaves exactly as it was.
+ */
+const EMBED: EmbedConfig | null = embedConfigFromEnv(process.env, CHANNELS);
+
+/** A hosted build's one page: its privacy links go to the real game's privacy page. */
+const PAGES = EMBED ? ['index.html'] : SITE_PAGES;
 
 /**
  * Generates `sw.js` at build time (docs/MOBILE.md §7; the source is `src/platform/swSource.ts`): it
@@ -41,7 +53,8 @@ function serviceWorker(): Plugin {
         .update(listSoundFiles(publicDir).map((f) => f.hash).join(','))
         .digest('hex')
         .slice(0, 12);
-      this.emitFile({ type: 'asset', fileName: 'sw.js', source: swSource(version, files) });
+      // A hosted build's worker: the same files, relative to wherever the host puts the upload.
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source: EMBED ? swSource(version, files, true) : swSource(version, files) });
     },
   };
 }
@@ -152,24 +165,41 @@ function listFiles(dir: string): string[] {
 
 /**
  * The client's build, stamped into solo match reports and replays (`__BUILD__`): the commit Vercel builds
- * (VERCEL_GIT_COMMIT_SHA, set at build time), else 'dev'. Online reports carry the server's build instead.
+ * (VERCEL_GIT_COMMIT_SHA, set at build time), else the one `npm run build:embed` names (TDT_BUILD_COMMIT), else 'dev'.
+ * Online reports carry the server's build instead.
  */
-const BUILD = /^[0-9A-Za-z._-]{1,64}$/.test(process.env.VERCEL_GIT_COMMIT_SHA?.trim() ?? '')
-  ? process.env.VERCEL_GIT_COMMIT_SHA!.trim()
-  : 'dev';
+const COMMIT = process.env.VERCEL_GIT_COMMIT_SHA?.trim() || process.env.TDT_BUILD_COMMIT?.trim() || '';
+const BUILD = /^[0-9A-Za-z._-]{1,64}$/.test(COMMIT) ? COMMIT : 'dev';
 
-export default defineConfig({
-  plugins: [soundFiles(), serviceWorker()],
-  define: { __BUILD__: JSON.stringify(BUILD) },
-  worker: { format: 'es' },
-  build: {
-    target: 'es2022',
-    // PixiJS is large; keep it in its own chunk.
-    chunkSizeWarningLimit: 1200,
-    rollupOptions: {
-      input: Object.fromEntries(
-        PAGES.map((page) => [page.replace(/\.html$/, ''), fileURLToPath(new URL(`./${page}`, import.meta.url))]),
-      ),
+/**
+ * A hosted build's page (docs/DEPLOY.md "Hosted builds"): links to the site's own pages point at the real game, and
+ * there is no web app manifest (a host's upload is never installed).
+ */
+function hostedPage(embed: EmbedConfig): Plugin {
+  return {
+    name: 'tdt-hosted-page',
+    apply: 'build',
+    transformIndexHtml: { order: 'post', handler: (html) => hostedHtml(html, embed.canonical) },
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  if (mode === 'embed' && !EMBED) throw new Error('--mode embed needs VITE_EMBED_HOST (npm run build:embed -- <host>)');
+  return {
+    // A hosted build resolves every asset, page, worker and the service worker from wherever the host puts it.
+    ...(EMBED ? { base: './' } : {}),
+    plugins: [soundFiles(), serviceWorker(), ...(EMBED ? [hostedPage(EMBED)] : [])],
+    define: { __BUILD__: JSON.stringify(BUILD), __EMBED__: JSON.stringify(EMBED) },
+    worker: { format: 'es' as const },
+    build: {
+      target: 'es2022',
+      // PixiJS is large; keep it in its own chunk.
+      chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        input: Object.fromEntries(
+          PAGES.map((page) => [page.replace(/\.html$/, ''), fileURLToPath(new URL(`./${page}`, import.meta.url))]),
+        ),
+      },
     },
-  },
+  };
 });

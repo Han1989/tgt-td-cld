@@ -1,7 +1,7 @@
 // Browser wiring for the rollout events and the anonymous counts. Everything here is allowed to fail;
 // the match must keep running if storage, fetch or the beacon throws.
 
-import { channelFromSearch, type Channel } from './channel';
+import { channelFromSearch, hostedChannel, type Channel } from './channel';
 import { browserFamily, buildId, cleanErrorMessage, trimStack } from './errors';
 import { detectPlatform, type Platform } from './platform';
 import { AGE_KEY } from './age';
@@ -42,6 +42,18 @@ function memoryStorage(): Storage {
       map.set(key, value);
     },
   };
+}
+
+/** This page's localStorage keeps what it is given (a hosted build's frame may refuse it). */
+function storageKept(): boolean {
+  try {
+    const store = window.localStorage;
+    store.setItem('tdt.probe', '1');
+    store.removeItem('tdt.probe');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function safeStorage(kind: 'localStorage' | 'sessionStorage'): Storage {
@@ -163,7 +175,10 @@ export function installAnalytics(serverUrl: string): void {
     const endpoint = analyticsEndpoint(serverUrl);
     if (!endpoint) return;
     const store = safeStorage('localStorage');
-    const choice = channelFromSearch(location.search, document.referrer, store.getItem(CHANNEL_KEY));
+    // A hosted build counts every untagged visit under its host (`__EMBED__`, docs/ANALYTICS.md "Hosted builds").
+    const choice = __EMBED__
+      ? hostedChannel(location.search, document.referrer, store.getItem(CHANNEL_KEY), __EMBED__.channel as Channel)
+      : channelFromSearch(location.search, document.referrer, store.getItem(CHANNEL_KEY));
     if (analyticsOn()) {
       if (choice.save) store.setItem(CHANNEL_KEY, choice.channel);
       else if (choice.clear) store.removeItem(CHANNEL_KEY);
@@ -187,7 +202,9 @@ export function installAnalytics(serverUrl: string): void {
       platform,
       newSessionId: randomId,
       post: (body, beacon) => post(endpoint, body, beacon),
-      allowed: analyticsOn,
+      // A hosted build in a frame that may keep nothing (a sandbox, third-party storage blocked): an id can't outlast
+      // this page, so no play data goes at all; the anonymous counts still do (docs/ANALYTICS.md "Hosted builds").
+      allowed: __EMBED__ && !storageKept() ? () => false : analyticsOn,
       build: buildId(typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'),
       browser,
     });

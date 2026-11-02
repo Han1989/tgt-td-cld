@@ -267,7 +267,8 @@ export class Hud {
   /** An Endless run's share card (share/), beside Save match report. */
   private readonly endShare = $('end-share') as HTMLButtonElement;
   private readonly endToasts = $('end-toasts');
-  private readonly cards = new CardShare();
+  /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL. */
+  private readonly cards = __EMBED__ ? new CardShare(__EMBED__.canonical) : new CardShare();
   private shareFace: EndlessFace | null = null;
   private readonly endFeedback = $('end-feedback');
   private readonly endRatings = $('end-ratings');

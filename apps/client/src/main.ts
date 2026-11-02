@@ -61,6 +61,11 @@ const SHEETS_AFTER_MS = 1000;
 
 async function main(): Promise<void> {
   setupPwa();
+  // A hosted build in a game site's frame (platform/embed.ts; docs/DEPLOY.md "Hosted builds"). Never in the site's own.
+  if (__EMBED__) {
+    const hosted = __EMBED__;
+    void import('./platform/embed').then((m) => m.installHosted(hosted));
+  }
   // Code-drawn UI icons (render/art/icons.ts), baked once and published as CSS images.
   installIcons();
   const params = new URLSearchParams(location.search);

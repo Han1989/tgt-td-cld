@@ -8,5 +8,8 @@ dist-e2e/
 test-results/
 playwright-report/
 dist-firstload/
+# Hosted builds (npm run build:embed): built, never committed.
+dist-embed-*/
+embed-*.zip
 .venv-blender
 __pycache__/

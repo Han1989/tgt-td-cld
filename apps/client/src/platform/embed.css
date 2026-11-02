@@ -1,0 +1,19 @@
+/* A hosted build's fullscreen button (platform/embed.ts; docs/DEPLOY.md "Hosted builds"): on the home card's stage,
+   under the sound button and dressed as it is (`.btn`, style.css `.sound-btn`), over the clearing and taking no room in
+   the card, so its one screen holds with and without it. Loaded only in a hosted build. */
+.embed-fullscreen {
+  position: absolute;
+  z-index: 3;
+  top: 58px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.embed-fullscreen .ico {
+  width: 22px;
+  height: 22px;
+}

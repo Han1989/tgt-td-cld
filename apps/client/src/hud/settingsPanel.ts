@@ -165,7 +165,8 @@ export class SettingsPanel {
     this.analyticsState.textContent = playData.line;
     this.renderEndless();
     const android = canInstall();
-    const ios = isIos() && !isStandalone();
+    // A hosted build is never installed (no manifest; docs/DEPLOY.md "Hosted builds"), so no Add to Home Screen either.
+    const ios = !__EMBED__ && isIos() && !isStandalone();
     this.install.classList.toggle('hidden', !android);
     this.iosInstall.classList.toggle('hidden', !ios);
     this.app.classList.toggle('hidden', !android && !ios);
