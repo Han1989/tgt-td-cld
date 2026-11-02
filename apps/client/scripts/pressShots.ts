@@ -1135,9 +1135,11 @@ window.press = (() => {
       if (y < h - 1) stack.push(i + w);
     }
     const grown = grow(out, 3, 1);
-    // Only the hero: the largest piece inside (the posters' fireflies are pieces of their own).
+    // Only the hero: the pieces inside of a real size (his body, a staff's head beyond its thin shaft), not the
+    // posters' fireflies, specks of their own.
     const label = new Int32Array(n);
-    let best = 0, bestSize = 0, next = 0;
+    const sizes = [0];
+    let next = 0;
     for (let i = 0; i < n; i++) {
       if (grown[i] || label[i]) continue;
       next++;
@@ -1152,10 +1154,11 @@ window.press = (() => {
           if (k >= 0 && !grown[k] && !label[k]) { label[k] = next; todo.push(k); }
         }
       }
-      if (size > bestSize) { bestSize = size; best = next; }
+      sizes.push(size);
     }
+    const keep = Math.max(1200, 0.01 * Math.max(...sizes));
     const outside = new Uint8Array(n);
-    for (let i = 0; i < n; i++) outside[i] = label[i] === best ? 0 : 1;
+    for (let i = 0; i < n; i++) outside[i] = label[i] && sizes[label[i]] >= keep ? 0 : 1;
     const fig = canvas(w, h), fg = fig.getContext('2d'), F = fg.createImageData(w, h);
     const sh = canvas(w, h), sg = sh.getContext('2d'), S = sg.createImageData(w, h);
     const lum = (A, k) => 0.2126 * A[k] + 0.7152 * A[k + 1] + 0.0722 * A[k + 2];
