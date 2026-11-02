@@ -206,7 +206,7 @@ VITE_SERVER_URL=wss://<the server>.onrender.com npm run build:embed -- itch
 - `VITE_SERVER_URL` is the production game server, the same value Vercel's build has (Vercel → *Settings → Environment Variables*). It is read from the environment and never written in the repo; the build refuses to start without it.
 - `itch` can be `newgrounds` or `crazygames`: the only difference is the channel baked in (below).
 - Output: `apps/client/dist-embed-itch/` and **`apps/client/embed-itch-<commit>.zip`**, `index.html` at its root (`-dirty` in the name when the checkout has uncommitted changes: commit first). Both are ignored by git; the zip is built, never committed.
-- It then prints the zip's size, its file count and the initial download (index.html, what its head loads, their static imports and the first screen's pictures) against the hosts' limits: CrazyGames allows an initial download of 50 MB (20 MB to be on its mobile homepage), 250 MB in all and 1,500 files; itch.io takes uploads up to 1 GB. For PR #155's commit: zip **20.8 MB**, unzipped 21.8 MB, **81 files**, initial download **1.32 MB** in 14 files.
+- It then prints the zip's size, its file count and the initial download (index.html, what its head loads, their static imports and the first screen's pictures) against the hosts' limits: CrazyGames allows an initial download of 50 MB (20 MB to be on its mobile homepage), 250 MB in all and 1,500 files; itch.io takes uploads up to 1 GB. For PR #155's commit: zip **20.8 MB**, unzipped 21.8 MB, **83 files**, initial download **1.32 MB** in 16 files.
 
 What the hosted build is (a Vite build in `--mode embed`, `VITE_EMBED_HOST` set; `vite.config.ts`, `src/platform/embedHost.ts`):
 
