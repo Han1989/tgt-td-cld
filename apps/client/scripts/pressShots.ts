@@ -659,10 +659,6 @@ const BUILT: Plan[] = [
   { at: { x: 19, y: 28 }, kind: 'arcane', tier: 2 },
 ];
 
-/** What a plan costs (every tier's price). */
-const planCost = (plan: Plan[]) =>
-  plan.reduce((sum, p) => sum + (TUNING.towers as any)[p.kind].tiers.slice(0, p.tier).reduce((a: number, t: { cost: number }) => a + t.cost, 0), 0);
-
 async function shot1(browser: Browser, url: string): Promise<void> {
   const ctx = await context(browser, false);
   const page = await newPage(ctx);
@@ -711,9 +707,6 @@ const WAVE10: Plan[] = [
   { at: { x: 6, y: 28 }, kind: 'arrow', tier: 3 },
   { at: { x: 19, y: 28 }, kind: 'cannon', tier: 2 },
 ];
-
-/** The Ironhorn is on the Mid road, below its portal. */
-const IRONHORN_ON_ROAD = `(() => { const b = window.__tdt.latest().creeps.find((c) => c.kind === 'ironhorn'); return !!b && b.y > 8; })()`;
 
 /** The boss banner restarted for a new wave start: marks the old one, then waits for the new one's hold (its
  * animation 0.67–2.5 s in: `banner-boss` in style.css) and returns once it is 1 s in. */
