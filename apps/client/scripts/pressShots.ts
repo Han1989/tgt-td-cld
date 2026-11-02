@@ -559,8 +559,9 @@ async function armHold(
       };
       // By the element's own animation: `delay` ms into it (on this page it runs behind the wall clock).
       const due = () => {
-        const a = document.querySelector(sel as string)?.getAnimations({ subtree: true })[0];
-        if (a && Number(a.currentTime ?? 0) >= (delay as number)) freeze();
+        const el = document.querySelector(sel as string);
+        const own = el?.getAnimations().filter((x) => (x as CSSAnimation).animationName !== undefined)[0];
+        if (own && Number(own.currentTime ?? 0) >= (delay as number)) freeze();
         else setTimeout(due, 8);
       };
       const seen = new MutationObserver(() => {
@@ -835,8 +836,7 @@ async function shot3(browser: Browser): Promise<void> {
       { at: { x: 9, y: 13 }, kind: 'arcane', tier: 1 },
       { at: { x: 2.5, y: 13 }, kind: 'arrow', tier: 1 },
     ]);
-    // Above where the fuse ribbon sits (rows 21–29 on a phone), in the rain.
-    await walkTo(page, ROAD.mid - 1.5, 18.5);
+    await walkTo(page, ROAD.mid - 1.5, 17);
     const mine = () =>
       page.evaluate(() => {
         const t = (window as any).__tdt;
@@ -854,12 +854,20 @@ async function shot3(browser: Browser): Promise<void> {
       }) as Promise<{ wave: number; creeps: number; gold: number; ready: boolean; mateR: number }>;
     // The waves called early (the bot's button) until wave 6, then the rain on a full wave.
     let lastCall = 0;
+    let placed = false;
     const end = Date.now() + 360_000;
     for (;;) {
       if (Date.now() > end) throw new Error(`no full wave with both ultimates ready: ${JSON.stringify(await mine())}`);
       await learnAll(page);
       const m = await mine();
-      if (m.wave >= 6 && m.creeps >= 30 && m.ready) break;
+      // On wave 6 the Ranger takes his spot above where the fuse ribbon sits (rows 20–28 on a phone), before the lanes
+      // fill: a ranged hero drifts toward his targets as waves come.
+      if (m.wave >= 6 && !placed) {
+        await walkTo(page, ROAD.mid - 1.5, 17);
+        placed = true;
+        continue;
+      }
+      if (placed && m.creeps >= 30 && m.ready) break;
       if (m.wave < 6 && m.creeps < 8 && Date.now() - lastCall > 8000) {
         bot.send({ t: 'cmd', cmd: { type: 'callEarly' } });
         lastCall = Date.now();
@@ -870,12 +878,10 @@ async function shot3(browser: Browser): Promise<void> {
     }
     // Both ultimates within a moment of each other: the bot stops deciding, the Ranger casts, the bot answers.
     bot.acting = false;
-    await noToast(page, 3000);
-    // Back to his spot (a ranged hero drifts to his targets), then the fuse: held 1.1 s into the ribbon's own
-    // animation, when the combo's meteors are falling on the three lanes (the first instant is a white burst).
-    await walkTo(page, ROAD.mid - 1.5, 18.5);
     console.log('  the Ranger at', JSON.stringify(await heroAt(page)));
-    const { held } = await armHold(page, '#fuse-ribbon:not(.hidden)', 1100, 0, 'animation');
+    // The fuse held 1.1 s into the ribbon's own animation (`fuse-ribbon`, 2 s), when the combo's meteors are falling
+    // on the three lanes (its first instant is a white burst).
+    const { held } = await armHold(page, '#fuse-ribbon.on', 1100, 0, 'animation');
     await cast(page, 'R');
     bot.send({ t: 'cmd', cmd: { type: 'cast', slot: 'R' } });
     await held();
