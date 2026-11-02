@@ -685,7 +685,7 @@ const WAVE10: Plan[] = [
 ];
 
 /** The Ironhorn is on the Mid road, below its portal. */
-const IRONHORN_ON_ROAD = `(() => { const b = window.__tdt.latest().creeps.find((c) => c.kind === 'ironhorn'); return !!b && b.y > 6; })()`;
+const IRONHORN_ON_ROAD = `(() => { const b = window.__tdt.latest().creeps.find((c) => c.kind === 'ironhorn'); return !!b && b.y > 8; })()`;
 
 /** The boss banner restarted for a new wave start: marks the old one, then waits for the new one's hold (its
  * animation 0.67–2.5 s in: `banner-boss` in style.css) and returns once it is 1 s in. */
@@ -999,7 +999,7 @@ async function shot7(browser: Browser, url: string): Promise<void> {
   await skipTo(page, 9);
   await page.waitForTimeout(8000);
   await skipTo(page, 10);
-  await until(page, 'the Ironhorn under the banner', IRONHORN_UNDER_BANNER, 90_000);
+  await until(page, 'the Ironhorn on its road', IRONHORN_ON_ROAD, 90_000);
   await learnDesktop(page);
   await noToast(page, 6000);
   await hold(page);
