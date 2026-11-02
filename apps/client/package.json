@@ -17,7 +17,8 @@
     "creeps-contact": "tsx scripts/creepsContact.ts",
     "structures-contact": "tsx scripts/structuresContact.ts",
     "ground-check": "tsx scripts/groundCheck.ts",
-    "share-cards": "tsx scripts/shareCards.ts"
+    "share-cards": "tsx scripts/shareCards.ts",
+    "press-shots": "tsx scripts/pressShots.ts"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",

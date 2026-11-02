@@ -22,28 +22,54 @@ What a stranger sees before they play: the link preview, the screenshots and cli
 
 The card is drawn from the game's own art (`?ogcard` on the dev server). To change it, edit `apps/client/src/ogCard.ts`, run `npm run og -w @tdt/client`, look at the PNG and commit it (ART.md §14).
 
-## 2. Four screenshots
+## 2. The press stills and the store covers
 
-Phone-size, portrait, the way most players will see the game. Take them on a real phone or in Chrome DevTools' device mode:
+The game goes on itch.io first, then Newgrounds and CrazyGames (Han, 2 Nov 2026). Everything a store page or a post needs is made by one script from the game's own frames and art, and checked by eye before it is committed:
 
-1. `npm run dev` (solo) or the production URL. Open DevTools → **Toggle device toolbar** (Ctrl/Cmd + Shift + M) → pick **Pixel 7** (412 × 915) or **iPhone 12 Pro** (390 × 844, the same screen as an iPhone 13). Keep the device pixel ratio the preset gives (2.625 / 3), so a capture is sharp.
-2. Capture with DevTools' **⋮ → Capture screenshot** (the device frame off). Not "full size": the game is one screen.
-3. Display **Normal** (⚙ → Display). Bright is for washed-out phone screens and looks flat in a post.
+```bash
+npm run build:e2e -w @tdt/client
+```
 
-The four:
+```bash
+npm run press-shots -w @tdt/client
+```
 
-| # | Where | What to show |
+It takes about 25 minutes on a 4-core machine (each shot plays a real match in real time; a wrong moment is played again). `-- --only 2,7,covers,sheet` takes some of it: the numbers are the stills, `covers` the banner and the covers (they need shot 7's wide frame in `apps/client/dist-press/`), `sheet` the contact sheet from the files on disk. In a container whose Chromium is another revision than Playwright's own, `CHROMIUM_PATH=/path/to/chrome`. The script's header (`apps/client/scripts/pressShots.ts`) says how each shot is made.
+
+![The press sheet](press/press-sheet.png)
+
+**The stills** (`docs/screenshots/press/`). Each is a held moment of a real match on the e2e build in headless Chromium: Pixel 7's whole screen, **412 × 915 at DPR 2.625** with touch (the desktop one 1280 × 800 at 2×), Display **Normal**, Graphics High, the lesson skipped and the one-time lines already seen, every 3D sheet in and the HUD's rendered frames on before the first tap, and at the shot the frame is checked to show the plate, the 3D Heart, portals, towers, heroes and creeps (no 2D stand-in) or the shot fails. "Held" means the simulation paused and the page's animations stopped on the frame the canvas had just drawn, so a flare or a banner is shot as it was. Each still is written twice as WebP: `<n>-<what>.webp` at 1× (the CSS size) and `<n>-<what>@2x.webp` (824 × 1830; 2560 × 1600) for retina store pages, each under 1 MB (`test/press.test.ts`).
+
+| File | Where | What it shows |
 |---|---|---|
-| 1 | Solo, **Quick**, Normal, wave 3–4 (build phase between waves) | The whole Spire map: towers on your pads, your hero by a lane, gold and the wave timer in the top bar. Tap a tower so its ring shows. |
-| 2 | Same match, **wave 5 or 10** (a boss wave) | The boss on a lane with its banner, towers firing, the hero fighting. Wave 5 also brings the first Wisps. |
-| 3 | A room of 2: a Ranger and an Arcanist at level 6 (Practice Meteor Rain was removed on 17 Oct 2026) | Both cast R within 2 s as a wave arrives: the lanes fill with the **Meteor Rain** strikes and the combo ribbon. Capture as the strikes land. |
-| 4 | The **end screen** of a won Quick match | The beating Heart emblem, "Victory!" and the match stats. |
+| `1-build-phase` | Solo, **Quick**, between waves 3 and 4 | The whole Spire, towers on the pads, the Ranger by the Mid road, a tier-2 Arrow's ring open (Upgrade 275, Target, Sell), the wave timer at 0:17. `?lab` gold, spent on the towers, so the top bar shows what a player keeps (about 700). |
+| `2-boss-wave` | Solo, **Full wave 10** | The Ironhorn on the Mid road under "Ironhorn approaches! · Wave 10 · Boss" and its lane roles, the towers firing, the Arcanist (level 8, R ready) fighting it, the Heart's rose pool. The banner is wave 10's own: the script starts wave 10 a second time once the first Ironhorn is down its road (the e2e `skipTo`), so the banner and the boss are in one frame. |
+| `3-meteor-rain` | A **room of two**, Quick | The Ranger (this browser) and the Arcanist (a bot teammate) at level 6 cast R within a moment: Meteor Rain on the three lanes and the combo ribbon, as the strikes land. A game server started by the script itself (apps/server, as the integration tests start one), the bot from `apps/server/src/testing/botClient.ts`. That server's copy of the tuning gives each player the gold of a Quick player by wave 3 and makes the first kill's XP level 6, so both have R within a minute; the rest is the game. |
+| `4-rampart-slam` | Solo, **Full wave 8** | The Warden (level 7) slams a pack he gathered with Taunt on the Mid road: his guard ring and heal, the pack falling, "Rampart Slam: N". |
+| `5-victory` | Solo, a won **Quick** match | The end screen, the stats counted up (waves played with their kills, then the e2e `win()`). |
+| `6-endless-board` | The home card's "Today's top 10" | Endless's board with ten made-up rows and this browser's row pinned under them (`/endless/today` answered by the script, as `e2e/lobby.spec.ts` does). |
+| `7-desktop-1280x800` | Solo, **Full wave 10**, desktop | The match at desktop size, for stores that want a landscape shot: the Ironhorn down its road, the Warden in the fight. |
 
-**The current set** (17 Oct 2026, the map plate of V-03, `docs/ART.md` §16) is in `docs/screenshots/map/press/`: 1–3 taken from the e2e build in headless Chromium at Pixel 7 size (412 × 915, DPR 2.625) by a script, so they show the build's own frames; take them again on a real phone for a store page. The end screen (4) is its card over the dimmed match; it was not retaken (it needs a won Quick match).
+A shot whose frame carries a lane surge's notice (its chip over the Mid portal and its toast) or whose hero is down is played again in another match (another seed). The previous set (17 Oct 2026, the V-03 map and Practice Meteor Rain) is gone; `docs/screenshots/map/README.md` points here.
 
-For a store page or a press post, add one from `/?showcase`: the **Heroes** cards (Ranger, Warden, Arcanist) or the **Towers** cards (tier 3 and a branch), in Normal, with the device toolbar at the same phone. The showcase is a dev page: crop to the cards, not the page header.
+**The banner and the covers** (`docs/press/`), composed in headless Chromium from the game's own pictures and nothing else: each hero cut from his stage poster (`public/stage/<hero>-poster.webp` against `clearing.webp`: the figure, and the shadow he casts carried over as shade), a wide frame of the Spire's meadow in wave 10 from shot 7's match (the HUD hidden, the camera at its closest), and the wordmark exactly as the lobby draws it (style.css's `.logo.stage-logo`, read from the file). No text but the title; the pitch (§1) goes in each store's own field. The wordmark's font is the lobby's, Palatino: on a machine without it the script uses TeX Gyre Pagella, Palatino's metric clone (`fonts-texgyre` on Debian and Ubuntu), and says so when neither is there.
 
-Skip the first-match lesson (it starts on a new player's first solo match) with **Skip**, or use a browser profile that has already played.
+| File | Size | Where it goes |
+|---|---|---|
+| `heroes-banner.webp` | 2400 × 900 | The three heroes on their clearing, the wordmark over them: a store page's banner or header (itch.io: the page's banner image; a devlog's header) |
+| `itch-cover-630x500.png` | 630 × 500 | itch.io: **Edit game → Cover image** (630 × 500 is itch's own size) |
+| `itch-cover-315x250.png` | 315 × 250 | itch.io: the same cover at half size, for embeds and collections where the full one is scaled down |
+| `ng-thumb-2x1.png` | 1200 × 600 | Newgrounds: the submission's 2:1 thumbnail |
+| `ng-icon-1x1.png` | 512 × 512 | Newgrounds: the square icon |
+| `cg-cover-16x9.png` | 1920 × 1080 | CrazyGames: the 16:9 cover (landscape) |
+| `cg-cover-1x1.png` | 1024 × 1024 | CrazyGames: the 1:1 cover |
+| `apps/client/public/og-card.png` | 1200 × 630 | Unchanged: the link card every site shows under the URL (§1) |
+
+Each cover: a hero large on the right from his poster, the meadow and a wave behind, the title on the left (on top in the square ones); the sheet shows each at 160 px wide too, the size a store's grid shows it, where the title must still read. Each store's own upload form is the authority on its sizes: if one asks for another, add a row to `COVERS` in the script and run `-- --only covers,sheet`.
+
+**The contact sheet** (`docs/press/press-sheet.png`): every still, the banner and every cover, labelled, for Han to pick from on his phone.
+
+**On a real phone.** For a post that should show a real device, the same frames can be taken by hand: Chrome DevTools' device toolbar at **Pixel 7** (412 × 915) or **iPhone 12 Pro** (390 × 844), keeping the preset's pixel ratio, **⋮ → Capture screenshot** (not "full size"), Display **Normal**, and Skip on the first-match lesson. For a store page or a press post, a card from `/?showcase` (the **Heroes** or the **Towers** cards, Normal, cropped to the cards) can go beside them.
 
 ## 3. A 15-second clip
 

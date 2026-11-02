@@ -42,6 +42,7 @@
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
  * n-stars on 29 Oct 2026 (PR #154: progress saved in this browser, L-02 pulled ahead of D-06 into Now; the new link tags).
+ * e-press on 2 Nov 2026 (PR #155: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1306,6 +1307,15 @@ const items: ProgressItem[] = [
     section: 'earlier',
     note: 'Game server and client; no game rules or protocol change (the merge restarts the game server). From the friends’ retest: “no leaderboard, so nobody to beat”. Endless now has a public board of each day’s top 10, by the wave reached and then the shorter time, one best per player a day, every run checked by the server playing it again (the server’s result counts, never the phone’s). After your first finished Endless match the game asks once: “Post my Endless runs to the daily board?” Yes, every time, and your solo runs post themselves from then on: “#3 today · top wave 54” under “Fallen on wave 46”, or “Not in today’s top 10 · #27 of 112”. From 13 to 15 it asks before each run; under 13 nothing is posted and there is no board; online rooms never post. A “Today’s top 10” link on the Mode row opens the board, one phone screen, your row pinned under the ten; ⚙ Settings → Play data has the switch; the share card adds “#3 today”; the privacy page says what is sent and kept (90 days, deleted with your data). Built by Claude Code (PR #153).',
     proof: pr(153),
+  },
+  {
+    id: 'e-press',
+    title: 'Press stills on the current build, and the store covers',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Images, one script and docs; nothing in the game changes. The game goes on itch.io this week, then Newgrounds and CrazyGames (Han, 2 Nov 2026). Seven screenshots of real matches on today’s build, a phone’s whole screen and one desktop, each also at twice the size for sharp screens: the build phase with a tower’s ring open, the Ironhorn under its banner, Meteor Rain in a room of two, the Warden’s slam, a victory, Endless’s daily top 10 and the desktop view. And the store covers, made from the game’s own art only (the heroes from their first-screen posters, the meadow in a wave, the title as the lobby draws it): itch.io, Newgrounds and CrazyGames in each store’s sizes, a 2400 × 900 banner of the three heroes, and one labelled sheet to pick from. Built by Claude Code (PR #155).',
+    proof: pr(155),
   },
   {
     id: 'p5-rest',

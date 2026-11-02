@@ -53,8 +53,9 @@ describe('progress dashboard data', () => {
     // for Han, images only; PR #149), V-07c (the map in Spring meadow, Han's pick, with the light pools; PR #150) and
     // f3-look (retest fix A: the towers and the lobby Warden readable in the new light; PR #151), f3-boards
     // (retest fix C: Endless's daily top 10, posted on its own; PR #153), and n-stars (progress saved in this
-    // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154).
-    expect(summary.done).toBe(94);
+    // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154), and e-press (press stills on the current
+    // build and the store covers; PR #155).
+    expect(summary.done).toBe(95);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -66,7 +67,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(133);
+    expect(summary.total).toBe(134);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -112,6 +113,7 @@ describe('progress dashboard data', () => {
       'f3-look': 151,
       'f3-boards': 153,
       'n-stars': 154,
+      'e-press': 155,
       'D-09': 98,
       'H-07': 98,
     };
