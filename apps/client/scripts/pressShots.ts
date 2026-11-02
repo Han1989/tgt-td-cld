@@ -356,17 +356,29 @@ const SPARE: Pt[] = [
 ];
 
 /**
- * Phone: Arrows on spare pads until under an Arrow's price is left, as a player spends: no "Gold is waiting" nudge
- * (it speaks only of gold that buys something).
+ * Phone: the gold spent as a player spends it (no "Gold is waiting" nudge, which speaks only of gold that buys
+ * something): Arrows on the spare pads, then a tier on the towers under tier 3, until under an Arrow's price is left.
  */
 async function spendDown(page: Page): Promise<void> {
-  const price = (TUNING.towers as any).arrow.tiers[0].cost as number;
+  const cost = (kind: string, tier: number) => (TUNING.towers as any)[kind].tiers[tier - 1]?.cost as number | undefined;
   const me = await page.evaluate(() => (window as any).__tdt.me());
+  const gold = async () => ((await latest(page)).players.find((p: any) => p.id === me)?.gold ?? 0) as number;
+  const arrow = cost('arrow', 1)!;
   for (const at of SPARE) {
-    if (((await latest(page)).players.find((p: any) => p.id === me)?.gold ?? 0) < price) return;
+    if ((await gold()) < arrow) return;
     const [pad] = await padsNear(page, [at]);
     if (!pad || Math.hypot(pad.x - at.x, pad.y - at.y) > 1 || (await towerOn(page, pad.id))) continue;
     await buildPhone(page, [{ at, kind: 'arrow', tier: 1 }]);
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    const towers = ((await latest(page)).towers as any[]).filter((t) => t.owner === me && t.tier < 3);
+    for (const t of towers) {
+      const price = cost(t.kind, t.tier + 1);
+      if (price === undefined || (await gold()) < price) continue;
+      const pad = await page.evaluate((id) => (window as any).__tdt.map.pads[id], t.padId);
+      await buildPhone(page, [{ at: { x: pad.x, y: pad.y }, kind: t.kind, tier: t.tier + 1 }]);
+    }
+    if ((await gold()) < arrow) return;
   }
 }
 
@@ -918,9 +930,9 @@ async function shot5(browser: Browser, url: string): Promise<void> {
   await buildPhone(page, BUILT);
   await walkTo(page, ROAD.mid - 1.6, 26);
   let cast = false;
-  for (const w of [5, 9, 13]) {
+  for (const w of [3, 5, 7]) {
     await skipTo(page, w);
-    const end = Date.now() + 14_000;
+    const end = Date.now() + 16_000;
     while (Date.now() < end) {
       // Her Meteor on a full wave, once, so the end card lists its kills.
       if (!cast && (await latest(page)).creeps.length >= 14) {
