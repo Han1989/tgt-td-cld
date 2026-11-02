@@ -42,7 +42,7 @@
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
  * n-stars on 29 Oct 2026 (PR #154: progress saved in this browser, L-02 pulled ahead of D-06 into Now; the new link tags).
- * e-press on 2 Nov 2026 (PR #155: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
+ * e-press on 2 Nov 2026 (PR #156: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1314,8 +1314,8 @@ const items: ProgressItem[] = [
     owner: 'Team',
     status: 'done',
     section: 'earlier',
-    note: 'Images, one script and docs; nothing in the game changes. The game goes on itch.io this week, then Newgrounds and CrazyGames (Han, 2 Nov 2026). Seven screenshots of real matches on today’s build, a phone’s whole screen and one desktop, each also at twice the size for sharp screens: the build phase with a tower’s ring open, the Ironhorn under its banner, Meteor Rain in a room of two, the Warden’s slam, a victory, Endless’s daily top 10 and the desktop view. And the store covers, made from the game’s own art only (the heroes from their first-screen posters, the meadow in a wave, the title as the lobby draws it): itch.io, Newgrounds and CrazyGames in each store’s sizes, a 2400 × 900 banner of the three heroes, and one labelled sheet to pick from. Built by Claude Code (PR #155).',
-    proof: pr(155),
+    note: 'Images, one script and docs; nothing in the game changes. The game goes on itch.io this week, then Newgrounds and CrazyGames (Han, 2 Nov 2026). Seven screenshots of real matches on today’s build, a phone’s whole screen and one desktop, each also at twice the size for sharp screens: the build phase with a tower’s ring open, the Ironhorn under its banner, Meteor Rain in a room of two, the Warden’s slam, a victory, Endless’s daily top 10 and the desktop view. And the store covers, made from the game’s own art only (the heroes from their first-screen posters, the meadow in a wave, the title as the lobby draws it): itch.io, Newgrounds and CrazyGames in each store’s sizes, a 2400 × 900 banner of the three heroes, and one labelled sheet to pick from. Built by Claude Code (PR #156).',
+    proof: pr(156),
   },
   {
     id: 'p5-rest',

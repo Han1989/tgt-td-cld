@@ -54,7 +54,7 @@ describe('progress dashboard data', () => {
     // f3-look (retest fix A: the towers and the lobby Warden readable in the new light; PR #151), f3-boards
     // (retest fix C: Endless's daily top 10, posted on its own; PR #153), and n-stars (progress saved in this
     // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154), and e-press (press stills on the current
-    // build and the store covers; PR #155).
+    // build and the store covers; PR #156).
     expect(summary.done).toBe(95);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
@@ -113,7 +113,7 @@ describe('progress dashboard data', () => {
       'f3-look': 151,
       'f3-boards': 153,
       'n-stars': 154,
-      'e-press': 155,
+      'e-press': 156,
       'D-09': 98,
       'H-07': 98,
     };
