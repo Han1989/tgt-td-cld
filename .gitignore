@@ -9,5 +9,8 @@ test-results/
 playwright-report/
 dist-firstload/
 dist-press/
+# Hosted builds (npm run build:embed): built, never committed.
+dist-embed-*/
+embed-*.zip
 .venv-blender
 __pycache__/

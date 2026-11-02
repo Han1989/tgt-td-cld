@@ -6,6 +6,7 @@ There are two independent deployments:
 |---|---|---|
 | Client (`apps/client`) | **Vercel** | Static site; `vercel.json` at the repo root builds it. |
 | Game server (`apps/server`) | **Render** web service, Docker, **Singapore** | One Node process running every room; `render.yaml` + `Dockerfile` at the repo root. |
+| Hosted builds (`apps/client`) | **itch.io** (Newgrounds and CrazyGames later) | One zip of the client that runs inside the host's frame, talking to the same Render server: [§10](#10-hosted-builds-itchio-newgrounds-crazygames). |
 
 The client finds the server through the build-time variable `VITE_SERVER_URL`. If it is unset, the client runs Phase 1 local solo mode and needs no server.
 
@@ -187,3 +188,93 @@ curl localhost:8080/health
 | "That room is hosted on another server" | The code's first letter is another shard's `SHARD`. |
 | "New version available — refresh" | Client and server were built with different `PROTOCOL_VERSION`s. Reload the page; if it persists, the Vercel and Render deploys are from different commits. |
 | An installed app (home screen) keeps showing an old version | Tap "Update available — tap to reload". If the banner never shows, check that `/sw.js` is served with `Cache-Control: no-cache` (`vercel.json` headers). |
+| A hosted copy (itch.io…) says "New version available at tgt-td-cld.vercel.app" | The server was deployed with a new `PROTOCOL_VERSION`; the host still serves the old zip. Build and upload a new one ([§10](#10-hosted-builds-itchio-newgrounds-crazygames)). |
+| A hosted copy's lobby says "Disconnected from the server" | Its frame's origin is not in `ALLOWED_ORIGINS`: read the `Origin` of the WebSocket request in the browser's DevTools and add it ([§10](#10-hosted-builds-itchio-newgrounds-crazygames)). |
+
+## 10. Hosted builds (itch.io, Newgrounds, CrazyGames)
+
+**Han, 2 Nov 2026:** the game goes on itch.io as a hosted HTML game, the zip running inside itch's page rather than a link to the site; Newgrounds and CrazyGames take the same zip later. The game server, the analytics and the two boards stay on Render.
+
+**What a host does with the zip.** It unzips it and serves it from **its own origin** (itch.io: `https://html.itch.zone`, or `https://html-classic.itch.zone` for older projects; Newgrounds: `https://uploads.ungrounded.net`; CrazyGames: its game CDN under `crazygames.com`), under **a path of its own choosing** (never `/`), inside an **iframe** on its page. So the page's origin is the host's, the URL carries no `?src=`, the frame is cross-origin to the page around it, there is no address bar and no install, and the page around the frame may scroll. The game reaches the Render server from the host's origin, which `ALLOWED_ORIGINS` must list.
+
+### Build the zip
+
+```bash
+VITE_SERVER_URL=wss://<the server>.onrender.com npm run build:embed -- itch
+```
+
+- `VITE_SERVER_URL` is the production game server, the same value Vercel's build has (Vercel → *Settings → Environment Variables*). It is read from the environment and never written in the repo; the build refuses to start without it.
+- `itch` can be `newgrounds` or `crazygames`: the only difference is the channel baked in (below).
+- Output: `apps/client/dist-embed-itch/` and **`apps/client/embed-itch-<commit>.zip`**, `index.html` at its root (`-dirty` in the name when the checkout has uncommitted changes: commit first). Both are ignored by git; the zip is built, never committed.
+- It then prints the zip's size, its file count and the initial download (index.html, what its head loads, their static imports and the first screen's pictures) against the hosts' limits: CrazyGames allows an initial download of 50 MB (20 MB to be on its mobile homepage), 250 MB in all and 1,500 files; itch.io takes uploads up to 1 GB. For PR #155's commit: zip **20.8 MB**, unzipped 21.8 MB, **83 files**, initial download **1.32 MB** in 16 files.
+
+What the hosted build is (a Vite build in `--mode embed`, `VITE_EMBED_HOST` set; `vite.config.ts`, `src/platform/embedHost.ts`):
+
+| | The site (`npm run build`) | A hosted build |
+|---|---|---|
+| Paths | from `/` | relative (`base: './'`): every asset, worker, sound file, stage video, the map plate and the sheets resolve from wherever the host puts the zip |
+| Pages | the game and `privacy.html` | the game only; its privacy links (the lobby's, Settings', the end screen's, the age question's "Why we ask") open the real game's `https://tgt-td-cld.vercel.app/privacy.html` in a new tab |
+| Install | the manifest, Android's install prompt, the iPhone "Add to Home Screen" sheet | none (no manifest): a host's upload is never installed |
+| Update banner | "Update available — tap to reload" | none: a host serves one fixed upload. When the server's protocol moves on, the lobby says "New version available at tgt-td-cld.vercel.app" and its button opens the site in a new tab |
+| Service worker | `/sw.js`, caches `tdt-<version>` and `tdt-media` | `sw.js` beside index.html, registered only in a secure context and only if the browser lets the frame have one; its caches are named after the upload's folder (`tdt@/html/1234567/:<version>`, `…:media`) and it answers only for files under it, since the host's origin serves other games too. If it can't register, the game runs without it (the sheets load as on a first visit); `<html data-sw>` says which |
+| Channel | from `?src=`, `utm_*`, the referrer or a saved one | the host's (`VITE_CHANNEL`, the host's name by default) for every visit with no tag; a `?src=` still wins ([docs/ANALYTICS.md](ANALYTICS.md) "Hosted builds") |
+| Invite link, share card | the page's own address | the real game (`VITE_CANONICAL_ORIGIN`, `https://tgt-td-cld.vercel.app` by default): a friend lands on the site, never on a raw file on the host's CDN; the two play in one room |
+| Copy invite link | the clipboard API | the same, then the old `execCommand('copy')` when the frame may not write the clipboard (itch.io's frame has no `clipboard-write`), then the link shown |
+| Fullscreen | — | a small ⤢ button on the home card's stage, under the sound button, where the host allows fullscreen (`document.fullscreenEnabled`); a phone is held in portrait while it lasts, where the browser can |
+| `__BUILD__` | Vercel's commit | the checkout's commit (`TDT_BUILD_COMMIT`, `-dirty` when it has changes), so `npm run replay` names it |
+
+The site's build is not changed by any of this: with `VITE_EMBED_HOST` unset every hosted path folds away. PR #155 built main's and its own `dist/` with and without `VITE_SERVER_URL` and compared every file: with main's tracker data (`src/progress/data.ts`, the `/?progress` page) the two are byte for byte the same but `privacy.html`'s new paragraph; with the tracker's new row, that page's data also changes and renames the chunks that name it.
+
+**Inside the frame.** The match page never scrolls (`100dvh` is the frame's height); the safe-area insets are zero in a frame, so the touch controls sit `GESTURE_GAP` (12 px) over the frame's bottom edge; the Wake Lock is asked for as on the site (a frame that may not have one is refused quietly). Storage (`localStorage`: the age answer, the nickname, the record, the settings, the Endless consent, the data key) belongs to the host's origin, as the browser partitions it under the host's page: a player on itch.io and on the site are two browsers to the game. **With no storage at all** (a browser that blocks third-party storage, or a sandboxed frame) the game still plays: the age question is asked every visit, nothing is remembered, no play data and no board post is sent (an id could not outlast the page), and the anonymous `open` count still arrives. **A frame sandboxed without `allow-same-origin`** (an opaque origin) cannot run the game at all: its own module scripts need CORS headers from the host's CDN, and Chromium refuses to start its module workers (the simulation, the sound bake) from an opaque origin. itch.io, Newgrounds and CrazyGames don't frame games that way (games there keep `localStorage`); `npm run embed:serve` shows it at `/sandboxed`.
+
+### Try it before uploading
+
+```bash
+npm run embed:serve -- itch
+```
+
+serves the newest `embed-itch-*.zip`'s contents as a host does: on `http://127.0.0.1:4180/some/deep/path/`, framed by a host page on `http://localhost:4181/` (phone size, 412 × 839) and `http://localhost:4181/desktop` (1280 × 720), with text around the frame so the page scrolls, and no `?src=`. Solo plays; online play reaches the production server only from an origin it allows, so the friends' controls fail here unless you test against a local server: `npm run build:embed -- itch --e2e` builds the browser test's zip (the e2e hook, a game server at `ws://127.0.0.1:4182`, the real game played by `http://localhost:4183`), and `npm run embed:serve -- e2e --server` serves it with that server and that stand-in site. The browser test (`apps/client/e2e/embed.spec.ts`, pixel and desktop; CI builds its zip) does both: the first screen in the frame, Play solo, wave 1, a tower, no install or update banner, no scrolling, the channel `itch`, the service worker or not, the privacy link; the game with its storage blocked; and a room made in the frame joined from the stand-in site through the invite link, both in one match.
+
+### `ALLOWED_ORIGINS` for the hosts
+
+The same list answers the WebSocket and every HTTP route (analytics, `/daily/*`, `/endless/*`): no route has a list of its own. Add these to the value already on Render (comma-separated, no spaces):
+
+<!-- hosted-origins -->
+```text
+https://*.itch.zone,https://itch.io,https://*.itch.io,https://uploads.ungrounded.net,https://newgrounds.com,https://www.newgrounds.com,https://crazygames.com,https://*.crazygames.com,https://*.game-files.crazygames.com
+```
+
+- `https://*.itch.zone`: itch.io's game frames, `https://html.itch.zone` and `https://html-classic.itch.zone` (`*` is one run of letters, digits and hyphens, never a dot). `https://itch.io` and `https://*.itch.io`: the project pages around them.
+- `https://uploads.ungrounded.net`: where Newgrounds serves a game's files; `https://newgrounds.com` and `https://www.newgrounds.com`: its pages.
+- `https://crazygames.com`, `https://*.crazygames.com` (`games.crazygames.com`, the game frame in CrazyGames' apps; `files.crazygames.com`; `www`), and `https://*.game-files.crazygames.com` in case CrazyGames serves each game from a subdomain of its own.
+- `apps/server/test/hostedOrigins.test.ts` reads this block, checks each host's origins get in and lookalikes (`https://evilitch.zone`, `https://html.itch.zone.evil.example`, `null`, plain `http://`) don't, on the WebSocket and every HTTP route.
+- **Sources.** This session could not open itch.io's or CrazyGames' own pages (the network allow-list refused them), so the list is from search results of them and of their forums: itch.io's HTML5 docs (`itch.io/docs/creators/html5`: the embed and frame options) and forum threads naming `html.itch.zone`, `html-classic.itch.zone` and `*.itch.zone` as the origins to allow; CrazyGames' requirements (`docs.crazygames.com/requirements/technical`: 50 / 20 / 250 MB, 1,500 files) and sitelock page (`docs.crazygames.com/resources/html5/sitelock/`: "more than one CrazyGames origin", `games.crazygames.com`); for Newgrounds, Wikigrounds naming `uploads.ungrounded.net` as the file host. **After the first upload, read the real `Origin`** (DevTools → Network → the WebSocket to `onrender.com` → Request Headers → `Origin`) and add it exactly if it isn't covered. Don't add `null`: that would let any sandboxed page anywhere in, and a frame with that origin can't run the game anyway.
+
+The value to paste is Han's current one with the block appended, for example:
+
+```text
+https://tgt-td-cld.vercel.app,https://tgt-td-cld-*-YOUR-VERCEL-SCOPE.vercel.app,https://*.itch.zone,https://itch.io,https://*.itch.io,https://uploads.ungrounded.net,https://newgrounds.com,https://www.newgrounds.com,https://crazygames.com,https://*.crazygames.com,https://*.game-files.crazygames.com
+```
+
+Render → *Environment* → `ALLOWED_ORIGINS` → edit → **Save, rebuild and deploy**.
+
+### Upload to itch.io
+
+1. itch.io → *Dashboard* → **Create new project**. **Kind of project: HTML** ("You'll have a ZIP or HTML file that will be played in the browser").
+2. **Uploads → Upload files**: the zip. Tick **This file will be played in the browser**.
+3. **Embed options**: *Embed in page*; **Viewport dimensions 412 × 839**. **Frame options**: **Mobile friendly** on, orientation **Portrait** (on phones itch.io then launches the game full screen whatever the desktop setting); **Fullscreen button** on; *Automatically start on page load* off (a tap starts it, and the game's sound needs that tap anyway); *Enable scrollbars* off; *SharedArrayBuffer support* off (the game doesn't use it; it serves the game under cross-origin isolation, which nothing here was tested with).
+4. **Visibility: Draft.** Save, then open the draft's page (or its secret URL) on the phone and on a desktop browser.
+5. Check, on both:
+   - the home card shows in the frame, the ⤢ button on the stage (desktop and Android; not on an iPhone, which has no element fullscreen), sound after the first tap;
+   - **Play solo** starts a match; wave 1 comes; a tower builds; nothing scrolls during a match;
+   - **Create room** → **Copy invite link** says "Invite link copied" (or shows the link), and the link is `https://tgt-td-cld.vercel.app/?room=…`; a friend on the site joins, and you play one match;
+   - the lobby's **Privacy** link opens the site's privacy page in a new tab;
+   - the dashboard (`/analytics`) counts the visit under **itch.io** (Where they came from; Before the age question);
+   - DevTools: the WebSocket's `Origin` is in `ALLOWED_ORIGINS` (above); *Application → Service workers* shows `sw.js` for the upload's folder, or nothing (the game runs either way).
+6. Only then make the page public.
+
+**A new version.** Build a new zip and upload it; delete the old upload (itch.io serves each upload from its own folder, so the new one starts clean). Upload a new zip with every server deploy that changes `PROTOCOL_VERSION`: until then the hosted copy's online play says "New version available at tgt-td-cld.vercel.app" (solo still plays). A host that replaces an upload in place, at the same path, reaches a returning player on the visit after the one that loads it (the service worker's usual update).
+
+**Newgrounds and CrazyGames (later).** The same zip, built with `-- newgrounds` or `-- crazygames` so the dashboard tells them apart. Newgrounds: *Submit → Game*, HTML5, the zip with `index.html` at its root. CrazyGames: its developer portal's HTML5 upload; it has its own QA rules (its SDK, ads, links out of the game) to read before submitting. Check both hosts' real `Origin` after the first upload, as for itch.io.
+
+**The store pages' pictures.** Each host's cover, thumbnail and icon, the heroes' banner and the screenshots (phone and desktop, 1× and @2x) are made by `npm run press-shots -w @tdt/client` into `docs/press/` and `docs/screenshots/press/`; which file goes in which field of itch.io's, Newgrounds' and CrazyGames' forms is the table in `docs/PRESS.md` §2 (itch.io: `itch-cover-630x500.png` as the cover image, the stills under Screenshots).

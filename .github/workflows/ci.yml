@@ -102,6 +102,11 @@ jobs:
       - name: Build the e2e client
         run: npm run build:e2e -w @tdt/client
 
+      # e2e/embed.spec.ts (pixel and desktop): the hosted build's zip with the e2e hook, framed by a local host page.
+      - name: Build the hosted e2e zip
+        if: matrix.project != 'iphone'
+        run: npm run build:embed -w @tdt/client -- itch --e2e
+
       # On CI each browser test gets one retry (playwright.config.ts; never the stress test), so one slow runner can't
       # block a pull request. A test that passes only on its retry is flaky, not green: the next step lists it in the
       # job summary and puts a warning annotation on the run.

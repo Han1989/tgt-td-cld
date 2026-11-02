@@ -65,7 +65,7 @@ Put this on the URL Han posts or sends. It wins over the referrer and over `utm_
 
 The order they are used in (Han, 8 Oct 2026, `TASKS.md` → Now): friends, the cold test, then r/PlayMyGame, r/WebGames and r/TowerDefense one at a time, each after the previous post's numbers are read; CrazyGames with Gate 2.
 
-**itch.io, Newgrounds, Hacker News and Discord** (Han, 28 Oct 2026) are tags like the others: Han puts the link on the page or in the post, the dashboard gives each its row in **Where they came from**, **Before the age question**, **Match results** and **By link**, and a later visit with no tag keeps it. Only the tag counts: a referrer from news.ycombinator.com, itch.io, newgrounds.com or discord.com is **Other** (a saved channel is kept behind it), so an itch.io or Newgrounds page that frames the game sets its URL with the tag too. CrazyGames keeps its referrer rule.
+**itch.io, Newgrounds, Hacker News and Discord** (Han, 28 Oct 2026) are tags like the others: Han puts the link on the page or in the post, the dashboard gives each its row in **Where they came from**, **Before the age question**, **Match results** and **By link**, and a later visit with no tag keeps it. Only the tag counts: a referrer from news.ycombinator.com, itch.io, newgrounds.com or discord.com is **Other** (a saved channel is kept behind it). CrazyGames keeps its referrer rule. The game played **inside** itch.io's page (the hosted build, below) needs no tag: its channel is baked in.
 
 **Shared cards** (`share`, p6d-share) are the one tag Han never posts: the game writes it. A share card carries `<the page's own origin>/?src=share` as text in the picture and as the share sheet's link (`apps/client/src/share/text.ts`), so a preview deploy's card links to the preview; a desktop download copies the same link. Every visit from a player's shared card counts here, and is remembered like the other acquisition channels.
 
@@ -76,6 +76,14 @@ The order they are used in (Han, 8 Oct 2026, `TASKS.md` → Now): friends, the c
 A visit whose referrer host is `crazygames.com` (or a subdomain) counts as CrazyGames even without `?src=`. Set the portal URL with `?src=crazygames` anyway, in case the frame omits the referrer.
 
 Anything else with a referrer is **Other**. No referrer and no tag is **Direct**. A later visit with no tag keeps the last saved acquisition channel (Friends, Cold test, `reddit-*`, CrazyGames, itch.io, Newgrounds, Hacker News, Discord or Shared cards) in `localStorage`. `?src=direct` or `?src=other` clears that. Opening a tagged link yourself to check it saves that channel in your browser: open `?src=direct` afterwards, so your own visits stay out of that row.
+
+## Hosted builds
+
+**Han, 2 Nov 2026:** the game also runs inside a game site's page, from a zip the site serves (`npm run build:embed -- itch`, `docs/DEPLOY.md` §10): itch.io first, Newgrounds and CrazyGames later. Nothing new is sent and no field changes; two things differ.
+
+**The channel is baked in.** The host's page sets the frame's URL, so it never carries `?src=`. Every visit from a hosted build counts under the host's channel (`VITE_CHANNEL`: `itch`, `newgrounds` or `crazygames`, the host's own by default), whatever its referrer or a channel saved earlier, and nothing is saved for it (`hostedChannel` in `apps/client/src/analytics/channel.ts`). A `?src=` or `utm_*` tag on the frame's URL would still win, as on the site. The dashboard shows these visits in the host's existing rows (**itch.io**, **Newgrounds**, **CrazyGames**), beside the visits from tagged links to the site: the site's link on an itch.io devlog and the game played on itch.io's page count together.
+
+**Storage is the host's.** The game's `localStorage` (the Play data switch, the age answer, the visitor id and data key, the nickname, the record, the Endless consent) lives under the host's origin, partitioned by the browser under the host's page: a player who plays on itch.io and on the site is **two browsers** to the game, with two visitor ids, two age answers and two records, and Download / Delete my data in each place covers that place's id only. The privacy page opens on the site (`https://tgt-td-cld.vercel.app/privacy.html`) and its switch and id are the site's; a player on the host uses ⚙ Settings → Play data and Your data inside the game there, which the privacy page says. When the host's frame may keep nothing (a browser that blocks third-party storage, a sandbox), no visitor id could outlast the page, so the hosted build sends **no play data and no board post** at all, only the anonymous counts (`open`, a failed start), and asks the age again on every visit.
 
 ## What each panel means
 

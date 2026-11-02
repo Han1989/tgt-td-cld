@@ -112,7 +112,9 @@ Every post, and every message to testers, uses its channel's link (ANALYTICS.md)
 | Discord (any server or DM) | `https://tgt-td-cld.vercel.app/?src=discord` |
 | Players' share cards (written by the game, never posted by hand) | `https://tgt-td-cld.vercel.app/?src=share` |
 
-**itch.io, Newgrounds, Hacker News and Discord** (Han, 28 Oct 2026): each its own link, so each gets its row and its first-visit funnel. Only the tag counts (their referrers land in **Other**), so a portal page that frames the game uses the tagged URL as the frame's address too, as CrazyGames does.
+**itch.io, Newgrounds, Hacker News and Discord** (Han, 28 Oct 2026): each its own link, so each gets its row and its first-visit funnel. Only the tag counts (their referrers land in **Other**).
+
+**The game played inside itch.io's page** (Han, 2 Nov 2026; Newgrounds and CrazyGames later) is not a link: it is the hosted build, a zip the site serves in its own frame (`npm run build:embed -- itch`, `docs/DEPLOY.md` §10). It needs no tag: its channel is baked in, so every visit there counts under **itch.io**, in the same row as the tagged links to the site on itch.io's devlog. Its invite links and share cards point at `https://tgt-td-cld.vercel.app`, never at the host's file address, so a friend invited from itch.io plays on the site, in the same room. The project page's own text and devlogs can still link to the site with `?src=itch`.
 
 **Players' share cards** (p6d-share, `docs/GAME_DESIGN.md` "Daily run"): after a posted Daily run (**Share my run**) and on an Endless end screen (**Share**), a player's tap makes a 1200 × 630 picture of their result in the game's own look (the hero's stage poster, the gold trim, the wordmark) and shares it with the link `<the page's origin>/?src=share`, so every visit from one counts under **Shared cards** in the dashboard. It is not the link card above: that one is `og-card.png`, what crawlers show under any link. Examples: `docs/screenshots/daily-share/`.
 
