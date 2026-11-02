@@ -31,7 +31,7 @@ import { lessonOffer, type SoloPick } from '../tutorial/logic';
 import { BoardCard } from './boardCard';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
-import { dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
+import { DEFAULT_MODE, dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
 import { storedName, storeName } from './nickname';
 
 /** The home card's solo controls (every build). */
@@ -58,7 +58,8 @@ export interface BoardActions {
 
 /** The friends' controls and the room card (a build with a game server). */
 export interface RoomActions {
-  create(name: string, hero: HeroKind): void;
+  /** A new room, opened on the home card's mode (`openingMode`). */
+  create(name: string, hero: HeroKind, mode: GameMode): void;
   join(code: string, name: string, hero: HeroKind): void;
   setHero(hero: HeroKind): void;
   /** Host only: the match mode. */
@@ -206,7 +207,7 @@ export class LobbyUi {
       this.syncRoomHero();
       room?.setHero(hero);
     });
-    this.modePicker = new ModePicker($('lobby-mode-room'), 'full', (mode) => room?.setMode(mode), $('lobby-mode-room-best'));
+    this.modePicker = new ModePicker($('lobby-mode-room'), DEFAULT_MODE, (mode) => room?.setMode(mode), $('lobby-mode-room-best'));
     if (room) this.bindRoom(room);
     this.dailyTile.addEventListener('click', () => {
       if (this.daily && this.dailyToday) this.daily.play(this.hero, this.dailyToday);
@@ -315,7 +316,7 @@ export class LobbyUi {
   private bindRoom(actions: RoomActions): void {
     $('lobby-create').addEventListener('click', () => {
       const name = this.validName();
-      if (name) actions.create(name, this.hero);
+      if (name) actions.create(name, this.hero, this.homeMode.mode);
     });
     const join = () => {
       const name = this.validName();

@@ -39,7 +39,7 @@ Don't change these without Han.
 | Area | Decision |
 |---|---|
 | Players | Up to 3 per match, one per lane. **Store-facing build leads with solo (1p) and duo (2p).** **3-player co-op is the flagship community mode.** |
-| Platform | Portrait on phones, the Spire map on every device, controls drawn over the map. |
+| Platform | Portrait on phones, the Spire map on every device, controls drawn over the map. Quick (15 waves) is the default mode everywhere; a player's pick is remembered (2 Nov 2026). |
 | Hero control | Auto-attacks while moving. Tap a skill to smart-cast it, drag to aim. Ultimates cost no mana (cooldown only); mana regen grows with level. |
 | Art | "Runelight" (dark, moonlit fantasy), drawn entirely in code. |
 | Sound | Lobby: Japanese garden. Matches: Three Kingdoms war epic. Made in code; recorded files can replace any of it. |
@@ -58,7 +58,6 @@ The hook-test branch `claude/loving-hawking-7fvsu7` (combo ultimates, boss shiel
 |---|---|---|
 | Database for accounts | Render Postgres, or AWS | Phase 6a |
 | Brawl Pass price | For example $4.99 a month: 400 subscribers is about $2k a month before store fees | Phase 8 |
-| Quick mode as the default on phones? | Yes / no (`docs/MOBILE.md` §11) | Any time |
 
 ## Phases
 
@@ -86,7 +85,7 @@ The hook-test branch `claude/loving-hawking-7fvsu7` (combo ultimates, boss shiel
 | **8 · Live PvP** | 3v3 send-creeps, then a paid-only hero brawl (Brawl Pass). Gear equalised, bots fill seats | Last, after the co-op live game |
 | **9 · Reach** | Steam wishlists, then App Store and Google Play. Store-facing build leads with 1p and 2p; 3p stays the community flagship | Only after Discovery shows strangers stay |
 
-Backlog, not scheduled: more maps (Phase 5), and whether Quick is the default on phones.
+Backlog, not scheduled: more maps (Phase 5). (Whether Quick is the default was decided on 2 Nov 2026: yes, on every device; `docs/GAME_DESIGN.md` Decision Log.)
 
 ## What not to start
 

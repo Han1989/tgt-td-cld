@@ -54,15 +54,16 @@ describe('progress dashboard data', () => {
     // f3-look (retest fix A: the towers and the lobby Warden readable in the new light; PR #151), f3-boards
     // (retest fix C: Endless's daily top 10, posted on its own; PR #153), n-stars (progress saved in this
     // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154), e-embed (the hosted build, one zip that
-    // runs inside itch.io, Newgrounds and CrazyGames; PR #155), and e-press (press stills on the current build and
-    // the store covers; PR #156).
-    expect(summary.done).toBe(96);
+    // runs inside itch.io, Newgrounds and CrazyGames; PR #155), e-press (press stills on the current build and
+    // the store covers; PR #156), and quick-default (Quick is the default mode; PR #157), which answers the
+    // backlog's open question p5-quick (removed).
+    expect(summary.done).toBe(97);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
     // round 2 PR #120), V-05d (the towers, the Heart and the portals in 3D, PR #118) and V-05e (the stress budget after
     // the 3D sprites, PR #121) are done, and V-05a (PR #106) is closed as superseded by V-05b.
-    expect(summary.open).toBe(39);
+    expect(summary.open).toBe(38);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
     // The presentation pass has no open row.
@@ -116,6 +117,7 @@ describe('progress dashboard data', () => {
       'n-stars': 154,
       'e-embed': 155,
       'e-press': 156,
+      'quick-default': 157,
       'D-09': 98,
       'H-07': 98,
     };

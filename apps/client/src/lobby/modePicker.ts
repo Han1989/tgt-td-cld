@@ -1,12 +1,19 @@
 // Match mode (Full / Quick / Endless) for the home card and the room card (host only): one segmented stone row. The
-// home card's pick is remembered in localStorage. Endless has no wave count ("∞"); the hero's best Endless wave in this
-// browser shows on the row's label line, over the Endless segment (`showBest`).
+// home card's pick is remembered in localStorage; with nothing remembered it is Quick (`DEFAULT_MODE`). Endless has no
+// wave count ("∞"); the hero's best Endless wave in this browser shows on the row's label line, over the Endless
+// segment (`showBest`).
 
-import { GAME_MODES, type GameMode } from '@tdt/protocol';
+import { GAME_MODES, type GameMode, type LobbyState, type PlayerId } from '@tdt/protocol';
 import { TUNING, tuningForMode } from '@tdt/sim';
 import { bestLine } from '../endless/best';
 
 const MODE_KEY = 'tdt.mode';
+/**
+ * The mode of a player who never picked one, on the site and in every hosted build (Han, 2 Nov 2026): a stranger's first
+ * match must end in a Victory screen inside one sitting, and Quick's 15 waves take about 11 minutes (Full's 30 about
+ * 25). A pick is remembered and wins; a stored `'full'` stays Full.
+ */
+export const DEFAULT_MODE: GameMode = 'quick';
 /** The solo difficulty pick's memory before protocol 20 (Han, 17 Oct 2026: nobody picks a difficulty). */
 const OLD_DIFFICULTY_KEY = 'tdt.difficulty';
 
@@ -25,9 +32,9 @@ export function modeSub(mode: GameMode): string {
 export function storedMode(): GameMode {
   try {
     const v = localStorage.getItem(MODE_KEY) ?? '';
-    return (GAME_MODES as readonly string[]).includes(v) ? (v as GameMode) : 'full';
+    return (GAME_MODES as readonly string[]).includes(v) ? (v as GameMode) : DEFAULT_MODE;
   } catch {
-    return 'full';
+    return DEFAULT_MODE;
   }
 }
 
@@ -37,6 +44,16 @@ export function storeMode(mode: GameMode): void {
   } catch {
     // ignore
   }
+}
+
+/**
+ * The server opens every room on Full. The page that created a room sends its home card's mode once, as the host's
+ * pick, so a room made by a player who never picked one is Quick and one made on Full stays Full. The mode to send for
+ * this lobby, or null: this page is not the room's host, the match has started, or the room already has `pick`.
+ */
+export function openingMode(lobby: Pick<LobbyState, 'phase' | 'hostId' | 'mode'>, me: PlayerId | null, pick: GameMode): GameMode | null {
+  if (lobby.phase !== 'lobby' || me === null || lobby.hostId !== me) return null;
+  return lobby.mode === pick ? null : pick;
 }
 
 /** Every match is Normal now: a remembered difficulty pick is dropped once and never written again. */

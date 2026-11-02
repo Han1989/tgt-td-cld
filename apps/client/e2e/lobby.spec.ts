@@ -236,9 +236,10 @@ for (const tutorial of [undefined, 'skipped'] as const) {
     const touch = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
     if (touch) await page.touchscreen.tap(spot.x, spot.y);
     else await page.mouse.click(spot.x, spot.y);
-    // The match starts at once with the card's hero and mode (Full and the Ranger for a new player): no second screen.
+    // The match starts at once with the card's hero and mode (Quick and the Ranger for a new player): no second screen.
     await expect(page.locator('#lobby')).toBeHidden();
-    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(30);
+    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(15);
+    expect(await page.evaluate(() => window.__tdt.latest()!.mode)).toBe('quick');
     expect(await page.evaluate(() => window.__tdt.latest()!.heroes.map((h) => h.kind))).toEqual(['ranger']);
   });
 }
@@ -325,9 +326,10 @@ function overflow(page: Page): Promise<number> {
 test('the home card: Mode is one segmented row, remembered, and the first screen holds it all down to the lesson line', async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 839 });
   await openHome(page);
-  // One row of three stone segments, Full by default; no difficulty and no modifiers anywhere in the lobby.
+  // One row of three stone segments, Full · Quick · Endless, Quick by default (Han, 2 Nov 2026); no difficulty and no
+  // modifiers anywhere in the lobby.
   await expect(page.locator('#lobby-mode-home .mode-pick')).toHaveCount(3);
-  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
   await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="full"]')).toHaveText('Full30 waves');
   await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]')).toHaveText('Quick15 waves');
   await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="endless"]')).toHaveText('Endless∞');
@@ -343,13 +345,42 @@ test('the home card: Mode is one segmented row, remembered, and the first screen
   await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
   expect((await box(page, '#lobby-learn')).bottom).toBeLessThanOrEqual(839);
   await onScreen(page, 'lobby-offline');
-  // Quick is remembered (tdt.mode) for the next visit; Play solo then starts a Quick match.
-  await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
-  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('quick');
+  // A pick is remembered (tdt.mode) for the next visit, Full included.
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('full');
   await page.reload();
   await waitForReady(page, 'online');
-  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
   await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('Quick is the default: a new browser has Quick lit and Play solo starts Quick; Full, once picked, is remembered and played', async ({ page }) => {
+  await openHome(page);
+  // Nothing stored, nothing written: Quick is the card's own default, not a pick.
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBeNull();
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+  await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#lobby-mode-home .mode-pick[data-mode="full"]')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#lobby-offline').click();
+  await expect(page.locator('#lobby')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(15);
+  const snap = await page.evaluate(() => window.__tdt.latest()!);
+  expect([snap.mode, snap.difficulty]).toEqual(['quick', 'normal']);
+  await page.evaluate(() => window.__tdt.lose());
+  await page.locator('#end-change-hero').click();
+  await expect(page.locator('#lobby-home')).toBeVisible();
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBeNull();
+
+  // Full picked once: remembered on the next visit, and Play solo starts Full.
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
+  expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('full');
+  await page.reload();
+  await waitForReady(page, 'online');
+  await expect(page.locator('#lobby-mode-home .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
+  await page.locator('#lobby-offline').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(30);
+  expect(await page.evaluate(() => window.__tdt.latest()!.mode)).toBe('full');
 });
 
 test.describe('a short window', () => {
@@ -587,6 +618,8 @@ for (const size of [
     // The record as matches leave it; a pick on the home card reads it again (no reload: the service worker would fetch
     // the Daily tile's request past this test's route).
     await page.evaluate((r) => localStorage.setItem('tdt.record', JSON.stringify(r)), RECORD);
+    // Full picked (a new player's card has Quick, the default since 2 Nov 2026): the picked mode's best comes first.
+    await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
     await page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
     await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
     // The Ranger's wins; the Arcanist's star (he has won Full); the Warden has no win, so no mark.
@@ -959,31 +992,57 @@ interface Seat {
  * Answers the room's WebSocket (`?lobby` points at ws://127.0.0.1:9) like a game server would: Create or Join gets
  * this player's id and a lobby with `players` (the first one hosts).
  */
-async function fakeRoom(page: Page, me: string, players: Seat[]): Promise<void> {
+async function fakeRoom(page: Page, me: string, players: Seat[], opens: Mode = 'quick'): Promise<{ t: string; mode?: Mode }[]> {
+  const sent: { t: string; mode?: Mode }[] = [];
   await page.routeWebSocket(/127\.0\.0\.1:9/, (ws) => {
+    // Each connection is a new room, on `opens`.
+    let mode = opens;
+    const lobby = () => JSON.stringify({ t: 'lobby', lobby: { code: 'KQXYZ', phase: 'lobby', hostId: players[0]!.id, mode, players } });
     ws.onMessage((raw) => {
-      const msg = JSON.parse(String(raw)) as { t: string };
+      const msg = JSON.parse(String(raw)) as { t: string; mode?: Mode };
+      sent.push(msg);
+      // The host's mode, as the server takes it: the room's mode, broadcast.
+      if (msg.t === 'mode' && msg.mode) {
+        mode = msg.mode;
+        ws.send(lobby());
+      }
       if (msg.t !== 'create' && msg.t !== 'join') return;
       ws.send(JSON.stringify({ t: 'welcome', playerId: me, room: { code: 'KQXYZ', token: 'test-token' } }));
-      ws.send(
-        JSON.stringify({
-          t: 'lobby',
-          lobby: {
-            code: 'KQXYZ',
-            phase: 'lobby',
-            hostId: players[0]!.id,
-            mode: 'quick',
-            players,
-          },
-        }),
-      );
+      ws.send(lobby());
     });
   });
+  return sent;
 }
+
+type Mode = 'full' | 'quick' | 'endless';
 
 const HOST: Seat = { id: 'p1', name: 'Han', hero: 'ranger', ready: false, connected: true };
 const GUEST: Seat = { id: 'p2', name: 'Mya', hero: 'warden', ready: false, connected: true };
 const THIRD: Seat = { id: 'p3', name: 'Kai', hero: 'arcanist', ready: true, connected: true };
+
+test('a new room opens on the home card\'s mode: Quick for a host who never picked one, Full for one who picked it', async ({ page }) => {
+  // The server opens every room on Full (room.ts); the page that created it sends the home card's mode once.
+  const sent = await fakeRoom(page, 'p1', [HOST], 'full');
+  await openHome(page, 'skipped');
+  await page.locator('#lobby-name').fill('Han');
+  await page.locator('#lobby-create').click();
+  await expect(page.locator('#lobby-room')).toBeVisible();
+  await expect(page.locator('#lobby-mode-room .mode-pick.selected')).toHaveAttribute('data-mode', 'quick');
+  await expect.poll(() => sent.filter((m) => m.t === 'mode')).toEqual([{ t: 'mode', mode: 'quick' }]);
+
+  // A host who picked Full: nothing to send, the room stays on Full.
+  await page.locator('#lobby-leave').click();
+  await expect(page.locator('#lobby-home')).toBeVisible();
+  await page.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
+  const before = sent.length;
+  await page.locator('#lobby-create').click();
+  await expect(page.locator('#lobby-room')).toBeVisible();
+  await expect(page.locator('#lobby-mode-room .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
+  // A later message (the room's hero) arrives after anything sent on the room's first lobby: no mode came before it.
+  // (The first room's `leave` may land after `before` was read.)
+  await page.locator('#lobby-heroes-room .hero-pick[data-hero="warden"]').click();
+  await expect.poll(() => sent.slice(before).map((m) => m.t).filter((t) => t !== 'leave')).toEqual(['create', 'hero']);
+});
 
 /** The room card fits a 412 × 839 phone with nothing to scroll: all three seats, your hero, Mode and the dock. */
 async function fitsOneScreen(page: Page, viewport: { width: number; height: number } | null): Promise<void> {

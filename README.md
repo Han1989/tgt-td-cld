@@ -26,7 +26,7 @@ npm run build                                      # typecheck + client build + 
 
 **Online:** enter a nickname, click **Create room** and share the invite link (or the 5-letter code). Friends click **Join**, then **Ready**; the host clicks **Start match**. Each player has their own gold and hero.
 
-Hold the Heart for 30 waves. Creeps come down three lanes from the portals at the top. Wisps (from wave 5) fly straight at the Heart. Waves 10, 20 and 30 each bring a boss with its own trick: the Ironhorn stomps, the Matriarch hatches broods, and the Shardback shifts between a hide that resists physical damage and one that resists magic.
+Hold the Heart for 15 waves in **Quick** (the default, about 11 minutes) or 30 in **Full** (about 25), picked in the Mode row over **Play solo**, or by the host in a room; **Endless** has no last wave. Creeps come down three lanes from the portals at the top. Wisps (from wave 4 in Quick, 6 in Full) fly straight at the Heart. Three bosses each bring their own trick, on waves 5, 10 and 15 in Quick (10, 20 and 30 in Full): the Ironhorn stomps, the Matriarch hatches broods, and the Shardback shifts between a hide that resists physical damage and one that resists magic.
 
 - **Right-click:** move, or attack a creep. **A** + left-click: attack-move.
 - **Q:** Multishot. **W:** Snare Trap, then left-click where to place it. Spend skill points with the **+** buttons.

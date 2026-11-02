@@ -200,7 +200,8 @@ export async function waitForReady(
 /**
  * Opens a solo match (Quick mode by default) with lots of gold (e2e build `?lab`) and the Ranger (or `hero`), from the
  * home card. Play solo always starts the match picked, never the lesson, even on a fresh profile (Learn to play is
- * the lesson's way in).
+ * the lesson's way in). The mode is always clicked, never left to the card's default (Quick since 2 Nov 2026), so a
+ * spec that needs Full's 30 waves or its bosses on 10 / 20 / 30 says `'full'`.
  */
 export async function startSolo(page: Page, query = '?lab', mode: 'quick' | 'full' | 'endless' = 'quick', hero = 'Ranger'): Promise<void> {
   await page.goto(`/${query}`);
