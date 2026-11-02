@@ -519,40 +519,34 @@ async function noToast(page: Page, ms = 8000): Promise<void> {
 }
 
 /**
- * Holds the frame (as `hold`) once an element matching `selector` is `ms` into its CSS animation, from inside the page,
- * so the moment is not late by a round trip; `held` resolves once it is held.
+ * Holds the frame (as `hold`) `ms` after an element matching `selector` is put in the page, from inside the page so the
+ * moment is not late by a round trip; `held` resolves once it is held. On a page this busy (a software GPU at 2.625×)
+ * an element's CSS animation starts frames late and its clock runs behind, so at the hold the element's own animation
+ * is brought to `settle` ms in (an entrance shown as it stands a moment later; the world is the held instant).
  */
-async function armHold(page: Page, selector: string, ms: number): Promise<{ held: () => Promise<void> }> {
+async function armHold(page: Page, selector: string, ms: number, settle = 0): Promise<{ held: () => Promise<void> }> {
   await page.evaluate(
-    ([sel, delay]) => {
+    ([sel, delay, to]) => {
       const w = window as any;
       w.__pressHeld = false;
       const freeze = () => {
         w.__tdt.pause?.(true);
+        const el = document.querySelector(sel as string);
+        for (const a of el?.getAnimations({ subtree: true }) ?? []) if (Number(a.currentTime ?? 0) < (to as number)) a.currentTime = to as number;
         for (const a of document.getAnimations()) a.pause();
         w.__pressRaf ??= window.requestAnimationFrame;
         w.__pressFrames = [];
         window.requestAnimationFrame = (cb) => (w.__pressFrames.push(cb), 0);
         w.__pressHeld = true;
       };
-      // `ms` into the element's own animation (on a busy page an animation starts frames after the element is in).
-      let since = 0;
-      const due = () => {
-        const el = document.querySelector(sel as string);
-        const a = el?.getAnimations({ subtree: true })[0];
-        since ||= performance.now();
-        const at = a ? Number(a.currentTime ?? 0) : performance.now() - since;
-        if (at >= (delay as number)) freeze();
-        else setTimeout(due, 8);
-      };
       const seen = new MutationObserver(() => {
         if (!document.querySelector(sel as string)) return;
         seen.disconnect();
-        due();
+        setTimeout(freeze, delay as number);
       });
-      seen.observe(document.body, { childList: true, subtree: true });
+      seen.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     },
-    [selector, ms] as const,
+    [selector, ms, settle] as const,
   );
   return {
     held: async () => {
@@ -847,7 +841,8 @@ async function shot3(browser: Browser): Promise<void> {
     // Both ultimates within a moment of each other: the bot stops deciding, the Ranger casts, the bot answers.
     bot.acting = false;
     await noToast(page, 3000);
-    const { held } = await armHold(page, '#fuse-ribbon:not(.hidden)', 1100);
+    // A second into the fuse: the combo's strikes landing on the three lanes, the ribbon as it stands a second in.
+    const { held } = await armHold(page, '#fuse-ribbon:not(.hidden)', 1000, 1000);
     await cast(page, 'R');
     bot.send({ t: 'cmd', cmd: { type: 'cast', slot: 'R' } });
     await held();
@@ -903,8 +898,9 @@ async function shot4(browser: Browser, url: string): Promise<void> {
     await page.waitForTimeout(100);
   }
   await learnAll(page);
-  // The popup at full strength (`ult-pop` 2.2 s: 10% to 76%), his guard ring and heal still up, the kills' coins home.
-  const { held } = await armHold(page, '.ult-pop[data-ult="rampartSlam"]', 650);
+  // 180 ms after the slam: the pack falling round him, his guard ring and heal; the popup as it stands once it has
+  // landed (`ult-pop` 2.2 s: full from 10%, settled at 18%).
+  const { held } = await armHold(page, '.ult-pop[data-ult="rampartSlam"]', 180, 420);
   await cast(page, 'R');
   await held();
   await clean(page);
