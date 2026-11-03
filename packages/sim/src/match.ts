@@ -359,7 +359,8 @@ export function matchReplay(match: Match): Replay {
 /**
  * Re-runs a replay with the simulation: every logged input at its tick, then steps until the match ends (or
  * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry, and on a match
- * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice, Endless before protocol 22, anything before protocol 23).
+ * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice, Endless before protocol 22, anything
+ * before protocol 24: the kits of 23 and Rampart Slam's lane quake of 24).
  */
 export function replayMatch(
   replay: Replay,
@@ -469,6 +470,8 @@ const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.flo
 const ENDLESS_RULES_PROTOCOL = 22;
 /** Retest fix B: the Warden's Rampart Slam, the mana rule, the Snare Trap's Exposed and wave 5 without Wisps. */
 const KIT_RULES_PROTOCOL = 23;
+/** Rampart Slam round 2 (Han, 4 Nov 2026): the slam became a lane quake. */
+const QUAKE_PROTOCOL = 24;
 
 /**
  * Why this build cannot re-run a replay whose rules are gone, or null. Match modifiers (Swift, Ironclad, Sky Tide,
@@ -501,6 +504,12 @@ export function replayRefusal(
       `This match was recorded under protocol ${replay.protocol}, before the heroes' kits and the wave list changed in ` +
       `protocol ${KIT_RULES_PROTOCOL} (the Warden's Rampart Slam, mana, the Snare Trap, wave 5); only a build from ` +
       `before then can re-run it${where}.`
+    );
+  }
+  if (replay.protocol < QUAKE_PROTOCOL) {
+    return (
+      `This match was recorded under protocol ${replay.protocol}, before the Warden's Rampart Slam became a lane quake ` +
+      `in protocol ${QUAKE_PROTOCOL}; only a build from before then can re-run it${where}.`
     );
   }
   return null;

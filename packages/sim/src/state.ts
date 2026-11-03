@@ -282,6 +282,30 @@ export interface Zone {
   done: boolean;
 }
 
+/**
+ * Rampart Slam's lane quake (round 2, Han 4 Nov 2026): a front running along `lane` both ways from `from` (its lane
+ * progress at the Warden's feet). `pending` is the creeps on the lane at the cast still to hit; each is hit once, the
+ * tick the front passes it, for the damage fixed at the cast (`hit`, a boss `bossHit`).
+ */
+export interface Quake {
+  id: EntityId;
+  owner: PlayerId;
+  lane: LaneId;
+  from: number;
+  startTick: number;
+  /** The tick the front reaches the lane's far end; every creep left is hit by then. */
+  endTick: number;
+  pending: EntityId[];
+  hit: number;
+  bossHit: number;
+  stunTicks: number;
+  /** Where the hits come from (the Warden at the cast), for the wave-10 shield. */
+  src: HitFrom;
+  /** Creeps killed so far, the local slam's included; reported in an `ultResult` when the quake ends. */
+  kills: number;
+  done: boolean;
+}
+
 export interface PendingSpawn {
   tick: number;
   kind: CreepKind;
@@ -321,6 +345,8 @@ export interface GameState {
   projectiles: Projectile[];
   traps: Trap[];
   zones: Zone[];
+  /** Rampart Slam's lane quakes still running. */
+  quakes: Quake[];
   spawnQueue: PendingSpawn[];
   /** Events produced by the last step (and commands applied before it). */
   events: GameEvent[];

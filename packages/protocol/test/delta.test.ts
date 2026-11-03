@@ -12,6 +12,7 @@ describe('snapshot deltas', () => {
     let client: Snapshot = JSON.parse(JSON.stringify(server)) as Snapshot;
     let deltaBytes = 0;
     let fullBytes = 0;
+    let slamDone = -1;
     for (let t = 0; t < 2400; t++) {
       if (t % 5 === 0) for (const bot of bots) for (const cmd of bot.decide(server)) applyCommand(state, bot.playerId, cmd);
       if (t === 700) applyCommand(state, 'a', { type: 'callEarly' });
@@ -26,17 +27,22 @@ describe('snapshot deltas', () => {
         applyCommand(state, 'c', { type: 'cast', slot: 'R' });
       }
       if (t === 1540) expect(server.zones.length).toBeGreaterThan(0);
-      // The Warden's Rampart Slam (protocol 23), and creeps left Exposed by a Snare Trap, in the stream.
+      // The Warden's Rampart Slam (protocol 23) as a lane quake on Mid (protocol 24), and creeps left Exposed by a Snare
+      // Trap, in the stream.
       if (t === 1600) {
         const warden = state.heroes[1]!;
         warden.skillCd.R = 0;
+        warden.x = 13;
+        warden.y = 20;
         applyCommand(state, 'b', { type: 'cast', slot: 'R' });
         for (const c of state.creeps.slice(0, 3)) c.exposedUntil = state.tick + 40;
       }
       if (t === 1601) {
-        expect(server.events).toContainEqual(expect.objectContaining({ type: 'ultResult', ult: 'rampartSlam' }));
+        expect(server.events).toContainEqual(expect.objectContaining({ type: 'quake', lane: 1 }));
         expect(server.creeps.some((c) => c.exposed)).toBe(true);
       }
+      if (t > 1600 && t < 1680 && server.events.some((e) => e.type === 'ultResult' && e.ult === 'rampartSlam')) slamDone = t;
+      if (t === 1680) expect(slamDone).toBeGreaterThan(1600);
       // A leaver's pads open up (pad owners change).
       if (t === 1800) setPlayerLeft(state, 'b');
       step(state);

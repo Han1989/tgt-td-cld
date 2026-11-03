@@ -16,10 +16,9 @@ import {
   heroStats,
   newId,
   spawnProjectile,
-  stunCreep,
-  ultimateDamage,
 } from './combat';
 import { hitFrom, onUltCast, pulseRain, startRain } from './coop';
+import { startQuake } from './quake';
 import { startChase } from './creeps';
 import type { GameState, Hero, Zone } from './state';
 import { secondsToTicks, TICK_RATE, type ActiveSkillStats, type CooldownSkillStats } from './tuning';
@@ -344,26 +343,18 @@ function taunt(state: GameState, hero: Hero): string | null {
 }
 
 /**
- * Rampart Slam: a slam at the Warden's feet. Every creep within the radius (flyers too) takes `base` plus `echo` for
- * every other creep caught (at most `echoCap` counted; a boss takes `base` alone) and is stunned. Then every living
- * hero, anywhere, heals a share of their max HP and gains armour and regeneration until the guard ends.
+ * Rampart Slam (round 2, the lane quake): cast within `laneReach` of a lane, a quake runs along that lane both ways
+ * from the Warden's feet and hits every creep on it (ground and air) as its front passes; creeps off the lane within
+ * `radius` take the local slam at once. Each takes `base` plus `echo` for every other creep caught by both (at most
+ * `echoCap` counted; a boss takes `base` alone) and is stunned (`quake.ts`). Then every living hero, anywhere, heals
+ * a share of their max HP and gains armour and regeneration until the guard ends.
  */
 function rampartSlam(state: GameState, hero: Hero): string | null {
   const s = state.tuning.hero.warden.rampartSlam;
   const i = rankIndex(state, hero, 'R');
   pay(state, hero, 'R');
   emit(state, { type: 'aoe', effect: 'rampartSlam', x: hero.x, y: hero.y, radius: s.radius });
-  const from = hitFrom(state, hero);
-  const stun = secondsToTicks(s.stun[i] ?? 0);
-  const caught = creepsInRadius(state, hero.x, hero.y, s.radius, true);
-  const echo = (s.echo[i] ?? 0) * Math.min(s.echoCap, Math.max(0, caught.length - 1));
-  const power = heroPower(state, hero);
-  const killsBefore = state.ultStats.kills;
-  for (const c of caught) {
-    stunCreep(state, c, stun);
-    const hit = (s.base[i] ?? 0) + (state.tuning.creeps[c.kind].boss ? 0 : echo);
-    ultimateDamage(state, c, hit * power, 'physical', hero.owner, from, 'rampartSlam');
-  }
+  startQuake(state, hero, hero.ranks.R);
   hero.guardianUntil = state.tick + secondsToTicks(s.duration[i] ?? 0);
   for (const h of state.heroes) {
     if (!h.alive) continue;
@@ -371,7 +362,6 @@ function rampartSlam(state: GameState, hero: Hero): string | null {
     h.hp = Math.min(heroMaxHp(state, h), h.hp + heroMaxHp(state, h) * (s.heal[i] ?? 0));
     emit(state, { type: 'heal', heroId: h.id, amount: Math.round(h.hp - before) });
   }
-  emit(state, { type: 'ultResult', ult: 'rampartSlam', by: hero.owner, kills: state.ultStats.kills - killsBefore });
   onUltCast(state, hero, 'rampartSlam', null);
   return null;
 }

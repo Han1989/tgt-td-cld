@@ -209,7 +209,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 const label = (t: HeroKind[]) => t.map((h) => h[0]!.toUpperCase()).join('+') + (t.length === 1 ? ` ${t[0]}` : '');
 
 /** Creeps killed per cast of `tag` over `ms`, or '-' when it was never cast. */
-function perCast(ms: Match[], tag: 'arrowStorm' | 'meteor'): string {
+function perCast(ms: Match[], tag: 'arrowStorm' | 'meteor' | 'rampartSlam'): string {
   const casts = sum(ms.map((m) => m.by[tag].casts));
   return casts > 0 ? f(sum(ms.map((m) => m.by[tag].kills)) / casts, 1) : '-';
 }
@@ -287,7 +287,7 @@ const ENDLESS_COLS = [
 ];
 
 function print(results: Match[][], printed: Row[] = rows): void {
-  const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers', 'repair (gold)', 'destroyed'];
+  const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'kill/RS', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers', 'repair (gold)', 'destroyed'];
   let group = '';
   let heads = cols;
   let table: string[][] = [];
@@ -327,6 +327,7 @@ function print(results: Match[][], printed: Row[] = rows): void {
       f(ults / Math.max(1, ms.length), 1),
       perCast(ms, 'arrowStorm'),
       perCast(ms, 'meteor'),
+      perCast(ms, 'rampartSlam'),
       ults > 0 ? f(sum(ms.map((m) => m.ultDamage)) / ults) : '-',
       f(mean(ms.map((m) => m.combos)), 1),
       pct(sum(ms.map((m) => comboDamage(m))) / Math.max(1, sum(ms.map((m) => m.damage)))),

@@ -36,7 +36,7 @@ export const HERO_INFO: Record<HeroKind, HeroInfo> = {
       Q: { name: 'Cleave', desc: 'Strike every creep around you, flyers too.' },
       W: { name: 'Taunt', desc: 'Nearby creeps, flyers too, turn on you and forget their lane.' },
       E: { name: 'Blood Hunger', desc: 'Passive: every hit heals you: a share of the damage, plus a share of your max HP per creep struck (Cleave on five heals five times).' },
-      R: { name: 'Rampart Slam', desc: 'Slam the ground: every creep around you is hit and stunned, harder for each other creep caught. Then every ally heals and is armoured for a few seconds.' },
+      R: { name: 'Rampart Slam', desc: 'A quake along your lane, hitting every creep on it harder the more it catches; the team heals.' },
     },
   },
   arcanist: {

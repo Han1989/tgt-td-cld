@@ -83,6 +83,8 @@ interface Hook {
   };
   /** The Rampart Slam rings drawn now: how many, the shortest reach of an outer ring past its hero's body (screen px) and the faintest alpha. */
   vow(): { rings: number; reach: number; alpha: number };
+  /** Rampart Slam's lane quakes drawn (fx/quake.ts): started, over, crack marks and fronts' leading marks stamped, running. */
+  quakes(): { runs: number; done: number; marks: number; leads: number; running: number };
   /** Falling meteors (fx/meteorShow.ts): launched, landed on a strike, strikes with none, render ticks of the firsts. */
   meteors(): {
     launched: number;

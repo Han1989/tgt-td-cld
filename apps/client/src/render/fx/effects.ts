@@ -785,6 +785,72 @@ export class Effects {
   }
 
   /**
+   * One crack mark of Rampart Slam's lane quake (`fx/quake.ts`), at (x, y) on the lane, `angle` its tangent: a dark
+   * jagged crack on the ground that fades over 1.6 s (essential: it shows where the quake has run), and on a front's
+   * leading mark a gold glow (essential) with dust and pebbles thrown up (particles; not under reduced motion, where the
+   * cracks fade where they lie and nothing is thrown).
+   */
+  quakeCrack(x: number, y: number, angle: number, lead: boolean): void {
+    const k = this.bitScale;
+    for (const turn of [0, Math.PI]) {
+      this.emit({
+        frame: 'shard',
+        x: x * S,
+        y: y * S,
+        spread: S * 0.12,
+        life: [1400, 1800],
+        scale: [0.32 * k, 0.32 * k],
+        stretch: 3.4,
+        rotation: angle + turn + (Math.random() - 0.5) * 0.9,
+        alpha: [0.8, 0],
+        hold: 0.55,
+        tint: FX.scorch,
+        layer: 'ground',
+        essential: true,
+      });
+    }
+    if (!lead) return;
+    this.emit({
+      frame: 'glow',
+      x: x * S,
+      y: y * S,
+      life: [220, 280],
+      scale: [(0.9 * S * k) / DISC_PX, (0.5 * S * k) / DISC_PX],
+      tint: AOE_COLORS.rampartSlam,
+      alpha: [this.calm ? 0.35 : 0.8, 0],
+      layer: 'add',
+      essential: true,
+    });
+    if (!this.particles || this.calm) return;
+    this.emit({
+      frame: 'smoke',
+      x: x * S,
+      y: y * S,
+      count: 2,
+      spread: S * 0.3,
+      speed: [S * 0.4, S * 1.1],
+      drag: 3,
+      life: [450, 750],
+      scale: [0.35 * k, 0.8 * k],
+      alpha: [0.5, 0],
+      tint: FX.dust,
+    });
+    this.emit({
+      frame: 'square',
+      x: x * S,
+      y: y * S,
+      count: 3,
+      spread: S * 0.25,
+      speed: [S * 1.5, S * 3],
+      angle: [-Math.PI * 0.9, -Math.PI * 0.1],
+      gravity: S * 14,
+      life: [300, 500],
+      scale: [0.45 * k, 0.3 * k],
+      tint: [FX.debris, FX.debrisDark, FX.goldDeep],
+    });
+  }
+
+  /**
    * An ultimate (R) is cast, anyone's: two rings and two flashes at the hero, in the ultimate's colour, and a column
    * of sparks. Rings and flashes are essential and stay at Low and under reduced motion; the sparks go.
    */

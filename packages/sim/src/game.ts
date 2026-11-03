@@ -10,6 +10,7 @@ import { updateHeroes } from './heroes';
 import { getMap } from './map';
 import { padLayout } from './pads';
 import { seedRng } from './rng';
+import { updateQuakes } from './quake';
 import { learnBlocker, maxRank, nextRankLevel, skillInfo, updateZones } from './skills';
 import { emptyUltStats, type GameConfig, type GameState, type Hero } from './state';
 import { planSurgeLanes, surgeNotice } from './surges';
@@ -46,6 +47,7 @@ export function createGame(config: GameConfig, seed: number): GameState {
     projectiles: [],
     traps: [],
     zones: [],
+    quakes: [],
     spawnQueue: [],
     events: [],
     pendingEvents: [],
@@ -116,6 +118,7 @@ export function step(state: GameState): void {
     updateCreeps(state);
     updateTraps(state);
     updateZones(state);
+    updateQuakes(state);
     updateProjectiles(state, creepsById);
 
     state.creeps = state.creeps.filter((c) => !c.dead);

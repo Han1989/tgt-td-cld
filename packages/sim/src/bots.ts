@@ -22,6 +22,7 @@ import {
 import { shieldStandPoint } from './coop';
 import { waveGroups } from './endless';
 import { getMap, laneDistance, type BuildPad } from './map';
+import { lanePointAt, laneSpot, quakeCatch } from './quake';
 import { mix32 } from './surges';
 import { reinforceCost, repairCost, tuningForMode, TUNING, type Tuning, type WaveGroup } from './tuning';
 import { dist, type Vec2 } from './vec';
@@ -94,20 +95,24 @@ const ANSWER_MIN_CREEPS = 6;
 const GROUND_ONLY: Record<HeroKind, SkillSlot[]> = { ranger: ['W'], warden: [], arcanist: [] };
 /** Creeps a skill should catch before the bot spends mana on it. */
 const MIN_TARGETS: Record<SkillSlot, number> = { Q: 2, W: 3, E: 0, R: 3 };
-/** Creeps inside Rampart Slam's radius before the casual and expert Warden slams (it grows with the pack; the novice: 1). */
-const SLAM_CREEPS = 4;
-/** The expert slams at once on this many; with fewer, where no denser pack is within `SLAM_LOOK` tiles. */
-const SLAM_FULL = 7;
-const SLAM_LOOK = 6;
-/** The expert never slams on fewer than this. */
-const SLAM_EXPERT_MIN = 5;
-/** How far from his post the expert Warden goes for a fresh pack with the slam ready: solo the whole map, in a team his
- * own lane's reach. */
+/**
+ * Creeps Rampart Slam catches (its lane quake's and the local slam's) before the casual and expert Warden slams (round 8,
+ * the lane quake: it grows with the catch); the novice slams on `NOVICE_QUAKE_CREEPS`.
+ */
+const QUAKE_CREEPS = 6;
+const NOVICE_QUAKE_CREEPS = 3;
+/**
+ * The expert holds the slam for a full lane, as a player waits for the wave to be out of the portal: it slams at once on
+ * `EXPERT_QUAKE_FULL`, else once the busiest lane has fallen `EXPERT_QUAKE_FALL` from its peak this wave (the towers
+ * have started on it), or after `EXPERT_QUAKE_WAIT` seconds ready.
+ */
+const EXPERT_QUAKE_FULL = 15;
+const EXPERT_QUAKE_PEAK = 12;
+const EXPERT_QUAKE_FALL = 3;
+const EXPERT_QUAKE_WAIT = 35;
+/** How far from his post the expert Warden goes to stand on the busiest lane with the slam ready: solo the whole map, in
+ * a team his own lane's reach. */
 const SLAM_SEEK = { solo: 60, team: 24 };
-/** Seconds the expert Warden waits after a Taunt for the pack to close on him before it slams. */
-const SLAM_GATHER = 1.5;
-/** Seconds before the slam is ready that the expert Warden stops spending Taunt on its own. */
-const SLAM_SAVE = 4;
 /** Path distance up its lane (from the Heart) where a hero guards early on. */
 const GUARD_DISTANCE = 9;
 /**
@@ -121,8 +126,6 @@ const FORWARD_DISTANCE = 18;
 const ENGAGE_RADIUS = 6;
 /** A melee hero holds its post and lets creeps come (they aggro on it); it only steps out to closer ones. */
 const MELEE_ENGAGE_RADIUS = 5;
-/** A hero playing forward with its ultimate ready goes to groups within this distance of its post. */
-const SEEK_RADIUS = 16;
 /** In the final wave, heroes hunt the creeps that are left once there are this few. */
 const STRAGGLERS = 5;
 /** A ranged hero stops this much inside its attack range of the creep it walks to (its reach adds its own radius). */
@@ -208,8 +211,10 @@ export function createBalanceBot(
   let flyerLeaks = 0;
   /** Novice: the tick before which it has forgotten about its ultimate. */
   let ultForgottenUntil = -1;
-  /** The expert Warden taunted to gather a pack for the slam: it holds the slam until this tick (or a full pack). */
-  let slamHoldUntil = -1;
+  /** The expert Warden's slam: the busiest lane's peak this wave, and since when the slam has been ready. */
+  let quakePeak = 0;
+  let quakePeakWave = -1;
+  let slamReadySince = -1;
   /** Tick of this bot's last repair: players do not watch every tower, so it repairs one at a time (`REPAIR_EVERY`). */
   let lastRepairTick = -Infinity;
   const repairReady = (snap: Snapshot): boolean =>
@@ -375,22 +380,18 @@ export function createBalanceBot(
       const post = later ? posts.forward : posts.guard;
       // Where the hero goes, most urgent first: the Heart when hurt; a live boss; in the final wave, the last
       // few creeps (one parked out of the towers' reach, e.g. an Archer shooting an air-only Flak, would keep
-      // the match from ending); in later waves with its ultimate ready, the biggest group near its post; the
-      // creep nearest its post; otherwise the post itself.
+      // the match from ending); the expert Warden with the slam ready, the busiest lane; the creep nearest its post;
+      // otherwise the post itself.
       const straggler =
         snap.nextWaveIn < 0 && snap.creeps.length <= STRAGGLERS ? nearest(snap.creeps, hero) : undefined;
-      const groundOnlyR = GROUND_ONLY[hero.kind].includes('R');
-      // Rampart Slam lands at the Warden's feet: the expert walks into the densest pack near his post whenever it is
-      // ready (from the first wave he has it), the casual bot in the later waves.
-      const ultRadius = r !== undefined ? r.radius : 0;
       const hittable = snap.creeps;
       const nearPost = (radius: number) => hittable.filter((c) => dist(c.x, c.y, post.x, post.y) <= radius);
-      const slamReady = r !== undefined && r.rank > 0 && r.cooldown === 0 && (expert || later);
-      // Arrow Storm and Meteor rain on every lane wherever the hero stands: only the Warden's slam needs a pack.
-      // The expert goes up the lanes to meet a fresh pack before the towers have worn it down.
-      const group = slamReady && hero.kind === 'warden' && !novice
-        ? densestGroup(nearPost(expert ? (snap.players.length === 1 ? SLAM_SEEK.solo : SLAM_SEEK.team) : SEEK_RADIUS), ultRadius, groundOnlyR, tuning, expert ? SLAM_FULL - 2 : SLAM_CREEPS)
-        : undefined;
+      const slamReady = r !== undefined && r.rank > 0 && r.cooldown === 0;
+      // Arrow Storm and Meteor rain on every lane wherever the hero stands; Rampart Slam quakes the lane he stands on:
+      // with it ready, the expert Warden walks onto the busiest lane within reach of his post first.
+      const quakeGoal = slamReady && expert && hero.kind === 'warden'
+        ? busiestLanePoint(snap, tuning, hero, post, snap.players.length === 1 ? SLAM_SEEK.solo : SLAM_SEEK.team)
+        : null;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
       // A shielded boss takes no damage until two lanes hit it. Standing at the Heart lets it
       // walk the map, so the tag wins over retreat. A melee expert still will not step onto an
@@ -403,7 +404,7 @@ export function createBalanceBot(
         : bosses[0] && !(expert && !ranged && hpFrac < 0.75)
           ? bosses[0]
           : undefined;
-      const target = diveBoss ?? straggler ?? group ?? closest;
+      const target = diveBoss ?? straggler ?? closest;
       // Wave-10 shield: stand just outside the Mid ribbon so this hit counts as a side lane
       // while Mid-zone towers count as Mid. Once the shield drops, the usual standoff resumes.
       const shieldSide: -1 | 1 = snap.players.length >= 3 && botIndex === 2 ? 1 : snap.players.length === 2 && botIndex === 1 ? 1 : -1;
@@ -423,9 +424,11 @@ export function createBalanceBot(
         ? { x: heart.x, y: heart.y + 1 }
         : stand
           ? stand
-          : target
-            ? standoff(hero, ranged, target, expert ? 0.15 : STANDOFF_MARGIN)
-            : (surgeHelp ?? post);
+          : quakeGoal && !diveBoss && !straggler
+            ? quakeGoal
+            : target
+              ? standoff(hero, ranged, target, expert ? 0.15 : STANDOFF_MARGIN)
+              : (surgeHelp ?? post);
       const moved = lastGoal === null || dist(goal.x, goal.y, lastGoal.x, lastGoal.y) > 1;
       if (dist(hero.x, hero.y, goal.x, goal.y) > 0.5 && (moved || snap.tick - lastMoveTick > 40)) {
         cmds.push({ type: 'move', x: goal.x, y: goal.y });
@@ -450,40 +453,41 @@ export function createBalanceBot(
         ultForgottenUntil = snap.tick + NOVICE_ULT_FORGET_SECONDS * snap.tickRate;
         return true;
       };
-      let tauntedNow = false;
       for (const slot of ['R', 'Q', 'W'] as const) {
         const s = skill(slot);
         if (!s || s.rank === 0 || s.passive || s.cooldown > 0 || mana < s.manaCost) continue;
-        if (slot === 'W' && tauntedNow) continue;
-        // The expert Warden keeps Taunt for the slam when the slam is ready or nearly: it gathers the pack.
-        if (slot === 'W' && expert && hero.kind === 'warden' && r && r.rank > 0 && r.cooldown <= SLAM_SAVE * snap.tickRate) continue;
         // A player answers a teammate's ultimate (inside the combo window) so the two fuse.
         if (slot === 'R' && !novice && snap.creeps.length >= ANSWER_MIN_CREEPS && teammateUltimateJustCast(snap, hero)) {
           cmds.push({ type: 'cast', slot: 'R' });
           continue;
         }
         if (slot === 'R' && hero.kind === 'warden') {
-          // The slam hits harder the more it catches: cast on a pack of SLAM_CREEPS at his feet (a novice on any
-          // creep), held a few seconds, as a rain is, for a teammate whose ultimate is about to be ready.
-          const caught = near(s.radius, false).length;
-          // The expert gathers the pack first, as a player would: Taunt pulls the creeps around onto him, and the slam
-          // waits up to SLAM_GATHER seconds for them (or a full pack).
-          const w = skill('W');
-          if (expert && caught < SLAM_FULL && w && w.rank > 0 && w.cooldown === 0 && mana >= w.manaCost) {
-            if (near(w.radius, false).length >= SLAM_CREEPS) {
-              cmds.push({ type: 'cast', slot: 'W' });
-              mana -= w.manaCost;
-              slamHoldUntil = snap.tick + SLAM_GATHER * snap.tickRate;
-              tauntedNow = true;
-              continue;
+          // The slam quakes the lane he stands on and hits harder the more it catches: cast once it catches
+          // QUAKE_CREEPS (a novice NOVICE_QUAKE_CREEPS), held a few seconds, as a rain is, for a teammate whose ultimate
+          // is about to be ready. The expert first walks onto the busiest lane (`quakeGoal`): it waits while a lane
+          // within reach would catch clearly more.
+          const caught = quakeCatch(tuning, snap.creeps, hero.x, hero.y);
+          const count = caught.onLane.length + caught.local.length;
+          const best = Math.max(count, quakeGoal ? quakeGoal.count : 0);
+          const least = novice ? NOVICE_QUAKE_CREEPS : QUAKE_CREEPS;
+          let pack = count >= least && (!expert || count >= best - 1);
+          if (expert && pack) {
+            if (snap.wave !== quakePeakWave) {
+              quakePeak = 0;
+              quakePeakWave = snap.wave;
             }
+            quakePeak = Math.max(quakePeak, best);
+            if (slamReadySince < 0) slamReadySince = snap.tick;
+            pack =
+              count >= EXPERT_QUAKE_FULL ||
+              (quakePeak >= EXPERT_QUAKE_PEAK && best <= quakePeak - EXPERT_QUAKE_FALL) ||
+              snap.tick - slamReadySince >= EXPERT_QUAKE_WAIT * snap.tickRate;
           }
-          if (expert && caught < SLAM_FULL && snap.tick < slamHoldUntil) continue;
-          // The expert walks into the pack first: it slams on SLAM_FULL, or where no denser pack is a few steps away.
-          const densest = expert ? packSize(near(SLAM_LOOK, false), s.radius) : 0;
-          const least = novice ? 1 : expert ? SLAM_EXPERT_MIN : SLAM_CREEPS;
-          const pack = caught >= least && (!expert || caught >= SLAM_FULL || caught >= densest - 1);
-          if (pack && (novice || !teammateUltimateSoon(snap, hero)) && !novicePass()) cmds.push({ type: 'cast', slot: 'R' });
+          if (pack && (novice || !teammateUltimateSoon(snap, hero)) && !novicePass()) {
+            cmds.push({ type: 'cast', slot: 'R' });
+            quakePeak = 0;
+            slamReadySince = -1;
+          }
           continue;
         }
         if (slot === 'R') {
@@ -1067,28 +1071,25 @@ function nearest<T extends { x: number; y: number }>(items: T[], from: { x: numb
 
 /** Centre creep of the biggest group within `radius` (at least `min` creeps), or undefined. */
 /** The most creeps of `creeps` inside `radius` of any one of them. */
-function packSize(creeps: CreepSnap[], radius: number): number {
-  let best = 0;
-  for (const c of creeps) best = Math.max(best, creeps.filter((o) => dist(o.x, o.y, c.x, c.y) <= radius).length);
-  return best;
-}
-
-function densestGroup(
-  creeps: CreepSnap[],
-  radius: number,
-  groundOnly: boolean,
+/**
+ * The busiest lane for Rampart Slam's quake within `seek` tiles of `post`: the point of its centreline nearest the hero
+ * (where he walks) and the creeps a slam there would catch. Null when no lane would catch `QUAKE_CREEPS`.
+ */
+function busiestLanePoint(
+  snap: Snapshot,
   tuning: Tuning,
-  min = MIN_TARGETS.R,
-): CreepSnap | undefined {
-  const pool = groundOnly ? creeps.filter((c) => !tuning.creeps[c.kind].flying) : creeps;
-  let best: CreepSnap | undefined;
-  let bestCount = min - 1;
-  for (const c of pool) {
-    const count = pool.filter((o) => dist(o.x, o.y, c.x, c.y) <= radius).length;
-    if (count > bestCount) {
-      best = c;
-      bestCount = count;
-    }
+  hero: { x: number; y: number },
+  post: Vec2,
+  seek: number,
+): { x: number; y: number; count: number } | null {
+  let best: { x: number; y: number; count: number } | null = null;
+  for (const lane of getMap().lanes) {
+    const point = lanePointAt(lane, laneSpot(lane, hero.x, hero.y).progress);
+    if (dist(point.x, point.y, post.x, post.y) > seek) continue;
+    const caught = quakeCatch(tuning, snap.creeps, point.x, point.y);
+    const count = caught.onLane.length + caught.local.length;
+    if (count >= QUAKE_CREEPS && (!best || count > best.count)) best = { ...point, count };
   }
   return best;
 }
+

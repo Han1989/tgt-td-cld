@@ -1,7 +1,8 @@
 // Ultimate presentation (protocol 18) on both layouts: the kill-count popup, the cast flash and shake, the R button's pulse
 // and "Combo!" ring, Rampart Slam's heal on the teammate chip, and reduced motion. The stress scene (`?stress=12&pace=3`: three
 // ticks a beat, so a slow CI runner's clock keeps up) sends what the sim sends: every 240 ticks the ally casts alone
-// (tick 20), the two fuse (tick 80), a heal reaches both heroes (82), yours and the ally's rains end (150, 190). Runs on the
+// (tick 20), the two fuse (tick 80), a heal reaches both heroes (82), yours and the ally's rains end (150, 190), the ally's
+// Rampart Slam quakes Mid (200) and its count comes when the quake is over (223). Runs on the
 // iPhone and Pixel (tall) and desktop (wide) projects; the 412 × 839 test fixes the viewport the layout is designed for.
 //
 // A recorder installed before the page loads (`recordCues`) writes down every cue the moment the HUD shows it, with the
@@ -28,7 +29,7 @@ const rButton = (layout: 'tall' | 'wide'): RButton => (layout === 'tall' ? '.tsk
 /** The stress scene's cycle, in ticks (stress.ts). */
 const CYCLE = 240;
 /** The ally's lone cast, the fuse, the heal, and the two rains ending: ticks into each cycle. */
-const AT = { allyCast: 20, fuse: 80, heal: 82, myRain: 150, allyRain: 190, allySlam: 215 };
+const AT = { allyCast: 20, fuse: 80, heal: 82, myRain: 150, allyRain: 190, allyQuake: 200, allySlam: 223 };
 /** The R button pulses after this many ready ticks with creeps on the map (cues.ts: 20 s at 20 Hz). */
 const NUDGE_TICKS = 400;
 /** Render delay and the pace's batching, in ticks. */
@@ -234,13 +235,18 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
     expect(theirs.color).not.toBe(mine.color);
   });
 
-  await test.step("the Warden's Rampart Slam: its ring and its count", async () => {
-    const slam = await cue(page, { kind: 'pop', text: 'Rampart Slam: 9' }, byCycle(AT.allySlam));
-    expect(slam.text).toBe('Ally Rampart Slam: 9');
+  await test.step("the Warden's Rampart Slam: its quake's front runs along the lane, then its count", async () => {
+    const slam = await cue(page, { kind: 'pop', text: 'Rampart Slam: 18' }, byCycle(AT.allySlam));
+    expect(slam.text).toBe('Ally Rampart Slam: 18');
     expect(slam.box.left).toBeGreaterThanOrEqual(0);
     expect(slam.box.right).toBeLessThanOrEqual(vp.width);
-    // The slam's golden ring is drawn with it.
-    expect(await page.evaluate(() => window.__tdt.fx().live)).toBeGreaterThan(0);
+    // The quake was drawn: its front's cracks stamped frame by frame from the Warden to both ends of Mid (35 tiles, a
+    // mark every 0.7), leading marks over several frames (it travels), and it is over by its count. A later cycle's quake
+    // may be running when this looks: it only adds marks.
+    const quakes = await page.evaluate(() => window.__tdt.quakes());
+    expect(quakes.done).toBeGreaterThanOrEqual(1);
+    expect(quakes.marks).toBeGreaterThanOrEqual(45 * quakes.done);
+    expect(quakes.leads).toBeGreaterThanOrEqual(6 * quakes.done);
   });
 
   await test.step('ready for 20 s of a wave: the R button pulses', async () => {
@@ -282,6 +288,12 @@ test.describe('reduced motion', () => {
     expect(flash.animation).toBe('ult-flash-calm');
     const pop = await cue(page, { kind: 'pop', text: 'Meteor Rain: 12' }, byCycle(AT.myRain));
     expect(pop.text).toBe('Meteor Rain: 12');
+    // The quake does not travel: its whole lane is marked on its first frame (two leading marks), then fades.
+    await cue(page, { kind: 'pop', text: 'Rampart Slam: 18' }, byCycle(AT.allySlam));
+    const quakes = await page.evaluate(() => window.__tdt.quakes());
+    expect(quakes.runs).toBeGreaterThanOrEqual(1);
+    expect(quakes.leads).toBe(2 * quakes.runs);
+    expect(quakes.marks).toBeGreaterThanOrEqual(45 * quakes.runs);
     expect(await page.evaluate(() => window.__tdt.fx().shaken)).toBe(0);
   });
 });

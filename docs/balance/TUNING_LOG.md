@@ -677,3 +677,76 @@ reaches wave 31, Heart 93–99 there. The gate (`balanceEndless*.test.ts`, the g
 unchanged. The casual Warden is the outlier: Blood Hunger's share of max HP and the slam (both grow with his veteran
 levels) keep him alive into the 70s and 80s, 20 waves past the other heroes. If Han wants the casual band per hero, the
 Warden's Endless share is the number to look at (`hpShare` or the slam under `hero.veteran`), not the loop.
+
+# Round 8: Rampart Slam, round 2, the lane quake (Han, 4 Nov 2026)
+
+Han's own Full Normal match of 4 Nov 2026, 00:23 (victory at 98 Heart, 0 deaths, 11 slams for 71 kills and 40,107
+damage, Cleave 128 casts): the slam's damage is right, its reach is wrong (3.5 tiles caught about 6 creeps; a rain catches
+three lanes). The slam now runs a quake along the lane the Warden stands on (`docs/GAME_DESIGN.md` §7, Decision Log
+2026-11-04). Protocol 24. Before: main re-run on this machine (the same tables as `retest-final.txt` to the line; its
+kills a slam read with this round's `kill/RS` column, `--print`); after: `quake-final.txt`, `quake-final-targets.txt`.
+
+## Every number, before → after
+
+| Number | Before | After |
+|---|---|---|
+| Rampart Slam reach | radius 3.5 at his feet | a quake along the lane within `laneReach` 2.5 of him (`quakeSpeed` 16 tiles/s, both ways, to the portal and the Heart), every creep within the lane's half width + half its radius; radius 3.5 at once for creeps off the lane |
+| `echoCap` | 12 | 24 (over the quake's and the local slam's catch, fixed at the cast) |
+| base / echo / stun / heal / guard / cooldown | 340 / 465 / 590, 85 / 110 / 135, 1 s, 25 / 30 / 35%, 6 / 7 / 8 s, 70 / 65 / 60 s | unchanged |
+| A fused slam's cast in `ultStats` / the report | taken off (its kills stayed) | counted (its quake runs; kills a slam in teams were inflated before: main's 48–85 in pairs and three) |
+| Bots | slam on 4 within 3.5 (novice any); the expert taunted to gather, walked to the densest pack, slammed on 7 or 5 | slam once it catches 6 (novice 3); the expert walks onto the busiest lane within reach of his post and holds for the wave's peak: 15 caught, or 3 down from a peak of at least 12, or 35 s ready; Taunt is no longer saved for it |
+
+## What each step found
+
+- **Casting at 6 the moment R is ready** gave the expert 7.7 kills a slam in Quick Normal solo (10.2 counting the
+  pairs' fused slams): the quake ran on half-empty lanes.
+- **Where the creeps are:** with the expert's bot, a slam catches 12.0 of the 12.5 creeps of its lane (the width rule
+  misses almost nothing) while 31.6 are on the map: one lane holds about 40%. The busiest lane peaks at 10–13 creeps in
+  Quick waves 6–10 and 13–19 in waves 11–15. Holding for the peak (15, or the lane falling 3 from a peak of 12, or 35 s)
+  gives 11.4; holding for 18 and 50 s gives the same 11.4 with fewer casts (4.4 a match). The 15 asked is above what a
+  Quick solo lane holds at a cast.
+- **The damage is not the lever:** the slam kills 93% of what it catches (11.1 of 12.0; Brutes survive a rank-1 slam on
+  wave 7). Base and echo × 0.75 and × 0.5 move the expert Warden's Full Hard Heart 73.9 → 73.8 → 73.7, so his lead on
+  Hard is not the slam's (Blood Hunger and Cleave; it was 13.8 over the Ranger before this round), and cutting the slam
+  only lowers its count. Base and echo stay.
+
+## Where it lands (30 seeds, `quake-final.txt`; main in brackets)
+
+- The expert Warden's slam, Quick Normal solo: **11.4 kills a cast (7.4)**, 3,345 HP a cast (2,473), 5.0 casts a match
+  (6.0), ult% 5.1% (4.5%); Quick Hard 12.6 (7.3), ult% 6%; Full Normal 11.5 (7.1), 3,645 a cast (2,386; Han's match 3,646);
+  Full Hard 12.7 (6.5), ult% 6%.
+- The casual Warden: 7.0–12.9 kills a slam (4.2–6.4); the novice 7.8–14.5 (1.9–7.0).
+- Expert Normal solo means within 10: Full 99.9 / 93.9 / 97.8 (the same), Quick 98.3 / 92.5 / 97.2 (98.3 / 92.3 / 97.2).
+- Expert Hard 40–80 for every hero: Full 56.2 / **73.9** / 47.1 (56.2 / 70.0 / 47.1), Quick 62.2 / **70.3** / 45.8
+  (62.2 / 65.0 / 45.8); pairs and three with the Warden 62–74 (60–72).
+- The Warden's teams on Hard gain the most: novice Quick Hard solo wins 77% (33%), its pairs 57–63% (20–30%); casual Full
+  Hard solo 45.1 (30.5), Quick Hard 59.7 (53.8). Rows without the Warden are unchanged to the number.
+- Targets missed: 43 (main 43), scored with this round's slam targets in `matrixTargets.ts` (kills a slam at least 15,
+  ult% 6–12%, beside round 7's 2,500 HP a cast). Now met: 2,500 HP a slam (3,345; main 2,473) and the expert Quick Normal
+  Warden on every seed at 85 or more (85–95; main 77–95). Newly missed: the expert Full Hard Warden on every seed in
+  40–80 (4 of 30 above 80, max 87; the mean 73.9 is in the band) and the expert Quick Normal Ranger + Warden on every seed
+  at 85 or more (2 of 30 at 81–84; the mean 93.0).
+- **Not met:** 15 kills a slam for the expert in Quick Normal (11.4) and an ult% of 6–12% there (5%; 6% on Hard); the
+  Warden's lead over the other heroes on expert Hard (17.7 over the Ranger in Full, 8.1 in Quick; it was 13.8 and 2.8).
+  Levers for Han: a wider band than the lane's own half width, a longer `laneReach` (so the shared stretch and the bends
+  reach two lanes), or judging the count on Full and Hard, where the lanes are fuller.
+
+## Gates that moved
+
+None: the gate tests (`balance*.test.ts`, `ultimates.test.ts`, `balanceKits.test.ts`) pass unchanged on the gate seeds.
+`test/quake.test.ts` (sim) covers the quake: a lane of 20 creeps over 30 tiles hit within 3 s, each once and for the
+whole catch; off-lane creeps and the local slam; a flyer; a boss's base; the cap of 24; a cast away from every lane; the
+shared stretch; one kill count; Stun Storm still fusing; a replay with quakes re-running to the same end. The repair
+bounds stay provisional.
+
+## Replays
+
+Anything recorded before protocol 24 is refused (`replayRefusal`), with the commit to check out.
+
+## Endless with the quake (`npm run balance:matrix -- endless`, 30 seeds, `docs/balance/endless.txt`)
+
+`endless.txt` had gone stale since round 7 (main gives the casual Ranger 47.1 today, not 58.4); it is rewritten from this
+round's run. Mean wave fell on, the solo Warden, main → quake: novice 36.7 → 38.9, casual 77.7 → 81.5, expert 80.8 →
+82.9; every expert run reaches wave 31. The Ranger and the Arcanist are unchanged to the number (novice 33.9 / 30.3,
+casual 47.1 / 46.1, expert 74.5 / 74.0). The gate (`balanceEndless*.test.ts`) holds; `tuning.endless` is unchanged. The
+casual Warden stays the outlier, 34 waves past the other two heroes (round 7's note).
