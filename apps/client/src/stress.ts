@@ -194,13 +194,15 @@ export class StressTransport implements Transport {
       // Rains end: yours, then the ally's.
       if (k === 150) events.push({ type: 'ultResult', ult: this.comboAt(t), by: PLAYER, kills: 12 });
       if (k === 190) events.push({ type: 'ultResult', ult: 'meteor', by: ALLY, kills: 7 });
-      // A Rampart Slam lands by the ally: its ring at once, its count with it (retest fix B).
-      if (k === 215) {
+      // A Rampart Slam lands by the ally: its ring at once and its quake running down Mid (round 8), its count when
+      // the quake is over.
+      if (k === 200) {
         events.push(
           { type: 'aoe', effect: 'rampartSlam', x: arcanist.x, y: arcanist.y, radius: 3.5 },
-          { type: 'ultResult', ult: 'rampartSlam', by: ALLY, kills: 9 },
+          { type: 'quake', hero: arcanist.id, lane: 1, from: 18, ticks: 23 },
         );
       }
+      if (k === 223) events.push({ type: 'ultResult', ult: 'rampartSlam', by: ALLY, kills: 18 });
     }
     // While the fused rain runs, a strike every 0.3 s and the creep under it dies.
     const since = this.rainSince(t);

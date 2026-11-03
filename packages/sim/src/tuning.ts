@@ -210,14 +210,20 @@ export interface BloodHungerStats {
 }
 
 /**
- * Ultimate (retest fix B, Han 28 Oct 2026): a ground slam at the Warden's feet that hits harder the more it catches.
- * Every creep within `radius` (ground and air) takes `base` plus `echo` for every other creep caught (at most
- * `echoCap` of them counted) and is stunned for `stun` (bosses `combat.bossControlFactor` as long; a boss takes `base`
- * alone, no echo). Then every living hero, anywhere, heals `heal` of their max HP and gains `armor` and `regen` for
+ * Ultimate (retest fix B, Han 28 Oct 2026; round 2, the lane quake, 4 Nov 2026): a slam that hits harder the more it
+ * catches. Cast within `laneReach` of a lane, a quake runs along it both ways at `quakeSpeed` and hits every creep on
+ * the lane (ground and air) as it passes; creeps off the lane within `radius` are hit at once. Each takes `base` plus
+ * `echo` for every other creep caught (at most `echoCap` of them counted) and is stunned for `stun` (bosses
+ * `combat.bossControlFactor` as long; a boss takes `base` alone, no echo). Then every living hero, anywhere, heals `heal` of their max HP and gains `armor` and `regen` for
  * `duration`. Two guards do not stack; the higher rank applies.
  */
 export interface RampartSlamStats extends CooldownSkillStats {
+  /** The local slam at the Warden's feet: creeps off the quake's lane this close (to their edge) are hit at once. */
   radius: number;
+  /** Cast this close to a lane's centreline (tiles), the slam runs a quake along that lane (round 2, `quake.ts`). */
+  laneReach: number;
+  /** How fast the quake's front runs along the lane, both ways from the Warden, in tiles a second. */
+  quakeSpeed: number;
   /** Physical damage to each creep caught, by rank. */
   base: number[];
   /** Extra physical damage to each creep caught for every other creep caught, by rank. */
@@ -1131,10 +1137,12 @@ export const TUNING: Tuning = {
       rampartSlam: {
         cooldown: [70, 65, 60],
         radius: 3.5,
-        // The expert Warden's slam takes about 2,600 HP a cast in Quick Normal, 5% of his damage (round 7).
+        // Round 8 (Han, 4 Nov 2026): a quake along the lane he stands on, the longest lane covered in about 2.5 s.
+        laneReach: 2.5,
+        quakeSpeed: 16,
         base: [340, 465, 590],
         echo: [85, 110, 135],
-        echoCap: 12,
+        echoCap: 24,
         stun: [1, 1, 1],
         heal: [0.25, 0.3, 0.35],
         duration: [6, 7, 8],

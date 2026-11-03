@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 23;
+export const PROTOCOL_VERSION = 24;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -474,12 +474,19 @@ export type GameEvent =
    */
   | { type: 'combo'; combo: ComboKind; x: number; y: number; radius: number; heroes: EntityId[] }
   /**
-   * An ultimate's effect is over: a lane rain ended (its time ran out, or it fused into a combo) or Rampart Slam's burst
-   * landed. `ult` is the rain's kind (a combo's rain carries the combo's name), `by` its owner, `kills` the creeps
+   * An ultimate's effect is over: a lane rain ended (its time ran out, or it fused into a combo) or Rampart Slam's quake
+   * hit its last creep (off every lane: its local slam landed). `ult` is the rain's kind (a combo's rain carries the combo's name), `by` its owner, `kills` the creeps
    * that rain (or burst) killed, all of them, wherever they stood. Emitted once per rain. Client Polish: the
    * kill-count popup ("Arrow Storm: 12").
    */
   | { type: 'ultResult'; ult: UltimateTag; by: PlayerId; kills: number }
+  /**
+   * Rampart Slam's lane quake started (protocol 24): a front runs along `lane` both ways from `from` (tiles of lane
+   * progress from the portal, at the Warden's feet) at `rampartSlam.quakeSpeed`, reaching the lane's far end after
+   * `ticks`. `hero` is the Warden. Its hits are `damage` events; its `ultResult` (with the local slam's kills) comes when
+   * its last creep is hit.
+   */
+  | { type: 'quake'; hero: EntityId; lane: LaneId; from: number; ticks: number }
   /**
    * Rampart Slam healed a hero: `amount` HP actually gained (0 when the hero was already at full health). One per
    * living hero when the vow is cast, wherever they stand.

@@ -24,7 +24,7 @@ describe('progress dashboard data', () => {
   });
 
   it('seeds protocol 22, a finished polish path, and D-06 as the next gate', () => {
-    expect(PROGRESS.protocol).toBe(23);
+    expect(PROGRESS.protocol).toBe(24);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -55,9 +55,9 @@ describe('progress dashboard data', () => {
     // (retest fix C: Endless's daily top 10, posted on its own; PR #153), n-stars (progress saved in this
     // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154), e-embed (the hosted build, one zip that
     // runs inside itch.io, Newgrounds and CrazyGames; PR #155), e-press (press stills on the current build and
-    // the store covers; PR #156), and quick-default (Quick is the default mode; PR #157), which answers the
-    // backlog's open question p5-quick (removed).
-    expect(summary.done).toBe(97);
+    // the store covers; PR #156), quick-default (Quick is the default mode; PR #157), which answers the
+    // backlog's open question p5-quick (removed), and slam-quake (Rampart Slam, round 2, the lane quake; PR #158).
+    expect(summary.done).toBe(98);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -69,7 +69,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(135);
+    expect(summary.total).toBe(136);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -118,6 +118,7 @@ describe('progress dashboard data', () => {
       'e-embed': 155,
       'e-press': 156,
       'quick-default': 157,
+      'slam-quake': 158,
       'D-09': 98,
       'H-07': 98,
     };
@@ -313,7 +314,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('D-06');
-    expect(summary).toContain('23');
+    expect(summary).toContain('24');
     expect(summary).toContain('Complete');
   });
 

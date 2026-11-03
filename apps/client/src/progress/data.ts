@@ -45,6 +45,7 @@
  * e-embed on 2 Nov 2026 (PR #155: the hosted build, one zip that runs inside itch.io, Newgrounds and CrazyGames).
  * e-press on 2 Nov 2026 (PR #156: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
  * quick-default on 2 Nov 2026 (PR #157: Quick is the default mode; it answers p5-quick, the backlog's question, removed).
+ * slam-quake on 4 Nov 2026 (PR #158: Rampart Slam, round 2, the lane quake; protocol 24).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1338,6 +1339,15 @@ const items: ProgressItem[] = [
     proof: pr(157),
   },
   {
+    id: 'slam-quake',
+    title: 'Rampart Slam, round 2: the lane quake',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Han, 4 Nov 2026, from his own Warden match: the slam hit hard enough but caught too few creeps, and its count is how a player judges an ultimate. Now, cast on or beside a lane, the slam sends a quake along that whole lane, to the portal and to the Heart, hitting every creep on it, harder the more it catches, and stunning each as it passes; creeps off the lane next to the Warden are still hit at once. The heal, the guard and the combos are as before. The quake is drawn as a crack and dust running along the lane, and the count comes when it is over. Protocol 24: the game server restarts when it merges. Built by Claude Code (PR #158).',
+    proof: pr(158),
+  },
+  {
     id: 'p5-rest',
     title: 'More maps',
     owner: 'Team',
@@ -1349,7 +1359,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 23,
+  protocol: 24,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

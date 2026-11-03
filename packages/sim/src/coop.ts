@@ -169,9 +169,10 @@ export function onUltCast(state: GameState, hero: Hero, kind: UltKind, zone: Zon
   state.recentUlts.push(me);
   if (!partner || (fired && comboStrength(state, fired.combo) >= best)) return;
   const combo = comboOf(partner.kind, kind)!;
-  // Casts that fuse count as the combo's, so a rain's kills per cast are those of rains that ran on their own.
-  state.ultStats.by[partner.kind].casts--;
-  state.ultStats.by[kind].casts--;
+  // Rains that fuse count as the combo's, so a rain's kills per cast are those of rains that ran on their own. Rampart
+  // Slam's quake runs whether it fuses or not (its hits are its own), so its cast stays counted.
+  if (partner.kind !== 'rampartSlam') state.ultStats.by[partner.kind].casts--;
+  if (kind !== 'rampartSlam') state.ultStats.by[kind].casts--;
   // A stronger pair replaces the combo already fired; the ultimate it leaves out casts apart again.
   if (fired) {
     const old = state.zones.find((z) => z.id === fired.zoneId);

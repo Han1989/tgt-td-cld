@@ -26,7 +26,19 @@ import {
   type TowerSnap,
   type ZoneSnap,
 } from '@tdt/protocol';
-import { getMap, padAtTile, TILE_PX, towerStats, towerTier, tuningForMode, TUNING, waveGroups, type GameMap } from '@tdt/sim';
+import {
+  getMap,
+  laneLength,
+  lanePointAt,
+  padAtTile,
+  TILE_PX,
+  towerStats,
+  towerTier,
+  tuningForMode,
+  TUNING,
+  waveGroups,
+  type GameMap,
+} from '@tdt/sim';
 import { Application, BufferImageSource, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
@@ -37,6 +49,7 @@ import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
 import { MeteorShow, type MeteorStats } from './fx/meteorShow';
+import { quakeDone, quakeMarks, quakeRun, type QuakeRun } from './fx/quake';
 import { isMeteorKind, type MeteorKind } from './fx/meteors';
 import {
   dropOffset,
@@ -463,6 +476,9 @@ export class WorldRenderer {
   private dying: CreepSprite[] = [];
   /** Melee blows waiting for the swing to land (the rig finishes its wind-up first): when, and the target's position. */
   private impacts: { at: number; heroId: number; x: number; y: number }[] = [];
+  /** Rampart Slam's lane quakes being drawn (fx/quake.ts), and their crack marks so far (browser tests). */
+  private quakes: QuakeRun[] = [];
+  private quakeStamped = { runs: 0, done: 0, marks: 0, leads: 0 };
   /** Melee blows landed so far (browser tests). */
   private impactsLanded = 0;
   private readonly projectilePool = new Map<string, ProjectileSprite[]>();
@@ -592,6 +608,51 @@ export class WorldRenderer {
   heroDrawn(): { x: number; y: number } | null {
     for (const s of this.heroes.values()) if (s.look.endsWith(':true') && s.root.visible) return { x: s.root.x / S, y: s.root.y / S };
     return null;
+  }
+
+  /** Rampart Slam's lane quakes: started and over, the crack marks and the fronts' leading marks stamped (browser tests). */
+  quakeStats(): { runs: number; done: number; marks: number; leads: number; running: number } {
+    return { ...this.quakeStamped, running: this.quakes.length };
+  }
+
+  /**
+   * Rampart Slam's lane quakes, each frame: every crack mark each front has crossed since the last frame, a gold glow and
+   * dust at the leading one, and a burst of stun stars over the creeps it passes (those drawn within a tile of it).
+   */
+  private syncQuakes(creeps: readonly CreepSnap[], now: number): void {
+    for (const run of this.quakes) {
+      const lane = this.map.lanes[run.lane];
+      if (!lane) continue;
+      for (const m of quakeMarks(run, now)) {
+        const p = lanePointAt(lane, m.progress);
+        const q = lanePointAt(lane, m.progress + 0.05);
+        const r = lanePointAt(lane, m.progress - 0.05);
+        this.fx.quakeCrack(p.x, p.y, Math.atan2(q.y - r.y, q.x - r.x), m.lead);
+        this.quakeStamped.marks++;
+        if (!m.lead) continue;
+        this.quakeStamped.leads++;
+        if (!this.fx.particles || this.fx.calm) continue;
+        for (const c of creeps) {
+          if (Math.abs(c.x - p.x) > 1.2 || Math.abs(c.y - p.y) > 1.2) continue;
+          this.fx.emit({
+            frame: 'star',
+            x: c.x * S,
+            y: c.y * S - 10,
+            count: 2,
+            spread: 8,
+            speed: [20, 50],
+            angle: [-Math.PI * 0.8, -Math.PI * 0.2],
+            life: [380, 560],
+            scale: [0.35, 0.15],
+            tint: COLORS.stun,
+            layer: 'add',
+          });
+        }
+      }
+    }
+    const left = this.quakes.filter((run) => !quakeDone(run, now));
+    this.quakeStamped.done += this.quakes.length - left.length;
+    this.quakes = left;
   }
 
   /** Falling meteors so far and now (browser tests). */
@@ -777,6 +838,7 @@ export class WorldRenderer {
     this.syncRains(from, from.tick + (to.tick - from.tick) * alpha, now, dt);
     this.meteors.bitScale = this.scales.creep;
     this.meteors.sync(from.zones, from.tick + (to.tick - from.tick) * alpha, from.tickRate, creeps, this.screenRect(), now, dt);
+    if (this.quakes.length > 0) this.syncQuakes(creeps, now);
     this.lastDt = dt;
     if (structuresVersion() !== this.structGen) this.remakeBuildings();
     this.updateHeart(now);
@@ -873,6 +935,7 @@ export class WorldRenderer {
     this.dying = [];
     this.fx.clear();
     this.meteors.reset();
+    this.quakes = [];
     this.hits.reset();
     this.lastHitTick = -1;
     this.heartHitAt = -Infinity;
@@ -1044,6 +1107,15 @@ export class WorldRenderer {
           this.cast(e.heroId, e.slot, e.x, e.y);
           this.heroes.get(e.heroId)?.art?.cast(now, e.slot);
           break;
+        case 'quake': {
+          // Rampart Slam's lane quake: its front is drawn running both ways along the lane, frame by frame.
+          const lane = this.map.lanes[e.lane];
+          if (!lane) break;
+          const speed = TUNING.hero.warden.rampartSlam.quakeSpeed;
+          this.quakes.push(quakeRun(e.lane, e.from, laneLength(lane), speed, now, this.fx.calm));
+          this.quakeStamped.runs++;
+          break;
+        }
         case 'heal': {
           // Rampart Slam reached this hero, wherever they stand: a green number and a ring over them.
           const hero = this.heroes.get(e.heroId);

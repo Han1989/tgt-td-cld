@@ -700,6 +700,7 @@ export class GameView {
         },
         vow: () => renderer.vowStats(),
         meteors: () => renderer.meteorStats(),
+        quakes: () => renderer.quakeStats(),
         audio: () => ({
           state: audio.engine.state,
           scene: audio.music.scene,

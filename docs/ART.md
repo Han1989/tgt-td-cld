@@ -198,6 +198,19 @@ The sim's rains pulse on a fixed schedule (start tick + one pulse interval, agai
 
 Colours: Meteor red fire (`#ff5a1f`), Meteor Rain amber (`#ffb13d`), Shockwave gold (`#ffd24a`), all in `METEOR_COLORS` (palette.ts). At most **16 meteors fall at once** (`MAX_IN_FLIGHT`, shared between the pulses that fall together: a Meteor pulse may use all 16, a Meteor Rain pulse 8), each a pooled slot. **Low quality** keeps the head, trail, circle, flashes and scorch; only the smoke, embers and debris particles go. **Reduced motion** draws no fall and no shake: the circle, then the flash and the scorch.
 
+### The lane quake (Rampart Slam, round 2, 4 Nov 2026)
+
+The sim's quake (`quake` event, protocol 24: the lane, the progress at the Warden's feet, the ticks to the far end) runs a front both ways along the lane at `rampartSlam.quakeSpeed` (16 tiles a second), so the client draws it from the event and the tuning alone, passing each creep about when the sim hits it (`render/fx/quake.ts`, pure and tested: `quakeMarks` gives the marks each frame stamps, one every 0.7 tiles each front has crossed). Kills, damage and timing are the sim's; the popup comes from its `ultResult` once the quake has hit its last creep.
+
+| Part | Look | Where |
+|---|---|---|
+| Cast | the slam's gold shock ring at the Warden (`fx.rampartSlam`), the ultimate's flare, the screen's kick and the camera's zoom-punch as every ultimate has | `aoe` and `cast` events |
+| Crack | two dark jagged strokes (`shard` frame, ink `FX.scorch`, stretched along the lane's tangent with a random kink) on the ground every 0.7 tiles, held then faded over 1.6 s; essential (it shows where the quake ran) | `fx.quakeCrack` |
+| Front | on each front's leading mark a gold glow (`AOE_COLORS.rampartSlam`, essential), two dust puffs and three pebbles thrown up (debris, wood, deep gold) | `fx.quakeCrack(…, lead)` |
+| Stun | a little burst of stun stars over each creep the front passes (within a tile of it); the snapshot's stun star stays on the creep for the second it is stunned | `WorldRenderer.syncQuakes` |
+
+Everything is pooled particles in the effects layers (`ground`, `add`, `normal`); no sprite is made per quake. **Low quality** keeps the cracks and the glow; the dust, pebbles and stars go. **Reduced motion** draws no travel: the whole lane's cracks are stamped on the first frame and fade where they lie, the glow at each end is faint, and nothing is thrown.
+
 **Tower tiers and branches** (Art Track 2) all speak one language, so a player reads a tower's tier from its glow at a glance:
 
 | | Materials | Glow (`tierRunes` in `parts.ts`, in the tower's colour) | Shape |
