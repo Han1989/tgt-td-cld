@@ -44,6 +44,7 @@
  * n-stars on 29 Oct 2026 (PR #154: progress saved in this browser, L-02 pulled ahead of D-06 into Now; the new link tags).
  * e-embed on 2 Nov 2026 (PR #155: the hosted build, one zip that runs inside itch.io, Newgrounds and CrazyGames).
  * e-press on 2 Nov 2026 (PR #156: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
+ * quick-default on 2 Nov 2026 (PR #157: Quick is the default mode; it answers p5-quick, the backlog's question, removed).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1328,20 +1329,21 @@ const items: ProgressItem[] = [
     proof: pr(156),
   },
   {
+    id: 'quick-default',
+    title: 'Quick is the default mode',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Han, 2 Nov 2026: a stranger’s first match must end in a Victory screen inside one sitting. Full is 30 waves, about 25 minutes; Quick is 15, about 11. So a new player sees Quick lit on the home card, on the site and in every hosted build, and Play solo starts Quick; a room made by a host who never picked a mode is Quick too. A mode the player picked is remembered and still wins, Full included, and Full and Endless are one tap away. The Daily run and the lesson are unchanged. This answers the backlog’s open question, “Quick as the phone default?”: yes, on every device. Client only, no change to the game’s rules. Built by Claude Code (PR #157).',
+    proof: pr(157),
+  },
+  {
     id: 'p5-rest',
     title: 'More maps',
     owner: 'Team',
     status: 'todo',
     section: 'backlog',
     note: 'The rest of Phase 5. Lane surges and tower branches (tier 4) are already shipped; match modifiers were removed on 17 Oct 2026. See docs/REPLAYABILITY.md.',
-  },
-  {
-    id: 'p5-quick',
-    title: 'Quick as the phone default?',
-    owner: 'Han',
-    status: 'todo',
-    section: 'backlog',
-    note: 'Han decides. See docs/MOBILE.md §11.',
   },
 ];
 

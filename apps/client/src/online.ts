@@ -8,7 +8,7 @@ import { fetchEndlessToday } from './endless/api';
 import type { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
-import { storedMode } from './lobby/modePicker';
+import { openingMode, storedMode } from './lobby/modePicker';
 import { ageGate } from './privacy/ageCheck';
 import { sharedSettings } from './settings';
 import { beginSolo, type SoloPick, type SoloStart } from './tutorial/logic';
@@ -19,6 +19,8 @@ export class OnlineController {
   private transport: NetworkTransport | null = null;
   private lobby: LobbyState | null = null;
   private readonly ui: LobbyUi;
+  /** The home card's mode for the room this page is creating, sent once when its first lobby comes (`openingMode`). */
+  private createMode: GameMode | null = null;
 
   constructor(
     private readonly view: GameView,
@@ -37,7 +39,11 @@ export class OnlineController {
         learnToPlay: (hero) => gated(() => this.playSolo('lesson', { hero, mode: storedMode() })),
       },
       {
-        create: (name, hero) => gated(() => this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…')),
+        create: (name, hero, mode) =>
+          gated(() => {
+            this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…');
+            this.createMode = mode;
+          }),
         join: (code, name, hero) =>
           gated(() => this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`)),
         setHero: (hero: HeroKind) => this.transport?.send({ t: 'hero', hero }),
@@ -70,6 +76,7 @@ export class OnlineController {
 
   private connect(first: ConstructorParameters<typeof NetworkTransport>[1], busyText: string): void {
     this.transport?.close();
+    this.createMode = null;
     this.ui.showBusy(busyText);
     const transport = new NetworkTransport(this.serverUrl, first);
     this.transport = transport;
@@ -86,12 +93,23 @@ export class OnlineController {
         if (msg.room) history.replaceState(null, '', `?room=${msg.room.code}`);
         break;
       case 'lobby': {
-        const started = msg.lobby.phase === 'playing' && this.lobby?.phase !== 'playing';
-        this.lobby = msg.lobby;
-        this.view.hud.setRoom(msg.lobby);
-        if (msg.lobby.phase === 'lobby') {
+        let lobby = msg.lobby;
+        if (this.createMode) {
+          // The room this page just created opens on the server's Full: the home card's mode, as the host's pick.
+          const mode = openingMode(lobby, this.view.me, this.createMode);
+          this.createMode = null;
+          if (mode) {
+            transport.send({ t: 'mode', mode });
+            // Shown at once, so the room card never opens on Full for a moment; the server's next lobby says the same.
+            lobby = { ...lobby, mode };
+          }
+        }
+        const started = lobby.phase === 'playing' && this.lobby?.phase !== 'playing';
+        this.lobby = lobby;
+        this.view.hud.setRoom(lobby);
+        if (lobby.phase === 'lobby') {
           this.view.resetView();
-          this.ui.showRoom(msg.lobby, this.view.me);
+          this.ui.showRoom(lobby, this.view.me);
         } else {
           this.ui.hide();
         }
@@ -152,6 +170,7 @@ export class OnlineController {
     this.transport?.dispose();
     this.transport = null;
     this.lobby = null;
+    this.createMode = null;
     this.view.detach();
     this.view.hud.setRoom(null);
     this.view.hud.setReconnecting(false);

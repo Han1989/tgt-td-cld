@@ -180,9 +180,11 @@ try {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu });
     if (music) await page.addInitScript(MUSIC_PROBE);
     if (match) {
-      // The home card's hero, and Play solo's tap time (performance.now()), as the page sees it.
+      // The home card's hero, Full (picked: a new player's default is Quick since 2 Nov 2026, whose first wave adds the
+      // Runners' sheet; Full keeps the numbers in docs/PRESS.md §5 comparable), and Play solo's tap time
+      // (performance.now()), as the page sees it.
       await page.addInitScript(
-        `localStorage.setItem('tdt.hero', ${JSON.stringify(hero)});` +
+        `localStorage.setItem('tdt.hero', ${JSON.stringify(hero)}); localStorage.setItem('tdt.mode', 'full');` +
           `addEventListener('pointerdown', () => { window.__playAt ??= performance.now(); }, { capture: true });`,
       );
     }

@@ -116,6 +116,7 @@ Saves from before the two rows keep what they had: One thumb → Fixed + Around 
 - Difficulty is compressed so wave 15 plays like wave 30. Bosses come at **waves 5, 10 and 15**.
 - More starting gold and faster XP, so heroes reach about level 8–10.
 - The host picks the mode on the room card; solo picks it on the home card, in the row over Play solo.
+- **Quick is the default on every device** (Han, 2 Nov 2026; `docs/GAME_DESIGN.md` Decision Log): a player who never picked a mode gets Quick lit on the home card, and a room opens on its host's home-card mode. A pick is remembered and wins, Full included.
 - The mode is a new match option, so bump `PROTOCOL_VERSION`. All numbers live in `tuning.ts`.
 - **Balance gate:** bots win with 1, 2 and 3 players, ending with Heart HP 40–80; the do-nothing bot loses. (Track 3 gated 1 and 4 players; matches hold 3 players since Phase 4b.)
 
@@ -197,4 +198,4 @@ Saves from before the two rows keep what they had: One thumb → Fixed + Around 
 
 - Should smart-cast favour the densest group, or the group closest to the Heart when it's close? **Answered in track 2: the densest group; ties go to the group nearer the Heart** (Decision Log).
 - Should a leaver's towers pass to a teammate after the rejoin window, instead of staying locked? **Answered in track 1: not now** (Decision Log).
-- Should Quick mode be the default on phones?
+- Should Quick mode be the default on phones? **Answered on 2 Nov 2026 by Han: yes, and on every device, the site and every hosted build** (a stranger's first match must end in a Victory screen inside one sitting; Decision Log, §6).
