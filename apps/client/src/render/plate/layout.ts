@@ -37,6 +37,23 @@ export interface PlatePatch {
   box: number[] | null;
 }
 
+/** A light's own pictures of the same scene (V-08a): the plate and its patches, rendered with the key light moved. */
+export interface PlateVariant {
+  file: PlateFile;
+  extra?: { file: PlateFile; patches: PlatePatch[] };
+  /** The render's seconds. */
+  seconds: number;
+}
+
+/** A prop of the denser edge as the build placed it (render/art/scatter.ts `edgeSpots`; tiles). */
+export interface PlateEdgeSpot {
+  kind: string;
+  x: number;
+  y: number;
+  r: number;
+  turn: number;
+}
+
 export interface PlateLayout {
   map: string;
   /** Plate px; `res` px per world px (the map's world px × res). */
@@ -51,7 +68,11 @@ export interface PlateLayout {
   lanes: number[][][];
   /** The prop spots the build placed the scenery at (render/art/scatter.ts's, in tiles). */
   spots: { id: string; frame: string; x: number; y: number; scale: number }[];
+  /** The denser edge's props (V-08a): checked against `edgeSpots`. */
+  edge?: PlateEdgeSpot[];
   render: { ss: number; samples: number; seconds: number };
+  /** Dusk's and night's pictures (V-08a; the afternoon's are `file` and `extra`), loaded after the first screen. */
+  lights?: Partial<Record<'dusk' | 'night', PlateVariant>>;
 }
 
 /** Spire's plate: the only map. */
@@ -65,6 +86,12 @@ export function plateUrl(f: PlateFile): string {
 /** Whether a plate fits a map of `width` × `height` tiles (`tilePx` world px each). */
 export function plateFits(layout: PlateLayout, width: number, height: number, tilePx: number): boolean {
   return layout.width === width * tilePx * layout.res && layout.height === height * tilePx * layout.res;
+}
+
+/** The pictures of a light: the afternoon's are the layout's own, dusk's and night's under `lights` (null: not rendered). */
+export function lightFiles(layout: PlateLayout, light: 'afternoon' | 'dusk' | 'night'): { file: PlateFile; extra?: { file: PlateFile; patches: PlatePatch[] } } | null {
+  if (light === 'afternoon') return { file: layout.file, ...(layout.extra ? { extra: layout.extra } : {}) };
+  return layout.lights?.[light] ?? null;
 }
 
 /** The patch that draws pad `padId` over the plate, if it has one. */

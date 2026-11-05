@@ -108,6 +108,41 @@ MAP_TOKENS = dict(
 )
 
 
+# The match's three lights (V-08a, docs/ART.md §16 "A time of day"): one scene rendered three times, the plate the
+# match crossfades between by wave. `sun` the direction from the scene towards the key light (the afternoon's is MOON,
+# so the sprites, lit by map.LIGHT, agree with it; dusk's is the same bearing, low, so the shadows run long the same
+# way; night's is the moon of V-03, as high as the afternoon's sun), `look` what the plate's LOOK becomes, `wash`,
+# `bloom` and `safe` what finish_plate lays over it. Only the afternoon's plate is precached; dusk's and night's load
+# after the first screen (the client's plate/load.ts).
+LIGHTS = dict(
+    afternoon=dict(sun=MOON, look={}, wash=WASH, bloom=BLOOM, safe=SAFE_SHADE),
+    # A low gold sun 17° up: warm lit tones, dusky violet shade, the sky's fill and the rim the sunset's, a warmer wash.
+    dusk=dict(
+        sun=(-0.628, 0.721, 0.292),
+        look=dict(shadow=(0.42, 0.34, 0.50), lit=(1.22, 0.93, 0.64), fill='ember', fill_amount=0.14, mrim='sun',
+                  mrim_amount=1.4, rim='ember', rim_amount=0.3, band=0.16, band_soft=0.06, form=0.26),
+        wash=dict(centre=0.2, r0=0.05, r1=0.8, light=(1.0, 0.66, 0.36), light_alpha=0.16, vignette=0.3),
+        bloom=dict(sigma=1.8, amount=1.05),
+        safe=dict(SAFE_SHADE, alpha=0.66),
+    ),
+    # V-03's moon over the meadow: cool and dim, the rune studs, the mushrooms, the motes and the runestones lighting it.
+    night=dict(
+        sun=MOON,
+        look=dict(shadow=(0.26, 0.30, 0.50), lit=(0.56, 0.64, 0.88), fill='moon', fill_amount=0.07, mrim='moon',
+                  mrim_amount=1.0, rim='rune', rim_amount=0.35),
+        wash=dict(centre=0.35, r0=0.1, r1=0.7, light=(160 / 255, 200 / 255, 1.0), light_alpha=0.05, vignette=0.32),
+        bloom=dict(sigma=2.0, amount=1.7),
+        safe=dict(SAFE_SHADE, alpha=0.7),
+    ),
+)
+LIGHT_NAMES = tuple(LIGHTS)
+
+
+def light_file(which, light, extra=False):
+    """A light's picture: `spire.webp` for the afternoon (as before), `spire-dusk.webp`, `spire-night-extra.webp`..."""
+    return which + ('' if light == 'afternoon' else '-' + light) + ('-extra' if extra else '') + '.webp'
+
+
 def flat(token, sun):
     """What the plate's light paints a flat ground of `token` seen from above (npr.shade's terms for a surface facing
     up, with no crease, edge or rim): in the sun (the moon pass is the sun's height on it) or in full shade, where the
@@ -265,6 +300,18 @@ def define_materials(ground_img, pad_imgs):
     d('mossEdge', color=mix('grass', 'grassDark', 0.35), grad=False, shade=0.85, rim=0.05, mrim=0.6, ao=0.8, dim=0.92)
     # Pines from above in two tiers (twins, so the ink draws where the upper skirt lies on the lower).
     d('pineTop', color=mix('mapPine', 'mapCanopyLight', 0.18), grad=False, shade=0.8, rim=0.1, mrim=1.0, dim=1.0)
+    # The denser edge's cart and banners (V-08a): weathered timber, dark iron, a sack and a crate; the wards' teal cloth
+    # with a darker hem and a faint rune (nothing warm glows on the map).
+    d('cartBoard', color=mix('wood', 'stoneDark', 0.3), grad=False, shade=1.0, rim=0.15, mrim=0.9, dim=0.85, line=1.0)
+    d('cartBoard2', color=mix('wood', 'stoneDark', 0.4), grad=False, shade=1.0, rim=0.15, mrim=0.9, dim=0.85, line=1.0)
+    d('cartRail', 'woodDark', grad=False, shade=1.0, rim=0.1, mrim=0.8, dim=0.8, line=1.0)
+    d('cartWheel', color=mix('woodDark', 'ironDark', 0.35), grad=False, shade=1.0, rim=0.1, mrim=0.8, dim=0.8, line=1.0)
+    d('cartIron', 'iron', grad=False, shade=1.0, rim=0.2, mrim=1.0, dim=0.8, line=1.0)
+    d('cartCrate', color=mix('wood', 'bone', 0.2), grad=False, shade=1.0, rim=0.15, mrim=0.9, dim=0.85, line=1.0)
+    d('cartSack', color=mix('bone', 'padSand', 0.5), grad=False, shade=0.9, rim=0.1, mrim=0.8, dim=0.85, line=1.0)
+    d('bannerCloth', 'cloth', grad=False, shade=0.9, rim=0.15, mrim=0.9, dim=0.9, line=1.0)
+    d('bannerHem', color=mix('cloth', 'ink', 0.45), grad=False, shade=0.9, rim=0.1, mrim=0.8, dim=0.9, line=1.0)
+    d('bannerRune', 'rune', emit=0.6, grad=False, line=0.0, rim=0.0, mrim=0.0, ao=0.0)
 
 
 # --- the ground --------------------------------------------------------------------------------------------------
@@ -655,7 +702,7 @@ def open_spot(m, x, y, road=1.3, pad=4.0, heart=1.9):
     return True
 
 
-def build_scenery(m, spots):
+def build_scenery(m, spots, edge=()):
     sc = Scenery()
     props = Part('Props')        # rocks, mushrooms, pebbles, runestones, ferns, grass, litter
     moss = Part('Moss')          # moss cushions (pushed out in lumps after the subdivision)
@@ -717,7 +764,11 @@ def build_scenery(m, spots):
                 size = 6.5 + 4.0 * hsh
                 sc.rock(cliffs, W(x, y, LEDGE - size * 0.35), size, seed=3000 + tx * 61 + ty * 7 + j, flat=0.75)
 
-    avoid = [(s['x'] * T, s['y'] * T) for s in clearing_spots]
+    # The denser edge (V-08a): rocks, stumps, a cart and two banners at edgeSpots' spots, each sized to its room.
+    built = Part('Built')        # the cart and the banners: hard edges (no subdivision)
+    build_edge(m, sc, edge, props, built)
+
+    avoid = [(s['x'] * T, s['y'] * T) for s in clearing_spots] + [(e['x'] * T, e['y'] * T) for e in edge]
 
     def clear_of_props(x, y, r):
         return all(math.hypot(x - ax, y - ay) > r for ax, ay in avoid)
@@ -803,7 +854,8 @@ def build_scenery(m, spots):
              'capGlow' if _hash(i, 605) > 0.35 else 'capEmber', u=6, v=4)
 
     out = []
-    for part, index, detail in ((props, 120, 1), (trees, 112, 1), (pines, 113, 0), (cliffs, 118, 1), (glow, 125, 0)):
+    for part, index, detail in ((props, 120, 1), (trees, 112, 1), (pines, 113, 0), (cliffs, 118, 1), (glow, 125, 0),
+                                (built, 119, 0)):
         if part.bm.faces:
             o = finish(part, layer='scene', index=index)
             o['detail'] = detail
@@ -814,6 +866,131 @@ def build_scenery(m, spots):
         o = leafy(finish(crowns, layer='scene', index=115), cell=2.4, depth=1.3)
         out.append(o)
     return out
+
+
+def build_edge(m, sc, edge, props, built):
+    """The denser edge's props (edgeSpots in the client's scatter.ts, V-08a), each within its spot's `r` (tiles) of its
+    point, so nothing reaches over a lane, a pad or the Heart: rocks and stumps (subdivided with the clearing's props),
+    the cart and the banners (hard edged, `built`)."""
+    for i, e in enumerate(edge):
+        x, y, r, turn = e['x'] * T, e['y'] * T, e['r'] * T, e['turn']
+        z0 = height_at(m, x, y)
+        if e['kind'] == 'rock':
+            size = min(r * 0.78, 12.0)
+            if _hash(i, 131) < 0.6:
+                sc.rock(props, W(x, y, z0 - size * 0.15), size, seed=5000 + i * 3, flat=0.65)
+            else:
+                sc.rock(props, W(x - size * 0.25, y, z0 - size * 0.12), size * 0.7, seed=5001 + i * 3, flat=0.6)
+                sc.pebble(props, W(x + size * 0.55, y + size * 0.3, z0 - 0.4), size * 0.38, seed=5002 + i * 3)
+        elif e['kind'] == 'stump':
+            stump(props, x, y, z0, min(r * 0.62, 8.5), turn, seed=i)
+        elif e['kind'] == 'cart':
+            cart(built, x, y, z0, r, turn, seed=i)
+        elif e['kind'] == 'banner':
+            banner(built, x, y, z0, r, turn, seed=i)
+
+
+def stump(p, x, y, z0, rad, turn, seed):
+    """A sawn stump from above: ridged bark round a pale cut face with a darker heart ring, a few roots splayed out."""
+    h = 4.0 + 2.0 * _hash(seed, 141)
+    base = W(x, y, z0 - 0.6)
+    sides = 12
+    rings = []
+    for k, (zz, rr) in enumerate(((0.0, 1.12), (h * 0.5, 1.0), (h, 0.96))):
+        ring = []
+        for j in range(sides):
+            a = turn + 2 * math.pi * j / sides
+            ridge = 1 + 0.06 * math.cos(5 * a + k) + 0.04 * math.cos(9 * a)
+            ring.append(base + V((math.cos(a), math.sin(a), 0)) * rad * rr * ridge + Z * zz)
+        rings.append(ring)
+    geom.loft(p, rings, ['logBark'], closed=True, cap0=False, cap1=False)
+    top = base + Z * h
+    face = [base + V((math.cos(turn + 2 * math.pi * j / sides), math.sin(turn + 2 * math.pi * j / sides), 0)) * rad * 0.86
+            + Z * (h + 0.25 * _hash(seed, j)) for j in range(sides)]
+    geom.loft(p, [rings[-1], face], ['logBark', 'logEnd'], closed=True, cap0=False, cap1=True)
+    # The heart ring: a darker disc in the middle of the cut, a hair proud of it so the ink draws it.
+    blob(p, top + Z * 0.35, (rad * 0.42, rad * 0.42, 0.18), 'litterWarm', u=10, v=4)
+    for k in range(4):
+        a = turn + 2 * math.pi * (k + 0.3 * _hash(seed, k + 150)) / 4
+        d = V((math.cos(a), math.sin(a), 0))
+        c0 = base + d * rad * 0.9 + Z * 1.2
+        tube(p, [c0, c0 + d * rad * 0.45 - Z * 0.6, c0 + d * rad * 0.8 - Z * 1.4], [rad * 0.24, rad * 0.16, 0.4],
+             ['logBark'], sides=6)
+
+
+def box(p, c, half, mat, turn, tilt=0.0):
+    """A box `half` = (along, across, up) half sizes round c, turned `turn` about z (and `tilt` about its across axis)."""
+    rot = geom.Matrix.Rotation(turn, 3, 'Z') @ geom.Matrix.Rotation(tilt, 3, 'Y')
+    bm = p.bm
+    vs = [bm.verts.new(c + rot @ V((sx * half[0], sy * half[1], sz * half[2])))
+          for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+    mi = p.m(mat)
+    for f in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+        bm.faces.new([vs[i] for i in f]).material_index = mi
+
+
+def cart(p, x, y, z0, r, turn, seed):
+    """A farm cart left at the meadow's edge, from above: a plank bed (its boards a hair apart, so the ink draws the
+    seams), two wheels at its sides, a shaft resting on the ground, a sack and a crate in the bed."""
+    length, width = r * 1.25, r * 0.78
+    c = W(x, y, z0)
+    rot = geom.Matrix.Rotation(-turn, 3, 'Z')
+    along, across = rot @ V((1, 0, 0)), rot @ V((0, 1, 0))
+    bed_z = 7.0
+    boards = 5
+    for k in range(boards):
+        off = (k + 0.5) / boards - 0.5
+        box(p, c + across * (off * width * 2) + Z * bed_z, (length * 0.5, width / boards * 0.92, 0.9),
+            'cartBoard' if k % 2 else 'cartBoard2', -turn)
+    for side in (-1, 1):
+        box(p, c + across * (side * width * 1.02) + Z * (bed_z + 1.6), (length * 0.52, 0.9, 2.2), 'cartRail', -turn)
+        # A wheel: seen from above an upright disc is its tread, a long dark slab with a hub.
+        wc = c + across * (side * (width * 1.02 + 2.0)) + along * (-length * 0.12) + Z * 5.5
+        box(p, wc, (5.5, 1.1, 5.5), 'cartWheel', -turn)
+        blob(p, wc + across * side * 1.4, (1.3, 1.0, 1.3), 'cartIron', u=8, v=4)
+    # The shaft: two poles from the front, resting on the ground.
+    for side in (-1, 1):
+        a0 = c + along * (length * 0.5) + across * (side * width * 0.55) + Z * (bed_z - 0.5)
+        a1 = c + along * (length * 0.5 + r * 0.55) + across * (side * width * 0.35) + Z * 0.8
+        tube(p, [a0, a1], [0.9, 0.8], ['cartRail'], sides=6)
+    box(p, c + along * (-length * 0.2) + across * (width * 0.3) + Z * (bed_z + 3.0), (3.0, 3.0, 2.2), 'cartCrate',
+        -turn + 0.3)
+    blob(p, c + along * (length * 0.2) + across * (-width * 0.25) + Z * (bed_z + 2.6), (3.6, 2.8, 2.2), 'cartSack',
+         u=10, v=6)
+
+
+def banner(p, x, y, z0, r, turn, seed):
+    """A ward's banner at a pad's corner, seen from above: an iron-shod pole, its cloth streaming on the breeze along
+    `turn`, nearly level so it reads from straight above, a rune stitched on it glowing faintly; within `r` of the pole."""
+    pole = W(x, y, z0)
+    hgt = 18.0
+    tube(p, [pole - Z * 0.5, pole + Z * hgt], [0.9, 0.75], ['cartRail'], sides=6)
+    blob(p, pole + Z * (hgt + 0.6), (1.2, 1.2, 1.2), 'cartIron', u=8, v=4)
+    d = V((math.cos(turn), -math.sin(turn), 0))
+    side = d.cross(Z).normalized()
+    length = min(r * 0.95, 12.0)
+    drop = 7.0
+    rows = []
+    cols = 6
+    for v in range(4):
+        row = []
+        for u in range(cols + 1):
+            t = u / cols
+            wave = math.sin(t * math.pi * 1.6 + seed) * 1.2 * t
+            # Tilted 70° off the vertical: the breeze lifts it, so from above it shows most of its width.
+            q = pole + Z * (hgt - 0.8) + d * (length * t) + side * (drop * (v / 3) * 0.94 + wave * 0.3) \
+                - Z * (drop * (v / 3) * 0.34 - wave)
+            row.append(q)
+        rows.append(row)
+    mats = ['bannerCloth', 'bannerCloth', 'bannerHem']
+    grid = [[p.bm.verts.new(q) for q in row] for row in rows]
+    for v in range(3):
+        for u in range(cols):
+            f = p.bm.faces.new([grid[v][u], grid[v][u + 1], grid[v + 1][u + 1], grid[v + 1][u]])
+            f.material_index = p.m(mats[v])
+    # The stitched rune: a small glowing chevron on the cloth's middle.
+    mid = [rows[1][2], rows[2][3], rows[1][4]]
+    tube(p, [q + Z * 0.5 for q in mid], [0.45] * 3, ['bannerRune'], sides=4, n0=Z)
 
 
 def height_at(m, x, y):
@@ -873,17 +1050,17 @@ def camera(m, ss):
     return cam
 
 
-def lights():
-    scene.moon(V(MOON), angle_deg=2.5)
+def key_light(sun=MOON):
+    scene.moon(V(sun), angle_deg=2.5)
     shading.set_globals(rim=V((0.62, -0.62, 0.48)).normalized(), moon_rim=V((-0.6, 0.62, 0.5)).normalized(), ao=5.0,
                         shine=30, ao_samples=6)
 
 
-def render_passes(cam, tmp, samples, ss, box=None):
+def render_passes(cam, tmp, samples, ss, box=None, look=None):
     """Renders the frame (or `box` = (x0, y0, x1, y1) render px) in strips and returns, at plate size: the painted and
     lined colour, the glow, and at render size the depth and object index (for the measurements)."""
     x0, y0, x1, y1 = box or (0, 0, cam.w, cam.h)
-    look = dict(npr.LOOK, **LOOK)
+    look = {**npr.LOOK, **LOOK, **(look or {})}
     hh, ww = (y1 - y0) // ss, (x1 - x0) // ss
     col = np.zeros((hh, ww, 3), np.float32)
     emit = np.zeros((hh, ww, 3), np.float32)
@@ -909,30 +1086,32 @@ def render_passes(cam, tmp, samples, ss, box=None):
     return col, emit, depth, obj
 
 
-def finish_plate(m, col, emit, x0=0, y0=0):
+def finish_plate(m, col, emit, x0=0, y0=0, light='afternoon'):
     """The finished picture (display values) from the painted colour: the glows' bloom, the 2D ground's faint warm
     wash and light vignette, the safe zone's shade. `x0`, `y0`: where this piece sits in the plate (plate px)."""
     h, w = col.shape[:2]
     out = col.copy()
+    L = LIGHTS[light]
+    bloom, wash, safe = L['bloom'], L['wash'], L['safe']
     if emit.max() > 0:
-        s = BLOOM['sigma']
+        s = bloom['sigma']
         b = np.stack([ndimage.gaussian_filter(emit[..., i], s) + 0.5 * ndimage.gaussian_filter(emit[..., i], s * 3)
                       for i in range(3)], axis=2)
-        out = out + b * BLOOM['amount']
+        out = out + b * bloom['amount']
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float64)
     x = (xs + x0 + 0.5) / RES
     y = (ys + y0 + 0.5) / RES
     # The 2D ground's radial gradient: a faint warm wash round the upper middle, night towards the edges.
-    r = np.hypot(x - m.wpx / 2, y - m.hpx * WASH['centre'])
-    t = np.clip((r - m.hpx * WASH['r0']) / (m.hpx * (WASH['r1'] - WASH['r0'])), 0, 1)[..., None]
-    light = np.array(WASH['light'], np.float32)
+    r = np.hypot(x - m.wpx / 2, y - m.hpx * wash['centre'])
+    t = np.clip((r - m.hpx * wash['r0']) / (m.hpx * (wash['r1'] - wash['r0'])), 0, 1)[..., None]
+    tint = np.array(wash['light'], np.float32)
     night = np.array(rgb('night'), np.float32)
-    colour = light * (1 - t) + night * t
-    alpha = WASH['light_alpha'] * (1 - t) + WASH['vignette'] * t
+    colour = tint * (1 - t) + night * t
+    alpha = wash['light_alpha'] * (1 - t) + wash['vignette'] * t
     out = out * (1 - alpha) + colour * alpha
     # The safe zone sinks into deep shade, so the touch controls over it stay readable.
-    top = (m.safe + SAFE_SHADE['start']) * T
-    sh = smoothstep(top, top + SAFE_SHADE['tiles'] * T, y)[..., None] * SAFE_SHADE['alpha']
+    top = (m.safe + safe['start']) * T
+    sh = smoothstep(top, top + safe['tiles'] * T, y)[..., None] * safe['alpha']
     out = out * (1 - sh) + night * sh
     return np.clip(out, 0, 1)
 
@@ -1002,9 +1181,12 @@ def file_hash(path):
     return hashlib.sha256(open(path, 'rb').read()).hexdigest()[:12]
 
 
-def render_map(which, out_dir, layout_dir, tmp, draft=False):
-    """Builds the map's scene, renders the plate (and the patches) and writes `<map>.webp` (+ `<map>-extra.webp`) into
-    out_dir and `<map>.json` (the layout) into layout_dir. Returns the layout."""
+def render_map(which, out_dir, layout_dir, tmp, draft=False, lights=('afternoon',)):
+    """Builds the map's scene once and, for each of `lights` (LIGHTS), renders the plate (and the patches) and writes
+    `light_file(which, light)` (+ its `-extra` patches) into out_dir; `<map>.json` (the layout) into layout_dir: the
+    afternoon's files at its top as before, dusk's and night's under `lights` (V-08a). A light not rendered this run
+    keeps what the layout already holds for it (its pads and lanes must be the same scene's: the afternoon's).
+    Returns the layout."""
     t_all = time.time()
     map_palette()
     data = load_data(which, tmp)
@@ -1017,10 +1199,10 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False):
     top = pad_albedo()
     define_materials(ground_img, [image(f'PadAlbedo{k}' if k else 'PadAlbedo', np.ascontiguousarray(np.rot90(top, k)))
                                   for k in range(4)])
-    lights()
+    key_light(LIGHTS[lights_first(lights)]['sun'])
     ground_mesh(m)
     pads = {p['id']: pad_object(m, p) for p in m.pads if p['show'] != 'none'}
-    build_scenery(m, data['spots'])
+    build_scenery(m, data['spots'], data.get('edge', []))
     scene.detail(1)
     # The subdivision's exact limit surface on hundreds of small blobs (each with two poles) takes 13 GB and 40 s
     # to evaluate here; its approximation is 1 GB and a second, and at a few pixels a puff nobody can tell.
@@ -1030,77 +1212,124 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False):
                 md.use_limit_surface = False
                 md.quality = 1
     print(f'{which}: scene built ({time.time() - t0:.0f} s)', flush=True)
-    for p in m.pads:
-        for o in pads.get(p['id'], []):
-            o.hide_render = p['show'] != 'plate'
     cam = camera(m, ss)
     preview = os.environ.get('TDT_PLATE_BOX')
     if preview:
-        # A look at part of the plate at full quality: x0,y0,x1,y1 in plate px (no layout, no files but this PNG).
+        # A look at part of the plate at full quality: x0,y0,x1,y1 in plate px (no layout, no files but these PNGs).
         bx = [int(v) for v in preview.split(',')]
-        pc, pe, _, _ = render_passes(cam, tmp, samples, ss, box=tuple(v * ss for v in bx))
         os.makedirs(out_dir, exist_ok=True)
-        imageio.write_png(os.path.join(out_dir, f'{which}-box.png'), to8(finish_plate(m, pc, pe, bx[0], bx[1])))
+        for light in lights:
+            show_pads(m, pads, 'plate')
+            set_light(light)
+            pc, pe, _, _ = render_passes(cam, tmp, samples, ss, box=tuple(v * ss for v in bx), look=LIGHTS[light]['look'])
+            imageio.write_png(os.path.join(out_dir, f'{which}-{light}-box.png'),
+                              to8(finish_plate(m, pc, pe, bx[0], bx[1], light)))
         return None
-    t0 = time.time()
-    col, emit, depth, obj = render_passes(cam, tmp, samples, ss)
-    t_render = time.time() - t0
-    plate = finish_plate(m, col, emit)
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(layout_dir, exist_ok=True)
-    png = os.path.join(tmp, f'{which}.png')
-    imageio.write_png(png, to8(plate), level=6)
-    webp = os.path.join(out_dir, f'{which}.webp')
-    q, size = encode.best(lambda q: encode.webp(png, webp, q), 30, 95, PLATE_BUDGET, higher_is_better=True)
-    layout = dict(map=which, width=plate.shape[1], height=plate.shape[0], res=RES, tilePx=T,
-                  file=dict(name=f'{which}.webp', bytes=size, quality=q, hash=file_hash(webp)),
-                  pads=measure_pads(m, obj, ss), lanes=measure_lanes(m, depth, obj, ss),
-                  spots=data['spots'], render=dict(ss=ss, samples=samples, seconds=round(t_render)))
-    del depth
-
-    # Patches: each pad that only some matches have, rendered with its pad in, cut out round it and faded at its edge.
-    patches = []
-    extra = [p for p in m.pads if p['show'] == 'patch']
-    if extra:
-        for p in m.pads:
-            for o in pads.get(p['id'], []):
-                o.hide_render = p['show'] == 'none'
-        cells = []
-        for p in extra:
-            x0, y0, x1, y1 = m.pad_rect(p, PATCH_PAD)
-            bx = tuple(int(round(v * RES * ss)) for v in (x0, y0, x1, y1))
-            bx = (max(0, bx[0]), max(0, bx[1]), min(cam.w, bx[2]), min(cam.h, bx[3]))
-            pc, pe, pd, po = render_passes(cam, tmp, samples, ss, box=bx)
-            px0, py0 = bx[0] // ss, bx[1] // ss
-            fin = finish_plate(m, pc, pe, px0, py0)
-            hh, ww = fin.shape[:2]
-            ys, xs = np.mgrid[0:hh, 0:ww].astype(np.float64)
-            # Inside the pad and its first PATCH_PAD / 2 world px: the patch; then it fades into the plate.
-            rx0, ry0, rx1, ry1 = [v * RES - o for v, o in zip(m.pad_rect(p), (px0, py0, px0, py0))]
-            dx = np.maximum(np.maximum(rx0 - (xs + 0.5), (xs + 0.5) - rx1), 0)
-            dy = np.maximum(np.maximum(ry0 - (ys + 0.5), (ys + 0.5) - ry1), 0)
-            dist = np.hypot(dx, dy) / RES
-            alpha = 1 - smoothstep(PATCH_PAD * 0.45, PATCH_PAD * 0.95, dist)
-            cells.append((p, (px0, py0), np.concatenate([fin, alpha[..., None]], axis=2),
-                          measure_pads(m, po, ss, bx[0], bx[1])))
-        cw = max(c[2].shape[1] for c in cells)
-        ch = max(c[2].shape[0] for c in cells)
-        atlas = np.zeros((ch, cw * len(cells), 4), np.float32)
-        for i, (p, (px0, py0), img, meas) in enumerate(cells):
-            atlas[: img.shape[0], i * cw: i * cw + img.shape[1]] = img
-            box = next((q['box'] for q in meas if q['id'] == p['id']), None)
-            patches.append(dict(pad=p['id'], x=px0, y=py0, w=img.shape[1], h=img.shape[0], atlas=[i * cw, 0], box=box))
-        apng = os.path.join(tmp, f'{which}-extra.png')
-        imageio.write_png(apng, to8(atlas), level=6)
-        aweb = os.path.join(out_dir, f'{which}-extra.webp')
-        aq, asize = encode.best(lambda q: encode.webp(apng, aweb, q), 30, 95, PATCH_BUDGET, higher_is_better=True)
-        layout['extra'] = dict(file=dict(name=f'{which}-extra.webp', bytes=asize, quality=aq, hash=file_hash(aweb)),
-                               patches=patches)
-    with open(os.path.join(layout_dir, f'{which}.json'), 'w') as f:
-        f.write(json.dumps(layout, indent=1, sort_keys=True) + '\n')
-    print(f'{which}: {layout["width"]} × {layout["height"]}, {size} bytes (quality {q}), render {t_render:.0f} s, '
-          f'all {time.time() - t_all:.0f} s', flush=True)
-    keep = os.environ.get('TDT_PLATE_PNG')
-    if keep:
-        shutil.copy(png, keep)
+    layout_path = os.path.join(layout_dir, f'{which}.json')
+    old = json.load(open(layout_path)) if os.path.exists(layout_path) else None
+    layout = None
+    if 'afternoon' not in lights:
+        if old is None:
+            raise SystemExit(f'{layout_path} is missing: render the afternoon first (it holds the pads and lanes)')
+        layout = old
+    variants = dict((old or {}).get('lights', {}))
+    for light in lights:
+        t_l = time.time()
+        set_light(light)
+        show_pads(m, pads, 'plate')
+        look = LIGHTS[light]['look']
+        t0 = time.time()
+        col, emit, depth, obj = render_passes(cam, tmp, samples, ss, look=look)
+        t_render = time.time() - t0
+        plate = finish_plate(m, col, emit, light=light)
+        png = os.path.join(tmp, f'{which}-{light}.png')
+        imageio.write_png(png, to8(plate), level=6)
+        webp = os.path.join(out_dir, light_file(which, light))
+        q, size = encode.best(lambda q: encode.webp(png, webp, q), 30, 95, PLATE_BUDGET, higher_is_better=True)
+        f = dict(name=light_file(which, light), bytes=size, quality=q, hash=file_hash(webp))
+        pads_m = measure_pads(m, obj, ss)
+        if light == 'afternoon':
+            layout = dict(map=which, width=plate.shape[1], height=plate.shape[0], res=RES, tilePx=T, file=f,
+                          pads=pads_m, lanes=measure_lanes(m, depth, obj, ss), spots=data['spots'],
+                          edge=data.get('edge', []), render=dict(ss=ss, samples=samples, seconds=round(t_render)))
+        elif [p['id'] for p in pads_m] != [p['id'] for p in layout['pads']]:
+            raise SystemExit(f'{light}: the pads it rendered are not the layout\'s: render the afternoon again too')
+        del depth
+        extra = render_patches(m, cam, pads, tmp, samples, ss, which, out_dir, light)
+        if light == 'afternoon':
+            if extra:
+                layout['extra'] = extra
+        else:
+            variants[light] = dict(file=f, **({'extra': extra} if extra else {}), seconds=round(t_render))
+        keep = os.environ.get('TDT_PLATE_PNG')
+        if keep:
+            shutil.copy(png, keep.replace('.png', f'-{light}.png') if light != 'afternoon' else keep)
+        print(f'{which} ({light}): {plate.shape[1]} × {plate.shape[0]}, {size} bytes (quality {q}), render '
+              f'{t_render:.0f} s, with the patches {time.time() - t_l:.0f} s', flush=True)
+    if variants:
+        layout['lights'] = {k: variants[k] for k in LIGHT_NAMES if k in variants}
+    with open(layout_path, 'w') as fh:
+        fh.write(json.dumps(layout, indent=1, sort_keys=True) + '\n')
+    print(f'{which}: all {time.time() - t_all:.0f} s', flush=True)
     return layout
+
+
+def lights_first(names):
+    return names[0] if names else 'afternoon'
+
+
+def set_light(light):
+    """Points the key light for `light` (LIGHTS): the scene is the same, only the sun moves (its shadows with it)."""
+    key_light(LIGHTS[light]['sun'])
+
+
+def show_pads(m, pads, which):
+    """The plate's pads (`plate`: those every match has) or the patches' (`patch`: every pad some match has)."""
+    for p in m.pads:
+        for o in pads.get(p['id'], []):
+            o.hide_render = (p['show'] != 'plate') if which == 'plate' else (p['show'] == 'none')
+
+
+def render_patches(m, cam, pads, tmp, samples, ss, which, out_dir, light):
+    """Each pad that only some matches have, rendered in `light` with its pad in, cut out round it and faded at its
+    edge, in one atlas (`light_file(which, light, extra=True)`). Returns its layout entry, or None (no such pad)."""
+    extra = [p for p in m.pads if p['show'] == 'patch']
+    if not extra:
+        return None
+    show_pads(m, pads, 'patch')
+    look = LIGHTS[light]['look']
+    cells = []
+    patches = []
+    for p in extra:
+        x0, y0, x1, y1 = m.pad_rect(p, PATCH_PAD)
+        bx = tuple(int(round(v * RES * ss)) for v in (x0, y0, x1, y1))
+        bx = (max(0, bx[0]), max(0, bx[1]), min(cam.w, bx[2]), min(cam.h, bx[3]))
+        pc, pe, pd, po = render_passes(cam, tmp, samples, ss, box=bx, look=look)
+        px0, py0 = bx[0] // ss, bx[1] // ss
+        fin = finish_plate(m, pc, pe, px0, py0, light)
+        hh, ww = fin.shape[:2]
+        ys, xs = np.mgrid[0:hh, 0:ww].astype(np.float64)
+        # Inside the pad and its first PATCH_PAD / 2 world px: the patch; then it fades into the plate.
+        rx0, ry0, rx1, ry1 = [v * RES - o for v, o in zip(m.pad_rect(p), (px0, py0, px0, py0))]
+        dx = np.maximum(np.maximum(rx0 - (xs + 0.5), (xs + 0.5) - rx1), 0)
+        dy = np.maximum(np.maximum(ry0 - (ys + 0.5), (ys + 0.5) - ry1), 0)
+        dist = np.hypot(dx, dy) / RES
+        alpha = 1 - smoothstep(PATCH_PAD * 0.45, PATCH_PAD * 0.95, dist)
+        cells.append((p, (px0, py0), np.concatenate([fin, alpha[..., None]], axis=2),
+                      measure_pads(m, po, ss, bx[0], bx[1])))
+    cw = max(c[2].shape[1] for c in cells)
+    ch = max(c[2].shape[0] for c in cells)
+    atlas = np.zeros((ch, cw * len(cells), 4), np.float32)
+    for i, (p, (px0, py0), img, meas) in enumerate(cells):
+        atlas[: img.shape[0], i * cw: i * cw + img.shape[1]] = img
+        box = next((q['box'] for q in meas if q['id'] == p['id']), None)
+        patches.append(dict(pad=p['id'], x=px0, y=py0, w=img.shape[1], h=img.shape[0], atlas=[i * cw, 0], box=box))
+    name = light_file(which, light, extra=True)
+    apng = os.path.join(tmp, name.replace('.webp', '.png'))
+    imageio.write_png(apng, to8(atlas), level=6)
+    aweb = os.path.join(out_dir, name)
+    aq, asize = encode.best(lambda q: encode.webp(apng, aweb, q), 30, 95, PATCH_BUDGET, higher_is_better=True)
+    show_pads(m, pads, 'plate')
+    return dict(file=dict(name=name, bytes=asize, quality=aq, hash=file_hash(aweb)), patches=patches)

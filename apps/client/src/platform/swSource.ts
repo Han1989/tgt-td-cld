@@ -43,11 +43,15 @@ export function isMediaPath(path: string): boolean {
 }
 
 /**
- * A creep's or a hero's 3D match sheet (`/assets/<kind>-match-<hash>.webp|png`): not precached, kept in this version's
- * cache the first time a match asks for it (`sheet` in the worker). The structures' sheet is not one: it is precached.
+ * A creep's or a hero's 3D match sheet (`/assets/<kind>-match-<hash>.webp|png`), or the map plate's dusk or night
+ * (`/map/spire-dusk.webp`, `-night-extra.webp`…; V-08a): not precached, kept in this version's cache the first time a
+ * match asks for it (`sheet` in the worker). The structures' sheet and the afternoon's plate are not: they are precached.
  */
 export function isOnDemandSheet(path: string): boolean {
-  return /^\/assets\/[a-z]+-match-[\w-]+\.(webp|png)$/.test(path) && !path.startsWith('/assets/structures-match-');
+  return (
+    (/^\/assets\/[a-z]+-match-[\w-]+\.(webp|png)$/.test(path) && !path.startsWith('/assets/structures-match-')) ||
+    /^\/map\/[a-z]+-(dusk|night)(-extra)?\.webp$/.test(path)
+  );
 }
 
 /** A stage video: stored whole, and range requests answered from it (`video` in the worker). */
@@ -172,9 +176,12 @@ ${HELPERS}${HOSTED_FETCH}`;
 }
 
 /** The helpers both workers carry: which files are sheets, the media and sheet caches, byte ranges. */
-const HELPERS = `// A creep's or a hero's match sheet (isOnDemandSheet in swSource.ts).
+const HELPERS = `// A creep's or a hero's match sheet, or the map plate's dusk or night (isOnDemandSheet in swSource.ts).
 function onDemand(path) {
-  return /^\\/assets\\/[a-z]+-match-[\\w-]+\\.(webp|png)$/.test(path) && !path.startsWith('/assets/structures-match-');
+  return (
+    (/^\\/assets\\/[a-z]+-match-[\\w-]+\\.(webp|png)$/.test(path) && !path.startsWith('/assets/structures-match-')) ||
+    /^\\/map\\/[a-z]+-(dusk|night)(-extra)?\\.webp$/.test(path)
+  );
 }
 
 // Keeps a whole answer (200) in the media cache, dropping older uploads of the same file (another ?v=).

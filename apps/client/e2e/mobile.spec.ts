@@ -1008,6 +1008,39 @@ test.describe('portrait phone layout', () => {
     expect(await sent(page, 'ping')).toHaveLength(1);
   });
 
+  test('in the rain (and with leaves) every tap lands as before: the weather never takes a pointer event (V-08a)', async ({ page }) => {
+    for (const weather of ['rain', 'leaves'] as const) {
+      await startSolo(page, `?lab&weather=${weather}`);
+      // The weather is drawn (High quality here, so its particles are on) and none of its layers is interactive.
+      await expect.poll(() => page.evaluate(() => window.__tdt.atmosphere().weather.weather)).toBe(weather);
+      const w = await page.evaluate(() => window.__tdt.atmosphere().weather);
+      expect(w.interactive).toBe(false);
+      expect(weather === 'rain' ? w.streaks + w.splashes : w.leaves).toBeGreaterThan(0);
+      // A pad tap opens the build ring and one tap builds, through the rain.
+      const [padId] = await myPadsBottomFirst(page);
+      await tapPad(page, padId!);
+      await page.locator('.radial-btn[data-tower="arrow"]').tap();
+      await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
+      await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+      // A tap on the tower opens its ring; a long-press on the grass pings the tile under the finger.
+      await tapPad(page, padId!);
+      await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeVisible();
+      await tapPad(page, padId!);
+      const finger = await Finger.on(page);
+      const l = await page.evaluate(() => window.__tdt.layout());
+      const x = (l.map.left + l.map.right) / 2;
+      const y = l.topBarBottom + 48;
+      const tile = await page.evaluate(([x, y]) => { const p = window.__tdt.camera.screenToWorld(x, y); return { x: p.x / 32, y: p.y / 32 }; }, [x, y] as const);
+      await finger.down(x, y);
+      await page.waitForTimeout(650);
+      await finger.up();
+      await expect.poll(() => sent(page, 'ping').then((p) => p.length)).toBe(1);
+      const ping = (await sent(page, 'ping'))[0]!;
+      expect(Math.abs((ping.x as number) - tile.x)).toBeLessThan(0.6);
+      expect(Math.abs((ping.y as number) - tile.y)).toBeLessThan(0.6);
+    }
+  });
+
   test('quick chat is six phrases, never covers the controls, and has no text field', async ({ page }) => {
     await startSolo(page);
     const controls = await overlayBoxes(page);

@@ -8,13 +8,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GAME_MODES, MAX_PLAYERS } from '@tdt/protocol';
-import { getMap, padLayout, TILE_PX, TUNING, tuningForMode } from '@tdt/sim';
+import { getMap, padLayout, Tile, tileAt, TILE_PX, TUNING, tuningForMode } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import '../src/render/art/load';
 import { propArts } from '../src/render/art/registry';
-import { propSpots } from '../src/render/art/scatter';
-import { isMediaPath, swSource } from '../src/platform/swSource';
-import { padLook, patchOf, plateFits, plateUrl, SPIRE_PLATE as L } from '../src/render/plate/layout';
+import { edgeSpots, propSpots } from '../src/render/art/scatter';
+import { isMediaPath, isOnDemandSheet, swSource } from '../src/platform/swSource';
+import { lightFiles, padLook, patchOf, plateFits, plateUrl, SPIRE_PLATE as L } from '../src/render/plate/layout';
 import card from '../src/render/plate/card.json';
 import { CARD_MAP } from '../src/ogMap';
 
@@ -213,6 +213,87 @@ describe('the map plate: loading', () => {
     for (const f of files.slice(1)) {
       expect(isMediaPath(f)).toBe(false);
       expect(sw).toContain(JSON.stringify(f));
+    }
+  });
+
+  it('dusk and night are not precached: kept the first time a match asks for them (V-08a)', () => {
+    const later = (['dusk', 'night'] as const).flatMap((l) => {
+      const f = lightFiles(L, l)!;
+      return [`/map/${f.file.name}`, ...(f.extra ? [`/map/${f.extra.file.name}`] : [])];
+    });
+    expect(later).toHaveLength(4);
+    const sw = swSource('test', ['/index.html', `/map/${L.file.name}`, ...later]);
+    for (const f of later) {
+      expect(isOnDemandSheet(f), f).toBe(true);
+      expect(sw).not.toContain(JSON.stringify(f));
+    }
+    expect(isOnDemandSheet(`/map/${L.file.name}`)).toBe(false);
+    expect(isOnDemandSheet(`/map/${L.extra!.file.name}`)).toBe(false);
+  });
+});
+
+describe('the map plate: the match\'s lights (V-08a)', () => {
+  it('dusk and night are the same scene: the files their layout names, each under the budget, the same size', () => {
+    for (const light of ['dusk', 'night'] as const) {
+      const v = L.lights?.[light];
+      expect(v, light).toBeDefined();
+      for (const f of [v!.file, ...(v!.extra ? [v!.extra.file] : [])]) {
+        const bytes = readFileSync(join(MAP_DIR, f.name));
+        expect(bytes.length, f.name).toBe(f.bytes);
+        expect(createHash('sha256').update(bytes).digest('hex').slice(0, 12), f.name).toBe(f.hash);
+      }
+      expect(v!.file.bytes, light).toBeLessThanOrEqual(700_000);
+      expect(webpSize(readFileSync(join(MAP_DIR, v!.file.name)))).toEqual({ w: L.width, h: L.height });
+      if (v!.extra) {
+        expect(v!.extra.file.bytes).toBeLessThanOrEqual(60_000);
+        // Its patches cover the afternoon's, pad for pad.
+        expect(v!.extra.patches.map((q) => [q.pad, q.x, q.y, q.w, q.h])).toEqual(L.extra!.patches.map((q) => [q.pad, q.x, q.y, q.w, q.h]));
+      }
+    }
+    expect(lightFiles(L, 'afternoon')!.file).toBe(L.file);
+  });
+});
+
+describe('the map plate: the denser edge (V-08a)', () => {
+  const clearing = new Set(propArts().filter((p) => p.where === 'clearing').map((p) => p.id));
+  const spots = edgeSpots(map, propSpots(map, propArts()).filter((s) => clearing.has(s.id)));
+
+  it('stands rocks, stumps, one cart and two banners where edgeSpots puts them', () => {
+    expect(L.edge).toHaveLength(spots.length);
+    for (const [i, s] of spots.entries()) {
+      const p = L.edge![i]!;
+      expect(p.kind, `edge ${i}`).toBe(s.kind);
+      expect(p.x).toBeCloseTo(s.x, 6);
+      expect(p.y).toBeCloseTo(s.y, 6);
+      expect(p.r).toBeCloseTo(s.r, 6);
+    }
+    expect(spots.filter((s) => s.kind === 'cart')).toHaveLength(1);
+    expect(spots.filter((s) => s.kind === 'banner')).toHaveLength(2);
+    expect(spots.filter((s) => s.kind === 'rock' || s.kind === 'stump').length).toBeGreaterThanOrEqual(15);
+  });
+
+  it('reaches over no lane, no pad and not the Heart (each prop within its r), clear of the hero spawn', () => {
+    for (const s of spots) {
+      for (let ty = Math.floor(s.y - s.r) - 1; ty <= Math.floor(s.y + s.r) + 1; ty++) {
+        for (let tx = Math.floor(s.x - s.r) - 1; tx <= Math.floor(s.x + s.r) + 1; tx++) {
+          const t = tileAt(map, tx, ty);
+          if (t !== Tile.Lane && t !== Tile.Pad) continue;
+          const dx = Math.max(tx - s.x, 0, s.x - (tx + 1));
+          const dy = Math.max(ty - s.y, 0, s.y - (ty + 1));
+          expect(Math.hypot(dx, dy), `${s.kind} at ${s.x},${s.y} over tile ${tx},${ty}`).toBeGreaterThanOrEqual(s.r);
+        }
+      }
+      expect(Math.hypot(s.x - map.heroSpawn.x, s.y - map.heroSpawn.y)).toBeGreaterThanOrEqual(3);
+      expect(Math.hypot(s.x - map.heart.x, s.y - map.heart.y)).toBeGreaterThan(2 + s.r);
+      expect(s.y).toBeLessThan(map.safeFromY + 0.5);
+    }
+  });
+
+  it('puts the banners at the corners of the two base pads nearest the Heart, facing it', () => {
+    for (const b of spots.filter((s) => s.kind === 'banner')) {
+      const pad = map.pads.filter((p) => !p.extra).find((p) => b.x > p.tx - 1 && b.x < p.tx + map.padSize + 1 && b.y > p.ty - 1 && b.y < p.ty + map.padSize + 1);
+      expect(pad, `banner at ${b.x},${b.y}`).toBeDefined();
+      expect(Math.sign(b.x - (pad!.tx + map.padSize / 2))).toBe(Math.sign(map.heart.x - (pad!.tx + map.padSize / 2)));
     }
   });
 });

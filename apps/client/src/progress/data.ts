@@ -496,6 +496,15 @@ const items: ProgressItem[] = [
     proof: pr(146),
   },
   {
+    id: 'V-08a',
+    title: 'The atmosphere pass: the afternoon turns to dusk and night, rain or falling leaves, living light',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'How a match looks over its waves: no game rules, server or protocol change. Han, 5 Nov 2026: the match should feel like a place that changes over its twenty minutes. The map is now drawn in three lights from the same scene: the warm afternoon of the first third, a low gold dusk with long shadows in the second, and a cool moonlit night in the last, where the glows round the Heart and the portals, the towers’ runes and the Heart’s lit windows do the lighting. The map turns slowly from one to the next over six seconds as a new third begins (in Quick every five waves), and every boss wave comes at night. Each match has a weather of its own, the same every time it is played: fine slanted rain with splashes on the roads and the pads, or a few dozen leaves drifting across the meadow and settling; the Daily run is always clear, so everyone plays the same day. Towers from their second tier carry two small lanterns that breathe and brighten at night, and fireflies come out over the grass at dusk. Rocks, stumps, a cart and two banners fill the meadow’s edges. None of it gets in the way of a tap, all of it goes at Graphics → Low, and with reduced motion nothing drifts or falls. No sound change yet. In review: Han judges it on his Pixel and his laptop. Built by Claude Code (PR #PRNUM).',
+    proof: pr(PRNUM),
+  },
+  {
     id: 'V-07e',
     title: 'Closer: bigger heroes, creeps and towers on a phone, and a pinch to zoom in',
     owner: 'Team',

@@ -8,10 +8,17 @@ export class LocalTransport implements Transport {
   private handlers: ((msg: ServerMessage) => void)[] = [];
   /** No network: the view renders just behind the newest tick. */
   readonly interpDelayMs = SOLO_INTERP_DELAY_MS;
+  /** The current match's seed (the worker says it before the match's first snapshot; V-08a's weather). */
+  private seed: { seed: number; daily: boolean } | null = null;
 
   constructor() {
     this.worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<unknown>) => {
+      const ctl = e.data as { ctl?: unknown; seed?: unknown; daily?: unknown } | null;
+      if (ctl && typeof ctl === 'object' && ctl.ctl === 'match' && typeof ctl.seed === 'number') {
+        this.seed = { seed: ctl.seed, daily: ctl.daily === true };
+        return;
+      }
       const msg = decodeServerMessage(e.data);
       if (!msg) return;
       for (const h of this.handlers) h(msg);
@@ -48,6 +55,10 @@ export class LocalTransport implements Transport {
   /** One clock control for both reasons: the simulation runs only while neither holds it. */
   private pause(): void {
     this.worker.postMessage({ ctl: 'pause', paused: this.hidden || this.held });
+  }
+
+  matchSeed(): { seed: number; daily: boolean } | null {
+    return this.seed;
   }
 
   /** The Daily run: every match of this worker is the run of the day whose seed this is (a control message). */

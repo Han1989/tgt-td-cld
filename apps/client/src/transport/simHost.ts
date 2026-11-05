@@ -47,10 +47,15 @@ export class SimHost {
   private social: SocialClock = freshSocialClock();
 
   /** `build`: the client's build (git commit or 'dev'), stamped into solo match reports and replays. */
+  /**
+   * `onMatch`: each new match's seed and whether it is the Daily run, for the page's weather (V-08a: a worker control
+   * message, not part of the protocol; the snapshot carries no seed).
+   */
   constructor(
     private readonly emit: (raw: string) => void,
     private readonly nextSeed: () => number,
     private readonly build = 'dev',
+    private readonly onMatch: (seed: number, daily: boolean) => void = () => {},
   ) {
     this.reset();
   }
@@ -67,6 +72,7 @@ export class SimHost {
     this.reported = false;
     this.queue = [];
     this.social = freshSocialClock();
+    this.onMatch(this.match.seed, this.dailySeed !== null);
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
     this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
   }

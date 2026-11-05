@@ -180,6 +180,11 @@ export interface Lighting {
   groundLift: { color: number; alpha: number };
   /** Vignette opacity at the map's edges. */
   vignette: number;
+  /**
+   * Over the map plate (V-08a): the ground lift's opacity in each of the match's lights (the wash is one sprite over
+   * whichever plate shows; a crossfade mixes them). Bright lifts the dusk and the night more.
+   */
+  plateLift: { afternoon: number; dusk: number; night: number };
 }
 
 /**
@@ -187,8 +192,20 @@ export interface Lighting {
  * 12% on the meadow's light grass, which a 32% wash (the night ground's) took to a minty L 66 (docs/art/ground-options.md).
  */
 export const LIGHTING: Record<Display, Lighting> = {
-  normal: { bodyDarken: 0.42, shadowAlpha: 0.6, groundLift: { color: 0x9fb8c8, alpha: 0 }, vignette: 0.12 },
-  bright: { bodyDarken: 0.28, shadowAlpha: 0.38, groundLift: { color: 0x9fb8c8, alpha: 0.12 }, vignette: 0.05 },
+  normal: {
+    bodyDarken: 0.42,
+    shadowAlpha: 0.6,
+    groundLift: { color: 0x9fb8c8, alpha: 0 },
+    vignette: 0.12,
+    plateLift: { afternoon: 0, dusk: 0, night: 0 },
+  },
+  bright: {
+    bodyDarken: 0.28,
+    shadowAlpha: 0.38,
+    groundLift: { color: 0x9fb8c8, alpha: 0.12 },
+    vignette: 0.05,
+    plateLift: { afternoon: 0.12, dusk: 0.15, night: 0.2 },
+  },
 };
 
 /** A colour as the ground shows it in a display mode (Bright's "screen" lift), e.g. for DOM swatches. */
