@@ -46,6 +46,7 @@
  * e-press on 2 Nov 2026 (PR #156: press stills on the current build, and the store covers for itch.io, Newgrounds and CrazyGames).
  * quick-default on 2 Nov 2026 (PR #157: Quick is the default mode; it answers p5-quick, the backlog's question, removed).
  * slam-quake on 4 Nov 2026 (PR #158: Rampart Slam, round 2, the lane quake; protocol 24).
+ * slam-r3 on 5 Nov 2026 (PR #159: Rampart Slam, round 3, a wider quake and the Warden's sustain trimmed).
  * Protocol is 22 (PR #142). This page only reports status.
  */
 
@@ -1346,6 +1347,15 @@ const items: ProgressItem[] = [
     section: 'earlier',
     note: 'Han, 4 Nov 2026, from his own Warden match: the slam hit hard enough but caught too few creeps, and its count is how a player judges an ultimate. Now, cast on or beside a lane, the slam sends a quake along that whole lane, to the portal and to the Heart, hitting every creep on it, harder the more it catches, and stunning each as it passes; creeps off the lane next to the Warden are still hit at once. The heal, the guard and the combos are as before. The quake is drawn as a crack and dust running along the lane, and the count comes when it is over. Protocol 24: the game server restarts when it merges. Built by Claude Code (PR #158).',
     proof: pr(158),
+  },
+  {
+    id: 'slam-r3',
+    title: 'Rampart Slam, round 3: a wider quake, the Warden’s sustain trimmed',
+    owner: 'Team',
+    status: 'done',
+    section: 'earlier',
+    note: 'Han, 5 Nov 2026, after round 2’s numbers. The quake now also catches the creeps at the road’s edges and the ones chasing beside it, and it starts from up to four steps off the lane, so the Warden need not stand on it. His Blood Hunger heals less on every hit (1 to 2% of his max HP instead of 1.5 to 3%): the lowest step before a first-time player’s Warden starts losing more Hard matches. The bots measured both: the quake catches a little more (a lane holds about 12 creeps when he casts), and his lead on Hard stands, since his heal turned out not to be what holds the Heart; Han decides the next step. No change to what the game sends over the network. Built by Claude Code (PR #159).',
+    proof: pr(159),
   },
   {
     id: 'p5-rest',

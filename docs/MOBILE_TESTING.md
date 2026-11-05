@@ -261,16 +261,17 @@ Solo **Quick** on a phone, once with the **Warden**, once with the **Ranger** or
 - [ ] 18.4 **The Snare Trap matters:** with the Ranger, drop a trap under a pack in front of your towers. It arms almost at once; the caught creeps get a **violet ring** outside the brown root ring while they are rooted, and melt under the towers (they take 25% more damage from everything while rooted). The Runners in it die to the trap alone.
 - [ ] 18.5 **Wave 5 is no wall:** wave 5 is Grunts and Archers, no Wisps. On the wave before the Wisps (wave 3 in Quick, 5 in Full) a line names the cheapest tower that hits air you can afford (**Arrow 60 hits air**). Note whether the first Wisps (wave 4 in Quick, 6 in Full) still feel like a wall.
 
-## 19. Rampart Slam, round 2: the lane quake (protocol 24)
+## 19. Rampart Slam, round 2: the lane quake (protocol 24; round 3 wider, 5 Nov 2026)
 
 Solo **Full** or **Quick** on a phone with the **Warden**, then a room with a Ranger or an Arcanist. About 10 minutes.
 
 - [ ] 19.1 **A quake on a wave:** at level 6 learn R, stand on your lane (on the road, or within a step or two of it) as a wave comes down it, and tap R. A gold ring and the flare at your feet, the screen's kick, then a **crack and dust front runs along the lane both ways**, up to the portal and down to the Heart, in about two seconds; every creep on the lane is stunned (a star over it) as the front passes. When the front is done **"Rampart Slam: N"** pops: on a lane with a wave on it the count reads **double digits**. Note the count you saw.
-- [ ] 19.2 **Off the lane:** cast it standing well away from every road (in the grass between two lanes): only the ring at your feet, no front, and only the creeps around you are hit.
+- [ ] 19.2 **Off the lane:** cast it standing more than four steps from every road (since round 3 the grass between two lanes is close enough to one of them: stand in a bottom corner of the map, left or right of the Heart, by the forest): only the ring at your feet, no front, and only the creeps around you are hit.
 - [ ] 19.3 **Creeps chasing you:** creeps that left the lane to chase you, within a few steps of you, are hit at once with the ring.
 - [ ] 19.4 **Combos:** in a room, cast the slam within 5 s of a teammate's Arrow Storm (Stun Storm) or Meteor (Shockwave): the combo fuses as before, and the quake still runs.
 - [ ] 19.5 **Reduced motion:** with the phone's reduced-motion setting on, the lane's cracks appear along the whole lane at once and fade; nothing travels and nothing shakes.
 - [ ] 19.6 **⚙ → Graphics → Low:** the cracks and the front's glow stay (they show where the quake ran); the dust and pebbles go.
+- [ ] 19.7 **From the lane's shoulder (round 3, 5 Nov 2026):** stand on the grass beside your road, about three steps off it (not on the road), as a wave comes down, and tap R: the quake still runs along that lane, and it hits the creeps walking at the road's edge and those that stepped off it to chase you. Note the count, and whether the front still reads as running along that one lane.
 
 ## Results
 

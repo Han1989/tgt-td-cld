@@ -102,9 +102,10 @@ describe('Rampart Slam: the lane quake', () => {
 
   it('a creep off the lane is not hit by the quake, but is by the local slam when within its radius', () => {
     const { state, warden } = lab(['warden'], 13, 20);
-    // The lane is 1 tile each side of its centreline: these stand a tile beyond its edge.
-    const near = tough(state, 'grunt', 15, 21);
-    const far = tough(state, 'grunt', 15, 8);
+    // The quake's band is the lane's half width (1) plus `quakeBand` (1) plus half the creep's radius: these stand
+    // 3.2 tiles off Mid's centreline, beyond it.
+    const near = tough(state, 'grunt', 16.2, 21);
+    const far = tough(state, 'grunt', 16.2, 8);
     const onLane = tough(state, 'grunt', 13.9, 8);
     const caught = quakeCatch(TUNING, state.creeps, warden.x, warden.y);
     expect(caught.onLane.map((c) => c.id)).toEqual([onLane.id]);
@@ -116,6 +117,33 @@ describe('Rampart Slam: the lane quake', () => {
     expect(hits.get(onLane.id)).toHaveLength(1);
     // Two creeps caught: both take the base plus one echo.
     expect(near.maxHp - near.hp).toBeCloseTo((S.base[0]! + S.echo[0]!) * armorMultiplier(TUNING, TUNING.creeps.grunt.armor));
+  });
+
+  it("catches the lane's shoulders: a creep within the half width plus the band plus half its radius (round 9)", () => {
+    const { state, warden } = lab(['warden'], 13, 20);
+    const r = TUNING.creeps.grunt.radius;
+    const edge = getMap().laneHalfWidth + S.quakeBand + r / 2;
+    expect(S.quakeBand).toBe(1);
+    // A chaser beside the lane, just inside the band, and one just past it.
+    const inside = tough(state, 'grunt', 13 + edge - 0.01, 8);
+    const outside = tough(state, 'grunt', 13 - edge - 0.01, 6);
+    const caught = quakeCatch(TUNING, state.creeps, warden.x, warden.y);
+    expect(caught.onLane.map((c) => c.id)).toEqual([inside.id]);
+    const hits = slamAndWatch(state, [inside, outside], secondsToTicks(3));
+    expect(hits.get(inside.id)).toHaveLength(1);
+    expect(hits.get(outside.id)).toHaveLength(0);
+  });
+
+  it('quakes a lane from 4 tiles off its centreline (round 9: `laneReach` 4)', () => {
+    expect(S.laneReach).toBe(4);
+    // 3.9 tiles east of West's centreline (x 6), 3.1 west of Mid's: the nearer lane, Mid, quakes.
+    const { state, warden } = lab(['warden'], 9.9, 10);
+    const onMid = tough(state, 'grunt', 13, 4);
+    expect(quakeCatch(TUNING, state.creeps, warden.x, warden.y).lane).toBe(1);
+    expect(slamAndWatch(state, [onMid], secondsToTicks(3)).get(onMid.id)).toHaveLength(1);
+    // On the West pads, 3.9 tiles off West: West quakes.
+    const west = lab(['warden'], 2.1, 10);
+    expect(quakeCatch(TUNING, west.state.creeps, west.warden.x, west.warden.y).lane).toBe(0);
   });
 
   it('a flyer over the lane is hit', () => {
@@ -143,17 +171,17 @@ describe('Rampart Slam: the lane quake', () => {
     for (const c of creeps) expect(c.maxHp - c.hp).toBeCloseTo(each);
   });
 
-  it('cast 3 tiles from every lane, only the local slam lands and no quake starts', () => {
-    // Between West (x 6) and Mid (x 13): 3.5 tiles from both.
-    const { state, warden } = lab(['warden'], 9.5, 10);
-    const near = tough(state, 'grunt', 11, 10);
-    const onMid = tough(state, 'grunt', 13, 4);
+  it('cast more than 4 tiles from every lane, only the local slam lands and no quake starts', () => {
+    // On the West pads' outer edge: 4.5 tiles from West (x 6), farther from the others.
+    const { state, warden } = lab(['warden'], 1.5, 10);
+    const near = tough(state, 'grunt', 2.5, 10);
+    const onWest = tough(state, 'grunt', 6, 4, 0);
     expect(quakeCatch(TUNING, state.creeps, warden.x, warden.y).lane).toBeNull();
     const events: GameEvent[] = [];
-    const hits = slamAndWatch(state, [near, onMid], secondsToTicks(3), events);
+    const hits = slamAndWatch(state, [near, onWest], secondsToTicks(3), events);
     expect(events.some((e) => e.type === 'quake')).toBe(false);
     expect(near.hp).toBeLessThan(near.maxHp);
-    expect(hits.get(onMid.id)).toHaveLength(0);
+    expect(hits.get(onWest.id)).toHaveLength(0);
     expect(events.filter((e) => e.type === 'ultResult' && e.ult === 'rampartSlam')).toHaveLength(1);
   });
 
@@ -162,6 +190,23 @@ describe('Rampart Slam: the lane quake', () => {
     for (let i = 0; i < 4; i++) tough(state, 'grunt', 20, 5 + i * 3, 2);
     tough(state, 'grunt', 13, 6);
     expect(quakeCatch(TUNING, state.creeps, warden.x, warden.y).lane).toBe(2);
+  });
+
+  it('hits every creep on the shared stretch whatever lane it walks, whichever lane quakes (round 9)', () => {
+    // A Mid quake cast up Mid; West's, Mid's and East's creeps on the last 6 tiles above the Heart are all caught.
+    const { state, warden } = lab(['warden'], 13, 20);
+    const shared = [tough(state, 'grunt', 13, 30.5, 0), tough(state, 'grunt', 13.4, 31.5, 1), tough(state, 'grunt', 12.6, 32.5, 2)];
+    const caught = quakeCatch(TUNING, state.creeps, warden.x, warden.y);
+    expect(caught.lane).toBe(1);
+    expect(caught.onLane.map((c) => c.id).sort()).toEqual(shared.map((c) => c.id).sort());
+    const hits = slamAndWatch(state, shared, secondsToTicks(3));
+    for (const c of shared) expect(hits.get(c.id)).toHaveLength(1);
+    // The same from West's bend: a West quake hits Mid's and East's creeps there too.
+    const west = lab(['warden'], 7, 22);
+    const there = [tough(west.state, 'grunt', 13, 32, 1), tough(west.state, 'grunt', 13, 34, 2)];
+    const fromWest = quakeCatch(TUNING, west.state.creeps, west.warden.x, west.warden.y);
+    expect(fromWest.lane).toBe(0);
+    expect(fromWest.onLane.map((c) => c.id).sort()).toEqual(there.map((c) => c.id).sort());
   });
 
   it('counts the local slam and the quake together in one kill count', () => {

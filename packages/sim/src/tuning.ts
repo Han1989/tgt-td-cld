@@ -222,6 +222,11 @@ export interface RampartSlamStats extends CooldownSkillStats {
   radius: number;
   /** Cast this close to a lane's centreline (tiles), the slam runs a quake along that lane (round 2, `quake.ts`). */
   laneReach: number;
+  /**
+   * How far past the lane's half width the quake reaches (tiles; round 9): a creep is on the quake's lane within the half
+   * width plus this plus half its own radius of the centreline, so the lane's shoulders and chasers beside it are caught.
+   */
+  quakeBand: number;
   /** How fast the quake's front runs along the lane, both ways from the Warden, in tiles a second. */
   quakeSpeed: number;
   /** Physical damage to each creep caught, by rank. */
@@ -1131,14 +1136,17 @@ export const TUNING: Tuning = {
       },
       bloodHunger: {
         lifesteal: [0.15, 0.22, 0.3, 0.38],
-        hpShare: [0.015, 0.02, 0.025, 0.03],
+        // Round 9 (Han, 5 Nov 2026): 1.5 / 2 / 2.5 / 3% before; the lowest step that keeps the novice's win rate.
+        hpShare: [0.01, 0.0125, 0.015, 0.02],
       },
       // The bruiser's ultimate (retest fix B): a slam that grows with the pack it catches, then the team's heal and guard.
       rampartSlam: {
         cooldown: [70, 65, 60],
         radius: 3.5,
         // Round 8 (Han, 4 Nov 2026): a quake along the lane he stands on, the longest lane covered in about 2.5 s.
-        laneReach: 2.5,
+        // Round 9 (Han, 5 Nov 2026): cast within 4 tiles of the lane (2.5), a band 1 tile past its half width (0).
+        laneReach: 4,
+        quakeBand: 1,
         quakeSpeed: 16,
         base: [340, 465, 590],
         echo: [85, 110, 135],
