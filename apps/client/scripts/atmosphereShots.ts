@@ -8,10 +8,9 @@
 //   phone-<weather>-wave<N>.webp   412 × 839 (2×), waves 3 (afternoon), 15 (dusk), 25 (night), in each weather
 //   phone-boss-night.webp          Full wave 20 (a boss wave: always at night), the boss down its road
 //   desktop-<weather>-wave<N>.webp 1280 × 800, the same waves; desktop-boss-night.webp
-//   dusk-to-night.mp4              10 s at 30 FPS: Full wave 19 (dusk) into wave 21 (night) in the rain: the plates'
-//                                  6 s crossfade, the rain, the fireflies coming out, the lanterns, the Heart's windows.
-//                                  The page's clock is Playwright's (each frame 1/30 s on), so the clip is smooth on a
-//                                  software GPU; the simulation is paused through it (the world's own clock moves).
+//   dusk-to-night.mp4              10 s: Full wave 19 (dusk) into wave 21 (night) in the rain, recorded in real time with
+//                                  the match running: the plates' 6 s crossfade, the rain, the fireflies coming out, the
+//                                  lanterns, the Heart's windows (as fast as the machine's GPU draws it).
 // Look at every picture before committing it.
 
 import { execFileSync } from 'node:child_process';
@@ -60,11 +59,11 @@ Solo Full matches on the e2e build, the weather forced with \`?weather=\`, each 
 
 mkdirSync(out, { recursive: true });
 
-async function page(browser: Browser, desktop: boolean, url: string): Promise<Page> {
+async function page(browser: Browser, desktop: boolean, url: string, recordVideo?: { dir: string; size: { width: number; height: number } }): Promise<Page> {
   const ctx = await browser.newContext(
     desktop
       ? { viewport: DESKTOP, deviceScaleFactor: 1, serviceWorkers: 'block' }
-      : { viewport: PHONE, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' },
+      : { viewport: PHONE, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block', ...(recordVideo ? { recordVideo } : {}) },
   );
   await ctx.addInitScript('globalThis.__name = (f) => f;');
   await ctx.addInitScript((s) => localStorage.setItem('tdt.settings', JSON.stringify(s)), SETTINGS);
@@ -133,17 +132,18 @@ async function reach(p: Page, wave: number, boss = false): Promise<void> {
   await p.evaluate((w) => (window as any).__tdt.skipTo(w), wave);
   await p.waitForFunction((w) => (window as any).__tdt.latest().wave === w, wave, { timeout: 30_000 });
   const light = LIGHT_OF[wave]!;
+  // Still this wave (not the next one's banner), its light in, its creeps (and its boss) out on the roads.
   await p.waitForFunction(
-    ([l, b]) => {
+    ([l, b, w]) => {
       const t = (window as any).__tdt;
       const a = t.atmosphere();
       const s = t.latest();
       const out = s.creeps.filter((c: any) => c.y > 6).length;
-      const bossOut = !b || s.creeps.some((c: any) => t.tuning.creeps[c.kind].boss && c.y > 9);
-      return a.plates === 1 && a.light.to === l && a.light.t === 1 && out >= 6 && bossOut;
+      const bossOut = !b || s.creeps.some((c: any) => t.tuning.creeps[c.kind].boss && c.y > 6);
+      return s.wave === w && a.plates === 1 && a.light.to === l && a.light.t === 1 && out >= 6 && bossOut;
     },
-    [light, boss] as const,
-    { timeout: 60_000 },
+    [light, boss, wave] as const,
+    { timeout: 60_000, polling: 100 },
   );
   await p.evaluate(() => (window as any).__tdt.pause(true));
   await p.waitForTimeout(600);
@@ -179,34 +179,35 @@ async function bossShot(browser: Browser, url: string): Promise<void> {
   }
 }
 
-/** Dusk into night over 10 s at 30 FPS, each frame stepped on Playwright's clock (smooth on a software GPU). */
+/**
+ * Dusk into night over a wave: recorded in real time (Playwright's screen recording) from Full wave 19 at dusk as wave
+ * 21 starts, the match running: the plates' 6 s crossfade, the rain, the fireflies coming out. The 10 s from the wave's
+ * start are cut out of the recording and written as H.264.
+ */
+/** The recording runs a few seconds behind the page here: where in it the wave's start shows (s). */
+const CLIP_LAG_S = 3.2;
+
 async function clip(browser: Browser, url: string): Promise<void> {
-  const p = await page(browser, false, `${url}?lab&weather=rain`);
+  const dir = join(out, 'clip-video');
+  rmSync(dir, { recursive: true, force: true });
+  // The recording starts with the page (its context): the wave's moment is timed from there.
+  const started = Date.now();
+  const p = await page(browser, false, `${url}?lab&weather=rain`, { dir, size: PHONE });
   await reach(p, 19);
-  // Wave 21 is night: the next wave starts the crossfade. The page's clock is Playwright's from here.
-  await p.clock.install();
   await p.evaluate(() => (window as any).__tdt.pause(false));
+  // Wave 21 is night: the crossfade starts with it.
+  const at = (Date.now() - started) / 1000;
   await p.evaluate(() => (window as any).__tdt.skipTo(21));
-  const frames = join(out, 'clip-frames');
-  rmSync(frames, { recursive: true, force: true });
-  mkdirSync(frames, { recursive: true });
-  // Its first snapshot of wave 21 (the worker runs on real time), then the simulation holds again.
-  for (let i = 0; i < 100; i++) {
-    if (await p.evaluate(() => (window as any).__tdt.latest().wave === 21)) break;
-    await p.waitForTimeout(100);
-  }
-  await p.evaluate(() => (window as any).__tdt.pause(true));
-  for (let f = 0; f < 300; f++) {
-    await p.clock.runFor(1000 / 30);
-    await p.screenshot({ path: join(frames, `${String(f).padStart(4, '0')}.png`) });
-  }
-  execFileSync('ffmpeg', [
-    '-v', 'error', '-y', '-framerate', '30', '-i', join(frames, '%04d.png'),
-    '-vf', 'scale=412:-2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-movflags', '+faststart', join(out, 'dusk-to-night.mp4'),
-  ]);
-  rmSync(frames, { recursive: true, force: true });
-  console.log('dusk-to-night.mp4: 10 s, 300 frames');
+  await p.waitForTimeout(11_000);
+  const video = p.video();
   await p.context().close();
+  const file = await video!.path();
+  execFileSync('ffmpeg', [
+    '-v', 'error', '-y', '-ss', String(at + CLIP_LAG_S), '-t', '10', '-i', file,
+    '-vf', 'fps=25,scale=412:-2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-movflags', '+faststart', join(out, 'dusk-to-night.mp4'),
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+  console.log('dusk-to-night.mp4: 10 s from wave 21\'s start');
 }
 
 const server = await preview({ root, logLevel: 'warn', build: { outDir: dist }, preview: { port: 0, host: '127.0.0.1' } });
