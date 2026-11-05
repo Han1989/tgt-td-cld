@@ -2,8 +2,9 @@
 //
 // Cast within `laneReach` of a lane's centreline, the slam runs a quake along that lane from the Warden's feet in both
 // directions, to the portal and to the Heart, at `quakeSpeed` tiles a second. Every creep on the lane when he casts
-// (ground and air, within the lane's half width plus half the creep's radius of its centreline) is hit once, on the
-// tick the front passes its lane progress; creeps off the lane within `radius` of him take the local slam at once.
+// (ground and air, within the lane's half width plus `quakeBand` plus half the creep's radius of its centreline: round 9
+// widened it by the band) is hit once, on the tick the front passes its lane progress; creeps off the lane within
+// `radius` of him take the local slam at once.
 // One echo count for both, fixed at the cast over everything caught. Pure geometry here (bots use it on snapshots);
 // the scheduled effect itself is `startQuake` / `updateQuakes`.
 
@@ -71,9 +72,14 @@ export interface QuakeCreep {
   y: number;
 }
 
-/** Whether a creep stands on `lane` for the quake: within the lane's half width plus half its own radius. */
+/**
+ * Whether a creep stands on `lane` for the quake: within the lane's half width plus `quakeBand` plus half its own radius
+ * (round 9: the band takes the lane's shoulders and the chasers beside it). A creep on the stretch the lanes share above
+ * the Heart is on every lane that runs through it, so a quake along any of them hits it, whatever lane it walks.
+ */
 export function onQuakeLane(tuning: Tuning, lane: Lane, c: QuakeCreep): boolean {
-  return laneSpot(lane, c.x, c.y).dist <= getMap().laneHalfWidth + tuning.creeps[c.kind].radius / 2 + 1e-9;
+  const band = getMap().laneHalfWidth + tuning.hero.warden.rampartSlam.quakeBand + tuning.creeps[c.kind].radius / 2;
+  return laneSpot(lane, c.x, c.y).dist <= band + 1e-9;
 }
 
 /** What a slam cast at (x, y) would catch: the quake's lane (or null), the creeps on it, and the local slam's others. */
