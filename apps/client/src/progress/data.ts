@@ -496,15 +496,6 @@ const items: ProgressItem[] = [
     proof: pr(146),
   },
   {
-    id: 'V-08a',
-    title: 'The atmosphere pass: the afternoon turns to dusk and night, rain or falling leaves, living light',
-    owner: 'Team',
-    status: 'done',
-    section: 'visual',
-    note: 'How a match looks over its waves: no game rules, server or protocol change. Han, 5 Nov 2026: the match should feel like a place that changes over its twenty minutes. The map is now drawn in three lights from the same scene: the warm afternoon of the first third, a low gold dusk with long shadows in the second, and a cool moonlit night in the last, where the glows round the Heart and the portals, the towers’ runes and the Heart’s lit windows do the lighting. The map turns slowly from one to the next over six seconds as a new third begins (in Quick every five waves), and every boss wave comes at night. Each match has a weather of its own, the same every time it is played: fine slanted rain with splashes on the roads and the pads, or a few dozen leaves drifting across the meadow and settling; the Daily run is always clear, so everyone plays the same day. Towers from their second tier carry two small lanterns that breathe and brighten at night, and fireflies come out over the grass at dusk. Rocks, stumps, a cart and two banners fill the meadow’s edges. None of it gets in the way of a tap, all of it goes at Graphics → Low, and with reduced motion nothing drifts or falls. No sound change yet. In review: Han judges it on his Pixel and his laptop. Built by Claude Code (PR #PRNUM).',
-    proof: pr(PRNUM),
-  },
-  {
     id: 'V-07e',
     title: 'Closer: bigger heroes, creeps and towers on a phone, and a pinch to zoom in',
     owner: 'Team',
@@ -539,6 +530,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How the match’s map looks: no game rules, server or protocol change, and nothing you tap moves. Han picked A, the spring meadow, from the three looks. The map is now yellow-green grass under a warm afternoon light, from the same side as before so every picture’s shadows still agree; the road is warm packed earth and the build pads warm weathered stone with moss in their seams and creeping over an edge, each pad a little different. The shade under the controls stays. A soft rose glow lies round the Heart, a violet one round each portal (it brightens as a wave starts) and a teal one under every tower from tier 3; they go when Graphics is set to Low. The Bright display lifts the light grass less, so it stays green. A teammate’s pad colour is stronger, so it still reads on the lighter stone. Only the match changed: the first screen, the menus and the heroes’, creeps’ and towers’ pictures are as they were. The link preview card shows the new grass. Built by Claude Code (PR #150).',
     proof: pr(150),
+  },
+  {
+    id: 'V-08a',
+    title: 'The atmosphere pass: the afternoon turns to dusk and night, rain or falling leaves, living light',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'How a match looks over its waves: no game rules, server or protocol change. Han, 5 Nov 2026: the match should feel like a place that changes over its twenty minutes. The map is now drawn in three lights from the same scene: the warm afternoon of the first third, a low gold dusk with long shadows in the second, and a cool moonlit night in the last, where the glows round the Heart and the portals, the towers’ runes and the Heart’s lit windows do the lighting. The map turns slowly from one to the next over six seconds as a new third begins (in Quick every five waves), and every boss wave comes at night. Each match has a weather of its own, the same every time it is played: fine slanted rain with splashes on the roads and the pads, or a few dozen leaves drifting across the meadow and settling; the Daily run is always clear, so everyone plays the same day. Towers from their second tier carry two small lanterns that breathe and brighten at night, and fireflies come out over the grass at dusk. Rocks, stumps, a cart and two banners fill the meadow’s edges. None of it gets in the way of a tap, all of it goes at Graphics → Low, and with reduced motion nothing drifts or falls. No sound change yet. In review: Han judges it on his Pixel and his laptop. Built by Claude Code (PR #160).',
+    proof: pr(160),
   },
   {
     id: 'g1-render',
