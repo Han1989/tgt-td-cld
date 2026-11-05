@@ -56,9 +56,10 @@ describe('progress dashboard data', () => {
     // browser, L-02 pulled ahead of D-06 from Later into Now; PR #154), e-embed (the hosted build, one zip that
     // runs inside itch.io, Newgrounds and CrazyGames; PR #155), e-press (press stills on the current build and
     // the store covers; PR #156), quick-default (Quick is the default mode; PR #157), which answers the
-    // backlog's open question p5-quick (removed), slam-quake (Rampart Slam, round 2, the lane quake; PR #158), and
-    // V-08a (the atmosphere pass; PR #160).
-    expect(summary.done).toBe(99);
+    // backlog's open question p5-quick (removed), slam-quake (Rampart Slam, round 2, the lane quake; PR #158),
+    // slam-r3 (Rampart Slam, round 3, a wider quake and the Warden's sustain trimmed; PR #159) and V-08a (the
+    // atmosphere pass; PR #160).
+    expect(summary.done).toBe(100);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -70,7 +71,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(137);
+    expect(summary.total).toBe(138);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -121,6 +122,7 @@ describe('progress dashboard data', () => {
       'e-press': 156,
       'quick-default': 157,
       'slam-quake': 158,
+      'slam-r3': 159,
       'D-09': 98,
       'H-07': 98,
     };

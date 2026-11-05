@@ -671,7 +671,7 @@ describe('Warden', () => {
     expect(hero.hp - at).toBeCloseTo(cleaveDealt * bh.lifesteal[0]! + 3 * max * bh.hpShare[0]!);
   });
 
-  it('a level-6 Warden in a Quick wave-8 Grunt pack holds his HP for 10 s with Cleave on cooldown', () => {
+  it('a level-6 Warden in a Quick wave-8 Grunt pack loses no more than 25% of his HP in 10 s with Cleave on cooldown', () => {
     const state = createGame({ players: [{ id: 'p1', name: 'P1', hero: 'warden' }], mode: 'quick' }, 7);
     state.nextWaveTick = -1;
     const hero = state.heroes[0]!;
@@ -698,8 +698,9 @@ describe('Warden', () => {
       lowest = Math.min(lowest, hero.hp);
     }
     expect(hero.alive).toBe(true);
-    expect(hero.hp, 'holds or gains').toBeGreaterThanOrEqual(start - 1e-6);
-    expect(lowest / start).toBeGreaterThan(0.8);
+    // Round 9 (Blood Hunger trimmed): he no longer holds his HP, he loses at most a quarter of it.
+    expect(lowest / start).toBeGreaterThanOrEqual(0.75);
+    expect(hero.hp / start).toBeGreaterThanOrEqual(0.75);
   });
 
   it('two rank-2 Cleaves kill a Quick wave-8 Grunt', () => {

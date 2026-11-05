@@ -750,3 +750,107 @@ round's run. Mean wave fell on, the solo Warden, main → quake: novice 36.7 →
 82.9; every expert run reaches wave 31. The Ranger and the Arcanist are unchanged to the number (novice 33.9 / 30.3,
 casual 47.1 / 46.1, expert 74.5 / 74.0). The gate (`balanceEndless*.test.ts`) holds; `tuning.endless` is unchanged. The
 casual Warden stays the outlier, 34 waves past the other two heroes (round 7's note).
+
+# Round 9: Rampart Slam, round 3: a wider quake and the Warden's sustain trimmed (Han, 5 Nov 2026)
+
+Han, after PR #158's matrix: the quake catches more, and the Warden's sustain comes down (`docs/GAME_DESIGN.md` §7,
+Decision Log 2026-11-05). Sim tuning and one rule; no protocol change (`PROTOCOL_VERSION` stays 24). Before:
+`quake-final.txt` (main, round 8); after: `quake-3-final.txt`, `quake-3-final-targets.txt`, `endless.txt` rewritten.
+Every step below is the Warden alone on 30 seeds (`npm run balance:matrix -- --team warden`, the other numbers through
+`--tuning`); the creeps a slam catches were read with a scratch script that runs `quakeCatch` on the state at each of the
+expert's casts.
+
+## Every number, before → after
+
+| Number | Before | After |
+|---|---|---|
+| The quake's band | the lane's half width (1) + half the creep's radius | the lane's half width + `quakeBand` (1 tile, new) + half the creep's radius |
+| `laneReach` | 2.5 tiles | 4 tiles |
+| The shared stretch above the Heart | the lane with the most creeps quakes | the same, and every creep on that stretch is hit whatever lane it walks (it already was, by geometry: the stretch is on all three lanes; now a test says so) |
+| Blood Hunger `hpShare` | 1.5 / 2 / 2.5 / 3% of max HP a hit | 1 / 1.25 / 1.5 / 2% |
+| Lifesteal, Cleave, base, echo, `echoCap` 24, stun, heal, cooldown, combos | 15 / 22 / 30 / 38%, 70 / 120 / 165 / 210, … | unchanged |
+| Bots | slam on 6 (novice 3); the expert's peak rule (15, 3 down from 12, 35 s) | unchanged: the wider quake catches 0.3 more creeps a cast, so when the slam is worth casting does not move |
+
+## The quake: what the band and the reach found
+
+The expert Warden, Quick Normal solo (150 casts over 30 seeds; with round 8's Blood Hunger):
+
+| Band, reach | Kills a slam | ult% | Caught at the cast (peak) | His lane holds | On the map (peak) |
+|---|---|---|---|---|---|
+| 0, 2.5 (main) | 11.4 | 5.1% | 12.3 (19) | 12.1 | 31.9 (54) |
+| 1, 4 | 11.8 | 5.0% | 12.6 (21) | 12.5 (peak 20) | 31.5 (53) |
+| 1.5, 4 (the most Han allows) | 11.8 | 5% | 12.6 (21) | 12.5 | 31.1 (53) |
+
+**The ceiling is the lane's content.** At the expert's casts his lane is the fullest lane on the map and holds 12.5
+creeps (peak 20) of the 31.5 on the map; the slam already caught 97% of them before the band. The wider band takes the
+lane's shoulders and the chasers beside it (0.3 more a cast); 1.5 tiles takes nothing more, so the band stays at 1.0 (the
+quake still reads as his lane). The other modes, band 1 and reach 4: Full Normal 12.7 caught (peak 17), 12.1 kills; Quick
+Hard 13.9 (27), 13.3; Full Hard 13.6 (23), 13.1. Fifteen kills a slam is above what one lane holds when a wave is out.
+
+## The sustain: every step tried
+
+The Warden solo, 30 seeds, band 1 and reach 4 in every row. Expert Hard: mean Heart (seeds above 80); casual Quick
+deaths a match on Normal / Hard; the novice's Hard win rates. The Ranger's expert Hard means are 56.2 (Full) and 62.2
+(Quick), unchanged; the targets were the Warden within 10 of them and at most 2 of 30 seeds above 80.
+
+| Step | `hpShare` | Lifesteal | Expert Full Hard | Expert Quick Hard | Casual Full Hard | Casual Quick Hard | Casual Quick deaths | Novice Quick Hard | Novice Full Hard |
+|---|---|---|---|---|---|---|---|---|---|
+| main (round 8, band 0, reach 2.5) | 1.5 / 2 / 2.5 / 3% | 15 / 22 / 30 / 38% | 73.9 (4) | 70.3 (0) | 45.1 | 59.7 | 0.0 / 0.0 | 77% | 3% |
+| the wider quake alone | 1.5 / 2 / 2.5 / 3% | as main | 73.8 (4) | 72.5 (0) | 45.3 | 60.1 | 0.0 / 0.0 | 77% | 0% |
+| **1 (shipped)** | **1 / 1.25 / 1.5 / 2%** | as main | **73.1 (0)** | **73.3 (4)** | 46.7 | 58.6 | 0.0 / 0.0 | **77%** | 0% |
+| 2 | 0.75 / 1 / 1.25 / 1.5% | as main | 73.7 (1) | 76.2 (10) | 44.5 | 53.3 | 0.0 / 0.3 | 67% | 0% |
+| 3 | 0.5 / 0.75 / 1 / 1.25% | as main | 71.9 (2) | 76.1 (9) | 33.2, 93% won | 49.5, 97% won | 0.0 / 0.7 | 60% | 0% |
+| 1 + lifesteal × 0.75 | 1 / 1.25 / 1.5 / 2% | 11 / 16.5 / 22.5 / 28.5% | 73.3 (4) | 77.4 (11) | 41.7 | 51.3 | – / 0.4 | 73% | 0% |
+| (diagnostic) no `hpShare` | 0 | as main | 58.6 (0) | 65.9 (3) | 16.4, 80% won | 41.2, 93% won | – / 1.0 | 23% | 0% |
+| (diagnostic) no sustain | 0 | 0 | 41.1 (0), 3.1 deaths | 50.5 (0), 2.5 deaths | – | – | – | – | – |
+
+- **The expert's lead does not follow the sustain.** From round 8's numbers down to half of them (step 3) his Hard
+  means stay at 72–76 on both modes and he never dies: his HP is not what holds the Heart while he gets any heal a hit.
+  Only with no `hpShare` at all does he come down (58.6 / 65.9, inside 10 of the Ranger), and there the novice Warden wins
+  Quick Hard 23% (77%) and the casual Warden loses a fifth of his Full Hard matches.
+- **The novice and the casual bot pay for every step.** The novice Warden's Quick Hard win rate holds at step 1 (77%) and
+  falls at step 2 (67%) and step 3 (60%); the casual Warden's Hard Heart falls with it. Lifesteal, the second lever, does
+  the same on top of step 1 (novice 73%, casual Quick Hard 51.3) and nothing for the expert.
+- **Step 1 is the lowest step that keeps the novice's win rate and the casual's deaths** (0.0 a Quick match on Normal and
+  Hard; at most 3 asked), so it ships, and **the lead survives it**: the expert Warden's Full Hard 73.1 against the
+  Ranger's 56.2 (16.9; main 17.7) and Quick Hard 73.3 against 62.2 (11.1; main 8.1, and the wider quake alone 72.5); 0
+  of 30 Full Hard seeds above 80 (4) and 4 of 30 Quick Hard (0). Stopped there, as asked: Han decides the next lever
+  (what the expert leans on is his clear, Cleave and the slam's stun, not his heal; Cleave's damage is not to be touched).
+
+## Where it lands (30 seeds, `quake-3-final.txt`; main in brackets)
+
+- The expert Warden, Quick Normal solo: **11.8 kills a slam (11.4)**, 3,353 HP a cast (3,345), ult% 5.0% (5.1%), 92.5
+  Heart (92.5); Full Normal 12.0 (11.5), 94.0 (93.9); Full Hard 13.0 (12.7), 73.1 (73.9); Quick Hard 13.2 (12.6), 73.3
+  (70.3).
+- Expert Normal solo means within 10: Full 99.9 / 94.0 / 97.8, Quick 98.3 / 92.5 / 97.2 (the same).
+- The Warden's teams: expert Hard pairs and three 66–78 (62–74); casual Hard pairs lose Heart (Full Ranger + Warden 73%
+  won, 14.5 Heart (93%, 26.4); Warden + Arcanist 57%, 10.2 (57%, 16.6); Quick Ranger + Warden 35.2 (47.8), Warden +
+  Arcanist 28.7 (47.5), the three 17% won (30%)); the novice Quick Hard Warden + Arcanist wins 37% (63%). Casual and novice
+  Hard are not gated (casual Hard may lose). Every Normal row with the Warden wins every seed.
+- Rows without the Warden are unchanged to the number.
+- Targets missed: **42** (main 43). Now met: the expert Full Hard Warden on every seed in 40–80 (62–79), the casual Quick
+  Normal Warden + Arcanist on every seed in 50–90, the expert Quick Normal Ranger + Warden on every seed at 85 or more.
+  Newly missed: the expert Quick Normal Warden on every seed at 85 or more (one seed at 84) and the expert Quick Hard
+  Warden on every seed in 40–80 (4 of 30 above, max 89; the mean 73.3 is in the band).
+- **Not met:** 15 kills a slam (11.8) and an ult% of 6–12% in Quick Normal (5.0%; 6% on Hard): the lane's content caps
+  it (above); the Warden's expert Hard lead (16.9 in Full, 11.1 in Quick): the sustain is not its lever.
+
+## Gates and tests that moved
+
+`test/heroes.test.ts`: "a level-6 Warden in a Quick wave-8 Grunt pack loses no more than 25% of his HP in 10 s with
+Cleave on cooldown" (was: holds or gains, never under 80%); at step 1 he is at 91.9% at his lowest and ends at 94.4%.
+`test/quake.test.ts`: the off-lane creeps moved past the band (3.2 tiles off), the cast away from every lane moved to the
+map's edge (4.5 tiles from West: between two lanes is now within 4 of one), and three new tests: the shoulders (a creep
+just inside the band is hit, just outside is not), a quake from 4 tiles off, and the shared stretch (a Mid quake and a
+West quake both hit West's, Mid's and East's creeps there). **One gate moved:** the expert Endless gate
+(`balanceEndlessExpert.test.ts`, every match falls between waves 60 and 90) now reads before 92: on the gate seeds the
+expert Warden falls on 79–90 (mean 83.8; round 8's quake 81–88, 82.8), seed 42 on wave 90; the band and the reach do it
+(round 8's Blood Hunger with the new quake gives the same 90), the Ranger and the Arcanist are unchanged. Han's call
+whether the Warden's Endless gets its own number. Every other balance gate test passes unchanged on the gate seeds. The
+repair bounds stay provisional.
+
+## Endless (`npm run balance:matrix -- endless`, 30 seeds, `endless.txt`)
+
+The solo Warden falls on wave 39.1 / 82.1 / 84.0 (novice / casual / expert; main 38.9 / 81.5 / 82.9), every expert run
+reaching wave 31 (the expert's highest 91); the Ranger and the Arcanist are unchanged to the number. `tuning.endless` is
+unchanged; the expert gate's bound moved to before 92 (above).
