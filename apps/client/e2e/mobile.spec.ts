@@ -1016,16 +1016,7 @@ test.describe('portrait phone layout', () => {
       const w = await page.evaluate(() => window.__tdt.atmosphere().weather);
       expect(w.interactive).toBe(false);
       expect(weather === 'rain' ? w.streaks + w.splashes : w.leaves).toBeGreaterThan(0);
-      // A pad tap opens the build ring and one tap builds, through the rain.
-      const [padId] = await myPadsBottomFirst(page);
-      await tapPad(page, padId!);
-      await page.locator('.radial-btn[data-tower="arrow"]').tap();
-      await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
-      await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
-      // A tap on the tower opens its ring; a long-press on the grass pings the tile under the finger.
-      await tapPad(page, padId!);
-      await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeVisible();
-      await tapPad(page, padId!);
+      // A long-press on the grass pings the tile under the finger.
       const finger = await Finger.on(page);
       const l = await page.evaluate(() => window.__tdt.layout());
       const x = (l.map.left + l.map.right) / 2;
@@ -1038,6 +1029,15 @@ test.describe('portrait phone layout', () => {
       const ping = (await sent(page, 'ping'))[0]!;
       expect(Math.abs((ping.x as number) - tile.x)).toBeLessThan(0.6);
       expect(Math.abs((ping.y as number) - tile.y)).toBeLessThan(0.6);
+      // A pad tap opens the build ring and one tap builds, through the rain.
+      const [padId] = await myPadsBottomFirst(page);
+      await tapPad(page, padId!);
+      await page.locator('.radial-btn[data-tower="arrow"]').tap();
+      await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
+      await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+      // A tap on the tower opens its ring.
+      await tapPad(page, padId!);
+      await expect(page.locator('.radial-btn[data-action="upgrade"]')).toBeVisible();
     }
   });
 
