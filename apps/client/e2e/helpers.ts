@@ -58,6 +58,18 @@ interface Hook {
   clock(): { lag: number };
   /** The match's first wave's art (V-07d): its start held (solo, `?arthold`), the line shown, its bar, each picture. */
   firstArt(): { held: boolean; line: boolean; fraction: number; sheets: Record<string, { status: string; received: number; expected: number | null }> };
+  /** V-08a: the light (its crossfade), the plates decoded, the lanterns and windows lit, the weather's particles. */
+  atmosphere(): {
+    light: { from: string; to: string; t: number };
+    wanted: string;
+    plates: number;
+    plateLights: string[];
+    dark: number;
+    lanterns: number;
+    heartWindows: number;
+    brightLift: number;
+    weather: { weather: string; streaks: number; splashes: number; leaves: number; fireflies: number; live: number; interactive: boolean };
+  };
   art(): {
     display: 'normal' | 'bright';
     pads: number;

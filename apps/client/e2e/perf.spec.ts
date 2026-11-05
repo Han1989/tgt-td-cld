@@ -24,6 +24,11 @@
 // - The creeps, the towers, the Heart and the portals are measured as a match draws them once their sheets are in:
 //   every one from its 3D frames (docs/ART.md §15), so the test waits for the sheets (`<html data-hero-sheets>`, the
 //   last of them) and for all 300 creeps and every tower to have swapped.
+// - V-08a: the scene runs in rain (`?weather=rain`, e2e builds) at night (`?light=night`): the most the atmosphere pass
+//   draws (the rain's streaks and splashes, the fireflies, every tower's lanterns, the Heart's windows), measured once the
+//   night plate has crossfaded in. The report adds the draw calls per frame (counted on the WebGL context), the textures
+//   on the GPU and the weather's live particles. A build without the pass ignores both words (`atmosphere` is optional),
+//   so the same spec measures main's build for a before / after.
 // The test used to divide the ticker's JavaScript in a 5 s CPU profile by the frames
 // counted in a 5 s requestAnimationFrame window. The profile ran 1.3–3.7 s longer (the
 // DevTools round trips), so it held 17–50% more frames than it was divided by, the most on
@@ -49,22 +54,44 @@ interface Frames {
   fps: number;
 }
 
-/** Waits for `n` animation frames and returns the cost of each and the frame rate. */
-function frames(page: Page, n: number): Promise<Frames> {
+/** Waits for `n` animation frames and returns the cost of each, the frame rate and the draw calls per frame. */
+function frames(page: Page, n: number): Promise<Frames & { draws: number }> {
   return page.evaluate(
     (n) =>
-      new Promise<Frames>((resolve) => {
+      new Promise<Frames & { draws: number }>((resolve) => {
         let count = 0;
         let first = 0;
+        let calls = 0;
+        const counter = window as unknown as { __drawCalls: number };
         const tick = (now: number) => {
-          if (count === 0) first = now;
-          if (++count > n) resolve({ costs: window.__tdt.frameCosts().slice(-n), fps: (n * 1000) / (now - first) });
-          else requestAnimationFrame(tick);
+          if (count === 0) {
+            first = now;
+            calls = counter.__drawCalls;
+          }
+          if (++count > n) {
+            resolve({ costs: window.__tdt.frameCosts().slice(-n), fps: (n * 1000) / (now - first), draws: (counter.__drawCalls - calls) / n });
+          } else requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
       }),
     n,
   );
+}
+
+/** Counts every draw call the page makes on WebGL (the scene's batches), for the report. */
+function countDrawCalls(): void {
+  const w = window as unknown as { __drawCalls: number };
+  w.__drawCalls = 0;
+  for (const proto of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype] as unknown as Record<string, (...a: unknown[]) => unknown>[]) {
+    for (const name of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced']) {
+      const real = proto[name];
+      if (!real) continue;
+      proto[name] = function (this: unknown, ...args: unknown[]) {
+        w.__drawCalls++;
+        return real.apply(this, args);
+      };
+    }
+  }
 }
 
 /** Fixed-rate JavaScript per second (outside Pixi's ticker), from a CPU profile over `n` frames. */
@@ -108,7 +135,9 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   await page.addInitScript(() => {
     (window as unknown as { __tdtSoundFiles: unknown }).__tdtSoundFiles = [];
   });
-  await page.goto('/?stress=300');
+  await page.addInitScript(countDrawCalls);
+  // V-08a: rain, at night (the most the atmosphere pass draws); a build without it ignores both.
+  await page.goto('/?stress=300&weather=rain&light=night');
   await waitForReady(page, 'stress');
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.creeps.length ?? 0)).toBe(300);
   // The ground measured is the map plate (docs/ART.md §16), not the painted ground it replaces once decoded.
@@ -120,6 +149,13 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => window.__tdt.art().tower3d)).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => window.__tdt.art().tower3d === window.__tdt.art().towerRigs)).toBe(true);
+  // The night plate has crossfaded in (dusk's and night's pictures come after the heroes' sheets), the old one freed.
+  const atmosphere = () => page.evaluate(() => (window.__tdt as { atmosphere?: () => { plates: number; light: { to: string; t: number }; weather: { weather: string } } }).atmosphere?.() ?? null);
+  if (await atmosphere()) {
+    await expect(page.locator('html')).toHaveAttribute('data-plate-lights', 'ready', { timeout: 60_000 });
+    await expect.poll(async () => { const a = await atmosphere(); return a && a.plates === 1 && a.light.to === 'night' && a.light.t === 1; }, { timeout: 30_000 }).toBe(true);
+    expect((await atmosphere())!.weather.weather).toBe('rain');
+  }
   // A key press is the first gesture: audio starts (Shift alone does nothing in the game).
   await page.keyboard.press('Shift');
   await expect.poll(() => page.evaluate(() => window.__tdt.audio().state)).toBe('running');
@@ -140,6 +176,11 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
   const sound = await page.evaluate(() => window.__tdt.audio());
   const textures = await page.evaluate(() => window.__tdt.gpuTextures());
   const art3d = await page.evaluate(() => window.__tdt.art());
+  const atmo = await page.evaluate(
+    () =>
+      (window.__tdt as { atmosphere?: () => { lanterns: number; heartWindows: number; weather: { live: number; streaks: number; splashes: number; fireflies: number } } }).atmosphere?.() ??
+      null,
+  );
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
   const perFrameMs = mean(measured.costs);
@@ -154,11 +195,21 @@ test('300 creeps under 4× CPU throttling fit the 30 FPS frame budget', async ({
     `sound ${sound.state}: ${sound.played} effects played, ${sound.skipped} skipped, ${sound.notes} music notes; ` +
     `${textures.count} textures on the GPU, ${(textures.bytes / 2 ** 20).toFixed(1)} MiB; ${art3d.creep3d} creeps in 3D ` +
     `(${art3d.creep3dKinds.join(', ')}), ${art3d.tower3d} towers in 3D, the Heart ${art3d.heart3d ? 'in 3D' : 'in 2D'}, ` +
-    `${art3d.portals3d} portals in 3D; GPU: ${gpu}`;
+    `${art3d.portals3d} portals in 3D; ${measured.draws.toFixed(1)} draw calls per frame; ` +
+    (atmo
+      ? `rain at night: ${atmo.weather.live} weather particles live (${atmo.weather.streaks} streaks, ${atmo.weather.splashes} splashes, ` +
+        `${atmo.weather.fireflies} fireflies), ${atmo.lanterns} lanterns, ${atmo.heartWindows} windows lit; `
+      : 'no atmosphere pass; ') +
+    `GPU: ${gpu}`;
   test.info().annotations.push({ type: 'stress', description: report });
   console.log(`Stress scene (300 creeps, 4× CPU throttling): ${report}`);
 
   expect(measured.costs).toHaveLength(FRAMES);
+  if (atmo) {
+    expect(atmo.weather.streaks).toBeGreaterThan(0);
+    expect(atmo.weather.live).toBeGreaterThan(0);
+    expect(atmo.weather.live).toBeLessThanOrEqual(300);
+  }
   expect(visible).toBe(300);
   expect(fx.particles).toBe(true);
   expect(fx.live).toBeGreaterThan(50);

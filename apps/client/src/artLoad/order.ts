@@ -1,6 +1,7 @@
 // The order the match's pictures load in (docs/ART.md §15, Han, 17 Oct 2026; V-07d). After the first screen, one
 // after another: the map plate, the HUD's rendered frames (a small sheet), the towers', Heart's and portals' sheet,
-// the creeps' sheets (one kind after another, in the order they first come in the waves), then the heroes'. Two
+// the creeps' sheets (one kind after another, in the order they first come in the waves), then the heroes', then the
+// plate's dusk and night (V-08a: bytes only, decoded when the match turns to them). Two
 // pictures jump the queue: the picked hero's sheet starts the moment the home card shows him (and a room's heroes as
 // its seats fill), and when a match starts, everything its first wave shows that is not in yet starts at once
 // (`wantFirstWave`), its creep kinds first among the creeps. The painted ground, the 2D art and the CSS frames cover
@@ -26,7 +27,7 @@ import {
   loadStructureSheet,
   preferCreeps,
 } from '../render/art3d';
-import { loadPlate } from '../render/plate';
+import { fetchPlateLights, loadPlate } from '../render/plate';
 import { creepKinds, type SheetId } from './rules';
 import { sheetOff } from './track';
 
@@ -71,10 +72,17 @@ async function run(): Promise<void> {
   await loadHeroSheets();
   html.heroSheets = 'ready';
   performance.mark('tdt:hero-sheets');
-  // The service worker keeps the creeps' and heroes' sheets that came in, for offline solo (they are not precached).
+  // Last, the plate's dusk and night (V-08a: bytes only, decoded when a match turns to them; a match's first waves are
+  // in the afternoon, so they never hold the first wave's art).
+  const lights = await fetchPlateLights();
+  html.plateLights = lights.length > 0 ? 'ready' : 'failed';
+  performance.mark('tdt:plate-lights');
+  // The service worker keeps the creeps' and heroes' sheets and the plate's other lights that came in, for offline solo
+  // (they are not precached).
   keepSheets([
     ...CREEP_KINDS.filter((k) => creepFrames(k)).map((k) => CREEP_SHEETS[k]),
     ...HERO_KINDS.filter((k) => heroFrames(k)).flatMap((k) => HERO_SHEETS[k] ?? []),
+    ...lights,
   ]);
 }
 

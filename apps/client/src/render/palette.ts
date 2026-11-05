@@ -100,6 +100,20 @@ export const FX = {
   poolHeart: RL.heart,
   poolPortal: RL.portal,
   poolRune: RL.rune,
+  /**
+   * V-08a's weather and living light (render/atmosphereView.ts, docs/ART.md §6): the rain's streaks and splashes in
+   * moonlight, the falling leaves in the meadow's greens and a dry gold, the fireflies a yellow-green spark; the towers'
+   * lanterns in their runes' colours (teal at the tiers, violet at a branch) and the Heart's windows warm.
+   */
+  rain: 0xdcecff,
+  rainSplash: 0xe8f4ff,
+  leaf: RL.leaf,
+  leafDry: 0xa8a050,
+  leafGold: 0xd8b860,
+  firefly: 0xe4ff8a,
+  lantern: RL.rune,
+  lanternBranch: RL.arcane,
+  heartWindow: 0xffc070,
 } as const;
 
 /** Pad-zone tints by seat (index in the snapshot's player list; a match holds at most 3 players). */

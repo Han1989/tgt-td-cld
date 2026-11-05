@@ -22,6 +22,11 @@ export interface Transport {
    * match and its replay are the same as one that was never held.
    */
   hold?(on: boolean): void;
+  /**
+   * The current match's seed for the client's weather (V-08a), and whether it is the Daily run: solo the host's own,
+   * online the room's code standing in for it (the snapshot carries no seed). Null until known.
+   */
+  matchSeed?(): { seed: number; daily: boolean } | null;
   /** The page is visible again: check the connection now instead of waiting for a timer. */
   wake?(): void;
   /**

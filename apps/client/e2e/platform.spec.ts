@@ -347,7 +347,7 @@ test('Settings → Sound: music and effects volume and mute, remembered; the lob
  * pixels there (both averaged over a few px): the screen must show the plate (docs/ART.md §16), and in Bright the
  * plate under the same "screen" wash the painted ground bakes in.
  */
-async function groundVsPlate(page: Page): Promise<{ screen: number[]; plate: number[] }[]> {
+async function groundVsPlate(page: Page, file = '/map/spire.webp'): Promise<{ screen: number[]; plate: number[] }[]> {
   const points: [number, number][] = [
     [6, 18],
     [20, 18],
@@ -358,7 +358,7 @@ async function groundVsPlate(page: Page): Promise<{ screen: number[]; plate: num
   const at = await page.evaluate((pts) => pts.map(([x, y]) => window.__tdt.camera.worldToScreen(x * 32, y * 32)), points);
   const shot = await page.screenshot();
   return page.evaluate(
-    async ({ png, pts, at, dpr }) => {
+    async ({ png, pts, at, dpr, file }) => {
       const load = async (src: string) => {
         const img = new Image();
         img.src = src;
@@ -377,18 +377,19 @@ async function groundVsPlate(page: Page): Promise<{ screen: number[]; plate: num
         return sum.map((v) => v / (d.length / 4));
       };
       const screen = await load(`data:image/png;base64,${png}`);
-      const plate = await load('/map/spire.webp');
+      const plate = await load(file);
       return pts.map(([x, y], i) => ({
         screen: mean(screen, at[i]!.x * dpr, at[i]!.y * dpr, 4),
         plate: mean(plate, x! * 64, y! * 64, 6),
       }));
     },
-    { png: shot.toString('base64'), pts: points, at, dpr: await page.evaluate(() => window.devicePixelRatio) },
+    { png: shot.toString('base64'), pts: points, at, dpr: await page.evaluate(() => window.devicePixelRatio), file },
   );
 }
 
 test('the map plate decodes, draws as the ground in one texture, and Bright lays its wash over it', async ({ page }) => {
-  await startSolo(page);
+  // Clear weather (V-08a): no rain or leaf over the pixels compared.
+  await startSolo(page, '?lab&weather=clear');
   await expect(page.locator('html')).toHaveAttribute('data-plate', 'ready');
   await expect.poll(() => page.evaluate(() => window.__tdt.art().ground)).toBe('plate');
   // V-07c's light pools over it: round the Heart and every portal (no tower at tier 3 yet). Whether their layer is
@@ -408,10 +409,45 @@ test('the map plate decodes, draws as the ground in one texture, and Bright lays
     const s = JSON.parse(localStorage.getItem('tdt.settings') ?? '{}');
     localStorage.setItem('tdt.settings', JSON.stringify({ ...s, display: 'bright' }));
   });
-  await startSolo(page);
+  await startSolo(page, '?lab&weather=clear');
   await expect.poll(() => page.evaluate(() => [window.__tdt.art().ground, window.__tdt.art().display])).toEqual(['plate', 'bright']);
   const wash = [0x9f, 0xb8, 0xc8].map((c) => (c / 255) * 0.12);
   for (const { screen, plate } of await groundVsPlate(page)) {
+    for (let k = 0; k < 3; k++) {
+      const lifted = 255 * (1 - (1 - plate[k]! / 255) * (1 - wash[k]!));
+      expect(Math.abs(screen[k]! - lifted)).toBeLessThan(14);
+    }
+  }
+});
+
+test('at night the night plate is the ground, the afternoon\'s freed, and Bright lifts it by its own alpha (V-08a)', async ({ page }) => {
+  // Graphics → Low: no fireflies or lanterns over the pixels compared (the plate and the wash stay); clear weather.
+  const settings = (display: string) =>
+    page.evaluate((d) => {
+      const s = JSON.parse(localStorage.getItem('tdt.settings') ?? '{}');
+      localStorage.setItem('tdt.settings', JSON.stringify({ ...s, display: d, quality: 'low' }));
+    }, display);
+  await page.goto('/');
+  await settings('normal');
+  await startSolo(page, '?lab&weather=clear&light=night');
+  await expect(page.locator('html')).toHaveAttribute('data-plate-lights', 'ready', { timeout: 60_000 });
+  // The night plate crossfades in over 6 s, then the afternoon's is freed: one plate on the ground.
+  await expect
+    .poll(() => page.evaluate(() => { const a = window.__tdt.atmosphere(); return [a.plates, a.plateLights.join(), a.light.t]; }), { timeout: 30_000 })
+    .toEqual([1, 'night', 1]);
+  expect(await page.evaluate(() => window.__tdt.atmosphere().weather.live)).toBe(0);
+  for (const { screen, plate } of await groundVsPlate(page, '/map/spire-night.webp')) {
+    for (let k = 0; k < 3; k++) expect(Math.abs(screen[k]! - plate[k]!)).toBeLessThan(14);
+  }
+  // Bright at night: the same wash at night's alpha (tokens.ts LIGHTING.bright.plateLift.night: 20%).
+  await settings('bright');
+  await startSolo(page, '?lab&weather=clear&light=night');
+  await expect
+    .poll(() => page.evaluate(() => { const a = window.__tdt.atmosphere(); return [a.plates, a.plateLights.join(), a.light.t]; }), { timeout: 30_000 })
+    .toEqual([1, 'night', 1]);
+  expect(await page.evaluate(() => window.__tdt.atmosphere().brightLift)).toBeCloseTo(0.2, 5);
+  const wash = [0x9f, 0xb8, 0xc8].map((c) => (c / 255) * 0.2);
+  for (const { screen, plate } of await groundVsPlate(page, '/map/spire-night.webp')) {
     for (let k = 0; k < 3; k++) {
       const lifted = 255 * (1 - (1 - plate[k]! / 255) * (1 - wash[k]!));
       expect(Math.abs(screen[k]! - lifted)).toBeLessThan(14);

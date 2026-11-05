@@ -89,7 +89,28 @@ import {
 import { heartStage, HEART_LOW } from './art/damage';
 import { ArtKit } from './art/kit';
 import { createGround, type Ground } from './art/ground';
-import { loadPlate, mapPlate, onPlate, padLook, plateFits, type Plate } from './plate';
+import { freePlate, loadPlate, mapPlate, onPlate, padLook, plateFits, plateFor, type Plate } from './plate';
+import { AtmosphereView, type AtmosphereStats } from './atmosphereView';
+import {
+  crossfadeAt,
+  darkness,
+  HEART_WINDOWS,
+  heartWindowAlpha,
+  LANTERN,
+  LANTERN_PX,
+  LANTERN_SPOTS,
+  lanternAlpha,
+  lanternBreath,
+  lanternTexels,
+  lightOfWave,
+  perLight,
+  portalNightBoost,
+  RAIN_POOL_SCALE,
+  type LightMix,
+  type PlateLight,
+  type Weather,
+} from './fx/atmosphere';
+import { isBossWave } from '../audio/gameAudio';
 import { PAD_PX } from './art/entities/pad';
 import {
   creepArt,
@@ -127,6 +148,8 @@ import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 
 const S = TILE_PX;
+/** A light whose plate failed to come in is asked for again this long after (ms). */
+const PLATE_RETRY_MS = 10_000;
 const TOWER_SIZE = 2.4;
 const MARKER_LIFE_MS = 450;
 /** Off-screen margin (px) before an entity is culled. */
@@ -307,6 +330,22 @@ interface HeartSprite {
   /** Where its effects start (shards, flash, embers: the gem or the crystal), px from its point; the blaze's place. */
   fxY: number;
   blazeY: number;
+  /** The keep's windows (V-08a): warm glows, lit at dusk and night. */
+  windows: { sprite: Sprite; share: number }[];
+}
+
+/** A plate on the ground in one light (V-08a): its sprite and its patches' (over the pads only bigger teams have). */
+interface PlateShow {
+  plate: Plate;
+  sprite: Sprite;
+  patches: Container;
+  patchPads: Set<number>;
+}
+
+/** A tier-2-or-better tower's two lantern glows (V-08a). */
+interface Lanterns {
+  sprites: Sprite[];
+  tier: number;
 }
 
 interface HeartGem {
@@ -324,15 +363,12 @@ interface PadSprite {
   root: Container;
   rim: Sprite;
   wash: Sprite;
-  /** Over the map plate: the plate round a pad it was rendered without (an extra pad of bigger teams). */
-  patch?: Sprite;
   /** On the painted ground (or for a pad the plate was rendered without): the stone slab. */
   slab?: Container;
 }
 
 function destroyPad(s: PadSprite): void {
   s.root.destroy({ children: true });
-  s.patch?.destroy();
   s.slab?.destroy({ children: true });
 }
 
@@ -399,6 +435,43 @@ export class WorldRenderer {
   private readonly portalPools: PoolSprite[] = [];
   /** Under every tier-3 tower, by tower id; it goes with the tower. */
   private readonly towerPools = new Map<number, PoolSprite>();
+  /**
+   * V-08a: the plates showing (one, or two while one crossfades into the next: never more), bottom first, in
+   * `plateLayer`; their patches in `padBaseLayer` in the same order. The mix of their lights, the light the match wants,
+   * and whether a plate is decoding for it.
+   */
+  private readonly plateLayer = new Container();
+  private readonly shows: PlateShow[] = [];
+  private mix: LightMix = { from: 'afternoon', to: 'afternoon', t: 1 };
+  private fadeFrom = 0;
+  private wanted: PlateLight = 'afternoon';
+  private decoding: PlateLight | null = null;
+  /** When a light's plate last failed to come in (it is asked for again `PLATE_RETRY_MS` later). */
+  private readonly plateFailedAt = new Map<PlateLight, number>();
+  /** The next change of light is a cut, not a crossfade (a new match goes back to the afternoon at once). */
+  private cutNext = false;
+  /** Browser tests and screenshots: a fixed light (`?light=night`), or null. */
+  forcedLight: PlateLight | null = null;
+  /** The pads drawn as patches over the plate (only bigger teams have them). */
+  private readonly patchPads = new Set<number>();
+  /** The light pools' strength in this light and weather (night and dusk light more; rain spreads them). */
+  private poolBoost = 1;
+  /** V-08a's weather and fireflies. */
+  private readonly atmo: AtmosphereView;
+  /** Lantern glows on tier-2-or-better towers, over the towers; the Heart's windows use the same texture. */
+  private readonly lanternLayer = new Container();
+  private readonly lanterns = new Map<number, Lanterns>();
+  private readonly lanternTexture = new Texture({
+    source: new BufferImageSource({
+      resource: lanternTexels(LANTERN_PX * 2),
+      width: LANTERN_PX * 2,
+      height: LANTERN_PX * 2,
+      // Light only (no alpha): it adds at the normal blend, so it batches with what is round it.
+      alphaMode: 'premultiplied-alpha',
+    }),
+  });
+  /** How dark the light is now (0 afternoon … 1 night). */
+  private dark = 0;
   /** Build pads of this match: each one's zone tints, rimmed in the owner's zone colour; updated when owners change. */
   private readonly padLayer = new Container();
   private readonly pads = new Map<number, PadSprite>();
@@ -552,24 +625,30 @@ export class WorldRenderer {
     this.brightWash.alpha = LIGHTING.bright.groundLift.alpha;
     this.brightWash.blendMode = 'screen';
     this.brightWash.visible = false;
-    this.mapLayer.addChild(this.padBaseLayer, this.poolLayer, this.brightWash);
+    this.mapLayer.addChild(this.plateLayer, this.padBaseLayer, this.poolLayer, this.brightWash);
+    this.atmo = new AtmosphereView(this.atlas, this.map);
+    this.lanternLayer.eventMode = 'none';
     this.world.addChild(
       this.mapLayer,
       this.padLayer,
+      this.atmo.ground,
       this.portalLayer,
       this.heartLayer,
       this.zoneLayer,
       this.groundFxLayer,
       this.trapLayer,
       this.towerLayer,
+      this.lanternLayer,
       this.groundLayer,
       this.heroLayer,
+      this.atmo.air,
       this.airLayer,
       this.meteors.wash,
       this.meteors.air,
       this.trailLayer,
       this.projectileLayer,
       this.fxLayer,
+      this.atmo.sky,
       this.textLayer,
       this.overlay,
     );
@@ -602,6 +681,43 @@ export class WorldRenderer {
     this.art.setDisplay(display);
     this.ground?.repaint(display);
     this.brightWash.visible = this.plate !== null && display === 'bright';
+    this.brightWash.alpha = perLight(this.mix, LIGHTING.bright.plateLift);
+  }
+
+  /** The match's weather (V-08a: from its seed; the game view sets it when a match starts). */
+  setWeather(weather: Weather): void {
+    this.atmo.setWeather(weather);
+    const k = weather === 'rain' ? RAIN_POOL_SCALE : 1;
+    for (const p of [this.heartPool, ...this.portalPools, ...this.towerPools.values()]) {
+      p.sprite.scale.set(((POOLS[p.kind].radius * S) / POOL_PX) * k);
+    }
+  }
+
+  /** The light and weather now (browser tests, the perf spec). */
+  atmosphereStats(): {
+    light: LightMix;
+    wanted: PlateLight;
+    plates: number;
+    plateLights: PlateLight[];
+    dark: number;
+    lanterns: number;
+    heartWindows: number;
+    brightLift: number;
+    weather: AtmosphereStats;
+  } {
+    let lanterns = 0;
+    for (const l of this.lanterns.values()) for (const s of l.sprites) if (s.renderable && s.alpha > 0) lanterns++;
+    return {
+      light: { ...this.mix },
+      wanted: this.wanted,
+      plates: this.shows.length,
+      plateLights: this.shows.map((p) => p.plate.light),
+      dark: this.dark,
+      lanterns,
+      heartWindows: this.heart.windows.filter((w) => w.sprite.renderable && w.sprite.alpha > 0).length,
+      brightLift: this.brightWash.visible ? this.brightWash.alpha : 0,
+      weather: this.atmo.stats(),
+    };
   }
 
   /** Where your hero is drawn (tiles), for the browser tests' latency trace. */
@@ -746,9 +862,11 @@ export class WorldRenderer {
       if (!level.particles) this.fx.clear();
       for (const p of this.projectiles.values()) p.trail.visible = level.particles;
       for (const pool of this.projectilePool.values()) for (const p of pool) p.trail.visible = level.particles;
-      // The light pools are not essential: gone at Low.
+      // The light pools are not essential: gone at Low; nor are the lanterns.
       this.poolLayer.visible = level.particles;
+      this.lanternLayer.visible = level.particles;
     }
+    this.atmo.setLevel(level);
   }
 
   /** Creep under a world point (tile units), if any. */
@@ -812,6 +930,7 @@ export class WorldRenderer {
     this.fx.zoom = cam.zoom;
     this.fx.bitScale = this.scales.creep;
     this.ensureGround();
+    this.updateLight(latest, now);
 
     const { from, to, alpha } = view;
     const creeps = lerpEntities(from.creeps, to.creeps, alpha);
@@ -843,6 +962,7 @@ export class WorldRenderer {
     if (structuresVersion() !== this.structGen) this.remakeBuildings();
     this.updateHeart(now);
     this.updatePortals(now, dt);
+    this.atmo.update(now, this.dark);
     this.updateTexts(now);
     this.fx.update(now, dt);
     this.drawOverlay(latest, heroes, me, ui, now);
@@ -950,6 +1070,8 @@ export class WorldRenderer {
     this.punchPending = false;
     this.portalBossLanes = [];
     this.goneTowers.clear();
+    // A new match starts in the afternoon at once (no crossfade).
+    this.cutNext = true;
     fade(this.wash, 0);
     this.showVignette(0, { left: 0, top: 0, right: 0, bottom: 0 }, 1, FX.vignette);
   }
@@ -1479,15 +1601,125 @@ export class WorldRenderer {
   private usePlate(p: Plate): void {
     if (this.plate || !this.groundSprite || !plateFits(p.layout, this.map.width, this.map.height, S)) return;
     this.plate = p;
-    this.groundSprite.texture = p.texture;
-    this.groundSprite.scale.set(1 / p.layout.res);
+    this.groundSprite.texture = Texture.EMPTY;
+    this.groundSprite.visible = false;
     this.ground?.texture.destroy(true);
     this.ground = null;
+    this.shows.push(this.showPlate(p));
+    this.mix = { from: p.light, to: p.light, t: 1 };
     this.brightWash.visible = this.art.display === 'bright';
     // The plate has the pads' stone: the next frame draws them again over it (zone tints, patches).
     for (const s of this.pads.values()) destroyPad(s);
     this.pads.clear();
     this.padKey = '';
+  }
+
+  /** A plate's sprite and its patches' (for the pads in `patchPads`), on top of those showing. */
+  private showPlate(p: Plate): PlateShow {
+    const sprite = new Sprite(p.texture);
+    sprite.scale.set(1 / p.layout.res);
+    sprite.eventMode = 'none';
+    this.plateLayer.addChild(sprite);
+    const show: PlateShow = { plate: p, sprite, patches: new Container(), patchPads: new Set() };
+    this.padBaseLayer.addChildAt(show.patches, this.shows.length);
+    this.syncPatches(show);
+    return show;
+  }
+
+  /** A shown plate's patches: one sprite for each pad drawn as a patch in this match. */
+  private syncPatches(show: PlateShow): void {
+    const { plate } = show;
+    for (const id of this.patchPads) {
+      if (show.patchPads.has(id)) continue;
+      const patch = plate.patches.get(id);
+      if (!patch) continue;
+      const sp = new Sprite(patch.texture);
+      sp.position.set(patch.x / plate.layout.res, patch.y / plate.layout.res);
+      sp.scale.set(1 / plate.layout.res);
+      sp.label = String(id);
+      show.patches.addChild(sp);
+      show.patchPads.add(id);
+    }
+    for (const sp of [...show.patches.children]) {
+      const id = Number(sp.label);
+      if (this.patchPads.has(id)) continue;
+      sp.destroy();
+      show.patchPads.delete(id);
+    }
+  }
+
+  /**
+   * V-08a's time of day: the light this wave is played in (`lightOfWave`; a boss wave at night), and the crossfade into
+   * it: the next plate decoded, laid over the one showing at alpha 0 and brought up over `CROSSFADE_MS`, then the old
+   * one freed (never more than two plates at once). A new match cuts back to the afternoon.
+   */
+  private updateLight(latest: Snapshot, now: number): void {
+    const boss = latest.wave > 0 && isBossWave(latest.mode, latest.wave);
+    this.wanted = this.forcedLight ?? (latest.phase === 'build' ? 'afternoon' : lightOfWave(latest.mode, latest.wave, boss));
+    if (this.shows.length === 2) {
+      const t = crossfadeAt(now - this.fadeFrom);
+      const top = this.shows[1]!;
+      top.sprite.alpha = t;
+      top.patches.alpha = t;
+      this.mix = { ...this.mix, t };
+      if (t >= 1) this.dropUnder();
+    } else if (
+      this.shows.length === 1 &&
+      this.shows[0]!.plate.light !== this.wanted &&
+      this.decoding === null &&
+      now - (this.plateFailedAt.get(this.wanted) ?? -Infinity) > PLATE_RETRY_MS
+    ) {
+      const want = this.wanted;
+      const cut = this.cutNext;
+      this.cutNext = false;
+      this.decoding = want;
+      void plateFor(want).then((p) => {
+        this.decoding = null;
+        // Not in (offline, a failed fetch): the match stays in its light and asks again in a while.
+        if (!p) this.plateFailedAt.set(want, this.lastRenderAt);
+        if (!p || this.shows.length !== 1 || this.shows[0]!.plate === p) return;
+        const from = this.shows[0]!.plate.light;
+        const show = this.showPlate(p);
+        this.shows.push(show);
+        if (cut) {
+          this.mix = { from: p.light, to: p.light, t: 1 };
+          this.dropUnder();
+          return;
+        }
+        show.sprite.alpha = 0;
+        show.patches.alpha = 0;
+        this.fadeFrom = this.lastRenderAt;
+        this.mix = { from, to: p.light, t: 0 };
+      });
+    }
+    // Already in the light wanted: nothing to cut to.
+    if (this.shows.length === 1 && this.shows[0]!.plate.light === this.wanted) this.cutNext = false;
+    this.dark = darkness(this.mix);
+    this.brightWash.alpha = perLight(this.mix, LIGHTING.bright.plateLift);
+    // The pools light more at dusk and at night (the plate is darker round them).
+    const boost = Math.round(perLight(this.mix, { afternoon: 1, dusk: 1.2, night: 1.55 }) * 100) / 100;
+    if (boost !== this.poolBoost) {
+      this.poolBoost = boost;
+      for (const p of [this.heartPool, ...this.portalPools, ...this.towerPools.values()]) {
+        const level = p.level;
+        p.level = -1;
+        this.setPool(p, level);
+      }
+    }
+  }
+
+  /** A crossfade is done: the plate under it goes (its sprite, its patches, its textures and pictures). */
+  private dropUnder(): void {
+    const old = this.shows.shift();
+    if (!old) return;
+    const top = this.shows[0]!;
+    top.sprite.alpha = 1;
+    top.patches.alpha = 1;
+    this.mix = { from: top.plate.light, to: top.plate.light, t: 1 };
+    old.sprite.destroy();
+    old.patches.destroy({ children: true });
+    if (old.plate !== top.plate) freePlate(old.plate);
+    this.plate = top.plate;
   }
 
   /**
@@ -1532,7 +1764,7 @@ export class WorldRenderer {
     const sprite = new Sprite(this.poolTexture);
     sprite.anchor.set(0.5);
     sprite.position.set(x * S, y * S);
-    sprite.scale.set((POOLS[kind].radius * S) / POOL_PX);
+    sprite.scale.set(((POOLS[kind].radius * S) / POOL_PX) * (this.atmo?.current === 'rain' ? RAIN_POOL_SCALE : 1));
     sprite.tint = kind === 'heart' ? FX.poolHeart : kind === 'portal' ? FX.poolPortal : FX.poolRune;
     this.poolLayer.addChild(sprite);
     const pool: PoolSprite = { kind, sprite, level: -1, born };
@@ -1544,7 +1776,7 @@ export class WorldRenderer {
   private setPool(pool: PoolSprite, level: number): void {
     if (level === pool.level) return;
     pool.level = level;
-    fade(pool.sprite, poolAlpha(pool.kind, level));
+    fade(pool.sprite, Math.min(1, poolAlpha(pool.kind, level) * this.poolBoost));
   }
 
   /** The 3D sheet came in (or a new one): the Heart and the portals are made again from it. */
@@ -1578,14 +1810,17 @@ export class WorldRenderer {
       } else {
         p.root.scale.set(swell);
       }
-      p.core.alpha = 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45;
+      p.core.alpha = Math.min(1, 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45 + this.dark * 0.2);
       const bossLane = this.portalFlareBoss && this.portalBossLanes.includes(i);
       fade(p.flare, Math.min(1, burst * (bossLane ? JUICE.bossFlare : 1)));
       // Its pool on the ground brightens with the wave-start flare, a boss lane's more; nothing else animates it.
       const pool = this.portalPools[i];
       if (pool) this.setPool(pool, portalPoolLevel(flare, bossLane ? JUICE.bossFlare : 1));
       if (burst > 0) {
-        p.flare.scale.set((0.55 + t * 0.7) * (this.portalFlareBoss ? (bossLane ? 1.55 : 1.35) : 1) * (p.view ? PORTAL_FLARE : 1));
+        // At night the arch's flare reaches further (V-08a): the pools and the runes are the light.
+        p.flare.scale.set(
+          (0.55 + t * 0.7) * (this.portalFlareBoss ? (bossLane ? 1.55 : 1.35) : 1) * (p.view ? PORTAL_FLARE : 1) * portalNightBoost(this.dark),
+        );
         p.flare.rotation = t * 0.6 + i;
       }
       if (!this.fx.particles) continue;
@@ -1637,9 +1872,19 @@ export class WorldRenderer {
       glow.position.set(view.chest.x, view.chest.y);
       warn.position.set(0, view.chest.y * 0.5);
       blaze.position.set(view.keep.x, view.keep.y);
-      root.addChild(glow, warn, view.root, blaze);
+      // Its windows (V-08a): warm light at dusk and at night, adding at the normal blend.
+      const windows = HEART_WINDOWS.map((w) => {
+        const sprite = new Sprite(this.lanternTexture);
+        sprite.anchor.set(0.5);
+        sprite.position.set(w.x, w.y);
+        sprite.scale.set((w.r * S) / LANTERN_PX);
+        sprite.tint = FX.heartWindow;
+        fade(sprite, 0);
+        return { sprite, share: w.share };
+      });
+      root.addChild(glow, warn, view.root, ...windows.map((w) => w.sprite), blaze);
       this.heartLayer.addChild(root);
-      return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y, blazeY: view.keep.y };
+      return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y, blazeY: view.keep.y, windows };
     }
     const base = this.art.sprite(art.id, 'base');
     base.position.set(0, art.baseY);
@@ -1651,7 +1896,7 @@ export class WorldRenderer {
     for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
     root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
     this.heartLayer.addChild(root);
-    return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY, blazeY: art.gemY };
+    return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY, blazeY: art.gemY, windows: [] };
   }
 
   /** Gentle heartbeat; red flash and a wobble when hit; a red warning glow and faster beat at low HP. */
@@ -1685,6 +1930,8 @@ export class WorldRenderer {
       h.view.setStage(stage);
       h.view.update(now, beat, hit);
       fade(h.glow, hit * 0.45 + (low ? 0.15 + beat * 0.1 : 0));
+      const lit = this.fx.particles ? heartWindowAlpha(this.dark, this.fx.calm ? 0 : now) : 0;
+      for (const w of h.windows) fade(w.sprite, lit * w.share);
     }
     fade(h.warn, low ? 0.35 + 0.35 * Math.sin(now / 160) : 0);
     h.warn.scale.set(((S * 2.6) / RING_PX) * (1 + (low ? beat * 0.12 : 0)));
@@ -1754,13 +2001,7 @@ export class WorldRenderer {
           s.slab.addChild(this.art.sprite(art.id, 'slab'));
           this.padBaseLayer.addChild(s.slab);
         }
-        const patch = look === 'patch' ? plate?.patches.get(p.id) : undefined;
-        if (patch && plate) {
-          s.patch = new Sprite(patch.texture);
-          s.patch.position.set(patch.x / plate.layout.res, patch.y / plate.layout.res);
-          s.patch.scale.set(1 / plate.layout.res);
-          this.padBaseLayer.addChildAt(s.patch, 0);
-        }
+        if (look === 'patch') this.patchPads.add(p.id);
         this.pads.set(p.id, s);
       }
       const seat = snap.players.findIndex((pl) => pl.id === p.owner);
@@ -1775,7 +2016,10 @@ export class WorldRenderer {
       if (seen.has(id)) continue;
       destroyPad(s);
       this.pads.delete(id);
+      this.patchPads.delete(id);
     }
+    // Every plate showing draws the patches of the pads this match has (V-08a: each in its own light).
+    for (const show of this.shows) this.syncPatches(show);
   }
 
   // -------------------------------------------------------------------------
@@ -2102,6 +2346,7 @@ export class WorldRenderer {
         this.towerPools.set(t.id, pool);
       }
       if (pool && pool.level < 1) this.setPool(pool, poolFadeIn(now - pool.born));
+      this.updateLanterns(t, now);
     }
     for (const [id, s] of this.towers) {
       if (!seen.has(id)) {
@@ -2110,13 +2355,45 @@ export class WorldRenderer {
         this.towers.delete(id);
       }
     }
-    // A pool goes with its tower.
+    // A pool goes with its tower, and its lanterns.
     for (const [id, pool] of this.towerPools) {
       if (this.towers.has(id)) continue;
       destroyPool(pool);
       this.towerPools.delete(id);
     }
+    for (const [id, l] of this.lanterns) {
+      if (this.towers.has(id)) continue;
+      for (const sp of l.sprites) sp.destroy();
+      this.lanterns.delete(id);
+    }
     for (const [id, g] of this.goneTowers) if (now - g.at > GONE_TOWER_MS) this.goneTowers.delete(id);
+  }
+
+  /**
+   * A tower's lanterns (V-08a): from tier 2, two glows on its pillar caps in its runes' colour (violet on a branch),
+   * breathing slowly, faint by day and bright at night (`lanternAlpha`). Made once, then alpha only.
+   */
+  private updateLanterns(t: TowerSnap, now: number): void {
+    let l = this.lanterns.get(t.id);
+    if (!l && t.tier < 2) return;
+    if (!l) {
+      l = { sprites: [], tier: 0 };
+      for (const [dx, dy] of LANTERN_SPOTS) {
+        const sp = new Sprite(this.lanternTexture);
+        sp.anchor.set(0.5);
+        sp.position.set((t.x + dx * this.scales.tower * 0.62) * S, (t.y + dy * this.scales.tower * 0.62) * S);
+        sp.scale.set((LANTERN.radius * S) / LANTERN_PX);
+        this.lanternLayer.addChild(sp);
+        l.sprites.push(sp);
+      }
+      this.lanterns.set(t.id, l);
+    }
+    if (l.tier !== t.tier) {
+      l.tier = t.tier;
+      for (const sp of l.sprites) sp.tint = t.branch ? FX.lanternBranch : FX.lantern;
+    }
+    const a = lanternAlpha(t.tier, this.dark, this.fx.calm ? 1 : lanternBreath(now, t.id));
+    for (const sp of l.sprites) fade(sp, a);
   }
 
   /**

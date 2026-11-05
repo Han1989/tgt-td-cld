@@ -13,6 +13,7 @@ import {
   type ServerMessage,
   type Snapshot,
 } from '@tdt/protocol';
+import { seedOfText } from '../render/fx/atmosphere';
 import type { Transport } from './transport';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
@@ -74,6 +75,14 @@ export class NetworkTransport implements Transport {
   private attempt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMessageAt = 0;
+
+  /**
+   * Online the snapshot carries no seed (a protocol change this pass does not make, V-08a): the room's code stands in,
+   * so everyone in the room sees one weather; the game view mixes in the team.
+   */
+  matchSeed(): { seed: number; daily: boolean } | null {
+    return this.session ? { seed: seedOfText(this.session.code), daily: false } : null;
+  }
 
   constructor(
     private readonly url: string,

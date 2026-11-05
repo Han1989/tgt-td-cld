@@ -53,6 +53,7 @@ import { repairHint, zoomHint } from './teach/cues';
 import { INTERP_DELAY_MS, RenderClock, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
+import { parseLight, parseWeather, seedOfText, weatherOf } from './render/fx/atmosphere';
 import { createUiState } from './uiState';
 
 /** A new-player funnel step (docs/ANALYTICS.md); dropped with no analytics or play data off. */
@@ -91,6 +92,8 @@ export class GameView {
   private zoomable: () => boolean = () => false;
   /** When this match was first drawn (ms; null before its first snapshot), for the zoom hint's wait. */
   private matchSeenAt: number | null = null;
+  /** The weather's key (the match's seed, its team and mode): a new one picks the weather again (V-08a). */
+  private weatherKey = '';
 
   private constructor(
     readonly hud: Hud,
@@ -657,6 +660,8 @@ export class GameView {
         },
         frameCosts: () => frameCosts.slice(),
         sent,
+        /** Sends a command as the controls would (V-08a's screenshots build their towers with it). */
+        command: (cmd: Command) => sendCmd(cmd),
         /** Solo: ends the match in defeat at once (the Heart drops to 0), to reach the end screen. */
         lose: () => view.transport?.debug?.('lose'),
         /** Solo: ends the match in victory on the next tick, the Heart as it is (the record's "Personal best"). */
@@ -690,6 +695,8 @@ export class GameView {
         firstArt: () => view.firstArt.state(),
         coins: () => hud.coinsLaunched,
         art: () => renderer.artStats(),
+        /** V-08a: the light (its crossfade), the plates decoded, the lanterns and windows lit, the weather's particles. */
+        atmosphere: () => renderer.atmosphereStats(),
         /** The textures on the GPU: how many, and their bytes (RGBA8, mipmaps counted where a source has them). */
         gpuTextures: () => {
           // Pixi leaves a destroyed texture's slot empty.
@@ -837,6 +844,7 @@ export class GameView {
         const restarted = latest !== undefined && msg.snap.tick < latest.tick;
         if (!latest || restarted) this.resetView();
         if (restarted && latest.tick > 30) this.syncLesson();
+        this.syncWeather(msg.snap, transport);
         const now = performance.now();
         this.buffer.push(msg.snap, now);
         this.predictor.snapshot(msg.snap.heroes.find((h) => h.owner === this.me) ?? null, now);
@@ -862,6 +870,23 @@ export class GameView {
       pick: pick ? { mode: pick.mode, heroes: [pick.hero] } : null,
       limitMs: HOLD_LIMIT_MS,
     });
+  }
+
+  /**
+   * The match's weather (V-08a): from its seed (solo: the host's, said before the match's first snapshot; online the
+   * room's code with the team and the mode, so everyone in the room has one weather); the Daily run is clear.
+   * Browser-test builds: `?weather=rain|leaves|clear` forces one, `?light=afternoon|dusk|night` the light.
+   */
+  private syncWeather(snap: Snapshot, transport: Transport): void {
+    const known = transport.matchSeed?.() ?? null;
+    const team = snap.heroes.map((h) => h.kind).sort().join();
+    const seed = !known ? 0 : transport.online ? seedOfText(`${known.seed}|${team}|${snap.mode}`) : known.seed;
+    const key = `${seed}|${known?.daily ?? false}`;
+    if (key === this.weatherKey) return;
+    this.weatherKey = key;
+    const q = E2E ? new URLSearchParams(location.search) : null;
+    this.renderer.forcedLight = q ? parseLight(q.get('light')) : null;
+    this.renderer.setWeather((q && parseWeather(q.get('weather'))) ?? weatherOf(seed, known?.daily ?? false));
   }
 
   /** Match start, wave milestones and the result, for analytics (the client drops them when play data is off). */

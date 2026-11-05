@@ -273,6 +273,20 @@ Solo **Full** or **Quick** on a phone with the **Warden**, then a room with a Ra
 - [ ] 19.6 **⚙ → Graphics → Low:** the cracks and the front's glow stay (they show where the quake ran); the dust and pebbles go.
 - [ ] 19.7 **From the lane's shoulder (round 3, 5 Nov 2026):** stand on the grass beside your road, about three steps off it (not on the road), as a wave comes down, and tap R: the quake still runs along that lane, and it hits the creeps walking at the road's edge and those that stepped off it to chase you. Note the count, and whether the front still reads as running along that one lane.
 
+## 20. The atmosphere pass: a time of day, weather, living light (V-08a)
+
+Solo **Full** on a phone, calling waves early (or Quick, where it all comes twice as fast), then the Daily run once. About 20 minutes; laptop too if you can.
+
+- [ ] 20.1 **The day passes:** waves 1–10 in the warm afternoon; at wave 11 the map turns slowly (about six seconds) to **dusk**: a low gold light, long shadows down-right from the trees and the pads; at wave 21 it turns to **night**: cool blue moonlight, the pools, the runes and the Heart's windows doing the lighting. **By wave 21 it is night.** Nothing pops or flashes as it turns. In Quick: dusk at wave 6, night at 11.
+- [ ] 20.2 **Boss waves at night:** wave 10 (Quick wave 5) turns to night as the boss comes, the portal's flare bigger; the next wave turns back to its own light.
+- [ ] 20.3 **The weather:** each match has rain or falling leaves (the next match may have the other). **Rain:** fine slanted streaks over the whole map and small splashes on the roads and the pads; the glows round the Heart and the portals a touch wider. **Leaves:** a few dozen leaves drifting across the meadow, settling for a second, fading. Note which you got, and whether either hides a creep, a tower or a tap.
+- [ ] 20.4 **Taps go through the weather:** in the rain, build, upgrade, tap a creep, ping and pinch-zoom as usual: every tap lands where it did.
+- [ ] 20.5 **Living light:** upgrade a tower to tier 2: two small glows breathe on its corners (teal; violet once branched), faint by day, bright at night. At dusk and night the Heart's gate and windows glow warm and a dozen fireflies blink over the grass.
+- [ ] 20.6 **The edge:** rocks and stumps along the border and the meadow's bottom row, a cart by the safe zone's edge, two banners at the corners of the pads nearest the Heart; none over a road or a pad.
+- [ ] 20.7 **The Daily run is clear** (no rain, no leaves), and still turns to dusk and night as Quick does.
+- [ ] 20.8 **⚙ → Graphics → Low:** no rain, no leaves, no fireflies, no lanterns; the time of day still turns. **⚙ → Display → Bright** at night: the ground lifts enough to read. **Reduced motion:** no falling streaks or drifting leaves (splashes and leaves only fade in place), fireflies glow without wandering.
+- [ ] 20.9 **Smoothness:** at night in the rain with a full wave on the map, the match stays as smooth as before (note any stutter, and whether there is a short hitch the moment a turn of light starts).
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Notes |

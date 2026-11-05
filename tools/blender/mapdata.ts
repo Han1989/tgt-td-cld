@@ -8,7 +8,8 @@
 // exists in every match: padLayout for 1, 2 and 3 players in every mode) or a patch (it exists only in some, the
 // extra pads of bigger teams) or neither (no match has it with today's tuning: plain ground), the Heart, the hero spawn,
 // the safe zone, and the prop spots the 2D ground painter uses (propSpots over the registered props, in the order
-// render/art/load.ts registers them), so the rocks, mushrooms, runestones and trees land where the 2D ground had them.
+// render/art/load.ts registers them), so the rocks, mushrooms, runestones and trees land where the 2D ground had them,
+// and the denser edge's props (edgeSpots, V-08a: rocks, stumps, a cart, two banners; the plate's alone).
 
 import { writeFileSync } from 'node:fs';
 import { GAME_MODES, MAX_PLAYERS } from '@tdt/protocol';
@@ -19,7 +20,7 @@ import '../../apps/client/src/render/art/entities/rock';
 import '../../apps/client/src/render/art/entities/runestone';
 import '../../apps/client/src/render/art/entities/tree';
 import { propArts } from '../../apps/client/src/render/art/registry';
-import { propSpots } from '../../apps/client/src/render/art/scatter';
+import { edgeSpots, propSpots } from '../../apps/client/src/render/art/scatter';
 import { CARD_MAP } from '../../apps/client/src/ogMap';
 
 const [which, out] = process.argv.slice(2);
@@ -43,6 +44,7 @@ for (const mode of GAME_MODES) {
 }
 
 const props = propArts();
+const spots = propSpots(map, props);
 const data = {
   map: which,
   name: map.name,
@@ -66,8 +68,10 @@ const data = {
   heroSpawn: [map.heroSpawn.x, map.heroSpawn.y],
   safeFromY: map.safeFromY,
   props: Object.fromEntries(props.map((p) => [p.id, { where: p.where, frames: Object.fromEntries(Object.entries(p.frames).map(([k, f]) => [k, [f.w, f.h]])) }])),
-  spots: propSpots(map, props),
+  spots,
+  // The denser edge (V-08a): rocks, stumps, a cart and two banners, clear of the clearing's props.
+  edge: edgeSpots(map, spots.filter((s) => props.find((p) => p.id === s.id)?.where === 'clearing')),
 };
 writeFileSync(out, JSON.stringify(data));
 console.log(`${which}: ${map.width} × ${map.height} tiles, ${data.pads.filter((p) => p.show === 'plate').length} pads on the plate, ` +
-  `${data.pads.filter((p) => p.show === 'patch').length} as patches, ${data.spots.length} prop spots`);
+  `${data.pads.filter((p) => p.show === 'patch').length} as patches, ${data.spots.length} prop spots, ${data.edge.length} edge props`);

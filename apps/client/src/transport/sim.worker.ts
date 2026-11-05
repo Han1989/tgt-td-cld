@@ -18,6 +18,8 @@ const host = new SimHost(
   // Seeding is outside the sim, so a non-deterministic seed is fine here.
   () => Math.floor(Math.random() * 2 ** 31),
   __BUILD__,
+  // Each match's seed, for the page's weather (V-08a; a control message beside the protocol's, as `pause` is).
+  (seed, daily) => ctx.postMessage({ ctl: 'match', seed, daily }),
 );
 
 /** When the next tick is due (performance.now() ms). */

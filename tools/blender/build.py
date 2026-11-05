@@ -2,7 +2,7 @@
 # and the map plates (docs/ART.md §16):
 #
 #   python tools/blender/build.py <hero|creep>[,…] [stage|match|all|plate] [--draft] [--frames 0,40,120] [--out DIR]
-#   python tools/blender/build.py map [spire|card|all] [--draft] [--out DIR] [--work DIR]
+#   python tools/blender/build.py map [spire|card|all] [--light afternoon|dusk|night|all] [--draft] [--out DIR] [--work DIR]
 #   python tools/blender/build.py structures [arrow,heart,…] [--draft] [--out DIR] [--work DIR]
 #   python tools/blender/build.py arrow,heart                 (tower kinds, heart, portal: the same)
 #   python tools/blender/build.py ui [--draft] [--out DIR]     (the HUD's frames, tools/blender/ui.py)
@@ -225,10 +225,18 @@ def map_main(argv):
     ap.add_argument('--draft', action='store_true', help='rendered at 1× with a few samples (a quick look)')
     ap.add_argument('--out', default=None, help='write the pictures and layouts here instead (a preview)')
     ap.add_argument('--work', default=None, help='a working folder kept after the run')
+    ap.add_argument('--light', default='afternoon', help='afternoon (the shipped look), dusk, night, or all (V-08a: '
+                    'the match crossfades between them by wave), comma separated for several')
     args = ap.parse_args(argv)
 
     import bpy  # noqa: F401 (first: it registers mathutils)
     from tdt3d import map as plate
+
+    names = list(plate.LIGHT_NAMES) if args.light == 'all' else args.light.split(',')
+    bad = [n for n in names if n not in plate.LIGHTS]
+    if bad:
+        raise SystemExit(f'--light: no light named {", ".join(bad)} (afternoon, dusk, night, all)')
+    names = [n for n in plate.LIGHT_NAMES if n in names]
 
     tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-map-')
     os.makedirs(tmp, exist_ok=True)
@@ -236,7 +244,8 @@ def map_main(argv):
     try:
         for which in (['spire', 'card'] if args.which == 'all' else [args.which]):
             out = args.out or PLATE_DIRS[which]
-            plate.render_map(which, out, args.out or PLATE_LAYOUT, os.path.join(tmp, which), draft=args.draft)
+            plate.render_map(which, out, args.out or PLATE_LAYOUT, os.path.join(tmp, which), draft=args.draft,
+                             lights=names if which == 'spire' else ['afternoon'])
     finally:
         if args.work:
             print('kept:', tmp)
