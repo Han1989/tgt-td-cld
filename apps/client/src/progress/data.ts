@@ -39,6 +39,7 @@
  * V-07c-look on 25 Oct 2026 (PR #149: the map in grass green, three looks for Han, images only).
  * V-07c on 28 Oct 2026 (PR #150: the map in Spring meadow, Han's pick A, with the light pools).
  * V-08b-look on 6 Nov 2026 (PR #161: the tilted camera, three pitches for Han, images only).
+ * V-08b-1 on 6 Nov 2026 (PR #162: the tilted camera, build 1 of 4, the camera in the client with today's art; Han's pick B).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -550,6 +551,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Pictures only: nothing in the game changes. Han, 5 Nov 2026: a short clip of an isometric courtyard, and he wants that depth. Today the map and the towers are seen from straight above. Three options tilt the camera so it looks up the map from the bottom: A a little (20°), B more (30°), C the most (40°). The map, the towers, the Heart and the portals were drawn again through each, and one real moment of wave 10 is shown at each tilt on a phone and a laptop, with the game’s buttons over it. With a tilt the towers stand up and show their sides, the map gets shorter on a phone (a strip opens under it) and bigger on a laptop. No tower hides a road at any tilt, but at C a tall tower covers the front of the pad behind it. Turning a tower’s turret as one flat picture, as the game does now, looks wrong from the smallest tilt, so its turret would be drawn in 8 or 16 directions. The heroes and creeps stay as they are at every tilt. Han picks A, B, C or none; the build sessions follow the pick.',
     proof: pr(161),
+  },
+  {
+    id: 'V-08b-1',
+    title: 'The tilted camera, build 1: the camera in the game, with today’s pictures',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'How the match is drawn: no game rules, server or protocol change. Han picked B on 6 Nov 2026: the camera tilted 30° from straight down, looking up the map from the bottom. This first of four builds puts that camera in the game. Everything on the ground (the map, the pads, the glows, every ring and circle) is drawn flattened, everything standing (heroes, creeps, towers, the Heart, the portals) stays upright and is drawn back to front, and every tap still lands where you see it. On a phone the map is a little shorter, so there is more room above the controls; on a laptop it is drawn 15% bigger. The pictures are still today’s, made for a camera looking straight down, so the map looks squashed for now: the next build draws it again for the tilt.',
+    proof: pr(162),
   },
   {
     id: 'g1-render',

@@ -163,7 +163,8 @@ async function label(p: Page, text: string): Promise<void> {
       background: 'rgba(10, 12, 20, 0.78)',
       borderRadius: '4px',
       pointerEvents: 'none',
-      whiteSpace: 'nowrap',
+      // Narrow, so it stays left of the chips centred under the top bar (the Air chip in a wave with flyers).
+      maxWidth: '150px',
     });
     document.body.append(d);
   }, text);

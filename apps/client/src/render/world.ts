@@ -434,7 +434,7 @@ export class WorldRenderer {
   /**
    * Its own render group: a `zIndex` change makes Pixi sort and rebuild the draw list, and walking creeps change theirs
    * every frame, so only this list is rebuilt, not the whole world's (docs/ART.md §9: the stress scene's JavaScript a
-   * frame 18.4 ms sorted here, 19.4–21.6 in the world's own list, 16.3 on main).
+   * frame 19.6–19.8 ms sorted here against main's 17.4 in the same hour; 19.4–21.6 in the world's own list against 16.3).
    */
   private readonly actors = new Container({ isRenderGroup: true });
   /** The overlay's ground marks (ranges, aims, pads, click marks), squashed too, over everything as before. */
@@ -751,6 +751,8 @@ export class WorldRenderer {
    */
   private stand(root: Container, x: number, y: number, lift = 0): void {
     root.position.set(x * S, y * S * this.cos);
+    // Only in the sorted group: a `zIndex` written anywhere else would make Pixi rebuild the whole world's draw list.
+    if (root.parent !== this.actors) return;
     const z = depth(y, lift);
     if (root.zIndex !== z) root.zIndex = z;
   }
@@ -1817,6 +1819,7 @@ export class WorldRenderer {
     for (const lane of this.map.lanes) {
       const p = lane.waypoints[0]!;
       const root = new Container();
+      this.actors.addChild(root);
       this.stand(root, p.x, p.y + 1);
       const view = portalView3d();
       const k = view ? PORTAL_OPENING : 1;
@@ -1836,7 +1839,6 @@ export class WorldRenderer {
       } else {
         root.addChild(this.art.sprite(art.id, 'rim'), core, swirl, flare);
       }
-      this.actors.addChild(root);
       this.portals.push({ root, swirl, core, flare, x: p.x, y: p.y + 1, view, k });
     }
   }
@@ -1936,6 +1938,7 @@ export class WorldRenderer {
     const { x, y } = this.map.heart;
     const art = heartArt();
     const root = new Container();
+    this.actors.addChild(root);
     this.stand(root, x, y);
     const view = heartView3d();
     // Its glow and warning ring lie on the ground round it: ellipses on the tilted camera.
@@ -1970,7 +1973,6 @@ export class WorldRenderer {
         return { sprite, share: w.share };
       });
       root.addChild(glow, warn, view.root, ...windows.map((w) => w.sprite), blaze);
-      this.actors.addChild(root);
       return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y, blazeY: view.keep.y, windows };
     }
     const base = this.art.sprite(art.id, 'base');
@@ -1982,7 +1984,6 @@ export class WorldRenderer {
     for (const s of [flash, cracks1, cracks2]) fade(s, 0);
     for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
     root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
-    this.actors.addChild(root);
     return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY, blazeY: art.gemY, windows: [] };
   }
 
@@ -2257,9 +2258,9 @@ export class WorldRenderer {
       if (!live?.art || !live.root.visible || this.dying.length >= MAX_DYING) return;
       s = this.takeCreep(kind);
       s.art!.reset(live.art.facing);
+      (TUNING.creeps[kind].flying ? this.airLayer : this.actors).addChild(s.root);
       this.stand(s.root, x, y);
       s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[kind].flying));
-      (TUNING.creeps[kind].flying ? this.airLayer : this.actors).addChild(s.root);
     }
     if (this.dying.length >= MAX_DYING) {
       this.releaseCreep(s);
@@ -2842,10 +2843,10 @@ export class WorldRenderer {
       if (!s) {
         s = this.trapPool.pop() ?? this.makeTrap();
         s.state = null;
+        this.actors.addChild(s.root);
         this.stand(s.root, t.x, t.y, TRAP_LIFT);
         // Its root ring lies on the ground: an ellipse on the tilted camera.
         if (s.ring) s.ring.scale.set((t.radius * S) / s.ringRadius, ((t.radius * S) / s.ringRadius) * this.cos);
-        this.actors.addChild(s.root);
         this.traps.set(t.id, s);
       }
       if (s.idle && s.armed) {
