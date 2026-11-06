@@ -364,7 +364,10 @@ async function buildPhone(page: Page, plan: Plan[]): Promise<Pad[]> {
     }
     const t = await towerOn(page, pad.id);
     if (process.env.PRESS_DEBUG) console.log('build', JSON.stringify(step), '→', pad.id, t ? `${t.kind} ${t.tier}${t.branch ? ' ' + t.branch : ''}` : 'none');
-    if (!t || t.tier < Math.min(step.tier, 3)) throw new Error(`the ${step.kind} on pad ${pad.id} is ${t ? `tier ${t.tier}` : 'not built'}`);
+    if (!t || t.tier < Math.min(step.tier, 3)) {
+      if (process.env.PRESS_DEBUG) await page.screenshot({ path: join(work, `failed-pad-${pad.id}.png`) });
+      throw new Error(`the ${step.kind} on pad ${pad.id} is ${t ? `tier ${t.tier}` : 'not built'}`);
+    }
     await gotIt(page);
     await tapAway(page);
   }
