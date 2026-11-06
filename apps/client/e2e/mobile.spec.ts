@@ -909,6 +909,8 @@ test.describe('portrait phone layout', () => {
     test(`the ring chip never covers a ring button, ${c.name}: build, preview, tier 3, and each specialisation buys`, async ({ page }) => {
       await startSolo(page, '?lab', 'full');
       const finger = await Finger.on(page);
+      // The top row on screen is read from where the camera rests (on the iPhone it eases into its hero follow first).
+      await cameraStill(page);
       const padId = await page.evaluate((where) => {
         const snap = window.__tdt.latest()!;
         const mine = snap.pads.filter((p) => p.owner === window.__tdt.me() || p.owner === null).map((p) => window.__tdt.map.pads[p.id]!);
@@ -920,10 +922,17 @@ test.describe('portrait phone layout', () => {
         if (where === 'rightLow') return right[mid + 1]!.id;
         if (where === 'left') return column(Math.min(...xs))[mid]!.id;
         // The top row on screen (a shorter phone follows the hero, so the map's own top row may be above the
-        // screen), rightmost: no room above the ring and the least room to the right.
-        const half = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom * window.__tdt.view().cos;
-        const top = window.__tdt.layout().topBarBottom;
-        const onScreen = mine.filter((p) => window.__tdt.camera.worldToScreen(p.x * 32, p.y * 32).y - half >= top);
+        // screen), rightmost: no room above the ring and the least room to the right. On screen: its drawn box under
+        // the top bar and clear of the ⤢ button (on the iPhone the follow lifts the top-right pad under it).
+        const halfX = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom;
+        const half = halfX * window.__tdt.view().cos;
+        const l = window.__tdt.layout();
+        const z = l.zoomButton;
+        const onScreen = mine.filter((p) => {
+          const c = window.__tdt.camera.worldToScreen(p.x * 32, p.y * 32);
+          if (c.y - half < l.topBarBottom) return false;
+          return !z || c.x + halfX <= z.left || c.x - halfX >= z.right || c.y - half >= z.bottom || c.y + half <= z.top;
+        });
         const topY = Math.min(...onScreen.map((p) => p.y));
         return onScreen.filter((p) => p.y === topY).sort((a, b) => b.x - a.x)[0]!.id;
       }, c.where);

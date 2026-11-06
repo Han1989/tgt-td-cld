@@ -377,7 +377,8 @@ export async function cameraStill(page: Page): Promise<void> {
 
 /**
  * Where to tap a pad: its centre, or the point of its drawn box nearest the centre that the game canvas owns (no top
- * bar, ⤢ button, chip or control over it), once the camera stands still. Null when none of it is tappable. On the tilted
+ * bar, ⤢ button, chip or control over it or within 8 px) and where a tap picks the pad (or its tower), once the camera
+ * stands still. Null when none of it is tappable. On the tilted
  * camera a pad is cos(pitch) as tall as it is wide, and on the iPhone a followed camera can bring a top-row pad's centre
  * under the ⤢ button (V-08b).
  */
@@ -392,7 +393,20 @@ export async function padTapPoint(page: Page, padId: number): Promise<{ x: numbe
     const canvas = document.getElementById('game-canvas');
     const l = t.layout();
     const bottom = l.controls && l.kind === 'tall' ? l.controls.top : innerHeight;
-    const free = (x: number, y: number) => y > l.topBarBottom + 1 && y < bottom - 1 && document.elementFromPoint(x, y) === canvas;
+    const towerId = t.latest()!.towers.find((k) => k.padId === id)?.id;
+    // Free: on screen between the top bar and the controls, the canvas's with 8 px to spare on each side (Chromium's
+    // touch adjustment hands a touch 1 px beside a button, the ⤢ one included, to that button), and a tap there picks
+    // this pad, or the tower standing on it (no other drawn box in front of them).
+    const M = 8;
+    const canvasAt = (x: number, y: number) => document.elementFromPoint(x, y) === canvas;
+    const free = (x: number, y: number) => {
+      if (y <= l.topBarBottom + M || y >= bottom - M) return false;
+      if (![[0, 0], [M, 0], [-M, 0], [0, M], [0, -M]].every(([dx, dy]) => canvasAt(x + dx!, y + dy!))) return false;
+      const r = t.tapAt(x, y);
+      if (r.type !== 'pick') return false;
+      if (r.pick.kind === 'pad') return r.pick.id === id;
+      return r.pick.kind === 'tower' && towerId === r.pick.id;
+    };
     let best: { x: number; y: number; d: number } | null = null;
     // 2 px in from the box's edges, every 3 px; the nearest free point to the centre.
     for (let dy = -halfY + 2; dy <= halfY - 2; dy += 3) {
