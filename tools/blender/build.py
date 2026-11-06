@@ -6,6 +6,8 @@
 #   python tools/blender/build.py structures [arrow,heart,…] [--draft] [--out DIR] [--work DIR]
 #   python tools/blender/build.py arrow,heart                 (tower kinds, heart, portal: the same)
 #   python tools/blender/build.py ui [--draft] [--out DIR]     (the HUD's frames, tools/blender/ui.py)
+#   python tools/blender/build.py pitch [plate|structures|figures|all] [--pitch a,b,c] [--draft] --out DIR
+#                                       (V-08b look, dev only: the tilted camera's options, tdt3d/pitch_options.py)
 #
 # Normally run through `npm run art:3d -- <hero>` (tools/blender/art3d.mjs), which finds Blender's Python; `heroes`
 # builds all three, sharing one render of the clearing; `creeps` all nine creeps and bosses. The heroes are rows of
@@ -254,6 +256,50 @@ def map_main(argv):
     print(f'done in {time.time() - t0:.0f} s')
 
 
+def pitch_main(argv):
+    """`build.py pitch [plate|structures|figures|all] [--pitch a,b,c] [--draft] --out DIR`: V-08b's look, the plate,
+    the structures and two figures through three tilted cameras (tdt3d/pitch_options.py). Dev only: it writes nothing
+    the game ships, so it is refused without --out."""
+    ap = argparse.ArgumentParser(prog='build.py pitch')
+    ap.add_argument('what', nargs='?', default='all', choices=['plate', 'structures', 'figures', 'all'])
+    ap.add_argument('--pitch', default='a,b,c', help='the options to render (a 20°, b 30°, c 40°; z 0°, today\'s, as a check), comma separated')
+    ap.add_argument('--draft', action='store_true', help='the plate at 1× with a few samples, the structures likewise')
+    ap.add_argument('--out', default=None, help='where everything goes (required)')
+    ap.add_argument('--work', default=None, help='a working folder kept after the run')
+    args = ap.parse_args(argv)
+    if not args.out:
+        raise SystemExit('build.py pitch writes only options to look at: give --out DIR (nothing the game ships is written)')
+
+    import bpy  # noqa: F401 (first: it registers mathutils)
+    from tdt3d import pitch_options as po
+    import structures as table
+
+    keys = args.pitch.split(',')
+    bad = [k for k in keys if k not in po.ALL]
+    if bad:
+        raise SystemExit(f'--pitch: no option {", ".join(bad)} ({", ".join(f"{k} {v:g}°" for k, v in po.ALL.items())})')
+    pitches = {k: po.ALL[k] for k in keys}
+    out = os.path.abspath(args.out)
+    tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-pitch-')
+    os.makedirs(tmp, exist_ok=True)
+    t0 = time.time()
+    try:
+        if args.what in ('plate', 'all'):
+            po.render_plates(pitches, out, os.path.join(tmp, 'plate'), draft=args.draft)
+        if args.what in ('structures', 'all'):
+            for k, p in pitches.items():
+                po.render_structures(table, p, os.path.join(out, f'structures-{k}'), os.path.join(tmp, 'st'),
+                                     draft=args.draft)
+        if args.what in ('figures', 'all'):
+            po.render_figures(pitches, os.path.join(out, 'figures'), os.path.join(tmp, 'fig'), draft=args.draft)
+    finally:
+        if args.work:
+            print('kept:', tmp)
+        else:
+            shutil.rmtree(tmp, ignore_errors=True)
+    print(f'done in {time.time() - t0:.0f} s')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('hero', help='a hero of tools/blender/hero.py or a creep of tools/blender/creeps.py, several '
@@ -278,6 +324,8 @@ def main():
         return structures_main(argv[1:])
     if argv and argv[0] == 'ui':
         return ui_main(argv[1:])
+    if argv and argv[0] == 'pitch':
+        return pitch_main(argv[1:])
     import bpy  # noqa: F401 (first: it registers mathutils, which the tables use)
     import structures as structure_table
     every = set(structure_table.TOWERS) | {'heart', 'portal'}
