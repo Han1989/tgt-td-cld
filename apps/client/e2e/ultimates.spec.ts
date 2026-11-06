@@ -54,7 +54,8 @@ interface Cues {
   rings: Partial<Record<RButton, Ring>>;
   nudges: Partial<Record<RButton, { before: string; after: string; tick: number }>>;
   heal: { text: string; healed: boolean; tick: number } | null;
-  pops: { text: string; box: Box; color: string; tick: number }[];
+  /** Each popup as it was inserted, and how many lane quakes had been drawn to their end at that moment. */
+  pops: { text: string; box: Box; color: string; tick: number; quakesDone: number }[];
 }
 
 declare global {
@@ -110,7 +111,8 @@ function recordCues(buttons: readonly string[]): void {
     for (const el of document.querySelectorAll<HTMLElement>('#ult-pops .ult-pop')) {
       if (seenPops.has(el)) continue;
       seenPops.add(el);
-      cues.pops.push({ text: el.textContent ?? '', box: rect(el), color: getComputedStyle(el).borderTopColor, tick: t });
+      const quakesDone = window.__tdt?.quakes().done ?? -1;
+      cues.pops.push({ text: el.textContent ?? '', box: rect(el), color: getComputedStyle(el).borderTopColor, tick: t, quakesDone });
     }
   };
   new MutationObserver(scan).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
@@ -242,9 +244,13 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
     expect(slam.text).toBe('Ally Rampart Slam: 18');
     expect(slam.box.left).toBeGreaterThanOrEqual(0);
     expect(slam.box.right).toBeLessThanOrEqual(vp.width);
+    // The count waits for the quake's drawn front (ult/cues.ts, `QUAKE_POP_CAP_MS`): when it showed, its quake had been
+    // drawn to both ends of Mid. The stress scene sends the count 23 ticks after the quake, which at pace 3 is 0.4 s,
+    // while the drawn front takes 1.1 s: without the hold the count came first, on every cycle.
+    expect(slam.quakesDone).toBeGreaterThanOrEqual(1);
     // The quake was drawn: its front's cracks stamped frame by frame from the Warden to both ends of Mid (35 tiles, a
-    // mark every 0.7), leading marks over several frames (it travels), and it is over by its count. A later cycle's quake
-    // may be running when this looks: it only adds marks.
+    // mark every 0.7), leading marks over several frames (it travels). A later cycle's quake may be running when this
+    // looks: it only adds marks.
     const quakes = await page.evaluate(() => window.__tdt.quakes());
     expect(quakes.done).toBeGreaterThanOrEqual(1);
     expect(quakes.marks).toBeGreaterThanOrEqual(45 * quakes.done);

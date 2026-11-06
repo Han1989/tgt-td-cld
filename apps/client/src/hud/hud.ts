@@ -42,7 +42,7 @@ import { HEART_CRACKED } from '../render/art/damage';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
 import { comboPairLines, ultimateLines } from '../coop/ultReport';
-import { healLines, NO_ULT_CUES, ultPops, type UltCues } from '../ult/cues';
+import { healLines, heldPopDue, NO_ULT_CUES, ultPops, waitsForQuake, type UltCues, type UltPop } from '../ult/cues';
 import { matchFlagFace, surgeToastCopy } from './surgeFace';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
 import type { UiState } from '../uiState';
@@ -256,6 +256,8 @@ export class Hud {
   private ultKey = '';
   /** Kill-count popups, the cast flash and the teammate chips. */
   private readonly ults = new UltHud();
+  /** Rampart Slam counts waiting for their quake's drawn front (`releasePops`). */
+  private heldPops: { pop: UltPop; at: number; snap: Snapshot; me: PlayerId | null }[] = [];
   private readonly endScreen = $('end-screen');
   private readonly endEmblem = $('end-emblem');
   private readonly endTitle = $('end-title');
@@ -695,13 +697,17 @@ export class Hud {
    * Ultimates in this batch of events: a flash for every cast (anyone's), a kill-count popup for every rain or burst
    * that ended, and Rampart Slam's heal on the teammate chips (and your own panel).
    */
-  feedUltimates(events: GameEvent[], snap: Snapshot, me: PlayerId | null): void {
+  feedUltimates(events: GameEvent[], snap: Snapshot, me: PlayerId | null, now = performance.now()): void {
     for (const e of events) {
       if (e.type !== 'cast' || e.slot !== 'R') continue;
       const hero = snap.heroes.find((h) => h.id === e.heroId);
       if (hero) this.ults.castFlash(HERO_ULTIMATE[hero.kind]);
     }
-    for (const pop of ultPops(events)) this.ults.pop(pop, snap, me);
+    for (const pop of ultPops(events)) {
+      // Rampart Slam's count waits for its quake's drawn front (`releasePops`, after the world is drawn).
+      if (waitsForQuake(pop)) this.heldPops.push({ pop, at: now, snap, me });
+      else this.ults.pop(pop, snap, me);
+    }
     for (const line of healLines(events, snap)) {
       this.ults.heal(line, me);
       if (line.owner === me) pulse(this.heroPanel, HEAL_PULSE, 600);
@@ -710,6 +716,20 @@ export class Hud {
         if (row) pulse(row.fill, HEAL_PULSE, 600);
       }
     }
+  }
+
+  /**
+   * Once a frame, after the world is drawn: a held Rampart Slam count shows once no lane quake is being drawn (its
+   * front has reached the lane's ends), or at `QUAKE_POP_CAP_MS` (ult/cues.ts).
+   */
+  releasePops(now: number, quakeDrawing: boolean): void {
+    if (this.heldPops.length === 0) return;
+    const keep: typeof this.heldPops = [];
+    for (const h of this.heldPops) {
+      if (heldPopDue(h.at, now, quakeDrawing)) this.ults.pop(h.pop, h.snap, h.me);
+      else keep.push(h);
+    }
+    this.heldPops = keep;
   }
 
   /** The R button's pulse and "Combo!" ring. */
@@ -944,6 +964,7 @@ export class Hud {
     this.renderGifts(null);
     this.renderUlts(null);
     this.ults.clear();
+    this.heldPops = [];
     this.setUltCues(NO_ULT_CUES);
     this.flagsKey = '';
     this.airMemory = freshAir();

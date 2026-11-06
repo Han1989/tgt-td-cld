@@ -794,6 +794,11 @@ export class WorldRenderer {
     return { ...this.quakeStamped, running: this.quakes.length };
   }
 
+  /** Whether a Rampart Slam's quake front is still being drawn (the HUD holds its count until it is not). */
+  quakeDrawing(): boolean {
+    return this.quakes.length > 0;
+  }
+
   /**
    * Rampart Slam's lane quakes, each frame: every crack mark each front has crossed since the last frame, a gold glow and
    * dust at the leading one, and a burst of stun stars over the creeps it passes (those drawn within a tile of it).

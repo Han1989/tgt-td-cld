@@ -356,6 +356,8 @@ export class GameView {
     const coarse = window.matchMedia?.('(pointer: coarse)');
     let follow = 0;
     let layoutKey = '';
+    /** The viewport and the map's fitted rect the camera was last fitted to. */
+    let cameraKey = '';
 
     const applyLayout = () => {
       const w = window.innerWidth;
@@ -383,11 +385,19 @@ export class GameView {
       root.setProperty('--controls-top', `${Math.round(layout.controls?.top ?? h)}px`);
       root.setProperty('--map-top', `${Math.round(layout.map.top)}px`);
 
-      camera.resize(w, h);
-      if (layout.kind !== 'rotate') {
-        camera.locked = false;
-        camera.fit(layout.map, layout.tilePx / TILE_PX);
-        camera.locked = layout.kind === 'tall';
+      // The camera is refitted only when the viewport or the layout changed. A settings write (a hint seen, ⚙) runs this
+      // too, mid-frame: refitting then put a followed or zoomed phone camera back at the plain fit until the next frame,
+      // so that frame was drawn 50–131 px off and a tap in it landed on another pad (the iPhone shard's flaky ring tests,
+      // 6 Nov 2026), and a desktop player's wheel zoom was reset.
+      const fitKey = `${w}x${h}|${layout.kind}|${layout.tilePx}|${layout.map.left}|${layout.map.top}|${layout.map.bottom}`;
+      if (fitKey !== cameraKey) {
+        cameraKey = fitKey;
+        camera.resize(w, h);
+        if (layout.kind !== 'rotate') {
+          camera.locked = false;
+          camera.fit(layout.map, layout.tilePx / TILE_PX);
+          camera.locked = layout.kind === 'tall';
+        }
       }
       renderer.scales = entityScales(layout.tilePx);
       // Only a phone held upright pinch-zooms: anywhere else the camera is at its fit (or the desktop's wheel zoom).
@@ -552,7 +562,7 @@ export class GameView {
         if (e.type === 'cast' && latest.heroes.some((h) => h.id === e.heroId && h.owner === view.me)) touch.pulseSkill(e.slot);
       }
       hud.handleEvents(events, latest, view.me);
-      hud.feedUltimates(events, latest, view.me);
+      hud.feedUltimates(events, latest, view.me, now);
       const ult = readUltCues(view.ultCues, latest, events, view.me);
       view.ultCues = ult.memory;
       hud.setUltCues(ult.cues);
@@ -621,6 +631,8 @@ export class GameView {
       marks.update(now, (x, y) => camera.worldToScreen(x * TILE_PX, y * TILE_PX), markerView(layout, camera.viewW, camera.viewH));
       audio.game.events(events, now);
       renderer.render(frame, latest, view.me, ui, rnow);
+      // A Rampart Slam's count shows once its quake has been drawn to the end (ult/cues.ts, `QUAKE_POP_CAP_MS`).
+      hud.releasePops(now, renderer.quakeDrawing());
       hud.update(latest, view.me);
     });
 

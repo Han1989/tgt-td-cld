@@ -2,7 +2,7 @@
 // pause when hidden, browser gesture blocking; effects (Phase 4b) and their settings; sound.
 
 import { expect, test, type Page } from '@playwright/test';
-import { startSolo, waitForReady } from './helpers';
+import { cameraStill, startSolo, waitForReady } from './helpers';
 
 test('the manifest describes an installable, full-screen, portrait app', async ({ page, request }) => {
   await page.goto('/');
@@ -355,8 +355,19 @@ async function groundVsPlate(page: Page, file = '/map/spire.webp'): Promise<{ sc
     [9.5, 31.5],
     [13, 22],
   ];
-  const at = await page.evaluate((pts) => pts.map(([x, y]) => window.__tdt.camera.worldToScreen(x * 32, y * 32)), points);
-  const shot = await page.screenshot();
+  // The screenshot must show the camera where `at` was read: on the iPhone the camera eases into its vertical hero follow
+  // over the first second of a match, so the positions are read again after the shot and the shot taken again until
+  // they agree (a moving camera sampled the wrong pixels: 48 off, the iPhone shard of 6 Nov 2026).
+  const read = () => page.evaluate((pts) => pts.map(([x, y]) => window.__tdt.camera.worldToScreen(x * 32, y * 32)), points);
+  await cameraStill(page);
+  let at = await read();
+  let shot = await page.screenshot();
+  for (let i = 0; i < 20; i++) {
+    const after = await read();
+    if (after.every((p, k) => Math.abs(p.x - at[k]!.x) < 0.5 && Math.abs(p.y - at[k]!.y) < 0.5)) break;
+    at = after;
+    shot = await page.screenshot();
+  }
   return page.evaluate(
     async ({ png, pts, at, dpr, file }) => {
       const load = async (src: string) => {
@@ -400,6 +411,10 @@ test('the map plate decodes, draws as the ground in one texture, and Bright lays
     return gl!.getParameter(gl!.MAX_TEXTURE_SIZE) as number;
   });
   expect(gpu).toBeGreaterThanOrEqual(3200);
+  // The afternoon's plate alone on the ground, its light settled (V-08a: no crossfade under way).
+  await expect
+    .poll(() => page.evaluate(() => { const a = window.__tdt.atmosphere(); return [a.plates, a.plateLights.join(), a.light.t]; }))
+    .toEqual([1, 'afternoon', 1]);
   // Normal: the screen shows the plate's own pixels.
   for (const { screen, plate } of await groundVsPlate(page)) {
     for (let k = 0; k < 3; k++) expect(Math.abs(screen[k]! - plate[k]!)).toBeLessThan(14);

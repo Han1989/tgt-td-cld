@@ -310,7 +310,9 @@ export class TouchControls {
       put(this.skills.get(slot)!.wrap, circle.x, circle.y, circle.r * 2);
     }
     this.respawn.style.top = `${Math.round(c.top - 24)}px`;
-    this.menuKey = '';
+    // The open ring is not rebuilt here: its buttons don't depend on the layout (it is placed every frame), a real layout
+    // change closes it (GameView's `closeMenus`), and a settings write runs this too: rebuilding the ring then dropped
+    // the press of a finger holding one of its buttons (the zoom hint, 3 s into a first match; 6 Nov 2026).
     const z = layout.zoomButton;
     this.zoomBtn.classList.toggle('hidden', !z);
     if (z) {

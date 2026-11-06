@@ -354,6 +354,58 @@ export function overlaps(a: Box, b: Box): boolean {
   return a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
 }
 
+/**
+ * Waits until the camera stands still: the same screen position and zoom on three animation frames running. On a shorter
+ * phone (the iPhone profile, 390 × 664) the camera eases into its vertical hero follow over the first second of a match
+ * (`followOffset`): a position read during the ease is off by the time a tap lands (the iPhone shard, 6 Nov 2026).
+ */
+export async function cameraStill(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __camKey?: string; __camSame?: number };
+      const c = window.__tdt.camera;
+      const o = c.worldToScreen(0, 0);
+      const key = `${o.x.toFixed(2)},${o.y.toFixed(2)},${c.zoom.toFixed(4)}`;
+      w.__camSame = w.__camKey === key ? (w.__camSame ?? 0) + 1 : 0;
+      w.__camKey = key;
+      return w.__camSame >= 2;
+    },
+    undefined,
+    { polling: 'raf' },
+  );
+}
+
+/**
+ * Where to tap a pad: its centre, or the point of its drawn box nearest the centre that the game canvas owns (no top
+ * bar, ⤢ button, chip or control over it), once the camera stands still. Null when none of it is tappable. On the tilted
+ * camera a pad is cos(pitch) as tall as it is wide, and on the iPhone a followed camera can bring a top-row pad's centre
+ * under the ⤢ button (V-08b).
+ */
+export async function padTapPoint(page: Page, padId: number): Promise<{ x: number; y: number } | null> {
+  await cameraStill(page);
+  return page.evaluate((id) => {
+    const t = window.__tdt;
+    const pad = t.map.pads[id]!;
+    const half = (t.map.padSize / 2) * 32 * t.camera.zoom;
+    const halfY = half * t.view().cos;
+    const c = t.camera.worldToScreen(pad.x * 32, pad.y * 32);
+    const canvas = document.getElementById('game-canvas');
+    const l = t.layout();
+    const bottom = l.controls && l.kind === 'tall' ? l.controls.top : innerHeight;
+    const free = (x: number, y: number) => y > l.topBarBottom + 1 && y < bottom - 1 && document.elementFromPoint(x, y) === canvas;
+    let best: { x: number; y: number; d: number } | null = null;
+    // 2 px in from the box's edges, every 3 px; the nearest free point to the centre.
+    for (let dy = -halfY + 2; dy <= halfY - 2; dy += 3) {
+      for (let dx = -half + 2; dx <= half - 2; dx += 3) {
+        const d = dx * dx + dy * dy;
+        if ((!best || d < best.d) && free(c.x + dx, c.y + dy)) best = { x: c.x + dx, y: c.y + dy, d };
+      }
+    }
+    if (free(c.x, c.y)) return { x: c.x, y: c.y };
+    return best ? { x: best.x, y: best.y } : null;
+  }, padId);
+}
+
 /** Screen position of a world point in tiles. */
 export function toScreen(page: Page, x: number, y: number) {
   return page.evaluate(([tx, ty]) => window.__tdt.camera.worldToScreen(tx! * 32, ty! * 32), [x, y]);
