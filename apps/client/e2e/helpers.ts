@@ -92,6 +92,8 @@ interface Hook {
     impacts: number;
     /** The ground drawn: the map plate, the painted ground until it decodes, or none before a match. */
     ground: 'plate' | 'painted' | 'none';
+    /** The shown plate's own camera (V-08b build 2): plate px per world px and its pitch; null until it shows. */
+    plate: { res: number; pitch: number } | null;
     /** V-07c's light pools showing, by kind, and whether their layer is drawn (not at Graphics → Low). */
     pools: { heart: number; portal: number; tower: number; shown: boolean };
   };

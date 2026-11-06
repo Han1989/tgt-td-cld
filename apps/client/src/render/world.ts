@@ -875,6 +875,9 @@ export class WorldRenderer {
     impacts: number;
     /** What the ground is: the map plate, the painted ground (until the plate decodes), or none yet (no match drawn). */
     ground: 'plate' | 'painted' | 'none';
+    /** The shown plate's own camera (V-08b build 2): plate px per world px and its pitch; null until it shows. A ground
+     *  point (x, y) world px is plate px (x · res, y · cos(pitch) · res). */
+    plate: { res: number; pitch: number } | null;
     /** The light pools (V-07c): how many of each kind show, and whether their layer is drawn (not at Low). */
     pools: { heart: number; portal: number; tower: number; shown: boolean };
   } {
@@ -902,6 +905,7 @@ export class WorldRenderer {
       creep3dStates: [...new Set(creeps3d.flatMap((r) => [...r.shownStates]))].sort(),
       impacts: this.impactsLanded,
       ground: this.plate ? 'plate' : this.ground ? 'painted' : 'none',
+      plate: this.plate ? { res: this.plate.layout.res, pitch: this.plate.layout.pitch } : null,
       pools: this.poolStats(),
     };
   }
