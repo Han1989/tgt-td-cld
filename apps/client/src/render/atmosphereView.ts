@@ -24,17 +24,22 @@ import {
   type WeatherQuality,
 } from './fx/atmosphere';
 import { FX } from './palette';
+import { flatRatio, viewCos } from './view';
 
 const S = TILE_PX;
 
 /** The 32 px spark frame drawn as a streak `STREAK.length` long, this thick (world px). */
 const STREAK_THICK = 2.2;
+/** A rain splash's ring, height against width (render/view.ts: the ground's cos(pitch); 0.6 at `?pitch=0`). */
+const SPLASH_RATIO = flatRatio(0.6);
 const SPARK_W = 32;
 const SPARK_H = 8;
 
 /** One fixed-size particle layer: `n` particles made at once, each drawn from `frame` (or a frame per index). */
 class FixedLayer {
   readonly container: ParticleContainer;
+  /** cos(pitch): the drops are worked out over the ground and drawn at their view position (render/view.ts). */
+  private readonly cos = viewCos();
   readonly parts: Particle[] = [];
   private readonly bgr: number[] = [];
 
@@ -66,7 +71,7 @@ class FixedLayer {
   set(i: number, d: Drop, sx: number, sy: number, alphaScale: number): void {
     const p = this.parts[i]!;
     p.x = d.x;
-    p.y = d.y;
+    p.y = d.y * this.cos;
     p.rotation = d.rotation;
     p.scaleX = sx;
     p.scaleY = sy;
@@ -180,7 +185,8 @@ export class AtmosphereView {
     for (let i = 0; i < this.splashes.length; i++) {
       rainSplash(i, now, this.splashSpots, d);
       const s = calm ? 0.09 : d.scale;
-      this.splashes.set(i, d, s, s * 0.6, 0.55);
+      // A splash's ring lies on the ground: cos(pitch) as tall as wide on the tilted camera (0.6 before it).
+      this.splashes.set(i, d, s, s * SPLASH_RATIO, 0.55);
     }
     for (let i = 0; i < this.leaves.length; i++) {
       fallingLeaf(i, calm ? 0 : now, this.box, d);

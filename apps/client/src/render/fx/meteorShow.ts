@@ -12,6 +12,7 @@
 // no fall and no shake: the circle, then the flash and the scorch.
 
 import { Container, Sprite, Texture } from 'pixi.js';
+import { viewCos } from '../view';
 import { getMap, TILE_PX, TUNING } from '@tdt/sim';
 import type { CreepSnap, ZoneSnap } from '@tdt/protocol';
 import { METEOR_COLORS } from '../palette';
@@ -176,7 +177,8 @@ export class MeteorShow {
   ) {
     this.wash = new Sprite(Texture.WHITE);
     this.wash.width = this.map.width * S;
-    this.wash.height = this.map.height * S;
+    // Over the map as drawn: the tilted camera draws its rows cos(pitch) as tall (render/view.ts).
+    this.wash.height = this.map.height * S * viewCos();
     this.wash.alpha = 0;
     this.wash.visible = false;
     // Circles first (under the sky meteors), then the sky meteors' layers.
@@ -188,6 +190,11 @@ export class MeteorShow {
       const head = this.makeHead(this.skyLayers);
       this.sky.push({ head, kind: 'meteor', at: 0, life: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, live: false });
     }
+  }
+
+  /** The warning circles' squash: cos(pitch), as they lie on the ground (browser tests). */
+  circleSquash(): number {
+    return this.slots[0]?.circle.scale.y ?? 1;
   }
 
   get falling(): number {
@@ -360,7 +367,8 @@ export class MeteorShow {
       const at = fallAt(f.kind, p, f.finale);
       const tx = f.x * S;
       const ty = f.y * S;
-      s.circle.position.set(tx, ty);
+      // The warning circle lies on the ground: its point's view position, squashed by cos(pitch) (render/view.ts).
+      s.circle.position.set(tx, ty * viewCos());
       const t = Math.max(0, Math.min(1, p));
       const appear = Math.min(1, t * 6);
       const { radius } = strikeSize(f.kind);
@@ -495,6 +503,7 @@ export class MeteorShow {
 
   private makeSlot(circles: Container): Slot {
     const circle = new Container();
+    circle.scale.y = viewCos();
     const ring = new Sprite(this.atlas.frames.warn);
     const inner = new Sprite(this.atlas.frames.ring);
     for (const sp of [ring, inner]) sp.anchor.set(0.5);
@@ -551,7 +560,13 @@ const headSprites = (h: Head): Sprite[] => [h.glow, h.trail, h.inner, h.rock, h.
 /** The hot face is the leading edge, a little ahead of the rock's middle. */
 const CORE_AHEAD = 3;
 
-function placeHead(h: Head, x: number, y: number): void {
+/**
+ * A meteor's head at (x, y) world px: its fall is worked out over the ground (the point it falls onto, its offset from
+ * it), then drawn at the view position (render/view.ts), so the head, its trail and the smoke and embers it sheds
+ * (`meteorWake`, placed by `emit` the same way) stay together.
+ */
+function placeHead(h: Head, x: number, gy: number): void {
+  const y = gy * viewCos();
   const a = fallAngle('meteor');
   h.glow.position.set(x, y);
   h.trail.position.set(x, y);

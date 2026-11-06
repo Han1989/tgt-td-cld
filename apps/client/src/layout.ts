@@ -12,6 +12,11 @@
 //   centred; the HUD sits in the side margins (and the touch controls too, on a
 //   touch screen).
 // - `rotate`: a phone held sideways; the page asks to rotate to portrait.
+//
+// The tilted camera (V-08b, render/view.ts): the ground's rows are drawn `cos(pitch)` as tall as its columns are wide,
+// so the map is `mapH · tilePx · cos` tall on screen (`rowPx` a row). `tilePx` stays a tile's width.
+
+import { pitchCos } from './render/view';
 
 /** Top bar height (px, excluding the safe-area inset). Holds 44 px touch targets. */
 export const TOP_BAR_H = 44;
@@ -44,9 +49,15 @@ export const EDGE_GAP = 8;
 export const GESTURE_GAP = 12;
 /** Room above the buttons for the skill-learn "+" badges (px). */
 export const LEARN_ALLOWANCE = 4;
-/** The ⤢ button (back to the whole map, V-07e): its side, a touch target, and its gap to the top bar and the map's edge (px). */
+/** The ⤢ button (back to the whole map, V-07e): its side, a touch target, and its gap to the map's right edge (px). */
 export const ZOOM_BTN_PX = 44;
 export const ZOOM_BTN_GAP = 4;
+/**
+ * Its gap under the top bar (px). The tilted camera (V-08b) draws the rows over the east column's first pad (rows 0–4)
+ * cos(pitch) as tall: 48 px on a 360-wide phone, so the button sits 2 px under the bar (4 before) and ends 2 px over
+ * that pad there, 9 px on a 412 × 839 phone.
+ */
+export const ZOOM_BTN_TOP_GAP = 2;
 
 /**
  * Controls layout (⚙ → Controls layout), two choices. The stick: `float` (the default) walks the hero from a drag
@@ -101,6 +112,8 @@ export interface LayoutInput {
   mapW: number;
   mapH: number;
   safeFromY: number;
+  /** The camera's pitch (degrees from straight down); the one in use (render/view.ts) when left out. */
+  pitch?: number;
 }
 
 export interface Controls {
@@ -117,8 +130,10 @@ export interface Controls {
 
 export interface Layout {
   kind: LayoutKind;
-  /** Tile size on screen (px). */
+  /** Tile size on screen (px): a tile's width. */
   tilePx: number;
+  /** A tile row's height on screen (px): `tilePx · cos(pitch)` (the tilted camera, render/view.ts). */
+  rowPx: number;
   /** The map's screen rect with the camera at rest. */
   map: Rect;
   /** Tall layout: bottom of the top bar (safe-area inset included). */
@@ -145,11 +160,13 @@ export function isPhone(w: number, h: number): boolean {
 
 export function computeLayout(input: LayoutInput): Layout {
   const { w, h, insets, touch, mapW, mapH } = input;
+  const cos = pitchCos(input.pitch);
   const phone = touch && isPhone(w, h);
   if (phone && input.landscape) {
     return {
       kind: 'rotate',
       tilePx: 0,
+      rowPx: 0,
       map: rect(0, 0, 0, 0),
       topBarBottom: 0,
       margin: 0,
@@ -160,10 +177,12 @@ export function computeLayout(input: LayoutInput): Layout {
     };
   }
 
-  const wideTile = Math.min((h - 2 * WIDE_PAD) / mapH, (w - 2 * SIDE_MIN) / mapW);
+  // The pitched map is shorter, so fitted to the height it is drawn bigger (1 / cos): the side margins narrow with it
+  // (the HUD's panels are `--margin` wide, so they stay clear of the map), never under SIDE_MIN.
+  const wideTile = Math.min((h - 2 * WIDE_PAD) / (mapH * cos), (w - 2 * SIDE_MIN) / mapW);
   if (!phone && wideTile >= WIDE_MIN_TILE) {
     const mw = mapW * wideTile;
-    const mh = mapH * wideTile;
+    const mh = mapH * wideTile * cos;
     const left = (w - mw) / 2;
     const top = (h - mh) / 2;
     const margin = left;
@@ -171,12 +190,13 @@ export function computeLayout(input: LayoutInput): Layout {
     return {
       kind: 'wide',
       tilePx: wideTile,
+      rowPx: wideTile * cos,
       map: rect(left, top, left + mw, top + mh),
       topBarBottom: 0,
       margin,
       controls,
       followRange: 0,
-      gameplayBottom: top + input.safeFromY * wideTile,
+      gameplayBottom: top + input.safeFromY * wideTile * cos,
       zoomButton: null,
     };
   }
@@ -185,16 +205,18 @@ export function computeLayout(input: LayoutInput): Layout {
   // portrait tablets and narrow windows fit the whole map.
   const topBarBottom = insets.top + TOP_BAR_H;
   const widthFit = (w - insets.left - insets.right) / mapW;
-  const heightFit = (h - topBarBottom) / mapH;
+  const heightFit = (h - topBarBottom) / (mapH * cos);
   const tilePx = phone ? widthFit : Math.min(widthFit, heightFit);
+  const rowPx = tilePx * cos;
   const mw = mapW * tilePx;
   const left = (w - mw) / 2;
-  const map = rect(left, topBarBottom, left + mw, topBarBottom + mapH * tilePx);
+  const map = rect(left, topBarBottom, left + mw, topBarBottom + mapH * rowPx);
   const controls = tallControls(input);
-  const gameplayBottom = topBarBottom + input.safeFromY * tilePx;
+  const gameplayBottom = topBarBottom + input.safeFromY * rowPx;
   return {
     kind: 'tall',
     tilePx,
+    rowPx,
     map,
     topBarBottom,
     margin: left,
@@ -205,10 +227,10 @@ export function computeLayout(input: LayoutInput): Layout {
   };
 }
 
-/** The ⤢ button: ZOOM_BTN_PX square at the map's top right, ZOOM_BTN_GAP under the top bar and in from the edge. */
+/** The ⤢ button: ZOOM_BTN_PX square at the map's top right, ZOOM_BTN_TOP_GAP under the top bar, ZOOM_BTN_GAP in from the edge. */
 function zoomButtonRect(map: Rect, topBarBottom: number, screenRight: number): Rect {
   const right = Math.min(map.right, screenRight) - ZOOM_BTN_GAP;
-  const top = topBarBottom + ZOOM_BTN_GAP;
+  const top = topBarBottom + ZOOM_BTN_TOP_GAP;
   return rect(right - ZOOM_BTN_PX, top, right, top + ZOOM_BTN_PX);
 }
 
@@ -220,7 +242,7 @@ function zoomButtonRect(map: Rect, topBarBottom: number, screenRight: number): R
 export function followOffset(layout: Layout, heroY: number | null): number {
   if (layout.followRange <= 0 || heroY === null || !layout.controls) return 0;
   const bandMid = (layout.topBarBottom + layout.controls.top) / 2;
-  const heroScreen = layout.map.top + heroY * layout.tilePx;
+  const heroScreen = layout.map.top + heroY * layout.rowPx;
   return clamp(heroScreen - bandMid, 0, layout.followRange);
 }
 

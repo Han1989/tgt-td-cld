@@ -1,9 +1,12 @@
 import type { SkillSnap } from '@tdt/protocol';
 import { describe, expect, it } from 'vitest';
-import { MAX_PHONE_ZOOM } from '../src/input/camera';
+import { Camera, MAX_PHONE_ZOOM } from '../src/input/camera';
+import { viewCos } from '../src/render/view';
 import {
+  AIM_DRAG_PX,
   aimPoint,
   arrowTo,
+  boxRect,
   buildPress,
   BUILD_PREVIEW_MS,
   CHIP_GAP,
@@ -83,8 +86,25 @@ describe('joystick', () => {
     const t = stickMoveTarget(HERO, { dx: 0, dy: -50, mag: 1 }, 50)!;
     expect(t.x).toBeCloseTo(HERO.x);
     expect(t.y).toBeLessThan(HERO.y);
+    // On screen the hero walks the way the stick points: the tilted camera draws the ground's y cos(pitch) shorter, so a
+    // 45° push is a ground step (1, 1 / cos), drawn at 45° (V-08b).
+    const cos = viewCos();
     const diag = stickMoveTarget(HERO, { dx: 30, dy: 30, mag: 0.85 }, 50)!;
-    expect(diag.x - HERO.x).toBeCloseTo(diag.y - HERO.y);
+    expect((diag.y - HERO.y) * cos).toBeCloseTo(diag.x - HERO.x);
+    expect(Math.hypot(diag.x - HERO.x, diag.y - HERO.y)).toBeCloseTo(STICK_AHEAD, 6);
+    // At ?pitch=0 (cos 1) the ground and the screen agree.
+    const flat = stickMoveTarget(HERO, { dx: 30, dy: 30, mag: 0.85 }, 50, STICK_AHEAD, STICK_FEELS.normal, 1)!;
+    expect(flat.x - HERO.x).toBeCloseTo(flat.y - HERO.y);
+  });
+
+  it('aims a drag the way it points on screen, as far as its share of the range (the tilted camera)', () => {
+    const cos = viewCos();
+    const up = aimPoint(HERO, 6, { x: 0, y: -AIM_DRAG_PX });
+    expect(up.x).toBeCloseTo(HERO.x);
+    expect(up.y).toBeCloseTo(HERO.y - 6);
+    const diag = aimPoint(HERO, 6, { x: 30, y: 30 });
+    expect((diag.y - HERO.y) * cos).toBeCloseTo(diag.x - HERO.x);
+    expect(Math.hypot(diag.x - HERO.x, diag.y - HERO.y)).toBeCloseTo((Math.hypot(30, 30) / AIM_DRAG_PX) * 6, 6);
   });
 
   it('reaches a full push well inside the base, and draws the knob ahead of the finger', () => {
@@ -216,6 +236,54 @@ describe('snap to the nearest target', () => {
     if (r.type === 'tie') expect(r.picks.map((p) => p.id).sort()).toEqual([1, 2]);
     expect(arrowTo({ x: 100, y: 100 }, { x: 70, y: 100 })).toBe('←');
     expect(arrowTo({ x: 100, y: 100 }, { x: 100, y: 60 })).toBe('↑');
+  });
+
+  it('the tilted camera: a pad is a box cos(pitch) as tall as it is wide, and a tap below it misses (V-08b)', () => {
+    const cos = viewCos();
+    const flat: Candidate = { kind: 'pad', id: 3, at: { x: 100, y: 100 }, half: 24, halfY: 24 * cos, shape: 'box' };
+    expect(boxRect(flat)).toEqual({ left: 76, top: 100 - 24 * cos, right: 124, bottom: 100 + 24 * cos });
+    // Inside its width, under its (shorter) bottom edge: 24 - 24 · cos px away.
+    const r = resolveTap({ x: 100, y: 124 }, [flat]);
+    expect(r.type === 'pick' && r.pick.d).toBeCloseTo(24 - 24 * cos, 9);
+  });
+
+  it("a tower's drawn body is a target over the pad behind it, and the one drawn in front wins (camera-options.md, Taps)", () => {
+    const cos = viewCos();
+    const half = 24;
+    // A tower whose roof stands 30 px over its pad's top edge, and the pad behind it, 2.5 · 16 · cos px further up.
+    const tower: Candidate = { kind: 'tower', id: 9, at: { x: 100, y: 200 }, half, halfY: half * cos, rise: 30, shape: 'box' };
+    const behind: Candidate = { kind: 'pad', id: 4, at: { x: 100, y: 200 - 64 * cos }, half, halfY: half * cos, shape: 'box' };
+    const roof = { x: 100, y: 200 - half * cos - 20 };
+    // The roof overlaps the pad behind: the tap is the tower, not a picker and not the pad.
+    expect(boxRect(behind).bottom).toBeGreaterThan(roof.y);
+    const r = resolveTap(roof, [behind, tower]);
+    expect(r.type).toBe('pick');
+    if (r.type === 'pick') expect(r.pick).toMatchObject({ kind: 'tower', id: 9, d: 0 });
+    // Well above the roof, inside only the pad behind: the pad.
+    const top = resolveTap({ x: 100, y: 200 - half * cos - 44 }, [behind, tower]);
+    expect(top.type === 'pick' && top.pick.id).toBe(4);
+  });
+
+  it('taps land on the ground through the camera: a tap on a pad drawn on the tilted map picks that pad', () => {
+    const cos = viewCos();
+    const cam = new Camera(26 * 32, 50 * 32);
+    cam.resize(412, 839);
+    const zoom = 412 / 832;
+    cam.fit({ left: 0, top: 44, right: 412, bottom: 44 + 50 * 32 * zoom * cos }, zoom);
+    // Two pads of Spire's west column, rows 4–6 and 8–10 (centres y 5.5 and 9.5), 3 tiles wide.
+    const pads = [5.5, 9.5].map((y, id): Candidate => {
+      const at = cam.worldToScreen(2 * 32, y * 32);
+      return { kind: 'pad', id, at, half: 1.5 * 32 * zoom, halfY: 1.5 * 32 * zoom * cos, shape: 'box' };
+    });
+    for (const [id, y] of [5.5, 9.5].entries()) {
+      // Just inside each pad's bottom edge on the ground (1.4 tiles below its centre), drawn cos(pitch) higher.
+      const p = cam.worldToScreen(2 * 32, (y + 1.4) * 32);
+      const r = resolveTap(p, pads);
+      expect(r.type === 'pick' && r.pick.id).toBe(id);
+      // The same screen point read back is that ground point.
+      const g = cam.screenToWorld(p.x, p.y);
+      expect(g.y / 32).toBeCloseTo(y + 1.4, 9);
+    }
   });
 
   it('ignores taps in the control overlay', () => {

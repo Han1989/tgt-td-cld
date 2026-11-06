@@ -6,6 +6,12 @@
 // atlas: adding or removing a particle never rebuilds the scene's draw list (in Pixi v8,
 // toggling visibility or redrawing a Graphics does). Low quality (FxLevel) keeps only
 // the "essential" effects — rings, flashes and a few numbers — and drops the rest.
+//
+// The tilted camera (V-08b, render/view.ts): recipes take ground points (tiles in, world px out) and `emit` places
+// each particle at its point's view position (y × cos(pitch)). A particle stands upright (sparks, smoke, numbers: it
+// moves on screen as drawn) unless it is `flat`: then it lies on the ground, drawn cos(pitch) as tall and moving over
+// the ground (rings, area flashes, dust spreading out). The `ground` layer is drawn under the world's ground plane,
+// which squashes it already, so its particles keep their ground px.
 
 import { Container, Particle, ParticleContainer, type Texture } from 'pixi.js';
 import { TILE_PX, TUNING } from '@tdt/sim';
@@ -16,6 +22,7 @@ import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
 import { arrowRain, flight, pullMotes, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
 import { Shake } from './shake';
+import { viewCos } from '../view';
 import { AOE_COLORS, COLORS, FX, METEOR_COLORS, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
 import type { MeteorKind } from './meteors';
 
@@ -54,6 +61,11 @@ export interface Emit {
   layer?: FxLayerName;
   /** Shown even when particles are off (Low quality): rings, flashes, numbers. */
   essential?: boolean;
+  /**
+   * Lies on the ground (the tilted camera, render/view.ts): drawn cos(pitch) as tall, its spread and its speed across the
+   * ground too. Rings and area flashes are; sparks, smoke and numbers stand upright. The `ground` layer always is.
+   */
+  flat?: boolean;
 }
 
 /** One pooled particle layer. Its container draws `parts` directly (the same array). */
@@ -64,6 +76,8 @@ class Layer {
   private readonly stretched: boolean[] = [];
   /** Tint of each particle in BGR, as the particle's packed `color` wants it. */
   private readonly bgr: number[] = [];
+  /** Each particle's height against its width: cos(pitch) for one lying flat on the ground (render/view.ts), else 1. */
+  private readonly flat: number[] = [];
   private readonly spareBits: Bit[] = [];
   private readonly spareParts: Particle[] = [];
 
@@ -71,6 +85,8 @@ class Layer {
     texture: Texture,
     blend: 'normal' | 'add',
     private readonly cap: number,
+    /** Drawn under the world's ground plane (squashed by cos(pitch) already): its bits keep their ground px. */
+    readonly plane = false,
   ) {
     this.container = new ParticleContainer({
       texture,
@@ -84,8 +100,8 @@ class Layer {
     return this.bits.length;
   }
 
-  /** A fresh bit drawn with `tex`, or null when the layer is full. */
-  add(tex: Texture, tint: number, stretched: boolean): Bit | null {
+  /** A fresh bit drawn with `tex`, or null when the layer is full. `flat`: its height against its width (1 upright). */
+  add(tex: Texture, tint: number, stretched: boolean, flat = 1): Bit | null {
     if (this.bits.length >= this.cap) return null;
     const b = this.spareBits.pop() ?? newBit();
     Object.assign(b, BLANK);
@@ -97,12 +113,23 @@ class Layer {
     this.bits.push(b);
     this.parts.push(p);
     this.stretched.push(stretched);
+    this.flat.push(flat);
     this.container.update();
     return b;
   }
 
+  /** The live bits lying flat on the ground: each one's height against its width as drawn (browser tests). */
+  flatRatios(): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.parts.length; i++) {
+      const p = this.parts[i]!;
+      if (this.flat[i] !== 1 && !this.stretched[i] && p.scaleX > 0) out.push(p.scaleY / p.scaleX);
+    }
+    return out;
+  }
+
   update(dtMs: number): void {
-    const { bits, parts, stretched, bgr } = this;
+    const { bits, parts, stretched, bgr, flat } = this;
     let removed = false;
     for (let i = bits.length - 1; i >= 0; i--) {
       if (stepBit(bits[i]!, dtMs)) continue;
@@ -114,10 +141,12 @@ class Layer {
       parts[i] = parts[last]!;
       stretched[i] = stretched[last]!;
       bgr[i] = bgr[last]!;
+      flat[i] = flat[last]!;
       bits.pop();
       parts.pop();
       stretched.pop();
       bgr.pop();
+      flat.pop();
       removed = true;
     }
     for (let i = 0; i < bits.length; i++) {
@@ -127,7 +156,7 @@ class Layer {
       p.x = b.x;
       p.y = b.y;
       p.scaleX = stretched[i] ? s * b.stretch : s;
-      p.scaleY = s;
+      p.scaleY = s * flat[i]!;
       p.rotation = b.rotation;
       const a = Math.max(0, Math.min(1, bitAlpha(b)));
       p.color = bgr[i]! + (((a * 255) | 0) << 24);
@@ -142,6 +171,7 @@ class Layer {
     this.parts.length = 0;
     this.stretched.length = 0;
     this.bgr.length = 0;
+    this.flat.length = 0;
     this.container.update();
   }
 }
@@ -216,13 +246,16 @@ export class Effects {
 
   constructor(private readonly atlas: FxAtlas) {
     const base = atlas.frames.dot;
-    this.ground = new Layer(base, 'normal', 260);
+    this.ground = new Layer(base, 'normal', 260, true);
     this.normal = new Layer(base, 'normal', 700);
     this.add = new Layer(base, 'add', 900);
     this.text = new Layer(base, 'normal', 260);
   }
 
-  /** Puts the layers in the scene: `ground` goes under entities, the rest above. */
+  /**
+   * Puts the layers in the scene: `ground` goes under entities (in the world's ground plane, squashed by cos(pitch)),
+   * the rest above.
+   */
   attach(groundParent: Container, topParent: Container): void {
     groundParent.addChild(this.ground.container);
     topParent.addChild(this.normal.container, this.add.container, this.text.container);
@@ -235,6 +268,11 @@ export class Effects {
   /** The device asks for reduced motion: effects keep their rings and flashes, not what moves. */
   get calm(): boolean {
     return this.level.calm;
+  }
+
+  /** Every live effect ring and area flash lying on the ground: its height against its width (browser tests). */
+  flatRatios(): number[] {
+    return [...this.normal.flatRatios(), ...this.add.flatRatios()];
   }
 
   /** Live particles, for the stress test. */
@@ -290,9 +328,14 @@ export class Effects {
     const tex = typeof e.frame === 'string' ? this.atlas.frames[e.frame] : e.frame;
     const count = e.count ?? 1;
     const tints = typeof e.tint === 'number' ? null : e.tint;
+    // The tilted camera: the ground point's view position; a flat bit's spread and speed are on the ground too. The
+    // ground layer is under the ground plane, which squashes it already.
+    const cos = viewCos();
+    const y0 = layer.plane ? e.y : e.y * cos;
+    const fy = !layer.plane && e.flat ? cos : 1;
     for (let i = 0; i < count; i++) {
       const tint = tints ? tints[(Math.random() * tints.length) | 0]! : (e.tint as number);
-      const b = layer.add(tex, tint, (e.stretch ?? 1) !== 1);
+      const b = layer.add(tex, tint, (e.stretch ?? 1) !== 1, fy);
       if (!b) return;
       const a = e.angle ? rand(e.angle[0], e.angle[1]) : Math.random() * TAU;
       const sp = e.speed ? rand(e.speed[0], e.speed[1]) : 0;
@@ -300,9 +343,9 @@ export class Effects {
       const oa = Math.random() * TAU;
       const j = e.jitter ? 1 + (Math.random() * 2 - 1) * e.jitter : 1;
       b.x = e.x + Math.cos(oa) * off;
-      b.y = e.y + Math.sin(oa) * off;
+      b.y = y0 + Math.sin(oa) * off * fy;
       b.vx = Math.cos(a) * sp;
-      b.vy = Math.sin(a) * sp;
+      b.vy = Math.sin(a) * sp * fy;
       b.gravity = e.gravity ?? 0;
       b.drag = e.drag ?? 0;
       b.align = e.align ?? false;
@@ -318,7 +361,7 @@ export class Effects {
     }
   }
 
-  /** An expanding ring (tile units). Essential: it shows an area. */
+  /** An expanding ring (tile units) on the ground: an ellipse on the tilted camera. Essential: it shows an area. */
   ring(x: number, y: number, radius: number, color: number, life: number, from = 0.5, frame: FxFrame = 'ring'): void {
     this.emit({
       frame,
@@ -331,6 +374,7 @@ export class Effects {
       hold: 0.2,
       layer: 'add',
       essential: true,
+      flat: true,
     });
   }
 
@@ -379,8 +423,11 @@ export class Effects {
     this.sparkle(x1, y1, colorB, 8, 0.5);
   }
 
-  /** A filled flash of a radius (tile units) that fades. Essential. */
-  flash(x: number, y: number, radius: number, color: number, life: number, alpha = 0.6, layer: FxLayerName = 'add'): void {
+  /**
+   * A filled flash of a radius (tile units) that fades. Essential. It lights the ground round its point (an ellipse on
+   * the tilted camera) unless `flat` is false: a flash on a body (a blow landing, a cast leaving the hands).
+   */
+  flash(x: number, y: number, radius: number, color: number, life: number, alpha = 0.6, layer: FxLayerName = 'add', flat = true): void {
     this.emit({
       frame: 'glow',
       x: x * S,
@@ -391,6 +438,7 @@ export class Effects {
       alpha: [alpha, 0],
       layer,
       essential: true,
+      flat,
     });
   }
 
@@ -417,7 +465,8 @@ export class Effects {
       const b = this.text.add(tex, color, false);
       if (!b) break;
       b.x = x * S + g.x * k;
-      b.y = y * S - 10;
+      // The ground point's view position, then 10 px over it on screen (the tilted camera, render/view.ts).
+      b.y = y * S * viewCos() - 10;
       b.vx = vx;
       b.vy = vy;
       b.gravity = 70 * k;
@@ -464,7 +513,7 @@ export class Effects {
    */
   meleeImpact(x: number, y: number, angle: number): void {
     const k = this.bitScale;
-    this.flash(x, y, 0.42 * k, FX.moonLight, 150, 0.85);
+    this.flash(x, y, 0.42 * k, FX.moonLight, 150, 0.85, 'add', false);
     this.emit({
       frame: 'star',
       x: x * S,
@@ -740,7 +789,7 @@ export class Effects {
       const b = this.text.add(tex, AOE_COLORS.taunt, false);
       if (!b) break;
       b.x = c.x * S;
-      b.y = c.y * S - 16;
+      b.y = c.y * S * viewCos() - 16;
       b.vy = -30 * k;
       b.life = 700;
       b.scale0 = k * 1.8;
@@ -876,7 +925,7 @@ export class Effects {
 
   /** Fireball leaves the Arcanist's hands. */
   castFlare(x: number, y: number, color: number): void {
-    this.flash(x, y, 0.6, color, 220, 0.7);
+    this.flash(x, y, 0.6, color, 220, 0.7, 'add', false);
     if (!this.particles) return;
     this.emit({
       frame: 'dot',
@@ -1570,6 +1619,8 @@ export class Effects {
         scale: [0.5, 1.1],
         alpha: [0.45, 0],
         tint: color,
+        // Rolling out over the ground: an ellipse on the tilted camera.
+        flat: true,
       });
     }
   }

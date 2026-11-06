@@ -148,6 +148,8 @@ interface Hook {
   layout(): {
     kind: string;
     tilePx: number;
+    /** A tile row's height on screen (px): tilePx × cos(pitch) (V-08b). */
+    rowPx: number;
     topBarBottom: number;
     followRange: number;
     gameplayBottom: number;
@@ -168,9 +170,24 @@ interface Hook {
   camera: {
     zoom: number;
     centerOn(x: number, y: number): void;
-    worldToScreen(x: number, y: number): { x: number; y: number };
+    /** A ground point (world px; `z` px above it) to the screen, through the tilted camera (V-08b). */
+    worldToScreen(x: number, y: number, z?: number): { x: number; y: number };
+    /** A screen point to the ground point under it (world px). */
     screenToWorld(x: number, y: number): { x: number; y: number };
   };
+  /** The tilted camera (V-08b): its pitch (degrees; `?pitch=0` the old camera) and cos(pitch). */
+  view(): { pitch: number; cos: number };
+  /** The draw order: upright things sorted in it, whether they stand back to front now, the pitch. */
+  depth(): { actors: number; sorted: boolean; pitch: number };
+  /**
+   * The ground as drawn (V-08b): the ground plane's and the overlay's squash, every live effect ring and area flash on
+   * the ground, the heroes' vow rings and the meteors' warning circles: each one's height against its width.
+   */
+  ground(): { plane: number; overlay: number; flat: number[]; vow: number[]; meteorCircles: number };
+  /** What a tap at (x, y) screen px would pick (nothing happens): none, one target, or a tie for the picker. */
+  tapAt(x: number, y: number): TapPick;
+  /** Every tap target now: pads without a tower, towers (their drawn body over the ground behind: `rise`), creeps. */
+  tapTargets(): TapTarget[];
   /** Phones: the camera's zoom, times the fitted zoom (1 = the whole map; V-07e). */
   zoom(): number;
   /** Solo: holds or resumes the simulation (no paused card). */
@@ -178,6 +195,22 @@ interface Hook {
   /** The units' scales drawn (null: the layout's own). */
   scales(s: { hero: number; creep: number; tower: number } | null): void;
 }
+
+/** A tap target (touch/gestures.ts `Candidate`): its screen centre, half its width, half its height, its rise. */
+export interface TapTarget {
+  kind: 'pad' | 'tower' | 'creep';
+  id: number;
+  at: { x: number; y: number };
+  half: number;
+  shape: 'box' | 'circle';
+  halfY?: number;
+  rise?: number;
+}
+
+export type TapPick =
+  | { type: 'none' }
+  | { type: 'pick'; pick: TapTarget & { d: number } }
+  | { type: 'tie'; picks: (TapTarget & { d: number })[] };
 
 /** The ?showcase page's hook (showcase.ts). */
 interface ShowcaseHook {
@@ -319,6 +352,72 @@ export async function lessonCard(page: Page): Promise<{
 
 export function overlaps(a: Box, b: Box): boolean {
   return a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+}
+
+/**
+ * Waits until the camera stands still: the same screen position and zoom on three animation frames running. On a shorter
+ * phone (the iPhone profile, 390 × 664) the camera eases into its vertical hero follow over the first second of a match
+ * (`followOffset`): a position read during the ease is off by the time a tap lands (the iPhone shard, 6 Nov 2026).
+ */
+export async function cameraStill(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __camKey?: string; __camSame?: number };
+      const c = window.__tdt.camera;
+      const o = c.worldToScreen(0, 0);
+      const key = `${o.x.toFixed(2)},${o.y.toFixed(2)},${c.zoom.toFixed(4)}`;
+      w.__camSame = w.__camKey === key ? (w.__camSame ?? 0) + 1 : 0;
+      w.__camKey = key;
+      return w.__camSame >= 2;
+    },
+    undefined,
+    { polling: 'raf' },
+  );
+}
+
+/**
+ * Where to tap a pad: its centre, or the point of its drawn box nearest the centre that the game canvas owns (no top
+ * bar, ⤢ button, chip or control over it or within 8 px) and where a tap picks the pad (or its tower), once the camera
+ * stands still. Null when none of it is tappable. On the tilted
+ * camera a pad is cos(pitch) as tall as it is wide, and on the iPhone a followed camera can bring a top-row pad's centre
+ * under the ⤢ button (V-08b).
+ */
+export async function padTapPoint(page: Page, padId: number): Promise<{ x: number; y: number } | null> {
+  await cameraStill(page);
+  return page.evaluate((id) => {
+    const t = window.__tdt;
+    const pad = t.map.pads[id]!;
+    const half = (t.map.padSize / 2) * 32 * t.camera.zoom;
+    const halfY = half * t.view().cos;
+    const c = t.camera.worldToScreen(pad.x * 32, pad.y * 32);
+    const canvas = document.getElementById('game-canvas');
+    const l = t.layout();
+    const bottom = l.controls && l.kind === 'tall' ? l.controls.top : innerHeight;
+    const towerId = t.latest()!.towers.find((k) => k.padId === id)?.id;
+    // Free: on screen between the top bar and the controls, the canvas's with 8 px to spare on each side (Chromium's
+    // touch adjustment hands a touch 1 px beside a button, the ⤢ one included, to that button), and a tap there picks
+    // this pad, or the tower standing on it (no other drawn box in front of them).
+    const M = 8;
+    const canvasAt = (x: number, y: number) => document.elementFromPoint(x, y) === canvas;
+    const free = (x: number, y: number) => {
+      if (y <= l.topBarBottom + M || y >= bottom - M) return false;
+      if (![[0, 0], [M, 0], [-M, 0], [0, M], [0, -M]].every(([dx, dy]) => canvasAt(x + dx!, y + dy!))) return false;
+      const r = t.tapAt(x, y);
+      if (r.type !== 'pick') return false;
+      if (r.pick.kind === 'pad') return r.pick.id === id;
+      return r.pick.kind === 'tower' && towerId === r.pick.id;
+    };
+    let best: { x: number; y: number; d: number } | null = null;
+    // 2 px in from the box's edges, every 3 px; the nearest free point to the centre.
+    for (let dy = -halfY + 2; dy <= halfY - 2; dy += 3) {
+      for (let dx = -half + 2; dx <= half - 2; dx += 3) {
+        const d = dx * dx + dy * dy;
+        if ((!best || d < best.d) && free(c.x + dx, c.y + dy)) best = { x: c.x + dx, y: c.y + dy, d };
+      }
+    }
+    if (free(c.x, c.y)) return { x: c.x, y: c.y };
+    return best ? { x: best.x, y: best.y } : null;
+  }, padId);
 }
 
 /** Screen position of a world point in tiles. */

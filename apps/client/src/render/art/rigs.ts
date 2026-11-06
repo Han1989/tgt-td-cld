@@ -8,6 +8,7 @@ import type { CreepSnap, SkillSlot, TowerBranch } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import { Container, Graphics, Sprite, type ColorSource } from 'pixi.js';
 import { fade } from '../fade';
+import { flatRatio } from '../view';
 import type { ArtKit } from './kit';
 import type { CreepArt, CreepRigView, Gait, HeroPose, HeroRig, TowerArt } from './registry';
 
@@ -284,6 +285,9 @@ export const CAST_MS = 480;
 /** A standing hero's slow breath (px, at most 0.35 up or down): the rigs' idle bob, and the standing poses'. */
 export const breath = (now: number): number => Math.sin(now / 500) * 0.35;
 
+/** The common contact shadow's frame (common.ts): an ellipse 20 × 9 px, this much as tall as wide. */
+const SHADOW_RATIO = 9 / 20;
+
 export abstract class HeroRigBase implements HeroRig {
   readonly body = new Container();
   /** Everything that flips with the facing, flinches and falls over; pivots at the feet. */
@@ -317,13 +321,16 @@ export abstract class HeroRigBase implements HeroRig {
     /** Ground ring / shadow radius, px. */
     ring: number,
   ) {
+    // The ring and the shadow lie on the ground at the feet: cos(pitch) as tall as wide on the tilted camera
+    // (render/view.ts), 0.4 and the shadow's frame's 0.45 before it (`?pitch=0`).
+    const ratio = flatRatio(0.4);
     if (mine) {
       // Your hero: a ring on the ground (drawn once).
-      this.ground.addChild(new Graphics().ellipse(0, feet + 1, ring, ring * 0.4).stroke({ width: 2, color: 0xffffff, alpha: 0.9 }));
+      this.ground.addChild(new Graphics().ellipse(0, feet + 1, ring, ring * ratio).stroke({ width: 2, color: 0xffffff, alpha: 0.9 }));
     }
     const shadow = kit.sprite('common', 'shadow');
     shadow.position.set(0, feet + 1);
-    shadow.scale.set(ring / 25);
+    shadow.scale.set(ring / 25, ((ring / 25) * flatRatio(SHADOW_RATIO)) / SHADOW_RATIO);
     this.ground.addChild(shadow);
     this.flipper.pivot.set(0, feet);
     this.flipper.position.set(0, feet);

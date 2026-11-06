@@ -74,6 +74,25 @@ export function ultPops(events: readonly GameEvent[]): UltPop[] {
   return pops;
 }
 
+/**
+ * A Rampart Slam's count is held until its lane quake has been drawn to the end, at most this long after the count came
+ * (ms): longer than the longest quake the lanes allow (about 37 tiles at 16 a second, 2.3 s), so it binds only when
+ * something is wrong. The sim counts the slam when its front hits the last creep; the drawn front starts on the frame
+ * after the cast and runs on the render clock, so it can be a frame or more behind on a slow device, and it runs on to
+ * the lane's ends: without the hold the count showed while the crack was still running (the iPhone shard, 6 Nov 2026).
+ */
+export const QUAKE_POP_CAP_MS = 2500;
+
+/** Whether a popup waits for a lane quake being drawn: Rampart Slam's (its front runs along the lane). */
+export function waitsForQuake(pop: UltPop): boolean {
+  return pop.tag === 'rampartSlam';
+}
+
+/** A held popup shows once no quake is being drawn any more, or `QUAKE_POP_CAP_MS` after it came, whichever is first. */
+export function heldPopDue(heldAt: number, now: number, quakeDrawing: boolean): boolean {
+  return !quakeDrawing || now - heldAt >= QUAKE_POP_CAP_MS;
+}
+
 // ---------------------------------------------------------------------------
 // The R button
 // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@
 import type { SkillSnap } from '@tdt/protocol';
 import { MAX_PHONE_ZOOM } from '../input/camera';
 import { clamp, FLOAT_R, inRect, type Rect } from '../layout';
+import { screenDirToGround, viewCos } from '../render/view';
 
 export interface Pt {
   x: number;
@@ -84,16 +85,28 @@ export function stickVector(c: Pt, p: Pt, r: number): StickVec {
   return { dx, dy, mag: Math.min(1, len / r) };
 }
 
-/** Where to send the hero for a stick vector (tile units), or null inside the dead zone. */
-export function stickMoveTarget(hero: Pt, v: StickVec, r: number, ahead = STICK_AHEAD, feel: StickFeel = STICK_FEELS.normal): Pt | null {
+/**
+ * Where to send the hero for a stick vector (tile units), or null inside the dead zone. The hero walks the way the
+ * stick points on screen: on the tilted camera's ground (render/view.ts, `cos` = cos(pitch)) that is (dx, dy / cos).
+ */
+export function stickMoveTarget(
+  hero: Pt,
+  v: StickVec,
+  r: number,
+  ahead = STICK_AHEAD,
+  feel: StickFeel = STICK_FEELS.normal,
+  cos = viewCos(),
+): Pt | null {
   const len = Math.hypot(v.dx, v.dy);
   if (len < feel.dead || len === 0) return null;
   // A short drag is already a full lead. The base radius is only the grab area.
   const full = Math.min(Math.max(1, r), feel.full);
   const push = Math.min(1, (len - feel.dead) / Math.max(1, full - feel.dead));
   const reach = ahead * (0.65 + 0.35 * push);
-  // Screen and world axes point the same way (the map is never rotated).
-  return { x: hero.x + (v.dx / len) * reach, y: hero.y + (v.dy / len) * reach };
+  // The map is never rotated: screen x is the ground's x, and screen y its y drawn cos(pitch) shorter.
+  const g = screenDirToGround(v.dx, v.dy, cos);
+  const glen = Math.hypot(g.x, g.y);
+  return { x: hero.x + (g.x / glen) * reach, y: hero.y + (g.y / glen) * reach };
 }
 
 /**
@@ -326,13 +339,15 @@ export function smartCast(hero: Pt, skill: SkillSnap, rule: SmartCastRule, creep
 
 /**
  * Drag-to-aim: the drag vector from the button (px) sets the direction, and its length
- * (up to AIM_DRAG_PX) the distance, as a share of the skill's range.
+ * (up to AIM_DRAG_PX) the distance, as a share of the skill's range. The point lies the way the drag points on screen:
+ * on the tilted camera's ground (render/view.ts) the drag (dx, dy) is the ground's (dx, dy / cos).
  */
-export function aimPoint(hero: Pt, range: number, drag: Pt, fullPx = AIM_DRAG_PX): Pt {
+export function aimPoint(hero: Pt, range: number, drag: Pt, fullPx = AIM_DRAG_PX, cos = viewCos()): Pt {
   const len = Math.hypot(drag.x, drag.y);
   if (len === 0 || range <= 0) return { x: hero.x, y: hero.y };
-  const k = (Math.min(1, len / fullPx) * range) / len;
-  return { x: hero.x + drag.x * k, y: hero.y + drag.y * k };
+  const g = screenDirToGround(drag.x, drag.y, cos);
+  const k = (Math.min(1, len / fullPx) * range) / Math.hypot(g.x, g.y);
+  return { x: hero.x + g.x * k, y: hero.y + g.y * k };
 }
 
 /** Releasing a drag back on the button (with a little slack) cancels the cast. */
@@ -351,9 +366,16 @@ export interface Candidate {
   id: number;
   /** Screen centre (px). */
   at: Pt;
-  /** Pads and towers: half the box edge (px). Creeps: body radius (px). */
+  /** Pads and towers: half the box's width (px). Creeps: body radius (px). */
   half: number;
   shape: 'box' | 'circle';
+  /**
+   * Boxes: half the box's height (px), when it is not `half`: a pad on the tilted camera's ground is `cos(pitch)` as
+   * tall as it is wide (render/view.ts).
+   */
+  halfY?: number;
+  /** Boxes: how far (px) the box reaches above `at` beyond `halfY` (a tower's drawn body standing over its pad). */
+  rise?: number;
 }
 
 export interface Scored extends Candidate {
@@ -363,17 +385,31 @@ export interface Scored extends Candidate {
 
 export type TapResult = { type: 'none' } | { type: 'pick'; pick: Scored } | { type: 'tie'; picks: Scored[] };
 
+/** A box candidate's screen rect (px). */
+export function boxRect(c: Candidate): Rect {
+  const hy = c.halfY ?? c.half;
+  return { left: c.at.x - c.half, top: c.at.y - hy - (c.rise ?? 0), right: c.at.x + c.half, bottom: c.at.y + hy };
+}
+
 export function edgeDistance(p: Pt, c: Candidate): number {
   if (c.shape === 'circle') return Math.max(0, Math.hypot(p.x - c.at.x, p.y - c.at.y) - c.half);
-  return Math.hypot(Math.max(0, Math.abs(p.x - c.at.x) - c.half), Math.max(0, Math.abs(p.y - c.at.y) - c.half));
+  const r = boxRect(c);
+  return Math.hypot(Math.max(0, r.left - p.x, p.x - r.right), Math.max(0, r.top - p.y, p.y - r.bottom));
 }
 
 /**
  * The target a tap at `p` means: the candidate with the nearest edge within `snap` px. When
  * several are within `tie` px of the best, returns them all (up to 4) for a picker.
+ *
+ * The tilted camera (docs/art/camera-options.md, "Taps"): a tall tower's drawn body stands over the ground behind its
+ * pad. A tap inside boxes that overlap goes to the one drawn in front (the lowest on screen, as `depth` draws them):
+ * the boxes behind it are left out, so a tap on a tower's roof is that tower, never the pad behind it.
  */
 export function resolveTap(p: Pt, candidates: readonly Candidate[], snap = SNAP_PX, tie = TIE_PX): TapResult {
+  const inside = candidates.filter((c) => c.shape === 'box' && edgeDistance(p, c) === 0);
+  const front = inside.length > 1 ? inside.reduce((a, b) => (b.at.y > a.at.y ? b : a)) : null;
   const scored = candidates
+    .filter((c) => !front || c === front || !inside.includes(c))
     .map((c) => ({ ...c, d: edgeDistance(p, c) }))
     .filter((c) => c.d <= snap)
     .sort((a, b) => a.d - b.d || kindOrder(a.kind) - kindOrder(b.kind));

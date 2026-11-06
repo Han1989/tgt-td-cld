@@ -15,6 +15,7 @@ import {
   zoomLabel,
 } from '../src/input/camera';
 import { computeLayout } from '../src/layout';
+import { CAMERA_PITCH, setPitch, viewCos } from '../src/render/view';
 
 describe('Camera', () => {
   it('converts between screen and world coordinates', () => {
@@ -52,10 +53,48 @@ describe('Camera', () => {
     expect(bottomRight.y).toBeLessThan(1920 + 400);
   });
 
+  it('works in view px: the ground y drawn cos(pitch) shorter, a height z px drawn z · sin(pitch) higher (V-08b)', () => {
+    const cos = Math.cos((CAMERA_PITCH * Math.PI) / 180);
+    expect(viewCos()).toBeCloseTo(cos, 12);
+    const cam = new Camera(26 * 32, 50 * 32);
+    cam.resize(412, 839);
+    cam.fit({ left: 0, top: 44, right: 412, bottom: 44 + 50 * 32 * (412 / 832) * cos }, 412 / 832);
+    const zoom = 412 / 832;
+    // World (0, 0) at the frame's top left; a ground y of 1000 px lies 1000 · cos · zoom px lower on screen.
+    expect(cam.worldToScreen(0, 0).x).toBeCloseTo(0, 9);
+    expect(cam.worldToScreen(0, 0).y).toBeCloseTo(44, 9);
+    expect(cam.worldToScreen(320, 1000).y).toBeCloseTo(44 + 1000 * cos * zoom, 9);
+    expect(cam.worldToScreen(320, 1000).x).toBeCloseTo(320 * zoom, 9);
+    expect(cam.worldToScreen(320, 1000, 100).y).toBeCloseTo(44 + (1000 * cos - 50) * zoom, 9);
+    // Back: a tap lands on the ground.
+    const tap = cam.screenToWorld(200, 500);
+    const again = cam.worldToScreen(tap.x, tap.y);
+    expect(again.x).toBeCloseTo(200, 9);
+    expect(again.y).toBeCloseTo(500, 9);
+    // The map is 50 tiles of ground, drawn 50 · 32 · cos tall: the frame's bottom is its bottom edge.
+    expect(cam.worldToScreen(0, 50 * 32).y).toBeCloseTo(44 + 50 * 32 * cos * zoom, 9);
+    expect(cam.spanH).toBeCloseTo(50 * 32 * cos, 9);
+  });
+
+  it('?pitch=0 (browser-test builds): the camera from straight down, as before V-08b', () => {
+    setPitch(0);
+    try {
+      const cam = new Camera(26 * 32, 50 * 32);
+      cam.resize(412, 839);
+      cam.fit({ left: 0, top: 44, right: 412, bottom: 836 }, 412 / 832);
+      expect(cam.worldToScreen(320, 1000).y).toBeCloseTo(44 + 1000 * (412 / 832), 9);
+      expect(cam.spanH).toBe(50 * 32);
+    } finally {
+      setPitch(CAMERA_PITCH);
+    }
+    expect(viewCos()).toBeCloseTo(Math.cos(Math.PI / 6), 12);
+  });
+
   it('fits the map into a frame; the fitted zoom is the minimum and the map stays centred there', () => {
+    const cos = viewCos();
     const cam = new Camera(26 * 32, 50 * 32);
     cam.resize(1366, 768);
-    const zoom = 752 / (50 * 32);
+    const zoom = 752 / (50 * 32 * cos);
     const left = (1366 - 26 * 32 * zoom) / 2;
     cam.fit({ left, top: 8, right: 1366 - left, bottom: 760 }, zoom);
     expect(cam.worldToScreen(0, 0).x).toBeCloseTo(left);
@@ -115,6 +154,8 @@ describe('phones: pinch zoom and the zoomed follow (V-07e)', () => {
     expect(FOLLOW_BOX).toBeCloseTo(1 / 3);
     const level = 1.8;
     const px = ref.tilePx * level;
+    // A tile row is rowPx tall (the tilted camera).
+    const row = ref.rowPx * level;
     const band = followBand(ref);
     const frame = zoomFrame(ref, level);
     const box = {
@@ -126,30 +167,33 @@ describe('phones: pinch zoom and the zoomed follow (V-07e)', () => {
     // A hero in the middle of the map, the map at its left edge so the hero is right of the box: the map moves left
     // until the hero is on the box's right edge.
     const hero = { x: 13, y: 22 };
-    const o = followZoomed({ left: 0, top: 44 - 10 * px }, hero, px, band, frame, map.width, map.height);
+    const follow = (o: { left: number; top: number }, h: { x: number; y: number }) =>
+      followZoomed(o, h, px, band, frame, map.width, map.height, FOLLOW_BOX, row);
+    const o = follow({ left: 0, top: 44 - 10 * row }, hero);
     expect(o.left + hero.x * px).toBeCloseTo(box.right, 6);
     // And from the other side, onto its left edge.
-    const p = followZoomed({ left: 412 - map.width * px, top: 44 - 10 * px }, hero, px, band, frame, map.width, map.height);
+    const p = follow({ left: 412 - map.width * px, top: 44 - 10 * row }, hero);
     expect(p.left + hero.x * px).toBeCloseTo(box.left, 6);
-    const sy = o.top + hero.y * px;
+    const sy = o.top + hero.y * row;
     expect(sy).toBeGreaterThanOrEqual(box.top - 1e-6);
     expect(sy).toBeLessThanOrEqual(box.bottom + 1e-6);
     // Inside the box nothing moves.
-    expect(followZoomed(o, { x: hero.x - 1, y: hero.y }, px, band, frame, map.width, map.height)).toEqual(o);
+    expect(follow(o, { x: hero.x - 1, y: hero.y })).toEqual(o);
   });
 
   it('never shows past the map: at its corners the hero leaves the box rather than the map leaving the screen', () => {
     for (const layout of [ref, short]) {
       for (const level of [1.2, 1.5, 1.8]) {
         const px = layout.tilePx * level;
+        const row = layout.rowPx * level;
         const frame = zoomFrame(layout, level);
         for (const hero of [map.heroSpawn, map.heart, { x: 0.5, y: 0.5 }, { x: 25.5, y: 0.5 }, { x: 0.5, y: 39 }, { x: 25.5, y: 39 }]) {
           let o = { left: layout.map.left, top: layout.map.top };
-          for (let i = 0; i < 3; i++) o = followZoomed(o, hero, px, followBand(layout), frame, map.width, map.height);
+          for (let i = 0; i < 3; i++) o = followZoomed(o, hero, px, followBand(layout), frame, map.width, map.height, FOLLOW_BOX, row);
           expect(o.left).toBeLessThanOrEqual(frame.left + 1e-6);
           expect(o.left + map.width * px).toBeGreaterThanOrEqual(frame.right - 1e-6);
           expect(o.top).toBeLessThanOrEqual(frame.top + 1e-6);
-          expect(o.top + map.height * px).toBeGreaterThanOrEqual(frame.bottom - 1e-6);
+          expect(o.top + map.height * row).toBeGreaterThanOrEqual(frame.bottom - 1e-6);
         }
       }
     }
@@ -160,11 +204,14 @@ describe('phones: pinch zoom and the zoomed follow (V-07e)', () => {
       const c = layout.controls!;
       for (const level of [1, 1.4, 1.8]) {
         const px = layout.tilePx * level;
+        const row = layout.rowPx * level;
         const frame = zoomFrame(layout, level);
         // Followed as far down as it goes (the hero at the Heart's foot), the gameplay rows end above the controls.
         let o = { left: layout.map.left, top: layout.map.top };
-        for (let i = 0; i < 4; i++) o = followZoomed(o, { x: map.heart.x, y: map.safeFromY - 0.5 }, px, followBand(layout), frame, map.width, map.height);
-        expect(o.top + map.safeFromY * px, `${layout.map.right} wide at ${level}×`).toBeLessThanOrEqual(c.top + 1e-6);
+        for (let i = 0; i < 4; i++) {
+          o = followZoomed(o, { x: map.heart.x, y: map.safeFromY - 0.5 }, px, followBand(layout), frame, map.width, map.height, FOLLOW_BOX, row);
+        }
+        expect(o.top + map.safeFromY * row, `${layout.map.right} wide at ${level}×`).toBeLessThanOrEqual(c.top + 1e-6);
         // The centre box itself is above the controls and under the top bar.
         const band = followBand(layout);
         expect(band.bottom).toBe(c.top);
@@ -180,12 +227,12 @@ describe('phones: pinch zoom and the zoomed follow (V-07e)', () => {
     expect(z.drawnLevel).toBe(1);
     const mid = { x: 206, y: 400 };
     z.pinchStart(mid, ref);
-    const under = { x: (mid.x - fit.left) / ref.tilePx, y: (mid.y - fit.top) / ref.tilePx };
+    const under = { x: (mid.x - fit.left) / ref.tilePx, y: (mid.y - fit.top) / ref.rowPx };
     z.pinchTo(1.5, mid, ref);
     const v = z.frame(16, 16, ref, fit, map.heroSpawn);
     expect(v.level).toBe(1.5);
     expect(v.left + under.x * ref.tilePx * 1.5).toBeCloseTo(mid.x, 6);
-    expect(v.top + under.y * ref.tilePx * 1.5).toBeCloseTo(mid.y, 6);
+    expect(v.top + under.y * ref.rowPx * 1.5).toBeCloseTo(mid.y, 6);
     // Past the top left corner: the map's corner stays at the frame's corner.
     z.pinchTo(1.8, { x: 900, y: 900 }, ref);
     const w = z.frame(32, 16, ref, fit, map.heroSpawn);
@@ -211,7 +258,8 @@ describe('phones: pinch zoom and the zoomed follow (V-07e)', () => {
       let v = z.frame(16, 16, ref, fit, map.heroSpawn);
       for (let t = 32; t < 2000; t += 16) v = z.frame(t, 16, ref, fit, map.heroSpawn);
       const band = followBand(ref);
-      const px = ref.tilePx * 1.8;
+      // A row is rowPx tall (the tilted camera).
+      const px = ref.rowPx * 1.8;
       const sy = v.top + map.heroSpawn.y * px;
       const frame = zoomFrame(ref, 1.8);
       const lowest = v.top + map.height * px <= frame.bottom + 0.5;

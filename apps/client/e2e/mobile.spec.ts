@@ -2,7 +2,26 @@
 // Pixel projects), docs/MOBILE.md §8.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, centre, expectSameBoxes, Finger, framesAB, framesIn, Hand, lessonCard, overlaps, pinchOn, sent, stall, startSolo, waitForReady, type Box } from './helpers';
+import {
+  box,
+  cameraStill,
+  centre,
+  expectSameBoxes,
+  Finger,
+  framesAB,
+  framesIn,
+  Hand,
+  lessonCard,
+  overlaps,
+  padTapPoint,
+  pinchOn,
+  sent,
+  stall,
+  startSolo,
+  waitForReady,
+  type Box,
+  type TapTarget,
+} from './helpers';
 
 const OVERLAY = ['#joystick', '.tskill[data-slot="Q"] .tskill-btn', '.tskill[data-slot="W"] .tskill-btn', '.tskill[data-slot="E"] .tskill-btn', '.tskill[data-slot="R"] .tskill-btn'];
 
@@ -30,11 +49,10 @@ function heartVignette(page: Page): Promise<{ parent: string; shown: boolean; bo
 
 /** Taps the centre of a pad (by map pad id). */
 async function tapPad(page: Page, padId: number): Promise<void> {
-  const p = await page.evaluate((id) => {
-    const pad = window.__tdt.map.pads[id]!;
-    return window.__tdt.camera.worldToScreen(pad.x * 32, pad.y * 32);
-  }, padId);
-  await page.touchscreen.tap(p.x, p.y);
+  // Once the camera stands still, where the canvas owns the pad (helpers.ts, `padTapPoint`).
+  const p = await padTapPoint(page, padId);
+  expect(p, `pad ${padId} has a tappable point on screen`).not.toBeNull();
+  await page.touchscreen.tap(p!.x, p!.y);
 }
 
 /**
@@ -72,15 +90,58 @@ async function waitForCreepsNearHero(
   return { x: r.x, y: r.y };
 }
 
-/** Where a pad is on screen: its centre and box (px). */
+/** Where a pad is on screen: its centre and box (px; on the tilted camera cos(pitch) as tall as wide, V-08b). */
 async function padOnScreen(page: Page, padId: number): Promise<{ x: number; y: number; box: Box }> {
+  await cameraStill(page);
   return page.evaluate((id) => {
     const map = window.__tdt.map;
     const pad = map.pads[id]!;
     const c = window.__tdt.camera.worldToScreen(pad.x * 32, pad.y * 32);
     const half = (map.padSize / 2) * 32 * window.__tdt.camera.zoom;
-    return { x: c.x, y: c.y, box: { left: c.x - half, top: c.y - half, right: c.x + half, bottom: c.y + half } };
+    const halfY = half * window.__tdt.view().cos;
+    return { x: c.x, y: c.y, box: { left: c.x - half, top: c.y - halfY, right: c.x + half, bottom: c.y + halfY } };
   }, padId);
+}
+
+/**
+ * Holds the match (the sim paused) at a moment with a creep a tap picks on its own, clear of the top bar and the
+ * controls, and returns it as a tap target; the scene runs on 10 ticks between looks, at most 40 looks. Each look waits
+ * for the drawn frame to stand still (the camera and every drawn creep on three animation frames running), since the
+ * render runs behind the sim and a held sim's creeps still move for a few frames.
+ */
+async function heldCreepTarget(page: Page): Promise<TapTarget | undefined> {
+  for (let look = 0; look < 40; look++) {
+    await page.evaluate(() => window.__tdt.pause(true));
+    await page.waitForFunction(
+      () => {
+        const w = window as unknown as { __drawnKey?: string; __drawnSame?: number };
+        const t = window.__tdt;
+        const o = t.camera.worldToScreen(0, 0);
+        const creeps = t.tapTargets().filter((k) => k.kind === 'creep');
+        const key = `${o.x.toFixed(1)},${o.y.toFixed(1)}|${creeps.map((k) => `${k.at.x.toFixed(1)},${k.at.y.toFixed(1)}`).join(';')}`;
+        w.__drawnSame = w.__drawnKey === key ? (w.__drawnSame ?? 0) + 1 : 0;
+        w.__drawnKey = key;
+        return w.__drawnSame >= 2;
+      },
+      undefined,
+      { polling: 'raf' },
+    );
+    const target = await page.evaluate(() => {
+      const t = window.__tdt;
+      const l = t.layout();
+      const bottom = l.controls ? l.controls.top - 30 : innerHeight - 30;
+      return t.tapTargets().find((k) => {
+        if (k.kind !== 'creep' || k.at.y <= l.topBarBottom + 30 || k.at.y >= bottom) return false;
+        const r = t.tapAt(k.at.x, k.at.y);
+        return r.type === 'pick' && r.pick.kind === 'creep' && r.pick.id === k.id;
+      });
+    });
+    if (target) return target;
+    const tick = await page.evaluate(() => window.__tdt.latest()!.tick);
+    await page.evaluate(() => window.__tdt.pause(false));
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(tick + 10);
+  }
+  return undefined;
 }
 
 /** Visible page elements (not full-screen layers like the canvas or the HUD root) that overlap `b`. */
@@ -400,6 +461,11 @@ test.describe('portrait phone layout', () => {
     expect(layout.map.bottom).toBeLessThanOrEqual(839);
     expect(layout.followRange).toBe(0);
     expect(layout.tilePx).toBeGreaterThanOrEqual(412 / 26 - 0.01);
+    // The tilted camera (V-08b): the map 50 · tile · cos 30° tall (686 px), 109 px under it, 95 px over the controls.
+    expect(await page.evaluate(() => window.__tdt.view())).toEqual({ pitch: 30, cos: expect.closeTo(Math.cos(Math.PI / 6), 9) });
+    expect(Math.round(layout.map.bottom - layout.map.top)).toBe(686);
+    expect(Math.round(839 - layout.map.bottom)).toBe(109);
+    expect(Math.round(layout.controls!.top - layout.gameplayBottom)).toBe(95);
   });
 
   test('radial menus stay on screen and never cover the joystick or the skills', async ({ page }) => {
@@ -843,6 +909,8 @@ test.describe('portrait phone layout', () => {
     test(`the ring chip never covers a ring button, ${c.name}: build, preview, tier 3, and each specialisation buys`, async ({ page }) => {
       await startSolo(page, '?lab', 'full');
       const finger = await Finger.on(page);
+      // The top row on screen is read from where the camera rests (on the iPhone it eases into its hero follow first).
+      await cameraStill(page);
       const padId = await page.evaluate((where) => {
         const snap = window.__tdt.latest()!;
         const mine = snap.pads.filter((p) => p.owner === window.__tdt.me() || p.owner === null).map((p) => window.__tdt.map.pads[p.id]!);
@@ -854,10 +922,17 @@ test.describe('portrait phone layout', () => {
         if (where === 'rightLow') return right[mid + 1]!.id;
         if (where === 'left') return column(Math.min(...xs))[mid]!.id;
         // The top row on screen (a shorter phone follows the hero, so the map's own top row may be above the
-        // screen), rightmost: no room above the ring and the least room to the right.
-        const half = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom;
-        const top = window.__tdt.layout().topBarBottom;
-        const onScreen = mine.filter((p) => window.__tdt.camera.worldToScreen(p.x * 32, p.y * 32).y - half >= top);
+        // screen), rightmost: no room above the ring and the least room to the right. On screen: its drawn box under
+        // the top bar and clear of the ⤢ button (on the iPhone the follow lifts the top-right pad under it).
+        const halfX = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom;
+        const half = halfX * window.__tdt.view().cos;
+        const l = window.__tdt.layout();
+        const z = l.zoomButton;
+        const onScreen = mine.filter((p) => {
+          const c = window.__tdt.camera.worldToScreen(p.x * 32, p.y * 32);
+          if (c.y - half < l.topBarBottom) return false;
+          return !z || c.x + halfX <= z.left || c.x - halfX >= z.right || c.y - half >= z.bottom || c.y + half <= z.top;
+        });
         const topY = Math.min(...onScreen.map((p) => p.y));
         return onScreen.filter((p) => p.y === topY).sort((a, b) => b.x - a.x)[0]!.id;
       }, c.where);
@@ -1119,6 +1194,172 @@ test.describe('portrait phone layout', () => {
 
     await page.locator('#tutorial-skip').click();
     await expect(page.locator('#tutorial')).toBeHidden();
+  });
+});
+
+test.describe('the tilted camera (V-08b)', () => {
+  for (const pitch of [30, 0]) {
+    test(`taps land on what is drawn at ${pitch}°: every pad at its centre and inside each edge, a creep, a tower on its drawn body`, async ({ page }) => {
+      await startSolo(page, pitch === 30 ? '?lab' : '?lab&pitch=0');
+      await framesIn(page);
+      const view = await page.evaluate(() => window.__tdt.view());
+      expect(view.pitch).toBe(pitch);
+      expect(view.cos).toBeCloseTo(Math.cos((pitch * Math.PI) / 180), 9);
+      const l = await page.evaluate(() => window.__tdt.layout());
+      expect(l.rowPx).toBeCloseTo(l.tilePx * view.cos, 6);
+      // Every pad of the match: its tap box is its ground square as the camera draws it (padSize tiles wide, padSize ·
+      // cos tall), and a tap at its centre or 2 px inside any edge (on screen, clear of the controls) picks that pad.
+      const misses = await page.evaluate(() => {
+        const t = window.__tdt;
+        const l = t.layout();
+        const bottom = l.controls ? l.controls.top : innerHeight;
+        const out: string[] = [];
+        const targets = t.tapTargets();
+        for (const q of t.latest()!.pads) {
+          const pad = t.map.pads[q.id]!;
+          const a = t.camera.worldToScreen((pad.x - t.map.padSize / 2) * 32, (pad.y - t.map.padSize / 2) * 32);
+          const b = t.camera.worldToScreen((pad.x + t.map.padSize / 2) * 32, (pad.y + t.map.padSize / 2) * 32);
+          const c = targets.find((k) => k.kind === 'pad' && k.id === q.id);
+          if (!c) {
+            out.push(`pad ${q.id}: no target`);
+            continue;
+          }
+          const box = { left: c.at.x - c.half, right: c.at.x + c.half, top: c.at.y - (c.halfY ?? c.half), bottom: c.at.y + (c.halfY ?? c.half) };
+          if (Math.abs(box.left - a.x) > 0.01 || Math.abs(box.top - a.y) > 0.01 || Math.abs(box.right - b.x) > 0.01 || Math.abs(box.bottom - b.y) > 0.01) {
+            out.push(`pad ${q.id}: target ${JSON.stringify(box)} drawn ${JSON.stringify({ a, b })}`);
+          }
+          const mx = (a.x + b.x) / 2;
+          const my = (a.y + b.y) / 2;
+          for (const [x, y] of [[mx, my], [a.x + 2, my], [b.x - 2, my], [mx, a.y + 2], [mx, b.y - 2]] as const) {
+            if (y <= l.topBarBottom || y >= bottom) continue;
+            const r = t.tapAt(x, y);
+            if (r.type !== 'pick' || r.pick.kind !== 'pad' || r.pick.id !== q.id) out.push(`pad ${q.id} at ${x.toFixed(1)},${y.toFixed(1)}: ${r.type === 'pick' ? `${r.pick.kind} ${r.pick.id}` : r.type}`);
+          }
+        }
+        return out;
+      });
+      expect(misses).toEqual([]);
+
+      // A real tap 3 px inside a pad's drawn bottom edge opens its build ring; build there.
+      const padId = await page.evaluate(() => {
+        const t = window.__tdt;
+        const mine = t.latest()!.pads.filter((p) => p.owner === t.me() || p.owner === null).map((p) => t.map.pads[p.id]!);
+        // A pad well on screen, in the middle rows.
+        return mine.filter((p) => p.y > 12 && p.y < 24).sort((a, b) => a.y - b.y || a.x - b.x)[0]!.id;
+      });
+      const pad = await padOnScreen(page, padId);
+      expect(pad.box.bottom - pad.box.top).toBeCloseTo((pad.box.right - pad.box.left) * view.cos, 3);
+      await page.touchscreen.tap(pad.x, pad.box.bottom - 3);
+      await expect(page.locator('#radial[data-menu="build"] .radial-btn[data-tower="arrow"]')).toBeVisible();
+      await page.locator('.radial-btn[data-tower="arrow"]').tap();
+      await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+      await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+      // The tower's tap box is its pad's, plus its drawn body standing over the ground behind it (`rise`); a tap at its
+      // top opens its ring, never the pad behind it.
+      const tower = await page.evaluate((id) => {
+        const t = window.__tdt;
+        const tw = t.latest()!.towers.find((q) => q.padId === id)!;
+        return t.tapTargets().find((k) => k.kind === 'tower' && k.id === tw.id)!;
+      }, padId);
+      expect(tower.halfY).toBeCloseTo(tower.half * view.cos, 6);
+      const roofY = tower.at.y - (tower.halfY ?? tower.half) - (tower.rise ?? 0) + 2;
+      expect(await page.evaluate(([x, y]) => window.__tdt.tapAt(x, y), [tower.at.x, roofY] as const)).toMatchObject({ type: 'pick', pick: { kind: 'tower', id: tower.id } });
+      await page.touchscreen.tap(tower.at.x, roofY);
+      await expect(page.locator('#radial[data-menu="tower"] .radial-btn[data-action="upgrade"]')).toBeVisible();
+      await page.touchscreen.tap(l.map.left + 8, l.topBarBottom + 60);
+      await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+
+      // A creep: a tap on where it is drawn focuses it (an attack order), through the camera's inverse. The scene is held
+      // (the sim paused) and looked at once the camera and the drawn creeps stand still; a moment with no creep a tap
+      // picks on its own (two overlapping are a tie, the picker) runs on a few ticks and looks again.
+      await page.evaluate(() => window.__tdt.skipTo(2));
+      const target = await heldCreepTarget(page);
+      expect(target, 'a creep a tap picks on its own').toBeDefined();
+      await page.touchscreen.tap(target!.at.x, target!.at.y);
+      await expect.poll(() => sent(page, 'attack').then((a) => a.length)).toBeGreaterThan(0);
+      await page.evaluate(() => window.__tdt.pause(false));
+    });
+  }
+
+  test('a settings write mid-match (the zoom hint 3 s in, a mute) leaves the camera where its follow put it: no frame off', async ({ page }) => {
+    await startSolo(page);
+    // Where the camera puts the map's top left on every animation frame for 6 s, across the zoom hint's settings write
+    // and, 4 s in (whenever the hint came), one of our own: ⚙'s mute, clicked from script. The page's own frame loop runs
+    // first in each frame, so a frame drawn off shows here as an excursion.
+    const ys = await page.evaluate(
+      () =>
+        new Promise<number[]>((resolve) => {
+          const out: number[] = [];
+          const t0 = performance.now();
+          let muted = false;
+          const tick = () => {
+            out.push(window.__tdt.camera.worldToScreen(0, 0).y);
+            const t = performance.now() - t0;
+            if (!muted && t > 4000) {
+              muted = true;
+              document.getElementById('settings-mute')!.click();
+            }
+            if (t < 6000) requestAnimationFrame(tick);
+            else resolve(out);
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
+    // Both writes happened (each is a moment that used to refit the camera for a frame).
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings') ?? '{}'));
+    expect([stored.zoomHint, stored.muted]).toEqual(['seen', true]);
+    // Once the follow has eased in (the hero stands still at his spawn), the map never leaves its place again.
+    const settled = ys.at(-1)!;
+    const from = ys.findIndex((y) => Math.abs(y - settled) < 0.5);
+    expect(from).toBeGreaterThanOrEqual(0);
+    const off = ys.slice(from).filter((y) => Math.abs(y - settled) >= 0.5);
+    expect(off, `frames drawn off the follow after it settled (map top ${settled.toFixed(1)})`).toEqual([]);
+  });
+
+  test('a settings write while a finger holds a ring button keeps the button and its press: the ring is not rebuilt', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const [padId] = await myPadsBottomFirst(page);
+    await tapPad(page, padId!);
+    const chip = page.locator('#radial-chip');
+    await expect(chip).toHaveText('Tap to build · hold to preview');
+    // Hold Cannon (its preview lights), and mark the button the finger is on.
+    const cannon = centre(await box(page, '.radial-btn[data-tower="cannon"]'));
+    await finger.down(cannon.x, cannon.y);
+    await expect(page.locator('.radial-btn[data-tower="cannon"]')).toHaveClass(/previewing/);
+    await page.evaluate(() => {
+      document.querySelector<HTMLElement>('.radial-btn[data-tower="cannon"]')!.dataset.held = '1';
+    });
+    // A settings write mid-hold, as the zoom hint makes 3 s into a first match (here ⚙'s mute, clicked from script).
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          document.getElementById('settings-mute')!.click();
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings') ?? '{}').muted)).toBe(true);
+    // Two frames on, the held button is the same element, still lit, and lifting the finger ends the preview.
+    await expect(page.locator('.radial-btn[data-tower="cannon"][data-held="1"]')).toHaveCount(1);
+    await expect(page.locator('.radial-btn[data-tower="cannon"]')).toHaveClass(/previewing/);
+    await expect(chip).toContainText('Cannon');
+    await finger.up();
+    await expect(chip).toHaveText('Tap to build · hold to preview');
+    expect(await sent(page, 'build')).toHaveLength(0);
+  });
+
+  test('the draw order: upright things are sorted back to front by where they stand, walking creeps too', async ({ page }) => {
+    await startSolo(page);
+    await page.evaluate(() => window.__tdt.skipTo(2));
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.creeps.filter((c) => c.y > 6).length), { timeout: 30_000 }).toBeGreaterThan(3);
+    // The Heart, the three portals, your hero and the creeps: sorted on every frame they are drawn.
+    for (let i = 0; i < 5; i++) {
+      const d = await page.evaluate(() => window.__tdt.depth());
+      expect(d.pitch).toBe(30);
+      expect(d.actors).toBeGreaterThanOrEqual(8);
+      expect(d.sorted).toBe(true);
+      await page.waitForTimeout(150);
+    }
   });
 });
 

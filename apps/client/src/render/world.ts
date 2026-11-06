@@ -11,6 +11,13 @@
 // Effects (Phase 4b) are client-only: hits are read from creep HP dropping between
 // the snapshots being rendered, shots from projectiles appearing, and everything
 // else from snapshot events. See fx/effects.ts for the pooled particle layers.
+//
+// The tilted camera (V-08b, render/view.ts; docs/ART.md §16 "The camera"): the world is drawn in view px. The ground
+// (the plate, the pads' tints, the light pools, the ground effects) is in world px under one container squashed by
+// cos(pitch), `plane`, and so are the overlay's circles (`overlayPlane`, over everything as before); everything that
+// stands (towers, creeps, heroes, the Heart, the portals, projectiles, traps) is upright in `actors` at its ground
+// point's view position (`stand`), sorted back to front by `depth`. Rings that hang off an upright sprite (a creep's
+// status, a hero's vow and aura, the Heart's warning) are drawn as ellipses or under a small squashed container.
 
 import {
   isBossKind,
@@ -146,8 +153,14 @@ import {
 } from './art3d';
 import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
+import { depth, groundAngle, viewCos } from './view';
 
 const S = TILE_PX;
+
+/** Projectiles are drawn this far (tiles) in front of their ground point: over the tower they leave and what is by it. */
+const PROJECTILE_LIFT = 1.5;
+/** Snare traps lie on the ground: drawn this far (tiles) behind their point, under what stands on or round them. */
+const TRAP_LIFT = -1.5;
 /** A light whose plate failed to come in is asked for again this long after (ms). */
 const PLATE_RETRY_MS = 10_000;
 const TOWER_SIZE = 2.4;
@@ -410,6 +423,22 @@ interface TextFx {
 
 export class WorldRenderer {
   readonly world = new Container();
+  /** cos(pitch) (render/view.ts): set once, before the first match (browser tests' `?pitch=0` included). */
+  private readonly cos = viewCos();
+  /**
+   * The ground plane: world px squashed by cos(pitch) (render/view.ts). The plate, the pads' tints, the light pools and
+   * the ground effects (scorches, cracks, the level ring) lie in it, so every circle in it is an ellipse.
+   */
+  private readonly plane = new Container();
+  /** Everything that stands on the ground, upright at its point's view position, drawn back to front (`stand`). */
+  /**
+   * Its own render group: a `zIndex` change makes Pixi sort and rebuild the draw list, and walking creeps change theirs
+   * every frame, so only this list is rebuilt, not the whole world's (docs/ART.md §9: the stress scene's JavaScript a
+   * frame 19.6–19.8 ms sorted here against main's 17.4 in the same hour; 19.4–21.6 in the world's own list against 16.3).
+   */
+  private readonly actors = new Container({ isRenderGroup: true });
+  /** The overlay's ground marks (ranges, aims, pads, click marks), squashed too, over everything as before. */
+  private readonly overlayPlane = new Container();
   /**
    * The ground (the plate, or the painted ground until it decodes), then over it the pads' stone the plate lacks
    * (`padBaseLayer`), the light pools (in the ground's batch) and Bright's wash.
@@ -476,19 +505,12 @@ export class WorldRenderer {
   private readonly padLayer = new Container();
   private readonly pads = new Map<number, PadSprite>();
   private padKey = '';
-  private readonly portalLayer = new Container();
-  private readonly heartLayer = new Container();
-  private readonly trapLayer = new Container();
   private readonly zoneLayer = new Container();
   private readonly rains = new Map<number, RainSprite>();
   private readonly groundFxLayer = new Container();
-  private readonly towerLayer = new Container();
-  private readonly groundLayer = new Container();
-  private readonly heroLayer = new Container();
   private readonly airLayer = new Container();
   /** Every projectile's additive trail, under the projectiles: trails and bodies would break the batch at each shot. */
   private readonly trailLayer = new Container();
-  private readonly projectileLayer = new Container();
   private readonly fxLayer = new Container();
   private readonly textLayer = new Container();
   private readonly overlay = new Graphics();
@@ -628,29 +650,26 @@ export class WorldRenderer {
     this.mapLayer.addChild(this.plateLayer, this.padBaseLayer, this.poolLayer, this.brightWash);
     this.atmo = new AtmosphereView(this.atlas, this.map);
     this.lanternLayer.eventMode = 'none';
+    this.plane.scale.y = this.cos;
+    this.overlayPlane.scale.y = this.cos;
+    this.actors.sortableChildren = true;
+    this.plane.addChild(this.mapLayer, this.padLayer, this.groundFxLayer);
+    this.overlayPlane.addChild(this.overlay);
     this.world.addChild(
-      this.mapLayer,
-      this.padLayer,
+      this.plane,
       this.atmo.ground,
-      this.portalLayer,
-      this.heartLayer,
       this.zoneLayer,
-      this.groundFxLayer,
-      this.trapLayer,
-      this.towerLayer,
+      this.actors,
       this.lanternLayer,
-      this.groundLayer,
-      this.heroLayer,
       this.atmo.air,
       this.airLayer,
       this.meteors.wash,
       this.meteors.air,
       this.trailLayer,
-      this.projectileLayer,
       this.fxLayer,
       this.atmo.sky,
       this.textLayer,
-      this.overlay,
+      this.overlayPlane,
     );
     this.fx.attach(this.groundFxLayer, this.fxLayer);
     this.zoneLayer.addChild(this.meteors.ground);
@@ -720,15 +739,64 @@ export class WorldRenderer {
     };
   }
 
-  /** Where your hero is drawn (tiles), for the browser tests' latency trace. */
+  /** Where your hero is drawn (tiles, on the ground), for the browser tests' latency trace. */
   heroDrawn(): { x: number; y: number } | null {
-    for (const s of this.heroes.values()) if (s.look.endsWith(':true') && s.root.visible) return { x: s.root.x / S, y: s.root.y / S };
+    for (const s of this.heroes.values()) if (s.look.endsWith(':true') && s.root.visible) return this.groundOf(s.root);
     return null;
+  }
+
+  /**
+   * Stands `root` on the ground at (x, y) tiles: its view position (render/view.ts) and its place in the draw order,
+   * `lift` tiles in front of its point (written only when it changes).
+   */
+  private stand(root: Container, x: number, y: number, lift = 0): void {
+    root.position.set(x * S, y * S * this.cos);
+    // Only in the sorted group: a `zIndex` written anywhere else would make Pixi rebuild the whole world's draw list.
+    if (root.parent !== this.actors) return;
+    const z = depth(y, lift);
+    if (root.zIndex !== z) root.zIndex = z;
+  }
+
+  /** Where an upright thing stands (tiles, on the ground), from its view position: `stand`'s inverse. */
+  private groundOf(root: Container): { x: number; y: number } {
+    return { x: root.x / S, y: root.y / (S * this.cos) };
+  }
+
+  /**
+   * The draw order (browser tests): the upright things sorted in it, whether they stand back to front now (each one's
+   * `zIndex` its depth, the list in that order once Pixi has sorted it), and the pitch it was made for.
+   */
+  depthStats(): { actors: number; sorted: boolean; pitch: number } {
+    const kids = this.actors.children;
+    let sorted = true;
+    for (let i = 1; i < kids.length; i++) if (kids[i]!.zIndex < kids[i - 1]!.zIndex) sorted = false;
+    return { actors: kids.length, sorted, pitch: Math.round((Math.acos(this.cos) * 180) / Math.PI) };
+  }
+
+  /**
+   * The ground's geometry as drawn (browser tests): the ground plane's and the overlay's squash, and every live effect
+   * ring and area flash lying on the ground, its height against its width (each cos(pitch) on the tilted camera).
+   */
+  groundStats(): { plane: number; overlay: number; flat: number[]; vow: number[]; meteorCircles: number } {
+    const vow: number[] = [];
+    for (const s of this.heroes.values()) if (s.vow.outer.parent) vow.push(s.vow.outer.parent.scale.y);
+    return {
+      plane: this.plane.scale.y,
+      overlay: this.overlayPlane.scale.y,
+      flat: this.fx.flatRatios(),
+      vow,
+      meteorCircles: this.meteors.circleSquash(),
+    };
   }
 
   /** Rampart Slam's lane quakes: started and over, the crack marks and the fronts' leading marks stamped (browser tests). */
   quakeStats(): { runs: number; done: number; marks: number; leads: number; running: number } {
     return { ...this.quakeStamped, running: this.quakes.length };
+  }
+
+  /** Whether a Rampart Slam's quake front is still being drawn (the HUD holds its count until it is not). */
+  quakeDrawing(): boolean {
+    return this.quakes.length > 0;
   }
 
   /**
@@ -883,10 +951,33 @@ export class WorldRenderer {
     return best;
   }
 
-  /** Tower under a world point (tile units), if any. */
+  /**
+   * Tower under a world point (tile units, on the ground: where a click lands), if any. The tilted camera
+   * (docs/art/camera-options.md, "Taps"): a tower is its pad and its drawn body standing over the ground behind it
+   * (`towerRise`), and of two the one drawn in front wins.
+   */
   pickTower(x: number, y: number): TowerSnap | undefined {
     const half = this.map.padSize / 2;
-    return this.drawnTowers.find((t) => Math.abs(t.x - x) <= half && Math.abs(t.y - y) <= half);
+    const vy = y * this.cos;
+    let best: TowerSnap | undefined;
+    for (const t of this.drawnTowers) {
+      if (Math.abs(t.x - x) > half) continue;
+      const bottom = (t.y + half) * this.cos;
+      const top = (t.y - half) * this.cos - this.towerRise(t) / S;
+      if (vy < top || vy > bottom) continue;
+      if (!best || t.y > best.y) best = t;
+    }
+    return best;
+  }
+
+  /**
+   * How far (view px at zoom 1) a tower's drawn body reaches above its pad's top edge on screen: its art, at the scale it
+   * is drawn, from its point up. A tap there is that tower (`pickTower`, `touchControls`' candidates).
+   */
+  towerRise(t: TowerSnap): number {
+    const s = this.towers.get(t.id);
+    const reach = towerReach(t.kind, t.tier, t.branch, s?.art?.is3d === true);
+    return Math.max(0, reach * towerScale(this.scales.tower, reach) - (this.map.padSize / 2) * S * this.cos);
   }
 
   /** Creeps as last drawn (interpolated positions, tile units), for touch snapping. */
@@ -1186,8 +1277,7 @@ export class WorldRenderer {
         case 'levelUp': {
           const hero = this.heroes.get(e.heroId);
           if (!hero) break;
-          const hx = hero.root.x / S;
-          const hy = hero.root.y / S;
+          const { x: hx, y: hy } = this.groundOf(hero.root);
           this.floatText(`Level ${e.level}!`, hx, hy - 1, COLORS.good, now);
           fx.levelRing(hx, hy);
           fx.ring(hx, hy, 1.4, COLORS.gold, 500, 0.2, 'shock');
@@ -1219,7 +1309,8 @@ export class WorldRenderer {
           // The rig's attack animation (a swing, a thrust, the bow's release) is keyed to the real attack.
           const hero = this.heroes.get(e.heroId);
           if (!hero) break;
-          const aim = Math.atan2(e.y * S - hero.root.y, e.x * S - hero.root.x);
+          const at = this.groundOf(hero.root);
+          const aim = groundAngle(e.x - at.x, e.y - at.y, this.cos);
           const delay = hero.art?.shot(now, aim) ?? 0;
           // Melee: the impact plays when the blade lands (ranged hits show when the projectile arrives).
           if (!TUNING.hero[hero.kind].ranged) this.impacts.push({ at: now + delay, heroId: e.heroId, x: e.x, y: e.y });
@@ -1242,8 +1333,7 @@ export class WorldRenderer {
           // Rampart Slam reached this hero, wherever they stand: a green number and a ring over them.
           const hero = this.heroes.get(e.heroId);
           if (!hero) break;
-          const hx = hero.root.x / S;
-          const hy = hero.root.y / S;
+          const { x: hx, y: hy } = this.groundOf(hero.root);
           fx.ring(hx, hy, 1.5, COLORS.good, 520, 0.2, 'shock');
           fx.ring(hx, hy, 0.9, FX.moonLight, 360, 0.3);
           fx.sparkle(hx, hy, COLORS.good, 8, 0.5);
@@ -1323,7 +1413,8 @@ export class WorldRenderer {
           const hero = this.heroes.get(e.heroId);
           if (!hero) break;
           const color = HERO_COLORS[hero.kind].fill;
-          fx.death(hero.root.x / S, hero.root.y / S, color, TUNING.hero[hero.kind].radius, false, this.scales.hero);
+          const at = this.groundOf(hero.root);
+          fx.death(at.x, at.y, color, TUNING.hero[hero.kind].radius, false, this.scales.hero);
           if (now - hero.diedAt > DEATH.hero.ms) hero.diedAt = now;
           break;
         }
@@ -1478,19 +1569,20 @@ export class WorldRenderer {
         }
       }
       const hero = this.heroes.get(i.heroId);
-      const dx = hero ? x - hero.root.x / S : 1;
-      const dy = hero ? y - hero.root.y / S : 0;
-      this.fx.meleeImpact(x, y, Math.atan2(dy, dx));
+      const from = hero ? this.groundOf(hero.root) : null;
+      const dx = from ? x - from.x : 1;
+      const dy = from ? y - from.y : 0;
+      // The blow's direction on screen (the tilted camera draws the ground's y cos(pitch) shorter).
+      this.fx.meleeImpact(x, y, groundAngle(dx, dy, this.cos));
       this.onMeleeImpact(i.heroId, x, y);
-      if (id >= 0) this.creeps.get(id)?.art?.knock(now, dx, dy);
+      if (id >= 0) this.creeps.get(id)?.art?.knock(now, dx, dy * this.cos);
     }
   }
 
   private cast(heroId: number, slot: string, x: number, y: number): void {
     const hero = this.heroes.get(heroId);
     if (!hero) return;
-    const hx = hero.root.x / S;
-    const hy = hero.root.y / S;
+    const { x: hx, y: hy } = this.groundOf(hero.root);
     const fx = this.fx;
     switch (`${hero.kind}.${slot}`) {
       case 'ranger.Q':
@@ -1532,7 +1624,8 @@ export class WorldRenderer {
     let best: HeroSprite | undefined;
     let bestD = 1.5 * S;
     for (const h of this.heroes.values()) {
-      const d = Math.hypot(h.root.x - x * S, h.root.y - y * S);
+      const at = this.groundOf(h.root);
+      const d = Math.hypot(at.x - x, at.y - y) * S;
       if (d < bestD) {
         best = h;
         bestD = d;
@@ -1543,7 +1636,7 @@ export class WorldRenderer {
 
   private towerPos(id: number, latest: Snapshot | undefined): { x: number; y: number } | undefined {
     const s = this.towers.get(id);
-    if (s) return { x: s.root.x / S, y: s.root.y / S };
+    if (s) return this.groundOf(s.root);
     // A sold or destroyed tower leaves the snapshots before its event is drawn.
     return latest?.towers.find((t) => t.id === id) ?? this.goneTowers.get(id);
   }
@@ -1731,7 +1824,8 @@ export class WorldRenderer {
     for (const lane of this.map.lanes) {
       const p = lane.waypoints[0]!;
       const root = new Container();
-      root.position.set(p.x * S, (p.y + 1) * S);
+      this.actors.addChild(root);
+      this.stand(root, p.x, p.y + 1);
       const view = portalView3d();
       const k = view ? PORTAL_OPENING : 1;
       const swirl = this.art.sprite(art.id, 'swirl');
@@ -1750,7 +1844,6 @@ export class WorldRenderer {
       } else {
         root.addChild(this.art.sprite(art.id, 'rim'), core, swirl, flare);
       }
-      this.portalLayer.addChild(root);
       this.portals.push({ root, swirl, core, flare, x: p.x, y: p.y + 1, view, k });
     }
   }
@@ -1850,14 +1943,16 @@ export class WorldRenderer {
     const { x, y } = this.map.heart;
     const art = heartArt();
     const root = new Container();
-    root.position.set(x * S, y * S);
+    this.actors.addChild(root);
+    this.stand(root, x, y);
     const view = heartView3d();
-    const glow = new Graphics().circle(0, 0, S * 2.2).fill({ color: COLORS.heart, alpha: 0.35 });
+    // Its glow and warning ring lie on the ground round it: ellipses on the tilted camera.
+    const glow = new Graphics().ellipse(0, 0, S * 2.2, S * 2.2 * this.cos).fill({ color: COLORS.heart, alpha: 0.35 });
     const warn = new Sprite(this.atlas.frames.shock);
     warn.anchor.set(0.5);
     warn.tint = FX.heartWarn;
     warn.blendMode = 'add';
-    warn.scale.set((S * 2.6) / RING_PX);
+    warn.scale.set((S * 2.6) / RING_PX, ((S * 2.6) / RING_PX) * this.cos);
     fade(warn, 0);
     const blaze = new Sprite(this.atlas.frames.glow);
     blaze.anchor.set(0.5);
@@ -1883,7 +1978,6 @@ export class WorldRenderer {
         return { sprite, share: w.share };
       });
       root.addChild(glow, warn, view.root, ...windows.map((w) => w.sprite), blaze);
-      this.heartLayer.addChild(root);
       return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y, blazeY: view.keep.y, windows };
     }
     const base = this.art.sprite(art.id, 'base');
@@ -1895,7 +1989,6 @@ export class WorldRenderer {
     for (const s of [flash, cracks1, cracks2]) fade(s, 0);
     for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
     root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
-    this.heartLayer.addChild(root);
     return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY, blazeY: art.gemY, windows: [] };
   }
 
@@ -1910,7 +2003,7 @@ export class WorldRenderer {
     const hit = Math.max(0, 1 - (now - this.heartHitAt) / HEART_HIT_MS);
     const { x, y } = this.map.heart;
     const wobble = hit * hit * 5;
-    h.root.position.set(x * S + Math.sin(now / 17) * wobble, y * S + Math.cos(now / 23) * wobble);
+    h.root.position.set(x * S + Math.sin(now / 17) * wobble, y * S * this.cos + Math.cos(now / 23) * wobble);
     const stage = heartStage(this.heartFrac);
     const gem = h.gem;
     if (gem) {
@@ -1934,14 +2027,17 @@ export class WorldRenderer {
       for (const w of h.windows) fade(w.sprite, lit * w.share);
     }
     fade(h.warn, low ? 0.35 + 0.35 * Math.sin(now / 160) : 0);
-    h.warn.scale.set(((S * 2.6) / RING_PX) * (1 + (low ? beat * 0.12 : 0)));
+    const warn = ((S * 2.6) / RING_PX) * (1 + (low ? beat * 0.12 : 0));
+    h.warn.scale.set(warn, warn * this.cos);
 
     // Damage states: cracks under 60% HP; under 30% it splits open and blazes.
     if (stage !== this.heartShown) {
       if (this.heartShown >= 0 && stage > this.heartShown) {
         // It just cracked (further): shards of ruby and a flash.
-        this.fx.shards(x, y + h.fxY / S, [COLORS.heart, FX.heartShard, FX.ember], stage === 2 ? 18 : 12, 170);
-        this.fx.flash(x, y + h.fxY / S, 1.6, FX.heartBlaze, 360, 0.7);
+        // At the gem or the crystal: `fxY` px over the Heart's point on screen (a ground y `fxY / cos` px further up).
+        const fy = y + h.fxY / (S * this.cos);
+        this.fx.shards(x, fy, [COLORS.heart, FX.heartShard, FX.ember], stage === 2 ? 18 : 12, 170);
+        this.fx.flash(x, fy, 1.6, FX.heartBlaze, 360, 0.7, 'add', false);
         this.fx.bump(stage === 2 ? 0.3 : 0.18);
       }
       this.heartShown = stage;
@@ -1958,7 +2054,9 @@ export class WorldRenderer {
       if (this.fx.particles) {
         const spread = gem ? 0.9 : 2.2;
         const from = gem ? h.fxY : h.blazeY;
-        for (let n = chance(gem ? 9 : 14, this.lastDt); n > 0; n--) this.fx.mote(x + (Math.random() - 0.5) * spread, y + from / S, FX.ember, 0.2, -38, 0.8);
+        for (let n = chance(gem ? 9 : 14, this.lastDt); n > 0; n--) {
+          this.fx.mote(x + (Math.random() - 0.5) * spread, y + from / (S * this.cos), FX.ember, 0.2, -38, 0.8);
+        }
       }
     }
   }
@@ -2042,14 +2140,14 @@ export class WorldRenderer {
       if (!s) {
         s = this.takeCreep(c.kind);
         s.root.visible = true;
-        (TUNING.creeps[c.kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
+        (TUNING.creeps[c.kind].flying ? this.airLayer : this.actors).addChild(s.root);
         this.creeps.set(c.id, s);
       }
       const onScreen = c.x * S >= view.left && c.x * S <= view.right && c.y * S >= view.top && c.y * S <= view.bottom;
       s.root.visible = onScreen;
       if (!onScreen) continue;
       visible++;
-      s.root.position.set(c.x * S, c.y * S);
+      this.stand(s.root, c.x, c.y);
       // Flyers are drawn larger than their radius so the wing badge reads on a phone. The bar scales with them.
       s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[c.kind].flying));
       const r = TUNING.creeps[c.kind].radius * S;
@@ -2060,14 +2158,16 @@ export class WorldRenderer {
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
         s.status.clear();
-        if (hide) s.status.circle(0, 0, r + 1).stroke({ width: 4, color: HIDE_COLORS[hide] });
-        if (c.slowed) s.status.circle(0, 0, r + 3).stroke({ width: 2, color: COLORS.slow });
-        if (c.rooted) s.status.circle(0, 0, r + 6).stroke({ width: 3, color: COLORS.root });
+        // Status rings lie on the ground round the creep: ellipses on the tilted camera (render/view.ts).
+        const ring = (k: number) => s!.status.ellipse(0, 0, r + k, (r + k) * this.cos);
+        if (hide) ring(1).stroke({ width: 4, color: HIDE_COLORS[hide] });
+        if (c.slowed) ring(3).stroke({ width: 2, color: COLORS.slow });
+        if (c.rooted) ring(6).stroke({ width: 3, color: COLORS.root });
         // Exposed (a Snare Trap's root): a violet ring outside the root's while every hit lands harder.
-        if (c.exposed) s.status.circle(0, 0, r + 9).stroke({ width: 2, color: COLORS.exposed, alpha: 0.9 });
+        if (c.exposed) ring(9).stroke({ width: 2, color: COLORS.exposed, alpha: 0.9 });
         if (c.stunned) s.status.star(0, -r - 2, 5, 6, 2.5).fill(COLORS.stun);
         if (c.shield && c.shield !== 'off') {
-          s.status.circle(0, 0, r + 10).stroke({ width: 3, color: FX.bossShield, alpha: c.shield === 'up' ? 0.45 : 0.95 });
+          ring(10).stroke({ width: 3, color: FX.bossShield, alpha: c.shield === 'up' ? 0.45 : 0.95 });
           if (c.shield === 'left' || c.shield === 'right') {
             s.status.circle((c.shield === 'left' ? -1 : 1) * (r + 4), 0, 5).fill({ color: FX.bossShield, alpha: 0.9 });
           }
@@ -2163,9 +2263,9 @@ export class WorldRenderer {
       if (!live?.art || !live.root.visible || this.dying.length >= MAX_DYING) return;
       s = this.takeCreep(kind);
       s.art!.reset(live.art.facing);
-      s.root.position.set(x * S, y * S);
+      (TUNING.creeps[kind].flying ? this.airLayer : this.actors).addChild(s.root);
+      this.stand(s.root, x, y);
       s.root.scale.set(this.scales.creep * flyerDrawScale(TUNING.creeps[kind].flying));
-      (TUNING.creeps[kind].flying ? this.airLayer : this.groundLayer).addChild(s.root);
     }
     if (this.dying.length >= MAX_DYING) {
       this.releaseCreep(s);
@@ -2260,7 +2360,9 @@ export class WorldRenderer {
         const d = (c.x - t.x) ** 2 + (c.y - t.y) ** 2;
         if (d <= r2 && d < best) {
           best = d;
-          target = Math.atan2(c.y - t.y, c.x - t.x);
+          // Its direction on screen: the turret is a sprite turned in the view (docs/art/camera-options.md, "The turret
+          // problem": build 3 renders the turrets' directions).
+          target = groundAngle(c.x - t.x, c.y - t.y, this.cos);
           found = true;
         }
       }
@@ -2311,10 +2413,10 @@ export class WorldRenderer {
           s.landed = false;
           s.animating = true;
         }
-        this.towerLayer.addChild(s.root);
+        this.actors.addChild(s.root);
         this.towers.set(t.id, s);
       }
-      s.root.position.set(t.x * S, t.y * S);
+      this.stand(s.root, t.x, t.y);
       // As large as the layout draws towers, but never past its pad (its own variant's reach: V-07e).
       s.root.scale.set(towerScale(this.scales.tower, towerReach(t.kind, t.tier, t.branch, s.art?.is3d === true)));
       updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
@@ -2350,7 +2452,7 @@ export class WorldRenderer {
     }
     for (const [id, s] of this.towers) {
       if (!seen.has(id)) {
-        this.goneTowers.set(id, { x: s.root.x / S, y: s.root.y / S, at: now });
+        this.goneTowers.set(id, { ...this.groundOf(s.root), at: now });
         s.root.destroy({ children: true });
         this.towers.delete(id);
       }
@@ -2381,7 +2483,8 @@ export class WorldRenderer {
       for (const [dx, dy] of LANTERN_SPOTS) {
         const sp = new Sprite(this.lanternTexture);
         sp.anchor.set(0.5);
-        sp.position.set((t.x + dx * this.scales.tower * 0.62) * S, (t.y + dy * this.scales.tower * 0.62) * S);
+        // On the tower's drawn body (upright): its offsets are the sprite's, from its point's view position.
+        sp.position.set((t.x + dx * this.scales.tower * 0.62) * S, t.y * S * this.cos + dy * this.scales.tower * 0.62 * S);
         sp.scale.set((LANTERN.radius * S) / LANTERN_PX);
         this.lanternLayer.addChild(sp);
         l.sprites.push(sp);
@@ -2410,7 +2513,10 @@ export class WorldRenderer {
     const dropping = !s.landed && age < JUICE.dropMs;
     if (!s.landed && !dropping) {
       s.landed = true;
-      if (s.landFx) this.land(s.root.x / S, s.root.y / S);
+      if (s.landFx) {
+        const at = this.groundOf(s.root);
+        this.land(at.x, at.y);
+      }
     }
     const drop = dropping && !calm ? dropOffset(age) : 0;
     const up = now - s.upgradeAt;
@@ -2450,7 +2556,7 @@ export class WorldRenderer {
       }
       if (!s) {
         s = this.makeHero(h, me, look);
-        this.heroLayer.addChild(s.root);
+        this.actors.addChild(s.root);
         this.heroes.set(h.id, s);
       }
       if (!h.alive) {
@@ -2481,9 +2587,9 @@ export class WorldRenderer {
       s.root.visible = true;
       if (h.hp < s.lastHp - 0.5) s.art?.hit(now);
       s.lastHp = h.hp;
-      s.root.position.set(h.x * S, h.y * S);
+      this.stand(s.root, h.x, h.y);
       s.root.scale.set(this.scales.hero);
-      s.facing.rotation = h.facing;
+      s.facing.rotation = groundAngle(Math.cos(h.facing), Math.sin(h.facing), this.cos);
       if (s.art) {
         // A melee hero winds up while an enemy it can hit is (almost) in reach.
         if (!TUNING.hero[h.kind].ranged) s.art.update({ x: h.x, y: h.y, facing: h.facing, stunned: h.stunned, engaged: this.inReach(h) }, now, dtMs);
@@ -2549,7 +2655,7 @@ export class WorldRenderer {
     if (rig) body = rig.body;
     else {
       const g = heroBody(h.kind, r);
-      if (h.owner === me) g.circle(0, 0, r + 5).stroke({ width: 2, color: COLORS.heroRing });
+      if (h.owner === me) g.ellipse(0, 0, r + 5, (r + 5) * this.cos).stroke({ width: 2, color: COLORS.heroRing });
       body = g;
     }
     // Shapes show where they face with a small arrow; a rig shows it with its own pose.
@@ -2561,11 +2667,13 @@ export class WorldRenderer {
     aura.scale.set((r + 12) / 28);
     aura.tint = h.kind === 'warden' ? FX.wardenAura : FX.arcanistAura;
     fade(aura, 0);
-    sprite.root.addChildAt(aura, 0);
+    // The aura and the vow's rings lie on the ground round the hero, and turn: under a container squashed by cos(pitch)
+    // (the tilted camera), so they turn on the ground and stay ellipses.
+    const flat = new Container();
+    flat.scale.y = this.cos;
     const vow = this.makeVow(r);
-    sprite.root.addChildAt(vow.outer, 0);
-    sprite.root.addChildAt(vow.inner, 0);
-    sprite.root.addChildAt(vow.glow, 0);
+    flat.addChild(vow.glow, vow.inner, vow.outer, aura);
+    sprite.root.addChildAt(flat, 0);
     sprite.root.addChild(facing);
     const mana = new Sprite(Texture.WHITE);
     mana.tint = COLORS.mana;
@@ -2587,17 +2695,18 @@ export class WorldRenderer {
         g.heading = 0;
         g.lastX = p.x;
         g.lastY = p.y;
-        this.projectileLayer.addChild(g.root);
+        this.actors.addChild(g.root);
         this.trailLayer.addChild(g.trail);
         this.projectiles.set(p.id, g);
         this.launched(p, g, heroes);
       }
       // Same scale as creeps, so a bolt stays readable when tiles are small on a phone.
       g.root.scale.set(this.scales.creep);
-      g.root.position.set(p.x * S, p.y * S);
+      this.stand(g.root, p.x, p.y, PROJECTILE_LIFT);
       g.trail.position.copyFrom(g.root.position);
+      // The way it moved on screen (the tilted camera draws the ground's y cos(pitch) shorter).
       const dx = (p.x - g.lastX) * S;
-      const dy = (p.y - g.lastY) * S;
+      const dy = (p.y - g.lastY) * S * this.cos;
       const d = Math.hypot(dx, dy);
       if (d > 0.01) this.aimProjectile(g, dx, dy);
       if (trails) {
@@ -2641,7 +2750,7 @@ export class WorldRenderer {
     return { root, trail, trailY, body, style, lastX: 0, lastY: 0, heading: 0 };
   }
 
-  /** Point the body along (dx, dy). The art is drawn pointing +x. */
+  /** Point the body along (dx, dy) on screen (view px, or a ground direction already squashed). The art points +x. */
   private aimProjectile(g: ProjectileSprite, dx: number, dy: number): void {
     if (dx * dx + dy * dy < 1e-6) return;
     g.heading = Math.atan2(dy, dx);
@@ -2655,9 +2764,9 @@ export class WorldRenderer {
       if (!h) return;
       const dx = p.x - h.x;
       const dy = p.y - h.y;
-      this.aimProjectile(g, dx, dy);
-      if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy);
-      else this.fx.muzzle(h.x, h.y, dx, dy, PROJECTILE_COLORS[p.style] ?? FX.spark, 0.4);
+      this.aimProjectile(g, dx, dy * this.cos);
+      if (p.style === 'multishot') this.fx.multishotArrow(h.x, h.y, dx, dy * this.cos);
+      else this.fx.muzzle(h.x, h.y, dx, dy * this.cos, PROJECTILE_COLORS[p.style] ?? FX.spark, 0.4);
       return;
     }
     if (!(p.style in TOWER_COLORS)) {
@@ -2673,7 +2782,7 @@ export class WorldRenderer {
         }
       }
       if (creep) {
-        this.aimProjectile(g, p.x - creep.x, p.y - creep.y);
+        this.aimProjectile(g, p.x - creep.x, (p.y - creep.y) * this.cos);
         this.creeps.get(creep.id)?.art?.shot(this.lastRenderAt);
       }
       return;
@@ -2693,8 +2802,9 @@ export class WorldRenderer {
     if (!best) return;
     this.onTowerShot(best);
     const s = this.towers.get(best.id);
+    // On screen: the tilted camera draws the ground's y cos(pitch) shorter.
     const dx = p.x - best.x;
-    const dy = p.y - best.y;
+    const dy = (p.y - best.y) * this.cos;
     this.aimProjectile(g, dx, dy);
     const len = Math.hypot(dx, dy) || 1;
     if (s) {
@@ -2738,9 +2848,10 @@ export class WorldRenderer {
       if (!s) {
         s = this.trapPool.pop() ?? this.makeTrap();
         s.state = null;
-        s.root.position.set(t.x * S, t.y * S);
-        if (s.ring) s.ring.scale.set((t.radius * S) / s.ringRadius);
-        this.trapLayer.addChild(s.root);
+        this.actors.addChild(s.root);
+        this.stand(s.root, t.x, t.y, TRAP_LIFT);
+        // Its root ring lies on the ground: an ellipse on the tilted camera.
+        if (s.ring) s.ring.scale.set((t.radius * S) / s.ringRadius, ((t.radius * S) / s.ringRadius) * this.cos);
         this.traps.set(t.id, s);
       }
       if (s.idle && s.armed) {
@@ -2756,7 +2867,7 @@ export class WorldRenderer {
         s.ring.alpha = t.armed ? 0.85 : 0.4;
       } else if (s.g) {
         s.g.clear();
-        s.g.circle(0, 0, t.radius * S).stroke({ width: 2, color: COLORS.root, alpha: t.armed ? 0.5 : 0.25 });
+        s.g.ellipse(0, 0, t.radius * S, t.radius * S * this.cos).stroke({ width: 2, color: COLORS.root, alpha: t.armed ? 0.5 : 0.25 });
         s.g.star(0, 0, 6, S * 0.45, S * 0.2).fill({ color: COLORS.root, alpha: t.armed ? 1 : 0.5 });
       }
     }
@@ -2862,7 +2973,7 @@ export class WorldRenderer {
   private makeRain(z: ZoneSnap): RainSprite {
     const color = ZONE_COLORS[z.kind];
     const root = new Container();
-    root.position.set(z.x * S, z.y * S);
+    root.position.set(z.x * S, z.y * S * this.cos);
     const column = new Sprite(this.atlas.frames.glow);
     column.anchor.set(0.5, 1);
     column.tint = color;
@@ -2874,7 +2985,11 @@ export class WorldRenderer {
     ring.tint = color;
     ring.scale.set((0.9 * S) / 28);
     ring.alpha = 0;
-    root.addChild(column, ring);
+    // The rune ring lies on the ground and turns (squashed under it); the column of light stands.
+    const flat = new Container();
+    flat.scale.y = this.cos;
+    flat.addChild(ring);
+    root.addChild(column, flat);
     this.zoneLayer.addChild(root);
     return { root, ring, column };
   }
@@ -2902,7 +3017,7 @@ export class WorldRenderer {
     const color = ZONE_COLORS[z.kind];
     const r = z.radius * S;
     const root = new Container();
-    root.position.set(z.x * S, z.y * S);
+    root.position.set(z.x * S, z.y * S * this.cos);
     const fill = new Sprite(this.atlas.frames.disc);
     fill.anchor.set(0.5);
     fill.tint = color;
@@ -2916,7 +3031,12 @@ export class WorldRenderer {
     inner.tint = FX.hot;
     inner.scale.set(r / RING_PX);
     fade(inner, z.kind === 'meteor' ? 0.8 : 0);
-    root.addChild(fill, ring, inner);
+    // The circle lies on the ground and its ring turns: under a container squashed by cos(pitch). The falling meteor
+    // stands over it.
+    const flat = new Container();
+    flat.scale.y = this.cos;
+    flat.addChild(fill, ring, inner);
+    root.addChild(flat);
     let head: Sprite | null = null;
     let tail: Sprite | null = null;
     if (z.kind === 'meteor') {
@@ -3059,9 +3179,9 @@ export class WorldRenderer {
       style: { fontFamily: 'system-ui, sans-serif', fontSize: 14, fontWeight: '700', fill: color, stroke: { color: RL.ink, width: 3 } },
     });
     label.anchor.set(0.5);
-    label.position.set(x * S, y * S);
+    label.position.set(x * S, y * S * this.cos);
     this.textLayer.addChild(label);
-    this.texts.push({ obj: label, born: now, life: 900, startY: y * S });
+    this.texts.push({ obj: label, born: now, life: 900, startY: y * S * this.cos });
   }
 
   private updateTexts(now: number): void {

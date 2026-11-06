@@ -17,12 +17,16 @@ import { comboPairLines, ultimateLines } from '../src/coop/ultReport';
 import {
   emptyUltCues,
   healLines,
+  heldPopDue,
   NUDGE_SECONDS,
+  QUAKE_POP_CAP_MS,
   readUltCues,
   ULT_NAMES,
   ultPops,
+  waitsForQuake,
   type UltCueMemory,
 } from '../src/ult/cues';
+import { quakeDone, quakeRun } from '../src/render/fx/quake';
 
 const RATE = 20;
 
@@ -98,6 +102,31 @@ describe('kill-count popup', () => {
     expect(ultPops(fused).map((p) => p.text)).toEqual(['Arrow Storm: 4']);
     const later: GameEvent[] = [{ type: 'ultResult', ult: 'meteorRain', by: 'p2', kills: 0 }];
     expect(ultPops(later).map((p) => p.text)).toEqual(['Meteor Rain: 0']);
+  });
+
+  it("holds Rampart Slam's count until its quake has been drawn to the end, never past the cap (the iPhone shard)", () => {
+    const [slam, storm] = ultPops([
+      { type: 'ultResult', ult: 'rampartSlam', by: 'p2', kills: 18 },
+      { type: 'ultResult', ult: 'arrowStorm', by: 'p1', kills: 9 },
+    ]);
+    expect(waitsForQuake(slam!)).toBe(true);
+    expect(waitsForQuake(storm!)).toBe(false);
+    // The stress scene's slam: the quake from progress 18 of a 36-tile lane at 16 tiles a second, drawn from the frame
+    // after its event; the count arrives 0.4 s later (pace 3) and must wait for the front's last frame, 1.125 s in.
+    const run = quakeRun(1, 18, 36, 16, 1000, false);
+    const countAt = 1400;
+    for (let now = countAt; now < 2125; now += 100) {
+      expect(quakeDone(run, now)).toBe(false);
+      expect(heldPopDue(countAt, now, true)).toBe(false);
+    }
+    expect(quakeDone(run, 2125)).toBe(true);
+    expect(heldPopDue(countAt, 2125, false)).toBe(true);
+    // No quake drawn (a slam away from every lane, or reduced motion's quake already marked): at once.
+    expect(heldPopDue(countAt, countAt, false)).toBe(true);
+    // A quake that never ends (something is wrong): the count shows at the cap, longer than the longest lane's quake.
+    expect(QUAKE_POP_CAP_MS).toBeGreaterThan((37 / 16) * 1000);
+    expect(heldPopDue(countAt, countAt + QUAKE_POP_CAP_MS - 1, true)).toBe(false);
+    expect(heldPopDue(countAt, countAt + QUAKE_POP_CAP_MS, true)).toBe(true);
   });
 
   it('lists several in order', () => {
