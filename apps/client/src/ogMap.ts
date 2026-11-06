@@ -1,4 +1,4 @@
-// The link-preview card's map (docs/ART.md §14): a small landscape clearing, 30 × 16 tiles, three lanes sweeping
+// The link-preview card's map (docs/ART.md §14): a small landscape clearing, 30 × 19 tiles, three lanes sweeping
 // from portals into the Heart. Plain data, shared by `?ogcard` (src/ogCard.ts) and the map plate's build
 // (tools/blender/mapdata.ts), which renders this map's ground in Blender as it does Spire's (docs/ART.md §16).
 
@@ -33,7 +33,9 @@ const LEFT_PADS: PadData[] = [
 export const CARD_MAP: MapData = {
   name: 'Card',
   width: 30,
-  height: 16,
+  // 19 rows (16 before V-08b build 2): through the match's tilted camera a row is cos 30° as tall, so the card's 630 px
+  // need 16 / cos 30° of them; the three more are the safe zone's forest.
+  height: 19,
   heart: HEART,
   heroSpawn: { x: HEART.x, y: HEART.y - 2 },
   laneHalfWidth: 1,

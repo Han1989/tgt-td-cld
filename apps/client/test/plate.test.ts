@@ -14,7 +14,8 @@ import '../src/render/art/load';
 import { propArts } from '../src/render/art/registry';
 import { edgeSpots, propSpots } from '../src/render/art/scatter';
 import { isMediaPath, isOnDemandSheet, swSource } from '../src/platform/swSource';
-import { lightFiles, padLook, patchOf, plateFits, plateUrl, SPIRE_PLATE as L } from '../src/render/plate/layout';
+import { lightFiles, padLook, patchOf, plateFits, plateHeight, plateUrl, SPIRE_PLATE as L } from '../src/render/plate/layout';
+import { CAMERA_PITCH, PAD_TOP, pitchCos, worldToScreen } from '../src/render/view';
 import card from '../src/render/plate/card.json';
 import { CARD_MAP } from '../src/ogMap';
 
@@ -22,6 +23,9 @@ const CLIENT = join(__dirname, '..');
 const MAP_DIR = join(CLIENT, 'public', 'map');
 const map = getMap();
 const K = L.res; // plate px per world px
+// V-08b: the plate is rendered through the match's camera, 30° from straight down (render/view.ts).
+const COS = pitchCos(CAMERA_PITCH);
+const SIN = Math.sin((CAMERA_PITCH * Math.PI) / 180);
 
 /** A WebP's size from its header (lossy VP8, lossless VP8L, or extended VP8X). */
 function webpSize(bytes: Buffer): { w: number; h: number } {
@@ -61,14 +65,28 @@ function mask(boxes: number[][]): Uint8Array {
   return out;
 }
 
+/** A pad as the tilted camera draws it (plate px): its tiles' columns, from its back edge (its rim, `padRim` up: over
+ * it the bevel is set back, so the rim is the pad's highest line on screen) down to its south face's foot, through
+ * render/view.ts's mapping. */
 function tileBox(id: number): number[] {
   const p = map.pads[id]!;
-  const n = map.padSize * TILE_PX * K;
-  return [p.tx * TILE_PX * K, p.ty * TILE_PX * K, p.tx * TILE_PX * K + n, p.ty * TILE_PX * K + n];
+  const n = map.padSize * TILE_PX;
+  const back = worldToScreen(p.tx * TILE_PX, p.ty * TILE_PX, L.padRim, COS, SIN);
+  const foot = worldToScreen(p.tx * TILE_PX + n, p.ty * TILE_PX + n, 0, COS, SIN);
+  // The frame is the ground's rectangle: a pad on the first row has the front of its raised top cut by its top edge.
+  return [back.x * K, Math.max(0, back.y * K), foot.x * K, foot.y * K];
 }
 
+/** How far a measured pad edge may sit from its tiles (plate px): 1.5 (an anti-aliased edge pixel either side of the
+ * slab's foot); its top 2, where moss cushions over the rim and the bevel's anti-aliasing meet. */
+const EDGE_TOL = [1.5, 2, 1.5, 1.5];
+
+/** Distance (plate px, as drawn) from a point to a lane's line on the road's floor (sunk `laneDepth`). */
 function distToLane(lane: number, x: number, y: number): number {
-  const pts = map.lanes[lane]!.waypoints.map((p, i) => ({ x: p.x * TILE_PX * K, y: (i === 0 ? p.y - 1.5 : p.y) * TILE_PX * K }));
+  const pts = map.lanes[lane]!.waypoints.map((p, i) => {
+    const v = worldToScreen(p.x * TILE_PX, (i === 0 ? p.y - 1.5 : p.y) * TILE_PX, -L.laneDepth, COS, SIN);
+    return { x: v.x * K, y: v.y * K };
+  });
   let best = Infinity;
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i]!;
@@ -82,11 +100,16 @@ function distToLane(lane: number, x: number, y: number): number {
 }
 
 describe('the map plate: the picture', () => {
-  it('is exactly twice the map in world px, as its layout says, and fits a phone GPU in one texture', () => {
+  it('is the map through the match\'s camera (30°) at twice its world px, as its layout says, and fits a phone GPU in one texture', () => {
     const bytes = readFileSync(join(MAP_DIR, L.file.name));
     const { w, h } = webpSize(bytes);
     expect(K).toBe(2);
-    expect([w, h]).toEqual([map.width * TILE_PX * 2, map.height * TILE_PX * 2]);
+    expect(L.pitch).toBe(CAMERA_PITCH);
+    // The renderer lifts the pads' zone tints onto their tops by the height the plate gave them.
+    expect(L.padH).toBe(PAD_TOP);
+    expect(L.padRim).toBeLessThan(L.padH);
+    expect([w, h]).toEqual([map.width * TILE_PX * 2, Math.round(map.height * TILE_PX * COS * 2)]);
+    expect(plateHeight(L, map.height, TILE_PX)).toBe(h);
     expect([L.width, L.height]).toEqual([w, h]);
     expect(plateFits(L, map.width, map.height, TILE_PX)).toBe(true);
     // One texture under the 4096 px limit every phone GPU has.
@@ -109,10 +132,11 @@ describe('the map plate: the picture', () => {
     expect(L.render.samples).toBe(20);
   });
 
-  it('the link card has its own plate, twice its map in world px', () => {
+  it('the link card has its own plate, twice its map in world px through the same camera', () => {
     const bytes = readFileSync(join(CLIENT, 'src', 'render', 'plate', card.file.name));
     const { w, h } = webpSize(bytes);
-    expect([w, h]).toEqual([CARD_MAP.width * TILE_PX * 2, CARD_MAP.height * TILE_PX * 2]);
+    expect(card.pitch).toBe(CAMERA_PITCH);
+    expect([w, h]).toEqual([CARD_MAP.width * TILE_PX * 2, Math.round(CARD_MAP.height * TILE_PX * COS * 2)]);
     expect([card.width, card.height]).toEqual([w, h]);
   });
 });
@@ -120,12 +144,12 @@ describe('the map plate: the picture', () => {
 describe('the map plate: pads', () => {
   const { every, any } = padsByMatch();
 
-  it('shows exactly the pads every match has, each on its own tiles (±1.5 plate px)', () => {
+  it('shows exactly the pads every match has, each on its own tiles as the tilted camera draws them (±1.5 plate px, its top ±2)', () => {
     const onPlate = L.pads.filter((p) => p.show === 'plate');
     expect(new Set(onPlate.map((p) => p.id))).toEqual(every);
     for (const p of onPlate) {
       const want = tileBox(p.id);
-      for (let i = 0; i < 4; i++) expect(Math.abs(p.box[i]! - want[i]!), `pad ${p.id} edge ${i}`).toBeLessThanOrEqual(1.5);
+      for (let i = 0; i < 4; i++) expect(Math.abs(p.box[i]! - want[i]!), `pad ${p.id} edge ${i}`).toBeLessThanOrEqual(EDGE_TOL[i]!);
     }
   });
 
@@ -139,7 +163,9 @@ describe('the map plate: pads', () => {
     expect(differ).toBeLessThanOrEqual(every.size * perimeter * 1.5);
     let inside = 0;
     for (let i = 0; i < want.length; i++) inside += want[i]!;
-    expect(inside).toBe(every.size * (map.padSize * TILE_PX * K) ** 2);
+    // Each pad drawn 3 tiles wide and 3 · cos tall plus its raised top's front.
+    const one = map.padSize * TILE_PX * K * (map.padSize * TILE_PX * COS + L.padRim * SIN) * K;
+    expect(Math.abs(inside - every.size * one)).toBeLessThanOrEqual(every.size * map.padSize * TILE_PX * K * 2);
   });
 
   it('has a patch for every pad only some matches have (the extra pads of bigger teams), on its tiles', () => {
@@ -148,7 +174,7 @@ describe('the map plate: pads', () => {
     for (const p of patches) {
       const want = tileBox(p.pad);
       expect(p.box).not.toBeNull();
-      for (let i = 0; i < 4; i++) expect(Math.abs(p.box![i]! - want[i]!), `patch ${p.pad} edge ${i}`).toBeLessThanOrEqual(1.5);
+      for (let i = 0; i < 4; i++) expect(Math.abs(p.box![i]! - want[i]!), `patch ${p.pad} edge ${i}`).toBeLessThanOrEqual(EDGE_TOL[i]!);
       // The patch covers its pad with room for its shadow and ink, and stays on the plate.
       expect(p.x).toBeLessThanOrEqual(want[0]!);
       expect(p.y).toBeLessThanOrEqual(want[1]!);
@@ -181,7 +207,7 @@ describe('the map plate: pads', () => {
 });
 
 describe('the map plate: lanes and scenery', () => {
-  it('each lane\'s road, measured in the render, runs down the map\'s lane line (within 1.5 world px)', () => {
+  it('each lane\'s road, measured in the render, runs down the map\'s lane line on its floor, as drawn (within 1.5 world px)', () => {
     expect(L.lanes).toHaveLength(map.lanes.length);
     for (const [i, points] of L.lanes.entries()) {
       expect(points.length, `lane ${i}`).toBeGreaterThanOrEqual(15);

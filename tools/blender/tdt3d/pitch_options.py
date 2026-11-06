@@ -1,6 +1,7 @@
 # V-08b look (Han, 5 Nov 2026): the tilted camera, three pitches on one frame. Dev only, images only: nothing the game
 # ships is written (docs/art/camera-options.md). Every output goes to an `--out` folder; the build refuses to run
-# without one.
+# without one. Since build 2 (Han's pick B) the cameras are the shipped ones, at any pitch: map.camera and
+# structure._camera (the plate's and the structures'); this file keeps only what the options needed beside them.
 #
 #   npm run art:3d -- pitch [plate|structures|figures|all] [--pitch a,b,c] [--draft] --out DIR [--work DIR]
 #
@@ -44,24 +45,11 @@ def elevation(pitch):
     return 90.0 - pitch
 
 
-def _push_back(cam, far=4000.0):
-    """An orthographic camera placed far back along its view (the projection is the same), so a pitched view of the
-    whole map is never clipped behind it."""
-    cam.obj.location = cam.obj.location - cam.forward * far
-    cam.obj.data.clip_start = 1.0
-    cam.obj.data.clip_end = far * 3
-    bpy.context.view_layer.update()
-    return cam
-
-
 # --- the plate ------------------------------------------------------------------------------------------------------
 
 def plate_camera(m, ss, pitch):
-    """The ground's rectangle exactly in the frame: the map's top left corner (world 0, 0, z 0) at pixel (0, 0)."""
-    c = math.cos(math.radians(pitch))
-    w, h = int(m.wpx * plate.RES * ss), int(round(m.hpx * c * plate.RES * ss))
-    cam = scene.ortho_camera('Pitch', SOUTH, elevation(pitch), w, h, plate.RES * ss, V((0, 0, 0)), (0, 0))
-    return _push_back(cam)
+    """The ground's rectangle exactly in the frame: map.camera, the shipped plate's camera since V-08b build 2."""
+    return plate.camera(m, ss, pitch, name='Pitch')
 
 
 def finish(m, col, emit, cosp, light='afternoon'):
@@ -141,10 +129,8 @@ def render_plates(pitches, out_dir, tmp, draft=False):
         cosp, sinp = math.cos(math.radians(pitch)), math.sin(math.radians(pitch))
         # Straight down the ground's depth is its height; tilted, the flat ground's depth grows tan(pitch) a world unit
         # down the screen: the edge threshold rises by that step, so a flat field draws no lines.
-        k = plate.RES * ss
-        look = dict(plate.LIGHTS['afternoon']['look'] or {}, depth_abs=plate.LOOK['depth_abs'] + 1.5 * math.tan(
-            math.radians(pitch)) / k)
-        col, emit, depth, obj = plate.render_passes(cam, tmp, samples, ss, look=look)
+        col, emit, depth, obj = plate.render_passes(cam, tmp, samples, ss, look=plate.LIGHTS['afternoon']['look'],
+                                                    pitch=pitch)
         pic = finish(m, col, emit, cosp)
         png = os.path.join(out_dir, f'plate-{key}.png')
         imageio.write_png(png, plate.to8(pic), level=6)
@@ -223,7 +209,7 @@ def render_structures(table, pitch, out_dir, tmp, draft=False):
             everything = base + turret
             top = max((o.matrix_world @ V(c)).z for o in st.objects_of(everything) for c in o.bound_box)
             shading.set_globals(z0=0, z1=top)
-            cam = _push_back(st._camera(view, row.get('window', 64) * 1.6))
+            cam = st._camera(view, row.get('window', 64) * 1.6)
             look = dict(npr.LOOK, **st.LOOK, **row.get('look', {}))
             anchor = (cam.w / 2, cam.h / 2)
             catcher = st._ground(0.0)
@@ -268,7 +254,7 @@ def render_structures(table, pitch, out_dir, tmp, draft=False):
         rubble = st.build(row['rubble'][stage], 80) if stage else []
         top = max((o.matrix_world @ V(c)).z for o in st.objects_of(body) for c in o.bound_box)
         shading.set_globals(z0=0, z1=top)
-        cam = _push_back(st._camera(view, row.get('window', 120)))
+        cam = st._camera(view, row.get('window', 120))
         look = dict(npr.LOOK, **st.LOOK, **row.get('look', {}))
         catcher = st._ground(0.0)
         anchor = cam.px(V((0, 0, 0)))[:2]
@@ -286,7 +272,7 @@ def render_structures(table, pitch, out_dir, tmp, draft=False):
     body = st.build(row['body'], 60)
     top = max((o.matrix_world @ V(c)).z for o in st.objects_of(body) for c in o.bound_box)
     shading.set_globals(z0=0, z1=top)
-    cam = _push_back(st._camera(view, row.get('window', 64) * 1.4))
+    cam = st._camera(view, row.get('window', 64) * 1.4)
     look = dict(npr.LOOK, **st.LOOK, **row.get('look', {}))
     catcher = st._ground(0.0)
     anchor = cam.px(V((0, 0, 0)))[:2]
@@ -367,4 +353,87 @@ def render_figures(pitches, out_dir, tmp, draft=False):
     doc = dict(warden=dict(res=match.RES), grunt=dict(res=cpx), frames=notes)
     with open(os.path.join(out_dir, 'frames.json'), 'w') as f:
         f.write(json.dumps(doc, indent=1) + '\n')
+    return doc
+
+
+# --- the headings' lie (V-08b build 2) ---------------------------------------------------------------------------------
+
+def heading_lie(table, out_dir, tmp, draft=False, angles=(22.5, 67.5)):
+    """How much the shipped turret rule lies between its headings: each kind's tier 1 and tier 3 turret rendered truly
+    at ground angles halfway between two headings (`angles`, the client's convention: y down), against the frame the
+    client shows there (the nearest heading, turned in the plane about its axis by what is left on screen,
+    `turretHeading`), as the IoU of their silhouettes (alpha over half). Writes `<out>/heading-lie.json` and a picture
+    of each pair (true, shown) to look at."""
+    from . import structure as st
+
+    samples = st.DRAFT_SAMPLES if draft else st.SAMPLES
+    os.makedirs(out_dir, exist_ok=True)
+    cos = st.COS
+    step = 360.0 / st.HEADINGS
+    rows = {}
+    tiles = []
+    for kind, variants in table.TOWERS.items():
+        for tier in ('1', '3'):
+            row = variants[tier]
+            scene.reset(fps=30)
+            st.lights()
+            row['materials']()
+            base = st.build(row['base'], 60)
+            turret = st.build(row['turret'], 80)
+            everything = base + turret
+            top = max((o.matrix_world @ V(c)).z for o in st.objects_of(everything) for c in o.bound_box)
+            shading.set_globals(z0=0, z1=top)
+            cam = st._camera(st.VIEW, row.get('window', 64) * 1.6)
+            look = dict(npr.LOOK, **st.LOOK, **row.get('look', {}))
+            st.show_only(everything, turret)
+            zs = [(o.matrix_world @ V(c)).z for o in st.objects_of(turret) for c in o.bound_box]
+            axis = cam.px(V((0.0, 0.0, (min(zs) + max(zs)) / 2)))[:2]
+            for a in angles:
+                st.turret_heading(turret, 0, lambda p: None, deg=a)
+                true8 = _straight(st.shoot(cam, tmp, look, st.objects_of(turret), samples)[0])
+                # The client's rule: the screen angle, the nearest heading on the ground, the rest turned on screen.
+                screen = math.atan2(math.sin(math.radians(a)) * cos, math.cos(math.radians(a)))
+                k = int(round(a / step)) % st.HEADINGS
+                drawn = math.atan2(math.sin(math.radians(k * step)) * cos, math.cos(math.radians(k * step)))
+                turn = math.degrees(math.atan2(math.sin(screen - drawn), math.cos(screen - drawn)))
+                st.turret_heading(turret, k, lambda p: None)
+                head8 = _straight(st.shoot(cam, tmp, look, st.objects_of(turret), samples)[0])
+                # PIL turns counter-clockwise for a positive angle; the screen's y is down, so the client's +turn is -.
+                shown, c = _sprite_turn(head8, axis, -turn)
+                h, w = true8.shape[:2]
+                big = shown.shape[0]
+                ox, oy = int(round(c[0] - axis[0])), int(round(c[1] - axis[1]))
+                shown = shown[oy:oy + h, ox:ox + w]
+                ta, sa = true8[..., 3] > 127, shown[..., 3] > 127
+                iou = float((ta & sa).sum() / max(1, (ta | sa).sum()))
+                rows[f'{kind}/{tier}@{a:g}'] = dict(heading=k, turn=round(turn, 1), iou=round(iou, 3))
+                tiles.append((f'{kind}/{tier}@{a:g}', true8, shown))
+                print(f'heading lie {kind}/{tier} at {a}°: heading {k}, turned {turn:.1f}°, IoU {iou:.3f}', flush=True)
+            st.turret_heading(turret, 0, lambda p: None)
+    ious = [r['iou'] for r in rows.values()]
+    doc = dict(angles=list(angles), mean=round(sum(ious) / len(ious), 3), worst=round(min(ious), 3), rows=rows)
+    with open(os.path.join(out_dir, 'heading-lie.json'), 'w') as f:
+        f.write(json.dumps(doc, indent=1) + '\n')
+    # The pairs, true over shown (red where only the true one is, cyan where only the shown one is).
+    cell = 0
+    for _, t, _ in tiles:
+        ys, xs = np.nonzero(t[..., 3])
+        cell = max(cell, xs.max() - xs.min() + 1, ys.max() - ys.min() + 1)
+    cell = int(cell) + 8
+    cols = len(angles) * 2
+    sheet = np.zeros((((len(tiles) + cols - 1) // cols) * cell, cols * cell, 3), np.uint8) + 24
+    for i, (_, t, s_) in enumerate(tiles):
+        ta, sa = t[..., 3] > 127, s_[..., 3] > 127
+        ys, xs = np.nonzero(ta | sa)
+        cy, cx = int((ys.min() + ys.max()) / 2), int((xs.min() + xs.max()) / 2)
+        tile = np.zeros((t.shape[0], t.shape[1], 3), np.uint8) + 24
+        tile[ta & sa] = (220, 220, 220)
+        tile[ta & ~sa] = (230, 60, 60)
+        tile[sa & ~ta] = (60, 200, 230)
+        y0, x0 = max(0, cy - cell // 2), max(0, cx - cell // 2)
+        crop = tile[y0:y0 + cell, x0:x0 + cell]
+        r, cc = divmod(i, cols)
+        sheet[r * cell:r * cell + crop.shape[0], cc * cell:cc * cell + crop.shape[1]] = crop
+    Image.fromarray(sheet).save(os.path.join(out_dir, 'heading-lie.png'), optimize=True)
+    print(f'heading lie: mean IoU {doc["mean"]}, worst {doc["worst"]}', flush=True)
     return doc

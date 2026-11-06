@@ -2,9 +2,15 @@
 // `npm run art:3d -- map`), drawn as one sprite under everything. What the build wrote (spire.json, generated, not
 // edited by hand) and the pure rules the renderer uses with it. Nothing 3D runs here: the plate is a WebP.
 //
-// The layout carries what the build measured in its own render: each pad's square and each lane's middle line, in
-// plate px (`res` px per world px), so the tests can check them against the map's tiles; and the prop spots it used,
-// so the tests can check them against the 2D ground's (scatter.ts).
+// The layout carries what the build measured in its own render: each pad's box and each lane's middle line, in plate
+// px (`res` px per world px), so the tests can check them against the map's tiles; and the prop spots it used, so the
+// tests can check them against the 2D ground's (scatter.ts).
+//
+// V-08b (build 2): the plate is rendered through the match's camera (`pitch`, render/view.ts's CAMERA_PITCH: 30° from
+// straight down, from the south), framed on the ground's rectangle: a ground point (x, y) at height z is plate px
+// (x, y · cos − z · sin) × res. So the picture is the map's width and cos(pitch) of its height, a pad is a rectangle (its
+// top raised `padH`, its south face showing) and a lane's floor (sunk `laneDepth`) is drawn a little lower. The renderer
+// draws it in view px, never squashed again.
 
 import spire from './spire.json';
 
@@ -61,6 +67,13 @@ export interface PlateLayout {
   height: number;
   res: number;
   tilePx: number;
+  /** The camera it was rendered through: degrees from straight down (render/view.ts CAMERA_PITCH). */
+  pitch: number;
+  /** World px a pad's top stands, its outer edge (the rim: its bevel is set back over it, so seen from the south the rim
+   *  is the pad's highest line, the measured box's top), and how deep the road is sunk (the measured lines' floor). */
+  padH: number;
+  padRim: number;
+  laneDepth: number;
   file: PlateFile;
   extra?: { file: PlateFile; patches: PlatePatch[] };
   pads: PlatePad[];
@@ -83,9 +96,19 @@ export function plateUrl(f: PlateFile): string {
   return `${import.meta.env.BASE_URL}map/${f.name}?v=${f.hash}`;
 }
 
-/** Whether a plate fits a map of `width` × `height` tiles (`tilePx` world px each). */
+/** The plate's height (px) for a map `height` tiles tall: the ground's rectangle through its camera (× cos(pitch)). */
+export function plateHeight(layout: Pick<PlateLayout, 'res' | 'pitch'>, height: number, tilePx: number): number {
+  return Math.round(height * tilePx * Math.cos(((layout.pitch ?? 0) * Math.PI) / 180) * layout.res);
+}
+
+/** cos of the plate's camera: a plate px row is 1 / cos of a ground row's world px over res. */
+export function plateCos(layout: Pick<PlateLayout, 'pitch'>): number {
+  return Math.cos(((layout.pitch ?? 0) * Math.PI) / 180);
+}
+
+/** Whether a plate fits a map of `width` × `height` tiles (`tilePx` world px each), through its camera. */
 export function plateFits(layout: PlateLayout, width: number, height: number, tilePx: number): boolean {
-  return layout.width === width * tilePx * layout.res && layout.height === height * tilePx * layout.res;
+  return layout.width === width * tilePx * layout.res && layout.height === plateHeight(layout, height, tilePx);
 }
 
 /** The pictures of a light: the afternoon's are the layout's own, dusk's and night's under `lights` (null: not rendered). */

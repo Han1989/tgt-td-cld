@@ -60,6 +60,8 @@ LINE = 3            # ... of which his ink line (2.4 px round the silhouette on 
 GROUND_BOX = (448, 704, 1216, 1216)  # plate px: the middle of the map, as src/groundCheck.ts measures it
 
 
+TOWERS_AXIS = {}   # V-08b build 2: each tower variant's turret axis over its ground point (the layout's `towers`)
+PLATE_UP = [0]     # world px a crop reaches above its pad (Plate.up)
 SHEETS = None      # --sheets DIR: the art3d files and stage fixtures are read from there (a render's --out) instead
 
 
@@ -110,13 +112,16 @@ class Plate:
         self.img = image(PLATE)[..., :3]
         self.layout = json.loads(read(PLATE_JSON))
         self.res = self.layout['res']
+        # V-08b build 2: the plate is drawn through the match's tilted camera, a ground row cos(pitch) of a plate row.
+        self.cos = float(np.cos(np.radians(self.layout.get('pitch', 0))))
         m = mapdata()
         w, h = m['width'], m['height']
         tiles = np.array(m['tiles']).reshape(h, w)
         kinds = m['tileKinds']
         tp = TILE * self.res
         ys, xs = np.mgrid[0:self.img.shape[0], 0:self.img.shape[1]]
-        tx, ty = xs // tp, ys // tp
+        ys = ys / self.cos  # the ground's row under each plate px
+        tx, ty = (xs // tp).astype(int), (ys // tp).astype(int)
         fx, fy = xs / tp - tx, ys / tp - ty
         x0, y0, x1, y1 = GROUND_BOX
         mid = (xs >= x0) & (xs < x1) & (ys >= y0) & (ys < y1)
@@ -134,24 +139,41 @@ class Plate:
         self.grass_l = median_l(self.img, grass)
         self.pad_l = median_l(self.img, pad & mid)
         self.pads = {p['id']: p for p in m['pads']}
+        PLATE_UP[0] = self.up()
+
+    def up(self):
+        """World px a crop reaches above its pad's box: a tower seen through the tilted camera stands up over it."""
+        return 0 if self.cos == 1 else 64
 
     def crop(self, pad_id, margin, res):
-        """A pad of the plate and `margin` world px of what is round it, at `res` px per world px: (rgb, centre)."""
+        """A pad of the plate and `margin` world px of what is round it (and `up()` more above it, where a tilted tower
+        stands), a square at `res` px per world px: (rgb, the pad's ground centre in it)."""
         p = self.pads[pad_id]
         tp = TILE * self.res
-        cx, cy = (p['tx'] + 1.5) * tp, (p['ty'] + 1.5) * tp
-        half = (PAD_WORLD / 2 + margin) * self.res
-        sub = self.img[int(cy - half):int(cy + half), int(cx - half):int(cx + half)]
-        side = int(round((PAD_WORLD + 2 * margin) * res))
+        cx, cy = (p['tx'] + 1.5) * tp, (p['ty'] + 1.5) * tp * self.cos
+        world = PAD_WORLD + 2 * margin + self.up()
+        down = (PAD_WORLD / 2 * self.cos + margin) * self.res
+        y1 = cy + down
+        y0 = y1 - world * self.res
+        half = world / 2 * self.res
+        sub = self.img[int(y0):int(y1), int(cx - half):int(cx + half)]
+        side = int(round(world * res))
         out = np.asarray(Image.fromarray(np.uint8(np.clip(sub, 0, 1) * 255 + 0.5)).resize((side, side), Image.LANCZOS))
-        return out.astype(np.float32) / 255, (side / 2, side / 2)
+        return out.astype(np.float32) / 255, (side / 2, side - down / self.res * res)
 
 
 # --- the towers -------------------------------------------------------------------------------------------------------
 
 def structures(rev):
+    """The structures' sheet and layout; since V-08b build 2 several pages, stacked here into one tall picture (each
+    cell's y moved down by the pages above it)."""
     layout = json.loads(read(f'{ART3D}/structures.json', rev))['match']
-    return image(f"{ART3D}/{layout['file']}", rev), layout
+    if 'pages' not in layout:
+        return image(f"{ART3D}/{layout['file']}", rev), layout
+    pages = [image(f"{ART3D}/{pg['file']}", rev) for pg in layout['pages']]
+    tops = np.cumsum([0] + [pg.shape[0] for pg in pages])
+    cells = {k: dict(c, y=c['y'] + int(tops[c.get('page', 0)])) for k, c in layout['cells'].items()}
+    return np.concatenate(pages, axis=0), dict(layout, cells=cells)
 
 
 def frame(sheet, cells, key):
@@ -178,9 +200,15 @@ def tower_on_pad(sheet, cells, res, plate, kind, variant, pad_id, margin=12):
     ground, centre = plate.crop(pad_id, margin, res)
     canvas = np.concatenate([ground, np.ones(ground.shape[:2] + (1,), np.float32)], axis=2)
     base, ab = frame(sheet, cells, f'{kind}/{variant}/base')
-    turret, at = frame(sheet, cells, f'{kind}/{variant}/turret0')
     canvas, bl = place(canvas, base, ab, centre)
-    canvas, tl = place(canvas, turret, at, centre)
+    if f'{kind}/{variant}/turret0' in cells:
+        turret, at = frame(sheet, cells, f'{kind}/{variant}/turret0')
+        canvas, tl = place(canvas, turret, at, centre)
+    else:
+        # V-08b build 2: the turret at rest faces up the map (heading 6), turning about its axis over the ground point.
+        turret, at = frame(sheet, cells, f'{kind}/{variant}/h6/turret0')
+        axis = TOWERS_AXIS.get(f'{kind}/{variant}', 0.0) * res
+        canvas, tl = place(canvas, turret, at, (centre[0], centre[1] + axis))
     body = (bl[..., 3] > 0.9) & (tl[..., 3] < 0.1)
     top = tl[..., 3] > 0.9
     rgb = canvas[..., :3]
@@ -189,8 +217,8 @@ def tower_on_pad(sheet, cells, res, plate, kind, variant, pad_id, margin=12):
 
 def phone(rgb, side=PHONE_PAD * 3, margin=12):
     """The crop at phone size: the pad `side` px (40 CSS px at 3×), smoothed as a GPU draws a smaller texture."""
-    full = rgb.shape[0]
-    s = int(round(side * full / (full - 2 * margin * full / (PAD_WORLD + 2 * margin))))
+    full = rgb.shape[1]
+    s = int(round(side * full / (full * PAD_WORLD / (PAD_WORLD + 2 * margin + PLATE_UP[0]))))
     return np.asarray(Image.fromarray(np.uint8(np.clip(rgb, 0, 1) * 255 + 0.5)).resize((s, s), Image.LANCZOS))
 
 
@@ -203,6 +231,7 @@ def font(size):
 
 def towers(args):
     sheet, layout = structures(args.rev)
+    TOWERS_AXIS.update({k: v['axis'] for k, v in layout.get('towers', {}).items()})
     cells, res = layout['cells'], layout['res']
     plate = Plate()
     pad_id = 12  # a base pad of the map's middle (column 2, the mid lane's west side)
@@ -278,6 +307,7 @@ def towers(args):
 def blind(args):
     """The blind test's crops: at phone size, shuffled, neutral names; the key apart."""
     sheet, layout = structures(args.rev)
+    TOWERS_AXIS.update({k: v['axis'] for k, v in layout.get('towers', {}).items()})
     plate = Plate()
     crops = []
     for kind in KINDS:

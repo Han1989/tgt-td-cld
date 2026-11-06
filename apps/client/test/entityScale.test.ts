@@ -80,10 +80,10 @@ describe('towerScale: never past the pad (V-07e)', () => {
     }
   });
 
-  it('the widest, the Prism (its base 46 world px from its centre), stops at its pad on a phone; small towers get the whole 1.3', () => {
+  it('the widest, the Prism (45.5 world px on its pad through the tilted camera, V-08b build 2), stops at its pad on a phone; small towers get the whole 1.3', () => {
     const widest = all.reduce((a, b) => (b.reach > a.reach ? b : a));
     expect(widest.id).toBe('arcane/prism');
-    expect(towerScale(phone, widest.reach)).toBeCloseTo(48 / 46, 5);
+    expect(towerScale(phone, widest.reach)).toBeCloseTo(48 / 45.5, 5);
     expect(towerScale(phone, TOWER_REACH.arrow['1']!)).toBe(MAX_TOWER_SCALE);
     // The 2D art (the fallback) keeps V-04's 1.2.
     expect(towerScale(phone, TOWER_2D_REACH)).toBeCloseTo(1.2, 5);

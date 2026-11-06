@@ -40,6 +40,7 @@
  * V-07c on 28 Oct 2026 (PR #150: the map in Spring meadow, Han's pick A, with the light pools).
  * V-08b-look on 6 Nov 2026 (PR #161: the tilted camera, three pitches for Han, images only).
  * V-08b-1 on 6 Nov 2026 (PR #162: the tilted camera, build 1 of 4, the camera in the client with today's art; Han's pick B).
+ * V-08b-2 on 6 Nov 2026 (PR #163: the tilted camera, build 2 of 4, the plate and the structures at 30°, the turrets at eight headings).
  * t-iphone-flake on 6 Nov 2026 (PR #162: the iPhone shard that flaked; the camera and the build ring no longer reset on a settings write).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
@@ -561,6 +562,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How the match is drawn: no game rules, server or protocol change. Han picked B on 6 Nov 2026: the camera tilted 30° from straight down, looking up the map from the bottom. This first of four builds puts that camera in the game. Everything on the ground (the map, the pads, the glows, every ring and circle) is drawn flattened, everything standing (heroes, creeps, towers, the Heart, the portals) stays upright and is drawn back to front, and every tap still lands where you see it. On a phone the map is a little shorter, so there is more room above the controls; on a laptop it is drawn 15% bigger. The pictures are still today’s, made for a camera looking straight down, so the map looks squashed for now: the next build draws it again for the tilt.',
     proof: pr(162),
+  },
+  {
+    id: 'V-08b-2',
+    title: 'The tilted camera, build 2: the map and the towers drawn for the tilt',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'How the match looks: no game rules, server or protocol change. Han picked a camera tilted 30° from straight down on 6 Nov 2026; this second of four builds draws the pictures for it. The map is drawn again through that camera in its three lights (afternoon, dusk and night): the build pads now show their raised tops and their front faces, and the trees and the edges show their sides. Every tower, at every tier and branch, is drawn again so you see its walls and roof, and the Heart and the portals sit on the new map. A tower’s turret is now drawn facing eight ways, and the game shows the one nearest to where it aims, so it no longer looks like a flat picture turning on its side. The roof of a tall tower is part of what you can tap. The link preview card is redrawn the same way. In review: Han judges the towers on his Pixel.',
+    proof: pr(163),
   },
   {
     id: 't-iphone-flake',

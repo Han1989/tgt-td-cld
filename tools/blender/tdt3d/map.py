@@ -26,8 +26,11 @@
 # matches (the extra pads of bigger teams) are left out of the plate and rendered as patches, drawn over it only in
 # the matches that have them, so a solo player never sees a pad they can't build on.
 #
-# Coordinates: Blender x = world px x, Blender y = −(world px y), z up; one tile = 32 world px. The camera looks
-# straight down, orthographic, the map exactly in the frame, +y down as the client draws it.
+# Coordinates: Blender x = world px x, Blender y = −(world px y), z up; one tile = 32 world px. The camera (V-08b, Han's
+# pick B of 6 Nov 2026, docs/ART.md §16 "The camera") is the match's: orthographic, looking up the map from the south,
+# tilted PITCH (30°) from straight down, the ground's rectangle exactly in the frame (26 × 50 tiles → 26 × 50 cos(30°)),
+# +y down as the client draws it. A ground point (x, y) at height z lands at plate px (x, y · cos − z · sin) × RES, the
+# client's render/view.ts `worldToScreen`, so a pad's top stands PAD_H · sin over its foot and its south face shows.
 
 import hashlib
 import json
@@ -67,6 +70,11 @@ LANE_DEPTH = 6.0      # world px the road is sunk
 BANK = (0.84, 1.22)   # tiles from the road's middle where its bank starts and meets the moss
 LEDGE = 6.0           # world px the border's rocky ledge stands
 PAD_H = 8.0           # world px a pad stands
+# The match's camera (V-08b): tilted PITCH degrees from straight down, from the south (scene.direction's azimuth 90: the
+# map's +y). The client's render/view.ts CAMERA_PITCH is the same number (test/plate.test.ts checks the layout's).
+PITCH = 30.0
+SOUTH = 90.0
+COS, SIN = math.cos(math.radians(PITCH)), math.sin(math.radians(PITCH))
 
 # Spring meadow's light (V-07c): soft warm shadows (the albedo × `shadow` in shade), a warm lit tone, the day sky's fill,
 # the sun's lit edge, a faint sky rim on the lower right. One table: the towers', the Heart's and the portals' renders
@@ -218,6 +226,12 @@ class Map:
     def pad_rect(self, p, grow=0.0):
         n = self.pad_size * T
         return p['tx'] * T - grow, p['ty'] * T - grow, p['tx'] * T + n + grow, p['ty'] * T + n + grow
+
+    def pad_view(self, p, grow=0.0):
+        """A pad's rectangle as the tilted camera draws it (world px of the view, before × RES): from over its top's
+        back edge (PAD_H · sin over the ground's) down to its south face's foot; `grow` world px of ground round it."""
+        x0, y0, x1, y1 = self.pad_rect(p, grow)
+        return x0, y0 * COS - PAD_H * SIN, x1, y1 * COS
 
     def near_pad(self, x, y, grow):
         for p in self.pads:
@@ -523,6 +537,11 @@ PAD_RINGS = [
     (35.2, 4.6, PAD_H - 1.1, 'padGroove'),
     (35.2, 4.6, PAD_H, 'padTop'),
 ]
+
+
+# How high a pad's outer edge stands (its bevel's foot, PAD_RINGS' second ring): seen from the south its back edge
+# there is the highest line of the pad on screen, so the measured box's top (`padRim` in the layout).
+PAD_RIM = PAD_RINGS[1][2]
 
 
 def pad_object(m, p):
@@ -1043,11 +1062,32 @@ def pine_top(p, base, r, h, seed):
 
 # --- render and finish -------------------------------------------------------------------------------------------
 
-def camera(m, ss):
-    w, h = int(m.wpx * RES * ss), int(m.hpx * RES * ss)
-    cam = scene.ortho_camera('Plate', 0.0, 90.0, w, h, RES * ss, V((0, 0, 0)), (0, 0))
-    cam.obj.data.clip_end = 1000
+def camera(m, ss, pitch=PITCH, name='Plate'):
+    """The match's camera on the ground's rectangle: the map's top left corner (world 0, 0, z 0) at pixel (0, 0), the
+    frame `wpx` wide and `hpx · cos(pitch)` tall (render px: × RES × ss), placed far back along its view (orthographic:
+    the projection is the same) so nothing of the tilted map is clipped behind it."""
+    c = math.cos(math.radians(pitch))
+    w, h = int(m.wpx * RES * ss), int(round(m.hpx * c * RES * ss))
+    cam = scene.ortho_camera(name, SOUTH if pitch else 0.0, 90.0 - pitch, w, h, RES * ss, V((0, 0, 0)), (0, 0))
+    far = 4000.0
+    cam.obj.location = cam.obj.location - cam.forward * far
+    cam.obj.data.clip_start = 1.0
+    cam.obj.data.clip_end = far * 3
+    bpy.context.view_layer.update()
     return cam
+
+
+def tilted_look(look, ss, pitch=PITCH):
+    """The painter's look for the tilted camera: straight down the ground's depth is its height; tilted, flat ground's
+    depth grows tan(pitch) a world unit down the screen, so the outline's depth step rises by that, and a flat field
+    draws no lines (V-08b look, pitch_options)."""
+    base = {**LOOK, **(look or {})}
+    return dict(look or {}, depth_abs=base['depth_abs'] + 1.5 * math.tan(math.radians(pitch)) / (RES * ss))
+
+
+def ground_y(y_px, ss=1):
+    """A plate row (plate px, or render px with `ss`) to the ground's world y it shows (at z 0)."""
+    return np.asarray(y_px, np.float64) / (RES * ss) / COS
 
 
 def key_light(sun=MOON):
@@ -1056,11 +1096,11 @@ def key_light(sun=MOON):
                         shine=30, ao_samples=6)
 
 
-def render_passes(cam, tmp, samples, ss, box=None, look=None):
+def render_passes(cam, tmp, samples, ss, box=None, look=None, pitch=PITCH):
     """Renders the frame (or `box` = (x0, y0, x1, y1) render px) in strips and returns, at plate size: the painted and
     lined colour, the glow, and at render size the depth and object index (for the measurements)."""
     x0, y0, x1, y1 = box or (0, 0, cam.w, cam.h)
-    look = {**npr.LOOK, **LOOK, **(look or {})}
+    look = {**npr.LOOK, **LOOK, **tilted_look(look, ss, pitch)}
     hh, ww = (y1 - y0) // ss, (x1 - x0) // ss
     col = np.zeros((hh, ww, 3), np.float32)
     emit = np.zeros((hh, ww, 3), np.float32)
@@ -1100,7 +1140,9 @@ def finish_plate(m, col, emit, x0=0, y0=0, light='afternoon'):
         out = out + b * bloom['amount']
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float64)
     x = (xs + x0 + 0.5) / RES
-    y = (ys + y0 + 0.5) / RES
+    # The tilted plate's rows show the ground's rows cos(pitch) apart: the wash and the safe zone's shade are laid by the
+    # ground's own y, so they fall where they fell on the straight-down plate.
+    y = ground_y(ys + y0 + 0.5)
     # The 2D ground's radial gradient: a faint warm wash round the upper middle, night towards the edges.
     r = np.hypot(x - m.wpx / 2, y - m.hpx * wash['centre'])
     t = np.clip((r - m.hpx * wash['r0']) / (m.hpx * (wash['r1'] - wash['r0'])), 0, 1)[..., None]
@@ -1121,16 +1163,17 @@ def to8(x):
 
 
 def measure_pads(m, obj, ss, x0=0, y0=0):
-    """Each pad's square as rendered (plate px): the box its object covers in the render, from the object pass, looked
-    for within PATCH_PAD of its tiles (`obj` starts at render px x0, y0). Far from it a pixel can only carry the pad's
-    number by accident: an edge pixel straddling two other pads whose ids average to it (V-07c: the moss's cushions on
-    the pads' edges made one, 28 tiles away)."""
+    """Each pad's box as rendered (plate px): the box its object covers in the render, from the object pass, looked
+    for within PATCH_PAD of its tiles (`obj` starts at render px x0, y0). Seen from the tilted camera a pad is a
+    rectangle: its top, cos(pitch) as tall as wide, raised PAD_H · sin over its foot, and its south face down to the
+    foot (`Map.pad_view`). Far from it a pixel can only carry the pad's number by accident: an edge pixel straddling two
+    other pads whose ids average to it (V-07c: the moss's cushions on the pads' edges made one, 28 tiles away)."""
     out = []
     k = RES * ss
     for p in m.pads:
         if p['show'] == 'none':
             continue
-        rx0, ry0, rx1, ry1 = (int(round(v * k)) for v in m.pad_rect(p, PATCH_PAD))
+        rx0, ry0, rx1, ry1 = (int(round(v * k)) for v in m.pad_view(p, PATCH_PAD))
         bx0, by0 = max(0, rx0 - x0), max(0, ry0 - y0)
         near = obj[by0:max(0, ry1 - y0), bx0:max(0, rx1 - x0)]
         ys, xs = np.nonzero(near == PAD_IDS + p['id'])
@@ -1144,9 +1187,13 @@ def measure_pads(m, obj, ss, x0=0, y0=0):
 
 def measure_lanes(m, depth, obj, ss):
     """Each lane's middle line as rendered (plate px): across the road at points along it, the middle of its sunken
-    floor (the deepest band of the ground in the depth pass), where nothing else of a lane, a pad or a prop is near."""
+    floor (the lowest band of the ground), where nothing else of a lane, a pad or a prop is near. Through the tilted
+    camera a pixel's height comes from its depth and its row: a point z lower lies z · cos deeper and z · sin lower on
+    screen, so `depth · cos + row · sin` (world px) is how low the ground it shows lies, whatever its y. Each point:
+    the floor's middle as drawn (x, y), then the map's line on the floor as drawn (x, y)."""
     k = RES * ss
     out = []
+    floor = LANE_DEPTH * SIN
     for li, pts in enumerate(m.lanes):
         line = []
         for s, (a, b) in enumerate(zip(pts[:-1], pts[1:])):
@@ -1160,19 +1207,20 @@ def measure_lanes(m, depth, obj, ss):
                 if math.hypot(cx / T - m.heart[0], cy / T - m.heart[1]) < 2.5:
                     continue
                 offs = np.arange(-1.6 * T, 1.6 * T, 1 / k)
+                gy = cy + ny * offs
                 px = np.rint((cx + nx * offs) * k - 0.5).astype(np.int64)
-                py = np.rint((cy + ny * offs) * k - 0.5).astype(np.int64)
+                py = np.rint((gy * COS + floor) * k - 0.5).astype(np.int64)
                 ok = (px >= 0) & (px < depth.shape[1]) & (py >= 0) & (py < depth.shape[0])
                 if not ok.all():
                     continue
-                dz = depth[py, px]
+                low = depth[py, px] * COS + (py + 0.5) / k * SIN
                 ground = obj[py, px] == GROUND_ID
-                deep = ground & (dz > dz[ground].max() - 1.2) if ground.any() else ground
+                deep = ground & (low > low[ground].max() - 1.2) if ground.any() else ground
                 if deep.sum() < 0.8 * T * k:
                     continue  # something stands on the floor here: no clean profile
                 c = float(offs[deep].mean())
-                line.append([round((cx + nx * c) * RES, 2), round((cy + ny * c) * RES, 2),
-                             round(cx * RES, 2), round(cy * RES, 2)])
+                line.append([round((cx + nx * c) * RES, 2), round(((cy + ny * c) * COS + floor) * RES, 2),
+                             round(cx * RES, 2), round((cy * COS + floor) * RES, 2)])
         out.append(line)
     return out
 
@@ -1251,7 +1299,8 @@ def render_map(which, out_dir, layout_dir, tmp, draft=False, lights=('afternoon'
         f = dict(name=light_file(which, light), bytes=size, quality=q, hash=file_hash(webp))
         pads_m = measure_pads(m, obj, ss)
         if light == 'afternoon':
-            layout = dict(map=which, width=plate.shape[1], height=plate.shape[0], res=RES, tilePx=T, file=f,
+            layout = dict(map=which, width=plate.shape[1], height=plate.shape[0], res=RES, tilePx=T, pitch=PITCH,
+                          padH=PAD_H, padRim=PAD_RIM, laneDepth=LANE_DEPTH, file=f,
                           pads=pads_m, lanes=measure_lanes(m, depth, obj, ss), spots=data['spots'],
                           edge=data.get('edge', []), render=dict(ss=ss, samples=samples, seconds=round(t_render)))
         elif [p['id'] for p in pads_m] != [p['id'] for p in layout['pads']]:
@@ -1303,7 +1352,7 @@ def render_patches(m, cam, pads, tmp, samples, ss, which, out_dir, light):
     cells = []
     patches = []
     for p in extra:
-        x0, y0, x1, y1 = m.pad_rect(p, PATCH_PAD)
+        x0, y0, x1, y1 = m.pad_view(p, PATCH_PAD)
         bx = tuple(int(round(v * RES * ss)) for v in (x0, y0, x1, y1))
         bx = (max(0, bx[0]), max(0, bx[1]), min(cam.w, bx[2]), min(cam.h, bx[3]))
         pc, pe, pd, po = render_passes(cam, tmp, samples, ss, box=bx, look=look)
@@ -1311,10 +1360,11 @@ def render_patches(m, cam, pads, tmp, samples, ss, which, out_dir, light):
         fin = finish_plate(m, pc, pe, px0, py0, light)
         hh, ww = fin.shape[:2]
         ys, xs = np.mgrid[0:hh, 0:ww].astype(np.float64)
-        # Inside the pad and its first PATCH_PAD / 2 world px: the patch; then it fades into the plate.
-        rx0, ry0, rx1, ry1 = [v * RES - o for v, o in zip(m.pad_rect(p), (px0, py0, px0, py0))]
+        # Inside the pad as drawn and its first PATCH_PAD / 2 world px of ground (a row of the view is 1 / cos of the
+        # ground's): the patch; then it fades into the plate.
+        rx0, ry0, rx1, ry1 = [v * RES - o for v, o in zip(m.pad_view(p), (px0, py0, px0, py0))]
         dx = np.maximum(np.maximum(rx0 - (xs + 0.5), (xs + 0.5) - rx1), 0)
-        dy = np.maximum(np.maximum(ry0 - (ys + 0.5), (ys + 0.5) - ry1), 0)
+        dy = np.maximum(np.maximum(ry0 - (ys + 0.5), (ys + 0.5) - ry1), 0) / COS
         dist = np.hypot(dx, dy) / RES
         alpha = 1 - smoothstep(PATCH_PAD * 0.45, PATCH_PAD * 0.95, dist)
         cells.append((p, (px0, py0), np.concatenate([fin, alpha[..., None]], axis=2),

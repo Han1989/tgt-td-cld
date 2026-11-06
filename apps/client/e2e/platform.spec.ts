@@ -346,6 +346,18 @@ test('Settings → Sound: music and effects volume and mute, remembered; the lob
  * The ground as drawn at a few world points (tiles) on the open grass and the roads (clear of the light pools), next to the map plate's own
  * pixels there (both averaged over a few px): the screen must show the plate (docs/ART.md §16), and in Bright the
  * plate under the same "screen" wash the painted ground bakes in.
+ *
+ * Both sides go through the game's own mapping. The screen: the camera's `worldToScreen` (render/view.ts, then the fit
+ * and zoom). The plate: since V-08b build 2 it is rendered through the match's camera, so its px are view px, and a
+ * ground point (x, y) world px is plate px (x · res, y · cos(pitch) · res), with the shown plate's own `res` and
+ * `pitch` (`art().plate`, from its layout: the same numbers `plateCos` stretches its sprite by). The straight-down
+ * plate's x · 64, y · 64 sampled the tilted one 0.13 · y tiles too low: at (17.5, 25.5) that is the grass 3.4 tiles
+ * south of the road the screen shows (43 off on CI's iPhone and Pixel shards, 6 Nov 2026; 19 at night).
+ *
+ * The points are open ground on the tilted plate too: four on a lane's floor ((6, 18) and (20, 18) the West and East
+ * lanes between their pad columns, (13, 22) the Mid lane, (17.5, 25.5) the East lane's bend) and one on the grass
+ * ((9.5, 31.5), west of the Heart, 5 tiles from its centre). None is under a pad's lifted top or its south face (those stay inside
+ * their pad's columns, which no point is in), a tree or a pool, so the bound stays 14.
  */
 async function groundVsPlate(page: Page, file = '/map/spire.webp'): Promise<{ screen: number[]; plate: number[] }[]> {
   const points: [number, number][] = [
@@ -355,6 +367,8 @@ async function groundVsPlate(page: Page, file = '/map/spire.webp'): Promise<{ sc
     [9.5, 31.5],
     [13, 22],
   ];
+  const cam = await page.evaluate(() => window.__tdt.art().plate);
+  expect(cam, 'the plate shows, with its camera').not.toBeNull();
   // The screenshot must show the camera where `at` was read: on the iPhone the camera eases into its vertical hero follow
   // over the first second of a match, so the positions are read again after the shot and the shot taken again until
   // they agree (a moving camera sampled the wrong pixels: 48 off, the iPhone shard of 6 Nov 2026).
@@ -369,7 +383,7 @@ async function groundVsPlate(page: Page, file = '/map/spire.webp'): Promise<{ sc
     shot = await page.screenshot();
   }
   return page.evaluate(
-    async ({ png, pts, at, dpr, file }) => {
+    async ({ png, pts, at, dpr, file, cam }) => {
       const load = async (src: string) => {
         const img = new Image();
         img.src = src;
@@ -389,12 +403,14 @@ async function groundVsPlate(page: Page, file = '/map/spire.webp'): Promise<{ sc
       };
       const screen = await load(`data:image/png;base64,${png}`);
       const plate = await load(file);
+      // The plate's camera (render/plate/layout.ts): world px × res across, × cos(pitch) × res down.
+      const cos = Math.cos((cam.pitch * Math.PI) / 180);
       return pts.map(([x, y], i) => ({
         screen: mean(screen, at[i]!.x * dpr, at[i]!.y * dpr, 4),
-        plate: mean(plate, x! * 64, y! * 64, 6),
+        plate: mean(plate, x! * 32 * cam.res, y! * 32 * cos * cam.res, 6),
       }));
     },
-    { png: shot.toString('base64'), pts: points, at, dpr: await page.evaluate(() => window.devicePixelRatio), file },
+    { png: shot.toString('base64'), pts: points, at, dpr: await page.evaluate(() => window.devicePixelRatio), file, cam: cam! },
   );
 }
 

@@ -478,6 +478,10 @@ export abstract class TowerRigBase {
   /** The gun's white flash on an upgrade (V-07b): the gun's frame again, additive, alpha only, out of the draw at 0. */
   private readonly gunFlash = new Sprite();
   private angle = -Math.PI / 2;
+  /** Where the turret aims on screen now (radians). */
+  protected get facing(): number {
+    return this.angle;
+  }
   /** Drawn from the 3D sheet (Tower3DRig) rather than the 2D art. */
   abstract readonly is3d: boolean;
 
@@ -525,7 +529,13 @@ export abstract class TowerRigBase {
     d = Math.atan2(Math.sin(d), Math.cos(d));
     const max = (TURN_RATE * dtMs) / 1000;
     this.angle += Math.max(-max, Math.min(max, d));
-    this.turret.rotation = this.angle;
+    this.turnTo(this.angle);
+  }
+
+  /** Shows the turret aimed at `angle` on screen: the 2D gun, seen from above, turns as a sprite (Tower3DRig picks a
+   *  rendered heading instead). */
+  protected turnTo(angle: number): void {
+    this.turret.rotation = angle;
   }
 
   /** Recoil: how far the gun is kicked back along its barrel right now (px; 0 at rest). */

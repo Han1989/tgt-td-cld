@@ -390,14 +390,18 @@ test('Play solo on the home card is the match picked, never the lesson; Change h
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
 });
 
-test('the service worker precaches the structures\' sheet with the shell; the creeps\' and heroes\' are kept once the page has them (V-07d)', async ({ page }) => {
+test('the service worker precaches the structures\' pages with the shell; the creeps\' and heroes\' are kept once the page has them (V-07d)', async ({ page }) => {
   await page.goto('/');
   await waitForReady(page, 'solo');
   const sw = await (await page.request.get('/sw.js')).text();
   const shell = JSON.parse(/const SHELL = (\[.*\]);/.exec(sw)![1]!) as string[];
   expect(shell).toContain('/map/spire.webp');
-  // Of the match sheets, only the structures' (one lossless WebP) is in the shell.
-  expect(shell.filter((f) => /-match-/.test(f))).toEqual([expect.stringMatching(/^\/assets\/structures-match-[\w-]+\.webp$/)]);
+  // Of the match sheets, only the structures' pages (lossless WebP; several since V-08b build 2's turret headings) are
+  // in the shell, every one of them.
+  const pages = shell.filter((f) => /-match-/.test(f));
+  const layout = JSON.parse(readFileSync(new URL('../src/render/art3d/structures.json', import.meta.url), 'utf8')) as { match: { pages: unknown[] } };
+  expect(pages.length).toBe(layout.match.pages.length);
+  for (const f of pages) expect(f).toMatch(/^\/assets\/structures-match-\d+-[\w-]+\.webp$/);
   const cached = () =>
     page.evaluate(async () => {
       const out: string[] = [];

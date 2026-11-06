@@ -77,6 +77,8 @@ interface Hook {
     towerRigs: number;
     /** Towers drawn from the 3D sheet, and whether the Heart and how many portals are. */
     tower3d: number;
+    /** The turret headings the 3D towers have shown (V-08b build 2). */
+    turretHeadings: number[];
     heart3d: boolean;
     portals3d: number;
     heroRigs: number;
@@ -90,6 +92,8 @@ interface Hook {
     impacts: number;
     /** The ground drawn: the map plate, the painted ground until it decodes, or none before a match. */
     ground: 'plate' | 'painted' | 'none';
+    /** The shown plate's own camera (V-08b build 2): plate px per world px and its pitch; null until it shows. */
+    plate: { res: number; pitch: number } | null;
     /** V-07c's light pools showing, by kind, and whether their layer is drawn (not at Graphics → Low). */
     pools: { heart: number; portal: number; tower: number; shown: boolean };
   };
