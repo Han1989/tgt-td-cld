@@ -1,9 +1,11 @@
 import { applyCommand, createGame, getMap, snapshot, step, TICK_RATE, TUNING, type GameState } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
+import { viewCos, worldToScreen } from '../src/render/view';
 import {
   dueLaunch,
   fallAngle,
   fallAt,
+  headPoint,
   FINALE_SIZE,
   LAND_GRACE_TICKS,
   LEAD_SECONDS,
@@ -221,5 +223,33 @@ describe('a meteor falling', () => {
     expect(washAt(z, 130, TICK_RATE)).toBeLessThan(peak);
     expect(washAt(z, 160, TICK_RATE)).toBe(0);
     expect(washAt(z, 170, TICK_RATE)).toBe(0);
+  });
+});
+
+describe('a falling meteor on the pitched ground (V-08b build 3)', () => {
+  it('falls straight down the screen along fallAngle onto its warning circle as drawn, its height never squashed', () => {
+    const cos = viewCos();
+    expect(cos).toBeLessThan(1);
+    for (const kind of ['meteor', 'meteorRain', 'shockwave'] as const) {
+      const tx = 400;
+      const ty = 900;
+      const circle = worldToScreen(tx, ty);
+      for (let i = 0; i <= 10; i++) {
+        const p = i / 10;
+        const at = fallAt(kind, p, false);
+        const h = headPoint(tx, ty, at);
+        // placeHead and Effects.emit draw (x, y × cos): the head is the fall's screen offset over the circle's centre.
+        expect(h.x - circle.x).toBeCloseTo(at.dx * 32, 9);
+        expect(h.y * cos - circle.y).toBeCloseTo(at.dy * 32, 9);
+        if (p > 0 && p < 1) {
+          const a = Math.atan2(circle.y - h.y * cos, circle.x - h.x);
+          expect(a).toBeCloseTo(fallAngle(kind), 9);
+        }
+      }
+      // It lands on the circle's centre.
+      const end = headPoint(tx, ty, fallAt(kind, 1, true));
+      expect(end.x).toBeCloseTo(circle.x, 9);
+      expect(end.y * cos).toBeCloseTo(circle.y, 9);
+    }
   });
 });

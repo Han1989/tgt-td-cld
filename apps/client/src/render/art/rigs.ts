@@ -8,7 +8,7 @@ import type { CreepSnap, SkillSlot, TowerBranch } from '@tdt/protocol';
 import { TUNING } from '@tdt/sim';
 import { Container, Graphics, Sprite, type ColorSource } from 'pixi.js';
 import { fade } from '../fade';
-import { flatRatio } from '../view';
+import { viewCos } from '../view';
 import type { ArtKit } from './kit';
 import type { CreepArt, CreepRigView, Gait, HeroPose, HeroRig, TowerArt } from './registry';
 
@@ -322,15 +322,15 @@ export abstract class HeroRigBase implements HeroRig {
     ring: number,
   ) {
     // The ring and the shadow lie on the ground at the feet: cos(pitch) as tall as wide on the tilted camera
-    // (render/view.ts), 0.4 and the shadow's frame's 0.45 before it (`?pitch=0`).
-    const ratio = flatRatio(0.4);
+    // (render/view.ts; 0.4 and the shadow's frame's 0.45 before V-08b).
+    const ratio = viewCos();
     if (mine) {
       // Your hero: a ring on the ground (drawn once).
       this.ground.addChild(new Graphics().ellipse(0, feet + 1, ring, ring * ratio).stroke({ width: 2, color: 0xffffff, alpha: 0.9 }));
     }
     const shadow = kit.sprite('common', 'shadow');
     shadow.position.set(0, feet + 1);
-    shadow.scale.set(ring / 25, ((ring / 25) * flatRatio(SHADOW_RATIO)) / SHADOW_RATIO);
+    shadow.scale.set(ring / 25, ((ring / 25) * ratio) / SHADOW_RATIO);
     this.ground.addChild(shadow);
     this.flipper.pivot.set(0, feet);
     this.flipper.position.set(0, feet);

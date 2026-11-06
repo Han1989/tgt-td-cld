@@ -15,7 +15,7 @@ import {
   zoomLabel,
 } from '../src/input/camera';
 import { computeLayout } from '../src/layout';
-import { CAMERA_PITCH, setPitch, viewCos } from '../src/render/view';
+import { CAMERA_PITCH, viewCos } from '../src/render/view';
 
 describe('Camera', () => {
   it('converts between screen and world coordinates', () => {
@@ -74,20 +74,6 @@ describe('Camera', () => {
     // The map is 50 tiles of ground, drawn 50 · 32 · cos tall: the frame's bottom is its bottom edge.
     expect(cam.worldToScreen(0, 50 * 32).y).toBeCloseTo(44 + 50 * 32 * cos * zoom, 9);
     expect(cam.spanH).toBeCloseTo(50 * 32 * cos, 9);
-  });
-
-  it('?pitch=0 (browser-test builds): the camera from straight down, as before V-08b', () => {
-    setPitch(0);
-    try {
-      const cam = new Camera(26 * 32, 50 * 32);
-      cam.resize(412, 839);
-      cam.fit({ left: 0, top: 44, right: 412, bottom: 836 }, 412 / 832);
-      expect(cam.worldToScreen(320, 1000).y).toBeCloseTo(44 + 1000 * (412 / 832), 9);
-      expect(cam.spanH).toBe(50 * 32);
-    } finally {
-      setPitch(CAMERA_PITCH);
-    }
-    expect(viewCos()).toBeCloseTo(Math.cos(Math.PI / 6), 12);
   });
 
   it('fits the map into a frame; the fitted zoom is the minimum and the map stays centred there', () => {

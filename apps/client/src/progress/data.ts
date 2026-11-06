@@ -41,6 +41,7 @@
  * V-08b-look on 6 Nov 2026 (PR #161: the tilted camera, three pitches for Han, images only).
  * V-08b-1 on 6 Nov 2026 (PR #162: the tilted camera, build 1 of 4, the camera in the client with today's art; Han's pick B).
  * V-08b-2 on 6 Nov 2026 (PR #163: the tilted camera, build 2 of 4, the plate and the structures at 30°, the turrets at eight headings).
+ * V-08b-3 on 6 Nov 2026 (PR #164: the tilted camera, build 3 of 4, the effects, the weather and the fallbacks on the pitched ground).
  * t-iphone-flake on 6 Nov 2026 (PR #162: the iPhone shard that flaked; the camera and the build ring no longer reset on a settings write).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
@@ -571,6 +572,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How the match looks: no game rules, server or protocol change. Han picked a camera tilted 30° from straight down on 6 Nov 2026; this second of four builds draws the pictures for it. The map is drawn again through that camera in its three lights (afternoon, dusk and night): the build pads now show their raised tops and their front faces, and the trees and the edges show their sides. Every tower, at every tier and branch, is drawn again so you see its walls and roof, and the Heart and the portals sit on the new map. A tower’s turret is now drawn facing eight ways, and the game shows the one nearest to where it aims, so it no longer looks like a flat picture turning on its side. The roof of a tall tower is part of what you can tap. The link preview card is redrawn the same way. In review: Han judges the towers on his Pixel.',
     proof: pr(163),
+  },
+  {
+    id: 'V-08b-3',
+    title: 'The tilted camera, build 3: the effects and the weather on the tilted ground',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'How the match looks: no game rules, server or protocol change. The third of four builds for the camera Han picked, tilted 30° from straight down. Everything that lies on the ground now lies on the tilted ground, and everything that falls falls straight down the screen onto it: the arrows and meteors of the ultimates land exactly on their marks (they used to land a little short), the Warden’s quake runs its cracks along the lane as you see it, the swirl of a portal turns inside its arch, rain splashes on the roads and on the raised tops of the build pads, and leaves float down and lie flat. For the few seconds before the map’s picture has loaded, the build pads are drawn with their raised tops where the real ones will be, so an early tap still lands right. There is one camera in every build now, and the press pictures and the link preview were taken again with it.',
+    proof: pr(164),
   },
   {
     id: 't-iphone-flake',

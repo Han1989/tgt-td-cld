@@ -13,8 +13,11 @@
 //   ground point's view position (`worldToScreen`), drawn back to front by `depth`.
 // - Taps land on the ground plane (`screenToWorld` / `screenToTile`, the inverse at z 0).
 //
-// The pitch is one constant. Browser-test builds take `?pitch=0` (the camera before V-08b) for one release, so the two
-// can be compared in the same build (`setPitch`, called from main.ts in e2e builds only); the production build has one.
+// The pitch is one constant: one camera in every build (V-08b build 3 removed the browser tests' `?pitch=0`).
+//
+// Things that fall or rise (V-08b build 3): their height is a screen offset over their ground point's view position
+// (`overGround`), so a meteor or an arrow falls straight down the screen onto the point it lands on, and the effects
+// that take a ground point and a height in world px (`liftToGround`) land where the ground is drawn.
 
 import { TILE_PX } from '@tdt/sim';
 
@@ -24,17 +27,9 @@ export const CAMERA_PITCH = 30;
 /** World px a pad's top stands over the ground (the plate's `padH`, tools/blender/tdt3d/map.py PAD_H; a test checks). */
 export const PAD_TOP = 8;
 
-let pitchDeg = CAMERA_PITCH;
-let cosP = Math.cos((CAMERA_PITCH * Math.PI) / 180);
-let sinP = Math.sin((CAMERA_PITCH * Math.PI) / 180);
-
-/** Browser-test builds only (`?pitch=0`): the camera's pitch for this page. Clamped to 0..60°. */
-export function setPitch(deg: number): void {
-  const d = Number.isFinite(deg) ? Math.min(60, Math.max(0, deg)) : CAMERA_PITCH;
-  pitchDeg = d;
-  cosP = Math.cos((d * Math.PI) / 180);
-  sinP = Math.sin((d * Math.PI) / 180);
-}
+const pitchDeg = CAMERA_PITCH;
+const cosP = Math.cos((CAMERA_PITCH * Math.PI) / 180);
+const sinP = Math.sin((CAMERA_PITCH * Math.PI) / 180);
 
 /** The pitch in use (degrees). */
 export function viewPitch(): number {
@@ -116,10 +111,41 @@ export function groundAngle(dx: number, dy: number, cos = cosP): number {
 }
 
 /**
- * A ground ellipse drawn with a cheat before the tilted camera (a hero's ring and shadow 0.4–0.45 as tall as wide, a
- * rain splash 0.6), as it is drawn now: cos(pitch) tall, the ground's own; `legacy` at `?pitch=0`, so the two cameras
- * compare as they were.
+ * The ground y to hand to something that draws a ground point at its view position (y × cos: `Effects.emit`, the
+ * weather's layers) so that it shows `up` view px (screen px before the camera's zoom) over the ground point at `y`:
+ * y − up / cos. A meteor's head, an arrow starting its fall, a star over a creep's feet: their height is a screen
+ * offset, never squashed, so they fall and rise straight up and down the screen (world px or tiles, as `y` is).
  */
-export function flatRatio(legacy: number): number {
-  return pitchDeg > 0 ? cosP : legacy;
+export function overGround(y: number, up: number, cos = cosP): number {
+  return cos > 0 ? y - up / cos : y - up;
+}
+
+/**
+ * A vertical face looking south (a portal's arch, V-08b build 3), as drawn: its height sin(pitch) as tall as its width
+ * (a height z is drawn z · sin higher). Something round painted on it is an ellipse this tall.
+ */
+export function archRatio(sin = sinP): number {
+  return sin;
+}
+
+/** View px a pad's top is drawn over the ground: `PAD_TOP` · sin(pitch) (its zone tints, the painted slab's top). */
+export function padLift(sin = sinP): number {
+  return PAD_TOP * sin;
+}
+
+/**
+ * A pad of side `size` centred on (x, y) as the plate draws it (V-08b build 2), in view units (world px or tiles, as
+ * the arguments are; `lift` view px in the same units): its raised top from its back edge to its front edge, `lift`
+ * over the ground, and its south face from the top's front edge down to the ground. The box a tap on it lands in runs
+ * from `top` to `foot`; the painted slab (V-08b build 3) is drawn to the same box.
+ */
+export function padDrawn(
+  x: number,
+  y: number,
+  size: number,
+  lift: number,
+  cos = cosP,
+): { left: number; right: number; top: number; front: number; foot: number } {
+  const g = groundRect(x, y, size, cos);
+  return { left: g.left, right: g.right, top: g.top - lift, front: g.bottom - lift, foot: g.bottom };
 }

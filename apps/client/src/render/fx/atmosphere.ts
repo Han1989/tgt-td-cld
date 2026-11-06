@@ -121,10 +121,16 @@ export const RAIN_POOL_SCALE = 1.1;
 /** The breeze the rain slants on and the leaves drift on (world px a second): east-south-east. */
 export const WIND = { x: 1, y: 0.35 } as const;
 
-/** A drawn particle: world px, its alpha (0 = out of the draw), rotation (radians) and scale (of its frame). */
+/**
+ * A drawn particle: a ground point (world px), how high over it it is drawn (`up`, view px: a screen offset, never
+ * squashed; V-08b build 3), its alpha (0 = out of the draw), rotation (radians), scale (of its frame) and how flat it
+ * lies (`flat`: 0 upright, 1 lying on the ground, drawn cos(pitch) as tall).
+ */
 export interface Drop {
   x: number;
   y: number;
+  up: number;
+  flat: number;
   alpha: number;
   rotation: number;
   scale: number;
@@ -160,6 +166,8 @@ export function rainStreak(i: number, t: number, box: Box, out: Drop): Drop {
   out.alpha = Math.min(1, u * 5) * Math.min(1, (1 - u) * 4);
   out.rotation = Math.atan2(1, slant);
   out.scale = 0.85 + 0.3 * mixHash(i, 13);
+  out.up = 0;
+  out.flat = 0;
   return out;
 }
 
@@ -170,7 +178,7 @@ export const SPLASH = { life: 700, shown: 0.38 } as const;
  * Splash `i` at `t` ms on one of `spots` (world px points on the road and the pads): a small ring spreading and fading
  * over the first `SPLASH.shown` of its life, then nothing until its next life, at another spot.
  */
-export function rainSplash(i: number, t: number, spots: readonly { x: number; y: number }[], out: Drop): Drop {
+export function rainSplash(i: number, t: number, spots: readonly { x: number; y: number; up?: number }[], out: Drop): Drop {
   const life = SPLASH.life * (0.8 + 0.4 * mixHash(i, 17));
   const phase = t / life + mixHash(i, 19);
   const k = Math.floor(phase);
@@ -178,6 +186,9 @@ export function rainSplash(i: number, t: number, spots: readonly { x: number; y:
   const spot = spots.length > 0 ? spots[Math.floor(mixHash(i, k, 23) * spots.length) % spots.length]! : { x: 0, y: 0 };
   out.x = spot.x;
   out.y = spot.y;
+  // On the road at the ground; on a pad on its raised top (the spot's `up`, the plate's `PAD_TOP` · sin).
+  out.up = spot.up ?? 0;
+  out.flat = 1;
   out.rotation = 0;
   if (u >= 1 || spots.length === 0) {
     out.alpha = 0;
@@ -189,8 +200,11 @@ export function rainSplash(i: number, t: number, spots: readonly { x: number; y:
   return out;
 }
 
-/** A leaf's life (ms): drifting, then settled on the ground, then fading; the shares of its life. */
-export const LEAF = { life: 9000, drift: 0.72, settle: 0.86, speed: 34 } as const;
+/**
+ * A leaf's life (ms): drifting, then settled on the ground, then fading; the shares of its life; how high over the
+ * ground it starts (view px, `height`) and the share of the drift it takes to lay itself flat as it lands (`lay`).
+ */
+export const LEAF = { life: 9000, drift: 0.72, settle: 0.86, speed: 34, height: 46, lay: 0.12 } as const;
 
 /**
  * Leaf `i` at `t` ms: drifts on the breeze across the meadow from a hashed start, swaying and turning, lands, lies
@@ -215,6 +229,11 @@ export function fallingLeaf(i: number, t: number, box: Box, out: Drop): Drop {
   const fadeIn = Math.min(1, u / 0.06);
   const fadeOut = u < LEAF.settle ? 1 : Math.max(0, 1 - (u - LEAF.settle) / (1 - LEAF.settle));
   out.alpha = fadeIn * fadeOut;
+  // It falls through the air onto the ground (its height a screen offset, eased in as a leaf slows to land), then lies
+  // flat on the pitched ground until it fades (V-08b build 3).
+  const fall = Math.min(1, drift / LEAF.drift);
+  out.up = LEAF.height * (1 - fall) * (1 - fall * 0.35);
+  out.flat = Math.max(0, Math.min(1, (fall - (1 - LEAF.lay)) / LEAF.lay));
   return out;
 }
 
@@ -233,6 +252,8 @@ export function firefly(i: number, t: number, spots: readonly { x: number; y: nu
   out.y = home.y + Math.cos(s * 0.55 + i * 2.1) * FIREFLY.wander * 0.7 - 6;
   out.rotation = 0;
   out.scale = 0.18 + 0.06 * mixHash(i, 67);
+  out.up = 0;
+  out.flat = 0;
   const blink = 0.55 + 0.45 * Math.sin(s * (2 + mixHash(i, 71) * 2) + i * 3);
   const edge = Math.min(1, u / 0.1) * Math.min(1, (1 - u) / 0.1);
   out.alpha = spots.length > 0 ? Math.max(0, dark) * edge * blink : 0;

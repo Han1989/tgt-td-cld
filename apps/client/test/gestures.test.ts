@@ -92,7 +92,7 @@ describe('joystick', () => {
     const diag = stickMoveTarget(HERO, { dx: 30, dy: 30, mag: 0.85 }, 50)!;
     expect((diag.y - HERO.y) * cos).toBeCloseTo(diag.x - HERO.x);
     expect(Math.hypot(diag.x - HERO.x, diag.y - HERO.y)).toBeCloseTo(STICK_AHEAD, 6);
-    // At ?pitch=0 (cos 1) the ground and the screen agree.
+    // At pitch 0 (cos 1) the ground and the screen agree.
     const flat = stickMoveTarget(HERO, { dx: 30, dy: 30, mag: 0.85 }, 50, STICK_AHEAD, STICK_FEELS.normal, 1)!;
     expect(flat.x - HERO.x).toBeCloseTo(flat.y - HERO.y);
   });
