@@ -24,6 +24,7 @@ import {
   type TowerSnap,
 } from '@tdt/protocol';
 import { getMap, repairCost, TILE_PX, tuningForMode, TUNING } from '@tdt/sim';
+import { viewCos } from '../render/view';
 import { HERO_INFO, SMART_CAST } from '../heroInfo';
 import { pulse, rimFlash, shake } from '../hud/press';
 import { skillFace } from '../hud/skillFace';
@@ -85,6 +86,7 @@ import {
   type StickFeel,
   type StickFeelName,
   type Candidate,
+  type TapResult,
   type MapTouchKind,
   type PinchStart,
   type Pt,
@@ -912,21 +914,31 @@ export class TouchControls {
     else this.showPicker(p, result.picks);
   }
 
+  /** What a tap at `p` (screen px) would pick, without acting on it (browser tests' tap check, V-08b). */
+  tapAt(p: Pt): TapResult {
+    return resolveTap(p, this.candidates());
+  }
+
   /** Pads of this match without a tower, towers and creeps, as tap candidates in screen px. */
-  private candidates(): Candidate[] {
+  candidates(): Candidate[] {
     const snap = this.actions.latest();
     if (!snap) return [];
     const map = getMap();
     const px = this.camera.zoom * TILE_PX;
+    // The tilted camera (render/view.ts): a pad on the ground is drawn cos(pitch) as tall as it is wide, and a tower's
+    // drawn body is a target too where it stands over the ground behind its pad (`rise`; the front one wins).
+    const half = (map.padSize / 2) * px;
+    const halfY = half * viewCos();
     const out: Candidate[] = [];
     const built = new Set(snap.towers.map((t) => t.padId));
     for (const p of snap.pads) {
       const pad = map.pads[p.id];
       if (!pad || built.has(p.id)) continue;
-      out.push({ kind: 'pad', id: p.id, at: this.toScreen(pad.x, pad.y), half: (map.padSize / 2) * px, shape: 'box' });
+      out.push({ kind: 'pad', id: p.id, at: this.toScreen(pad.x, pad.y), half, halfY, shape: 'box' });
     }
     for (const t of this.renderer.drawnTowerList()) {
-      out.push({ kind: 'tower', id: t.id, at: this.toScreen(t.x, t.y), half: (map.padSize / 2) * px, shape: 'box' });
+      const rise = this.renderer.towerRise(t) * this.camera.zoom;
+      out.push({ kind: 'tower', id: t.id, at: this.toScreen(t.x, t.y), half, halfY, rise, shape: 'box' });
     }
     for (const cr of this.renderer.drawnCreepList()) {
       const r = this.renderer.drawnCreepRadius(cr.kind) * px;

@@ -10,6 +10,7 @@ import { OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
+import { setPitch } from './render/view';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
 import { showBootMessage } from './startup/splash';
 
@@ -69,6 +70,9 @@ async function main(): Promise<void> {
   // Code-drawn UI icons (render/art/icons.ts), baked once and published as CSS images.
   installIcons();
   const params = new URLSearchParams(location.search);
+  // Browser-test builds: `?pitch=0` draws the camera before V-08b (straight down) for one release, so the two can be
+  // compared in the same build (render/view.ts). The production build has one camera.
+  if (import.meta.env.MODE === 'e2e' && params.has('pitch')) setPitch(Number(params.get('pitch')));
   // ?showcase: a dev page with every registered entity's art (docs/ART.md), no match.
   if (params.has('showcase')) {
     const { runShowcase } = await import('./showcase');

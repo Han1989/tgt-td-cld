@@ -8,8 +8,13 @@
 // moves it itself: at the fitted zoom the vertical hero follow of shorter phones
 // (`followOffset`), and, since V-07e, a pinch zoom up to MAX_PHONE_ZOOM that
 // follows your hero in both axes (`PhoneZoom`, docs/MOBILE.md §4).
+//
+// The tilted camera (V-08b, render/view.ts): the camera works in view px, the ground's y squashed by cos(pitch), so
+// the map is `worldH · cos` tall to it. Its two conversions take and give world px on the ground plane: every tap,
+// ping, ring and aim goes through them, and lands on the ground.
 
 import type { Layout, Rect } from '../layout';
+import { screenToWorld as viewToGround, viewCos, worldToScreen as groundToView } from '../render/view';
 
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 2;
@@ -25,7 +30,7 @@ export const SNAP_BACK_MS = 200;
 export const FIT_SNAP = 1.02;
 
 export class Camera {
-  /** World point at the centre of the screen. */
+  /** View point at the centre of the screen (view px: world px, y × cos(pitch); render/view.ts). */
   x: number;
   y: number;
   zoom = 1;
@@ -42,7 +47,12 @@ export class Camera {
     readonly worldH: number,
   ) {
     this.x = worldW / 2;
-    this.y = worldH / 2;
+    this.y = this.spanH / 2;
+  }
+
+  /** The map's height in view px: the ground's `worldH` drawn `cos(pitch)` tall. */
+  get spanH(): number {
+    return this.worldH * viewCos();
   }
 
   resize(w: number, h: number): void {
@@ -51,12 +61,26 @@ export class Camera {
     this.clamp();
   }
 
-  screenToWorld(sx: number, sy: number): { x: number; y: number } {
+  /** A screen point (px) to the view point under it (view px). */
+  screenToView(sx: number, sy: number): { x: number; y: number } {
     return { x: this.x + (sx - this.viewW / 2) / this.zoom, y: this.y + (sy - this.viewH / 2) / this.zoom };
   }
 
-  worldToScreen(wx: number, wy: number): { x: number; y: number } {
-    return { x: (wx - this.x) * this.zoom + this.viewW / 2, y: (wy - this.y) * this.zoom + this.viewH / 2 };
+  /** A view point (view px) to the screen (px). */
+  viewToScreen(vx: number, vy: number): { x: number; y: number } {
+    return { x: (vx - this.x) * this.zoom + this.viewW / 2, y: (vy - this.y) * this.zoom + this.viewH / 2 };
+  }
+
+  /** A screen point (px) to the ground point under it (world px): taps land on the ground plane. */
+  screenToWorld(sx: number, sy: number): { x: number; y: number } {
+    const v = this.screenToView(sx, sy);
+    return viewToGround(v.x, v.y);
+  }
+
+  /** A ground point (world px), `z` world px above the ground, to the screen (px). */
+  worldToScreen(wx: number, wy: number, z = 0): { x: number; y: number } {
+    const v = groundToView(wx, wy, z);
+    return this.viewToScreen(v.x, v.y);
   }
 
   /**
@@ -71,7 +95,7 @@ export class Camera {
     this.clamp();
   }
 
-  /** Moves the camera so that world (0, 0) is at screen (sx, sy). */
+  /** Moves the camera so that world (0, 0) (view (0, 0) too) is at screen (sx, sy). */
   place(sx: number, sy: number): void {
     this.x = this.viewW / 2 / this.zoom - sx / this.zoom;
     this.y = this.viewH / 2 / this.zoom - sy / this.zoom;
@@ -88,26 +112,31 @@ export class Camera {
   /** Zooms by `factor`, keeping the world point under (sx, sy) fixed. */
   zoomAt(factor: number, sx: number, sy: number): void {
     if (this.locked) return;
-    const before = this.screenToWorld(sx, sy);
+    const before = this.screenToView(sx, sy);
     this.zoom = Math.min(MAX_ZOOM, Math.max(this.minZoom, this.zoom * factor));
-    const after = this.screenToWorld(sx, sy);
+    const after = this.screenToView(sx, sy);
     this.x += before.x - after.x;
     this.y += before.y - after.y;
     this.clamp();
   }
 
+  /** Centres the camera on a ground point (world px). */
   centerOn(wx: number, wy: number): void {
     if (this.locked) return;
-    this.x = wx;
-    this.y = wy;
+    const v = groundToView(wx, wy);
+    this.x = v.x;
+    this.y = v.y;
     this.clamp();
   }
 
-  /** Keeps the map covering the frame; centres it in the frame along an axis where it is smaller. */
+  /**
+   * Keeps the map covering the frame; centres it in the frame along an axis where it is smaller. The map's edges are
+   * the ground's rectangle as drawn: `worldW` wide, `spanH` tall.
+   */
   clamp(): void {
     const f = this.frame ?? { left: 0, top: 0, right: this.viewW, bottom: this.viewH };
     this.x = axis(this.x, this.worldW, this.zoom, f.left, f.right, this.viewW);
-    this.y = axis(this.y, this.worldH, this.zoom, f.top, f.bottom, this.viewH);
+    this.y = axis(this.y, this.spanH, this.zoom, f.top, f.bottom, this.viewH);
   }
 }
 
@@ -169,9 +198,10 @@ export function clampOrigin(origin: { left: number; top: number }, w: number, h:
 }
 
 /**
- * The zoomed hero follow: where the map's top left goes so that your hero (`hero`, tiles; `px` screen px a tile) is
- * inside the centre box, FOLLOW_BOX of `band` on each axis, moving the map the least, then clamped so the map covers
- * `frame`. Inside the box the map stays where it is (no drift while you fight in place).
+ * The zoomed hero follow: where the map's top left goes so that your hero (`hero`, tiles; `px` screen px a tile across,
+ * `rowPx` a tile row down: the tilted camera's rows are shorter) is inside the centre box, FOLLOW_BOX of `band` on each
+ * axis, moving the map the least, then clamped so the map covers `frame`. Inside the box the map stays where it is (no
+ * drift while you fight in place). `mapW` / `mapH` are the map's size in tiles.
  */
 export function followZoomed(
   origin: { left: number; top: number },
@@ -182,17 +212,21 @@ export function followZoomed(
   mapW: number,
   mapH: number,
   box = FOLLOW_BOX,
+  rowPx = px,
 ): { left: number; top: number } {
-  const along = (o: number, h: number, lo: number, hi: number): number => {
+  const along = (o: number, h: number, step: number, lo: number, hi: number): number => {
     const mid = (lo + hi) / 2;
     const half = ((hi - lo) * box) / 2;
-    const at = o + h * px;
+    const at = o + h * step;
     if (at < mid - half) return o + (mid - half - at);
     if (at > mid + half) return o - (at - (mid + half));
     return o;
   };
-  const next = { left: along(origin.left, hero.x, band.left, band.right), top: along(origin.top, hero.y, band.top, band.bottom) };
-  return clampOrigin(next, mapW * px, mapH * px, frame);
+  const next = {
+    left: along(origin.left, hero.x, px, band.left, band.right),
+    top: along(origin.top, hero.y, rowPx, band.top, band.bottom),
+  };
+  return clampOrigin(next, mapW * px, mapH * rowPx, frame);
 }
 
 /**
@@ -211,9 +245,9 @@ export function zoomLabel(level: number): string {
   return level < 1.05 ? '' : `${level.toFixed(1)}×`;
 }
 
-/** The map's size in tiles, from the layout's fitted rect. */
+/** The map's size in tiles, from the layout's fitted rect (its rows `rowPx` tall: the tilted camera). */
 function mapTiles(layout: Layout): { w: number; h: number } {
-  return { w: (layout.map.right - layout.map.left) / layout.tilePx, h: (layout.map.bottom - layout.map.top) / layout.tilePx };
+  return { w: (layout.map.right - layout.map.left) / layout.tilePx, h: (layout.map.bottom - layout.map.top) / layout.rowPx };
 }
 
 /**
@@ -259,10 +293,11 @@ export class PhoneZoom {
   /** Two fingers came down on the map at `mid` (screen px): the map point under them stays under them. */
   pinchStart(mid: Pt, layout: Layout): void {
     const px = layout.tilePx * this.shown.level;
+    const row = layout.rowPx * this.shown.level;
     this.snap = null;
     this.level = this.shown.level;
     this.origin = { left: this.shown.left, top: this.shown.top };
-    this.grip = { anchor: { x: (mid.x - this.shown.left) / px, y: (mid.y - this.shown.top) / px } };
+    this.grip = { anchor: { x: (mid.x - this.shown.left) / px, y: (mid.y - this.shown.top) / row } };
   }
 
   /** The pinch moved: `level` (already clamped, 1..MAX_PHONE_ZOOM) about the fingers' midpoint `mid`. */
@@ -270,9 +305,10 @@ export class PhoneZoom {
     if (!this.grip) return;
     this.level = Math.min(MAX_PHONE_ZOOM, Math.max(1, level));
     const px = layout.tilePx * this.level;
+    const row = layout.rowPx * this.level;
     const size = mapTiles(layout);
-    const origin = { left: mid.x - this.grip.anchor.x * px, top: mid.y - this.grip.anchor.y * px };
-    this.origin = clampOrigin(origin, size.w * px, size.h * px, zoomFrame(layout, this.level));
+    const origin = { left: mid.x - this.grip.anchor.x * px, top: mid.y - this.grip.anchor.y * row };
+    this.origin = clampOrigin(origin, size.w * px, size.h * row, zoomFrame(layout, this.level));
   }
 
   pinchEnd(): void {
@@ -301,11 +337,12 @@ export class PhoneZoom {
       if (s.done) this.clear();
     } else if (this.level > 1 && this.origin) {
       const px = layout.tilePx * this.level;
+      const row = layout.rowPx * this.level;
       const size = mapTiles(layout);
       const frame = zoomFrame(layout, this.level);
-      let o = clampOrigin(this.origin, size.w * px, size.h * px, frame);
+      let o = clampOrigin(this.origin, size.w * px, size.h * row, frame);
       if (!this.grip && hero) {
-        const target = followZoomed(o, hero, px, followBand(layout), frame, size.w, size.h);
+        const target = followZoomed(o, hero, px, followBand(layout), frame, size.w, size.h, FOLLOW_BOX, row);
         const k = Math.min(1, dtMs / FOLLOW_MS);
         o = { left: o.left + (target.left - o.left) * k, top: o.top + (target.top - o.top) * k };
       }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HeroPredictor, PREDICT, type Pt } from '../src/predict';
+import { stickMoveTarget } from '../src/touch/gestures';
+import { viewCos, worldToScreen } from '../src/render/view';
 
 const FRAME = 16;
 const TICK = 50;
@@ -127,6 +129,33 @@ describe('HeroPredictor', () => {
     // Stunned at 600 ms (seen ~80 ms later): the drawn hero stops close to the server's.
     const at = drawn.find((d) => d.t >= 1200)!;
     expect(Math.abs(at.x - server.x)).toBeLessThan(0.1);
+  });
+
+  it('the tilted camera: a stick pushed up and right walks the ground at full speed and is drawn going that way (V-08b)', () => {
+    const pred = new HeroPredictor(straight);
+    pred.speed = SPEED;
+    const start = { x: 10, y: 20 };
+    pred.resolve(start);
+    // The stick at 45° up and right on screen, resent every 100 ms as TouchControls does.
+    let target = stickMoveTarget(start, { dx: 30, dy: -30, mag: 0.8 }, 50)!;
+    pred.move(target, 0);
+    for (let t = 16; t <= 640; t += 16) {
+      if (t % 96 === 0) {
+        target = stickMoveTarget(pred.drawn ?? start, { dx: 30, dy: -30, mag: 0.8 }, 50)!;
+        pred.move(target, t);
+      }
+      pred.frame(t, 16);
+    }
+    const end = pred.resolve(start);
+    // On the ground: the step's ground direction is (1, -1 / cos), at the hero's speed (tiles a second).
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    expect(dy * viewCos()).toBeCloseTo(-dx, 6);
+    expect(Math.hypot(dx, dy)).toBeCloseTo((SPEED * 640) / 1000, 1);
+    // On screen it goes the way the stick points: 45° up and right.
+    const a = worldToScreen(start.x, start.y);
+    const b = worldToScreen(end.x, end.y);
+    expect(Math.atan2(b.y - a.y, b.x - a.x)).toBeCloseTo(-Math.PI / 4, 6);
   });
 
   it('follows the path the sim would take', () => {

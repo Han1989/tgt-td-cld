@@ -20,6 +20,7 @@
     "share-cards": "tsx scripts/shareCards.ts",
     "press-shots": "tsx scripts/pressShots.ts",
     "atmosphere-shots": "tsx scripts/atmosphereShots.ts",
+    "camera-shots": "tsx scripts/cameraShots.ts",
     "build:embed": "tsx scripts/buildEmbed.ts",
     "embed:serve": "tsx scripts/embedServe.ts",
     "camera-options": "tsx scripts/cameraOptions.ts"

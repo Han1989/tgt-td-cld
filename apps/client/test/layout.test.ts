@@ -1,8 +1,10 @@
 import { getMap } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
+import { CAMERA_PITCH } from '../src/render/view';
 import {
   computeLayout,
   followOffset,
+  SIDE_MIN,
   GESTURE_GAP,
   overlaps,
   SKILL_PX,
@@ -39,14 +41,17 @@ function input(w: number, h: number, over: Partial<LayoutInput> = {}): LayoutInp
   };
 }
 
-/** Screen rects of everything that is gameplay (pads, lanes, the Heart), camera at rest. */
-function gameplayRects(tile: number, origin: { left: number; top: number }): Rect[] {
+/**
+ * Screen rects of everything that is gameplay (pads, lanes, the Heart), camera at rest: a tile `tilePx` wide and, on the
+ * tilted camera, a row `rowPx` tall (V-08b).
+ */
+function gameplayRects(l: { tilePx: number; rowPx: number }, origin: { left: number; top: number }): Rect[] {
   const rects: Rect[] = [];
   const at = (tx: number, ty: number, w: number, h: number): Rect => ({
-    left: origin.left + tx * tile,
-    top: origin.top + ty * tile,
-    right: origin.left + (tx + w) * tile,
-    bottom: origin.top + (ty + h) * tile,
+    left: origin.left + tx * l.tilePx,
+    top: origin.top + ty * l.rowPx,
+    right: origin.left + (tx + w) * l.tilePx,
+    bottom: origin.top + (ty + h) * l.rowPx,
   });
   for (const p of map.pads) rects.push(at(p.tx, p.ty, map.padSize, map.padSize));
   for (let ty = 0; ty < map.height; ty++) {
@@ -76,6 +81,75 @@ function minGap(c: Controls): number {
 }
 
 const LAYOUTS = STICK_MODES.flatMap((stick) => SKILL_PLACES.map((skills) => ({ stick, skills })));
+
+describe('computeLayout: the tilted camera (V-08b, B: 30° from straight down)', () => {
+  const cos = Math.cos((CAMERA_PITCH * Math.PI) / 180);
+
+  it('412 × 839: the width fit as before, the map 50 · tile · cos tall, 109 px left under it and 95 px over the controls', () => {
+    const l = computeLayout(input(412, 839));
+    expect(CAMERA_PITCH).toBe(30);
+    expect(l.tilePx).toBeCloseTo(412 / 26, 9);
+    expect(l.rowPx).toBeCloseTo((412 / 26) * cos, 9);
+    expect(l.map.bottom - l.map.top).toBeCloseTo(50 * (412 / 26) * cos, 9);
+    // docs/art/camera-options.md: 686 px of map, 109 px under it, gameplay ending at row 40 (593) over the controls (688).
+    expect(Math.round(l.map.bottom - l.map.top)).toBe(686);
+    expect(Math.round(839 - l.map.bottom)).toBe(109);
+    expect(Math.round(l.gameplayBottom)).toBe(593);
+    expect(l.controls!.top).toBeCloseTo(688, 6);
+    expect(Math.round(l.controls!.top - l.gameplayBottom)).toBe(95);
+    expect(l.followRange).toBe(0);
+    // The ⤢ button, re-measured: 2 px under the top bar (rows 0.15–3.3), 8.9 px over the east column's first pad (row 4).
+    const z = l.zoomButton!;
+    expect(z).toEqual({ left: 364, top: 46, right: 408, bottom: 90 });
+    expect(l.map.top + 4 * l.rowPx - z.bottom).toBeGreaterThan(8.5);
+    // On a 360-wide phone, the narrowest measured, 2 px over it.
+    const narrow = computeLayout(input(360, 780));
+    expect(narrow.map.top + 4 * narrow.rowPx - narrow.zoomButton!.bottom).toBeGreaterThan(1.9);
+  });
+
+  it('?pitch=0 is the layout before it: the same tile, the rows as tall, the map 792 px', () => {
+    const l = computeLayout(input(412, 839, { pitch: 0 }));
+    expect(l.rowPx).toBe(l.tilePx);
+    expect(Math.round(l.map.bottom - l.map.top)).toBe(792);
+    expect(Math.round(l.controls!.top - l.gameplayBottom)).toBe(10);
+  });
+
+  it('360 × 640: the map 600 px tall (4 px past the screen) and a 35 px follow, three times shorter than before', () => {
+    const l = computeLayout(input(360, 640));
+    expect(l.rowPx).toBeCloseTo((360 / 26) * cos, 9);
+    expect(l.map.bottom - l.map.top).toBeCloseTo(50 * (360 / 26) * cos, 9);
+    expect(Math.round(l.map.bottom)).toBe(644);
+    // The gameplay rows end at 524, the controls start at 489: the camera follows the hero 35 px (109 at 0°).
+    expect(Math.round(l.gameplayBottom)).toBe(524);
+    expect(l.followRange).toBeCloseTo(l.gameplayBottom - l.controls!.top, 9);
+    expect(Math.round(l.followRange)).toBe(35);
+    expect(computeLayout(input(360, 640, { pitch: 0 })).followRange).toBeGreaterThan(108);
+  });
+
+  it('1280 × 800 desktop: the map fitted to the height drawn 15% bigger (tile 18.1), the side margins narrowed with it', () => {
+    const l = computeLayout(input(1280, 800, { touch: false, landscape: true }));
+    expect(l.kind).toBe('wide');
+    expect(l.map.bottom - l.map.top).toBeCloseTo(800 - 16, 9);
+    expect(l.tilePx).toBeCloseTo((800 - 16) / (50 * cos), 9);
+    expect(l.tilePx.toFixed(1)).toBe('18.1');
+    expect(l.tilePx / computeLayout(input(1280, 800, { touch: false, landscape: true, pitch: 0 })).tilePx).toBeCloseTo(1 / cos, 9);
+    // The HUD's panels are `--margin` − 24 px wide from 12 px in (style.css): they end 12 px short of the map.
+    expect(Math.round(l.margin)).toBe(405);
+    expect(l.margin).toBeGreaterThanOrEqual(SIDE_MIN);
+    expect(l.map.left - (12 + (l.margin - 24))).toBeCloseTo(12, 9);
+    expect(l.map.left).toBeCloseTo(1280 - l.map.right, 9);
+  });
+
+  it('1100 × 500 (a short desktop window): the tall layout fitted to the height, 15% wider than before', () => {
+    const l = computeLayout(input(1100, 500, { touch: false, landscape: true }));
+    expect(l.kind).toBe('tall');
+    expect(l.map.bottom).toBeCloseTo(500, 9);
+    expect(l.tilePx).toBeCloseTo((500 - TOP_BAR_H) / (50 * cos), 9);
+    expect(l.rowPx).toBeCloseTo((500 - TOP_BAR_H) / 50, 9);
+    expect(l.tilePx / computeLayout(input(1100, 500, { touch: false, landscape: true, pitch: 0 })).tilePx).toBeCloseTo(1 / cos, 9);
+    expect(l.zoomButton).toBeNull();
+  });
+});
 
 describe('computeLayout: phones held upright', () => {
   it('fits the whole 50-row map on a 412 × 839 screen under a 44 px top bar, with room to spare', () => {
@@ -116,7 +190,7 @@ describe('computeLayout: phones held upright', () => {
         expect(minGap(c)).toBeGreaterThan(0);
         // With the camera scrolled as far as it may go, gameplay never sits under the controls.
         const offset = l.followRange;
-        const gameplay = gameplayRects(l.tilePx, { left: l.map.left, top: l.map.top - offset });
+        const gameplay = gameplayRects(l, { left: l.map.left, top: l.map.top - offset });
         const visible = gameplay.filter((r) => r.bottom > l.topBarBottom);
         for (const r of c.rects) for (const g of visible) expect(overlaps(r, g)).toBe(false);
         expect(l.gameplayBottom - offset).toBeLessThanOrEqual(c.top + 1e-9);
@@ -186,7 +260,7 @@ describe('computeLayout: phones held upright', () => {
       expect(z.right, at).toBeLessThanOrEqual(Math.min(l.map.right, w));
       expect(z.right, at).toBeGreaterThan(l.map.right - l.tilePx);
       // Off the gameplay (at the fitted zoom, the camera at rest) and off the controls.
-      for (const g of gameplayRects(l.tilePx, l.map)) expect(overlaps(z, g), `${at}: over ${JSON.stringify(g)}`).toBe(false);
+      for (const g of gameplayRects(l, l.map)) expect(overlaps(z, g), `${at}: over ${JSON.stringify(g)}`).toBe(false);
       for (const r of l.controls!.rects) expect(overlaps(z, r), at).toBe(false);
     }
     // Only phones held upright zoom: tablets and desktop have no button.

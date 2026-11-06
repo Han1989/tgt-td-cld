@@ -72,14 +72,15 @@ async function waitForCreepsNearHero(
   return { x: r.x, y: r.y };
 }
 
-/** Where a pad is on screen: its centre and box (px). */
+/** Where a pad is on screen: its centre and box (px; on the tilted camera cos(pitch) as tall as wide, V-08b). */
 async function padOnScreen(page: Page, padId: number): Promise<{ x: number; y: number; box: Box }> {
   return page.evaluate((id) => {
     const map = window.__tdt.map;
     const pad = map.pads[id]!;
     const c = window.__tdt.camera.worldToScreen(pad.x * 32, pad.y * 32);
     const half = (map.padSize / 2) * 32 * window.__tdt.camera.zoom;
-    return { x: c.x, y: c.y, box: { left: c.x - half, top: c.y - half, right: c.x + half, bottom: c.y + half } };
+    const halfY = half * window.__tdt.view().cos;
+    return { x: c.x, y: c.y, box: { left: c.x - half, top: c.y - halfY, right: c.x + half, bottom: c.y + halfY } };
   }, padId);
 }
 
@@ -400,6 +401,11 @@ test.describe('portrait phone layout', () => {
     expect(layout.map.bottom).toBeLessThanOrEqual(839);
     expect(layout.followRange).toBe(0);
     expect(layout.tilePx).toBeGreaterThanOrEqual(412 / 26 - 0.01);
+    // The tilted camera (V-08b): the map 50 · tile · cos 30° tall (686 px), 109 px under it, 95 px over the controls.
+    expect(await page.evaluate(() => window.__tdt.view())).toEqual({ pitch: 30, cos: expect.closeTo(Math.cos(Math.PI / 6), 9) });
+    expect(Math.round(layout.map.bottom - layout.map.top)).toBe(686);
+    expect(Math.round(839 - layout.map.bottom)).toBe(109);
+    expect(Math.round(layout.controls!.top - layout.gameplayBottom)).toBe(95);
   });
 
   test('radial menus stay on screen and never cover the joystick or the skills', async ({ page }) => {
@@ -855,7 +861,7 @@ test.describe('portrait phone layout', () => {
         if (where === 'left') return column(Math.min(...xs))[mid]!.id;
         // The top row on screen (a shorter phone follows the hero, so the map's own top row may be above the
         // screen), rightmost: no room above the ring and the least room to the right.
-        const half = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom;
+        const half = (window.__tdt.map.padSize / 2) * 32 * window.__tdt.camera.zoom * window.__tdt.view().cos;
         const top = window.__tdt.layout().topBarBottom;
         const onScreen = mine.filter((p) => window.__tdt.camera.worldToScreen(p.x * 32, p.y * 32).y - half >= top);
         const topY = Math.min(...onScreen.map((p) => p.y));
@@ -1119,6 +1125,123 @@ test.describe('portrait phone layout', () => {
 
     await page.locator('#tutorial-skip').click();
     await expect(page.locator('#tutorial')).toBeHidden();
+  });
+});
+
+test.describe('the tilted camera (V-08b)', () => {
+  for (const pitch of [30, 0]) {
+    test(`taps land on what is drawn at ${pitch}°: every pad at its centre and inside each edge, a creep, a tower on its drawn body`, async ({ page }) => {
+      await startSolo(page, pitch === 30 ? '?lab' : '?lab&pitch=0');
+      await framesIn(page);
+      const view = await page.evaluate(() => window.__tdt.view());
+      expect(view.pitch).toBe(pitch);
+      expect(view.cos).toBeCloseTo(Math.cos((pitch * Math.PI) / 180), 9);
+      const l = await page.evaluate(() => window.__tdt.layout());
+      expect(l.rowPx).toBeCloseTo(l.tilePx * view.cos, 6);
+      // Every pad of the match: its tap box is its ground square as the camera draws it (padSize tiles wide, padSize ·
+      // cos tall), and a tap at its centre or 2 px inside any edge (on screen, clear of the controls) picks that pad.
+      const misses = await page.evaluate(() => {
+        const t = window.__tdt;
+        const l = t.layout();
+        const bottom = l.controls ? l.controls.top : innerHeight;
+        const out: string[] = [];
+        const targets = t.tapTargets();
+        for (const q of t.latest()!.pads) {
+          const pad = t.map.pads[q.id]!;
+          const a = t.camera.worldToScreen((pad.x - t.map.padSize / 2) * 32, (pad.y - t.map.padSize / 2) * 32);
+          const b = t.camera.worldToScreen((pad.x + t.map.padSize / 2) * 32, (pad.y + t.map.padSize / 2) * 32);
+          const c = targets.find((k) => k.kind === 'pad' && k.id === q.id);
+          if (!c) {
+            out.push(`pad ${q.id}: no target`);
+            continue;
+          }
+          const box = { left: c.at.x - c.half, right: c.at.x + c.half, top: c.at.y - (c.halfY ?? c.half), bottom: c.at.y + (c.halfY ?? c.half) };
+          if (Math.abs(box.left - a.x) > 0.01 || Math.abs(box.top - a.y) > 0.01 || Math.abs(box.right - b.x) > 0.01 || Math.abs(box.bottom - b.y) > 0.01) {
+            out.push(`pad ${q.id}: target ${JSON.stringify(box)} drawn ${JSON.stringify({ a, b })}`);
+          }
+          const mx = (a.x + b.x) / 2;
+          const my = (a.y + b.y) / 2;
+          for (const [x, y] of [[mx, my], [a.x + 2, my], [b.x - 2, my], [mx, a.y + 2], [mx, b.y - 2]] as const) {
+            if (y <= l.topBarBottom || y >= bottom) continue;
+            const r = t.tapAt(x, y);
+            if (r.type !== 'pick' || r.pick.kind !== 'pad' || r.pick.id !== q.id) out.push(`pad ${q.id} at ${x.toFixed(1)},${y.toFixed(1)}: ${r.type === 'pick' ? `${r.pick.kind} ${r.pick.id}` : r.type}`);
+          }
+        }
+        return out;
+      });
+      expect(misses).toEqual([]);
+
+      // A real tap 3 px inside a pad's drawn bottom edge opens its build ring; build there.
+      const padId = await page.evaluate(() => {
+        const t = window.__tdt;
+        const mine = t.latest()!.pads.filter((p) => p.owner === t.me() || p.owner === null).map((p) => t.map.pads[p.id]!);
+        // A pad well on screen, in the middle rows.
+        return mine.filter((p) => p.y > 12 && p.y < 24).sort((a, b) => a.y - b.y || a.x - b.x)[0]!.id;
+      });
+      const pad = await padOnScreen(page, padId);
+      expect(pad.box.bottom - pad.box.top).toBeCloseTo((pad.box.right - pad.box.left) * view.cos, 3);
+      await page.touchscreen.tap(pad.x, pad.box.bottom - 3);
+      await expect(page.locator('#radial[data-menu="build"] .radial-btn[data-tower="arrow"]')).toBeVisible();
+      await page.locator('.radial-btn[data-tower="arrow"]').tap();
+      await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+      await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+      // The tower's tap box is its pad's, plus its drawn body standing over the ground behind it (`rise`); a tap at its
+      // top opens its ring, never the pad behind it.
+      const tower = await page.evaluate((id) => {
+        const t = window.__tdt;
+        const tw = t.latest()!.towers.find((q) => q.padId === id)!;
+        return t.tapTargets().find((k) => k.kind === 'tower' && k.id === tw.id)!;
+      }, padId);
+      expect(tower.halfY).toBeCloseTo(tower.half * view.cos, 6);
+      const roofY = tower.at.y - (tower.halfY ?? tower.half) - (tower.rise ?? 0) + 2;
+      expect(await page.evaluate(([x, y]) => window.__tdt.tapAt(x, y), [tower.at.x, roofY] as const)).toMatchObject({ type: 'pick', pick: { kind: 'tower', id: tower.id } });
+      await page.touchscreen.tap(tower.at.x, roofY);
+      await expect(page.locator('#radial[data-menu="tower"] .radial-btn[data-action="upgrade"]')).toBeVisible();
+      await page.touchscreen.tap(l.map.left + 8, l.topBarBottom + 60);
+      await expect(page.locator('#radial .radial-btn')).toHaveCount(0);
+
+      // A creep: a tap on where it is drawn focuses it (an attack order), through the camera's inverse.
+      await page.evaluate(() => window.__tdt.skipTo(2));
+      const creepOnScreen = () =>
+        page.evaluate(() => {
+          const t = window.__tdt;
+          const l = t.layout();
+          const bottom = l.controls ? l.controls.top - 30 : innerHeight - 30;
+          return t.tapTargets().some((k) => k.kind === 'creep' && k.at.y > l.topBarBottom + 30 && k.at.y < bottom);
+        });
+      await expect.poll(creepOnScreen, { timeout: 30_000 }).toBe(true);
+      await page.evaluate(() => window.__tdt.pause(true));
+      // Held: the drawn creeps settle (the render runs a little behind), then one a tap picks on its own.
+      await page.waitForTimeout(400);
+      const target = await page.evaluate(() => {
+        const t = window.__tdt;
+        const l = t.layout();
+        const bottom = l.controls ? l.controls.top - 30 : innerHeight - 30;
+        return t.tapTargets().find((k) => {
+          if (k.kind !== 'creep' || k.at.y <= l.topBarBottom + 30 || k.at.y >= bottom) return false;
+          const r = t.tapAt(k.at.x, k.at.y);
+          return r.type === 'pick' && r.pick.kind === 'creep';
+        });
+      });
+      expect(target, 'a creep a tap picks on its own').toBeDefined();
+      await page.touchscreen.tap(target!.at.x, target!.at.y);
+      await expect.poll(() => sent(page, 'attack').then((a) => a.length)).toBeGreaterThan(0);
+      await page.evaluate(() => window.__tdt.pause(false));
+    });
+  }
+
+  test('the draw order: upright things are sorted back to front by where they stand, walking creeps too', async ({ page }) => {
+    await startSolo(page);
+    await page.evaluate(() => window.__tdt.skipTo(2));
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.creeps.filter((c) => c.y > 6).length), { timeout: 30_000 }).toBeGreaterThan(3);
+    // The Heart, the three portals, your hero and the creeps: sorted on every frame they are drawn.
+    for (let i = 0; i < 5; i++) {
+      const d = await page.evaluate(() => window.__tdt.depth());
+      expect(d.pitch).toBe(30);
+      expect(d.actors).toBeGreaterThanOrEqual(8);
+      expect(d.sorted).toBe(true);
+      await page.waitForTimeout(150);
+    }
   });
 });
 

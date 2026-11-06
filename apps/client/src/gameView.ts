@@ -36,6 +36,7 @@ import { towerName } from './hud/towerInfo';
 import { Camera, FOLLOW_MS, PhoneZoom } from './input/camera';
 import { Controls } from './input/controls';
 import { computeLayout, followOffset, type Insets, type Layout } from './layout';
+import { viewCos, viewPitch } from './render/view';
 import { HitStop } from './render/fx/juice';
 import { prefersReducedMotion, twinShake } from './render/fx/shake';
 import { emptyUltCues, readUltCues, type UltCueMemory } from './ult/cues';
@@ -679,6 +680,15 @@ export class GameView {
         layout: () => layout,
         map,
         camera,
+        /** The tilted camera (V-08b, render/view.ts): its pitch (degrees; `?pitch=0` the old one) and cos(pitch). */
+        view: () => ({ pitch: viewPitch(), cos: viewCos() }),
+        /** The draw order: upright things sorted in it, whether they stand back to front, the pitch it was made for. */
+        depth: () => renderer.depthStats(),
+        /** The ground's geometry as drawn: its squash, every live ground ring's height against its width (V-08b). */
+        ground: () => renderer.groundStats(),
+        /** What a tap at (x, y) screen px would pick (nothing happens), and every tap target now (V-08b's tap check). */
+        tapAt: (x: number, y: number) => touch.tapAt({ x, y }),
+        tapTargets: () => touch.candidates(),
         /** Phones: the camera's zoom, times the fitted zoom (1 = the whole map). */
         zoom: () => zoom.drawnLevel,
         /** Solo: holds or resumes the simulation (no paused card), to compare one frame drawn two ways. */

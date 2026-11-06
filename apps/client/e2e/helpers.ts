@@ -148,6 +148,8 @@ interface Hook {
   layout(): {
     kind: string;
     tilePx: number;
+    /** A tile row's height on screen (px): tilePx × cos(pitch) (V-08b). */
+    rowPx: number;
     topBarBottom: number;
     followRange: number;
     gameplayBottom: number;
@@ -168,9 +170,24 @@ interface Hook {
   camera: {
     zoom: number;
     centerOn(x: number, y: number): void;
-    worldToScreen(x: number, y: number): { x: number; y: number };
+    /** A ground point (world px; `z` px above it) to the screen, through the tilted camera (V-08b). */
+    worldToScreen(x: number, y: number, z?: number): { x: number; y: number };
+    /** A screen point to the ground point under it (world px). */
     screenToWorld(x: number, y: number): { x: number; y: number };
   };
+  /** The tilted camera (V-08b): its pitch (degrees; `?pitch=0` the old camera) and cos(pitch). */
+  view(): { pitch: number; cos: number };
+  /** The draw order: upright things sorted in it, whether they stand back to front now, the pitch. */
+  depth(): { actors: number; sorted: boolean; pitch: number };
+  /**
+   * The ground as drawn (V-08b): the ground plane's and the overlay's squash, every live effect ring and area flash on
+   * the ground, the heroes' vow rings and the meteors' warning circles: each one's height against its width.
+   */
+  ground(): { plane: number; overlay: number; flat: number[]; vow: number[]; meteorCircles: number };
+  /** What a tap at (x, y) screen px would pick (nothing happens): none, one target, or a tie for the picker. */
+  tapAt(x: number, y: number): TapPick;
+  /** Every tap target now: pads without a tower, towers (their drawn body over the ground behind: `rise`), creeps. */
+  tapTargets(): TapTarget[];
   /** Phones: the camera's zoom, times the fitted zoom (1 = the whole map; V-07e). */
   zoom(): number;
   /** Solo: holds or resumes the simulation (no paused card). */
@@ -178,6 +195,22 @@ interface Hook {
   /** The units' scales drawn (null: the layout's own). */
   scales(s: { hero: number; creep: number; tower: number } | null): void;
 }
+
+/** A tap target (touch/gestures.ts `Candidate`): its screen centre, half its width, half its height, its rise. */
+export interface TapTarget {
+  kind: 'pad' | 'tower' | 'creep';
+  id: number;
+  at: { x: number; y: number };
+  half: number;
+  shape: 'box' | 'circle';
+  halfY?: number;
+  rise?: number;
+}
+
+export type TapPick =
+  | { type: 'none' }
+  | { type: 'pick'; pick: TapTarget & { d: number } }
+  | { type: 'tie'; picks: (TapTarget & { d: number })[] };
 
 /** The ?showcase page's hook (showcase.ts). */
 interface ShowcaseHook {

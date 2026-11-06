@@ -208,11 +208,13 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
       const top = await box(page, '#topbar');
       expect(b.top).toBeGreaterThan(top.bottom);
       expect(b.left).toBeGreaterThanOrEqual(0);
-      // Over the empty corner of the map: narrower than the four tiles left of the West lane.
-      const map = (await page.evaluate(() => window.__tdt.layout())).map;
+      // Over the empty corner of the map: narrower than the four tiles left of the West lane, over the four rows above
+      // the first West pad (the tilted camera draws a row rowPx = tile · cos tall, V-08b).
+      const l = await page.evaluate(() => window.__tdt.layout());
+      const map = l.map;
       const tile = (map.right - map.left) / 26;
       expect(b.right).toBeLessThanOrEqual(map.left + 5 * tile);
-      expect(b.bottom).toBeLessThanOrEqual(map.top + 4 * tile + 4);
+      expect(b.bottom).toBeLessThanOrEqual(map.top + 4 * l.rowPx + 4);
       expect(b.right).toBeLessThan(vp.width / 2);
       for (const s of CONTROLS) expect(overlaps(b, await box(page, s)), `${s} is under the chip`).toBe(false);
     }
@@ -247,6 +249,18 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
     expect(quakes.done).toBeGreaterThanOrEqual(1);
     expect(quakes.marks).toBeGreaterThanOrEqual(45 * quakes.done);
     expect(quakes.leads).toBeGreaterThanOrEqual(6 * quakes.done);
+  });
+
+  await test.step('the tilted camera (V-08b): every ring on the ground is an ellipse, cos 30° as tall as it is wide', async () => {
+    const cos = Math.cos(Math.PI / 6);
+    // The rains' strike rings and flashes come and go with each pulse: wait for a few on the ground at once.
+    await expect.poll(() => page.evaluate(() => window.__tdt.ground().flat.length), { timeout: 30_000 }).toBeGreaterThan(3);
+    const g = await page.evaluate(() => window.__tdt.ground());
+    expect(g.plane).toBeCloseTo(cos, 6);
+    expect(g.overlay).toBeCloseTo(cos, 6);
+    expect(g.meteorCircles).toBeCloseTo(cos, 6);
+    for (const r of g.flat) expect(r).toBeCloseTo(cos, 3);
+    for (const r of g.vow) expect(r).toBeCloseTo(cos, 6);
   });
 
   await test.step('ready for 20 s of a wave: the R button pulses', async () => {
