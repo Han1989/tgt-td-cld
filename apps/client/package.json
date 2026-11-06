@@ -21,7 +21,8 @@
     "press-shots": "tsx scripts/pressShots.ts",
     "atmosphere-shots": "tsx scripts/atmosphereShots.ts",
     "build:embed": "tsx scripts/buildEmbed.ts",
-    "embed:serve": "tsx scripts/embedServe.ts"
+    "embed:serve": "tsx scripts/embedServe.ts",
+    "camera-options": "tsx scripts/cameraOptions.ts"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",

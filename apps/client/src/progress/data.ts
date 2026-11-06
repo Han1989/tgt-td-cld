@@ -38,6 +38,7 @@
  * V-07d on 25 Oct 2026 (PR #148: the first minute's art, no 2D stand-ins in a first match).
  * V-07c-look on 25 Oct 2026 (PR #149: the map in grass green, three looks for Han, images only).
  * V-07c on 28 Oct 2026 (PR #150: the map in Spring meadow, Han's pick A, with the light pools).
+ * V-08b-look on 6 Nov 2026 (PR #161: the tilted camera, three pitches for Han, images only).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
  * p6d-share on 24 Oct 2026 (PR #144: the share card, the Daily run's session 3 of 3).
@@ -540,6 +541,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'How a match looks over its waves: no game rules, server or protocol change. Han, 5 Nov 2026: the match should feel like a place that changes over its twenty minutes. The map is now drawn in three lights from the same scene: the warm afternoon of the first third, a low gold dusk with long shadows in the second, and a cool moonlit night in the last, where the glows round the Heart and the portals, the towers’ runes and the Heart’s lit windows do the lighting. The map turns slowly from one to the next over six seconds as a new third begins (in Quick every five waves), and every boss wave comes at night. Each match has a weather of its own, the same every time it is played: fine slanted rain with splashes on the roads and the pads, or a few dozen leaves drifting across the meadow and settling; the Daily run is always clear, so everyone plays the same day. Towers from their second tier carry two small lanterns that breathe and brighten at night, and fireflies come out over the grass at dusk. Rocks, stumps, a cart and two banners fill the meadow’s edges. None of it gets in the way of a tap, all of it goes at Graphics → Low, and with reduced motion nothing drifts or falls. No sound change yet. In review: Han judges it on his Pixel and his laptop. Built by Claude Code (PR #160).',
     proof: pr(160),
+  },
+  {
+    id: 'V-08b-look',
+    title: 'The tilted camera: three pitches for Han to pick from',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Pictures only: nothing in the game changes. Han, 5 Nov 2026: a short clip of an isometric courtyard, and he wants that depth. Today the map and the towers are seen from straight above. Three options tilt the camera so it looks up the map from the bottom: A a little (20°), B more (30°), C the most (40°). The map, the towers, the Heart and the portals were drawn again through each, and one real moment of wave 10 is shown at each tilt on a phone and a laptop, with the game’s buttons over it. With a tilt the towers stand up and show their sides, the map gets shorter on a phone (a strip opens under it) and bigger on a laptop. No tower hides a road at any tilt, but at C a tall tower covers the front of the pad behind it. Turning a tower’s turret as one flat picture, as the game does now, looks wrong from the smallest tilt, so its turret would be drawn in 8 or 16 directions. The heroes and creeps stay as they are at every tilt. Han picks A, B, C or none; the build sessions follow the pick.',
+    proof: pr(161),
   },
   {
     id: 'g1-render',

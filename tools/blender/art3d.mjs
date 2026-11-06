@@ -21,7 +21,8 @@ if (args.length === 0 || args[0].startsWith('-')) {
   console.error('Usage: npm run art:3d -- <hero>|heroes|<creep>|creeps [stage|match|all|plate] [--draft] [--frames 0,120] [--out DIR] [--work DIR]\n' +
     '       npm run art:3d -- map [spire|card] [--light afternoon|dusk|night|all] [--draft] [--out DIR]\n' +
     '       npm run art:3d -- structures | <tower kind>|heart|portal[,…] [--draft] [--out DIR] [--work DIR]\n' +
-    '       npm run art:3d -- ui [--draft] [--out DIR]');
+    '       npm run art:3d -- ui [--draft] [--out DIR]\n' +
+    '       npm run art:3d -- pitch [plate|structures|figures|all] [--pitch a,b,c] [--draft] --out DIR');
   process.exit(2);
 }
 
