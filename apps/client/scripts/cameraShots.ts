@@ -303,7 +303,8 @@ camera", §16 "The camera"). One camera, 30° from straight down (B).
   falling: the warning circles and the scorches lie on the ground (ellipses), the meteors fall straight down the screen
   onto them, the strike rings flat.
 - \`build-3-quake-phone.webp\`, \`-desktop\`: the same scene a moment after its Rampart Slam: the quake's cracks running
-  along Mid as the lane is drawn, its ring an ellipse.
+  along Mid as the lane is drawn, its ring an ellipse. The stress scene's leak alerts (its creeps reach
+  the Heart all the time) are hidden, so they do not stand over the quake.
 - \`build-3-rain-night-phone.webp\`, \`-desktop\`: a solo Full match at wave 10, rain at night, five towers round the map's
   middle: the splashes on the roads and on the pads' raised tops.
 - \`build-3-heart-cracked-phone.webp\`, \`-desktop\`: a solo Full match left undefended at wave 10 until the Heart is
