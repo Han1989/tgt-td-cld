@@ -8,6 +8,8 @@
 #   python tools/blender/build.py ui [--draft] [--out DIR]     (the HUD's frames, tools/blender/ui.py)
 #   python tools/blender/build.py pitch [plate|structures|figures|all] [--pitch a,b,c] [--draft] --out DIR
 #                                       (V-08b look, dev only: the tilted camera's options, tdt3d/pitch_options.py)
+#   python tools/blender/build.py pitch headings [--draft] --out DIR
+#                                       (V-08b build 2, dev only: the turret headings' lie halfway between two, as IoU)
 #
 # Normally run through `npm run art:3d -- <hero>` (tools/blender/art3d.mjs), which finds Blender's Python; `heroes`
 # builds all three, sharing one render of the clearing; `creeps` all nine creeps and bosses. The heroes are rows of
@@ -129,28 +131,42 @@ def structures_main(argv):
         if n not in every:
             raise SystemExit(f'No structure "{n}" in tools/blender/structures.py ({", ".join(every)})')
     out = args.out or MATCH_OUT
-    sheet_path = os.path.join(MATCH_OUT, 'structures-match.webp')
     layout_path = os.path.join(MATCH_OUT, 'structures.json')
     previous = None
-    if set(names) != set(every) and os.path.exists(layout_path):
+    old_pages = os.path.exists(layout_path) and 'pages' in json.load(open(layout_path))['match']
+    if set(names) != set(every) and os.path.exists(layout_path) and (old_pages or not args.out):
         import numpy as np
         from PIL import Image
 
         layout = json.load(open(layout_path))
+        if not old_pages:
+            raise SystemExit('structures.json is from before V-08b\'s pages (one sheet seen straight down): render '
+                             'every structure (`npm run art:3d -- structures`)')
         # Lossless: the frames kept are the pixels shipped.
-        previous = (np.array(Image.open(sheet_path).convert('RGBA')), layout['match'])
+        previous = ([np.array(Image.open(os.path.join(MATCH_OUT, pg['file'])).convert('RGBA'))
+                     for pg in layout['match']['pages']], layout['match'])
     tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-structures-')
     os.makedirs(tmp, exist_ok=True)
     t0 = time.time()
     try:
-        sheet, layout, notes = structure.render_all(table, names, out, tmp, draft=args.draft, previous=previous)
+        sheets, layout, notes = structure.render_all(table, names, out, tmp, draft=args.draft, previous=previous)
     finally:
         if not args.work:
             shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(out, exist_ok=True)
-    # Lossless WebP, as the creeps' sheets (V-07d: a third smaller than the PNG, the same pixels): it is precached with
-    # the shell, so its bytes are every first visit's.
-    size = encode.sheet(sheet, os.path.join(out, 'structures-match.webp'))
+    # Lossless WebP, as the creeps' sheets (V-07d: a third smaller than the PNG, the same pixels): the pages are
+    # precached with the shell, so their bytes are every first visit's. One file a page (V-08b: structures-match-N.webp);
+    # pages an earlier build wrote past the last are removed, and the single sheet from before the pages.
+    size = 0
+    for n, sh in enumerate(sheets):
+        name = f'structures-match-{n}.webp'
+        b = encode.sheet(sh, os.path.join(out, name))
+        layout['pages'][n].update(file=name, bytes=b)
+        size += b
+    for f in os.listdir(out):
+        if f == 'structures-match.webp' or (f.startswith('structures-match-') and f.endswith('.webp') and
+                                            f not in {pg['file'] for pg in layout['pages']}):
+            os.remove(os.path.join(out, f))
     # Each frame's fringe check (the shares), kept for the frames not rendered this time.
     by_frame = {}
     if previous:
@@ -161,16 +177,17 @@ def structures_main(argv):
                                 'hard': round(c['hard'] / max(1, c['crossings']), 4)}
     worst_f = max(by_frame.items(), key=lambda kv: kv[1]['fringe'])
     worst_h = max(by_frame.items(), key=lambda kv: kv[1]['hard'])
-    doc = {'id': 'structures', 'match': dict(layout, file='structures-match.webp'), 'checks': {
+    doc = {'id': 'structures', 'match': layout, 'checks': {
         'frames': len(by_frame), 'samples': notes['samples'], 'worstFringe': worst_f[1]['fringe'],
         'worstHard': worst_h[1]['hard'], 'byFrame': by_frame}}
     with open(os.path.join(out, 'structures.json'), 'w') as f:
         f.write(json.dumps(doc, indent=1, sort_keys=True) + '\n')
     if args.out or args.work:
         # A picture of every frame in place, to look at while working on the table.
-        structure.preview(sheet, layout, os.path.join(args.out or args.work, 'structures-preview.png'),
+        structure.preview(sheets, layout, os.path.join(args.out or args.work, 'structures-preview.png'),
                           {k: list(v) for k, v in table.TOWERS.items()})
-    print(f'structures: sheet {sheet.shape[1]} × {sheet.shape[0]} ({size} bytes), {len(layout["cells"])} frames; '
+    pages = ', '.join(f'{sh.shape[1]} × {sh.shape[0]}' for sh in sheets)
+    print(f'structures: {len(sheets)} pages ({pages}; {size} bytes), {len(layout["cells"])} frames; '
           f'{len(by_frame)} checked, worst fringe {worst_f[1]["fringe"]} ({worst_f[0]}), '
           f'worst hard {worst_h[1]["hard"]} ({worst_h[0]})', flush=True)
     for k, v in notes['times'].items():
@@ -261,7 +278,7 @@ def pitch_main(argv):
     the structures and two figures through three tilted cameras (tdt3d/pitch_options.py). Dev only: it writes nothing
     the game ships, so it is refused without --out."""
     ap = argparse.ArgumentParser(prog='build.py pitch')
-    ap.add_argument('what', nargs='?', default='all', choices=['plate', 'structures', 'figures', 'all'])
+    ap.add_argument('what', nargs='?', default='all', choices=['plate', 'structures', 'figures', 'all', 'headings'])
     ap.add_argument('--pitch', default='a,b,c', help='the options to render (a 20°, b 30°, c 40°; z 0°, today\'s, as a check), comma separated')
     ap.add_argument('--draft', action='store_true', help='the plate at 1× with a few samples, the structures likewise')
     ap.add_argument('--out', default=None, help='where everything goes (required)')
@@ -290,6 +307,9 @@ def pitch_main(argv):
             for k, p in pitches.items():
                 po.render_structures(table, p, os.path.join(out, f'structures-{k}'), os.path.join(tmp, 'st'),
                                      draft=args.draft)
+        if args.what == 'headings':
+            # V-08b build 2: how much the shipped turret rule (eight headings, the rest turned) lies between them.
+            po.heading_lie(table, out, os.path.join(tmp, 'lie'), draft=args.draft)
         if args.what in ('figures', 'all'):
             po.render_figures(pitches, os.path.join(out, 'figures'), os.path.join(tmp, 'fig'), draft=args.draft)
     finally:

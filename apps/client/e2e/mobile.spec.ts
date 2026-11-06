@@ -1247,6 +1247,8 @@ test.describe('the tilted camera (V-08b)', () => {
         // A pad well on screen, in the middle rows.
         return mine.filter((p) => p.y > 12 && p.y < 24).sort((a, b) => a.y - b.y || a.x - b.x)[0]!.id;
       });
+      // The towers drawn from their 3D pages (V-08b build 2: rendered at the pitch, eight turret headings).
+      await expect(page.locator('html')).toHaveAttribute('data-structures', 'ready', { timeout: 30_000 });
       const pad = await padOnScreen(page, padId);
       expect(pad.box.bottom - pad.box.top).toBeCloseTo((pad.box.right - pad.box.left) * view.cos, 3);
       await page.touchscreen.tap(pad.x, pad.box.bottom - 3);
@@ -1262,6 +1264,12 @@ test.describe('the tilted camera (V-08b)', () => {
         return t.tapTargets().find((k) => k.kind === 'tower' && k.id === tw.id)!;
       }, padId);
       expect(tower.halfY).toBeCloseTo(tower.half * view.cos, 6);
+      await expect.poll(() => page.evaluate(() => window.__tdt.art().tower3d)).toBe(1);
+      // At rest a turret faces up the map: its heading 6 (ground −90°, the client's y down).
+      expect((await page.evaluate(() => window.__tdt.art())).turretHeadings).toContain(6);
+      // Rendered at 30°, the tower's roof stands well over the ground behind its pad (build 2: about two tiles); a tap
+      // there is the tower.
+      if (pitch === 30) expect(tower.rise ?? 0).toBeGreaterThan(l.rowPx);
       const roofY = tower.at.y - (tower.halfY ?? tower.half) - (tower.rise ?? 0) + 2;
       expect(await page.evaluate(([x, y]) => window.__tdt.tapAt(x, y), [tower.at.x, roofY] as const)).toMatchObject({ type: 'pick', pick: { kind: 'tower', id: tower.id } });
       await page.touchscreen.tap(tower.at.x, roofY);
@@ -1278,6 +1286,8 @@ test.describe('the tilted camera (V-08b)', () => {
       await page.touchscreen.tap(target!.at.x, target!.at.y);
       await expect.poll(() => sent(page, 'attack').then((a) => a.length)).toBeGreaterThan(0);
       await page.evaluate(() => window.__tdt.pause(false));
+      // The tower's turret turns to the creeps that pass it: through more than one of its rendered headings.
+      await expect.poll(() => page.evaluate(() => window.__tdt.art().turretHeadings.length), { timeout: 30_000 }).toBeGreaterThan(1);
     });
   }
 

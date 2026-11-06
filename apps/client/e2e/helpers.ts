@@ -77,6 +77,8 @@ interface Hook {
     towerRigs: number;
     /** Towers drawn from the 3D sheet, and whether the Heart and how many portals are. */
     tower3d: number;
+    /** The turret headings the 3D towers have shown (V-08b build 2). */
+    turretHeadings: number[];
     heart3d: boolean;
     portals3d: number;
     heroRigs: number;

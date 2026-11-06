@@ -96,7 +96,7 @@ import {
 import { heartStage, HEART_LOW } from './art/damage';
 import { ArtKit } from './art/kit';
 import { createGround, type Ground } from './art/ground';
-import { freePlate, loadPlate, mapPlate, onPlate, padLook, plateFits, plateFor, type Plate } from './plate';
+import { freePlate, loadPlate, mapPlate, onPlate, padLook, plateCos, plateFits, plateFor, type Plate } from './plate';
 import { AtmosphereView, type AtmosphereStats } from './atmosphereView';
 import {
   crossfadeAt,
@@ -144,16 +144,21 @@ import {
   PORTAL_FLARE,
   PORTAL_OPENING,
   portalView3d,
+  lanternLamps,
+  structureFrames,
   structuresVersion,
   towerReach,
   towerRig3d,
+  towerTop,
+  towerVariant,
+  Tower3DRig,
   type Creep3DRig,
   type Heart3DView,
   type Portal3DView,
 } from './art3d';
 import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
-import { depth, groundAngle, viewCos } from './view';
+import { depth, groundAngle, PAD_TOP, viewCos, viewSin } from './view';
 
 const S = TILE_PX;
 
@@ -359,6 +364,8 @@ interface PlateShow {
 interface Lanterns {
   sprites: Sprite[];
   tier: number;
+  /** The variant and art their places were set for. */
+  key: string;
 }
 
 interface HeartGem {
@@ -652,6 +659,9 @@ export class WorldRenderer {
     this.lanternLayer.eventMode = 'none';
     this.plane.scale.y = this.cos;
     this.overlayPlane.scale.y = this.cos;
+    // The pads' zone tints lie on their tops, which stand PAD_TOP over the ground: drawn PAD_TOP · sin higher (V-08b
+    // build 2: the plate shows a pad's raised top and its south face; ground px under the plane, so ÷ cos).
+    if (this.cos < 1) this.padLayer.y = -(PAD_TOP * viewSin()) / this.cos;
     this.actors.sortableChildren = true;
     this.plane.addChild(this.mapLayer, this.padLayer, this.groundFxLayer);
     this.overlayPlane.addChild(this.overlay);
@@ -852,6 +862,8 @@ export class WorldRenderer {
     towerRigs: number;
     /** Towers drawn from the 3D sheet, and whether the Heart and every portal are. */
     tower3d: number;
+    /** The turret headings the 3D towers have shown (V-08b build 2: eight rendered, the nearest shown). */
+    turretHeadings: number[];
     heart3d: boolean;
     portals3d: number;
     heroRigs: number;
@@ -875,6 +887,9 @@ export class WorldRenderer {
       creepRigs: count(this.creeps.values()),
       towerRigs: count(this.towers.values()),
       tower3d: [...this.towers.values()].filter((s) => s.art?.is3d).length,
+      turretHeadings: [
+        ...new Set([...this.towers.values()].flatMap((s) => (s.art instanceof Tower3DRig ? [...s.art.shownHeadings] : []))),
+      ].sort((a, b) => a - b),
       heart3d: this.heart.view !== null,
       portals3d: this.portals.filter((p) => p.view).length,
       heroRigs: count(this.heroes.values()),
@@ -976,8 +991,10 @@ export class WorldRenderer {
    */
   towerRise(t: TowerSnap): number {
     const s = this.towers.get(t.id);
-    const reach = towerReach(t.kind, t.tier, t.branch, s?.art?.is3d === true);
-    return Math.max(0, reach * towerScale(this.scales.tower, reach) - (this.map.padSize / 2) * S * this.cos);
+    const is3d = s?.art?.is3d === true;
+    const reach = towerReach(t.kind, t.tier, t.branch, is3d);
+    // Its top over its ground point (the 3D roof through the tilted camera, V-08b build 2), past its pad's back edge.
+    return Math.max(0, towerTop(t.kind, t.tier, t.branch, is3d) * towerScale(this.scales.tower, reach) - (this.map.padSize / 2) * S * this.cos);
   }
 
   /** Creeps as last drawn (interpolated positions, tile units), for touch snapping. */
@@ -1690,7 +1707,7 @@ export class WorldRenderer {
     void loadPlate();
   }
 
-  /** Draws the plate as the ground (one sprite, plate px at 1 / res) and the pads over it. */
+  /** Draws the plate as the ground (one sprite, plate px at 1 / res, unsquashed) and the pads over it. */
   private usePlate(p: Plate): void {
     if (this.plate || !this.groundSprite || !plateFits(p.layout, this.map.width, this.map.height, S)) return;
     this.plate = p;
@@ -1710,7 +1727,9 @@ export class WorldRenderer {
   /** A plate's sprite and its patches' (for the pads in `patchPads`), on top of those showing. */
   private showPlate(p: Plate): PlateShow {
     const sprite = new Sprite(p.texture);
-    sprite.scale.set(1 / p.layout.res);
+    // The plate is rendered through the match's camera (V-08b build 2): its px are view px, so under the ground plane
+    // (squashed by cos) it is stretched back by its own camera's cos, and lands on the ground to the pixel.
+    sprite.scale.set(1 / p.layout.res, 1 / (p.layout.res * plateCos(p.layout)));
     sprite.eventMode = 'none';
     this.plateLayer.addChild(sprite);
     const show: PlateShow = { plate: p, sprite, patches: new Container(), patchPads: new Set() };
@@ -1727,8 +1746,9 @@ export class WorldRenderer {
       const patch = plate.patches.get(id);
       if (!patch) continue;
       const sp = new Sprite(patch.texture);
-      sp.position.set(patch.x / plate.layout.res, patch.y / plate.layout.res);
-      sp.scale.set(1 / plate.layout.res);
+      const k = plateCos(plate.layout);
+      sp.position.set(patch.x / plate.layout.res, patch.y / (plate.layout.res * k));
+      sp.scale.set(1 / plate.layout.res, 1 / (plate.layout.res * k));
       sp.label = String(id);
       show.patches.addChild(sp);
       show.patchPads.add(id);
@@ -2479,12 +2499,10 @@ export class WorldRenderer {
     let l = this.lanterns.get(t.id);
     if (!l && t.tier < 2) return;
     if (!l) {
-      l = { sprites: [], tier: 0 };
-      for (const [dx, dy] of LANTERN_SPOTS) {
+      l = { sprites: [], tier: 0, key: '' };
+      for (let i = 0; i < LANTERN_SPOTS.length; i++) {
         const sp = new Sprite(this.lanternTexture);
         sp.anchor.set(0.5);
-        // On the tower's drawn body (upright): its offsets are the sprite's, from its point's view position.
-        sp.position.set((t.x + dx * this.scales.tower * 0.62) * S, t.y * S * this.cos + dy * this.scales.tower * 0.62 * S);
         sp.scale.set((LANTERN.radius * S) / LANTERN_PX);
         this.lanternLayer.addChild(sp);
         l.sprites.push(sp);
@@ -2494,6 +2512,25 @@ export class WorldRenderer {
     if (l.tier !== t.tier) {
       l.tier = t.tier;
       for (const sp of l.sprites) sp.tint = t.branch ? FX.lanternBranch : FX.lantern;
+    }
+    // On the tower's drawn body (upright), from its point's view position: the 3D tower's own lit runes as the sheet
+    // measured them (V-08b build 2: its pillar caps seen through the tilted camera), else the 2D art's two caps.
+    const s = this.towers.get(t.id);
+    const is3d = s?.art?.is3d === true;
+    const key = `${t.tier}${t.branch ?? ''}${is3d}`;
+    if (l.key !== key && s) {
+      l.key = key;
+      const sheet = structureFrames();
+      const lamps = is3d && sheet ? lanternLamps(sheet.layout.towers[`${t.kind}/${towerVariant(t.tier, t.branch)}`]?.lamps) : null;
+      // A 3D tower whose runes glow too dimly to be measured (the Frost's ice columns, the Void): the 2D art's two
+      // caps, on its ground and lifted to two thirds of its height through the tilted camera.
+      const lift = is3d ? towerTop(t.kind, t.tier, t.branch, true) * (2 / 3) : 0;
+      const k = s.root.scale.x;
+      for (const [i, sp] of l.sprites.entries()) {
+        const spot = LANTERN_SPOTS[i]!;
+        const [dx, dy] = lamps?.[i] ?? [spot[0] * 0.62 * S, spot[1] * 0.62 * S * (is3d ? this.cos : 1) - lift];
+        sp.position.set(t.x * S + dx * k, t.y * S * this.cos + dy * k);
+      }
     }
     const a = lanternAlpha(t.tier, this.dark, this.fx.calm ? 1 : lanternBreath(now, t.id));
     for (const sp of l.sprites) fade(sp, a);

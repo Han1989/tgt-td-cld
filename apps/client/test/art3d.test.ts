@@ -40,12 +40,18 @@ import {
   FLICKER_MS,
   RECOIL_MAX,
   recoilFrame,
+  HEADINGS,
+  lanternLamps,
   TOWER_REACH,
+  TOWER_TOP,
   towerKeys,
   towerReach,
+  towerTop,
   towerVariant,
+  turretHeading,
   type StructuresLayout,
 } from '../src/render/art3d/structures';
+import { CAMERA_PITCH } from '../src/render/view';
 import {
   attackMs,
   CREEP_DEATH,
@@ -1042,10 +1048,12 @@ describe('nothing 3D runs on the device', () => {
     expect(Object.keys(s.files).sort()).toEqual(['clearing', 'mp4', 'poster', 'webm']);
   });
 
-  it('the towers, the Heart and the portals are one picture and its layout', () => {
+  it('the towers, the Heart and the portals are pictures (a page each) and their layout', () => {
     const own = readdirSync(ART3D).filter((f) => f.startsWith('structures'));
-    // The sheet, its layout, and the code that reads them (structures.ts: the layout's types and the rig rules).
-    expect(own.sort()).toEqual(['structures-match.webp', 'structures.json', 'structures.ts']);
+    const pages = (structuresDoc as unknown as StructuresLayout).match.pages.map((p) => p.file);
+    // The pages, their layout, and the code that reads them (structures.ts: the layout's types and the rig rules).
+    expect(own.sort()).toEqual([...pages, 'structures.json', 'structures.ts'].sort());
+    expect(pages).toEqual(pages.map((_, i) => `structures-match-${i}.webp`));
   });
 
   it('the HUD frames are one picture and its layout', () => {
@@ -1059,35 +1067,85 @@ describe('nothing 3D runs on the device', () => {
 });
 
 describe('3D towers, the Heart and the portals: the structures sheet', () => {
-  const doc = structuresDoc as StructuresLayout;
+  const doc = structuresDoc as unknown as StructuresLayout;
   const m = doc.match;
-  const file = readFileSync(join(ART3D, m.file));
-  const png = decodeWebp(file);
+  const files = m.pages.map((p) => readFileSync(join(ART3D, p.file)));
+  const pages = files.map((f) => decodeWebp(f));
   const cells = Object.entries(m.cells);
+  const COS = Math.cos((CAMERA_PITCH * Math.PI) / 180);
   /** Every tower kind's variants: tiers 1–3 and its two branches (the fourth tier). */
   const variants = (kind: TowerKind) => ['1', '2', '3', ...TOWER_BRANCHES[kind]];
   const heartKeys = ['stage0', 'stage1', 'stage2', 'flash0', 'flash1', 'flash2', 'rubble1', 'rubble2', 'glow', 'fire0', 'fire1', 'fire2'];
+  const alpha = (key: string, xx: number, yy: number) => {
+    const c = m.cells[key]!;
+    return alphaAt(pages[c.page]!, c.x + xx, c.y + yy);
+  };
+  /**
+   * A tower frame's drawing (alpha 200 and up: its soft shadow and glow aside) as reached from its tower's ground
+   * point, world px of the view: sideways, down (toward the camera) and up. A turret frame's anchor is its axis, `axis`
+   * over the ground point.
+   */
+  const extent = (key: string, axis: number) => {
+    const c = m.cells[key]!;
+    let side = 0;
+    let down = 0;
+    let up = 0;
+    for (let yy = 0; yy < c.h; yy++) {
+      for (let xx = 0; xx < c.w; xx++) {
+        if (alpha(key, xx, yy) < 200) continue;
+        const dx = (xx + 0.5 - c.ax) / m.res;
+        const dy = (yy + 0.5 - c.ay) / m.res + axis;
+        side = Math.max(side, Math.abs(dx));
+        down = Math.max(down, dy);
+        up = Math.max(up, -dy);
+      }
+    }
+    return { side, down, up };
+  };
+  const reachOf = (kind: TowerKind, v: string) => {
+    const k = towerKeys(kind, v);
+    const axis = m.towers[`${kind}/${v}`]!.axis;
+    let side = 0;
+    let down = 0;
+    let up = 0;
+    for (const [key, a] of [[k.base, 0] as const, ...k.turret.flat().map((t) => [t, axis] as const)]) {
+      const e = extent(key, a);
+      side = Math.max(side, e.side);
+      down = Math.max(down, e.down);
+      up = Math.max(up, e.up);
+    }
+    return { side, down, up, reach: Math.max(side, down / COS) };
+  };
 
-  it('is one lossless RGBA WebP, at most one 2048 × 2048 page, the size the layout says, 2.75 px per world px, under 2 MB', () => {
+  it('is lossless RGBA WebP pages through the match\'s camera (30°), at most four of 2048 × 2048, as the layout says, 2.75 px per world px', () => {
     expect(doc.id).toBe('structures');
-    expect(m.file).toBe('structures-match.webp');
-    expect(file.toString('ascii', 12, 16)).toBe('VP8L');
-    // Precached with the shell (V-07d): one file every match draws from its first frame.
-    expect(file.length).toBeLessThan(2_000_000);
-    expect([png.width, png.height]).toEqual([m.w, m.h]);
-    expect(png.channels).toBe(4);
-    expect(m.w).toBe(2048);
-    expect(m.h).toBeLessThanOrEqual(2048);
+    expect(m.pitch).toBe(CAMERA_PITCH);
+    expect(m.headings).toBe(HEADINGS);
+    expect(HEADINGS).toBe(8);
+    expect(m.pages.length).toBeGreaterThanOrEqual(1);
+    expect(m.pages.length).toBeLessThanOrEqual(4);
+    for (const [i, p] of m.pages.entries()) {
+      expect(files[i]!.toString('ascii', 12, 16), p.file).toBe('VP8L');
+      expect(files[i]!.length, p.file).toBe(p.bytes);
+      expect([pages[i]!.width, pages[i]!.height], p.file).toEqual([p.w, p.h]);
+      expect(pages[i]!.channels).toBe(4);
+      expect(p.w).toBe(2048);
+      expect(p.h).toBeLessThanOrEqual(2048);
+    }
+    // Precached with the shell (V-07d): every match draws from them from its first frame. Under 8 MB together.
+    expect(files.reduce((a, f) => a + f.length, 0)).toBeLessThan(8_000_000);
     // A tower is drawn ~1.8 device px per world px on a 3× phone (docs/ART.md §6): 2.75 never magnifies.
     expect(m.res).toBe(2.75);
   });
 
-  it('has a base and four turret frames (at rest, three steps of recoil) for every tower kind, tier and branch', () => {
+  it('has a base and, at each of eight headings, four turret frames (at rest, three steps of recoil) for every tower kind, tier and branch', () => {
     for (const kind of TOWER_KINDS) {
       for (const v of variants(kind)) {
         const k = towerKeys(kind, v);
         expect(m.cells[k.base], k.base).toBeDefined();
-        for (const t of k.turret) expect(m.cells[t], t).toBeDefined();
+        expect(k.turret).toHaveLength(8);
+        for (const t of k.turret.flat()) expect(m.cells[t], t).toBeDefined();
+        expect(m.towers[`${kind}/${v}`], `${kind}/${v}`).toBeDefined();
       }
     }
   });
@@ -1096,8 +1154,9 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     for (const k of heartKeys) expect(m.cells[`heart/${k}`], k).toBeDefined();
     for (const k of ['body', 'glow']) expect(m.cells[`portal/${k}`], k).toBeDefined();
     // Nothing else: the keys are exactly those.
-    const towers = TOWER_KINDS.flatMap((kind) => variants(kind).flatMap((v) => [towerKeys(kind, v).base, ...towerKeys(kind, v).turret]));
+    const towers = TOWER_KINDS.flatMap((kind) => variants(kind).flatMap((v) => [towerKeys(kind, v).base, ...towerKeys(kind, v).turret.flat()]));
     expect(Object.keys(m.cells).sort()).toEqual([...towers, ...heartKeys.map((k) => `heart/${k}`), 'portal/body', 'portal/glow'].sort());
+    expect(Object.keys(m.towers).sort()).toEqual(TOWER_KINDS.flatMap((kind) => variants(kind).map((v) => `${kind}/${v}`)).sort());
     // The effects' points (V-06l batch 2): the Heart's light (`chest`, its crystal on the Spire's tip) above the keep's
     // middle, both above its point on the map; the gatehouse's opening over the portal's point.
     expect(m.heart.points.keep.y).toBeLessThan(0);
@@ -1106,16 +1165,17 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     expect(Math.abs(m.portal.points.opening.x)).toBeLessThan(4);
   });
 
-  it('every frame lies inside the sheet without overlapping another, its anchor inside it', () => {
+  it('every frame lies inside its page without overlapping another, its anchor inside it', () => {
     for (const [key, c] of cells) {
+      const page = m.pages[c.page]!;
+      expect(page, key).toBeDefined();
       expect(c.x, key).toBeGreaterThanOrEqual(0);
       expect(c.y, key).toBeGreaterThanOrEqual(0);
-      expect(c.x + c.w, key).toBeLessThanOrEqual(m.w);
-      expect(c.y + c.h, key).toBeLessThanOrEqual(m.h);
+      expect(c.x + c.w, key).toBeLessThanOrEqual(page.w);
+      expect(c.y + c.h, key).toBeLessThanOrEqual(page.h);
       // Glow layers are kept at half the sheet's pixels (their light is soft).
       expect([undefined, m.res / 2], key).toContain(c.res);
-      // A tower's centre and a turret's pivot lie on their frame; a building's point at least near it (the castle's
-      // point is its middle; the gate's opening is over its point).
+      // A tower's centre and a turret's axis lie on their frame; a building's point at least near it.
       if (!key.startsWith('heart/') && !key.startsWith('portal/')) {
         expect(c.ax, key).toBeGreaterThan(0);
         expect(c.ax, key).toBeLessThan(c.w);
@@ -1123,13 +1183,15 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
         expect(c.ay, key).toBeLessThan(c.h);
       }
     }
-    const sorted = [...cells].sort((a, b) => a[1].y - b[1].y);
-    for (let i = 0; i < sorted.length; i++) {
-      const [ka, a] = sorted[i]!;
-      for (let j = i + 1; j < sorted.length && sorted[j]![1].y < a.y + a.h; j++) {
-        const [kb, b] = sorted[j]!;
-        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-        expect(overlap, `${ka} and ${kb}`).toBe(false);
+    for (const [pi] of m.pages.entries()) {
+      const sorted = cells.filter(([, c]) => c.page === pi).sort((a, b) => a[1].y - b[1].y);
+      for (let i = 0; i < sorted.length; i++) {
+        const [ka, a] = sorted[i]!;
+        for (let j = i + 1; j < sorted.length && sorted[j]![1].y < a.y + a.h; j++) {
+          const [kb, b] = sorted[j]!;
+          const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+          expect(overlap, `${ka} and ${kb}`).toBe(false);
+        }
       }
     }
   });
@@ -1139,7 +1201,7 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
       let drawn = 0;
       for (let yy = 0; yy < c.h; yy++) {
         for (let xx = 0; xx < c.w; xx++) {
-          const a = alphaAt(png, c.x + xx, c.y + yy);
+          const a = alpha(key, xx, yy);
           if (a > 0) drawn++;
           if (xx === 0 || yy === 0 || xx === c.w - 1 || yy === c.h - 1) expect(a, `${key} touches its edge at ${xx},${yy}`).toBe(0);
         }
@@ -1148,6 +1210,7 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     }
     for (const stage of [0, 1, 2]) {
       const t = m.cells[`heart/flash${stage}`]!;
+      const png = pages[t.page]!;
       let white = 0;
       for (let yy = 0; yy < t.h; yy++) {
         for (let xx = 0; xx < t.w; xx++) {
@@ -1162,52 +1225,48 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     }
   });
 
-  it('a tower stays on its 3 × 3 tile pad: its base inside the pad, its turret at any angle', () => {
-    const half = 48;
+  it('a tower stays on its pad as the tilted camera draws it: never sideways past its 3 tiles nor below its south edge, at every heading', () => {
     for (const kind of TOWER_KINDS) {
       for (const v of variants(kind)) {
         const k = towerKeys(kind, v);
-        for (const key of [k.base, ...k.turret]) {
-          const c = m.cells[key]!;
-          let reach = 0;
-          for (let yy = 0; yy < c.h; yy++) {
-            for (let xx = 0; xx < c.w; xx++) {
-              // The drawing (its soft shadow and glow aside).
-              if (alphaAt(png, c.x + xx, c.y + yy) < 200) continue;
-              const dx = (xx + 0.5 - c.ax) / m.res;
-              const dy = (yy + 0.5 - c.ay) / m.res;
-              reach = Math.max(reach, key === k.base ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy));
-            }
+        const axis = m.towers[`${kind}/${v}`]!.axis;
+        for (const [key, a] of [[k.base, 0] as const, ...k.turret.flat().map((t) => [t, axis] as const)]) {
+          const e = extent(key, a);
+          expect(e.side, key).toBeLessThanOrEqual(48);
+          expect(e.down, key).toBeLessThanOrEqual(48 * COS);
+          // And it is a tower, not a speck: a base reaches a good part of the pad, and rises over it.
+          if (key === k.base) {
+            expect(e.side, key).toBeGreaterThan(18);
+            expect(e.up, key).toBeGreaterThan(30);
           }
-          expect(reach, key).toBeLessThanOrEqual(half);
-          // And it is a tower, not a speck: a base reaches a good part of the pad, a turret past its pivot.
-          expect(reach, key).toBeGreaterThan(key === k.base ? 22 : 10);
         }
+        // Its turret turns over the tower: the axis above its ground point.
+        expect(axis, `${kind}/${v}`).toBeLessThan(0);
       }
     }
   });
 
-  it('TOWER_REACH is each variant\'s reach in the sheet, rounded up to half a world px (V-07e: the phone scale stops there)', () => {
+  it('TOWER_REACH and TOWER_TOP are each variant\'s reach on its pad and rise in the sheet, rounded up to half a world px', () => {
     for (const kind of TOWER_KINDS) {
       expect(Object.keys(TOWER_REACH[kind]).sort(), kind).toEqual(variants(kind).sort());
+      expect(Object.keys(TOWER_TOP[kind]).sort(), kind).toEqual(variants(kind).sort());
       for (const v of variants(kind)) {
-        const k = towerKeys(kind, v);
-        let reach = 0;
-        for (const key of [k.base, ...k.turret]) {
-          const c = m.cells[key]!;
-          for (let yy = 0; yy < c.h; yy++) {
-            for (let xx = 0; xx < c.w; xx++) {
-              if (alphaAt(png, c.x + xx, c.y + yy) < 200) continue;
-              const dx = (xx + 0.5 - c.ax) / m.res;
-              const dy = (yy + 0.5 - c.ay) / m.res;
-              reach = Math.max(reach, key === k.base ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy));
-            }
-          }
-        }
-        const table = TOWER_REACH[kind][v]!;
-        expect(table, `${kind}/${v}`).toBeGreaterThanOrEqual(reach - 1e-6);
-        expect(table - reach, `${kind}/${v}`).toBeLessThanOrEqual(0.5 + 1e-6);
-        expect(towerReach(kind, v === '1' || v === '2' || v === '3' ? Number(v) : 4, /^\d$/.test(v) ? null : (v as never), true)).toBe(table);
+        const r = reachOf(kind, v);
+        const name = `${kind}/${v}`;
+        const reach = TOWER_REACH[kind][v]!;
+        const top = TOWER_TOP[kind][v]!;
+        expect(reach, name).toBeGreaterThanOrEqual(r.reach - 1e-6);
+        expect(reach - r.reach, name).toBeLessThanOrEqual(0.5 + 1e-6);
+        expect(top, name).toBeGreaterThanOrEqual(r.up - 1e-6);
+        expect(top - r.up, name).toBeLessThanOrEqual(0.5 + 1e-6);
+        const tier = v === '1' || v === '2' || v === '3' ? Number(v) : 4;
+        const branch = /^\d$/.test(v) ? null : (v as never);
+        expect(towerReach(kind, tier, branch, true)).toBe(reach);
+        expect(towerTop(kind, tier, branch, true)).toBe(top);
+        // The build measured the same (its alpha over half, so a hair wider).
+        const t = m.towers[name]!;
+        expect(t.reach + 1, name).toBeGreaterThanOrEqual(r.reach);
+        expect(t.reach - r.reach, name).toBeLessThanOrEqual(3);
       }
     }
   });
@@ -1229,15 +1288,73 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
 });
 
 describe('3D towers, the Heart and the portals: the rig rules', () => {
-  it('a tier shows its variant, a branch its own; the keys name a base and four turret frames', () => {
+  it('a tier shows its variant, a branch its own; the keys name a base and, at each heading, four turret frames', () => {
     expect(towerVariant(1, null)).toBe('1');
     expect(towerVariant(3, null)).toBe('3');
     expect(towerVariant(4, 'volley')).toBe('volley');
     expect(towerVariant(7, null)).toBe('3');
-    expect(towerKeys('frost', 'glacier')).toEqual({
-      base: 'frost/glacier/base',
-      turret: ['frost/glacier/turret0', 'frost/glacier/turret1', 'frost/glacier/turret2', 'frost/glacier/turret3'],
-    });
+    const k = towerKeys('frost', 'glacier');
+    expect(k.base).toBe('frost/glacier/base');
+    expect(k.turret).toHaveLength(8);
+    expect(k.turret[0]).toEqual(['frost/glacier/h0/turret0', 'frost/glacier/h0/turret1', 'frost/glacier/h0/turret2', 'frost/glacier/h0/turret3']);
+    expect(k.turret[7]![3]).toBe('frost/glacier/h7/turret3');
+  });
+
+  it('a turret shows the nearest of its eight ground headings, its sprite turned on screen by the rest (V-08b build 2)', () => {
+    const cos = Math.cos(Math.PI / 6);
+    const screen = (g: number) => Math.atan2(Math.sin(g) * cos, Math.cos(g));
+    const deg = Math.PI / 180;
+    // On a heading: that frame, unturned.
+    for (let k = 0; k < 8; k++) {
+      const h = turretHeading(screen(k * 45 * deg), cos);
+      expect(h.k).toBe(k);
+      expect(Math.abs(h.turn)).toBeLessThan(1e-9);
+    }
+    // Between two, the nearest on the ground; the sprite turns the rest of the way on screen, never far.
+    let worst = 0;
+    // (Never exactly halfway: there either neighbour is the nearest.)
+    for (let g = -179.75; g < 180; g += 0.5) {
+      const h = turretHeading(screen(g * deg), cos);
+      const want = (((Math.round(g / 45) % 8) + 8) % 8);
+      expect(h.k, `${g}°`).toBe(want);
+      // The heading as drawn, turned by `turn`, points where the aim does on screen.
+      const drawn = screen(h.k * 45 * deg) + h.turn;
+      expect(Math.abs(Math.atan2(Math.sin(drawn - screen(g * deg)), Math.cos(drawn - screen(g * deg))))).toBeLessThan(1e-9);
+      worst = Math.max(worst, Math.abs(h.turn));
+    }
+    // Halfway between two ground headings (22.5° on the ground) is at most 25.6° on screen at 30°: near south, where a
+    // ground step is drawn widest.
+    expect(worst / deg).toBeGreaterThan(22.5);
+    expect(worst / deg).toBeLessThan(25.7);
+    // Straight down (?pitch=0) the screen is the ground: at most 22.5°.
+    let flat = 0;
+    for (let g = -179.75; g < 180; g += 0.25) flat = Math.max(flat, Math.abs(turretHeading(g * deg, 1).turn));
+    expect(flat / deg).toBeLessThanOrEqual(22.5 + 1e-9);
+    expect(flat / deg).toBeGreaterThan(22);
+  });
+
+  it('a 3D tower\'s lanterns hang on two of its lit runes, on a diagonal, as the build measured them', () => {
+    expect(lanternLamps(undefined)).toBeNull();
+    expect(lanternLamps([[1, 2]])).toBeNull();
+    expect(lanternLamps([[0, -30], [0, -70]])).toEqual([[0, -70], [0, -30]]);
+    expect(lanternLamps([[16, -65], [-16, -65], [-16, -37], [16, -37]])).toEqual([[-16, -65], [16, -37]]);
+    const m = (structuresDoc as unknown as StructuresLayout).match;
+    // Every tier-2-and-better variant whose runes glow bright enough to measure (all but the Frost's ice columns and the
+    // Void's blades, which keep the 2D art's places lifted onto the body) has two places on its body, on the pad.
+    let measured = 0;
+    for (const kind of TOWER_KINDS) {
+      for (const v of ['2', '3', ...TOWER_BRANCHES[kind]]) {
+        const l = lanternLamps(m.towers[`${kind}/${v}`]!.lamps);
+        if (kind !== 'frost' && v !== 'void') expect(l, `${kind}/${v}`).not.toBeNull();
+        if (!l) continue;
+        measured++;
+        for (const [x, y] of l) {
+          expect(Math.abs(x), `${kind}/${v}`).toBeLessThanOrEqual(48);
+          expect(y, `${kind}/${v}`).toBeLessThan(48 * Math.cos(Math.PI / 6));
+        }
+      }
+    }
+    expect(measured).toBeGreaterThanOrEqual(14);
   });
 
   it('a recoil kick steps through the turret frames: the full kick the last, and back to rest as it eases', () => {

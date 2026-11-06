@@ -204,6 +204,7 @@ The first screen loads the same files (374 KB), so the lobby is usable as before
 | `main` (#147) | 5 | median **75.98 s** (75.78–76.89 s) | 3,145 KB (the plate, the structures' PNG, the Grunts', the Ranger's) | never (no hold before V-07d) |
 | V-07d | 5 | median **22.00 s** (21.85–22.11 s) | 2,467 KB (the structures' sheet lossless WebP) | median 6.11 s (6.00–6.17 s): the 6 s limit in every run |
 | V-07d, the Warden (`--hero warden`) | 3 | median 24.71 s (24.25–24.75 s) | 3,012 KB (his sheet is 834 KB) | median 6.01 s, the limit |
+| V-08b build 2 (the structures' four pages at 30°, the turrets at eight headings) | 1 | **54.74 s** | 7,895 KB (the four pages 7.03 MB) | 6.06 s, the limit |
 
 On `main` the hero's sheet came last, after all nine creeps' (the chain's order), so a first match on Slow 4G drew the 2D Ranger for over a minute. With V-07d, after the tap (three runs): the Ranger's sheet in at −0.05 to 0.61 s (it started on the home card), the Grunts' at about 5 s, the plate at about 10 s, the structures' at about 21.5 s; the first wave starts 30 s after the 6 s hold, so every creep of it is 3D from its first step even here; on this line the towers, the Heart and the portals are the last to swap (the structures' sheet, 1.4 MB, is the long pole). What else shares the line in those seconds: the stage video kept downloading its 1 MB into the match until V-07d drops it when the stage stops (27.8 s → 22.0 s, one probe run each), and the match music's stream (P2-11) takes about 1.5 MB of it (left as it is).
 

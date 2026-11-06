@@ -1,5 +1,9 @@
-// `npm run camera-shots -w @tdt/client [-- --out DIR]`, after `npm run build:e2e -w @tdt/client`: V-08b build 1's
-// pictures (docs/ART.md §16 "The camera") into docs/screenshots/camera/.
+// `npm run camera-shots -w @tdt/client [-- --build 1|2] [--out DIR]`, after `npm run build:e2e -w @tdt/client`: V-08b's
+// pictures (docs/ART.md §16 "The camera") into docs/screenshots/camera/. `--build 2` (the default since build 2): the
+// plate and the structures rendered at the pitch, wave 10 on the phone in each of the match's three lights
+// (build-2-phone-afternoon / -dusk / -night.webp), on the desktop in the afternoon, and the tap test of each
+// (build-2-taps-phone.webp, build-2-taps-desktop.webp: the tilted camera alone), and the three phone frames side by side
+// in docs/art/camera-b-wave10.png. `--build 1` makes build 1's pictures as they were:
 //
 // A real solo Full match on the e2e build in headless Chromium, on the Ranger with the lab's gold: five towers round
 // the map's middle (Cannon 2, Arrow 3, Frost 1, Arcane 3, Flak 2) built by the controls' own commands, the hero walked
@@ -30,6 +34,7 @@ const arg = (name: string, fallback: string) => {
 };
 const path = (p: string) => (isAbsolute(p) ? p : resolve(process.cwd(), p));
 const out = path(arg('out', join(repo, 'docs', 'screenshots', 'camera')));
+const BUILD = arg('build', '2');
 const dist = join(root, 'dist-e2e');
 
 const PHONE = { width: 412, height: 839 };
@@ -71,7 +76,7 @@ expected result: build 2 renders the plate and the structures at the pitch (docs
 
 mkdirSync(out, { recursive: true });
 
-async function page(browser: Browser, desktop: boolean, pitch: number): Promise<Page> {
+async function page(browser: Browser, desktop: boolean, pitch: number, light = 'afternoon'): Promise<Page> {
   const ctx = await browser.newContext(
     desktop
       ? { viewport: DESKTOP, deviceScaleFactor: 1, serviceWorkers: 'block' }
@@ -81,7 +86,7 @@ async function page(browser: Browser, desktop: boolean, pitch: number): Promise<
   await ctx.addInitScript((s) => localStorage.setItem('tdt.settings', JSON.stringify(s)), SETTINGS);
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.error('page error:', e.message));
-  await p.goto(`${url}?lab&weather=clear&light=afternoon&pitch=${pitch}`);
+  await p.goto(`${url}?lab&weather=clear&light=${light}&pitch=${pitch}`);
   await p.waitForSelector('html[data-ready="solo"]', { timeout: 60_000 });
   await p.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
   await p.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
@@ -262,31 +267,83 @@ function beside(a: string, b: string, name: string): void {
   ]);
 }
 
+const README_2 = `# The tilted camera, build 2 (V-08b)
+
+Made by \`npm run camera-shots -w @tdt/client\` after \`npm run build:e2e -w @tdt/client\` (docs/ART.md §15 "The tilted
+camera", §16 "The camera"). A solo Full match on the e2e build, wave 10 held with clear weather, five towers round the
+map's middle, the light forced (\`?light=\`).
+
+**Build 2 of 4: the plate and the structures rendered at the pitch** (B, 30° from straight down): the plate in its three
+lights, every tower with its walls and roof, its turret at the nearest of eight rendered headings, the Heart and the
+portals. The heroes and the creeps are their sheets as before (docs/art/camera-options.md: they need no re-render).
+
+- \`build-2-phone-afternoon.webp\`, \`-dusk\`, \`-night\`: 412 × 839 at 2×, one held moment in each light.
+- \`build-2-desktop.webp\`: 1280 × 800 in the afternoon.
+- \`build-2-taps-phone.webp\`, \`build-2-taps-desktop.webp\`: the tap test (as build 1's): every 4 px of the map
+  coloured by what a tap there picks, each target's box outlined (a tower's box reaches up over its roof), each pad's
+  ground square drawn through the camera in white.
+- Build 1's pictures (\`build-1-*\`) are kept for comparison: today's art squashed on the tilted ground.
+`;
+
 const server = await preview({ root, logLevel: 'warn', build: { outDir: dist }, preview: { port: 0, host: '127.0.0.1' } });
 const url = server.resolvedUrls?.local[0];
 if (!url) throw new Error('the preview server has no URL');
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 try {
-  for (const desktop of [false, true]) {
-    const kind = desktop ? 'desktop' : 'phone';
-    const taps: string[] = [];
-    for (const pitch of [30, 0]) {
-      const p = await page(browser, desktop, pitch);
-      const name = pitch ? `build-1-${kind}` : `build-1-${kind}-pitch0`;
-      await label(p, pitch ? 'Build 1 · 30° · today’s art, squashed' : '?pitch=0 · before V-08b');
+  if (BUILD === '1') {
+    for (const desktop of [false, true]) {
+      const kind = desktop ? 'desktop' : 'phone';
+      const taps: string[] = [];
+      for (const pitch of [30, 0]) {
+        const p = await page(browser, desktop, pitch);
+        const name = pitch ? `build-1-${kind}` : `build-1-${kind}-pitch0`;
+        await label(p, pitch ? 'Build 1 · 30° · today’s art, squashed' : '?pitch=0 · before V-08b');
+        const png = await shoot(p, name);
+        webp(png, name);
+        rmSync(png);
+        const check = await tapOverlay(p);
+        console.log(`${name}: ${check.pads} pads, ${check.points} tap points, ${check.wrong} off their pad's ground`);
+        if (check.wrong > 0) throw new Error(`${name}: ${check.wrong} taps inside a pad's box land off its ground square`);
+        taps.push(await shoot(p, `${name}-taps`));
+        await p.context().close();
+      }
+      beside(taps[0]!, taps[1]!, `build-1-taps-${kind}`);
+      for (const t of taps) rmSync(t);
+    }
+    writeFileSync(join(out, 'README.md'), README);
+  } else {
+    const phones: string[] = [];
+    for (const [desktop, light] of [[false, 'afternoon'], [false, 'dusk'], [false, 'night'], [true, 'afternoon']] as const) {
+      const p = await page(browser, desktop, 30, light);
+      const name = desktop ? 'build-2-desktop' : `build-2-phone-${light}`;
+      const art = await p.evaluate(() => (window as any).__tdt.art());
+      await label(p, `Build 2 · 30° · ${light}`);
       const png = await shoot(p, name);
       webp(png, name);
-      rmSync(png);
-      const check = await tapOverlay(p);
-      console.log(`${name}: ${check.pads} pads, ${check.points} tap points, ${check.wrong} off their pad's ground`);
-      if (check.wrong > 0) throw new Error(`${name}: ${check.wrong} taps inside a pad's box land off its ground square`);
-      taps.push(await shoot(p, `${name}-taps`));
+      if (!desktop) phones.push(png);
+      else rmSync(png);
+      console.log(`${name}: art ${JSON.stringify(art)}`);
+      if (light === 'afternoon') {
+        await p.evaluate(() => document.getElementById('camera-label')?.remove());
+        const check = await tapOverlay(p);
+        const taps = desktop ? 'build-2-taps-desktop' : 'build-2-taps-phone';
+        console.log(`${taps}: ${check.pads} pads, ${check.points} tap points, ${check.wrong} off their pad's ground`);
+        if (check.wrong > 0) throw new Error(`${taps}: ${check.wrong} taps inside a pad's box land off its ground square`);
+        const tp = await shoot(p, taps);
+        webp(tp, taps);
+        rmSync(tp);
+      }
       await p.context().close();
     }
-    beside(taps[0]!, taps[1]!, `build-1-taps-${kind}`);
-    for (const t of taps) rmSync(t);
+    // The three lights side by side for the pull request (docs/art/camera-b-wave10.png).
+    execFileSync('ffmpeg', [
+      '-v', 'error', '-y', '-i', phones[0]!, '-i', phones[1]!, '-i', phones[2]!,
+      '-filter_complex', '[0]pad=iw+16:ih:0:0:color=0x0a0c14[a];[1]pad=iw+16:ih:0:0:color=0x0a0c14[b];[a][b][2]hstack=inputs=3,scale=iw/2:ih/2',
+      join(repo, 'docs', 'art', 'camera-b-wave10.png'),
+    ]);
+    for (const f of phones) rmSync(f);
+    writeFileSync(join(out, 'README.md'), README_2);
   }
-  writeFileSync(join(out, 'README.md'), README);
 } finally {
   await browser.close();
   await server.close();

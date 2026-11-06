@@ -4,22 +4,28 @@
 # left, 40° up, shadows down-right) and painted by the same look, rendered ahead of time into one sheet
 # (apps/client/src/render/art3d/structures-match.webp, lossless) with its layout (structures.json).
 #
-# Towers are seen straight down, as the map plate is (docs/ART.md §5): the base, which never turns, and the turret,
-# which the client turns towards its target, so a turret frame drawn from above stays true at any angle. Each tower
-# kind × tier (1 to 3) × branch (two, the fourth tier) has one base frame and four turret frames: at rest and three
-# steps of its recoil (`recoil` in the table), the turret's pivot at the frame's anchor. The base casts the moon's
-# shadow down-right onto a catcher at the height the table gives (`shadow`), short enough to stay on its pad.
+# Everything is seen through the match's camera (V-08b, Han's pick B of 6 Nov 2026, docs/ART.md §15 "The tilted
+# camera"): orthographic, from the south, tilted map.PITCH (30°) from straight down, as the plate is (VIEW). A tower is
+# its base, which never turns (its walls and roof now show), and its turret, which turns towards its target: a turret
+# seen from the side is not true turned as a sprite, so it is rendered at HEADINGS (8) headings on the ground, every 45°
+# (`turret_heading`: heading k points the turret's +x at the client's ground angle k · 45°, y down), each at rest and in
+# three steps of its recoil (`recoil` in the table); the client shows the nearest heading and turns its sprite in the
+# plane by what is left over (±22.5° at most). A turret frame's anchor is its turning axis as drawn (the pivot at the
+# turret's middle height): the layout gives each variant's axis over its tower's ground point. Mirroring a heading is
+# not used: it would flip the light. The base casts the moon's shadow down-right onto a catcher at the height the table
+# gives (`shadow`), short enough to stay on its pad. Every tower stays inside its pad's rectangle as drawn (`pad_check`):
+# never sideways past its 3 tiles nor below its south edge; its roof may rise over the ground behind.
 #
-# The Heart and the portals never turn, so they are seen from above at a steep angle from the south (VIEW_SOUTH):
-# the keep's gate, its Spire and the gatehouse's arch read, as the 2D Heart showed its gem in 3/4 view. The Heart has a
+# The Heart and the portals never turn; seen through the same camera, the keep's gate, its Spire and the gatehouse's
+# arch read, as the 2D Heart showed its gem in 3/4 view. The Heart has a
 # body per damage stage (whole, cracked, ruined), each with its white twin (the hit flash), and layers the client
 # animates on top: its light (the crystal's and the windows', pulsed with the beat), the rubble of each damaged stage,
 # and the flames (three frames, so the client can flicker them). The portal has its body and its lights' glow (the
 # rune-stones'); the flare at a wave start stays the client's own additive burst.
 #
-# Every frame's anchor is the world point it stands on (a tower's centre, its turret's pivot, the Heart's and a
-# portal's position on the map), in sheet px of its own cell; frames are trimmed to what they cover and packed into
-# one sheet of at most PAGE × PAGE.
+# Every frame's anchor is the world point it stands on (a tower's centre, the Heart's and a portal's position on the
+# map) or turns about (a turret's axis), in sheet px of its own cell; frames are trimmed to what they cover and packed
+# into as few pages of at most PAGE × PAGE as they take (`pack_pages`; V-08b's eight headings take several).
 
 import math
 import os
@@ -42,8 +48,13 @@ SAMPLES = 24       # a pixel, at 1× (#109's rule)
 DRAFT_SAMPLES = 6
 PAGE = 2048        # the sheet is at most one page of PAGE × PAGE
 PAD = 1            # sheet px kept round each trimmed frame
-VIEW_TOP = (0.0, 90.0)     # azimuth, elevation: straight down (towers)
-VIEW_SOUTH = (90.0, 55.0)  # from the south (the bottom of the screen), 55° up (the Heart, the portals)
+# Azimuth, elevation: the match's camera (V-08b), from the south (the bottom of the screen), 90° − map.PITCH up, for
+# everything: the towers (straight down before V-08b) and the Heart and the portals (55° up before).
+VIEW = (plate.SOUTH, 90.0 - plate.PITCH)
+VIEW_SOUTH = VIEW
+COS, SIN = plate.COS, plate.SIN
+HEADINGS = 8       # a turret's rendered headings on the ground, every 360 / HEADINGS degrees
+MAX_PAGES = 4      # the structures' pages (docs/art/camera-options.md's estimate at eight headings)
 # The painter for structures on the plate: the plate's light, from the plate's own table (map.LIGHT, Spring meadow's warm
 # shade, warm lit tone, the day sky's fill and rim, the sun's lit edge: retest fix A, 28 Oct 2026; before it, the
 # night's cool blue shade and a rune-teal rim), a terminator higher than a figure's, more continuous light inside the
@@ -63,7 +74,7 @@ SHADOW_RUN = 1 / math.tan(math.radians(40))  # how far the moon (40° up, map.MO
 SHADOW_SOFT = 0.8      # sheet px: the cast shadow's edge, as soft as the plate's
 GLOW_BLOOM = (1.2 * RES, 0.9)  # a glow layer's halo: sigma (sheet px), strength
 GLOW_DOWN = 2      # glow layers (soft additive light) are kept at half the sheet's px per world px
-PAD_HALF = 48.0     # world px: a tower (its base, and its turret at any angle) stays on its 3 × 3 tile pad
+PAD_HALF = 48.0     # world px: a tower (its base, and its turret at any heading) stays on its 3 × 3 tile pad
 # The ground under each (the map's own palette rows, V-07c): the fringe check composites a frame over it, and the cast
 # shadow is coloured so that over it, lit by the plate's sun, it gives the plate's own shade (shadow_colour).
 GROUND = {'tower': 'padSand', 'heart': 'grass', 'portal': 'road'}
@@ -313,10 +324,23 @@ def lights():
 # --- one frame ------------------------------------------------------------------------------------------------------
 
 def _camera(view, window, z_anchor=0.0):
+    """A square frame `window` world px each way round the anchor, placed far back along its view (orthographic: the
+    projection is the same) so a tilted frame is never clipped behind the camera."""
     side = int(window * 2 * RES)
     cam = scene.ortho_camera('Struct', view[0], view[1], side, side, RES, V((0, 0, z_anchor)), (side / 2, side / 2))
-    cam.obj.data.clip_end = 3000
+    far = 2000.0
+    cam.obj.location = cam.obj.location - cam.forward * far
+    cam.obj.data.clip_start = 1.0
+    cam.obj.data.clip_end = far * 3
+    bpy.context.view_layer.update()
     return cam
+
+
+def _inside(img, where, failed):
+    """A frame must not touch its window's edge (it would be cut): the window is too small for the tilted view."""
+    a = img[..., 3]
+    if a[:3].any() or a[-3:].any() or a[:, :3].any() or a[:, -3:].any():
+        failed.append(f'{where} touches its window\'s edge: give its row a bigger `window`')
 
 
 def _box(cam, objs, pad):
@@ -440,14 +464,23 @@ def with_shadow(img, shadow, colour):
     return img + sh * (1 - img[..., 3:4])
 
 
-def _reach(img, anchor, square):
-    """How far the drawing (alpha over half) reaches from its anchor, world px: along x or y (a base, which must stay
-    inside its pad's square) or in any direction (a turret, which turns)."""
+def pad_extent(img, anchor, off=(0.0, 0.0)):
+    """How far the drawing (alpha over half) reaches from its tower's ground point, world px of the view: sideways
+    (`side`, |x|), below it (`down`, toward the camera: the pad's south edge is PAD_HALF · cos below) and above it (`up`,
+    the roof over the ground behind). `off`: the anchor's place from the ground point (a turret's axis), sheet px."""
     ys, xs = np.nonzero(img[..., 3] > 0.5)
     if not len(xs):
-        return 0.0
-    dx, dy = (xs + 0.5 - anchor[0]) / RES, (ys + 0.5 - anchor[1]) / RES
-    return round(float(np.maximum(np.abs(dx), np.abs(dy)).max() if square else np.hypot(dx, dy).max()), 1)
+        return dict(side=0.0, down=0.0, up=0.0)
+    dx = (xs + 0.5 - anchor[0] + off[0]) / RES
+    dy = (ys + 0.5 - anchor[1] + off[1]) / RES
+    return dict(side=round(float(np.abs(dx).max()), 1), down=round(float(max(0.0, dy.max())), 1),
+                up=round(float(max(0.0, -dy.min())), 1))
+
+
+def pad_reach(e):
+    """A frame's reach on its pad (world px of ground, the larger of sideways and down toward its south edge, which is
+    cos(pitch) of the ground below): at most PAD_HALF on its own pad (the pad check). The client's TOWER_REACH."""
+    return round(max(e['side'], e['down'] / COS), 1)
 
 
 def check(full, glow, over, figure=None):
@@ -499,39 +532,92 @@ def trim(img8, anchor, pad=PAD):
 
 # --- the sheet ------------------------------------------------------------------------------------------------------
 
-def pack(frames, limit=PAGE):
-    """Packs {key: (crop, anchor)} into one sheet PAGE wide and at most `limit` high, as low as it goes (skyline, best
-    of four orders): the sheet (h × PAGE × 4) and {key: cell}."""
-    keys = sorted(frames)
-    sizes = [(frames[k][0].shape[1], frames[k][0].shape[0]) for k in keys]
-    best = None
-    for order in ORDERS:
-        places = skyline(sizes, PAGE, limit, order)
-        if places is None:
+def _skyline_some(sizes, width, height, order):
+    """creep.skyline's bottom-left skyline rule, placing what fits and leaving the rest (None) for the next page."""
+    idx = sorted(range(len(sizes)), key=lambda i: (*order(sizes[i]), i))
+    sky = [(0, 0, width)]
+    places = [None] * len(sizes)
+    for i in idx:
+        w, h = sizes[i]
+        best = None
+        for j in range(len(sky)):
+            x = sky[j][0]
+            if x + w > width:
+                break
+            y, k, room = 0, j, 0
+            while room < w:
+                y = max(y, sky[k][1])
+                room += sky[k][2]
+                k += 1
+            if y + h <= height and (best is None or (y + h, x) < (best[0] + h, best[1])):
+                best = (y, x)
+        if best is None:
             continue
-        h = max(y + sizes[i][1] for i, (_, y) in enumerate(places))
-        if best is None or h < best[1]:
-            best = (places, h)
-    if best is None:
-        total = sum(w * h for w, h in sizes)
-        raise CheckFailed(f'the structure frames ({len(keys)}, {total / 1e6:.2f} M px) do not fit one {PAGE} × {PAGE} '
-                          f'page at {RES} px per world px')
-    places, h = best
-    sheet = np.zeros((h, PAGE, 4), np.uint8)
-    cells = {}
-    for k, (x, y) in zip(keys, places):
-        crop, (ax, ay) = frames[k][:2]
-        sheet[y:y + crop.shape[0], x:x + crop.shape[1]] = crop
-        cells[k] = dict(x=int(x), y=int(y), w=int(crop.shape[1]), h=int(crop.shape[0]), ax=round(float(ax), 2),
-                        ay=round(float(ay), 2))
-        if len(frames[k]) > 2 and frames[k][2] != RES:
-            cells[k]['res'] = frames[k][2]
-    return sheet, cells
+        y, x = best
+        places[i] = (x, y)
+        new = []
+        for sx, sy, sw in sky:
+            a, b = sx, sx + sw
+            if b <= x or a >= x + w:
+                new.append((sx, sy, sw))
+                continue
+            if a < x:
+                new.append((a, sy, x - a))
+            if b > x + w:
+                new.append((x + w, sy, b - x - w))
+        new.append((x, y + h, w))
+        new.sort()
+        merged = []
+        for seg in new:
+            if merged and merged[-1][1] == seg[1] and merged[-1][0] + merged[-1][2] == seg[0]:
+                merged[-1] = (merged[-1][0], seg[1], merged[-1][2] + seg[2])
+            else:
+                merged.append(seg)
+        sky = merged
+    return places
 
 
-def unpack(sheet, cells):
-    """The frames of a sheet already written ({key: (crop, anchor)}), to pack again with some re-rendered."""
-    return {k: (sheet[c['y']:c['y'] + c['h'], c['x']:c['x'] + c['w']].copy(), (c['ax'], c['ay']), c.get('res', RES))
+def pack_pages(frames, limit=PAGE):
+    """Packs {key: (crop, anchor[, res])} into pages PAGE wide and at most `limit` high, filling each before the next
+    (skyline, tallest first: the pages after the first take what the one before left), the last as low as it goes:
+    ([page h × PAGE × 4], {key: cell with its `page`})."""
+    keys = sorted(frames)
+    left = list(keys)
+    sheets, cells = [], {}
+    while left:
+        sizes = [(frames[k][0].shape[1], frames[k][0].shape[0]) for k in left]
+        if any(w > PAGE or h > limit for w, h in sizes):
+            raise CheckFailed('a structure frame is bigger than a page')
+        best = None
+        for order in ORDERS:
+            places = _skyline_some(sizes, PAGE, limit, order)
+            n = sum(p is not None for p in places)
+            h = max((y + sizes[i][1] for i, p in enumerate(places) if p for _, y in [p]), default=0)
+            if best is None or (n, -h) > (best[1], -best[2]):
+                best = (places, n, h)
+        places, _, h = best
+        page = len(sheets)
+        sheet = np.zeros((h, PAGE, 4), np.uint8)
+        rest = []
+        for k, place in zip(left, places):
+            if place is None:
+                rest.append(k)
+                continue
+            x, y = place
+            crop, (ax, ay) = frames[k][:2]
+            sheet[y:y + crop.shape[0], x:x + crop.shape[1]] = crop
+            cells[k] = dict(page=page, x=int(x), y=int(y), w=int(crop.shape[1]), h=int(crop.shape[0]),
+                            ax=round(float(ax), 2), ay=round(float(ay), 2))
+            if len(frames[k]) > 2 and frames[k][2] != RES:
+                cells[k]['res'] = frames[k][2]
+        sheets.append(sheet)
+        left = rest
+    return sheets, cells
+
+
+def unpack(sheets, cells):
+    """The frames of the pages already written ({key: (crop, anchor)}), to pack again with some re-rendered."""
+    return {k: (cell_image(sheets[c.get('page', 0)], c).copy(), (c['ax'], c['ay']), c.get('res', RES))
             for k, c in cells.items()}
 
 
@@ -560,9 +646,51 @@ def white_twin(img8):
     return npr.white_twin(img8)
 
 
-def render_tower(name, variant, row, tmp, samples, frames, checks):
-    """A tower's base and turret frames for one tier or branch (`row` from the table): base, turret0 (at rest),
-    turret1..3 (its recoil, a third of the way each)."""
+def _lamps(glow, anchor, most=6):
+    """Where the base's runes glow (the tier's pillar caps, a branch's braziers), as drawn: each lit patch's middle,
+    world px of the view from the tower's ground point, the brightest first (`most` at most). The client hangs its
+    lanterns there (V-08a's, `updateLanterns`)."""
+    top = float(glow.max())
+    if top < 0.05:
+        return []
+    # A dim glow (the Frost's ice columns, the Void's runes) counts from half its own brightest.
+    lit = glow > min(0.35, 0.5 * top)
+    labels, n = ndimage.label(lit)
+    out = []
+    for i in range(1, n + 1):
+        ys, xs = np.nonzero(labels == i)
+        if len(xs) < 4:
+            continue
+        w = glow[ys, xs]
+        out.append((float(w.sum()), round(float((xs + 0.5 - anchor[0]) @ w / w.sum()) / RES, 1),
+                    round(float((ys + 0.5 - anchor[1]) @ w / w.sum()) / RES, 1)))
+    out.sort(reverse=True)
+    return [[x, y] for _, x, y in out[:most]]
+
+
+def turret_heading(pieces, k, moves_of, deg=None):
+    """Poses the turret at heading k (its +x at the client's ground angle k · 360 / HEADINGS degrees, map y down:
+    Blender turns the other way about z, through the tower's centre), or at `deg` degrees on the ground, `moves_of(piece)`
+    its pose (rest or recoil)."""
+    r = Matrix.Rotation(-math.radians(k * 360.0 / HEADINGS if deg is None else deg), 4, 'Z')
+    for p in pieces:
+        moves = moves_of(p)
+        if moves is None and 'pose' in p.spec:
+            moves = p.spec['pose'](p, 1.0)
+        moves = dict(moves or {})
+        moves['world'] = r @ moves.get('world', Matrix.Identity(4))
+        p.pose(moves)
+    bpy.context.view_layer.update()
+
+
+def turret_key(name, variant, heading, frame):
+    return f'{name}/{variant}/h{heading}/turret{frame}'
+
+
+def render_tower(name, variant, row, tmp, samples, frames, checks, towers, failed):
+    """A tower's base and turret frames for one tier or branch (`row` from the table): base, and at each of HEADINGS
+    headings h0..h7 turret0 (at rest) and turret1..3 (its recoil, a third of the way each). `towers[key]`: the
+    variant's turret axis over its ground point and its reach on the pad (pad_extent)."""
     scene.reset(fps=30)
     lights()
     row['materials']()
@@ -571,10 +699,11 @@ def render_tower(name, variant, row, tmp, samples, frames, checks):
     everything = base + turret
     top = max((o.matrix_world @ V(c)).z for o in objects_of(everything) for c in o.bound_box)
     shading.set_globals(z0=0, z1=top)
-    window = row.get('window', 64)
-    cam = _camera(VIEW_TOP, window)
+    # The tilted frame shows a tower's height up the screen: a bigger window than the straight-down one's.
+    window = row.get('window', 64) * 1.6
+    cam = _camera(VIEW, window)
     look = dict(npr.LOOK, **LOOK, **row.get('look', {}))
-    anchor = (cam.w / 2, cam.h / 2)
+    anchor = cam.px(V((0, 0, 0)))[:2]
     catcher = _ground(0.0)
     key = f'{name}/{variant}'
     # The base, with the moon's shadow on the ground (the turret is not there: it turns). Its height squashed so the
@@ -584,29 +713,39 @@ def render_tower(name, variant, row, tmp, samples, frames, checks):
     img, glow, sh = shoot(cam, tmp, look, objects_of(base), samples, catcher=catcher, squash=squash,
                           reach=row.get('shadow', 22.0))
     full = with_shadow(img, sh, shadow_colour(GROUND['tower']))
+    _inside(full, f'{key}/base', failed)
     res, _ = check(full, glow, GROUND['tower'], img)
     res['frame'] = f'{key}/base'
-    res['reach'] = _reach(img, anchor, square=True)
+    ext = pad_extent(img, anchor)
+    res['reach'] = pad_reach(ext)
     checks.append(res)
     frames[f'{key}/base'] = trim(npr.to8(full), anchor)
-    # The turret at rest and in its recoil, alone.
+    lamps = _lamps(glow, anchor)
+    # The turret alone at each heading, at rest and in its recoil. Its anchor: the turning axis at its middle height.
     show_only(everything, turret)
-    pivot = row.get('pivot', (0.0, 0.0))
-    for k in range(4):
-        amount = k / 3
-        for p in turret:
-            moves = p.spec['recoil'](p, amount) if (k and 'recoil' in p.spec) else None
-            p.pose(moves)
-        bpy.context.view_layer.update()
-        img, glow, _ = shoot(cam, tmp, look, objects_of(turret), samples)
-        res, _ = check(img, glow, GROUND['tower'])
-        res['frame'] = f'{key}/turret{k}'
-        px, py, _ = cam.px(V((pivot[0], pivot[1], 0.0)))
-        res['reach'] = _reach(img, (px, py), square=False)
-        checks.append(res)
-        frames[f'{key}/turret{k}'] = trim(npr.to8(img), (px, py))
+    zs = [(o.matrix_world @ V(c)).z for o in objects_of(turret) for c in o.bound_box]
+    zmid = (min(zs) + max(zs)) / 2
+    axis = cam.px(V((0.0, 0.0, zmid)))[:2]
+    off = (axis[0] - anchor[0], axis[1] - anchor[1])
+    side, down, up = ext['side'], ext['down'], ext['up']
+    for h in range(HEADINGS):
+        for k in range(4):
+            amount = k / 3
+            turret_heading(turret, h, lambda p: p.spec['recoil'](p, amount) if (k and 'recoil' in p.spec) else None)
+            img, glow, _ = shoot(cam, tmp, look, objects_of(turret), samples)
+            fk = turret_key(name, variant, h, k)
+            _inside(img, fk, failed)
+            res, _ = check(img, glow, GROUND['tower'])
+            res['frame'] = fk
+            e = pad_extent(img, axis, off)
+            res['reach'] = pad_reach(e)
+            side, down, up = max(side, e['side']), max(down, e['down']), max(up, e['up'])
+            checks.append(res)
+            frames[fk] = trim(npr.to8(img), axis)
     for p in turret:
         p.pose(None)
+    towers[key] = dict(axis=round(off[1] / RES, 2), side=side, down=down, up=up,
+                       reach=pad_reach(dict(side=side, down=down)), lamps=lamps)
 
 
 def _points(cam, row, anchor):
@@ -698,18 +837,21 @@ def render_portal(row, tmp, samples, frames, checks):
 
 
 def render_all(table, names, out_dir, tmp, draft=False, previous=None):
-    """Renders the rows named (tower kinds, 'heart', 'portal'), keeps every other frame of the sheet already written
-    (`previous`: (sheet, layout)), packs them all into one sheet; returns (sheet, layout, notes)."""
+    """Renders the rows named (tower kinds, 'heart', 'portal'), keeps every other frame of the pages already written
+    (`previous`: ([page], layout)), packs them all into as few pages as they take; returns ([page], layout, notes)."""
     samples = DRAFT_SAMPLES if draft else SAMPLES
     frames = {}
     checks = []
     times = {}
     extra = {}
     keep = {}
+    towers = {}
+    failed = []
     if previous is not None:
-        sheet, layout = previous
-        keep = unpack(sheet, layout['cells'])
+        sheets, layout = previous
+        keep = unpack(sheets, layout['cells'])
         extra = {k: layout[k] for k in ('heart', 'portal') if k in layout}
+        towers = dict(layout.get('towers', {}))
     for name in names:
         t0 = time.time()
         if name == 'heart':
@@ -718,7 +860,7 @@ def render_all(table, names, out_dir, tmp, draft=False, previous=None):
             extra['portal'] = render_portal(table.PORTAL, tmp, samples, frames, checks)
         else:
             for variant, row in table.TOWERS[name].items():
-                render_tower(name, variant, row, tmp, samples, frames, checks)
+                render_tower(name, variant, row, tmp, samples, frames, checks, towers, failed)
                 print(f'structure {name} {variant}', flush=True)
         times[name] = round(time.time() - t0, 1)
         print(f'structure {name}: {times[name]} s', flush=True)
@@ -727,20 +869,20 @@ def render_all(table, names, out_dir, tmp, draft=False, previous=None):
     keep.update(frames)
     total = sum(v[0].shape[0] * v[0].shape[1] for v in keep.values())
     print(f'structure frames: {len(keep)}, {total / 1e6:.2f} M px (a page is {PAGE * PAGE / 1e6:.2f})', flush=True)
-    try:
-        sheet, cells = pack(keep)
-        over = None
-    except CheckFailed as e:
-        # Packed into a taller sheet to look at; the build stops after writing it.
-        sheet, cells = pack(keep, limit=4 * PAGE)
-        over = str(e)
-    layout = {'res': RES, 'w': PAGE, 'h': int(sheet.shape[0]), 'cells': cells, **extra}
+    sheets, cells = pack_pages(keep)
+    over = None
+    if len(sheets) > MAX_PAGES:
+        over = (f'the structure frames ({len(keep)}, {total / 1e6:.2f} M px) take {len(sheets)} pages of {PAGE} × '
+                f'{PAGE}, more than {MAX_PAGES}')
+    layout = {'res': RES, 'pitch': plate.PITCH, 'headings': HEADINGS,
+              'pages': [{'w': PAGE, 'h': int(sh.shape[0])} for sh in sheets], 'cells': cells,
+              'towers': {k: towers[k] for k in sorted(towers)}, **extra}
     notes = {'times': times, 'checks': checks, 'samples': samples,
-             'failed': [c['frame'] for c in checks if not c['pass']] +
+             'failed': [c['frame'] for c in checks if not c['pass']] + failed +
                        [f"{c['frame']} reaches {c['reach']} world px off its pad" for c in checks
                         if c.get('reach', 0) > PAD_HALF],
              'over': over}
-    return sheet, layout, notes
+    return sheets, layout, notes
 
 
 # --- a look at the sheet --------------------------------------------------------------------------------------------
@@ -771,9 +913,9 @@ def cell_image(sheet, c):
     return sheet[c['y']:c['y'] + c['h'], c['x']:c['x'] + c['w']]
 
 
-def _put(out, sheet, c, x, y, add=False):
+def _put(out, sheets, c, x, y, add=False):
     """Draws a cell with its anchor at (x, y) at the sheet's px per world px (a half-size glow scaled up)."""
-    im = cell_image(sheet, c)
+    im = cell_image(sheets[c.get('page', 0)], c)
     k = RES / c.get('res', RES)
     if k != 1:
         im = np.clip(np.stack([ndimage.zoom(im[..., i].astype(np.float32), k, order=1) for i in range(4)], axis=2), 0,
@@ -781,41 +923,42 @@ def _put(out, sheet, c, x, y, add=False):
     (_add if add else _blit)(out, im, int(round(x - c['ax'] * k)), int(round(y - c['ay'] * k)))
 
 
-def preview(sheet, layout, path, towers):
-    """Every tower variant (base and turret at rest, then at full recoil) on a pad, the Heart's stages and the portal
-    on the ground: a picture to look at while working on the table."""
+def preview(sheets, layout, path, towers):
+    """Every tower variant (base and turret at rest at headings 0 and 2, then at full recoil) on a pad, the Heart's
+    stages and the portal on the ground: a picture to look at while working on the table."""
     cells = layout['cells']
     r = layout['res']
-    tile = int(100 * r)
+    tile = int(110 * r)
     rows = []
     for kind, variants in towers.items():
         rows.append([(kind, v) for v in variants])
-    width = max(8, max(len(row) for row in rows) * 2) * tile
+    width = max(8, max(len(row) for row in rows) * 3) * tile
     height = len(rows) * tile + int(2 * 140 * r)
     out = np.zeros((height, width, 3), np.float32) + np.array(rgb(GROUND['heart']), np.float32)
     pad = np.array(rgb(GROUND['tower']), np.float32)
     for ri, row in enumerate(rows):
         for ci, (kind, v) in enumerate(row):
-            for k, turret in enumerate(('turret0', 'turret3')):
-                cx, cy = (2 * ci + k) * tile + tile // 2, ri * tile + tile // 2
-                h = int(48 * r)
-                out[cy - h:cy + h, cx - h:cx + h] = pad
+            axis = layout.get('towers', {}).get(f'{kind}/{v}', {}).get('axis', 0.0) * r
+            for k, turret in enumerate(('h0/turret0', 'h2/turret0', 'h5/turret3')):
+                cx, cy = (3 * ci + k) * tile + tile // 2, ri * tile + int(tile * 0.7)
+                hx, hy = int(48 * r), int(48 * r * COS)
+                out[cy - hy:cy + hy, cx - hx:cx + hx] = pad
                 base = cells.get(f'{kind}/{v}/base')
                 if base:
-                    _put(out, sheet, base, cx, cy)
+                    _put(out, sheets, base, cx, cy)
                 t = cells.get(f'{kind}/{v}/{turret}')
                 if t:
-                    _put(out, sheet, t, cx, cy)
-    y = len(rows) * tile + int(100 * r)
+                    _put(out, sheets, t, cx, cy + axis)
+    y = len(rows) * tile + int(120 * r)
     for i in range(3):
         cx = i * 2 * tile + tile
         for key, add in ((f'heart/stage{i}', False), (f'heart/rubble{i}', False), ('heart/glow', True),
                          (f'heart/fire{i}', True) if i == 2 else (None, False)):
             c = cells.get(key) if key else None
             if c:
-                _put(out, sheet, c, cx, y, add)
+                _put(out, sheets, c, cx, y, add)
     for key, add in (('portal/body', False), ('portal/glow', True)):
         c = cells.get(key)
         if c:
-            _put(out, sheet, c, 7 * tile, y, add)
+            _put(out, sheets, c, 7 * tile, y, add)
     imageio.write_png(path, np.clip(np.rint(out * 255), 0, 255).astype(np.uint8))

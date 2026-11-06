@@ -21,6 +21,9 @@ import { TILE_PX } from '@tdt/sim';
 /** The camera's tilt from straight down (degrees): Han's pick B (docs/art/camera-options.md). */
 export const CAMERA_PITCH = 30;
 
+/** World px a pad's top stands over the ground (the plate's `padH`, tools/blender/tdt3d/map.py PAD_H; a test checks). */
+export const PAD_TOP = 8;
+
 let pitchDeg = CAMERA_PITCH;
 let cosP = Math.cos((CAMERA_PITCH * Math.PI) / 180);
 let sinP = Math.sin((CAMERA_PITCH * Math.PI) / 180);

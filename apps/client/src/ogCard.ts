@@ -16,12 +16,19 @@ import { CARD_MAP, HEART } from './ogMap';
 import cardPlate from './render/plate/card.json';
 import cardPlateUrl from './render/plate/card.webp?url';
 import { flyerDrawScale } from './teach/cues';
+import { PAD_TOP, viewCos, viewSin } from './render/view';
 
 /** The card in CSS px (Open Graph's recommended 1200 × 630); the generator screenshots it at 2×. */
 export const CARD = { w: 1200, h: 630 } as const;
 const S = TILE_PX;
 /** Card px per world px: 30 tiles across. */
 const ZOOM = CARD.w / (30 * S);
+/**
+ * The match's tilted camera (V-08b, render/view.ts): the card's plate is rendered through it, so a ground point's y is
+ * drawn × cos (`Y`), round things on the ground are ellipses, and what stands is upright at its point's place.
+ */
+const C = viewCos();
+const Y = (y: number): number => y * S * C;
 /** Heroes and creeps are drawn larger than their tiles, as on a phone, so they read in a small preview. */
 const UNIT_SCALE = 1.45;
 const HERO_SCALE = 1.8;
@@ -167,8 +174,8 @@ export async function runOgCard(): Promise<void> {
     s.tint = tint;
     s.blendMode = 'add';
     s.alpha = alpha;
-    s.scale.set((radius * S) / DISC_PX);
-    s.position.set(x * S, y * S);
+    s.scale.set((radius * S) / DISC_PX, ((radius * S) / DISC_PX) * C);
+    s.position.set(x * S, Y(y));
     into.addChild(s);
   };
 
@@ -177,8 +184,9 @@ export async function runOgCard(): Promise<void> {
   const pad = padArt();
   for (const p of map.pads) {
     const c = new Container();
-    c.position.set(p.x * S, p.y * S);
-    c.scale.set((map.padSize * S) / pad.frames.slab!.w);
+    // On the pad's top, which stands PAD_TOP over the ground.
+    c.position.set(p.x * S, Y(p.y) - PAD_TOP * viewSin());
+    c.scale.set((map.padSize * S) / pad.frames.slab!.w, ((map.padSize * S) / pad.frames.slab!.w) * C);
     const rim = kit.sprite(pad.id, 'rim');
     const wash = kit.sprite(pad.id, 'wash');
     rim.tint = wash.tint = PLAYER_COLORS[p.zone === 'west' ? 0 : p.zone === 'mid' ? 1 : 2];
@@ -194,7 +202,9 @@ export async function runOgCard(): Promise<void> {
   for (const [i, lane] of map.lanes.entries()) {
     const p = lane.waypoints[0]!;
     const c = new Container();
-    c.position.set(p.x * S, (p.y + 1) * S);
+    c.position.set(p.x * S, Y(p.y + 1));
+    // The 2D portal is a ring on the ground: an ellipse through the tilted camera.
+    c.scale.set(1, C);
     const swirl = kit.sprite(portal.id, 'swirl');
     swirl.rotation = -1.1 - i * 1.7;
     const core = new Sprite(fx.frames.glow);
@@ -221,7 +231,7 @@ export async function runOgCard(): Promise<void> {
   glow(HEART.x, HEART.y - 0.2, 3.4, COLORS.heart, 0.55);
   glow(HEART.x, HEART.y - 0.3, 1.5, FX.ember, 0.35);
   const h = new Container();
-  h.position.set(HEART.x * S, HEART.y * S);
+  h.position.set(HEART.x * S, Y(HEART.y));
   const base = kit.sprite(heart.id, 'base');
   base.position.set(0, heart.baseY);
   const gem = kit.sprite(heart.id, 'gem');
@@ -239,8 +249,8 @@ export async function runOgCard(): Promise<void> {
     const rig = new TowerRig(kit, art);
     rig.setTier(t.tier, t.branch);
     const target = nearestCreep(map, p.x, p.y);
-    rig.aim(Math.atan2(target.y - p.y, target.x - p.x), 10_000);
-    rig.body.position.set(p.x * S, p.y * S);
+    rig.aim(Math.atan2((target.y - p.y) * C, target.x - p.x), 10_000);
+    rig.body.position.set(p.x * S, Y(p.y));
     rig.body.scale.set(TOWER_SCALE);
     standing.push({ y: p.y, view: rig.body });
   }
@@ -256,7 +266,7 @@ export async function runOgCard(): Promise<void> {
     const view = new Container();
     if (rig.shadow) view.addChild(rig.shadow);
     view.addChild(rig.body);
-    view.position.set(at.x * S, at.y * S);
+    view.position.set(at.x * S, Y(at.y));
     view.scale.set(UNIT_SCALE * flyerDrawScale(TUNING.creeps[c.kind].flying));
     standing.push({ y: at.y, view });
     if (c.kind === 'wisp') glow(at.x, at.y - 0.5, 0.9, FX.portalMote, 0.3, sparks);
@@ -275,7 +285,7 @@ export async function runOgCard(): Promise<void> {
       rig.cast(now - spot.act.since, spot.act.cast);
     }
     rig.update(pose, now, 16);
-    rig.body.position.set(spot.x * S, spot.y * S);
+    rig.body.position.set(spot.x * S, Y(spot.y));
     rig.body.scale.set(HERO_SCALE);
     standing.push({ y: spot.y, view: rig.body });
   }
@@ -291,8 +301,8 @@ export async function runOgCard(): Promise<void> {
     if (!art) continue;
     const sprite = new Sprite(kit.frame(art.id, 'body'));
     sprite.anchor.set(0.5);
-    sprite.position.set(x * S, y * S);
-    sprite.rotation = Math.atan2(s.to.y - s.from.y, s.to.x - s.from.x);
+    sprite.position.set(x * S, Y(y));
+    sprite.rotation = Math.atan2((s.to.y - s.from.y) * C, s.to.x - s.from.x);
     sprite.scale.set(UNIT_SCALE);
     shots.addChild(sprite);
   }
