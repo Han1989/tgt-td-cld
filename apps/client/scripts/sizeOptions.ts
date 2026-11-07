@@ -406,7 +406,7 @@ async function composeStrip(browser: Browser, zoom: number, cells: { hero: numbe
         g.imageSmoothingQuality = 'high';
         // Phone px at 2×: world px × the unit's scale × the camera's zoom × 2; a sheet px is 1 / res world px.
         const k = fs.map((q) => ((q.unit === 'hero' ? c.hero : c.creep) * z * 2) / q.res);
-        const widths = fs.map((q, i) => (boxes[i]!.x1 - boxes[i]!.x0) * k[i]!);
+        const widths = fs.map((_, i) => (boxes[i]!.x1 - boxes[i]!.x0) * k[i]!);
         const gap = 10;
         let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (fs.length - 1)) / 2;
         fs.forEach((q, i) => {
