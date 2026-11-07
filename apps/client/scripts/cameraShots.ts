@@ -1,22 +1,21 @@
-// `npm run camera-shots -w @tdt/client [-- --build 1|2] [--out DIR]`, after `npm run build:e2e -w @tdt/client`: V-08b's
-// pictures (docs/ART.md §16 "The camera") into docs/screenshots/camera/. `--build 2` (the default since build 2): the
-// plate and the structures rendered at the pitch, wave 10 on the phone in each of the match's three lights
-// (build-2-phone-afternoon / -dusk / -night.webp), on the desktop in the afternoon, and the tap test of each
-// (build-2-taps-phone.webp, build-2-taps-desktop.webp: the tilted camera alone), and the three phone frames side by side
-// in docs/art/camera-b-wave10.png. `--build 1` makes build 1's pictures as they were:
+// `npm run camera-shots -w @tdt/client [-- --build 2|3] [--only meteor,quake,rain,heart] [--out DIR]`, after `npm run build:e2e -w @tdt/client`: V-08b's
+// pictures (docs/ART.md §16 "The camera") into docs/screenshots/camera/.
 //
-// A real solo Full match on the e2e build in headless Chromium, on the Ranger with the lab's gold: five towers round
-// the map's middle (Cannon 2, Arrow 3, Frost 1, Arcane 3, Flak 2) built by the controls' own commands, the hero walked
-// up to their row, the afternoon light (`?light=`), clear weather (`?weather=`), wave 10 reached with the e2e `skipTo`
-// and held once its creeps are out on the roads. The same moment twice: on the tilted camera (B, 30°) and with
-// `?pitch=0` (the camera before V-08b, e2e builds only). Build 1 draws today's art on the pitched ground (the plate
-// squashed as one sprite, the towers' and the Heart's sheets as they are): every picture says so.
-//   build-1-phone.webp, build-1-phone-pitch0.webp       412 × 839 at 2×
-//   build-1-desktop.webp, build-1-desktop-pitch0.webp   1280 × 800
-//   build-1-taps-phone.webp, build-1-taps-desktop.webp  the tap test, 30° beside 0°: every 4 px of the map coloured by
-//                                                       what a tap there picks (the touch controls' own rule, through
-//                                                       the camera's inverse), each target's box outlined, and each
-//                                                       pad's ground square drawn through the camera over it
+// `--build 3` (the default since build 3): the effects, the weather and the fallbacks on the pitched ground, each at
+// 412 × 839 (2×) and 1280 × 800:
+//   build-3-meteor-rain-{phone,desktop}.webp  the stress scene (`?stress=24&combo=meteorRain`): a Meteor Rain falling,
+//                                             its warning rings and scorches lying on the ground, the meteors upright
+//   build-3-quake-{phone,desktop}.webp        the same scene a moment after its Rampart Slam: the quake's cracks running
+//                                             along Mid as the lane is drawn, its ring an ellipse
+//   build-3-rain-night-{phone,desktop}.webp   a solo Full match at wave 10 in rain at night: splashes on the roads and on
+//                                             the pads' raised tops, five towers round the map's middle
+//   build-3-heart-cracked-{phone,desktop}.webp  a solo Full match left undefended at wave 10 until the Heart is under 60%
+// `--build 2`: the plate and the structures at the pitch (a solo Full match, wave 10 held with five towers and clear
+// weather, the light forced): the phone in each of the three lights, the desktop in the afternoon, the tap test of each
+// (every 4 px of the map coloured by what a tap there picks, each target's box and each pad's ground square drawn; it
+// stops if a tap inside a pad's box lands off its ground), and the three phone frames side by side in
+// docs/art/camera-b-wave10.png. Build 1's pictures (`build-1-*`, with the camera before V-08b, `?pitch=0`) are kept as
+// they were; that switch is gone, so they are not made again.
 // Look at every picture before committing it.
 
 import { execFileSync } from 'node:child_process';
@@ -34,7 +33,9 @@ const arg = (name: string, fallback: string) => {
 };
 const path = (p: string) => (isAbsolute(p) ? p : resolve(process.cwd(), p));
 const out = path(arg('out', join(repo, 'docs', 'screenshots', 'camera')));
-const BUILD = arg('build', '2');
+const BUILD = arg('build', '3');
+/** Build 3's scenes to make (`--only meteor,quake,rain,heart`), all by default. */
+const ONLY = new Set(arg('only', 'meteor,quake,rain,heart').split(','));
 const dist = join(root, 'dist-e2e');
 
 const PHONE = { width: 412, height: 839 };
@@ -57,26 +58,9 @@ const TOWERS: [number, number, string, number][] = [
   [23.5, 22, 'flak', 2],
 ];
 
-const README = `# The tilted camera, build 1 (V-08b)
-
-Made by \`npm run camera-shots -w @tdt/client\` after \`npm run build:e2e -w @tdt/client\` (docs/ART.md §16 "The camera").
-A solo Full match on the e2e build, wave 10 held in the afternoon with clear weather, five towers round the map's middle.
-
-**Build 1 of 4 draws today's art on the tilted ground.** The plate is squashed by cos 30° as one sprite, and the towers,
-the Heart, the portals and the units are today's sheets standing upright. It looks wrong, and that is this build's
-expected result: build 2 renders the plate and the structures at the pitch (docs/art/camera-options.md).
-
-- \`build-1-phone.webp\`, \`build-1-desktop.webp\`: the tilted camera (B, 30° from straight down), 412 × 839 at 2× and 1280 × 800.
-- \`build-1-phone-pitch0.webp\`, \`build-1-desktop-pitch0.webp\`: the same moment with \`?pitch=0\` (e2e builds only): the camera before.
-- \`build-1-taps-phone.webp\`, \`build-1-taps-desktop.webp\`: the tap test, 30° on the left, 0° on the right. Every 4 px of the
-  map is coloured by what a tap there picks (the touch controls' own rule, through the camera's inverse): green a pad,
-  gold a tower, red a creep, violet a tie (the picker). Each target's box is outlined, and each pad's ground square is
-  drawn through the camera in white over it: on the tilted camera both are 3 tiles wide and 3 · cos 30° tall.
-`;
-
 mkdirSync(out, { recursive: true });
 
-async function page(browser: Browser, desktop: boolean, pitch: number, light = 'afternoon'): Promise<Page> {
+async function context(browser: Browser, desktop: boolean) {
   const ctx = await browser.newContext(
     desktop
       ? { viewport: DESKTOP, deviceScaleFactor: 1, serviceWorkers: 'block' }
@@ -84,9 +68,14 @@ async function page(browser: Browser, desktop: boolean, pitch: number, light = '
   );
   await ctx.addInitScript('globalThis.__name = (f) => f;');
   await ctx.addInitScript((s) => localStorage.setItem('tdt.settings', JSON.stringify(s)), SETTINGS);
-  const p = await ctx.newPage();
+  return ctx;
+}
+
+/** A solo Full match on the Ranger, every sheet in, the light and the weather forced. */
+async function solo(browser: Browser, desktop: boolean, light: string, weather: string): Promise<Page> {
+  const p = await (await context(browser, desktop)).newPage();
   p.on('pageerror', (e) => console.error('page error:', e.message));
-  await p.goto(`${url}?lab&weather=clear&light=${light}&pitch=${pitch}`);
+  await p.goto(`${url}?lab&weather=${weather}&light=${light}`);
   await p.waitForSelector('html[data-ready="solo"]', { timeout: 60_000 });
   await p.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
   await p.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
@@ -94,10 +83,54 @@ async function page(browser: Browser, desktop: boolean, pitch: number, light = '
   await p.waitForFunction(() => !!(window as any).__tdt?.latest()?.heroes?.length);
   await p.waitForSelector('html[data-plate="ready"][data-ui="ready"][data-structures][data-creep-sheets][data-hero-sheets]', { timeout: 240_000 });
   const seen = await p.evaluate(() => (window as any).__tdt.view());
-  if (seen.pitch !== pitch) throw new Error(`asked for ${pitch}°, the page draws ${seen.pitch}°`);
+  if (seen.pitch !== 30) throw new Error(`the page draws ${seen.pitch}°, not 30°`);
+  return p;
+}
+
+async function page(browser: Browser, desktop: boolean, light = 'afternoon', weather = 'clear'): Promise<Page> {
+  const p = await solo(browser, desktop, light, weather);
   await build(p);
   await reach(p);
   return p;
+}
+
+/** The stress scene with every fuse a Meteor Rain (stress.ts: a 240-tick cycle), its sheets in, held in a window of it. */
+async function stress(browser: Browser, desktop: boolean, from: number, to: number, settle = 500): Promise<Page> {
+  const p = await (await context(browser, desktop)).newPage();
+  p.on('pageerror', (e) => console.error('page error:', e.message));
+  await p.goto(`${url}?stress=24&combo=meteorRain&weather=clear`);
+  // The scene's creeps reach the Heart all the time: its leak alerts (the lane's big word and the clutch ping) would
+  // stand over the effects these pictures are for.
+  await p.addStyleTag({ content: '#lane-clutch, .ping.clutch, .clutch-ring { display: none !important; }' });
+  await p.waitForFunction(() => !!(window as any).__tdt?.latest(), undefined, { timeout: 60_000 });
+  await p.waitForSelector('html[data-plate="ready"][data-structures][data-creep-sheets][data-hero-sheets]', { timeout: 240_000 });
+  // The moment asked for in a cycle (the sheets are in: the selector above). The scene's clock is a timer on the main
+  // thread, so on a software GPU it moves about a tick a drawn frame and the window is never skipped.
+  await p.waitForFunction(
+    ([from, to]) => {
+      const t = (window as any).__tdt.latest()?.tick ?? 0;
+      return t % 240 >= from && t % 240 <= to;
+    },
+    [from, to] as const,
+    { timeout: 180_000, polling: 20 },
+  );
+  // Held there (stress.ts: no tick is made while paused), so the meteors and the quake's front stand still.
+  await p.evaluate(() => (window as any).__tdt.pause(true));
+  if (settle > 0) await p.waitForTimeout(settle);
+  return p;
+}
+
+/** The Heart left undefended at wave 10 until it is under 55% (cracked), then held. */
+async function cracked(p: Page): Promise<void> {
+  await p.evaluate(() => (window as any).__tdt.skipTo(10));
+  const frac = () => p.evaluate(() => {
+    const s = (window as any).__tdt.latest();
+    return s.heartHp / s.heartMaxHp;
+  }) as Promise<number>;
+  for (let i = 0; i < 600 && (await frac()) > 0.55; i++) await p.waitForTimeout(250);
+  await p.evaluate(() => (window as any).__tdt.pause(true));
+  console.log(`the Heart at ${Math.round((await frac()) * 100)}%`);
+  await p.waitForTimeout(900);
 }
 
 /** The five towers, as the controls would build them, then the hero walked up to their row. */
@@ -258,31 +291,35 @@ function webp(png: string, name: string): void {
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', png, '-c:v', 'libwebp', '-quality', '84', join(out, `${name}.webp`)]);
 }
 
-/** Two shots side by side (30° left, 0° right), a gap between. */
-function beside(a: string, b: string, name: string): void {
-  execFileSync('ffmpeg', [
-    '-v', 'error', '-y', '-i', a, '-i', b,
-    '-filter_complex', '[0]pad=iw+16:ih:0:0:color=0x0a0c14[l];[l][1]hstack=inputs=2',
-    '-c:v', 'libwebp', '-quality', '84', join(out, `${name}.webp`),
-  ]);
-}
+const README_3 = `# The tilted camera (V-08b)
 
-const README_2 = `# The tilted camera, build 2 (V-08b)
+Made by \`npm run camera-shots -w @tdt/client\` after \`npm run build:e2e -w @tdt/client\` (docs/ART.md §6, §15 "The tilted
+camera", §16 "The camera"). One camera, 30° from straight down (B).
 
-Made by \`npm run camera-shots -w @tdt/client\` after \`npm run build:e2e -w @tdt/client\` (docs/ART.md §15 "The tilted
-camera", §16 "The camera"). A solo Full match on the e2e build, wave 10 held with clear weather, five towers round the
-map's middle, the light forced (\`?light=\`).
+**Build 3 of 4: the effects, the weather and the fallbacks on the pitched ground** (\`--build 3\`, the default). Each at
+412 × 839 (2×) and 1280 × 800:
 
-**Build 2 of 4: the plate and the structures rendered at the pitch** (B, 30° from straight down): the plate in its three
-lights, every tower with its walls and roof, its turret at the nearest of eight rendered headings, the Heart and the
-portals. The heroes and the creeps are their sheets as before (docs/art/camera-options.md: they need no re-render).
+- \`build-3-meteor-rain-phone.webp\`, \`-desktop\`: the stress scene (\`?stress=24&combo=meteorRain\`) with a Meteor Rain
+  falling: the warning circles and the scorches lie on the ground (ellipses), the meteors fall straight down the screen
+  onto them, the strike rings flat.
+- \`build-3-quake-phone.webp\`, \`-desktop\`: the same scene a moment after its Rampart Slam: the quake's cracks running
+  along Mid as the lane is drawn, its ring an ellipse. The stress scene's leak alerts (its creeps reach
+  the Heart all the time) are hidden, so they do not stand over the quake.
+- \`build-3-rain-night-phone.webp\`, \`-desktop\`: a solo Full match at wave 10, rain at night, five towers round the map's
+  middle: the splashes on the roads and on the pads' raised tops.
+- \`build-3-heart-cracked-phone.webp\`, \`-desktop\`: a solo Full match left undefended at wave 10 until the Heart is
+  under 60%: the cracked keep, its crystal's light and its glow on the ground.
+
+**Build 2** (\`--build 2\`): the plate and the structures at the pitch.
 
 - \`build-2-phone-afternoon.webp\`, \`-dusk\`, \`-night\`: 412 × 839 at 2×, one held moment in each light.
 - \`build-2-desktop.webp\`: 1280 × 800 in the afternoon.
-- \`build-2-taps-phone.webp\`, \`build-2-taps-desktop.webp\`: the tap test (as build 1's): every 4 px of the map
-  coloured by what a tap there picks, each target's box outlined (a tower's box reaches up over its roof), each pad's
-  ground square drawn through the camera in white.
-- Build 1's pictures (\`build-1-*\`) are kept for comparison: today's art squashed on the tilted ground.
+- \`build-2-taps-phone.webp\`, \`build-2-taps-desktop.webp\`: the tap test: every 4 px of the map coloured by what a tap
+  there picks, each target's box outlined (a tower's box reaches up over its roof), each pad's ground square drawn
+  through the camera in white.
+
+**Build 1**: \`build-1-*\`, kept for comparison: today's art squashed on the tilted ground, beside the camera before
+V-08b (\`?pitch=0\`, a switch build 3 removed).
 `;
 
 const server = await preview({ root, logLevel: 'warn', build: { outDir: dist }, preview: { port: 0, host: '127.0.0.1' } });
@@ -290,31 +327,58 @@ const url = server.resolvedUrls?.local[0];
 if (!url) throw new Error('the preview server has no URL');
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 try {
-  if (BUILD === '1') {
+  if (BUILD === '3') {
     for (const desktop of [false, true]) {
       const kind = desktop ? 'desktop' : 'phone';
-      const taps: string[] = [];
-      for (const pitch of [30, 0]) {
-        const p = await page(browser, desktop, pitch);
-        const name = pitch ? `build-1-${kind}` : `build-1-${kind}-pitch0`;
-        await label(p, pitch ? 'Build 1 · 30° · today’s art, squashed' : '?pitch=0 · before V-08b');
-        const png = await shoot(p, name);
-        webp(png, name);
+      let p: Page;
+      let png: string;
+      // A Meteor Rain: the fuse at tick 80 of the cycle, its meteors falling from about 90 to 150.
+      if (ONLY.has('meteor')) {
+        p = await stress(browser, desktop, 112, 122);
+        await label(p, 'Build 3 · 30° · Meteor Rain');
+        png = await shoot(p, `build-3-meteor-rain-${kind}`);
+        webp(png, `build-3-meteor-rain-${kind}`);
         rmSync(png);
-        const check = await tapOverlay(p);
-        console.log(`${name}: ${check.pads} pads, ${check.points} tap points, ${check.wrong} off their pad's ground`);
-        if (check.wrong > 0) throw new Error(`${name}: ${check.wrong} taps inside a pad's box land off its ground square`);
-        taps.push(await shoot(p, `${name}-taps`));
+        console.log(`meteor rain (${kind}): ${JSON.stringify(await p.evaluate(() => (window as any).__tdt.meteors()))}`);
         await p.context().close();
       }
-      beside(taps[0]!, taps[1]!, `build-1-taps-${kind}`);
-      for (const t of taps) rmSync(t);
+      // The quake: sent at tick 200; its front is drawn on the render clock (1.4 s along Mid), its cracks last 1.6 s,
+      // so it is shot at once (a software GPU draws about a frame a second).
+      if (ONLY.has('quake')) {
+        p = await stress(browser, desktop, 201, 214, 0);
+        await label(p, 'Build 3 · 30° · the lane quake');
+        png = await shoot(p, `build-3-quake-${kind}`);
+        webp(png, `build-3-quake-${kind}`);
+        rmSync(png);
+        console.log(`quake (${kind}): ${JSON.stringify(await p.evaluate(() => (window as any).__tdt.quakes()))}`);
+        await p.context().close();
+      }
+      // Rain at night, wave 10 held with the five towers.
+      if (ONLY.has('rain')) {
+        p = await page(browser, desktop, 'night', 'rain');
+        await label(p, 'Build 3 · 30° · rain at night');
+        png = await shoot(p, `build-3-rain-night-${kind}`);
+        webp(png, `build-3-rain-night-${kind}`);
+        rmSync(png);
+        console.log(`rain at night (${kind}): ${JSON.stringify(await p.evaluate(() => (window as any).__tdt.atmosphere()))}`);
+        await p.context().close();
+      }
+      // The Heart cracked.
+      if (ONLY.has('heart')) {
+        p = await solo(browser, desktop, 'afternoon', 'clear');
+        await cracked(p);
+        await label(p, 'Build 3 · 30° · the Heart cracked');
+        png = await shoot(p, `build-3-heart-cracked-${kind}`);
+        webp(png, `build-3-heart-cracked-${kind}`);
+        rmSync(png);
+        await p.context().close();
+      }
     }
-    writeFileSync(join(out, 'README.md'), README);
+    writeFileSync(join(out, 'README.md'), README_3);
   } else {
     const phones: string[] = [];
     for (const [desktop, light] of [[false, 'afternoon'], [false, 'dusk'], [false, 'night'], [true, 'afternoon']] as const) {
-      const p = await page(browser, desktop, 30, light);
+      const p = await page(browser, desktop, light);
       const name = desktop ? 'build-2-desktop' : `build-2-phone-${light}`;
       const art = await p.evaluate(() => (window as any).__tdt.art());
       await label(p, `Build 2 · 30° · ${light}`);
@@ -342,7 +406,7 @@ try {
       join(repo, 'docs', 'art', 'camera-b-wave10.png'),
     ]);
     for (const f of phones) rmSync(f);
-    writeFileSync(join(out, 'README.md'), README_2);
+    writeFileSync(join(out, 'README.md'), README_3);
   }
 } finally {
   await browser.close();

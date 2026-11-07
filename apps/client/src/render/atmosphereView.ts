@@ -24,14 +24,14 @@ import {
   type WeatherQuality,
 } from './fx/atmosphere';
 import { FX } from './palette';
-import { flatRatio, viewCos } from './view';
+import { padLift, viewCos } from './view';
 
 const S = TILE_PX;
 
 /** The 32 px spark frame drawn as a streak `STREAK.length` long, this thick (world px). */
 const STREAK_THICK = 2.2;
-/** A rain splash's ring, height against width (render/view.ts: the ground's cos(pitch); 0.6 at `?pitch=0`). */
-const SPLASH_RATIO = flatRatio(0.6);
+/** A rain splash's ring, height against width (render/view.ts: the ground's cos(pitch); 0.6 before V-08b). */
+const SPLASH_RATIO = viewCos();
 const SPARK_W = 32;
 const SPARK_H = 8;
 
@@ -71,7 +71,8 @@ class FixedLayer {
   set(i: number, d: Drop, sx: number, sy: number, alphaScale: number): void {
     const p = this.parts[i]!;
     p.x = d.x;
-    p.y = d.y * this.cos;
+    // Its ground point's view position, and its height over it on screen (render/view.ts).
+    p.y = d.y * this.cos - d.up;
     p.rotation = d.rotation;
     p.scaleX = sx;
     p.scaleY = sy;
@@ -111,10 +112,12 @@ export class AtmosphereView {
   private weather: Weather = 'clear';
   private quality: WeatherQuality | null = 'high';
   private calm = false;
+  /** cos(pitch): a leaf lying on the ground is drawn this much as tall (render/view.ts). */
+  private readonly cos = viewCos();
   private readonly box: Box;
   private readonly splashSpots: { x: number; y: number }[];
   private readonly flySpots: { x: number; y: number }[];
-  private readonly drop: Drop = { x: 0, y: 0, alpha: 0, rotation: 0, scale: 0 };
+  private readonly drop: Drop = { x: 0, y: 0, up: 0, flat: 0, alpha: 0, rotation: 0, scale: 0 };
   private dark = 0;
 
   constructor(
@@ -191,8 +194,13 @@ export class AtmosphereView {
     for (let i = 0; i < this.leaves.length; i++) {
       fallingLeaf(i, calm ? 0 : now, this.box, d);
       // Calm: each leaf lies where its drift would end and only fades in and out.
-      if (calm) d.alpha = 0.5 + 0.5 * Math.sin(now / 2400 + i * 1.7);
-      this.leaves.set(i, d, d.scale, d.scale, 0.95);
+      if (calm) {
+        d.alpha = 0.5 + 0.5 * Math.sin(now / 2400 + i * 1.7);
+        d.up = 0;
+        d.flat = 1;
+      }
+      // A leaf lies flat once it has landed: cos(pitch) as tall as wide (render/view.ts).
+      this.leaves.set(i, d, d.scale, d.scale * (1 - d.flat * (1 - this.cos)), 0.95);
     }
     const flies = dark > 0.02 ? this.flies.length : 0;
     this.flies.container.renderable = flies > 0;
@@ -221,8 +229,10 @@ export class AtmosphereView {
 }
 
 /** Where rain splashes: along every lane's road (within its width) and on every pad's stone. */
-function splashSpots(map: GameMap): { x: number; y: number }[] {
-  const out: { x: number; y: number }[] = [];
+function splashSpots(map: GameMap): { x: number; y: number; up?: number }[] {
+  const out: { x: number; y: number; up?: number }[] = [];
+  // A pad's top stands PAD_TOP over the ground (the plate's raised pads, V-08b build 2): its splashes land on it.
+  const top = padLift();
   map.lanes.forEach((lane, li) => {
     const len = laneLength(lane);
     for (let at = 0.5, k = 0; at < len; at += 0.45, k++) {
@@ -238,7 +248,11 @@ function splashSpots(map: GameMap): { x: number; y: number }[] {
   });
   map.pads.forEach((pad, i) => {
     for (let k = 0; k < 6; k++) {
-      out.push({ x: (pad.tx + 0.3 + mixHash(i, k, 97) * (map.padSize - 0.6)) * S, y: (pad.ty + 0.3 + mixHash(k, i, 101) * (map.padSize - 0.6)) * S });
+      out.push({
+        x: (pad.tx + 0.3 + mixHash(i, k, 97) * (map.padSize - 0.6)) * S,
+        y: (pad.ty + 0.3 + mixHash(k, i, 101) * (map.padSize - 0.6)) * S,
+        up: top,
+      });
     }
   });
   return out;

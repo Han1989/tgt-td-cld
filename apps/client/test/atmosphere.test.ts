@@ -33,7 +33,7 @@ import { LIGHTING } from '../src/render/art/tokens';
 
 const boss = (mode: (typeof GAME_MODES)[number], wave: number) =>
   waveGroups(tuningForMode(TUNING, mode), wave).some((g) => TUNING.creeps[g.kind].boss);
-const drop = (): Drop => ({ x: 0, y: 0, alpha: 0, rotation: 0, scale: 0 });
+const drop = (): Drop => ({ x: 0, y: 0, up: 0, flat: 0, alpha: 0, rotation: 0, scale: 0 });
 const BOX = { x0: 0, y0: 0, x1: 832, y1: 1280 };
 
 describe('a time of day across the match', () => {
@@ -214,5 +214,63 @@ describe('living light', () => {
     expect(heartWindowAlpha(0, 1000)).toBe(0);
     expect(heartWindowAlpha(1, 1000)).toBeGreaterThan(0.7);
     expect(HEART_WINDOWS.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('the weather on the pitched ground (V-08b build 3)', () => {
+  const BOX3 = { x0: 0, y0: 0, x1: 832, y1: 1600 };
+
+  it('a splash lies flat where it lands: at the ground on the road, on the raised top of a pad', () => {
+    const road = { x: 300, y: 500 };
+    const pad = { x: 120, y: 400, up: 4 };
+    const d = drop();
+    for (let t = 0; t < 4000; t += 37) {
+      rainSplash(0, t, [road], d);
+      expect(d.up).toBe(0);
+      expect(d.flat).toBe(1);
+      rainSplash(0, t, [pad], d);
+      expect(d.up).toBe(4);
+      expect(d.flat).toBe(1);
+    }
+  });
+
+  it('a leaf falls from LEAF.height onto the ground, lands flat, and lies there until it fades', () => {
+    const d = drop();
+    const life = LEAF.life * 1.2;
+    let sawHigh = false;
+    let lastUp = Infinity;
+    let lastPhase = -1;
+    for (let t = 0; t < life * 3; t += 25) {
+      fallingLeaf(4, t, BOX3, d);
+      // Never under the ground, never over its starting height; flat only once it is down.
+      expect(d.up).toBeGreaterThanOrEqual(0);
+      expect(d.up).toBeLessThanOrEqual(LEAF.height + 1e-9);
+      expect(d.flat).toBeGreaterThanOrEqual(0);
+      expect(d.flat).toBeLessThanOrEqual(1);
+      if (d.flat > 0) expect(d.up).toBeLessThan(LEAF.height * 0.2);
+      if (d.up > LEAF.height * 0.6) sawHigh = true;
+      if (d.up === 0) expect(d.flat).toBe(1);
+      lastUp = d.up;
+      lastPhase = t;
+    }
+    expect(sawHigh).toBe(true);
+    expect(lastUp).toBeGreaterThanOrEqual(0);
+    expect(lastPhase).toBeGreaterThan(0);
+    // Late in a life (settled, fading): on the ground and flat.
+    let settled = 0;
+    for (let t = 0; t < life * 3; t += 25) {
+      fallingLeaf(4, t, BOX3, d);
+      if (d.up === 0 && d.flat === 1) settled++;
+    }
+    expect(settled).toBeGreaterThan(0);
+  });
+
+  it('a raindrop streak and a firefly stand in the air (upright, their height worked out over the ground)', () => {
+    const d = drop();
+    rainStreak(3, 900, BOX3, d);
+    expect(d.flat).toBe(0);
+    expect(d.up).toBe(0);
+    firefly(2, 900, [{ x: 100, y: 100 }], 1, d);
+    expect(d.flat).toBe(0);
   });
 });

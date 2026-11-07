@@ -22,6 +22,7 @@ import {
   dueLaunch,
   fallAngle,
   fallAt,
+  headPoint,
   isMeteorKind,
   LEAD_SECONDS,
   MAX_IN_FLIGHT,
@@ -378,8 +379,8 @@ export class MeteorShow {
         s.ring.alpha = (0.62 + 0.3 * t + 0.08 * Math.sin(this.tick * 2.4) * t) * appear;
         s.inner.scale.set(Math.max(0.02, ((radius * S) / RING_PX) * at.ring));
         s.inner.alpha = 0.85 * appear;
-        const hx = tx + at.dx * S;
-        const hy = ty + at.dy * S;
+        // The head's fall is a screen offset over its target's ground point (render/view.ts: `headPoint`).
+        const { x: hx, y: hy } = headPoint(tx, ty, at);
         const h = s.head;
         placeHead(h, hx, hy);
         const k = at.scale * bs;

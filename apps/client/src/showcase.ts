@@ -20,7 +20,7 @@ import {
   type TowerKind,
 } from '@tdt/protocol';
 import { towerStats, TUNING } from '@tdt/sim';
-import { Application, Container, type Sprite } from 'pixi.js';
+import { Application, Container, Sprite, Texture } from 'pixi.js';
 import { createAudio } from './audio';
 import type { MusicScene } from './audio/score';
 import { MUSIC_FILES } from './audio/files';
@@ -62,6 +62,8 @@ import {
 import { CREEP_3D } from './render/art3d/creepData';
 import { HERO_3D, type StageBox } from './render/art3d/layout';
 import { liftColor, RL, type Display } from './render/art/tokens';
+import { PAD_PX } from './render/art/entities/pad';
+import { archRatio, padLift, viewCos } from './render/view';
 import { createFxAtlas, type FxAtlas } from './render/fx/atlas';
 import { Effects } from './render/fx/effects';
 import { mixColor, PLAYER_COLORS, toCss } from './render/palette';
@@ -238,7 +240,7 @@ export async function runShowcase(): Promise<void> {
         const ringPhone = PHONE.world * (rootPx / e.ringRadius);
         addCard(grid, e, 'idle · arming', 'lane', () => frameActor(kit, e.id, 'idle', false), 2, PHONE.entity);
         addCard(grid, e, 'armed', 'lane', () => frameActor(kit, e.id, 'armed', true), 2, PHONE.entity);
-        addCard(grid, e, 'root ring', 'lane', () => frameActor(kit, e.id, 'ring', false), 1.35, ringPhone);
+        addCard(grid, e, 'root ring', 'lane', () => frameActor(kit, e.id, 'ring', false, true), 1.35, ringPhone);
         break;
       }
       case 'heart':
@@ -800,9 +802,13 @@ function portal3dActor(kit: ArtKit, id: string, gate: Portal3DView, flare: boole
   const burst = kit.sprite(id, 'flare');
   burst.blendMode = 'add';
   burst.alpha = 0;
-  for (const s of [swirl, burst]) s.position.set(gate.opening.x, gate.opening.y);
+  // In the pitched arch, as in a match (V-08b build 3): the opening's vertical face drawn sin(pitch) as tall.
+  const arch = new Container();
+  arch.position.set(gate.opening.x, gate.opening.y);
+  arch.scale.y = archRatio();
   swirl.scale.set(PORTAL_OPENING);
-  view.addChild(gate.root, swirl, burst);
+  arch.addChild(swirl, burst);
+  view.addChild(gate.root, arch);
   return {
     view,
     animate: (now) => {
@@ -856,8 +862,10 @@ function projectileActor(kit: ArtKit, id: string): Actor {
 }
 
 /** One baked frame. `pulse` is the armed trap's glow breathing. */
-function frameActor(kit: ArtKit, id: string, frame: string, pulse: boolean): Actor {
+function frameActor(kit: ArtKit, id: string, frame: string, pulse: boolean, ground = false): Actor {
   const sprite = kit.sprite(id, frame);
+  // A frame lying on the ground (the snare's root ring) is drawn cos(pitch) as tall, as in a match (render/view.ts).
+  if (ground) sprite.scale.y = viewCos();
   return {
     view: sprite,
     animate(now) {
@@ -866,10 +874,11 @@ function frameActor(kit: ArtKit, id: string, frame: string, pulse: boolean): Act
   };
 }
 
-/** A prop frame (drawn into the ground in a match; a sprite here). */
+/** A prop frame (drawn into the painted ground in a match, squashed with it by cos(pitch); a sprite here). */
 function propActor(kit: ArtKit, id: string, frame: string): Actor {
   const view = new Container();
   view.addChild(kit.sprite(id, frame));
+  view.scale.y = viewCos();
   return { view, animate: () => {} };
 }
 
@@ -880,7 +889,21 @@ function padActor(kit: ArtKit, id: string, tint: number, rimAlpha: number, washA
   rim.tint = wash.tint = tint;
   rim.alpha = rimAlpha;
   wash.alpha = washAlpha;
-  view.addChild(kit.sprite(id, 'slab'), wash, rim);
+  // As the painted ground draws a pad on the tilted camera (V-08b build 3, `padDrawn`): the slab's top and its zone
+  // tints squashed by cos(pitch) and lifted PAD_TOP · sin, its south face down to the ground.
+  const cos = viewCos();
+  const lift = padLift() / cos;
+  const half = PAD_PX / 2 - 3;
+  const face = new Sprite(Texture.WHITE);
+  face.tint = RL.padSandDark;
+  face.position.set(-half, half - lift - 6);
+  face.width = half * 2;
+  face.height = lift + 6;
+  const top = new Container();
+  top.y = -lift;
+  top.addChild(kit.sprite(id, 'slab'), wash, rim);
+  view.addChild(face, top);
+  view.scale.y = cos;
   return { view, animate: () => {} };
 }
 

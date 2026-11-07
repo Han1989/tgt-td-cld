@@ -36,7 +36,6 @@ import {
 import {
   getMap,
   laneLength,
-  lanePointAt,
   padAtTile,
   TILE_PX,
   towerStats,
@@ -56,7 +55,7 @@ import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
 import { MeteorShow, type MeteorStats } from './fx/meteorShow';
-import { quakeDone, quakeMarks, quakeRun, type QuakeRun } from './fx/quake';
+import { markOnGround, quakeDone, quakeMarks, quakeRun, type QuakeRun } from './fx/quake';
 import { isMeteorKind, type MeteorKind } from './fx/meteors';
 import {
   dropOffset,
@@ -158,7 +157,7 @@ import {
 } from './art3d';
 import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
-import { depth, groundAngle, PAD_TOP, viewCos, viewSin } from './view';
+import { archRatio, depth, groundAngle, overGround, padLift, viewCos } from './view';
 
 const S = TILE_PX;
 
@@ -430,7 +429,7 @@ interface TextFx {
 
 export class WorldRenderer {
   readonly world = new Container();
-  /** cos(pitch) (render/view.ts): set once, before the first match (browser tests' `?pitch=0` included). */
+  /** cos(pitch) (render/view.ts): one camera in every build. */
   private readonly cos = viewCos();
   /**
    * The ground plane: world px squashed by cos(pitch) (render/view.ts). The plate, the pads' tints, the light pools and
@@ -661,7 +660,7 @@ export class WorldRenderer {
     this.overlayPlane.scale.y = this.cos;
     // The pads' zone tints lie on their tops, which stand PAD_TOP over the ground: drawn PAD_TOP · sin higher (V-08b
     // build 2: the plate shows a pad's raised top and its south face; ground px under the plane, so ÷ cos).
-    if (this.cos < 1) this.padLayer.y = -(PAD_TOP * viewSin()) / this.cos;
+    this.padLayer.y = -padLift() / this.cos;
     this.actors.sortableChildren = true;
     this.plane.addChild(this.mapLayer, this.padLayer, this.groundFxLayer);
     this.overlayPlane.addChild(this.overlay);
@@ -818,10 +817,9 @@ export class WorldRenderer {
       const lane = this.map.lanes[run.lane];
       if (!lane) continue;
       for (const m of quakeMarks(run, now)) {
-        const p = lanePointAt(lane, m.progress);
-        const q = lanePointAt(lane, m.progress + 0.05);
-        const r = lanePointAt(lane, m.progress - 0.05);
-        this.fx.quakeCrack(p.x, p.y, Math.atan2(q.y - r.y, q.x - r.x), m.lead);
+        // On the ground (the effects' ground layer is under the squashed plane), so it follows the lane's screen path.
+        const p = markOnGround(lane, m.progress);
+        this.fx.quakeCrack(p.x, p.y, p.angle, m.lead);
         this.quakeStamped.marks++;
         if (!m.lead) continue;
         this.quakeStamped.leads++;
@@ -830,8 +828,9 @@ export class WorldRenderer {
           if (Math.abs(c.x - p.x) > 1.2 || Math.abs(c.y - p.y) > 1.2) continue;
           this.fx.emit({
             frame: 'star',
+            // From the creep's feet, 10 px up the screen (the height unsquashed: render/view.ts).
             x: c.x * S,
-            y: c.y * S - 10,
+            y: overGround(c.y * S, 10),
             count: 2,
             spread: 8,
             speed: [20, 50],
@@ -1862,9 +1861,15 @@ export class WorldRenderer {
       flare.blendMode = 'add';
       fade(flare, 0);
       if (view) {
-        for (const s of [swirl, core, flare]) s.position.set(view.opening.x, view.opening.y);
+        // The arch's opening is a vertical face looking south: on the tilted camera its height is drawn sin(pitch) as
+        // tall (render/view.ts), so the swirl, its glow and the flare turn inside a container squashed by it (V-08b
+        // build 3), filling the pitched arch as a disc painted in it would.
+        const arch = new Container();
+        arch.position.set(view.opening.x, view.opening.y);
+        arch.scale.y = archRatio();
         swirl.scale.set(k);
-        root.addChild(view.root, core, swirl, flare);
+        arch.addChild(core, swirl, flare);
+        root.addChild(view.root, arch);
       } else {
         root.addChild(this.art.sprite(art.id, 'rim'), core, swirl, flare);
       }
@@ -1941,15 +1946,16 @@ export class WorldRenderer {
         p.flare.rotation = t * 0.6 + i;
       }
       if (!this.fx.particles) continue;
-      // Motes drawn into the portal.
-      const oy = p.view ? p.view.opening.y + S : 0;
+      // Motes drawn into the portal: round the 2D well on the ground, or into the gatehouse's arch (a screen offset
+      // from its opening, the arch's own squash: render/view.ts).
+      const arch = archRatio();
       for (let n = chance(4 + flare * 20, dtMs); n > 0; n--) {
         const a = Math.random() * Math.PI * 2;
         const d = S * (1.4 + Math.random() * 0.8) * (p.view ? 0.7 : 1);
         this.fx.emit({
           frame: 'dot',
           x: p.x * S + Math.cos(a) * d + (p.view?.opening.x ?? 0),
-          y: p.y * S + Math.sin(a) * d + oy,
+          y: p.view ? overGround(p.y * S, -(p.view.opening.y + Math.sin(a) * d * arch)) : p.y * S + Math.sin(a) * d,
           speed: [d / 0.6, d / 0.6],
           angle: [a + Math.PI + 0.5, a + Math.PI + 0.5],
           drag: 1.5,
@@ -2117,10 +2123,21 @@ export class WorldRenderer {
         // for a pad the plate was rendered without. Both under the light pools and Bright's wash, like the plate.
         const look = plate ? padLook(plate.layout, p.id) : 'slab';
         if (look === 'slab') {
+          // Painted at the pitch as the plate draws a pad (V-08b build 3, `padDrawn`): its top lifted `padLift` view px
+          // and its south face down to the ground, so its box on screen is the plate pad's and an early tap lands right.
           s.slab = new Container();
           s.slab.position.copyFrom(root.position);
           s.slab.scale.set(scale);
-          s.slab.addChild(this.art.sprite(art.id, 'slab'));
+          const lift = padLift() / this.cos / scale;
+          const half = PAD_PX / 2 - 3;
+          const face = new Sprite(Texture.WHITE);
+          face.tint = RL.padSandDark;
+          face.position.set(-half, half - lift - 6);
+          face.width = half * 2;
+          face.height = lift + 6;
+          const top = this.art.sprite(art.id, 'slab');
+          top.y = -lift;
+          s.slab.addChild(face, top);
           this.padBaseLayer.addChild(s.slab);
         }
         if (look === 'patch') this.patchPads.add(p.id);

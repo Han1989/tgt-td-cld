@@ -256,6 +256,34 @@ const latest = (page: Page) => page.evaluate(() => (window as any).__tdt.latest(
 const worldOnScreen = (page: Page, x: number, y: number) =>
   page.evaluate((p) => (window as any).__tdt.camera.worldToScreen(p.x * 32, p.y * 32), { x, y }) as Promise<Pt>;
 
+/**
+ * Where to tap pad `id` (CSS px): on the tilted camera (V-08b) a tall tower's roof rises over the pad behind it and
+ * takes a tap there, so the point nearest the pad's middle at which the game's own tap rule (`tapAt`) picks this pad,
+ * or the tower on it. The desktop's click picks by the same rule.
+ */
+const padPoint = (page: Page, id: number) =>
+  page.evaluate((id) => {
+    const t = (window as any).__tdt;
+    const pad = t.map.pads[id];
+    const tower = t.latest().towers.find((q: any) => q.padId === id);
+    const half = t.map.padSize / 2;
+    const c = t.camera.worldToScreen(pad.x * 32, pad.y * 32);
+    const a = t.camera.worldToScreen((pad.x - half) * 32, (pad.y - half) * 32);
+    const b = t.camera.worldToScreen((pad.x + half) * 32, (pad.y + half) * 32);
+    let best: { x: number; y: number; d: number } | null = null;
+    for (let y = a.y + 1; y < b.y; y += 2) {
+      for (let x = a.x + 1; x < b.x; x += 2) {
+        const r = t.tapAt(x, y);
+        if (r.type !== 'pick') continue;
+        const ok = (r.pick.kind === 'pad' && r.pick.id === id) || (!!tower && r.pick.kind === 'tower' && r.pick.id === tower.id);
+        if (!ok) continue;
+        const d = (x - c.x) ** 2 + (y - c.y) ** 2;
+        if (!best || d < best.d) best = { x, y, d };
+      }
+    }
+    return best ? { x: best.x, y: best.y } : { x: c.x, y: c.y };
+  }, id) as Promise<Pt>;
+
 async function gotIt(page: Page): Promise<void> {
   for (const b of await page.getByRole('button', { name: 'Got it' }).all()) if (await b.isVisible().catch(() => false)) await b.click();
 }
@@ -311,7 +339,7 @@ async function buildPhone(page: Page, plan: Plan[]): Promise<Pad[]> {
   for (const [i, step] of plan.entries()) {
     const pad = pads[i]!;
     const tap = async () => {
-      const p = await worldOnScreen(page, pad.x, pad.y);
+      const p = await padPoint(page, pad.id);
       await page.touchscreen.tap(p.x, p.y);
       await page.waitForTimeout(250);
     };
@@ -336,7 +364,10 @@ async function buildPhone(page: Page, plan: Plan[]): Promise<Pad[]> {
     }
     const t = await towerOn(page, pad.id);
     if (process.env.PRESS_DEBUG) console.log('build', JSON.stringify(step), '→', pad.id, t ? `${t.kind} ${t.tier}${t.branch ? ' ' + t.branch : ''}` : 'none');
-    if (!t || t.tier < Math.min(step.tier, 3)) throw new Error(`the ${step.kind} on pad ${pad.id} is ${t ? `tier ${t.tier}` : 'not built'}`);
+    if (!t || t.tier < Math.min(step.tier, 3)) {
+      if (process.env.PRESS_DEBUG) await page.screenshot({ path: join(work, `failed-pad-${pad.id}.png`) });
+      throw new Error(`the ${step.kind} on pad ${pad.id} is ${t ? `tier ${t.tier}` : 'not built'}`);
+    }
     await gotIt(page);
     await tapAway(page);
   }
@@ -388,7 +419,7 @@ async function buildDesktop(page: Page, plan: Plan[]): Promise<Pad[]> {
   const pads = await padsNear(page, plan.map((p) => p.at));
   for (const [i, step] of plan.entries()) {
     const pad = pads[i]!;
-    const at = await worldOnScreen(page, pad.x, pad.y);
+    const at = await padPoint(page, pad.id);
     const tier = async () => (await towerOn(page, pad.id))?.tier ?? 0;
     await page.mouse.click(at.x, at.y);
     await page.waitForTimeout(150);
@@ -674,7 +705,7 @@ async function shot1(browser: Browser, url: string): Promise<void> {
   await noToast(page, 4000);
   // A tower's ring open: a tier-2 Arrow by the Mid road (its Upgrade, Target and Sell).
   const [pad] = await padsNear(page, [{ x: 16, y: 13 }]);
-  const p = await worldOnScreen(page, pad!.x, pad!.y);
+  const p = await padPoint(page, pad!.id);
   await page.touchscreen.tap(p.x, p.y);
   await page.waitForSelector('.radial[data-menu="tower"]:not(.hidden) .radial-btn');
   await page.waitForTimeout(500);

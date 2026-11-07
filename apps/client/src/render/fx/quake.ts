@@ -3,6 +3,11 @@
 // ticks to the far end; the front's speed is the tuning's (`rampartSlam.quakeSpeed`), so the drawn front passes each
 // creep on the tick the sim hits it. `WorldRenderer` stamps the marks through `Effects.quakeCrack` (pooled particles).
 
+import { lanePointAt, type GameMap } from '@tdt/sim';
+import { groundAngle, viewCos, worldToScreen, type Pt } from '../view';
+
+type Lane = GameMap['lanes'][number];
+
 /** Tiles between two crack marks along the lane. */
 export const QUAKE_MARK_SPACING = 0.7;
 
@@ -66,4 +71,23 @@ export function quakeDone(run: QuakeRun, nowMs: number): boolean {
   if (run.calm) return run.stamped[1] >= 0;
   const [a, b] = frontLimits(run);
   return ((nowMs - run.startMs) / 1000) * run.speed >= Math.max(a, b);
+}
+
+/**
+ * A crack mark on the ground (V-08b build 3): its lane point (tiles) and the lane's direction there on the ground
+ * (radians). The marks lie in the world's ground plane (squashed by cos(pitch)), so a mark turned by its ground angle is
+ * drawn along the lane's screen path: `markOnScreen` says where and at what angle.
+ */
+export function markOnGround(lane: Lane, progress: number): { x: number; y: number; angle: number } {
+  const p = lanePointAt(lane, progress);
+  const q = lanePointAt(lane, progress + 0.05);
+  const r = lanePointAt(lane, progress - 0.05);
+  return { x: p.x, y: p.y, angle: Math.atan2(q.y - r.y, q.x - r.x) };
+}
+
+/** A crack mark as drawn: its view point (tiles, before the camera's fit) and its angle on screen (radians). */
+export function markOnScreen(lane: Lane, progress: number, cos = viewCos()): Pt & { angle: number } {
+  const g = markOnGround(lane, progress);
+  const at = worldToScreen(g.x, g.y, 0, cos);
+  return { x: at.x, y: at.y, angle: groundAngle(Math.cos(g.angle), Math.sin(g.angle), cos) };
 }

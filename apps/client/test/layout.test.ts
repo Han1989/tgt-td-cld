@@ -107,7 +107,7 @@ describe('computeLayout: the tilted camera (V-08b, B: 30° from straight down)',
     expect(narrow.map.top + 4 * narrow.rowPx - narrow.zoomButton!.bottom).toBeGreaterThan(1.9);
   });
 
-  it('?pitch=0 is the layout before it: the same tile, the rows as tall, the map 792 px', () => {
+  it('at pitch 0 (the layout before V-08b): the same tile, the rows as tall, the map 792 px', () => {
     const l = computeLayout(input(412, 839, { pitch: 0 }));
     expect(l.rowPx).toBe(l.tilePx);
     expect(Math.round(l.map.bottom - l.map.top)).toBe(792);

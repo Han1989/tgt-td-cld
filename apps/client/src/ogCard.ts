@@ -1,6 +1,8 @@
 // `?ogcard` (dev server only): the link-preview card (public/og-card.png, docs/ART.md §14). One still
 // frame of a landscape clearing drawn with the game's own art: its map plate (rendered in Blender like
-// Spire's, docs/ART.md §16), the baked atlas and the real rigs, posed at fixed times so every run draws the same frame. Three lanes run from
+// Spire's, docs/ART.md §16), the towers, the Heart, the portals, the creeps and the heroes from their 3D sheets
+// rendered at the match's pitch (V-08b build 3; the 2D rigs if a sheet is missing), the baked atlas and the real rigs,
+// posed at fixed times so every run draws the same frame. Three lanes run from
 // violet portals into the Heart; the heroes hold one lane each; the logo sits on the forest shade.
 // `npm run og -w @tdt/client` screenshots it at 2× and writes the PNG (scripts/ogImage.ts).
 
@@ -9,14 +11,27 @@ import { buildMap, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, Assets, Container, Sprite, type Texture } from 'pixi.js';
 import { ArtKit } from './render/art/kit';
 import { creepArt, heartArt, heroArt, padArt, portalArt, projectileArt, towerArt, type HeroRig } from './render/art/registry';
-import { CreepRig, TowerRig } from './render/art/rigs';
+import { CreepRig, TowerRig, type TowerRigBase } from './render/art/rigs';
+import {
+  creepRig3d,
+  heartView3d,
+  heroRig3d,
+  loadCreepSheets,
+  loadHeroSheets,
+  loadStructureSheet,
+  portalView3d,
+  towerRig3d,
+} from './render/art3d';
+import { PORTAL_FLARE, PORTAL_OPENING } from './render/art3d/buildings';
+import { towerReach } from './render/art3d/structures';
+import { towerScale } from './render/entityScale';
 import { createFxAtlas, DISC_PX } from './render/fx/atlas';
 import { COLORS, FX, mixColor, PLAYER_COLORS } from './render/palette';
 import { CARD_MAP, HEART } from './ogMap';
 import cardPlate from './render/plate/card.json';
 import cardPlateUrl from './render/plate/card.webp?url';
 import { flyerDrawScale } from './teach/cues';
-import { PAD_TOP, viewCos, viewSin } from './render/view';
+import { archRatio, PAD_TOP, viewCos, viewSin } from './render/view';
 
 /** The card in CSS px (Open Graph's recommended 1200 × 630); the generator screenshots it at 2×. */
 export const CARD = { w: 1200, h: 630 } as const;
@@ -33,6 +48,8 @@ const Y = (y: number): number => y * S * C;
 const UNIT_SCALE = 1.45;
 const HERO_SCALE = 1.8;
 const TOWER_SCALE = 1.15;
+/** The 3D heroes' sheets are drawn a little smaller than their 2D rigs were: brought up to read beside the creeps. */
+const HERO_3D = 1.2;
 
 interface TowerSpot {
   pad: number;
@@ -88,7 +105,8 @@ interface HeroSpot {
 
 const HEROES: HeroSpot[] = [
   { kind: 'ranger', x: 5.3, y: 10.4, facing: -0.45, act: { shot: 520 } },
-  { kind: 'warden', x: 15, y: 7.3, facing: -Math.PI / 2, act: { shot: 150 } },
+  // Beside the keep (it stands taller than the 2D gem did), facing the Ironhorn on the Mid road.
+  { kind: 'warden', x: 17.4, y: 6.6, facing: -2.3, act: { shot: 150 } },
   { kind: 'arcanist', x: 24.7, y: 10.4, facing: Math.PI + 0.35, act: { cast: 'Q', since: 160 } },
 ];
 
@@ -150,6 +168,8 @@ export async function runOgCard(): Promise<void> {
 
   const kit = new ArtKit('normal');
   const fx = createFxAtlas();
+  // The match's 3D pictures, rendered at its pitch (render/art3d): the card shows them as a match does.
+  await Promise.all([loadStructureSheet(), loadCreepSheets(), loadHeroSheets()]);
   const map = buildMap(CARD_MAP);
   const world = new Container();
   world.scale.set(ZOOM);
@@ -197,14 +217,15 @@ export async function runOgCard(): Promise<void> {
     pads.addChild(c);
   }
 
-  // Portals: rim, glowing core and swirl; the Mid one flares (a wave is starting).
+  // Portals: the gatehouse with its swirl and glow in its arch (squashed as the arch's face is, as in a match); the Mid
+  // one flares (a wave is starting). Without the 3D sheet, the 2D well as a ring on the ground.
   const portal = portalArt();
+  const standing: { y: number; view: Container }[] = [];
   for (const [i, lane] of map.lanes.entries()) {
     const p = lane.waypoints[0]!;
     const c = new Container();
     c.position.set(p.x * S, Y(p.y + 1));
-    // The 2D portal is a ring on the ground: an ellipse through the tilted camera.
-    c.scale.set(1, C);
+    const gate = portalView3d();
     const swirl = kit.sprite(portal.id, 'swirl');
     swirl.rotation = -1.1 - i * 1.7;
     const core = new Sprite(fx.frames.glow);
@@ -212,56 +233,76 @@ export async function runOgCard(): Promise<void> {
     core.tint = portal.coreTint;
     core.blendMode = 'add';
     core.alpha = 0.75;
-    core.scale.set((S * 0.8) / DISC_PX);
-    c.addChild(kit.sprite(portal.id, 'rim'), core, swirl);
-    if (i === 1) {
-      const flare = kit.sprite(portal.id, 'flare');
+    core.scale.set(((S * 0.8) / DISC_PX) * (gate ? PORTAL_OPENING : 1));
+    const flare = i === 1 ? kit.sprite(portal.id, 'flare') : null;
+    if (flare) {
       flare.blendMode = 'add';
       flare.alpha = 0.55;
-      flare.scale.set(0.95);
+      flare.scale.set(0.95 * (gate ? PORTAL_FLARE : 1));
       flare.rotation = 0.4;
-      c.addChild(flare);
     }
-    portals.addChild(c);
+    if (gate) {
+      gate.update(10_000 + i * 700, i);
+      const arch = new Container();
+      arch.position.set(gate.opening.x, gate.opening.y);
+      arch.scale.y = archRatio();
+      swirl.scale.set(PORTAL_OPENING);
+      arch.addChild(core, swirl, ...(flare ? [flare] : []));
+      c.addChild(gate.root, arch);
+      standing.push({ y: p.y + 1, view: c });
+    } else {
+      // The 2D portal is a ring on the ground: an ellipse through the tilted camera.
+      c.scale.set(1, C);
+      c.addChild(kit.sprite(portal.id, 'rim'), core, swirl, ...(flare ? [flare] : []));
+      portals.addChild(c);
+    }
     glow(p.x, p.y + 1, 2.3, COLORS.portal, 0.45);
   }
 
-  // The Heart: pedestal, floating gem, and its glow.
+  // The Heart: the keep with its crystal (3D), or the pedestal and its floating gem; and its glow.
   const heart = heartArt();
   glow(HEART.x, HEART.y - 0.2, 3.4, COLORS.heart, 0.55);
   glow(HEART.x, HEART.y - 0.3, 1.5, FX.ember, 0.35);
   const h = new Container();
   h.position.set(HEART.x * S, Y(HEART.y));
-  const base = kit.sprite(heart.id, 'base');
-  base.position.set(0, heart.baseY);
-  const gem = kit.sprite(heart.id, 'gem');
-  gem.position.set(0, heart.gemY - heart.floatPx);
-  gem.scale.set(heart.gemScale * 1.04);
-  h.addChild(base, gem);
+  const keep = heartView3d();
+  if (keep) {
+    keep.setStage(0);
+    keep.update(10_000, 0.6, 0);
+    h.addChild(keep.root);
+  } else {
+    const base = kit.sprite(heart.id, 'base');
+    base.position.set(0, heart.baseY);
+    const gem = kit.sprite(heart.id, 'gem');
+    gem.position.set(0, heart.gemY - heart.floatPx);
+    gem.scale.set(heart.gemScale * 1.04);
+    h.addChild(base, gem);
+  }
 
   // Everything standing is sorted by its feet, so lower things overlap higher ones.
-  const standing: { y: number; view: Container }[] = [{ y: HEART.y + 0.6, view: h }];
+  standing.push({ y: HEART.y + 0.6, view: h });
 
   for (const t of TOWERS) {
     const art = towerArt(t.kind);
     const p = map.pads[t.pad];
     if (!art || !p) continue;
-    const rig = new TowerRig(kit, art);
+    const rig: TowerRigBase = towerRig3d(t.kind, kit) ?? new TowerRig(kit, art);
     rig.setTier(t.tier, t.branch);
     const target = nearestCreep(map, p.x, p.y);
     rig.aim(Math.atan2((target.y - p.y) * C, target.x - p.x), 10_000);
     rig.body.position.set(p.x * S, Y(p.y));
-    rig.body.scale.set(TOWER_SCALE);
+    // Never past its pad, as in a match (`towerScale`).
+    rig.body.scale.set(towerScale(TOWER_SCALE, towerReach(t.kind, t.tier, t.branch, rig.is3d)));
     standing.push({ y: p.y, view: rig.body });
   }
 
   for (const [i, c] of CREEPS.entries()) {
     const art = creepArt(c.kind);
     if (!art) continue;
-    const rig = new CreepRig(kit, art);
+    const rig = creepRig3d(c.kind, kit) ?? new CreepRig(kit, art);
     const at = onLane(map, c.lane, c.at, c.side);
     rig.reset(at.dx < -0.01 ? -1 : 1);
-    rig.update(at.x, i + 1, false, 400 + i * 137);
+    rig.update(at.x, i + 1, false, 400 + i * 137, at.y);
     if (c.frost) rig.setTint(mixColor(0xffffff, FX.frostLight, 0.7));
     const view = new Container();
     if (rig.shadow) view.addChild(rig.shadow);
@@ -275,7 +316,8 @@ export async function runOgCard(): Promise<void> {
   for (const spot of HEROES) {
     const art = heroArt(spot.kind);
     if (!art) continue;
-    const rig: HeroRig = art.rig(kit, false);
+    const rig3d = heroRig3d(spot.kind, kit, false);
+    const rig: HeroRig = rig3d ?? art.rig(kit, false);
     const now = 10_000;
     const pose = { x: spot.x, y: spot.y, facing: spot.facing, stunned: false, engaged: true };
     rig.update(pose, now - 1000, 16);
@@ -286,7 +328,7 @@ export async function runOgCard(): Promise<void> {
     }
     rig.update(pose, now, 16);
     rig.body.position.set(spot.x * S, Y(spot.y));
-    rig.body.scale.set(HERO_SCALE);
+    rig.body.scale.set(HERO_SCALE * (rig3d ? HERO_3D : 1));
     standing.push({ y: spot.y, view: rig.body });
   }
 

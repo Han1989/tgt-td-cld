@@ -1,6 +1,7 @@
 import { TILE_PX } from '@tdt/sim';
 import { describe, expect, it } from 'vitest';
 import { ZONE_KINDS } from '@tdt/protocol';
+import { viewCos, worldToScreen } from '../src/render/view';
 import { arrowRain, flight, pullMotes, rainPlan, skyRate, skyStreaks, type RainKind } from '../src/render/fx/rain';
 
 const S = TILE_PX;
@@ -113,12 +114,29 @@ describe('the flight of a streak', () => {
   it('starts above and to the side of its landing and reaches it exactly when its life is up', () => {
     for (const kind of KINDS) {
       for (const s of rainPlan(kind, 1.6, false, seeded(5)).streaks) {
-        const f = flight(100, 200, s);
+        const f = flight(100, 200, s, 1);
         const t = s.life / 1000;
         expect(f.x + Math.cos(f.angle) * f.speed * t).toBeCloseTo(100 + s.landX, 6);
         expect(f.y + Math.sin(f.angle) * f.speed * t).toBeCloseTo(200 + s.landY, 6);
         expect(f.y).toBeLessThan(200 + s.landY);
         expect(f.speed).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('on the tilted camera it lands on the ground point as drawn, falling straight down the screen (its height unsquashed)', () => {
+    const cos = viewCos();
+    expect(cos).toBeLessThan(1);
+    for (const kind of KINDS) {
+      for (const s of rainPlan(kind, 1.6, false, seeded(11)).streaks) {
+        const f = flight(100, 200, s);
+        const t = s.life / 1000;
+        // Effects.emit draws the start at y × cos and moves it on screen: it ends on the landing spot's view position.
+        const land = worldToScreen(100 + s.landX, 200 + s.landY);
+        expect(f.x + Math.cos(f.angle) * f.speed * t).toBeCloseTo(land.x, 6);
+        expect(f.y * cos + Math.sin(f.angle) * f.speed * t).toBeCloseTo(land.y, 6);
+        // The fall is the streak's own height on screen, the same as top-down: never squashed by the pitch.
+        expect(land.y - f.y * cos).toBeCloseTo(-s.fromY, 6);
       }
     }
   });

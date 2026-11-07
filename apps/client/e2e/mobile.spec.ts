@@ -1198,9 +1198,9 @@ test.describe('portrait phone layout', () => {
 });
 
 test.describe('the tilted camera (V-08b)', () => {
-  for (const pitch of [30, 0]) {
+  for (const pitch of [30]) {
     test(`taps land on what is drawn at ${pitch}°: every pad at its centre and inside each edge, a creep, a tower on its drawn body`, async ({ page }) => {
-      await startSolo(page, pitch === 30 ? '?lab' : '?lab&pitch=0');
+      await startSolo(page, '?lab');
       await framesIn(page);
       const view = await page.evaluate(() => window.__tdt.view());
       expect(view.pitch).toBe(pitch);

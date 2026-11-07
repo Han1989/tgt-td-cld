@@ -50,8 +50,9 @@ try {
   const full = encodePng(card, 'best');
   // 144 colours and a light dither: the map plate's grass (docs/ART.md §16) has more fine detail than the painted
   // ground had (256 colours left the night card at 335 KB, over its 300 KB budget; 176 at 0.4 left Spring meadow's,
-  // V-07c, at 321 KB); 144 look the same at card size.
-  const { indices, palette } = quantize(card, 144, 0.35);
+  // V-07c, at 321 KB); 144 look the same at card size. 128 since V-08b build 3: the towers, the Heart, the portals and
+  // the units from their 3D sheets left 144 at 304 KB.
+  const { indices, palette } = quantize(card, 128, 0.35);
   const png = encodeIndexedPng(card.width, card.height, indices, palette);
   writeFileSync(out, png);
   console.log(`${out}: ${CARD.w} × ${CARD.h}, ${(png.length / 1024).toFixed(0)} KB (${(full.length / 1024).toFixed(0)} KB before quantizing)`);

@@ -22,7 +22,7 @@ import { bitAlpha, bitScale, newBit, stepBit, type Bit } from './motion';
 import { damageText, layoutGlyphs } from './numbers';
 import { arrowRain, flight, pullMotes, rainPlan, skyRate, skyStreaks, type RainKind } from './rain';
 import { Shake } from './shake';
-import { viewCos } from '../view';
+import { overGround, viewCos } from '../view';
 import { AOE_COLORS, COLORS, FX, METEOR_COLORS, PROJECTILE_COLORS, ZONE_COLORS } from '../palette';
 import type { MeteorKind } from './meteors';
 
@@ -869,6 +869,7 @@ export class Effects {
       alpha: [this.calm ? 0.35 : 0.8, 0],
       layer: 'add',
       essential: true,
+      flat: true,
     });
     if (!this.particles || this.calm) return;
     this.emit({
@@ -1044,11 +1045,11 @@ export class Effects {
       const gx = x * S + Math.cos(a) * d;
       const gy = y * S + Math.sin(a) * d;
       const fall = 70;
-      // Falls from up-left onto (gx, gy) in ~180 ms.
+      // Falls from up-left onto (gx, gy) in ~180 ms: the fall a screen offset over its ground point (render/view.ts).
       this.emit({
         frame: 'arrow',
         x: gx - fall * 0.35,
-        y: gy - fall,
+        y: overGround(gy, fall),
         speed: [fall / 0.18, fall / 0.18],
         angle: [Math.atan2(1, 0.35), Math.atan2(1, 0.35)],
         life: [180, 180],
@@ -1164,7 +1165,7 @@ export class Effects {
       this.emit({
         frame: 'spark',
         x: px + s.landX + s.fromX / 2,
-        y: py + s.landY + s.fromY / 2,
+        y: overGround(py + s.landY, -s.fromY / 2),
         life: [260, 260],
         scale: [0.45 * k, 0.3 * k],
         stretch: len / width,
@@ -1323,7 +1324,7 @@ export class Effects {
       this.emit({
         frame: 'star',
         x: px,
-        y: py - S * 0.3,
+        y: overGround(py, S * 0.3),
         count: 3,
         spread: radius * S * 0.4,
         speed: [10, 30],

@@ -5,7 +5,8 @@
 // the pulse tick. This decides when to launch, at whom, where a meteor is along its fall, and which meteor a real
 // strike belongs to. `meteorShow.ts` does the drawing; the sim, its timing and its kills are untouched.
 
-import { TUNING } from '@tdt/sim';
+import { TILE_PX, TUNING } from '@tdt/sim';
+import { overGround, viewCos } from '../view';
 
 export type MeteorKind = 'meteor' | 'meteorRain' | 'shockwave';
 
@@ -245,6 +246,16 @@ export function fallAt(kind: MeteorKind, p: number, finale: boolean): FallPoint 
     ring: 1 - t,
     speed: 0.35 + 1.3 * t,
   };
+}
+
+/**
+ * Where a meteor's head is (world px) when it is `at` along its fall onto the ground point (tx, ty) world px, in the
+ * units `placeHead` and `Effects.emit` take (a ground point drawn at y × cos; V-08b build 3): the fall's offset is on
+ * screen (up and to the right, never squashed), so the head falls along `fallAngle` straight onto the warning circle's
+ * centre as drawn, whatever the pitch.
+ */
+export function headPoint(tx: number, ty: number, at: Pick<FallPoint, 'dx' | 'dy'>, cos = viewCos()): { x: number; y: number } {
+  return { x: tx + at.dx * TILE_PX, y: overGround(ty, -at.dy * TILE_PX, cos) };
 }
 
 /** Direction of the fall (radians, screen space): down and to the left. */

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   CAMERA_PITCH,
   depth,
-  flatRatio,
   groundAngle,
   groundEllipse,
   groundRect,
@@ -12,7 +11,10 @@ import {
   screenDirToGround,
   screenToTile,
   screenToWorld,
-  setPitch,
+  overGround,
+  padDrawn,
+  padLift,
+  PAD_TOP,
   viewCos,
   viewPitch,
   viewSin,
@@ -89,21 +91,32 @@ describe('the tilted camera (render/view.ts)', () => {
     expect(things.sort((a, b) => depth(a.y) - depth(b.y)).map((t) => t.y)).toEqual([4, 17, 30]);
   });
 
-  it('?pitch=0 is the camera before it: nothing squashed, the old ellipses kept', () => {
-    expect(flatRatio(0.4)).toBeCloseTo(COS, 12);
-    setPitch(0);
-    try {
-      expect(viewPitch()).toBe(0);
-      expect(worldToScreen(100, 200, 40)).toEqual({ x: 100, y: 200 });
-      expect(groundEllipse(10)).toEqual({ rx: 10, ry: 10 });
-      expect(flatRatio(0.4)).toBe(0.4);
-    } finally {
-      setPitch(CAMERA_PITCH);
+  it('is one camera: nothing in the module changes the pitch (V-08b build 3 removed `?pitch=0`)', async () => {
+    const mod = await import('../src/render/view');
+    expect('setPitch' in mod).toBe(false);
+    expect('flatRatio' in mod).toBe(false);
+  });
+
+  it('lifts a height off the ground as a screen offset: what falls falls straight down the screen onto its point', () => {
+    // A thing `up` view px over the ground point (100, 400): drawn at the point's view y less `up`, x unchanged.
+    for (const up of [0, 24, 96, 224]) {
+      const y = overGround(400, up);
+      expect(y * viewCos()).toBeCloseTo(worldToScreen(100, 400).y - up, 9);
     }
-    // Out of range or not a number: clamped, or the pick.
-    setPitch(90);
-    expect(viewPitch()).toBe(60);
-    setPitch(Number.NaN);
-    expect(viewPitch()).toBe(CAMERA_PITCH);
+    // In tiles too: the same rule, whatever the unit.
+    expect(overGround(12.5, 3) * COS).toBeCloseTo(12.5 * COS - 3, 12);
+  });
+
+  it("draws a pad as the plate does: its top PAD_TOP · sin over the ground, its south face down to the ground's edge", () => {
+    expect(padLift()).toBeCloseTo(PAD_TOP * SIN, 12);
+    const p = padDrawn(5.5 * 32, 9.5 * 32, 96, padLift());
+    const g = groundRect(5.5 * 32, 9.5 * 32, 96);
+    expect(p.left).toBe(g.left);
+    expect(p.right).toBe(g.right);
+    expect(p.top).toBeCloseTo(g.top - PAD_TOP * SIN, 9);
+    // The top is the ground square's height (cos tall) and the face fills the lift: a tap box from the top to the foot.
+    expect(p.front - p.top).toBeCloseTo(96 * COS, 9);
+    expect(p.foot - p.front).toBeCloseTo(PAD_TOP * SIN, 9);
+    expect(p.foot).toBe(g.bottom);
   });
 });

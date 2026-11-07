@@ -179,7 +179,7 @@ interface Hook {
     /** A screen point to the ground point under it (world px). */
     screenToWorld(x: number, y: number): { x: number; y: number };
   };
-  /** The tilted camera (V-08b): its pitch (degrees; `?pitch=0` the old camera) and cos(pitch). */
+  /** The tilted camera (V-08b): its pitch (degrees, one camera) and cos(pitch). */
   view(): { pitch: number; cos: number };
   /** The draw order: upright things sorted in it, whether they stand back to front now, the pitch. */
   depth(): { actors: number; sorted: boolean; pitch: number };

@@ -692,7 +692,7 @@ export class GameView {
         layout: () => layout,
         map,
         camera,
-        /** The tilted camera (V-08b, render/view.ts): its pitch (degrees; `?pitch=0` the old one) and cos(pitch). */
+        /** The tilted camera (V-08b, render/view.ts): its pitch (degrees, one camera) and cos(pitch). */
         view: () => ({ pitch: viewPitch(), cos: viewCos() }),
         /** The draw order: upright things sorted in it, whether they stand back to front, the pitch it was made for. */
         depth: () => renderer.depthStats(),

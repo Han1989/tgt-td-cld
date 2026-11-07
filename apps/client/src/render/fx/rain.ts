@@ -6,6 +6,7 @@
 
 import type { ZoneKind } from '@tdt/protocol';
 import { TILE_PX } from '@tdt/sim';
+import { overGround, viewCos } from '../view';
 
 const S = TILE_PX;
 const TAU = Math.PI * 2;
@@ -115,11 +116,17 @@ export function skyStreaks(
 /**
  * Where a streak starts (px), which way it flies (radians) and how fast (px/s), so that it
  * reaches its landing spot `life` ms later. `(originX, originY)` is the impact (px).
+ *
+ * On the tilted camera (V-08b build 3, render/view.ts) the landing spot is a ground point (drawn at its view position,
+ * the circle a strike spreads over an ellipse) and the fall a screen offset over it (`from`: straight down the screen
+ * on its slant, never squashed). `x, y` are in the units `Effects.emit` takes (a ground point it draws at y × cos), so
+ * the streak's start is lifted with `overGround`; its flight (`angle`, `speed`) is on screen, and it reaches the
+ * landing spot's view position as its life ends. At cos 1 it is the top-down flight.
  */
-export function flight(originX: number, originY: number, s: Streak): { x: number; y: number; angle: number; speed: number } {
+export function flight(originX: number, originY: number, s: Streak, cos = viewCos()): { x: number; y: number; angle: number; speed: number } {
   return {
     x: originX + s.landX + s.fromX,
-    y: originY + s.landY + s.fromY,
+    y: overGround(originY + s.landY, -s.fromY, cos),
     angle: Math.atan2(-s.fromY, -s.fromX),
     speed: (Math.hypot(s.fromX, s.fromY) / s.life) * 1000,
   };

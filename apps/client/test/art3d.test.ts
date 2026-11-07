@@ -1326,7 +1326,7 @@ describe('3D towers, the Heart and the portals: the rig rules', () => {
     // ground step is drawn widest.
     expect(worst / deg).toBeGreaterThan(22.5);
     expect(worst / deg).toBeLessThan(25.7);
-    // Straight down (?pitch=0) the screen is the ground: at most 22.5°.
+    // Straight down (pitch 0) the screen is the ground: at most 22.5°.
     let flat = 0;
     for (let g = -179.75; g < 180; g += 0.25) flat = Math.max(flat, Math.abs(turretHeading(g * deg, 1).turn));
     expect(flat / deg).toBeLessThanOrEqual(22.5 + 1e-9);

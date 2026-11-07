@@ -40,6 +40,8 @@ export class StressTransport implements Transport {
   private frames = 0;
   private lastFps = performance.now();
   private raf = 0;
+  /** Held (`window.__tdt.pause`, the screenshot scripts): no tick is made, so the scene stands still at its moment. */
+  private paused = false;
 
   /** `only`: every fuse is this combo (`?combo=stunStorm`); else they cycle Meteor Rain, Stun Storm, Shockwave. */
   constructor(
@@ -83,6 +85,7 @@ export class StressTransport implements Transport {
 
     setTimeout(() => this.emit({ t: 'welcome', playerId: PLAYER }), 0);
     this.timer = setInterval(() => {
+      if (this.paused) return;
       // With a pace above 1 the ticks in between are made too, and their events ride on the snapshot sent.
       const skipped: GameEvent[] = [];
       for (let i = 1; i < this.pace; i++) skipped.push(...this.frame().events);
@@ -249,6 +252,10 @@ export class StressTransport implements Transport {
     ];
     if (t - rainStart <= 72) zones.push({ id: 800_000 + rainStart, kind: this.comboAt(rainStart), x: a.x, y: a.y, radius: 0, startTick: rainStart, endTick: rainStart + 72 });
     return zones;
+  }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
   }
 
   send(_msg: ClientMessage): void {
