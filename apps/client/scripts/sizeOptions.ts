@@ -278,8 +278,8 @@ async function frameInfo(p: Page): Promise<{
   return (await p.evaluate(() => {
     const t = (window as any).__tdt;
     const bar = document.querySelector('#topbar')?.getBoundingClientRect();
-    const zb = [...document.querySelectorAll('button')].find((b) => /⤢/.test(b.textContent ?? '') && b.getBoundingClientRect().width > 0);
-    const z = zb?.getBoundingClientRect();
+    const zb = document.querySelector('#zoom-btn');
+    const z = zb && zb.getBoundingClientRect().width > 0 ? zb.getBoundingClientRect() : undefined;
     const h = t.latest().heroes[0];
     return {
       zoom: t.camera.zoom,
@@ -483,6 +483,7 @@ function towerRow(kind: string, variant: string, scale: number, zoom: number, co
   const top = TOWER_TOP[kind as keyof typeof TOWER_TOP][variant]!;
   const structures = JSON.parse(readFileSync(join(art3d, 'structures.json'), 'utf8')).match;
   const side = structures.towers[`${kind}/${variant}`].side as number;
+  const down = structures.towers[`${kind}/${variant}`].down as number;
   const rise = top * scale;
   // Past its own pad's back edge (towerRise), then over the 1-tile walk to the pad behind's front edge.
   const back = PAD_HALF_PX * cos;
@@ -494,6 +495,7 @@ function towerRow(kind: string, variant: string, scale: number, zoom: number, co
     scale: +scale.toFixed(3),
     roofTiles: +(rise / 32).toFixed(2),
     roofPx: +(rise * zoom).toFixed(1),
+    tallPx: +((top + down) * scale * zoom).toFixed(1),
     widthOfPad: +((2 * side * scale) / (2 * PAD_HALF_PX)).toFixed(2),
     widthPx: +(2 * side * scale * zoom).toFixed(1),
     overBehindPad: +(behind / 32 / cos).toFixed(2),
@@ -535,8 +537,8 @@ try {
     const t1 = towers.filter((t) => t.variant === '1');
     const t3 = towers.filter((t) => t.variant === '3');
     const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
-    // A tower's drawn height on screen: from its pad's front edge (half a pad toward the camera) to its roof.
-    const towerTall = (rows: typeof towers) => mean(rows.map((t) => t.roofPx + PAD_HALF_PX * cos * zoom));
+    // A tower's drawn height on screen: its silhouette, from its base's lowest point to its roof.
+    const towerTall = (rows: typeof towers) => mean(rows.map((t) => t.tallPx));
     // The top row: the tier-3 Arrow's roof (the tallest) on the first row of pads, against the bar and the ⤢ button.
     const top = shot.applied.towers.filter((t) => t.y === Math.min(...shot.applied.towers.map((q) => q.y)));
     const cam = shot.info.camera;
@@ -545,7 +547,11 @@ try {
     const topRow = top.map((t) => {
       const v = towerVariant(t.tier, t.branch as never);
       const roof = toScreenY(t.y * 32 * cos - TOWER_TOP[t.kind as keyof typeof TOWER_TOP][v]! * t.scale);
-      return { kind: t.kind, tier: t.tier, roofY: +roof.toFixed(1), clearsBar: +(roof - barBottom).toFixed(1), x: +toScreenX(t.x * 32).toFixed(1) };
+      const x = toScreenX(t.x * 32);
+      const half = TOWER_REACH[t.kind as keyof typeof TOWER_REACH][v]! * t.scale * zoom;
+      // The ⤢ button (top right, under the bar): how far the roof reaches into it, if the two overlap across.
+      const underButton = zoomButton && x + half > zoomButton.left && x - half < zoomButton.right ? +(zoomButton.bottom - roof).toFixed(1) : null;
+      return { kind: t.kind, tier: t.tier, roofY: +roof.toFixed(1), clearsBar: +(roof - barBottom).toFixed(1), underButton, x: +x.toFixed(1) };
     });
     const portalTop = toScreenY(1.5 * 32 * cos - portal.up * o.portal);
     const crisp = (s: number) => ({
