@@ -18,8 +18,8 @@
 // - the hero through the e2e hook's `scales`, today's `entityScales` with HERO_BOOST in proportion to the column's
 //   (Han's numbers are V-04's 1.4; the game has V-07e's 1.75, so ×1.25 is 1.75 × 1.25 / 1.4).
 //
-// Before that, on the phone, wave 12 (Grunts and Brutes) for the strip: the Warden beside a Grunt and a Brute,
-// cropped, at each column's hero size, and once more at column 3 with the creeps a step smaller (CREEP_3).
+// The strip is composed from the match sheets (in a real frame the pack hides them): the Warden idle beside a Grunt and
+// a Brute, at the phone's scales in each column, and once more at column 3 with the creeps a step smaller (CREEP_3).
 //
 // Writes docs/art/size-options.png (the sheet: three columns, 1, 2 and 3, each the 412 × 839 phone at 2× over the
 // 1280 × 720 desktop at 1×, the measured numbers under it, then the strip), docs/art/size-options/<n>.png (each
@@ -143,7 +143,7 @@ async function walk(p: Page, at: { x: number; y: number }): Promise<void> {
 
 /**
  * Starts `wave` and pauses once the Warden has creeps round him: at least `count` ground creeps within `r` tiles, a
- * Brute among them, and `need` too (a Grunt for the strip).
+ * Brute among them, and a `need` among them too when one is named.
  */
 async function holdPack(p: Page, wave: number, count: number, r: number, need: string | null, before?: () => Promise<void>): Promise<void> {
   // A pack forms most waves; when one does not (the towers took it first), the wave is started again.
@@ -319,12 +319,7 @@ async function measureSheets(browser: Browser): Promise<Record<string, Box & { r
   const idle = warden.layers.body.kinds.idle;
   const f0 = warden.frames.body.idle[0];
   cells.push({ key: 'warden/idle', file: warden.file, x: f0.x, y: f0.y, w: idle.w, h: idle.h, ax: idle.ax, ay: idle.ay, res: warden.res });
-  for (const kind of ['grunt', 'brute', 'runner']) {
-    const L = JSON.parse(readFileSync(join(art3d, `${kind}.json`), 'utf8')).match;
-    const f = L.frames.idle[0];
-    // A creep frame is trimmed: (dx, dy) is where it sits in the kind's box, whose anchor is (box.ax, box.ay).
-    cells.push({ key: `${kind}/idle`, file: L.file, x: f.x, y: f.y, w: f.w, h: f.h, ax: L.box.ax - f.dx, ay: L.box.ay - f.dy, res: L.res });
-  }
+  for (const kind of ['grunt', 'brute', 'runner']) cells.push({ key: `${kind}/idle`, ...creepFrame(kind) });
   const files = [...new Set(cells.map((c) => c.file))];
   const data: Record<string, string> = {};
   for (const f of files) {
@@ -364,38 +359,100 @@ async function measureSheets(browser: Browser): Promise<Record<string, Box & { r
   return out;
 }
 
+/**
+ * The strip: the Warden, a Grunt and a Brute idle, side by side on one baseline, each drawn from its match sheet at the
+ * phone's 2× pixels and the scale the game draws it at in that column (`scales` × the camera's zoom), on the grass.
+ */
+async function composeStrip(browser: Browser, zoom: number, cells: { hero: number; creep: number }[]): Promise<Buffer[]> {
+  const warden = JSON.parse(readFileSync(join(art3d, 'warden.json'), 'utf8')).match;
+  const idle = warden.layers.body.kinds.idle;
+  const f0 = warden.frames.body.idle[0];
+  const figs: { key: string; file: string; x: number; y: number; w: number; h: number; res: number; unit: 'hero' | 'creep' }[] = [
+    { key: 'grunt', ...creepFrame('grunt'), unit: 'creep' },
+    { key: 'warden', file: warden.file, x: f0.x, y: f0.y, w: idle.w, h: idle.h, res: warden.res, unit: 'hero' },
+    { key: 'brute', ...creepFrame('brute'), unit: 'creep' },
+  ];
+  const data: Record<string, string> = {};
+  for (const f of new Set(figs.map((q) => q.file))) data[f] = `data:${f.endsWith('.png') ? 'image/png' : 'image/webp'};base64,${readFileSync(join(art3d, f)).toString('base64')}`;
+  const page = await (await browser.newContext({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 })).newPage();
+  const urls = (await page.evaluate(
+    async ([fs, d, cs, z]) => {
+      const imgs: Record<string, ImageBitmap> = {};
+      for (const [f, url] of Object.entries(d)) imgs[f] = await createImageBitmap(await (await fetch(url)).blob());
+      // Each figure's opaque box in its cell (alpha 200 and up), so the feet stand on one line.
+      const box = (q: (typeof fs)[number]) => {
+        const cv = new OffscreenCanvas(q.w, q.h);
+        const g = cv.getContext('2d')!;
+        g.drawImage(imgs[q.file]!, -q.x, -q.y);
+        const a = g.getImageData(0, 0, q.w, q.h).data;
+        let x0 = q.w, x1 = 0, y0 = q.h, y1 = 0;
+        for (let y = 0; y < q.h; y++)
+          for (let x = 0; x < q.w; x++)
+            if (a[(y * q.w + x) * 4 + 3]! >= 200) {
+              x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1);
+            }
+        return { x0, x1, y0, y1 };
+      };
+      const boxes = fs.map(box);
+      const out: string[] = [];
+      for (const c of cs) {
+        const W = 480;
+        const H = 300;
+        const base = 250;
+        const cv = new OffscreenCanvas(W, H);
+        const g = cv.getContext('2d')!;
+        g.fillStyle = '#649440';
+        g.fillRect(0, 0, W, H);
+        g.imageSmoothingQuality = 'high';
+        // Phone px at 2×: world px × the unit's scale × the camera's zoom × 2; a sheet px is 1 / res world px.
+        const k = fs.map((q) => ((q.unit === 'hero' ? c.hero : c.creep) * z * 2) / q.res);
+        const widths = fs.map((q, i) => (boxes[i]!.x1 - boxes[i]!.x0) * k[i]!);
+        const gap = 18;
+        let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (fs.length - 1)) / 2;
+        fs.forEach((q, i) => {
+          const b = boxes[i]!;
+          const kk = k[i]!;
+          g.fillStyle = 'rgba(20, 30, 10, 0.28)';
+          g.beginPath();
+          g.ellipse(x + widths[i]! / 2, base, widths[i]! * 0.42, widths[i]! * 0.12, 0, 0, Math.PI * 2);
+          g.fill();
+          g.drawImage(imgs[q.file]!, q.x + b.x0, q.y + b.y0, b.x1 - b.x0, b.y1 - b.y0, x, base - (b.y1 - b.y0) * kk, widths[i]!, (b.y1 - b.y0) * kk);
+          x += widths[i]! + gap;
+        });
+        const blob = await cv.convertToBlob({ type: 'image/png' });
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]!);
+        out.push(btoa(bin));
+      }
+      return out;
+    },
+    [figs, data, cells, zoom] as const,
+  )) as string[];
+  await page.context().close();
+  return urls.map((u) => Buffer.from(u, 'base64'));
+}
+
+/** A creep kind's first idle frame on its sheet, with its anchor in the frame (the trimmed frame's offset taken off). */
+function creepFrame(kind: string): { file: string; x: number; y: number; w: number; h: number; ax: number; ay: number; res: number } {
+  const L = JSON.parse(readFileSync(join(art3d, `${kind}.json`), 'utf8')).match;
+  const f = L.frames.idle[0];
+  return { file: L.file, x: f.x, y: f.y, w: f.w, h: f.h, ax: L.box.ax - f.dx, ay: L.box.ay - f.dy, res: L.res };
+}
+
 interface Shot {
   png: Buffer;
   info: Awaited<ReturnType<typeof frameInfo>>;
   applied: Applied;
 }
 
-async function heldDevice(browser: Browser, url: string, device: Device): Promise<{ shots: Shot[]; strip: Buffer[] | null }> {
+async function heldDevice(browser: Browser, url: string, device: Device): Promise<{ shots: Shot[] }> {
   const viewport = device === 'desktop' ? { width: 1280, height: 720 } : undefined;
   const p = await openHeld(browser, device, url, { hero: 'warden', viewport, init: INIT });
   const tilePx = (await frameInfo(p)).tilePx;
   // A mid-match Warden (his size does not change with his level; his HP keeps him standing in the pack).
   await p.evaluate(() => (window as any).__tdt.setLevel(8));
   await walk(p, await westLane(p, HOLD_ROW));
-  let strip: Buffer[] | null = null;
-  if (device === 'phone') {
-    // The strip first, before a tower stands: wave 12's Grunts and Brutes round the Warden, cropped round him.
-    await holdPack(p, 12, 3, 2.6, 'grunt');
-    strip = [];
-    const cells: [Option, number][] = [...OPTIONS.map((o) => [o, HAN_CREEP_TODAY] as [Option, number]), [OPTIONS[2], CREEP_3]];
-    for (const [o, creep] of cells) {
-      await apply(p, o, tilePx, creep);
-      const w = (await frameInfo(p)).warden;
-      const cw = 150;
-      const ch = 120;
-      const clip = { x: Math.max(0, w.x - cw / 2), y: Math.max(0, w.y - ch * 0.62), width: cw, height: ch };
-      strip.push(await p.screenshot({ clip }));
-      if (framesDir) writeFileSync(join(framesDir, `strip-${strip.length}.png`), strip[strip.length - 1]!);
-    }
-    await apply(p, OPTIONS[0], tilePx);
-    await p.evaluate(() => (window as any).__tdt.pause(false));
-    await walk(p, await westLane(p, HOLD_ROW));
-  }
   // Wave 13: once a pack is round the Warden, every pad is built in three ticks and the match paused.
   await holdPack(p, 13, 4, 2.8, null, () => buildAll(p));
   // The towers' drop onto their pads plays out (the render runs while the simulation is held).
@@ -409,7 +466,7 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
     console.log(`${device} ${o.n}: ${applied.found.towers} towers, heart ${applied.found.heart}, ${applied.found.portals} portals`);
   }
   await p.context().close();
-  return { shots, strip };
+  return { shots };
 }
 
 /** A tower variant's numbers at one drawn scale (world px at scale 1 → tiles and phone px). */
@@ -443,6 +500,11 @@ try {
   const sheets = await measureSheets(browser);
   const phone = await heldDevice(browser, url, 'phone');
   const desktop = await heldDevice(browser, url, 'desktop');
+  const stripCells = [...OPTIONS.map((o) => ({ o, creep: HAN_CREEP_TODAY })), { o: OPTIONS[2], creep: CREEP_3 }].map(({ o, creep }) =>
+    scalesFor(phone.shots[0]!.info.tilePx, heroBoost(o), creepBoost(creep)),
+  );
+  const strip = await composeStrip(browser, phone.shots[0]!.info.zoom, stripCells);
+  if (framesDir) strip.forEach((b, i) => writeFileSync(join(framesDir, `strip-${i + 1}.png`), b));
 
   // The numbers, per column, on the phone (CSS px at the fit; device px on a 2.625× Pixel 7 and a 3× phone).
   const measures = OPTIONS.map((o, i) => {
@@ -543,7 +605,7 @@ try {
       <img class="desk" src="${b64(desktop.shots[i]!.png)}" width="1280" height="720">${table(measures[i]!)}</section>`,
   );
   const stripLabels = ['1', '2', '3', '3 · creeps a step smaller'];
-  const strip = (phone.strip ?? []).map((s, i) => `<figure><img src="${b64(s)}" width="${150 * 2 * 1.6}" height="${120 * 2 * 1.6}"><figcaption>${stripLabels[i]}</figcaption></figure>`);
+  const stripHtml = strip.map((s, i) => `<figure><img src="${b64(s)}" width="720" height="450"><figcaption>${stripLabels[i]}</figcaption></figure>`);
   const page = await (await browser.newContext({ viewport: { width: colW * 3 + gap * 4, height: 1000 }, deviceScaleFactor: 1 })).newPage();
   await page.setContent(`<!doctype html><html><head><style>
     html, body { margin: 0; background: #11161a; color: #ece4cf; font: 500 26px/1.35 system-ui, sans-serif; }
@@ -558,7 +620,7 @@ try {
     figure { margin: 0; text-align: center; }
     figure img { display: block; border-radius: 16px; image-rendering: auto; }
     figcaption { margin-top: 10px; font-size: 40px; font-weight: 700; }
-  </style></head><body><main>${columns.join('')}</main><div class="strip">${strip.join('')}</div></body></html>`);
+  </style></head><body><main>${columns.join('')}</main><div class="strip">${stripHtml.join('')}</div></body></html>`);
   await page.waitForFunction(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0));
   const out = join(outDir, 'size-options.png');
   mkdirSync(dirname(out), { recursive: true });
