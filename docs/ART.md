@@ -1437,6 +1437,10 @@ More of the clearing's own props on the border and at the safe zone's edge, pain
 
 **Left open:** the band under the map is dark (the plate is framed on the ground's rectangle; more forest south of row 50 would fill it: camera-options.md, "The map on a phone"); a first page of the bases and rest frames before the recoil frames, for a Slow 4G first wave (§15); Han's look on his Pixel and the testers' answers to the five-second test.
 
+### V-08c look: the sizes of the towers, the Heart, the portals and the heroes (7 Nov 2026, options only; nothing in the game)
+
+**Han, 7 Nov 2026,** from his Pixel at wave 13: the towers are too big against the Heart and the portals, and the Warden is too big. One real wave-13 frame with every pad built, drawn at three sets of sizes (1 today; 2 towers 85%, Heart 115%, portals 120%, hero a step smaller; 3 towers 75%, Heart 130%, portals 135%, hero two steps smaller), each scaled about its ground point, with the measured heights and ratios, what the roofs cover and the HUD clearances: `docs/art/size-options.png` and `docs/art/size-options.md` (`npm run size-options -w @tdt/client`). No page needs rendering again at any of them. Han picks; the build session follows.
+
 ### V-08b look: the tilted camera, three pitches (5 Nov 2026, options only; nothing in the game)
 
 **Han, 5 Nov 2026:** a reference clip of an isometric courtyard; he wants its depth. Today the plate and the towers are seen straight down, the Heart and the portals from the south at 55° elevation and the units at 20° elevation (§15). This session shows **one orthographic camera from the south tilted 20°, 30° or 40° from straight down** (A, B, C), on one real wave-10 frame, phone and desktop. The plate, the structures and two figures were rendered through it (`npm run art:3d -- pitch … --out DIR`, `tools/blender/tdt3d/pitch_options.py`, dev only, refused without `--out`) and composed from a held snapshot (`npm run camera-options -w @tdt/client`, `tools/blender/pitch_compose.py`).

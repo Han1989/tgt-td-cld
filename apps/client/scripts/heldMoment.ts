@@ -23,16 +23,24 @@ const SETTINGS = {
 };
 const PLAN: [string, number][] = [['cannon', 2], ['arrow', 3], ['frost', 1], ['arcane', 3], ['flak', 2]];
 
-/** A solo Full match on the Ranger at `url` (an e2e build), every sheet in. */
-export async function openHeld(browser: Browser, device: Device, url: string): Promise<Page> {
-  const ctx = await browser.newContext({ ...DEVICES[device], serviceWorkers: 'block' });
+/** What `openHeld` may change: the hero (the Ranger), the viewport (the device's) and a script run before the page's. */
+export interface HeldOptions {
+  hero?: 'ranger' | 'warden' | 'arcanist';
+  viewport?: { width: number; height: number };
+  init?: string;
+}
+
+/** A solo Full match on the Ranger (or `opts.hero`) at `url` (an e2e build), every sheet in. */
+export async function openHeld(browser: Browser, device: Device, url: string, opts: HeldOptions = {}): Promise<Page> {
+  const ctx = await browser.newContext({ ...DEVICES[device], ...(opts.viewport ? { viewport: opts.viewport } : {}), serviceWorkers: 'block' });
   await ctx.addInitScript('globalThis.__name = (f) => f;');
+  if (opts.init) await ctx.addInitScript(opts.init);
   await ctx.addInitScript((s) => localStorage.setItem('tdt.settings', JSON.stringify(s)), SETTINGS);
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.error('page error:', e.message));
   await p.goto(`${url}?lab&weather=clear&light=afternoon`);
   await p.waitForSelector('html[data-ready="solo"]', { timeout: 60_000 });
-  await p.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
+  await p.locator(`#lobby-heroes-home .hero-pick[data-hero="${opts.hero ?? 'ranger'}"]`).click();
   await p.locator('#lobby-mode-home .mode-pick[data-mode="full"]').click();
   await p.locator('#lobby-offline').click();
   await p.waitForFunction(() => !!(window as any).__tdt?.latest()?.heroes?.length);
