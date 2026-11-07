@@ -396,9 +396,9 @@ async function composeStrip(browser: Browser, zoom: number, cells: { hero: numbe
       const boxes = fs.map(box);
       const out: string[] = [];
       for (const c of cs) {
-        const W = 480;
-        const H = 300;
-        const base = 250;
+        const W = 320;
+        const H = 200;
+        const base = 168;
         const cv = new OffscreenCanvas(W, H);
         const g = cv.getContext('2d')!;
         g.fillStyle = '#649440';
@@ -407,7 +407,7 @@ async function composeStrip(browser: Browser, zoom: number, cells: { hero: numbe
         // Phone px at 2×: world px × the unit's scale × the camera's zoom × 2; a sheet px is 1 / res world px.
         const k = fs.map((q) => ((q.unit === 'hero' ? c.hero : c.creep) * z * 2) / q.res);
         const widths = fs.map((q, i) => (boxes[i]!.x1 - boxes[i]!.x0) * k[i]!);
-        const gap = 18;
+        const gap = 10;
         let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (fs.length - 1)) / 2;
         fs.forEach((q, i) => {
           const b = boxes[i]!;
@@ -464,7 +464,9 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
   await walk(p, await westLane(p, HOLD_ROW));
   // Wave 13: once a pack is round the Warden, every pad is built in three ticks and the match paused.
   await holdPack(p, 13, 4, 2.8, null, () => buildAll(p));
-  // The towers' drop onto their pads plays out (the render runs while the simulation is held).
+  // The towers' drop onto their pads plays out (the render runs while the simulation is held). A lane surge's flag
+  // ("East · Surge now", when the seed puts one on wave 13) is hidden: it hangs over the portals the sheet compares.
+  await p.addStyleTag({ content: '.surge-flag { display: none !important; }' });
   await p.waitForTimeout(1200);
   const shots: Shot[] = [];
   for (const o of OPTIONS) {
@@ -604,7 +606,7 @@ try {
     const r = (m as any).ratio;
     const rows: [string, string][] = [
       ['Tower roof over its pad, tier 1 / tier 3', `${m.tier1.roofTiles} / ${m.tier3.roofTiles} tiles · ${m.tier1.roofPx} / ${m.tier3.roofPx} px`],
-      ['Tower drawn tall (pad front to roof), tier 1 / 3', `${m.tier1.tallPx} / ${m.tier3.tallPx} px`],
+      ['Tower drawn tall (base to roof), tier 1 / 3', `${m.tier1.tallPx} / ${m.tier3.tallPx} px`],
       ['Tower width over pad width, tier 1 / 3', `${m.tier1.widthOfPad} / ${m.tier3.widthOfPad}`],
       ['Heart tall', `${m.heart.px} px`],
       ['Portal tall', `${m.portal.px} px`],
@@ -620,6 +622,7 @@ try {
       <img class="desk" src="${b64(desktop.shots[i]!.png)}" width="1280" height="720">${table(measures[i]!)}</section>`,
   );
   const stripLabels = ['1', '2', '3', '3 · creeps a step smaller'];
+  // Each cell is drawn at the phone's own 2× pixels and shown here 2.25× larger, so the figures read on the sheet.
   const stripHtml = strip.map((s, i) => `<figure><img src="${b64(s)}" width="720" height="450"><figcaption>${stripLabels[i]}</figcaption></figure>`);
   const page = await (await browser.newContext({ viewport: { width: colW * 3 + gap * 4, height: 1000 }, deviceScaleFactor: 1 })).newPage();
   await page.setContent(`<!doctype html><html><head><style>
