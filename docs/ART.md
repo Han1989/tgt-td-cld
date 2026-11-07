@@ -141,16 +141,19 @@ On the reference phone (412 × 839, Spire's 26 tiles across the width) a tile is
 
 - **Base scale** = `clamp(25 / tilePx, 1, 1.6)`: what every unit had before V-04 (1.58 on the reference phone, 1.6 from a 15.6 px tile down).
 - **Towers** = the base scale, at most **1.3** (`MAX_TOWER_SCALE`; 1.2 before V-07e), and **never past their pad** (`towerScale(scale, reach)`): a tower's scale stops where its widest part reaches the pad's edge (48 world px from its centre), its `reach` being the farther of its base's half width and its turret's radius at rest or in recoil (the turret turns), over the drawing's opaque pixels, per variant (`TOWER_REACH` in `art3d/structures.ts`, measured from the structures sheet and kept so by `test/art3d.test.ts`; the 2D fallback 40, so V-04's 1.2). Measured, not by eye: the widest is the **Prism's base, 46 world px**, so it stays at 1.04 (at V-04's 1.2 it already overhung its pad by 3–4 px a side on a phone); the Volley 1.07, the Glacier 1.12, the Sniper's long turret 1.13; 12 of the 15 tier 1–3 bodies get the whole 1.3 (the Cannon at tiers 2 and 3 stop at 1.23 and 1.22, the Arcane at tier 2 at 1.297).
-- **Creeps** (bosses and flyers with them, so a boss keeps its size relative to other creeps) = base × `CREEP_BOOST` (**1.45**; V-04's 1.2); **heroes** = base × `HERO_BOOST` (**1.75**; V-04's 1.4). The boost grows linearly as tiles shrink from 25 px and is whole at 16 px, so nothing jumps between a tablet and a phone. Largest: heroes 2.8, creeps 2.32 (a 360 px wide phone, 13.85 px tiles). Overlap on a busy lane is accepted; a unit's HP bar is its child, so it stays over its own sprite at any scale.
+- **V-08c (Han's pick of 7 Nov 2026, §16 "V-08c"):** every tower is then drawn **`TOWER_SIZE` 0.75** of that (after the pad cap, on every screen: on a desktop too, where the layout's scale is 1), the Heart **1.3×** (`HEART_SCALE`) and the portals **1.35×** (`PORTAL_SCALE`) about their points, the portals stood `PORTAL_DROP` (0.47 tiles of view) lower.
+- **Creeps** (bosses and flyers with them, so a boss keeps its size relative to other creeps) = base × `CREEP_BOOST` (**1.329**; V-07e's 1.45, V-04's 1.2); **heroes** = base × `HERO_BOOST` (**1.375**; V-07e's 1.75, V-04's 1.4). The boost grows linearly as tiles shrink from 25 px and is whole at 16 px, so nothing jumps between a tablet and a phone. Largest: heroes 2.2, creeps 2.13 (a 360 px wide phone, 13.85 px tiles). Overlap on a busy lane is accepted; a unit's HP bar is its child, so it stays over its own sprite at any scale.
 - Everything that follows a unit's drawn size uses its scale: HP bars and their offsets (they are children of the unit), hit flashes, the contact shadow and the hero's ground ring, hit and death effects (`fx.bitScale` = the creep scale; a hero's death passes its own), meteors (`meteors.bitScale`), where damage numbers start, the Rampart Slam guard ring's reach, and where a tap lands on a creep (`WorldRenderer.drawnCreepRadius`, so a tap hits what is drawn). Shots and the Snare Trap's coil follow the creeps. **Nothing that shows a game rule changes size:** tower ranges, aura radii (the Bulwark Aura's true radius), rain and skill areas, the trap's root ring, pads and the Heart stay at their true size.
 
 | Thing | World px → phone px (412 wide) | Example |
 |---|---|---|
-| Heroes | × 1.37 (V-04 × 1.09, before × 0.78) | a hero ~32 px tall, weapon and all → ~44 px (V-04 ~35) |
-| Creeps, bosses | × 1.14 (V-04 × 0.94) | a Grunt frame 32 × 36 → 36 × 41 px (V-04 30 × 34) |
-| Towers | up to × 0.64 (V-04 × 0.59), never past the pad | an 84 px tower frame → 54 px |
-| Heart, portals, pads | × 0.50 | a 96 px pad → 48 px |
-| Projectiles, trap coil | × 1.14 | a bolt ~28 px long → ~32 px; same scale as creeps |
+| Heroes | × 1.07 (V-07e × 1.37, V-04 × 1.09, before × 0.78) | the Warden 34.9 px tall (V-07e 44.4) |
+| Creeps, bosses | × 1.04 (V-07e × 1.14, V-04 × 0.94) | a Grunt 30.6 px tall, a Brute 34.5 (V-07e 33.4, 37.7) |
+| Towers | up to × 0.48 (V-07e × 0.64, V-04 × 0.59), never past the pad | a tier-1 tower 40.1 px tall (V-07e 53.4) |
+| Heart | × 0.64 (V-07e × 0.50) | 70.5 px tall (V-07e 54.2) |
+| Portals | × 0.67 (V-07e × 0.50) | 43.0 px tall (V-07e 31.9) |
+| Pads | × 0.50 | a 96 px pad → 48 px |
+| Projectiles, trap coil | × 1.04 | a bolt ~28 px long → ~29 px; same scale as creeps |
 | Trap root ring | × 0.50 | the root radius in tiles, not scaled up with creeps |
 
 Pinched in, everything is that × the zoom (up to 1.8: a hero ~79 px, a 96 px pad 86 px). V-04 was checked by eye at 412 × 839 and 360 × 640 in `/?stress=300` and in a Quick match at wave 12 with towers built (`docs/screenshots/bigger-units/`): lanes (2 tiles wide) still read as lanes, a Brute (radius 0.5) fills its lane and no more, and HP bars stay clear. V-07e's wave 10 at the fit and at 1.8×, V-04's scales against V-07e's on one frozen frame, is in `docs/screenshots/closer/`: creeps on a busy lane now overlap (accepted), a boss reaches over the lane's edge onto the pads' border, and every HP bar still sits over its own unit.
@@ -1437,9 +1440,44 @@ More of the clearing's own props on the border and at the safe zone's edge, pain
 
 **Left open:** the band under the map is dark (the plate is framed on the ground's rectangle; more forest south of row 50 would fill it: camera-options.md, "The map on a phone"); a first page of the bases and rest frames before the recoil frames, for a Slow 4G first wave (§15); Han's look on his Pixel and the testers' answers to the five-second test.
 
+### V-08c: the sizes Han picked (7 Nov 2026)
+
+**Han's pick of 7 Nov 2026** from the look's sheet (below): **column 3, with the creeps a step smaller** (the strip's fourth cell). Client only: no sim, protocol, server, tuning or art change, and nothing is rendered again.
+
+| | V-07e (before) | V-08c | |
+|---|---|---|---|
+| Towers | `towerScale`: the layout's scale, capped at the pad | × `TOWER_SIZE` **0.75** after the cap | every screen |
+| Heart | 1 | `HEART_SCALE` **1.3** about its point | every screen |
+| Portals | 1, at row 1.5 | `PORTAL_SCALE` **1.35** about their point, **0.47 tiles of view lower** (`PORTAL_DROP`, `portalPoint`: row 2.04) | every screen |
+| Heroes | `HERO_BOOST` 1.75 | **1.375** | phones (the boost ramp, §6) |
+| Creeps, bosses | `CREEP_BOOST` 1.45 | **1.329** | phones |
+
+**Measured on the 412 × 839 phone at the fit** (`npm run size-options -w @tdt/client`, run again on this build: column 1 is now the game, 2 the look's middle step, 3 the game before V-08c; `docs/art/size-options/measures.json`):
+
+| | Before | Now |
+|---|---|---|
+| Tower drawn tall, tier 1 / tier 3 | 53.4 / 58.6 px | 40.1 / 44.0 px |
+| Tower width over pad width, tier 1 / tier 3 | 0.81 / 0.90 | 0.61 / 0.68 |
+| Heart tall | 54.2 px | 70.5 px |
+| Portal tall | 31.9 px | 43.0 px |
+| Warden / Grunt / Brute tall | 44.4 / 33.4 / 37.7 px | 34.9 / 30.6 / 34.5 px |
+| **Tower : Heart : portal : hero** | 1.26 : 1.22 : 0.72 : 1 | **1.20 : 2.02 : 1.23 : 1** |
+| A portal's top against the bar's edge | −0.1 px | +0.1 px |
+| Highest tier-3 roof under the bar | 25.3 px | 37.8 px |
+
+**What sits on them, each where it was against its sprite:** a tower's tier dots, stun star and lanterns follow its root's scale (the lanterns are placed with it); its HP bar is put back just over its roof (4 world px over `towerTop` × the drawn scale) and kept as wide on screen as before (its width ÷ `TOWER_SIZE`); its tap box follows `towerScale` (`towerRise`), `TOWER_REACH` and `TOWER_TOP` stay the art's measurements at scale 1, and the pad check holds (a smaller tower reaches less far). The Heart's glow ellipse, warning ring, windows and blaze are its root's children; its shards' and flash's height (`fxY`), the blaze's (`blazeY`), the embers' spread and its light pool take the factor. The portals' swirl, glow and flare are their roots' children; the motes drawn into the arch and their pools take the factor (`poolRadius`, `fx/pools.ts`), and the wave-start rings stand at their new points. The creeps' Exposed, root and status rings and the hero's ring are their roots' children. Ranges, aura radii, skill areas and the pads keep their true size.
+
+**Taps:** at 75% the roofs end just short of the pad behind (the tier-1 Arrow's roof 0.5 px under its front edge, where V-08b's overlapped it by 0.78 tiles), so a tap at the top of a roof was within `TIE_PX` of that pad and opened the picker. **A tap inside a box is now that box against every other box** (`resolveTap`; creeps still compete): the roof is the tower. The tap tests on the phone and the desktop pass, with the tier-1 Arrow's roof over the ground behind its pad 0.96 of a row (V-08b's two tiles).
+
+**Mipmaps stay off.** At the fit the four structure pages are now shrunk about 2.2:1 with no mipmaps; the stress scene on the Pixel 7 profile (SwiftShader), with and without mipmaps on the four pages, frame by frame on a Flak's turning rotor and the stone edges round it: no shimmer seen either way. With them the GPU held 152.7 MiB against 132.5 (+20.2 MiB). Han's Pixel is the real judge; if a turret sparkles there, `autoGenerateMipmaps` on the pages' `ImageSource` (`structureSheet.ts`) is the fix, nothing rendered again.
+
+**The budget:** the stress scene alone, 12.3 ms of JavaScript a frame (budget 33.3), 30.6 draw calls, 25 textures, 131.8 MiB on the GPU, the same textures as before (nothing new is drawn).
+
+**Pictures:** `docs/art/size-options.png` and `size-options/1.png` (the game now) against `3.png` (before); the link card, the press stills and the covers made again; `docs/art/camera-ab.png` is kept (the five-second test is in flight).
+
 ### V-08c look: the sizes of the towers, the Heart, the portals and the heroes (7 Nov 2026, options only; nothing in the game)
 
-**Han, 7 Nov 2026,** from his Pixel at wave 13: the towers are too big against the Heart and the portals, and the Warden is too big. One real wave-13 frame with every pad built, drawn at three sets of sizes (1 today; 2 towers 85%, Heart 115%, portals 120%, hero a step smaller; 3 towers 75%, Heart 130%, portals 135%, hero two steps smaller), each scaled about its ground point, with the measured heights and ratios, what the roofs cover and the HUD clearances: `docs/art/size-options.png` and `docs/art/size-options.md` (`npm run size-options -w @tdt/client`). No page needs rendering again at any of them. Han picks; the build session follows.
+**Han, 7 Nov 2026,** from his Pixel at wave 13: the towers are too big against the Heart and the portals, and the Warden is too big. One real wave-13 frame with every pad built, drawn at three sets of sizes (1 today; 2 towers 85%, Heart 115%, portals 120%, hero a step smaller; 3 towers 75%, Heart 130%, portals 135%, hero two steps smaller), each scaled about its ground point, with the measured heights and ratios, what the roofs cover and the HUD clearances: `docs/art/size-options.png` and `docs/art/size-options.md` (`npm run size-options -w @tdt/client`). No page needs rendering again at any of them. Han picked column 3 with the creeps a step smaller: "V-08c" above.
 
 ### V-08b look: the tilted camera, three pitches (5 Nov 2026, options only; nothing in the game)
 

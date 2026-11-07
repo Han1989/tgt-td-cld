@@ -1,5 +1,6 @@
-// V-08c look: the sizes of the towers, the Heart, the portals and the heroes (docs/art/size-options.md). Dev only,
-// images only: nothing in the game changes.
+// V-08c: the sizes of the towers, the Heart, the portals and the heroes (docs/art/size-options.md). Dev only, images
+// only: nothing in the game changes. Made for the look (PR #167: today, 2 and 3), then run again on the build of Han's
+// pick, so column 1 is the game as it now is, 2 the look's middle step and 3 the game before V-08c.
 //
 //   npm run build:e2e -w @tdt/client
 //   npm run size-options -w @tdt/client [-- --out DIR] [--frames DIR]
@@ -9,17 +10,17 @@
 // round him (wave 13 has no Grunts). Every pad would kill a wave long before it reached him there, so the towers are
 // built once the pack is round him: every pad of the Spire's four columns, Arrow, Cannon, Frost, Arcane and Flak at
 // tiers 1-3 (PLAN), in three ticks, and the simulation paused (`__tdt.pause`). The same frame is then drawn three
-// times, at each column's sizes (OPTIONS):
+// times, at each column's sizes (OPTIONS, against V-07e's sizes, before V-08c):
 //
 // - the towers, the Heart and the portals scaled about their ground points: their roots (found in the Pixi stage
 //   through Pixi's own devtools hook, `__PIXI_APP_INIT__`, by their ground points) get a factor on whatever scale the
-//   renderer gives them each frame, so a tower is `factor` × today's drawn size (`towerScale` and its pad cap
-//   included);
-// - the hero through the e2e hook's `scales`, today's `entityScales` with HERO_BOOST in proportion to the column's
-//   (Han's numbers are V-04's 1.4; the game has V-07e's 1.75, so ×1.25 is 1.75 × 1.25 / 1.4).
+//   renderer gives them each frame, the column's over the game's own (`TOWER_SIZE`, `HEART_SCALE`, `PORTAL_SCALE`),
+//   so a tower is the column's share of V-07e's drawn size (`towerScale` and its pad cap included), and the portals
+//   stand the column's drop lower (`PORTAL_DROP` in the game);
+// - the hero and the creeps through the e2e hook's `scales`: `entityScales` with the column's boosts.
 //
 // The strip is composed from the match sheets (in a real frame the pack hides them): the Warden idle beside a Grunt and
-// a Brute, at the phone's scales in each column, and once more at column 3 with the creeps a step smaller (CREEP_3).
+// a Brute, at the phone's scales in each column.
 //
 // Writes docs/art/size-options.png (the sheet: three columns, 1, 2 and 3, each the 412 × 839 phone at 2× over the
 // 1280 × 720 desktop at 1×, the measured numbers under it, then the strip), docs/art/size-options/<n>.png (each
@@ -32,7 +33,19 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { preview } from 'vite';
-import { CREEP_BOOST, ENTITY_TILE_PX, FULL_BOOST_TILE_PX, HERO_BOOST, MAX_BASE_SCALE, MAX_TOWER_SCALE, PAD_HALF_PX } from '../src/render/entityScale';
+import {
+  CREEP_BOOST,
+  ENTITY_TILE_PX,
+  FULL_BOOST_TILE_PX,
+  HEART_SCALE,
+  HERO_BOOST,
+  MAX_BASE_SCALE,
+  MAX_TOWER_SCALE,
+  PAD_HALF_PX,
+  PORTAL_DROP,
+  PORTAL_SCALE,
+  TOWER_SIZE,
+} from '../src/render/entityScale';
 import { TOWER_REACH, TOWER_TOP, towerVariant } from '../src/render/art3d/structures';
 import { openHeld, type Device } from './heldMoment';
 
@@ -50,22 +63,19 @@ const framesDir = arg('frames') ? path(arg('frames')!) : null;
 if (framesDir) mkdirSync(framesDir, { recursive: true });
 const art3d = join(root, 'src', 'render', 'art3d');
 
-/** Han's three columns (7 Nov 2026). `hero` is his phone hero number (V-04's scale; today is 1.4 there). */
+/**
+ * The three columns, against V-07e's sizes (before V-08c): the towers', the Heart's and the portals' share of them, the
+ * portals' drop (tiles of view) and the phone boosts. Column 1 is the game as it is (Han's pick of 7 Nov 2026, column 3
+ * of the look with the creeps a step smaller), 2 the look's middle step, 3 the game before V-08c (the look's column 1).
+ */
 export const OPTIONS = [
-  { n: 1, tower: 1, heart: 1, portal: 1, hero: 1.4 },
-  { n: 2, tower: 0.85, heart: 1.15, portal: 1.2, hero: 1.25 },
-  { n: 3, tower: 0.75, heart: 1.3, portal: 1.35, hero: 1.1 },
+  { n: 1, tower: TOWER_SIZE, heart: HEART_SCALE, portal: PORTAL_SCALE, drop: PORTAL_DROP, hero: HERO_BOOST, creep: CREEP_BOOST },
+  { n: 2, tower: 0.85, heart: 1.15, portal: 1.2, drop: 0.27, hero: 1.5625, creep: 1.45 },
+  { n: 3, tower: 1, heart: 1, portal: 1, drop: 0, hero: 1.75, creep: 1.45 },
 ] as const;
 type Option = (typeof OPTIONS)[number];
-/** Han's numbers are V-04's (hero 1.4, creep 1.2); the game's are V-07e's. Each column keeps his ratio to today. */
-const HAN_HERO_TODAY = 1.4;
-const HAN_CREEP_TODAY = 1.2;
-/** The strip's extra cell: column 3 with the creeps at Han's "×1.1" too. */
-const CREEP_3 = 1.1;
 /** The Warden's row on the West lane, its lower stretch above the bend. */
 const HOLD_ROW = 20;
-const heroBoost = (o: Option) => (HERO_BOOST * o.hero) / HAN_HERO_TODAY;
-const creepBoost = (han: number) => (CREEP_BOOST * han) / HAN_CREEP_TODAY;
 
 /** entityScales (entityScale.ts) with other boosts: the same formula, so column 1 is the game's own. */
 function scalesFor(tilePx: number, hero: number, creep: number): { hero: number; creep: number; tower: number } {
@@ -188,11 +198,13 @@ interface Applied {
  * Draws the held frame at `o`'s sizes: the towers', the Heart's and the portals' roots get their factor about their
  * ground points, the hero (and the creeps) their scales. Returns each tower's drawn scale.
  */
-async function apply(p: Page, o: Option, tilePx: number, creepHan = HAN_CREEP_TODAY): Promise<Applied> {
-  const sc = scalesFor(tilePx, heroBoost(o), creepBoost(creepHan));
+async function apply(p: Page, o: Option, tilePx: number): Promise<Applied> {
+  const sc = scalesFor(tilePx, o.hero, o.creep);
+  // The column's sizes over the game's own: what the roots are drawn at already.
+  const k = { tower: o.tower / TOWER_SIZE, heart: o.heart / HEART_SCALE, portal: o.portal / PORTAL_SCALE, drop: o.drop - PORTAL_DROP };
   await p.evaluate((s) => (window as any).__tdt.scales(s), sc);
   const found = await p.evaluate(
-    ([k]) => {
+    ([k, drop]) => {
       const g = globalThis as any;
       const t = g.__tdt;
       const S = 32;
@@ -204,7 +216,7 @@ async function apply(p: Page, o: Option, tilePx: number, creepHan = HAN_CREEP_TO
       const targets: { what: 'tower' | 'heart' | 'portal'; x: number; y: number; tol: number }[] = [
         ...snap.towers.map((w: any) => ({ what: 'tower' as const, x: w.x * S, y: w.y * S * cos, tol: 0.5 })),
         { what: 'heart' as const, x: m.heart.x * S, y: m.heart.y * S * cos, tol: 6 },
-        ...m.lanes.map((l: any) => ({ what: 'portal' as const, x: l.waypoints[0].x * S, y: (l.waypoints[0].y + 1) * S * cos, tol: 0.5 })),
+        ...m.lanes.map((l: any) => ({ what: 'portal' as const, x: l.waypoints[0].x * S, y: (l.waypoints[0].y + 1) * S * cos + drop * S, tol: 0.5 })),
       ];
       const size = (c: any): number => 1 + (c.children ?? []).reduce((a: number, ch: any) => a + size(ch), 0);
       const all: any[] = [];
@@ -218,7 +230,8 @@ async function apply(p: Page, o: Option, tilePx: number, creepHan = HAN_CREEP_TO
         let best: any = null;
         for (const c of all) {
           if (!c.children?.length || !c.parent || c.parent.children.length < 10) continue;
-          if (Math.abs(c.x - tg.x) > tg.tol || Math.abs(c.y - tg.y) > tg.tol) continue;
+          // A portal an earlier column stood lower is found where the game stood it.
+          if (Math.abs(c.x - tg.x) > tg.tol || Math.abs((c.__sizeY ?? c.y) - tg.y) > tg.tol) continue;
           if (!best || size(c) > size(best)) best = c;
         }
         if (!best) continue;
@@ -233,15 +246,18 @@ async function apply(p: Page, o: Option, tilePx: number, creepHan = HAN_CREEP_TO
             return orig.call(this, x * best.__sizeK, y * best.__sizeK);
           };
           best.__sizeBase = pt.x;
+          best.__sizeY = best.y;
         }
         best.__sizeK = factor;
+        // A portal stands the column's drop lower than the game stands it (the Heart's root is placed every frame).
+        if (tg.what === 'portal') best.y = best.__sizeY + k.drop * S;
         // The renderer sets a tower's scale every frame; the Heart's and the portals' roots stay at 1.
         if (tg.what !== 'tower') best.scale.set(best.__sizeBase);
         best.__sizeWhat = tg.what;
       }
       return counts;
     },
-    [o] as const,
+    [k, PORTAL_DROP] as const,
   );
   await p.waitForTimeout(450);
   const towers = (await p.evaluate(() => {
@@ -513,9 +529,7 @@ try {
   const sheets = await measureSheets(browser);
   const phone = await heldDevice(browser, url, 'phone');
   const desktop = await heldDevice(browser, url, 'desktop');
-  const stripCells = [...OPTIONS.map((o) => ({ o, creep: HAN_CREEP_TODAY })), { o: OPTIONS[2], creep: CREEP_3 }].map(({ o, creep }) =>
-    scalesFor(phone.shots[0]!.info.tilePx, heroBoost(o), creepBoost(creep)),
-  );
+  const stripCells = OPTIONS.map((o) => scalesFor(phone.shots[0]!.info.tilePx, o.hero, o.creep));
   const strip = await composeStrip(browser, phone.shots[0]!.info.zoom, stripCells);
   if (framesDir) strip.forEach((b, i) => writeFileSync(join(framesDir, `strip-${i + 1}.png`), b));
 
@@ -523,7 +537,7 @@ try {
   const measures = OPTIONS.map((o, i) => {
     const shot = phone.shots[i]!;
     const { zoom, cos, tilePx, barBottom, zoomButton } = shot.info;
-    const sc = scalesFor(tilePx, heroBoost(o), creepBoost(HAN_CREEP_TODAY));
+    const sc = scalesFor(tilePx, o.hero, o.creep);
     const towerAt = (kind: string, variant: string) => {
       const reach = TOWER_REACH[kind as keyof typeof TOWER_REACH][variant]!;
       return Math.min(sc.tower, PAD_HALF_PX / reach) * o.tower;
@@ -555,7 +569,7 @@ try {
       const underButton = zoomButton && x + half > zoomButton.left && x - half < zoomButton.right ? +(zoomButton.bottom - roof).toFixed(1) : null;
       return { kind: t.kind, tier: t.tier, roofY: +roof.toFixed(1), clearsBar: +(roof - barBottom).toFixed(1), underButton, x: +x.toFixed(1) };
     });
-    const portalTop = toScreenY(1.5 * 32 * cos - portal.up * o.portal);
+    const portalTop = toScreenY((1.5 * cos + o.drop) * 32 - portal.up * o.portal);
     const crisp = (s: number) => ({
       fit: { pixel7: +(zoom * 2.625 * s).toFixed(2), x3: +(zoom * 3 * s).toFixed(2) },
       pinch: { pixel7: +(zoom * 1.8 * 2.625 * s).toFixed(2), x3: +(zoom * 1.8 * 3 * s).toFixed(2) },
@@ -563,7 +577,7 @@ try {
     return {
       n: o.n,
       asked: o,
-      boosts: { hero: +heroBoost(o).toFixed(4), creep: CREEP_BOOST },
+      boosts: { hero: o.hero, creep: o.creep },
       scales: { hero: +sc.hero.toFixed(3), creep: +sc.creep.toFixed(3), towerLayout: +sc.tower.toFixed(3) },
       phone: { zoom: +zoom.toFixed(4), tilePx: +tilePx.toFixed(2), barBottom, zoomButton },
       towers,
@@ -575,7 +589,7 @@ try {
       creeps: Object.fromEntries(
         ['grunt', 'brute', 'runner'].map((k) => {
           const c = sheets[`${k}/idle`]!;
-          return [k, { px: +((c.up + c.down) * sc.creep * zoom).toFixed(1), px3: +((c.up + c.down) * scalesFor(tilePx, heroBoost(o), creepBoost(CREEP_3)).creep * zoom).toFixed(1) }];
+          return [k, { px: +((c.up + c.down) * sc.creep * zoom).toFixed(1) }];
         }),
       ),
       topRow,
@@ -621,7 +635,7 @@ try {
     (o, i) => `<section><h1>${o.n}</h1><img class="phone" src="${b64(phone.shots[i]!.png)}" width="824" height="1678">
       <img class="desk" src="${b64(desktop.shots[i]!.png)}" width="1280" height="720">${table(measures[i]!)}</section>`,
   );
-  const stripLabels = ['1', '2', '3', '3 · creeps a step smaller'];
+  const stripLabels = ['1', '2', '3'];
   // Each cell is drawn at the phone's own 2× pixels and shown here 2.25× larger, so the figures read on the sheet.
   const stripHtml = strip.map((s, i) => `<figure><img src="${b64(s)}" width="720" height="450"><figcaption>${stripLabels[i]}</figcaption></figure>`);
   const page = await (await browser.newContext({ viewport: { width: colW * 3 + gap * 4, height: 1000 }, deviceScaleFactor: 1 })).newPage();

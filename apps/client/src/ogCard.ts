@@ -24,7 +24,7 @@ import {
 } from './render/art3d';
 import { PORTAL_FLARE, PORTAL_OPENING } from './render/art3d/buildings';
 import { towerReach } from './render/art3d/structures';
-import { towerScale } from './render/entityScale';
+import { HEART_SCALE, PORTAL_SCALE, towerScale } from './render/entityScale';
 import { createFxAtlas, DISC_PX } from './render/fx/atlas';
 import { COLORS, FX, mixColor, PLAYER_COLORS } from './render/palette';
 import { CARD_MAP, HEART } from './ogMap';
@@ -249,6 +249,8 @@ export async function runOgCard(): Promise<void> {
       swirl.scale.set(PORTAL_OPENING);
       arch.addChild(core, swirl, ...(flare ? [flare] : []));
       c.addChild(gate.root, arch);
+      // As large as a match draws it (V-08c).
+      c.scale.set(PORTAL_SCALE);
       standing.push({ y: p.y + 1, view: c });
     } else {
       // The 2D portal is a ring on the ground: an ellipse through the tilted camera.
@@ -265,6 +267,8 @@ export async function runOgCard(): Promise<void> {
   glow(HEART.x, HEART.y - 0.3, 1.5, FX.ember, 0.35);
   const h = new Container();
   h.position.set(HEART.x * S, Y(HEART.y));
+  // As large as a match draws it (V-08c).
+  h.scale.set(HEART_SCALE);
   const keep = heartView3d();
   if (keep) {
     keep.setStage(0);

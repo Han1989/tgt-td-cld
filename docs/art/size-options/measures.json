@@ -62,10 +62,536 @@
       "n": 1,
       "asked": {
         "n": 1,
+        "tower": 0.75,
+        "heart": 1.3,
+        "portal": 1.35,
+        "drop": 0.47,
+        "hero": 1.375,
+        "creep": 1.329
+      },
+      "boosts": {
+        "hero": 1.375,
+        "creep": 1.329
+      },
+      "scales": {
+        "hero": 2.169,
+        "creep": 2.097,
+        "towerLayout": 1.3
+      },
+      "phone": {
+        "zoom": 0.4952,
+        "tilePx": 15.85,
+        "barBottom": 44,
+        "zoomButton": {
+          "top": 46,
+          "bottom": 90,
+          "left": 364,
+          "right": 408
+        }
+      },
+      "towers": [
+        {
+          "kind": "arrow",
+          "variant": "1",
+          "scale": 0.975,
+          "roofTiles": 2.13,
+          "roofPx": 33.8,
+          "tallPx": 42.9,
+          "widthOfPad": 0.52,
+          "widthPx": 24.9,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "arrow",
+          "variant": "3",
+          "scale": 0.975,
+          "roofTiles": 2.38,
+          "roofPx": 37.7,
+          "tallPx": 47.7,
+          "widthOfPad": 0.59,
+          "widthPx": 28.1,
+          "overBehindPad": 0.24,
+          "overBehindShare": 0.08
+        },
+        {
+          "kind": "cannon",
+          "variant": "1",
+          "scale": 0.975,
+          "roofTiles": 1.9,
+          "roofPx": 30.2,
+          "tallPx": 45.1,
+          "widthOfPad": 0.72,
+          "widthPx": 34.4,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "cannon",
+          "variant": "3",
+          "scale": 0.911,
+          "roofTiles": 1.97,
+          "roofPx": 31.1,
+          "tallPx": 46.6,
+          "widthOfPad": 0.75,
+          "widthPx": 35.5,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "frost",
+          "variant": "1",
+          "scale": 0.975,
+          "roofTiles": 1.87,
+          "roofPx": 29.7,
+          "tallPx": 41.5,
+          "widthOfPad": 0.57,
+          "widthPx": 27,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "frost",
+          "variant": "3",
+          "scale": 0.975,
+          "roofTiles": 2.07,
+          "roofPx": 32.8,
+          "tallPx": 46.2,
+          "widthOfPad": 0.67,
+          "widthPx": 32,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "arcane",
+          "variant": "1",
+          "scale": 0.975,
+          "roofTiles": 1.63,
+          "roofPx": 25.8,
+          "tallPx": 36.4,
+          "widthOfPad": 0.61,
+          "widthPx": 29.2,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "arcane",
+          "variant": "3",
+          "scale": 0.975,
+          "roofTiles": 1.83,
+          "roofPx": 29,
+          "tallPx": 40.7,
+          "widthOfPad": 0.69,
+          "widthPx": 32.6,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "flak",
+          "variant": "1",
+          "scale": 0.975,
+          "roofTiles": 1.42,
+          "roofPx": 22.5,
+          "tallPx": 34.4,
+          "widthOfPad": 0.61,
+          "widthPx": 29.2,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "flak",
+          "variant": "3",
+          "scale": 0.975,
+          "roofTiles": 1.58,
+          "roofPx": 25.1,
+          "tallPx": 38.6,
+          "widthOfPad": 0.69,
+          "widthPx": 32.6,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        }
+      ],
+      "tier1": {
+        "roofTiles": 1.79,
+        "roofPx": 28.4,
+        "widthOfPad": 0.61,
+        "tallPx": 40.1
+      },
+      "tier3": {
+        "roofTiles": 1.97,
+        "roofPx": 31.1,
+        "widthOfPad": 0.68,
+        "tallPx": 44
+      },
+      "heart": {
+        "px": 70.5,
+        "tiles": 4.45,
+        "widthPx": 54.8
+      },
+      "portal": {
+        "px": 43,
+        "tiles": 2.72,
+        "widthPx": 69.5,
+        "topY": 44.1,
+        "clearsBar": 0.1
+      },
+      "warden": {
+        "px": 34.9,
+        "tiles": 2.2
+      },
+      "creeps": {
+        "grunt": {
+          "px": 30.6
+        },
+        "brute": {
+          "px": 34.5
+        },
+        "runner": {
+          "px": 39.5
+        }
+      },
+      "topRow": [
+        {
+          "kind": "arrow",
+          "tier": 3,
+          "roofY": 81.8,
+          "clearsBar": 37.8,
+          "underButton": null,
+          "x": 39.6
+        },
+        {
+          "kind": "cannon",
+          "tier": 3,
+          "roofY": 88.3,
+          "clearsBar": 44.3,
+          "underButton": null,
+          "x": 150.5
+        },
+        {
+          "kind": "arcane",
+          "tier": 3,
+          "roofY": 90.5,
+          "clearsBar": 46.5,
+          "underButton": null,
+          "x": 261.5
+        },
+        {
+          "kind": "frost",
+          "tier": 3,
+          "roofY": 86.6,
+          "clearsBar": 42.6,
+          "underButton": 3.4,
+          "x": 372.4
+        }
+      ],
+      "crisp": {
+        "tier1Arrow": {
+          "fit": {
+            "pixel7": 1.27,
+            "x3": 1.45
+          },
+          "pinch": {
+            "pixel7": 2.28,
+            "x3": 2.61
+          }
+        },
+        "tier3Cannon": {
+          "fit": {
+            "pixel7": 1.18,
+            "x3": 1.35
+          },
+          "pinch": {
+            "pixel7": 2.13,
+            "x3": 2.44
+          }
+        },
+        "page": 2.75
+      },
+      "ratio": {
+        "tower": 1.2,
+        "heart": 2.02,
+        "portal": 1.23,
+        "hero": 1,
+        "perHero": [
+          1.2,
+          2.02,
+          1.23,
+          1
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "asked": {
+        "n": 2,
+        "tower": 0.85,
+        "heart": 1.15,
+        "portal": 1.2,
+        "drop": 0.27,
+        "hero": 1.5625,
+        "creep": 1.45
+      },
+      "boosts": {
+        "hero": 1.5625,
+        "creep": 1.45
+      },
+      "scales": {
+        "hero": 2.465,
+        "creep": 2.288,
+        "towerLayout": 1.3
+      },
+      "phone": {
+        "zoom": 0.4952,
+        "tilePx": 15.85,
+        "barBottom": 44,
+        "zoomButton": {
+          "top": 46,
+          "bottom": 90,
+          "left": 364,
+          "right": 408
+        }
+      },
+      "towers": [
+        {
+          "kind": "arrow",
+          "variant": "1",
+          "scale": 1.105,
+          "roofTiles": 2.42,
+          "roofPx": 38.3,
+          "tallPx": 48.6,
+          "widthOfPad": 0.59,
+          "widthPx": 28.2,
+          "overBehindPad": 0.29,
+          "overBehindShare": 0.1
+        },
+        {
+          "kind": "arrow",
+          "variant": "3",
+          "scale": 1.105,
+          "roofTiles": 2.69,
+          "roofPx": 42.7,
+          "tallPx": 54,
+          "widthOfPad": 0.67,
+          "widthPx": 31.8,
+          "overBehindPad": 0.61,
+          "overBehindShare": 0.2
+        },
+        {
+          "kind": "cannon",
+          "variant": "1",
+          "scale": 1.105,
+          "roofTiles": 2.16,
+          "roofPx": 34.2,
+          "tallPx": 51.1,
+          "widthOfPad": 0.82,
+          "widthPx": 39,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "cannon",
+          "variant": "3",
+          "scale": 1.033,
+          "roofTiles": 2.23,
+          "roofPx": 35.3,
+          "tallPx": 52.8,
+          "widthOfPad": 0.85,
+          "widthPx": 40.2,
+          "overBehindPad": 0.07,
+          "overBehindShare": 0.02
+        },
+        {
+          "kind": "frost",
+          "variant": "1",
+          "scale": 1.105,
+          "roofTiles": 2.12,
+          "roofPx": 33.7,
+          "tallPx": 47,
+          "widthOfPad": 0.64,
+          "widthPx": 30.6,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "frost",
+          "variant": "3",
+          "scale": 1.105,
+          "roofTiles": 2.35,
+          "roofPx": 37.2,
+          "tallPx": 52.3,
+          "widthOfPad": 0.76,
+          "widthPx": 36.2,
+          "overBehindPad": 0.21,
+          "overBehindShare": 0.07
+        },
+        {
+          "kind": "arcane",
+          "variant": "1",
+          "scale": 1.105,
+          "roofTiles": 1.85,
+          "roofPx": 29.3,
+          "tallPx": 41.2,
+          "widthOfPad": 0.7,
+          "widthPx": 33.1,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "arcane",
+          "variant": "3",
+          "scale": 1.105,
+          "roofTiles": 2.07,
+          "roofPx": 32.8,
+          "tallPx": 46.2,
+          "widthOfPad": 0.78,
+          "widthPx": 37,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "flak",
+          "variant": "1",
+          "scale": 1.105,
+          "roofTiles": 1.61,
+          "roofPx": 25.4,
+          "tallPx": 39,
+          "widthOfPad": 0.7,
+          "widthPx": 33.1,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        },
+        {
+          "kind": "flak",
+          "variant": "3",
+          "scale": 1.105,
+          "roofTiles": 1.8,
+          "roofPx": 28.5,
+          "tallPx": 43.8,
+          "widthOfPad": 0.78,
+          "widthPx": 37,
+          "overBehindPad": 0,
+          "overBehindShare": 0
+        }
+      ],
+      "tier1": {
+        "roofTiles": 2.03,
+        "roofPx": 32.2,
+        "widthOfPad": 0.69,
+        "tallPx": 45.4
+      },
+      "tier3": {
+        "roofTiles": 2.23,
+        "roofPx": 35.3,
+        "widthOfPad": 0.77,
+        "tallPx": 49.8
+      },
+      "heart": {
+        "px": 62.3,
+        "tiles": 3.93,
+        "widthPx": 48.5
+      },
+      "portal": {
+        "px": 38.2,
+        "tiles": 2.41,
+        "widthPx": 61.8,
+        "topY": 44,
+        "clearsBar": 0
+      },
+      "warden": {
+        "px": 39.7,
+        "tiles": 2.5
+      },
+      "creeps": {
+        "grunt": {
+          "px": 33.4
+        },
+        "brute": {
+          "px": 37.7
+        },
+        "runner": {
+          "px": 43
+        }
+      },
+      "topRow": [
+        {
+          "kind": "arrow",
+          "tier": 3,
+          "roofY": 76.8,
+          "clearsBar": 32.8,
+          "underButton": null,
+          "x": 39.6
+        },
+        {
+          "kind": "cannon",
+          "tier": 3,
+          "roofY": 84.2,
+          "clearsBar": 40.2,
+          "underButton": null,
+          "x": 150.5
+        },
+        {
+          "kind": "arcane",
+          "tier": 3,
+          "roofY": 86.6,
+          "clearsBar": 42.6,
+          "underButton": null,
+          "x": 261.5
+        },
+        {
+          "kind": "frost",
+          "tier": 3,
+          "roofY": 82.3,
+          "clearsBar": 38.3,
+          "underButton": 7.7,
+          "x": 372.4
+        }
+      ],
+      "crisp": {
+        "tier1Arrow": {
+          "fit": {
+            "pixel7": 1.44,
+            "x3": 1.64
+          },
+          "pinch": {
+            "pixel7": 2.59,
+            "x3": 2.95
+          }
+        },
+        "tier3Cannon": {
+          "fit": {
+            "pixel7": 1.34,
+            "x3": 1.53
+          },
+          "pinch": {
+            "pixel7": 2.42,
+            "x3": 2.76
+          }
+        },
+        "page": 2.75
+      },
+      "ratio": {
+        "tower": 1.36,
+        "heart": 1.79,
+        "portal": 1.09,
+        "hero": 1.14,
+        "perHero": [
+          1.2,
+          1.57,
+          0.96,
+          1
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "asked": {
+        "n": 3,
         "tower": 1,
         "heart": 1,
         "portal": 1,
-        "hero": 1.4
+        "drop": 0,
+        "hero": 1.75,
+        "creep": 1.45
       },
       "boosts": {
         "hero": 1.75,
@@ -239,16 +765,13 @@
       },
       "creeps": {
         "grunt": {
-          "px": 33.4,
-          "px3": 30.6
+          "px": 33.4
         },
         "brute": {
-          "px": 37.7,
-          "px3": 34.5
+          "px": 37.7
         },
         "runner": {
-          "px": 43,
-          "px3": 39.5
+          "px": 43
         }
       },
       "topRow": [
@@ -309,540 +832,14 @@
         "page": 2.75
       },
       "ratio": {
-        "tower": 1.26,
-        "heart": 1.22,
-        "portal": 0.72,
-        "hero": 1,
+        "tower": 1.6,
+        "heart": 1.55,
+        "portal": 0.91,
+        "hero": 1.27,
         "perHero": [
           1.26,
           1.22,
           0.72,
-          1
-        ]
-      }
-    },
-    {
-      "n": 2,
-      "asked": {
-        "n": 2,
-        "tower": 0.85,
-        "heart": 1.15,
-        "portal": 1.2,
-        "hero": 1.25
-      },
-      "boosts": {
-        "hero": 1.5625,
-        "creep": 1.45
-      },
-      "scales": {
-        "hero": 2.465,
-        "creep": 2.288,
-        "towerLayout": 1.3
-      },
-      "phone": {
-        "zoom": 0.4952,
-        "tilePx": 15.85,
-        "barBottom": 44,
-        "zoomButton": {
-          "top": 46,
-          "bottom": 90,
-          "left": 364,
-          "right": 408
-        }
-      },
-      "towers": [
-        {
-          "kind": "arrow",
-          "variant": "1",
-          "scale": 1.105,
-          "roofTiles": 2.42,
-          "roofPx": 38.3,
-          "tallPx": 48.6,
-          "widthOfPad": 0.59,
-          "widthPx": 28.2,
-          "overBehindPad": 0.29,
-          "overBehindShare": 0.1
-        },
-        {
-          "kind": "arrow",
-          "variant": "3",
-          "scale": 1.105,
-          "roofTiles": 2.69,
-          "roofPx": 42.7,
-          "tallPx": 54,
-          "widthOfPad": 0.67,
-          "widthPx": 31.8,
-          "overBehindPad": 0.61,
-          "overBehindShare": 0.2
-        },
-        {
-          "kind": "cannon",
-          "variant": "1",
-          "scale": 1.105,
-          "roofTiles": 2.16,
-          "roofPx": 34.2,
-          "tallPx": 51.1,
-          "widthOfPad": 0.82,
-          "widthPx": 39,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "cannon",
-          "variant": "3",
-          "scale": 1.033,
-          "roofTiles": 2.23,
-          "roofPx": 35.3,
-          "tallPx": 52.8,
-          "widthOfPad": 0.85,
-          "widthPx": 40.2,
-          "overBehindPad": 0.07,
-          "overBehindShare": 0.02
-        },
-        {
-          "kind": "frost",
-          "variant": "1",
-          "scale": 1.105,
-          "roofTiles": 2.12,
-          "roofPx": 33.7,
-          "tallPx": 47,
-          "widthOfPad": 0.64,
-          "widthPx": 30.6,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "frost",
-          "variant": "3",
-          "scale": 1.105,
-          "roofTiles": 2.35,
-          "roofPx": 37.2,
-          "tallPx": 52.3,
-          "widthOfPad": 0.76,
-          "widthPx": 36.2,
-          "overBehindPad": 0.21,
-          "overBehindShare": 0.07
-        },
-        {
-          "kind": "arcane",
-          "variant": "1",
-          "scale": 1.105,
-          "roofTiles": 1.85,
-          "roofPx": 29.3,
-          "tallPx": 41.2,
-          "widthOfPad": 0.7,
-          "widthPx": 33.1,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "arcane",
-          "variant": "3",
-          "scale": 1.105,
-          "roofTiles": 2.07,
-          "roofPx": 32.8,
-          "tallPx": 46.2,
-          "widthOfPad": 0.78,
-          "widthPx": 37,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "flak",
-          "variant": "1",
-          "scale": 1.105,
-          "roofTiles": 1.61,
-          "roofPx": 25.4,
-          "tallPx": 39,
-          "widthOfPad": 0.7,
-          "widthPx": 33.1,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "flak",
-          "variant": "3",
-          "scale": 1.105,
-          "roofTiles": 1.8,
-          "roofPx": 28.5,
-          "tallPx": 43.8,
-          "widthOfPad": 0.78,
-          "widthPx": 37,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        }
-      ],
-      "tier1": {
-        "roofTiles": 2.03,
-        "roofPx": 32.2,
-        "widthOfPad": 0.69,
-        "tallPx": 45.4
-      },
-      "tier3": {
-        "roofTiles": 2.23,
-        "roofPx": 35.3,
-        "widthOfPad": 0.77,
-        "tallPx": 49.8
-      },
-      "heart": {
-        "px": 62.3,
-        "tiles": 3.93,
-        "widthPx": 48.5
-      },
-      "portal": {
-        "px": 38.2,
-        "tiles": 2.41,
-        "widthPx": 61.8,
-        "topY": 39.7,
-        "clearsBar": -4.3
-      },
-      "warden": {
-        "px": 39.7,
-        "tiles": 2.5
-      },
-      "creeps": {
-        "grunt": {
-          "px": 33.4,
-          "px3": 30.6
-        },
-        "brute": {
-          "px": 37.7,
-          "px3": 34.5
-        },
-        "runner": {
-          "px": 43,
-          "px3": 39.5
-        }
-      },
-      "topRow": [
-        {
-          "kind": "arrow",
-          "tier": 3,
-          "roofY": 76.8,
-          "clearsBar": 32.8,
-          "underButton": null,
-          "x": 39.6
-        },
-        {
-          "kind": "cannon",
-          "tier": 3,
-          "roofY": 84.2,
-          "clearsBar": 40.2,
-          "underButton": null,
-          "x": 150.5
-        },
-        {
-          "kind": "arcane",
-          "tier": 3,
-          "roofY": 86.6,
-          "clearsBar": 42.6,
-          "underButton": null,
-          "x": 261.5
-        },
-        {
-          "kind": "frost",
-          "tier": 3,
-          "roofY": 82.3,
-          "clearsBar": 38.3,
-          "underButton": 7.7,
-          "x": 372.4
-        }
-      ],
-      "crisp": {
-        "tier1Arrow": {
-          "fit": {
-            "pixel7": 1.44,
-            "x3": 1.64
-          },
-          "pinch": {
-            "pixel7": 2.59,
-            "x3": 2.95
-          }
-        },
-        "tier3Cannon": {
-          "fit": {
-            "pixel7": 1.34,
-            "x3": 1.53
-          },
-          "pinch": {
-            "pixel7": 2.42,
-            "x3": 2.76
-          }
-        },
-        "page": 2.75
-      },
-      "ratio": {
-        "tower": 1.07,
-        "heart": 1.4,
-        "portal": 0.86,
-        "hero": 0.89,
-        "perHero": [
-          1.2,
-          1.57,
-          0.96,
-          1
-        ]
-      }
-    },
-    {
-      "n": 3,
-      "asked": {
-        "n": 3,
-        "tower": 0.75,
-        "heart": 1.3,
-        "portal": 1.35,
-        "hero": 1.1
-      },
-      "boosts": {
-        "hero": 1.375,
-        "creep": 1.45
-      },
-      "scales": {
-        "hero": 2.169,
-        "creep": 2.288,
-        "towerLayout": 1.3
-      },
-      "phone": {
-        "zoom": 0.4952,
-        "tilePx": 15.85,
-        "barBottom": 44,
-        "zoomButton": {
-          "top": 46,
-          "bottom": 90,
-          "left": 364,
-          "right": 408
-        }
-      },
-      "towers": [
-        {
-          "kind": "arrow",
-          "variant": "1",
-          "scale": 0.975,
-          "roofTiles": 2.13,
-          "roofPx": 33.8,
-          "tallPx": 42.9,
-          "widthOfPad": 0.52,
-          "widthPx": 24.9,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "arrow",
-          "variant": "3",
-          "scale": 0.975,
-          "roofTiles": 2.38,
-          "roofPx": 37.7,
-          "tallPx": 47.7,
-          "widthOfPad": 0.59,
-          "widthPx": 28.1,
-          "overBehindPad": 0.24,
-          "overBehindShare": 0.08
-        },
-        {
-          "kind": "cannon",
-          "variant": "1",
-          "scale": 0.975,
-          "roofTiles": 1.9,
-          "roofPx": 30.2,
-          "tallPx": 45.1,
-          "widthOfPad": 0.72,
-          "widthPx": 34.4,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "cannon",
-          "variant": "3",
-          "scale": 0.911,
-          "roofTiles": 1.97,
-          "roofPx": 31.1,
-          "tallPx": 46.6,
-          "widthOfPad": 0.75,
-          "widthPx": 35.5,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "frost",
-          "variant": "1",
-          "scale": 0.975,
-          "roofTiles": 1.87,
-          "roofPx": 29.7,
-          "tallPx": 41.5,
-          "widthOfPad": 0.57,
-          "widthPx": 27,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "frost",
-          "variant": "3",
-          "scale": 0.975,
-          "roofTiles": 2.07,
-          "roofPx": 32.8,
-          "tallPx": 46.2,
-          "widthOfPad": 0.67,
-          "widthPx": 32,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "arcane",
-          "variant": "1",
-          "scale": 0.975,
-          "roofTiles": 1.63,
-          "roofPx": 25.8,
-          "tallPx": 36.4,
-          "widthOfPad": 0.61,
-          "widthPx": 29.2,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "arcane",
-          "variant": "3",
-          "scale": 0.975,
-          "roofTiles": 1.83,
-          "roofPx": 29,
-          "tallPx": 40.7,
-          "widthOfPad": 0.69,
-          "widthPx": 32.6,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "flak",
-          "variant": "1",
-          "scale": 0.975,
-          "roofTiles": 1.42,
-          "roofPx": 22.5,
-          "tallPx": 34.4,
-          "widthOfPad": 0.61,
-          "widthPx": 29.2,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        },
-        {
-          "kind": "flak",
-          "variant": "3",
-          "scale": 0.975,
-          "roofTiles": 1.58,
-          "roofPx": 25.1,
-          "tallPx": 38.6,
-          "widthOfPad": 0.69,
-          "widthPx": 32.6,
-          "overBehindPad": 0,
-          "overBehindShare": 0
-        }
-      ],
-      "tier1": {
-        "roofTiles": 1.79,
-        "roofPx": 28.4,
-        "widthOfPad": 0.61,
-        "tallPx": 40.1
-      },
-      "tier3": {
-        "roofTiles": 1.97,
-        "roofPx": 31.1,
-        "widthOfPad": 0.68,
-        "tallPx": 44
-      },
-      "heart": {
-        "px": 70.5,
-        "tiles": 4.45,
-        "widthPx": 54.8
-      },
-      "portal": {
-        "px": 43,
-        "tiles": 2.72,
-        "widthPx": 69.5,
-        "topY": 36.6,
-        "clearsBar": -7.4
-      },
-      "warden": {
-        "px": 34.9,
-        "tiles": 2.2
-      },
-      "creeps": {
-        "grunt": {
-          "px": 33.4,
-          "px3": 30.6
-        },
-        "brute": {
-          "px": 37.7,
-          "px3": 34.5
-        },
-        "runner": {
-          "px": 43,
-          "px3": 39.5
-        }
-      },
-      "topRow": [
-        {
-          "kind": "arrow",
-          "tier": 3,
-          "roofY": 81.8,
-          "clearsBar": 37.8,
-          "underButton": null,
-          "x": 39.6
-        },
-        {
-          "kind": "cannon",
-          "tier": 3,
-          "roofY": 88.3,
-          "clearsBar": 44.3,
-          "underButton": null,
-          "x": 150.5
-        },
-        {
-          "kind": "arcane",
-          "tier": 3,
-          "roofY": 90.5,
-          "clearsBar": 46.5,
-          "underButton": null,
-          "x": 261.5
-        },
-        {
-          "kind": "frost",
-          "tier": 3,
-          "roofY": 86.6,
-          "clearsBar": 42.6,
-          "underButton": 3.4,
-          "x": 372.4
-        }
-      ],
-      "crisp": {
-        "tier1Arrow": {
-          "fit": {
-            "pixel7": 1.27,
-            "x3": 1.45
-          },
-          "pinch": {
-            "pixel7": 2.28,
-            "x3": 2.61
-          }
-        },
-        "tier3Cannon": {
-          "fit": {
-            "pixel7": 1.18,
-            "x3": 1.35
-          },
-          "pinch": {
-            "pixel7": 2.13,
-            "x3": 2.44
-          }
-        },
-        "page": 2.75
-      },
-      "ratio": {
-        "tower": 0.95,
-        "heart": 1.59,
-        "portal": 0.97,
-        "hero": 0.79,
-        "perHero": [
-          1.2,
-          2.02,
-          1.23,
           1
         ]
       }

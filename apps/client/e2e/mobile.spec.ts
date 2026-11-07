@@ -1277,9 +1277,9 @@ test.describe('the tilted camera (V-08b)', () => {
       await expect.poll(() => page.evaluate(() => window.__tdt.art().tower3d)).toBe(1);
       // At rest a turret faces up the map: its heading 6 (ground −90°, the client's y down).
       expect((await page.evaluate(() => window.__tdt.art())).turretHeadings).toContain(6);
-      // Rendered at 30°, the tower's roof stands well over the ground behind its pad (build 2: about two tiles); a tap
-      // there is the tower.
-      if (pitch === 30) expect(tower.rise ?? 0).toBeGreaterThan(l.rowPx);
+      // Rendered at 30°, the tower's roof stands over the ground behind its pad (build 2: about two tiles; V-08c, drawn
+      // at 75%, the tier-1 Arrow's about one row); a tap there is the tower.
+      if (pitch === 30) expect(tower.rise ?? 0).toBeGreaterThan(0.8 * l.rowPx);
       const roofY = tower.at.y - (tower.halfY ?? tower.half) - (tower.rise ?? 0) + 2;
       expect(await page.evaluate(([x, y]) => window.__tdt.tapAt(x, y), [tower.at.x, roofY] as const)).toMatchObject({ type: 'pick', pick: { kind: 'tower', id: tower.id } });
       await page.touchscreen.tap(tower.at.x, roofY);

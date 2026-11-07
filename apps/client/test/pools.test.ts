@@ -13,6 +13,7 @@ import {
   poolAlpha,
   poolFadeIn,
   POOLS,
+  poolRadius,
   poolShare,
   poolTexels,
   portalPoolLevel,
@@ -20,6 +21,7 @@ import {
   type PoolKind,
 } from '../src/render/fx/pools';
 import { JUICE } from '../src/render/fx/juice';
+import { HEART_SCALE, PORTAL_SCALE } from '../src/render/entityScale';
 import { FX } from '../src/render/palette';
 import { RL } from '../src/render/art/tokens';
 
@@ -39,6 +41,12 @@ describe('light pools', () => {
     });
     expect(POOL_STRENGTH).toBe(1.3);
     expect([FX.poolHeart, FX.poolPortal, FX.poolRune]).toEqual([RL.heart, RL.portal, RL.rune]);
+  });
+
+  it('grow with the Heart and the portals they light (V-08c), a tower’s keeps its size', () => {
+    expect(poolRadius('heart')).toBeCloseTo(3.4 * HEART_SCALE, 9);
+    expect(poolRadius('portal')).toBeCloseTo(2.6 * PORTAL_SCALE, 9);
+    expect(poolRadius('tower')).toBe(2.4);
   });
 
   it('are a tint at half the alpha under a glow at 0.7 of it, in one quad', () => {
