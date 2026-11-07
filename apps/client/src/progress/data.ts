@@ -43,6 +43,7 @@
  * V-08b-2 on 6 Nov 2026 (PR #163: the tilted camera, build 2 of 4, the plate and the structures at 30°, the turrets at eight headings).
  * V-08b-3 on 6 Nov 2026 (PR #164: the tilted camera, build 3 of 4, the effects, the weather and the fallbacks on the pitched ground).
  * V-08b-4 on 7 Nov 2026 (PR #165: the tilted camera, build 4 of 4, the budget, the phone checklist and the five-second test).
+ * V-08b-load on 7 Nov 2026 (PR #166: every sheet in before a match, behind a real loading bar; protocol 25).
  * t-iphone-flake on 6 Nov 2026 (PR #162: the iPhone shard that flaked; the camera and the build ring no longer reset on a settings write).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
@@ -591,6 +592,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'No game rules, server or protocol change. The last of four builds for the camera Han picked, tilted 30° from straight down: the camera is done. The busiest test scene (300 creeps, every tower firing, rain at night) still runs well inside its time budget with the whole camera on. On a slow phone line the towers’ new pictures (about 7 MB) take most of a minute on a first visit, so the game no longer downloads them twice: the offline copy now keeps them once a match has loaded them, as it already did for the creeps and heroes. The itch.io download was checked against the sites’ limits (27.7 MB, far under them). The phone checklist now covers the camera (tapping a tower’s roof, the menus, the zoom button, pinching the tilted map, the dark strip under it) and starts with a first look for someone who has never seen the game. For the testers there is one picture with the same moment of a match before and after the camera, marked only “1” and “2”, and one question: which one would you download?',
     proof: pr(165),
+  },
+  {
+    id: 'V-08b-load',
+    title: 'Every picture in before a match, behind a real loading bar',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Han’s rule: no stand-in art on screen, ever; the game waits like any game does. All the game’s pictures (the map, the towers, every creep and boss, the heroes) start downloading the moment the home card is up, so time spent there counts. Play solo waits until every one is in and ready to draw, with no time limit: if that takes more than a moment, a full card shows your hero, a bar that moves with the download and nothing else (“Loading the towers… 3.1 of 10.7 MB”) and a tip about one of your skills, with Back. The match then looks finished from its very first frame: no flat towers turning 3D mid-wave. A download that fails is tried three times, then the card says so with a Retry button. With friends, everyone’s seat shows how far their download is, Ready waits for your own, and the host can start only once everyone is at 100%. The towers’ pictures are kept for offline play again, so a second visit or the installed app starts at once.',
+    proof: pr(166),
   },
   {
     id: 't-iphone-flake',
@@ -1438,7 +1448,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 24,
+  protocol: 25,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

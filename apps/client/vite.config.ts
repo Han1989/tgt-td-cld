@@ -146,6 +146,53 @@ function soundFiles(): Plugin {
   };
 }
 
+/**
+ * `virtual:tdt-art-bytes` (V-08b load-all): each picture a match waits for (artLoad/rules.ts `SheetId`) and its bytes,
+ * read from the files when the app is built or the dev server starts, so the loading bar has its whole total from its
+ * first frame ("3.1 of 7.9 MB"), before a download has said its length.
+ */
+function artBytes(): Plugin {
+  const ID = 'virtual:tdt-art-bytes';
+  const RESOLVED = `\0${ID}`;
+  let root = '';
+  let publicDir = '';
+  return {
+    name: 'tdt-art-bytes',
+    configResolved(config) {
+      root = config.root;
+      publicDir = config.publicDir;
+    },
+    resolveId(id) {
+      return id === ID ? RESOLVED : null;
+    },
+    load(id) {
+      if (id !== RESOLVED) return null;
+      return `export default ${JSON.stringify(sheetBytes(join(root, 'src/render/art3d'), publicDir))};`;
+    },
+  };
+}
+
+/** Each match picture's bytes on disk (the plate, the HUD's frames, the structures' pages together, each creep and hero). */
+function sheetBytes(art3d: string, publicDir: string): Record<string, number> {
+  const size = (p: string) => {
+    try {
+      return statSync(p).size;
+    } catch {
+      return 0;
+    }
+  };
+  const out: Record<string, number> = { plate: size(join(publicDir, 'map/spire.webp')), ui: size(join(art3d, 'ui.webp')) };
+  let structures = 0;
+  for (const name of readdirSync(art3d)) {
+    const m = /^([a-z]+)-match(-\d+)?\.(webp|png)$/.exec(name);
+    if (!m) continue;
+    if (m[1] === 'structures') structures += size(join(art3d, name));
+    else out[`${m[3] === 'png' ? 'hero' : 'creep'}:${m[1]}`] = size(join(art3d, name));
+  }
+  out.structures = structures;
+  return out;
+}
+
 function listFiles(dir: string): string[] {
   const out: string[] = [];
   const walk = (d: string) => {
@@ -188,7 +235,7 @@ export default defineConfig(({ mode }) => {
   return {
     // A hosted build resolves every asset, page, worker and the service worker from wherever the host puts it.
     ...(EMBED ? { base: './' } : {}),
-    plugins: [soundFiles(), serviceWorker(), ...(EMBED ? [hostedPage(EMBED)] : [])],
+    plugins: [soundFiles(), artBytes(), serviceWorker(), ...(EMBED ? [hostedPage(EMBED)] : [])],
     define: { __BUILD__: JSON.stringify(BUILD), __EMBED__: JSON.stringify(EMBED) },
     worker: { format: 'es' as const },
     build: {

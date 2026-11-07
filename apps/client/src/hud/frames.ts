@@ -5,6 +5,7 @@
 // `--ui-<piece>-width` (those insets at the size they were drawn for, CSS px). style.css uses them under
 // `<html data-ui="ready">`; until then (or if loading fails) the CSS look stays.
 
+import { fetchSheet, trackSheet } from '../artLoad/track';
 import sheetUrl from '../render/art3d/ui.webp?url';
 
 export type UiPieceKind = 'slice' | 'image' | 'strip';
@@ -54,13 +55,13 @@ let started: Promise<boolean> | null = null;
 /** Loads the sheet once and publishes its pieces; true once they are in, false if it failed (the CSS look stays). */
 export function loadUiFrames(root: HTMLElement = document.documentElement): Promise<boolean> {
   started ??= (async () => {
+    // One of the pictures a match waits for (V-08b load-all).
+    const track = trackSheet('ui');
     try {
       // The layout comes with the sheet, not with the first screen.
       const { default: doc } = await import('../render/art3d/ui.json');
       const layout = doc.match as unknown as UiLayout;
-      const res = await fetch(sheetUrl);
-      if (!res.ok) throw new Error(`${res.status} ${sheetUrl}`);
-      const bitmap = await createImageBitmap(await res.blob());
+      const bitmap = await createImageBitmap(await fetchSheet(sheetUrl, track.bytes));
       if (bitmap.width !== layout.w || bitmap.height !== layout.h) {
         throw new Error(`sheet is ${bitmap.width}×${bitmap.height}, layout says ${layout.w}×${layout.h}`);
       }
@@ -68,9 +69,13 @@ export function loadUiFrames(root: HTMLElement = document.documentElement): Prom
       bitmap.close();
       for (const [name, url] of urls) root.style.setProperty(`--ui-${cssName(name)}`, `url("${url}")`);
       for (const [k, v] of Object.entries(frameVars(layout))) root.style.setProperty(k, v);
+      track.done(true);
       return true;
     } catch (e) {
-      console.warn('HUD frames: the sheet did not load; the CSS look stays', e);
+      track.done(false);
+      // Asked again (the wait's Retry) tries again.
+      started = null;
+      console.warn('HUD frames: the sheet did not load', e);
       return false;
     }
   })();

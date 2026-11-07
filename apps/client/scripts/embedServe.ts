@@ -118,8 +118,11 @@ const FILLER = Array.from(
   (_, i) => `<p>Comments, devlogs and more games (${i + 1}): the host's page goes on under the game, so it scrolls.</p>`,
 ).join('');
 
-/** The host page: the game in a frame, with text above and below it, as itch.io's project page has. */
-export function hostPage(size: keyof typeof FRAME_SIZES, sandboxed: boolean): string {
+/**
+ * The host page: the game in a frame, with text above and below it, as itch.io's project page has. `query` goes on the
+ * frame's address (the host page's `?frame=artwait` gives the frame `?artwait`: a browser test's switch, e2e zips only).
+ */
+export function hostPage(size: keyof typeof FRAME_SIZES, sandboxed: boolean, query = ''): string {
   const { width, height } = FRAME_SIZES[size];
   // itch.io's frame allows these (and no sandbox); a sandbox without allow-same-origin gives the frame an opaque origin.
   const sandbox = sandboxed ? ' sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-pointer-lock"' : '';
@@ -136,7 +139,7 @@ export function hostPage(size: keyof typeof FRAME_SIZES, sandboxed: boolean): st
 </style></head>
 <body>
 <header>A game site's page around the frame</header>
-<div class="wrap"><iframe id="game" src="${HARNESS.frameOrigin}${HARNESS.path}index.html"
+<div class="wrap"><iframe id="game" src="${HARNESS.frameOrigin}${HARNESS.path}index.html${query}"
   allow="autoplay; fullscreen *; gamepad; gyroscope; accelerometer; web-share; screen-wake-lock" allowfullscreen scrolling="no"${sandbox}></iframe></div>
 <main>${FILLER}</main>
 </body></html>`;
@@ -166,7 +169,9 @@ export async function startHarness(
   const files = new Map(readZip(readFileSync(zipPath)).map((e) => [e.path, e.data] as const));
   const frame = createServer((req, res) => serveFiles(files, HARNESS.path, req, res, undefined, opts.cors));
   const host = createServer((req, res) => {
-    const path = new URL(req.url ?? '/', 'http://x').pathname.replace(/\/+$/, '') || '/';
+    const at = new URL(req.url ?? '/', 'http://x');
+    const path = at.pathname.replace(/\/+$/, '') || '/';
+    const frameQuery = at.searchParams.get('frame') ?? '';
     const pages: Record<string, [keyof typeof FRAME_SIZES, boolean]> = {
       '/': ['phone', false],
       '/sandboxed': ['phone', true],
@@ -178,7 +183,8 @@ export async function startHarness(
       res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found\n');
       return;
     }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(hostPage(...page));
+    const query = /^[a-z0-9=&]{1,64}$/.test(frameQuery) ? `?${frameQuery}` : '';
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(hostPage(...page, query));
   });
   const servers = [frame, host];
   await listen(frame, HARNESS.framePort, '127.0.0.1');

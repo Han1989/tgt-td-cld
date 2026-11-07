@@ -86,6 +86,37 @@ describe('lobby', () => {
     await expect(late.join(code)).rejects.toThrow(/match_in_progress/);
   });
 
+  it('a player still loading the art (protocol 25) is never Ready, and holds the start; the host too', async () => {
+    const { url } = await start();
+    const host = bot(url, 'Ada', { art: 40 });
+    const code = await host.create();
+    const guest = bot(url, 'Bo', { art: 63 });
+    await guest.join(code);
+    await host.waitFor(() => host.lobby?.players.length === 2 && host.lobby.players[1]!.art === 63);
+    expect(host.lobby!.players.map((p) => [p.name, p.art])).toEqual([
+      ['Ada', 40],
+      ['Bo', 63],
+    ]);
+    // Ready is refused until the guest's art is in.
+    guest.send({ t: 'ready', ready: true });
+    await guest.waitFor(() => guest.errors.length > 0);
+    expect(guest.errors[0]).toMatchObject({ code: 'not_ready', message: 'Your art is still loading' });
+    expect(guest.lobby!.players[1]!.ready).toBe(false);
+    guest.send({ t: 'art', pct: 100 });
+    guest.send({ t: 'ready', ready: true });
+    await host.waitFor(() => host.lobby!.players[1]!.ready && host.lobby!.players[1]!.art === 100);
+    // The host's own art holds the start, and the error names who is loading.
+    host.send({ t: 'start' });
+    await host.waitFor(() => host.errors.length > 0);
+    expect(host.errors[0]).toMatchObject({ code: 'not_ready', message: 'Waiting for Ada (loading 40%)' });
+    expect(host.lobby!.phase).toBe('lobby');
+    host.send({ t: 'art', pct: 100 });
+    await guest.waitFor(() => guest.lobby!.players[0]!.art === 100);
+    host.send({ t: 'start' });
+    await guest.waitFor(() => guest.snap !== null);
+    expect(guest.lobby!.phase).toBe('playing');
+  });
+
   it('rejects a fourth player (a room holds 3, one per lane), unknown codes and codes from another shard', async () => {
     const { url } = await start();
     const clients = await fullRoom(url, 3);

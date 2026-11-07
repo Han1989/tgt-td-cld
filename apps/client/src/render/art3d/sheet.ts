@@ -1,10 +1,11 @@
 // The 3D heroes' match sheets (docs/ART.md §15): loaded once the first screen is up, the picked hero's the moment the
-// home card shows him (V-07d), the others after the creeps', turned into textures, and from then on a hero that
-// appears in a match gets its 3D rig. Until then, or if loading fails, it gets its 2D rig.
+// home card shows him (V-07d), the others after the creeps', turned into textures and put on the GPU. No match starts
+// before its heroes' sheets are in (V-08b load-all, artLoad/gate.ts), so a hero gets his 3D rig from the first frame.
 
 import type { HeroKind } from '@tdt/protocol';
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
-import { fetchWithProgress, sheetOff, trackSheet } from '../../artLoad/track';
+import { toGpu } from '../../artLoad/gpu';
+import { fetchSheet, sheetOff, trackSheet } from '../../artLoad/track';
 import arcanistSheet from './arcanist-match.png?url';
 import { HERO_3D, kindBox, type Cell, type LayerName, type MatchLayout } from './layout';
 import rangerSheet from './ranger-match.png?url';
@@ -48,11 +49,15 @@ export function loadHeroSheet(kind: HeroKind): Promise<void> {
       if (!layout || !url) return sheetOff(`hero:${kind}`);
       const track = trackSheet(`hero:${kind}`);
       try {
-        loaded.set(kind, await load(url, layout, track.bytes));
+        const frames = await load(url, layout, track.bytes);
+        toGpu(new Set(Object.values(frames.layers).flatMap((l) => Object.values(l ?? {}).flatMap((fs) => fs.map((f) => f.tex.source)))));
+        loaded.set(kind, frames);
         track.done(true);
       } catch (e) {
         track.done(false);
-        console.warn(`3D ${kind}: the match sheet did not load; the 2D rig stays`, e);
+        // Asked again (the wait's Retry) tries again.
+        pending.delete(kind);
+        console.warn(`3D ${kind}: the match sheet did not load`, e);
       }
     })();
     pending.set(kind, p);
@@ -66,7 +71,7 @@ export function loadHeroSheets(): Promise<void> {
 }
 
 async function load(url: string, layout: MatchLayout, onBytes: (received: number, expected: number | null) => void): Promise<HeroFrames> {
-  const bitmap = await createImageBitmap(await fetchWithProgress(url, onBytes));
+  const bitmap = await createImageBitmap(await fetchSheet(url, onBytes));
   if (bitmap.width !== layout.w || bitmap.height !== layout.h) throw new Error(`sheet is ${bitmap.width}×${bitmap.height}, layout says ${layout.w}×${layout.h}`);
   const source = new ImageSource({ resource: bitmap, scaleMode: 'linear' });
   const layers: Partial<Record<LayerName, Frames>> = {};

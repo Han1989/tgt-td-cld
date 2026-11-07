@@ -55,6 +55,10 @@ describe('client message codec', () => {
     { t: 'create', v: PROTOCOL_VERSION, name: 'Cy', hero: 'arcanist' },
     { t: 'join', v: PROTOCOL_VERSION, code: 'ABCDE', name: 'Di', hero: 'warden' },
     { t: 'ready', ready: true },
+    // Protocol 25: the art a page has in.
+    { t: 'art', pct: 0 },
+    { t: 'art', pct: 63 },
+    { t: 'art', pct: 100 },
     { t: 'mode', mode: 'full' },
     { t: 'mode', mode: 'quick' },
     // Protocol 21: Endless.
@@ -91,6 +95,11 @@ describe('client message codec', () => {
     ['code with O', '{"t":"join","v":2,"code":"ABODE","name":"a","hero":"ranger"}'],
     ['bad token', '{"t":"rejoin","v":2,"code":"ABCDE","token":"nope"}'],
     ['non-boolean ready', '{"t":"ready","ready":"yes"}'],
+    ['art over 100', '{"t":"art","pct":101}'],
+    ['art under 0', '{"t":"art","pct":-1}'],
+    ['art not whole', '{"t":"art","pct":50.5}'],
+    ['art as text', '{"t":"art","pct":"50"}'],
+    ['art with extra keys', '{"t":"art","pct":50,"of":"structures"}'],
     ['unknown mode', '{"t":"mode","mode":"marathon"}'],
     ['a mode with the wrong case', '{"t":"mode","mode":"Endless"}'],
     ['mode with extra keys', '{"t":"mode","mode":"quick","waves":5}'],

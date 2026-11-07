@@ -18,6 +18,7 @@ import {
   sent,
   stall,
   startSolo,
+  towerDrawn,
   waitForReady,
   type Box,
   type TapTarget,
@@ -47,8 +48,9 @@ function heartVignette(page: Page): Promise<{ parent: string; shown: boolean; bo
   });
 }
 
-/** Taps the centre of a pad (by map pad id). */
+/** Taps the centre of a pad (by map pad id); a pad with a tower once that tower is drawn (`towerDrawn`). */
 async function tapPad(page: Page, padId: number): Promise<void> {
+  await towerDrawn(page, padId);
   // Once the camera stands still, where the canvas owns the pad (helpers.ts, `padTapPoint`).
   const p = await padTapPoint(page, padId);
   expect(p, `pad ${padId} has a tappable point on screen`).not.toBeNull();
@@ -600,6 +602,12 @@ test.describe('portrait phone layout', () => {
   });
 
   test('build ring: one tap builds, a hold previews and does not build; nothing sits on a tower until it is tapped', async ({ page }) => {
+    // The phone's one-time zoom hint (a toast a few seconds into a first match) is not what "nothing sits on a tower"
+    // means, and it lands over a pad whenever the check meets it (every run on Chromium 153, main included): seen.
+    await page.addInitScript(() => {
+      const s = JSON.parse(localStorage.getItem('tdt.settings') ?? '{}') as Record<string, unknown>;
+      localStorage.setItem('tdt.settings', JSON.stringify({ ...s, zoomHint: 'seen' }));
+    });
     await startSolo(page);
     const finger = await Finger.on(page);
     const [padId, otherPad] = await myPadsBottomFirst(page);
@@ -1200,7 +1208,8 @@ test.describe('portrait phone layout', () => {
 test.describe('the tilted camera (V-08b)', () => {
   for (const pitch of [30]) {
     test(`taps land on what is drawn at ${pitch}°: every pad at its centre and inside each edge, a creep, a tower on its drawn body`, async ({ page }) => {
-      await startSolo(page, '?lab');
+      // Play solo waits for every sheet (V-08b load-all, `?artwait`): the match is in 3D from its first frame.
+      await startSolo(page, '?lab&artwait');
       await framesIn(page);
       const view = await page.evaluate(() => window.__tdt.view());
       expect(view.pitch).toBe(pitch);
@@ -1247,8 +1256,9 @@ test.describe('the tilted camera (V-08b)', () => {
         // A pad well on screen, in the middle rows.
         return mine.filter((p) => p.y > 12 && p.y < 24).sort((a, b) => a.y - b.y || a.x - b.x)[0]!.id;
       });
-      // The towers drawn from their 3D pages (V-08b build 2: rendered at the pitch, eight turret headings).
-      await expect(page.locator('html')).toHaveAttribute('data-structures', 'ready', { timeout: 30_000 });
+      // The towers drawn from their 3D pages (V-08b build 2: rendered at the pitch, eight turret headings): in before
+      // the match started, no wait.
+      await expect(page.locator('html')).toHaveAttribute('data-structures', 'ready', { timeout: 1 });
       const pad = await padOnScreen(page, padId);
       expect(pad.box.bottom - pad.box.top).toBeCloseTo((pad.box.right - pad.box.left) * view.cos, 3);
       await page.touchscreen.tap(pad.x, pad.box.bottom - 3);
@@ -1706,89 +1716,130 @@ test.describe('pinch zoom on a phone (V-07e)', () => {
   });
 });
 
-test.describe('the first minute\'s art (V-07d)', () => {
+test.describe('every sheet in before a match (V-08b load-all)', () => {
   // The page fetches every sheet itself (no service worker in the way), so the routes below see each one.
   test.use({ serviceWorkers: 'block' });
   test.beforeEach(({}, info) => test.skip(info.project.name !== 'pixel', 'once, on the Pixel'));
 
-  /** The map plate and the 3D sheets (the towers', the creeps', the heroes'), each answered once `wait(url)` resolves. */
+  /** The map plate, the HUD's frames and the 3D sheets, each answered once `wait(url)` resolves. */
   async function slowArt(page: Page, wait: (url: string) => Promise<unknown>): Promise<void> {
-    await page.route(/\/(assets\/[a-z]+-match-[\w-]+\.(webp|png)|map\/spire\.webp)(\?|$)/, async (route) => {
+    await page.route(/\/(assets\/([a-z]+-match-[\w-]+|ui-[\w-]+)\.(webp|png)|map\/spire\.webp)(\?|$)/, async (route) => {
       await wait(route.request().url());
       await route.continue();
     });
   }
 
-  /** When the hold ended (ms after the match started) and why. */
-  function holdEnd(page: Page): Promise<{ after: number; why: string } | null> {
-    return page.evaluate(() => {
-      const start = performance.getEntriesByName('tdt:match-start').at(-1);
-      const end = performance.getEntriesByName('tdt:art-hold-end').at(-1) as PerformanceMark | undefined;
-      return start && end ? { after: end.startTime - start.startTime, why: String(end.detail) } : null;
+  /** Records, on every animation frame from now, what the first frame with a match drew (its art and its ground). */
+  async function firstMatchFrame(page: Page): Promise<void> {
+    await page.evaluate(() => {
+      const w = window as unknown as { __first?: unknown };
+      const look = () => {
+        if (window.__tdt.latest()) {
+          const a = window.__tdt.art();
+          w.__first = { heart3d: a.heart3d, portals3d: a.portals3d, hero3d: a.hero3d, ground: a.ground, ui: document.documentElement.dataset.ui };
+          return;
+        }
+        requestAnimationFrame(look);
+      };
+      requestAnimationFrame(look);
     });
   }
 
-  test('a solo match holds its start while the first wave\'s sheets load, says so under the wave counter, and starts once they are in', async ({ page }) => {
-    // Every picture waits until the test lets it through.
+  test('Play solo waits behind a bar that moves with the bytes, then the match is in 3D from its first frame', async ({ page }) => {
     let open!: () => void;
     const gate = new Promise<void>((ok) => (open = ok));
     await slowArt(page, () => gate);
-    // A long cap: only the gate ends this hold, however slow the runner (the 6 s cap is the next test's).
-    await page.goto('/?lab&arthold=60000');
+    await page.goto('/?lab&artwait');
     await waitForReady(page, 'solo');
     await page.locator('#lobby-heroes-home .hero-pick', { hasText: 'Warden' }).click();
     await page.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+    await firstMatchFrame(page);
     await page.locator('#lobby-offline').click();
-    await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(15);
-    const line = page.locator('#art-line');
-    await expect(line).toBeVisible();
-    await expect(line).toContainText('Loading the art…');
-    const art = await page.evaluate(() => window.__tdt.firstArt());
-    expect(art.held).toBe(true);
-    expect(Object.keys(art.sheets).sort()).toEqual(['creep:grunt', 'creep:runner', 'hero:warden', 'plate', 'structures'].sort());
-    // Under the wave counter, below the top bar, over the map and off the controls.
-    const [l, wave, bar] = await Promise.all([box(page, '#art-line'), box(page, '#wave-stat'), box(page, '#topbar')]);
-    expect(l.top).toBeGreaterThanOrEqual(bar.bottom);
-    expect(l.top - bar.bottom).toBeLessThan(8);
-    expect(centre(l).x).toBeGreaterThan(wave.left - 1);
-    expect(centre(l).x).toBeLessThan(wave.right + 1);
-    for (const sel of OVERLAY) {
-      const b = await page.locator(sel).first().boundingBox();
-      if (b) expect(overlaps(l, { left: b.x, top: b.y, right: b.x + b.width, bottom: b.y + b.height }), sel).toBe(false);
-    }
-    // Held: no tick runs, so the first wave's timer has not started.
-    const before = await page.evaluate(() => ({ tick: window.__tdt.latest()!.tick, next: window.__tdt.latest()!.nextWaveIn }));
+    const card = page.locator('#art-wait');
+    await expect(card).toBeVisible();
+    // No match yet: nothing of it is drawn, in 2D or otherwise.
+    expect(await page.evaluate(() => window.__tdt.latest() ?? null)).toBeNull();
+    const wait = await page.evaluate(() => window.__tdt.artWait());
+    expect([wait.waiting, wait.shown]).toEqual([true, true]);
+    // Every sheet the match draws: the plate, the frames, the pages, all nine creeps and the picked hero.
+    expect(Object.keys(wait.sheets).sort()).toEqual(
+      ['plate', 'ui', 'structures', 'hero:warden', ...['grunt', 'runner', 'archer', 'brute', 'wisp', 'ironhorn', 'matriarch', 'hatchling', 'shardback'].map((k) => `creep:${k}`)].sort(),
+    );
+    // The line names what it waits for and the megabytes of the whole set; the hero's portrait, his name and a tip.
+    await expect(page.locator('.art-wait-line')).toHaveText(/^Loading the (map|frames|towers|creeps|heroes)… \d+\.\d of \d+\.\d MB$/);
+    const total = Number(/of (\d+\.\d) MB/.exec((await page.locator('.art-wait-line').textContent()) ?? '')![1]);
+    expect(total).toBeGreaterThan(8);
+    await expect(page.locator('.art-wait-name')).toHaveText('Warden');
+    expect(await page.locator('.art-wait-portrait').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('warden-poster');
+    await expect(page.locator('.art-wait-tip b')).toHaveText(/^[QWER] · /);
+    expect(Number(await page.locator('.art-wait-bar').getAttribute('aria-valuenow'))).toBeLessThan(100);
+    // Its whole card on a phone screen, nothing cut off.
+    const c = await box(page, '.art-wait-card');
+    const vp = page.viewportSize()!;
+    expect(c.top).toBeGreaterThanOrEqual(0);
+    expect(c.bottom).toBeLessThanOrEqual(vp.height);
+    // Held for a while: still waiting, still no match.
     await page.waitForTimeout(800);
-    const still = await page.evaluate(() => ({ tick: window.__tdt.latest()!.tick, next: window.__tdt.latest()!.nextWaveIn }));
-    expect(still).toEqual(before);
-    expect(before.tick).toBe(0);
-    expect((await page.evaluate(() => window.__tdt.firstArt())).held).toBe(true);
-    // Every sheet in: the hold ends before 6 s, the line fades, the timer runs.
+    expect((await page.evaluate(() => window.__tdt.artWait())).waiting).toBe(true);
+    expect(await page.evaluate(() => window.__tdt.latest() ?? null)).toBeNull();
+    // Every sheet let through: the card goes and the match starts, its first frame already in 3D.
     open();
-    await expect.poll(() => page.evaluate(() => window.__tdt.firstArt().held), { timeout: 15_000 }).toBe(false);
-    const end = await holdEnd(page);
-    expect(end?.why).toBe('in');
-    const sheets = await page.evaluate(() => window.__tdt.firstArt().sheets);
-    for (const [id, s] of Object.entries(sheets)) expect(s.status, id).toBe('in');
-    await expect(line).toBeHidden();
-    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(5);
-    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.nextWaveIn)).toBeLessThan(before.next);
+    await expect(card).toBeHidden({ timeout: 30_000 });
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __first?: unknown }).__first ?? null)).not.toBeNull();
+    expect(await page.evaluate(() => (window as unknown as { __first?: unknown }).__first)).toEqual({ heart3d: true, portals3d: 3, hero3d: 1, ground: 'plate', ui: 'ready' });
+    expect((await page.evaluate(() => window.__tdt.artWait())).waiting).toBe(false);
+    const marks = await page.evaluate(() => performance.getEntriesByName('tdt:art-ready').map((m) => Number((m as PerformanceMark).detail)));
+    expect(marks.at(-1)).toBeGreaterThan(800);
   });
 
-  test('a sheet that takes longer than 6 s does not hold the start past 6 s', async ({ page }) => {
-    // The structures' sheet takes 12 s; everything else is quick.
-    await slowArt(page, (url) => new Promise((ok) => setTimeout(ok, /structures-match/.test(url) ? 12_000 : 0)));
-    await startSolo(page, '?lab&arthold', 'full', 'Ranger');
-    await expect(page.locator('#art-line')).toBeVisible();
-    expect(await page.evaluate(() => window.__tdt.latest()!.tick)).toBe(0);
-    await expect.poll(() => page.evaluate(() => window.__tdt.firstArt().held), { timeout: 15_000 }).toBe(false);
-    const end = await holdEnd(page);
-    expect(end?.why).toBe('timeout');
-    expect(end!.after).toBeGreaterThanOrEqual(6000);
-    expect(end!.after).toBeLessThan(7500);
-    // The structures are still coming: the match plays on with the 2D towers until they are in; the line is gone.
-    expect((await page.evaluate(() => window.__tdt.firstArt().sheets)).structures?.status).toBe('loading');
-    await expect(page.locator('#art-line')).toBeHidden();
-    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(5);
+  test('a wait under 400 ms shows no bar at all', async ({ page }) => {
+    await page.goto('/?lab&artwait');
+    await waitForReady(page, 'solo');
+    // Everything is in already (the lobby's time counts).
+    await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 60_000 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.ui)).toBe('ready');
+    await page.locator('#lobby-offline').click();
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.tick ?? -1)).toBeGreaterThanOrEqual(0);
+    expect(await page.locator('#art-wait').count()).toBe(0);
+    const marks = await page.evaluate(() => performance.getEntriesByName('tdt:art-ready').map((m) => Number((m as PerformanceMark).detail)));
+    expect(marks).toEqual([0]);
+  });
+
+  test('a sheet that fails is tried again 3 times, then the bar says so with Retry; Retry brings it in and the match starts', async ({ page }) => {
+    let failing = true;
+    let tries = 0;
+    await page.route(/\/assets\/structures-match-0-[\w-]+\.webp(\?|$)/, async (route) => {
+      tries++;
+      if (failing) await route.abort('connectionreset');
+      else await route.continue();
+    });
+    await page.goto('/?lab&artwait');
+    await waitForReady(page, 'solo');
+    await page.locator('#lobby-offline').click();
+    const retry = page.locator('#art-wait-retry');
+    // 0.5 s, 1.5 s and 4.5 s between the four tries.
+    await expect(retry).toBeVisible({ timeout: 30_000 });
+    expect(tries).toBe(4);
+    await expect(page.locator('.art-wait-line')).toHaveText('Could not download the towers. Check the connection and try again.');
+    expect(await page.evaluate(() => window.__tdt.latest() ?? null)).toBeNull();
+    failing = false;
+    await retry.click();
+    await expect(page.locator('#art-wait')).toBeHidden({ timeout: 30_000 });
+    await expect.poll(() => page.evaluate(() => window.__tdt.art().heart3d)).toBe(true);
+    expect(tries).toBeGreaterThan(4);
+  });
+
+  test('Back leaves the wait for the home card as it was; no match starts', async ({ page }) => {
+    await slowArt(page, () => new Promise(() => {}));
+    await page.goto('/?lab&artwait');
+    await waitForReady(page, 'solo');
+    await page.locator('#lobby-offline').click();
+    await expect(page.locator('#art-wait')).toBeVisible();
+    await page.locator('#art-wait-back').click();
+    await expect(page.locator('#art-wait')).toBeHidden();
+    await expect(page.locator('#lobby-home')).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => window.__tdt.latest() ?? null)).toBeNull();
+    expect((await page.evaluate(() => window.__tdt.artWait())).waiting).toBe(false);
   });
 });

@@ -46,6 +46,11 @@ export interface Member {
   name: string;
   hero: HeroKind;
   ready: boolean;
+  /**
+   * How much of the match's art this player's page has in, 0..100 (protocol 25, V-08b load-all): Ready and the start
+   * wait for 100.
+   */
+  art: number;
   /** Secret for reconnecting to this seat. */
   token: string;
   socket: ClientSocket | null;
@@ -125,6 +130,7 @@ export class Room {
       name,
       hero,
       ready: false,
+      art: 0,
       token: randomBytes(16).toString('hex'),
       socket,
       disconnectedAt: null,
@@ -218,17 +224,26 @@ export class Room {
         this.mode = msg.mode;
         this.broadcastLobby();
         return;
+      case 'art':
+        // The art a page has in (V-08b load-all): shown on every seat, and the start waits for 100 from everyone.
+        if (member.art === msg.pct) return;
+        member.art = msg.pct;
+        this.broadcastLobby();
+        return;
       case 'ready':
         if (this.phase !== 'lobby') return;
+        // A player is Ready only once their art is in (the client's button waits for it too).
+        if (msg.ready && member.art < 100) return this.error(member, 'not_ready', 'Your art is still loading');
         member.ready = msg.ready;
         this.broadcastLobby();
         return;
       case 'start': {
         if (member.id !== this.hostId) return this.error(member, 'not_host', 'Only the host can start the match');
         if (this.phase !== 'lobby') return;
-        const waiting = this.activeMembers.filter((m) => m.id !== this.hostId && (!m.ready || !m.socket));
+        const waiting = this.activeMembers.filter((m) => m.art < 100 || (m.id !== this.hostId && (!m.ready || !m.socket)));
         if (waiting.length > 0) {
-          return this.error(member, 'not_ready', `Waiting for ${waiting.map((m) => m.name).join(', ')}`);
+          const who = waiting.map((m) => (m.art < 100 ? `${m.name} (loading ${m.art}%)` : m.name));
+          return this.error(member, 'not_ready', `Waiting for ${who.join(', ')}`);
         }
         this.startMatch();
         return;
@@ -349,6 +364,7 @@ export class Room {
         hero: m.hero,
         ready: m.ready || m.id === this.hostId,
         connected: m.socket !== null,
+        art: m.art,
       })),
     };
   }

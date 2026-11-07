@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 24;
+export const PROTOCOL_VERSION = 25;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -716,8 +716,14 @@ export interface LobbyPlayer {
   id: PlayerId;
   name: string;
   hero: HeroKind;
+  /** The player asked to be ready (counted only once their art is in: `art` 100; the host is ready by hosting). */
   ready: boolean;
   connected: boolean;
+  /**
+   * Protocol 25 (V-08b load-all): how much of the match's art this player's page has in, 0..100 (decoded and on the
+   * GPU at 100). The room cannot start before every player is at 100.
+   */
+  art: number;
 }
 
 export interface LobbyState {
@@ -802,6 +808,11 @@ export type ClientMessage =
   | { t: 'mode'; mode: GameMode }
   /** Lobby: toggle ready. */
   | { t: 'ready'; ready: boolean }
+  /**
+   * Protocol 25: how much of the match's art this page has in, a whole percent (0..100; 100 = every sheet decoded and
+   * on the GPU). Sent as it moves (in the lobby and before a rejoined match is shown); the room starts only at 100.
+   */
+  | { t: 'art'; pct: number }
   /** Lobby: host starts the match. */
   | { t: 'start' }
   /** Leave the room for good (online). */

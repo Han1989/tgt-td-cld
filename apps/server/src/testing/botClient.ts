@@ -28,6 +28,11 @@ export interface BotClientOptions {
   index?: number;
   /** Decide every N snapshots (default 5 = 4 decisions/s at 20 Hz). */
   decideEvery?: number;
+  /**
+   * The art its page says it has in (protocol 25), sent on every welcome: 100 by default (a bot draws nothing), a
+   * lower number to stand for a player still loading (`art()` sends a new one).
+   */
+  art?: number;
   /** Extra behaviour hook, e.g. calling waves early in load tests. */
   onSnapshot?: (client: BotClient, snap: Snapshot) => void;
 }
@@ -140,6 +145,7 @@ export class BotClient {
           this.token = msg.room.token;
         }
         this.bot = createBalanceBot(msg.playerId, undefined, this.opts.index ?? 0);
+        this.send({ t: 'art', pct: this.opts.art ?? 100 });
         break;
       case 'lobby':
         this.lobby = msg.lobby;

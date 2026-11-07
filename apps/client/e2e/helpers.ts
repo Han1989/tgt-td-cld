@@ -56,8 +56,15 @@ interface Hook {
   /** Coins launched to the gold counter so far. */
   coins(): number;
   clock(): { lag: number };
-  /** The match's first wave's art (V-07d): its start held (solo, `?arthold`), the line shown, its bar, each picture. */
-  firstArt(): { held: boolean; line: boolean; fraction: number; sheets: Record<string, { status: string; received: number; expected: number | null }> };
+  /** The wait before a match (V-08b load-all, `?artwait`): waiting, the card shown, the percent, the line, each picture. */
+  artWait(): {
+    waiting: boolean;
+    shown: boolean;
+    percent: number;
+    line: string;
+    failed: boolean;
+    sheets: Record<string, { status: string; received: number; expected: number | null }>;
+  };
   /** V-08a: the light (its crossfade), the plates decoded, the lanterns and windows lit, the weather's particles. */
   atmosphere(): {
     light: { from: string; to: string; t: number };
@@ -422,6 +429,24 @@ export async function padTapPoint(page: Page, padId: number): Promise<{ x: numbe
     if (free(c.x, c.y)) return { x: c.x, y: c.y };
     return best ? { x: best.x, y: best.y } : null;
   }, padId);
+}
+
+/**
+ * Waits until the tower on `padId` (when the newest snapshot has one) is in the last frame the renderer drew. A click or
+ * a tap picks from the drawn towers (`pickTower`, `tapTargets`), and the newest snapshot runs ahead of the drawn frame
+ * whenever a long task delays the next one (on CI's software GPU, a sheet decoding or uploading): a test that clicked
+ * the moment `latest()` had the tower clicked the bare ground (V-08b load-all, run 42333612650's desktop repeat). A
+ * player clicks what is drawn, so this is when a test may.
+ */
+export async function towerDrawn(page: Page, padId: number): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate((id) => {
+        const t = window.__tdt.latest()?.towers.find((q) => q.padId === id);
+        return !t || window.__tdt.tapTargets().some((k) => k.kind === 'tower' && k.id === t.id);
+      }, padId),
+    )
+    .toBe(true);
 }
 
 /** Screen position of a world point in tiles. */

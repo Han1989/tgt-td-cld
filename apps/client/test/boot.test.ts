@@ -3,6 +3,7 @@ import { createAnalyticsClient, type AnalyticsBody } from '../src/analytics/sess
 import {
   BOOT_COPY,
   BOOT_SLOW_MS,
+  BUSY_RECHECK_MS,
   createBootWatchdog,
   GraphicsUnavailableError,
   type BootFailure,
@@ -10,9 +11,10 @@ import {
 } from '../src/startup/boot';
 
 /** A watchdog whose three callbacks are recorded in order. */
-function watch() {
+function watch(busy?: () => boolean) {
   const calls: string[] = [];
   const dog = createBootWatchdog({
+    ...(busy ? { busy } : {}),
     onSlow: () => calls.push('slow'),
     onFailed: (reason) => calls.push(`failed:${reason}`),
     onReport: (reason) => calls.push(`report:${reason}`),
@@ -40,6 +42,17 @@ describe('start-up watchdog timing', () => {
     expect(dog.phase()).toBe('slow');
     vi.advanceTimersByTime(10 * BOOT_SLOW_MS);
     expect(calls).toHaveLength(2);
+  });
+
+  it('never fires while a download is in progress and moving (V-08b load-all); a second after it stops, it does', () => {
+    let moving = true;
+    const { dog, calls } = watch(() => moving);
+    vi.advanceTimersByTime(BOOT_SLOW_MS + 30_000);
+    expect(calls).toEqual([]);
+    expect(dog.phase()).toBe('starting');
+    moving = false;
+    vi.advanceTimersByTime(BUSY_RECHECK_MS);
+    expect(calls).toEqual(['slow', 'report:boot_timeout']);
   });
 
   it('says nothing when ready comes in time', () => {

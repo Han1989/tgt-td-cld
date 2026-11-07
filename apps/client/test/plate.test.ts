@@ -249,9 +249,13 @@ describe('the map plate: loading', () => {
     });
     expect(later).toHaveLength(4);
     const sw = swSource('test', ['/index.html', `/map/${L.file.name}`, ...later]);
+    const list = (name: string) => JSON.parse(new RegExp(`const ${name} = (\\[.*\\]);`).exec(sw)![1]!) as string[];
     for (const f of later) {
       expect(isOnDemandSheet(f), f).toBe(true);
-      expect(sw).not.toContain(JSON.stringify(f));
+      // Not in the shell nor the pages precached after it (V-08b load-all): only carried over from an older version.
+      expect(list('SHELL'), f).not.toContain(f);
+      expect(list('PAGES'), f).not.toContain(f);
+      expect(list('SHEETS'), f).toContain(f);
     }
     expect(isOnDemandSheet(`/map/${L.file.name}`)).toBe(false);
     expect(isOnDemandSheet(`/map/${L.extra!.file.name}`)).toBe(false);
