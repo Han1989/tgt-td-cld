@@ -44,6 +44,7 @@
  * V-08b-3 on 6 Nov 2026 (PR #164: the tilted camera, build 3 of 4, the effects, the weather and the fallbacks on the pitched ground).
  * V-08b-4 on 7 Nov 2026 (PR #165: the tilted camera, build 4 of 4, the budget, the phone checklist and the five-second test).
  * V-08b-load on 7 Nov 2026 (PR #166: every sheet in before a match, behind a real loading bar; protocol 25).
+ * V-08c-look on 7 Nov 2026 (PR #167: the sizes of the towers, the Heart, the portals and the heroes, three columns for Han, images only).
  * t-iphone-flake on 6 Nov 2026 (PR #162: the iPhone shard that flaked; the camera and the build ring no longer reset on a settings write).
  * p6d-endless on 22 Oct 2026 (PR #129: Endless, the Daily run's session 2 of 3).
  * p6d-endless-2 on 24 Oct 2026 (PR #142: Endless scaling, veteran levels and Reinforce; Han's match of 24 Oct).
@@ -601,6 +602,15 @@ const items: ProgressItem[] = [
     section: 'visual',
     note: 'Han’s rule: no stand-in art on screen, ever; the game waits like any game does. All the game’s pictures (the map, the towers, every creep and boss, the heroes) start downloading the moment the home card is up, so time spent there counts. Play solo waits until every one is in and ready to draw, with no time limit: if that takes more than a moment, a full card shows your hero, a bar that moves with the download and nothing else (“Loading the towers… 3.1 of 10.7 MB”) and a tip about one of your skills, with Back. The match then looks finished from its very first frame: no flat towers turning 3D mid-wave. A download that fails is tried three times, then the card says so with a Retry button. With friends, everyone’s seat shows how far their download is, Ready waits for your own, and the host can start only once everyone is at 100%. The towers’ pictures are kept for offline play again, so a second visit or the installed app starts at once.',
     proof: pr(166),
+  },
+  {
+    id: 'V-08c-look',
+    title: 'The sizes of the towers, the Heart, the portals and the heroes: three columns for Han to pick from',
+    owner: 'Team',
+    status: 'done',
+    section: 'visual',
+    note: 'Pictures only: nothing in the game changes. Han, 7 Nov 2026, from his phone at wave 13: the towers are too big next to the Heart and the portals, and the Warden is too big; on his screenshot a tower stood as tall as the Heart and nearly twice a portal. One real moment of wave 13, every pad built and the Warden in a pack on the left lane, is shown three ways, on a phone and a laptop, marked only 1, 2 and 3: today; towers a little smaller with the Heart and the portals a little bigger and the hero a step smaller; and all of that a step further. Under each are the measured heights: today a top-tier tower is 8% taller than the Heart and almost twice a portal; in 2 the Heart is a quarter taller than a tower, in 3 half again as tall, and a portal as tall as a tower. A strip shows the Warden between two skeleton creeps at each size: in 3 he would be shorter than the big Brute unless the creeps shrink a step too. Two things to know: at the bigger portal sizes the top bar covers the top of the gates unless they stand a little lower, and nothing has to be drawn again at any size. Han picks 1, 2, 3 or his own numbers; the change follows.',
+    proof: pr(167),
   },
   {
     id: 't-iphone-flake',
