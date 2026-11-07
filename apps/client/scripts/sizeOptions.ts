@@ -326,7 +326,7 @@ async function measureSheets(browser: Browser): Promise<Record<string, Box & { r
     const type = f.endsWith('.png') ? 'image/png' : 'image/webp';
     data[f] = `data:${type};base64,${readFileSync(join(art3d, f)).toString('base64')}`;
   }
-  const page = await (await browser.newContext()).newPage();
+  const page = await plainPage(browser);
   const out = (await page.evaluate(
     async ([cs, d]) => {
       const imgs: Record<string, ImageBitmap> = {};
@@ -374,7 +374,7 @@ async function composeStrip(browser: Browser, zoom: number, cells: { hero: numbe
   ];
   const data: Record<string, string> = {};
   for (const f of new Set(figs.map((q) => q.file))) data[f] = `data:${f.endsWith('.png') ? 'image/png' : 'image/webp'};base64,${readFileSync(join(art3d, f)).toString('base64')}`;
-  const page = await (await browser.newContext({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 })).newPage();
+  const page = await plainPage(browser);
   const urls = (await page.evaluate(
     async ([fs, d, cs, z]) => {
       const imgs: Record<string, ImageBitmap> = {};
@@ -438,6 +438,15 @@ function creepFrame(kind: string): { file: string; x: number; y: number; w: numb
   const L = JSON.parse(readFileSync(join(art3d, `${kind}.json`), 'utf8')).match;
   const f = L.frames.idle[0];
   return { file: L.file, x: f.x, y: f.y, w: f.w, h: f.h, ax: L.box.ax - f.dx, ay: L.box.ay - f.dy, res: L.res };
+}
+
+/** A blank page for drawing in, with esbuild's `__name` helper defined (tsx adds calls to it in page functions). */
+async function plainPage(browser: Browser): Promise<Page> {
+  const ctx = await browser.newContext({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 });
+  await ctx.addInitScript('globalThis.__name = (f) => f;');
+  const page = await ctx.newPage();
+  await page.goto('about:blank');
+  return page;
 }
 
 interface Shot {
