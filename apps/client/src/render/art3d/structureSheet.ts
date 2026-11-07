@@ -1,7 +1,8 @@
 // The towers', the Heart's and the portals' 3D sheet (docs/ART.md §15, V-05d): lossless WebP pages (V-07d: a third
 // smaller than the PNG, the same pixels; V-08b build 2: the turrets' eight headings take several pages of 2048,
-// `structures-match-<n>.webp`), precached with the shell, loaded after the map plate and before the creeps' sheets
-// (never in the first screen's way), turned into textures. From then on a tower gets Tower3DRig and the Heart and the
+// `structures-match-<n>.webp`), loaded after the map plate and before the creeps' sheets (never in the first screen's
+// way), turned into textures. Not precached since V-08b build 4 (7 MB): the service worker keeps them once the page has
+// them (`structurePageUrls`, `keepSheets`), as the creeps' and the heroes'. From then on a tower gets Tower3DRig and the Heart and the
 // portals their 3D views (the renderer swaps those already drawn, `structuresVersion`), once every page is in; until
 // then, or if loading fails, their 2D art.
 
@@ -38,6 +39,11 @@ let started: Promise<void> | null = null;
 /** The structures' frames, once the sheet has loaded. */
 export function structureFrames(): StructureFrames | undefined {
   return loaded;
+}
+
+/** The pages' URLs once every page is in (for the service worker to keep, `keepSheets`), else none. */
+export function structurePageUrls(): string[] {
+  return loaded ? loaded.layout.pages.flatMap((page) => PAGE_URLS[page.file] ?? []) : [];
 }
 
 /** Goes up when the sheet comes in: the renderer swaps towers, the Heart and the portals drawn in 2D. */

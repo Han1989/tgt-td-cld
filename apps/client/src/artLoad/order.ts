@@ -26,6 +26,7 @@ import {
   loadHeroSheets,
   loadStructureSheet,
   preferCreeps,
+  structurePageUrls,
 } from '../render/art3d';
 import { fetchPlateLights, loadPlate } from '../render/plate';
 import { creepKinds, type SheetId } from './rules';
@@ -77,9 +78,10 @@ async function run(): Promise<void> {
   const lights = await fetchPlateLights();
   html.plateLights = lights.length > 0 ? 'ready' : 'failed';
   performance.mark('tdt:plate-lights');
-  // The service worker keeps the creeps' and heroes' sheets and the plate's other lights that came in, for offline solo
-  // (they are not precached).
+  // The service worker keeps the structures' pages, the creeps' and heroes' sheets and the plate's other lights that
+  // came in, for offline solo (they are not precached).
   keepSheets([
+    ...structurePageUrls(),
     ...CREEP_KINDS.filter((k) => creepFrames(k)).map((k) => CREEP_SHEETS[k]),
     ...HERO_KINDS.filter((k) => heroFrames(k)).flatMap((k) => HERO_SHEETS[k] ?? []),
     ...lights,

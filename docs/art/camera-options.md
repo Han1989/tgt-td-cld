@@ -163,6 +163,39 @@ Most of the client's part is one change done once:
 - **B, about 5:** A's four, plus the desktop's margins, the band under the map, and the tower's box as a tap target.
 - **C, about 6:** B's, plus the next pad's tower partly hidden (a tall tower's box ordered over the pad behind), the portal under the bar, and the larger band.
 
+## The five-second test (V-08b build 4, 7 Nov 2026)
+
+**Han picked B on 6 Nov 2026** and builds 1–4 made it the game's camera (`docs/ART.md` §16 "The camera"). Before strangers see it, one question checks the pick against what was there before.
+
+**The picture:** **`docs/art/camera-ab.png`**, the held moment above (Full, solo Ranger, the afternoon, clear weather, the five towers, wave 10 with the Ironhorn on its road) on a 412 × 839 phone at 2×, twice, side by side, each with its HUD and controls, unlabelled but for **"1"** and **"2"** over them:
+
+- **1 is the tilted camera** (30°, this build: the plate and the structures at the pitch, the effects on the pitched ground);
+- **2 is the game before it** (0°: commit b1ecad0, the look session's, whose game is V-08a's, the top-down plate and towers; the frame "Today · 0°" of the sheet above, held again at 2× on that build).
+
+Both are real frames of the game, held the same way (`apps/client/scripts/heldMoment.ts`, shared with `npm run camera-options`); only the camera differs, and with it the layout (the shorter map and the dark band under it on 1). The new one is **1**, so that "2 is the update" is no hint. The picture never says which is which: don't tell a tester, and don't send this file's text with it.
+
+**How to send it:** the picture alone, and **one question, word for word: "Which one would you download?"** Nothing else: no "new", "old", "camera", "tilted" or "3D", no arrow, no preference of yours. Ask for the first answer, "1" or "2" ("neither" and "both the same" count as answers too). Only once they have answered, one follow-up: "Why?", and write it down in their words.
+
+**Who:** the three friends of the retest, and the cold testers (people who have never seen the game, H-09's group). The friends have played the game at 0° for weeks, so their answer leans toward what they know: **count them apart**; the cold testers' answer is the one to read.
+
+**How to tally it:** one row a person in the table below; then count each group's answers.
+
+| Tester | Group (friend / cold) | Answer (1 / 2 / neither / same) | Why, in their words | Date |
+|---|---|---|---|---|
+| … | | | | |
+
+| Group | People | 1 (30°) | 2 (0°) | Neither / same |
+|---|---|---|---|---|
+| Friends | | | | |
+| Cold testers | | | | |
+
+- **Read the cold testers' row.** With three to five of them it is a signal, not a statistic: all of them, or all but one, on one side is a clear answer; a split is no answer, and the reasons decide what to look at.
+- **A "2" with a reason** (the map looks squashed, the band under the map looks unfinished, a building looks wrong) is the useful part: each such reason names what to fix on the tilted camera (the band is already an open item, `docs/ART.md` §16), not a reason to go back by itself.
+- **Mixing the groups or asking twice** spoils it: a person who has seen one picture, or heard the other's answer, is no longer a five-second test.
+- **Han decides** from the table; the result and the decision go in `docs/GAME_DESIGN.md`'s Decision Log.
+
+**Make it again** (after art changes, or with another held moment): an e2e build of b1ecad0 in a worktree, then this checkout's e2e build, then `npm run camera-ab -w @tdt/client -- --zero <that build's dist-e2e>` (`apps/client/scripts/cameraAb.ts`: `--out FILE`, `--frames DIR` keeps each frame alone; `CHROMIUM_PATH` for another Chromium). About 3 minutes once both builds exist.
+
 ## How to make them again
 
 ```

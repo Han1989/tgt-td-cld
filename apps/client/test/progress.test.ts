@@ -62,8 +62,9 @@ describe('progress dashboard data', () => {
     // (the tilted camera, build 1 of 4: the camera in the client with today's art; PR #162) and t-iphone-flake (the
     // iPhone shard that failed once and passed on a re-run; PR #162), and V-08b-2 (the tilted camera, build 2 of 4:
     // the plate and the structures at 30°, the turrets at eight headings; PR #163), and V-08b-3 (the tilted camera,
-    // build 3 of 4: the effects, the weather and the fallbacks on the pitched ground; PR #164).
-    expect(summary.done).toBe(105);
+    // build 3 of 4: the effects, the weather and the fallbacks on the pitched ground; PR #164), and V-08b-4 (the tilted
+    // camera, build 4 of 4: the budget, the phone checklist and the five-second test; PR #165).
+    expect(summary.done).toBe(106);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -75,7 +76,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(143);
+    expect(summary.total).toBe(144);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -123,6 +124,7 @@ describe('progress dashboard data', () => {
       'V-08b-1': 162,
       'V-08b-2': 163,
       'V-08b-3': 164,
+      'V-08b-4': 165,
       't-iphone-flake': 162,
       'f3-look': 151,
       'f3-boards': 153,
@@ -216,7 +218,7 @@ describe('progress dashboard data', () => {
     // after the order, not on the overnight auto-pull list.
     expect(PROGRESS.sections[1]!.id).toBe('visual');
     expect(PROGRESS.sections[1]!.blurb).toContain('Not on the overnight auto-pull list');
-    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04', 'V-05a', 'V-05b', 'V-05c', 'V-05d', 'V-05e', 'V-06a', 'V-06b', 'V-06c', 'V-06e-concepts', 'V-06d', 'V-06e', 'V-07a', 'V-06f', 'V-07b', 'V-06h-concepts', 'V-07a-fix', 'V-06i', 'V-06j', 'V-06l-concepts', 'V-06l-towers', 'V-06l-batch2', 'V-07e', 'V-07d', 'V-07c-look', 'V-07c', 'V-08a', 'V-08b-look', 'V-08b-1', 'V-08b-2', 'V-08b-3', 't-iphone-flake']);
+    expect(PROGRESS.items.filter((item) => item.section === 'visual').map((item) => item.id)).toEqual(['V-01', 'V-02', 'V-03', 'V-04', 'V-05a', 'V-05b', 'V-05c', 'V-05d', 'V-05e', 'V-06a', 'V-06b', 'V-06c', 'V-06e-concepts', 'V-06d', 'V-06e', 'V-07a', 'V-06f', 'V-07b', 'V-06h-concepts', 'V-07a-fix', 'V-06i', 'V-06j', 'V-06l-concepts', 'V-06l-towers', 'V-06l-batch2', 'V-07e', 'V-07d', 'V-07c-look', 'V-07c', 'V-08a', 'V-08b-look', 'V-08b-1', 'V-08b-2', 'V-08b-3', 'V-08b-4', 't-iphone-flake']);
     expect(byId('V-01')).toMatchObject({ owner: 'Team', status: 'done', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/100' } });
     expect(byId('V-01').note).toContain('Merged 10 Oct 2026');
     // Han, 13 Oct 2026: the lesson is the player's choice. V-02 (the second screen) is done.

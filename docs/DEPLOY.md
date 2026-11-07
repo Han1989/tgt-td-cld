@@ -206,7 +206,7 @@ VITE_SERVER_URL=wss://<the server>.onrender.com npm run build:embed -- itch
 - `VITE_SERVER_URL` is the production game server, the same value Vercel's build has (Vercel → *Settings → Environment Variables*). It is read from the environment and never written in the repo; the build refuses to start without it.
 - `itch` can be `newgrounds` or `crazygames`: the only difference is the channel baked in (below).
 - Output: `apps/client/dist-embed-itch/` and **`apps/client/embed-itch-<commit>.zip`**, `index.html` at its root (`-dirty` in the name when the checkout has uncommitted changes: commit first). Both are ignored by git; the zip is built, never committed.
-- It then prints the zip's size, its file count and the initial download (index.html, what its head loads, their static imports and the first screen's pictures) against the hosts' limits: CrazyGames allows an initial download of 50 MB (20 MB to be on its mobile homepage), 250 MB in all and 1,500 files; itch.io takes uploads up to 1 GB. For PR #155's commit: zip **20.8 MB**, unzipped 21.8 MB, **83 files**, initial download **1.32 MB** in 16 files.
+- It then prints the zip's size, its file count and the initial download (index.html, what its head loads, their static imports and the first screen's pictures) against the hosts' limits: CrazyGames allows an initial download of 50 MB (20 MB to be on its mobile homepage), 250 MB in all and 1,500 files; itch.io takes uploads up to 1 GB. For PR #155's commit: zip **20.8 MB**, unzipped 21.8 MB, **83 files**, initial download **1.32 MB** in 16 files. On the tilted camera (V-08b build 4, 7 Nov 2026: the plate in three lights and the structures' four pages): zip **27.7 MB**, unzipped 28.8 MB, **90 files**, initial download **1.35 MB** in 16 files; every limit is still far off (CrazyGames' 50 / 20 MB initial and 250 MB in all, 1,500 files; itch.io's 1 GB).
 
 What the hosted build is (a Vite build in `--mode embed`, `VITE_EMBED_HOST` set; `vite.config.ts`, `src/platform/embedHost.ts`):
 
@@ -262,7 +262,7 @@ Render → *Environment* → `ALLOWED_ORIGINS` → edit → **Save, rebuild and 
 
 1. itch.io → *Dashboard* → **Create new project**. **Kind of project: HTML** ("You'll have a ZIP or HTML file that will be played in the browser").
 2. **Uploads → Upload files**: the zip. Tick **This file will be played in the browser**.
-3. **Embed options**: *Embed in page*; **Viewport dimensions 412 × 839**. **Frame options**: **Mobile friendly** on, orientation **Portrait** (on phones itch.io then launches the game full screen whatever the desktop setting); **Fullscreen button** on; *Automatically start on page load* off (a tap starts it, and the game's sound needs that tap anyway); *Enable scrollbars* off; *SharedArrayBuffer support* off (the game doesn't use it; it serves the game under cross-origin isolation, which nothing here was tested with).
+3. **Embed options**: *Embed in page*; **Viewport dimensions 412 × 839** (on a desktop that frame is the phone's layout; below, "The frame's size on a desktop"). **Frame options**: **Mobile friendly** on, orientation **Portrait** (on phones itch.io then launches the game full screen whatever the desktop setting); **Fullscreen button** on; *Automatically start on page load* off (a tap starts it, and the game's sound needs that tap anyway); *Enable scrollbars* off; *SharedArrayBuffer support* off (the game doesn't use it; it serves the game under cross-origin isolation, which nothing here was tested with).
 4. **Visibility: Draft.** Save, then open the draft's page (or its secret URL) on the phone and on a desktop browser.
 5. Check, on both:
    - the home card shows in the frame, the ⤢ button on the stage (desktop and Android; not on an iPhone, which has no element fullscreen), sound after the first tap;
@@ -272,6 +272,16 @@ Render → *Environment* → `ALLOWED_ORIGINS` → edit → **Save, rebuild and 
    - the dashboard (`/analytics`) counts the visit under **itch.io** (Where they came from; Before the age question);
    - DevTools: the WebSocket's `Origin` is in `ALLOWED_ORIGINS` (above); *Application → Service workers* shows `sw.js` for the upload's folder, or nothing (the game runs either way).
 6. Only then make the page public.
+
+**The frame's size on a desktop** (re-checked for the tilted camera, V-08b build 4, with the game's own `computeLayout`, `apps/client/src/layout.ts`). On phones itch.io launches the game full screen in portrait, so the viewport only sets what a desktop visitor sees in the page:
+
+| Frame | Layout | Tile | Map on screen | Side panels | Under the map |
+|---|---|---|---|---|---|
+| 412 × 839 (itch.io's setting above) | tall: the phone's, with the mouse | 15.85 px (the same at 0°) | 412 × 686 (792 at 0°) | none: the top bar, the radial menus | a 109 px dark band with the touch controls' places (3 px at 0°) |
+| 1280 × 720 (`npm run embed:serve`'s `/desktop`) | wide: the desktop's, mouse and keyboard | 16.26 px (14.08 at 0°: +15%) | 423 × 704 | 405 px wide (433 at 0°), 12 px clear of the map | 8 px |
+| 1280 × 800 (a laptop's window) | wide | 18.11 px (15.68 at 0°) | 471 × 784 | 381 px (412 at 0°), 12 px clear | 8 px |
+
+The tilted map is shorter, so a frame fitted to its height draws it 15% bigger and its side panels narrow with the margins, never over the map (`SIDE_MIN` 280 px: a wide frame keeps the desktop layout down to about 872 × 536). 412 × 839 stays the setting: it is the phone's frame, and the one size where a desktop visitor sees what a phone player sees, band included; a wide viewport such as 1280 × 720 would show desktop visitors the desktop layout with a bigger map instead (Han's call; nothing in the build changes either way).
 
 **A new version.** Build a new zip and upload it; delete the old upload (itch.io serves each upload from its own folder, so the new one starts clean). Upload a new zip with every server deploy that changes `PROTOCOL_VERSION`: until then the hosted copy's online play says "New version available at tgt-td-cld.vercel.app" (solo still plays). A host that replaces an upload in place, at the same path, reaches a returning player on the visit after the one that loads it (the service worker's usual update).
 

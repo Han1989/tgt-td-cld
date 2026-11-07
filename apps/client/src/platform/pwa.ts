@@ -141,8 +141,8 @@ function waitForInstalled(reg: ServiceWorkerRegistration): Promise<ServiceWorker
 }
 
 /**
- * The creeps' and heroes' match sheets the page has loaded (V-07d): the service worker keeps them for offline solo. They
- * are not precached; a first visit's page loads them before the worker controls it, so it is told once they are in,
+ * The match sheets the page has loaded (V-07d: the creeps' and heroes'; V-08b build 4: the structures' pages too): the
+ * service worker keeps them for offline solo. They are not precached; a first visit's page loads them before the worker controls it, so it is told once they are in,
  * and fetches each from the HTTP cache (no second download). Production builds only, as the worker.
  */
 export function keepSheets(urls: readonly string[]): void {

@@ -18,7 +18,7 @@ export { CREEP_SHEETS, creepFrames, creepSheetsVersion, loadCreepSheet, loadCree
 export { Hero3DRig } from './heroRig';
 export { HERO_SHEETS, heroFrames, loadHeroSheet, loadHeroSheets } from './sheet';
 export { Heart3DView, Portal3DView, PORTAL_FLARE, PORTAL_OPENING } from './buildings';
-export { loadStructureSheet, structureFrames, structuresVersion } from './structureSheet';
+export { loadStructureSheet, structureFrames, structurePageUrls, structuresVersion } from './structureSheet';
 export { Tower3DRig } from './towerRig';
 export { lanternLamps, towerReach, towerTop, towerVariant } from './structures';
 
