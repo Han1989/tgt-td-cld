@@ -6,6 +6,8 @@
 // (docs/art/ground-options.md, "The light pools"). Both are drawn by one quad at the normal blend (`poolTexels`), made
 // once and animated by alpha only; non-essential (gone at Graphics → Low). The numbers are the sheet's.
 
+import { HEART_SCALE, PORTAL_SCALE } from '../entityScale';
+
 export type PoolKind = 'heart' | 'portal' | 'tower';
 
 /** The falloff from the middle (0) to the rim (1): the pool's share of its peak alpha. */
@@ -34,6 +36,14 @@ export const POOLS: Record<PoolKind, { radius: number; peak: number }> = {
   portal: { radius: 2.6, peak: 0.38 },
   tower: { radius: 2.4, peak: 0.3 },
 };
+
+/** What a pool grows with (V-08c): the Heart's and the portals' drawn scale, so their light keeps their size. */
+export const POOL_SIZE: Record<PoolKind, number> = { heart: HEART_SCALE, portal: PORTAL_SCALE, tower: 1 };
+
+/** A pool's radius (tiles): its own, grown with what it lights (`POOL_SIZE`). */
+export function poolRadius(kind: PoolKind): number {
+  return POOLS[kind].radius * POOL_SIZE[kind];
+}
 
 /** A tower's pool fades in over this long (ms) when the tower reaches tier 3 or a branch. */
 export const POOL_FADE_MS = 400;

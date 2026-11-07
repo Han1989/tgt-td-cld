@@ -403,13 +403,15 @@ export function edgeDistance(p: Pt, c: Candidate): number {
  *
  * The tilted camera (docs/art/camera-options.md, "Taps"): a tall tower's drawn body stands over the ground behind its
  * pad. A tap inside boxes that overlap goes to the one drawn in front (the lowest on screen, as `depth` draws them):
- * the boxes behind it are left out, so a tap on a tower's roof is that tower, never the pad behind it.
+ * the boxes behind it are left out, so a tap on a tower's roof is that tower, never the pad behind it. A tap inside a
+ * box is that box against every other box, even one whose edge is within `tie` (V-08c: a smaller tower's roof ends
+ * just short of the pad behind it); creeps still compete with it.
  */
 export function resolveTap(p: Pt, candidates: readonly Candidate[], snap = SNAP_PX, tie = TIE_PX): TapResult {
   const inside = candidates.filter((c) => c.shape === 'box' && edgeDistance(p, c) === 0);
-  const front = inside.length > 1 ? inside.reduce((a, b) => (b.at.y > a.at.y ? b : a)) : null;
+  const front = inside.length > 0 ? inside.reduce((a, b) => (b.at.y > a.at.y ? b : a)) : null;
   const scored = candidates
-    .filter((c) => !front || c === front || !inside.includes(c))
+    .filter((c) => !front || c === front || c.shape !== 'box')
     .map((c) => ({ ...c, d: edgeDistance(p, c) }))
     .filter((c) => c.d <= snap)
     .sort((a, b) => a.d - b.d || kindOrder(a.kind) - kindOrder(b.kind));

@@ -264,6 +264,23 @@ describe('snap to the nearest target', () => {
     expect(top.type === 'pick' && top.pick.id).toBe(4);
   });
 
+  it('a tap inside a short roof is the tower, not a picker with the pad just behind it (V-08c)', () => {
+    const cos = viewCos();
+    const half = 24;
+    // A roof that stops 2 px short of the pad behind's front edge: a tap at its top is inside the tower only, the pad
+    // 2 px away (under TIE_PX).
+    const tower: Candidate = { kind: 'tower', id: 9, at: { x: 100, y: 200 }, half, halfY: half * cos, rise: 14, shape: 'box' };
+    const behind: Candidate = { kind: 'pad', id: 4, at: { x: 100, y: 200 - half * cos - 16 - half * cos }, half, halfY: half * cos, shape: 'box' };
+    const r = resolveTap({ x: 100, y: boxRect(tower).top + 1 }, [behind, tower]);
+    expect(r.type === 'pick' && r.pick).toMatchObject({ kind: 'tower', id: 9, d: 0 });
+    // Between the two, inside neither: the nearer edge, or a picker when they are as near.
+    const gap = resolveTap({ x: 100, y: boxRect(tower).top - 1 }, [behind, tower]);
+    expect(gap.type).toBe('tie');
+    // A creep standing on the roof still competes with it.
+    const creep: Candidate = { kind: 'creep', id: 7, at: { x: 100, y: boxRect(tower).top + 4 }, half: 6, shape: 'circle' };
+    expect(resolveTap({ x: 100, y: boxRect(tower).top + 1 }, [behind, tower, creep]).type).toBe('tie');
+  });
+
   it('taps land on the ground through the camera: a tap on a pad drawn on the tilted map picks that pad', () => {
     const cos = viewCos();
     const cam = new Camera(26 * 32, 50 * 32);

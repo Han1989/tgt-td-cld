@@ -50,7 +50,7 @@ import type { Camera } from '../input/camera';
 import { flyerDrawScale } from '../teach/cues';
 import { lerpEntities, type InterpolatedView } from '../snapshotBuffer';
 import type { UiState } from '../uiState';
-import { towerScale, UNIT_SCALES, type EntityScales } from './entityScale';
+import { HEART_SCALE, PORTAL_SCALE, portalPoint, TOWER_SIZE, towerScale, UNIT_SCALES, type EntityScales } from './entityScale';
 import { createFxAtlas, RING_PX, DISC_PX, type FxAtlas } from './fx/atlas';
 import { chance, Effects } from './fx/effects';
 import { HitTracker } from './fx/hits';
@@ -72,7 +72,7 @@ import {
   type ScreenBox,
   type VignettePulse,
 } from './fx/juice';
-import { POOL_PX, poolAlpha, poolFadeIn, POOLS, poolTexels, portalPoolLevel, towerLit, type PoolKind } from './fx/pools';
+import { POOL_PX, poolAlpha, poolFadeIn, poolRadius, poolTexels, portalPoolLevel, towerLit, type PoolKind } from './fx/pools';
 import { HEART_SHAKE_GAP_MS, heartShake, SHAKE_AT } from './fx/shake';
 import { vowLook } from './fx/vow';
 import {
@@ -167,7 +167,10 @@ const PROJECTILE_LIFT = 1.5;
 const TRAP_LIFT = -1.5;
 /** A light whose plate failed to come in is asked for again this long after (ms). */
 const PLATE_RETRY_MS = 10_000;
-const TOWER_SIZE = 2.4;
+/** The 2D towers' drawn size (tiles across) and the build ghost's square on its pad. */
+const TOWER_TILES = 2.4;
+/** A tower's HP bar stands this far (world px, as drawn) over its roof. */
+const TOWER_BAR_GAP = 4;
 const MARKER_LIFE_MS = 450;
 /** Off-screen margin (px) before an entity is culled. */
 const CULL_MARGIN = 48;
@@ -717,7 +720,7 @@ export class WorldRenderer {
     this.atmo.setWeather(weather);
     const k = weather === 'rain' ? RAIN_POOL_SCALE : 1;
     for (const p of [this.heartPool, ...this.portalPools, ...this.towerPools.values()]) {
-      p.sprite.scale.set(((POOLS[p.kind].radius * S) / POOL_PX) * k);
+      p.sprite.scale.set(((poolRadius(p.kind) * S) / POOL_PX) * k);
     }
   }
 
@@ -1848,7 +1851,10 @@ export class WorldRenderer {
       const p = lane.waypoints[0]!;
       const root = new Container();
       this.actors.addChild(root);
-      this.stand(root, p.x, p.y + 1);
+      // V-08c: drawn PORTAL_SCALE larger about its point, which stands PORTAL_DROP tiles of view lower (`portalPoint`).
+      const at = portalPoint(p, this.cos);
+      root.scale.set(PORTAL_SCALE);
+      this.stand(root, at.x, at.y);
       const view = portalView3d();
       const k = view ? PORTAL_OPENING : 1;
       const swirl = this.art.sprite(art.id, 'swirl');
@@ -1873,7 +1879,7 @@ export class WorldRenderer {
       } else {
         root.addChild(this.art.sprite(art.id, 'rim'), core, swirl, flare);
       }
-      this.portals.push({ root, swirl, core, flare, x: p.x, y: p.y + 1, view, k });
+      this.portals.push({ root, swirl, core, flare, x: at.x, y: at.y, view, k });
     }
   }
 
@@ -1886,7 +1892,7 @@ export class WorldRenderer {
     const sprite = new Sprite(this.poolTexture);
     sprite.anchor.set(0.5);
     sprite.position.set(x * S, y * S);
-    sprite.scale.set(((POOLS[kind].radius * S) / POOL_PX) * (this.atmo?.current === 'rain' ? RAIN_POOL_SCALE : 1));
+    sprite.scale.set(((poolRadius(kind) * S) / POOL_PX) * (this.atmo?.current === 'rain' ? RAIN_POOL_SCALE : 1));
     sprite.tint = kind === 'heart' ? FX.poolHeart : kind === 'portal' ? FX.poolPortal : FX.poolRune;
     this.poolLayer.addChild(sprite);
     const pool: PoolSprite = { kind, sprite, level: -1, born };
@@ -1930,7 +1936,7 @@ export class WorldRenderer {
         p.swirl.scale.set(p.k * swell);
         p.view.update(now, i);
       } else {
-        p.root.scale.set(swell);
+        p.root.scale.set(swell * PORTAL_SCALE);
       }
       p.core.alpha = Math.min(1, 0.55 + 0.2 * Math.sin(now / 250 + i * 2) + flare * 0.45 + this.dark * 0.2);
       const bossLane = this.portalFlareBoss && this.portalBossLanes.includes(i);
@@ -1951,11 +1957,11 @@ export class WorldRenderer {
       const arch = archRatio();
       for (let n = chance(4 + flare * 20, dtMs); n > 0; n--) {
         const a = Math.random() * Math.PI * 2;
-        const d = S * (1.4 + Math.random() * 0.8) * (p.view ? 0.7 : 1);
+        const d = S * (1.4 + Math.random() * 0.8) * (p.view ? 0.7 : 1) * PORTAL_SCALE;
         this.fx.emit({
           frame: 'dot',
-          x: p.x * S + Math.cos(a) * d + (p.view?.opening.x ?? 0),
-          y: p.view ? overGround(p.y * S, -(p.view.opening.y + Math.sin(a) * d * arch)) : p.y * S + Math.sin(a) * d,
+          x: p.x * S + Math.cos(a) * d + (p.view?.opening.x ?? 0) * PORTAL_SCALE,
+          y: p.view ? overGround(p.y * S, -(p.view.opening.y * PORTAL_SCALE + Math.sin(a) * d * arch)) : p.y * S + Math.sin(a) * d,
           speed: [d / 0.6, d / 0.6],
           angle: [a + Math.PI + 0.5, a + Math.PI + 0.5],
           drag: 1.5,
@@ -1973,6 +1979,8 @@ export class WorldRenderer {
     const { x, y } = this.map.heart;
     const art = heartArt();
     const root = new Container();
+    // V-08c: drawn HEART_SCALE larger about its point, with everything that hangs off it (its glow, ring, windows, blaze).
+    root.scale.set(HEART_SCALE);
     this.actors.addChild(root);
     this.stand(root, x, y);
     const view = heartView3d();
@@ -2008,7 +2016,7 @@ export class WorldRenderer {
         return { sprite, share: w.share };
       });
       root.addChild(glow, warn, view.root, ...windows.map((w) => w.sprite), blaze);
-      return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y, blazeY: view.keep.y, windows };
+      return { root, glow, warn, blaze, gem: null, view, fxY: view.chest.y * HEART_SCALE, blazeY: view.keep.y * HEART_SCALE, windows };
     }
     const base = this.art.sprite(art.id, 'base');
     base.position.set(0, art.baseY);
@@ -2019,7 +2027,7 @@ export class WorldRenderer {
     for (const s of [flash, cracks1, cracks2]) fade(s, 0);
     for (const s of [gem, cracks1, cracks2, flash]) s.position.set(0, art.gemY);
     root.addChild(glow, warn, blaze, base, gem, cracks1, cracks2, flash);
-    return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY, blazeY: art.gemY, windows: [] };
+    return { root, glow, warn, blaze, gem: { body: gem, flash, cracks1, cracks2, art }, view: null, fxY: art.gemY * HEART_SCALE, blazeY: art.gemY * HEART_SCALE, windows: [] };
   }
 
   /** Gentle heartbeat; red flash and a wobble when hit; a red warning glow and faster beat at low HP. */
@@ -2067,7 +2075,7 @@ export class WorldRenderer {
         // At the gem or the crystal: `fxY` px over the Heart's point on screen (a ground y `fxY / cos` px further up).
         const fy = y + h.fxY / (S * this.cos);
         this.fx.shards(x, fy, [COLORS.heart, FX.heartShard, FX.ember], stage === 2 ? 18 : 12, 170);
-        this.fx.flash(x, fy, 1.6, FX.heartBlaze, 360, 0.7, 'add', false);
+        this.fx.flash(x, fy, 1.6 * HEART_SCALE, FX.heartBlaze, 360, 0.7, 'add', false);
         this.fx.bump(stage === 2 ? 0.3 : 0.18);
       }
       this.heartShown = stage;
@@ -2082,7 +2090,7 @@ export class WorldRenderer {
       h.blaze.scale.set(((S * (gem ? 2.4 : 2.8)) / DISC_PX) * (1 + beat * 0.15));
       // Embers rising from the split gem, or from the burning castle.
       if (this.fx.particles) {
-        const spread = gem ? 0.9 : 2.2;
+        const spread = (gem ? 0.9 : 2.2) * HEART_SCALE;
         const from = gem ? h.fxY : h.blazeY;
         for (let n = chance(gem ? 9 : 14, this.lastDt); n > 0; n--) {
           this.fx.mote(x + (Math.random() - 0.5) * spread, y + from / (S * this.cos), FX.ember, 0.2, -38, 0.8);
@@ -2459,8 +2467,12 @@ export class WorldRenderer {
       }
       this.stand(s.root, t.x, t.y);
       // As large as the layout draws towers, but never past its pad (its own variant's reach: V-07e).
-      s.root.scale.set(towerScale(this.scales.tower, towerReach(t.kind, t.tier, t.branch, s.art?.is3d === true)));
-      updateBar(s, t.hp, t.maxHp, S * 1.6, -S * TOWER_SIZE * 0.5 - 7);
+      const is3d = s.art?.is3d === true;
+      const k = towerScale(this.scales.tower, towerReach(t.kind, t.tier, t.branch, is3d));
+      s.root.scale.set(k);
+      // Its HP bar just over its roof as drawn (V-08c: the roof `towerTop` × the scale, the bar TOWER_BAR_GAP px over it),
+      // as wide on screen as before the towers were drawn TOWER_SIZE of their size (the bar is a child of the root).
+      updateBar(s, t.hp, t.maxHp, (S * 1.6) / TOWER_SIZE, -towerTop(t.kind, t.tier, t.branch, is3d) - TOWER_BAR_GAP / k);
       const statusKey = `${t.tier}${t.branch ?? ''}${t.stunned ? 'st' : ''}`;
       if (statusKey !== s.statusKey) {
         s.statusKey = statusKey;
@@ -2470,7 +2482,7 @@ export class WorldRenderer {
         s.hitsAir = stats.hitsAir;
         s.hitsGround = stats.hitsGround;
         // One pip per tier along the bottom edge; a branch adds a bigger white one.
-        const pipY = S * TOWER_SIZE * 0.5 - 5;
+        const pipY = S * TOWER_TILES * 0.5 - 5;
         for (let i = 0; i < t.tier; i++) {
           const branch = t.branch !== null && i === t.tier - 1;
           s.status
@@ -3167,7 +3179,7 @@ export class WorldRenderer {
       const color = ok ? COLORS.good : COLORS.bad;
       g.circle(cx * S, cy * S, stats.range * S).fill({ color, alpha: 0.08 });
       g.circle(cx * S, cy * S, stats.range * S).stroke({ width: 2, color, alpha: 0.6 });
-      const half = (TOWER_SIZE / 2) * S;
+      const half = (TOWER_TILES / 2) * S;
       g.rect(cx * S - half, cy * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
     } else if (hover && mode.type === 'none') {
       const pad = padAtTile(this.map, Math.floor(hover.x), Math.floor(hover.y));
@@ -3184,7 +3196,7 @@ export class WorldRenderer {
         const color = (player?.gold ?? 0) >= stats.cost ? COLORS.good : COLORS.bad;
         g.circle(pad.x * S, pad.y * S, stats.range * S).fill({ color, alpha: 0.08 });
         g.circle(pad.x * S, pad.y * S, stats.range * S).stroke({ width: 2, color, alpha: 0.7 });
-        const half = (TOWER_SIZE / 2) * S;
+        const half = (TOWER_TILES / 2) * S;
         g.rect(pad.x * S - half, pad.y * S - half, half * 2, half * 2).fill({ color, alpha: 0.35 });
       }
     }
@@ -3418,7 +3430,7 @@ function projectileBody(style: string): Graphics {
 
 function towerBody(kind: TowerKind): Graphics {
   const g = new Graphics();
-  const half = (TOWER_SIZE / 2) * S;
+  const half = (TOWER_TILES / 2) * S;
   const color = TOWER_COLORS[kind];
   g.roundRect(-half, -half, half * 2, half * 2, 6).fill(COLORS.towerBase).stroke({ width: 2, color: 0x000000, alpha: 0.6 });
   switch (kind) {

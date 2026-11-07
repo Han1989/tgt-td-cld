@@ -2,7 +2,11 @@
 
 **Han, 7 Nov 2026,** from his Pixel at wave 13 on the Spire (the Warden, Full, Normal): the towers are too big against the portals and the Heart, and the Warden is too big. On his screenshot a tower stands as tall as the Heart and nearly twice a portal. This session shows **three sets of sizes on one real match frame, for Han to pick from**. It is **images only: nothing in the game changes** and no art is rendered again: the client, the sheets, the plate, the sim and the protocol are as they were (`PROTOCOL_VERSION` stays 25). Han picks 1, 2, 3 or his own numbers; the build session is written from the pick ("What the build session changes", below).
 
-## The pictures
+## Han's pick, and the pictures since the build
+
+**Han picked column 3 with the creeps a step smaller** (the strip's fourth cell) on 7 Nov 2026, and the V-08c build made it the game (`docs/ART.md` §16 "V-08c"): towers 75%, the Heart 130%, the portals 135% standing 0.47 tiles of view lower, `HERO_BOOST` 1.375, `CREEP_BOOST` 1.329. **The pictures were made again on that build**, so they no longer show the look's columns below: **1 is the game now** (the pick), **2 the look's middle step** (towers 85%, Heart 115%, portals 120% standing 0.27 tiles lower, `HERO_BOOST` 1.5625, the creeps at V-07e's 1.45) and **3 the game before V-08c** (the look's column 1), each column's factors applied over the game's own; the strip has one cell a column. The tool keeps the towers' HP bars and lanterns where the game puts them, scaled with the tower, so in 2 and 3 they are only approximately where those sizes would put them. Measured on the new build, column 1 is the look's column 3 to the number (tower : Heart : portal : hero **1.20 : 2.02 : 1.23 : 1**), the portals' tops 0.1 px clear of the bar, the Warden 34.9 px, a Grunt 30.6, a Brute 34.5. The look's own sheet, as Han picked from it, is in the history at PR #167's merge (`70f9193`).
+
+## The pictures (the look, 7 Nov 2026)
 
 - **`docs/art/size-options.png`**, the sheet. Three columns, labelled only 1, 2 and 3: each the 412 × 839 phone at 2× over the 1280 × 720 desktop at 1×, the measured numbers under it. Under the three, the strip: the Warden idle between a Grunt and a Brute at each column's sizes, and once more at column 3 with the creeps a step smaller.
 - **`docs/art/size-options/1.png`, `2.png`, `3.png`**: each column's phone frame alone at the phone's 2× pixels (824 × 1678). Opened on a phone, each fills the screen as the game does.
