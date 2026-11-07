@@ -6,7 +6,8 @@
 //
 // Holds one real wave-13 moment of a solo Full match on the Warden (the e2e build, `?lab`, clear weather, the
 // afternoon's light): every pad of the Spire's four columns built, Arrow, Cannon, Frost, Arcane and Flak at tiers 1-3
-// (PLAN), the Warden on the West lane with Runners and a Brute round him (wave 13 has no Grunts). Once he has his pack
+// (PLAN), the Warden at the top of the West lane with Runners and a Brute round him (wave 13 has no Grunts; further
+// down the lane 26 towers leave no pack to hold). Once he has his pack
 // the simulation is paused (`__tdt.pause`) and the same frame is drawn three times, at each column's sizes (OPTIONS):
 //
 // - the towers, the Heart and the portals scaled about their ground points: their roots (found in the Pixi stage
@@ -61,8 +62,8 @@ const HAN_CREEP_TODAY = 1.2;
 /** The strip's extra cell: column 3 with the creeps at Han's "×1.1" too. */
 const CREEP_3 = 1.1;
 /** The Warden's rows on the West lane: the wave-13 hold, and the strip's wave 14. */
-const HOLD_ROW = 18;
-const STRIP_ROW = 8;
+const HOLD_ROW = 3;
+const STRIP_ROW = 3;
 const heroBoost = (o: Option) => (HERO_BOOST * o.hero) / HAN_HERO_TODAY;
 const creepBoost = (han: number) => (CREEP_BOOST * han) / HAN_CREEP_TODAY;
 
@@ -141,27 +142,32 @@ async function walk(p: Page, at: { x: number; y: number }): Promise<void> {
  * Brute among them, and `need` too (a Grunt for the strip).
  */
 async function holdPack(p: Page, wave: number, count: number, r: number, need: string | null): Promise<void> {
-  await p.evaluate((w) => (window as any).__tdt.skipTo(w), wave);
-  try {
-    await p.waitForFunction(
-      ([w, n, rr, k]) => {
-        const s = (window as any).__tdt.latest();
-        const h = s.heroes[0];
-        if (s.wave !== w || !h || h.hp <= 0) return false;
-        const near = s.creeps.filter((c: any) => c.hp > 0 && c.kind !== 'wisp' && Math.hypot(c.x - h.x, c.y - h.y) < rr);
-        return near.length >= n && near.some((c: any) => c.kind === 'brute') && (!k || near.some((c: any) => c.kind === k));
-      },
-      [wave, count, r, need] as const,
-      { timeout: 150_000, polling: 50 },
-    );
-  } catch (e) {
-    const s = await p.evaluate(() => {
-      const t = (window as any).__tdt.latest();
-      const h = t.heroes[0];
-      return { wave: t.wave, hero: h && { x: h.x, y: h.y, hp: h.hp }, creeps: t.creeps.map((c: any) => `${c.kind}@${c.x.toFixed(1)},${c.y.toFixed(1)}`) };
-    });
-    console.error('no pack round the Warden:', JSON.stringify(s));
-    throw e;
+  // A pack forms most waves; when one does not (the towers took it first), the wave is started again.
+  for (let attempt = 1; ; attempt++) {
+    await p.evaluate((w) => (window as any).__tdt.skipTo(w), wave);
+    try {
+      await p.waitForFunction(
+        ([w, n, rr, k]) => {
+          const s = (window as any).__tdt.latest();
+          const h = s.heroes[0];
+          if (s.wave !== w || !h || h.hp <= 0) return false;
+          const near = s.creeps.filter((c: any) => c.hp > 0 && c.kind !== 'wisp' && Math.hypot(c.x - h.x, c.y - h.y) < rr);
+          return near.length >= n && near.some((c: any) => c.kind === 'brute') && (!k || near.some((c: any) => c.kind === k));
+        },
+        [wave, count, r, need] as const,
+        { timeout: 45_000, polling: 50 },
+      );
+      break;
+    } catch (e) {
+      const s = await p.evaluate(() => {
+        const t = (window as any).__tdt.latest();
+        const h = t.heroes[0];
+        return { wave: t.wave, hero: h && { x: +h.x.toFixed(1), y: +h.y.toFixed(1), hp: h.hp }, creeps: t.creeps.length };
+      });
+      console.error(`wave ${wave}, attempt ${attempt}: no pack round the Warden yet`, JSON.stringify(s));
+      if (attempt >= 6) throw e;
+      if (!s.hero || s.hero.hp <= 0) await p.waitForFunction(() => (window as any).__tdt.latest().heroes[0].hp > 0, undefined, { timeout: 60_000 });
+    }
   }
   await p.evaluate(() => (window as any).__tdt.pause(true));
   await p.waitForTimeout(700);
@@ -364,9 +370,9 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
   const p = await openHeld(browser, device, url, { hero: 'warden', viewport, init: INIT });
   await buildAll(p);
   const tilePx = (await frameInfo(p)).tilePx;
-  // The Warden on the West lane's lower stretch, below the towers' fourth row.
+  // The Warden at the top of the West lane, under its portal: further down, 26 towers leave no pack to hold.
   await walk(p, await westLane(p, HOLD_ROW));
-  await holdPack(p, 13, 4, 2.8, null);
+  await holdPack(p, 13, 4, 3, null);
   const shots: Shot[] = [];
   for (const o of OPTIONS) {
     const applied = await apply(p, o, tilePx);
@@ -380,7 +386,6 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
     // The strip: wave 14's Grunts and Brutes, the Warden among them, cropped round him.
     await apply(p, OPTIONS[0], tilePx);
     await p.evaluate(() => (window as any).__tdt.pause(false));
-    // Higher up the lane, under the first row of towers, where the Grunts still walk with the Brutes.
     await walk(p, await westLane(p, STRIP_ROW));
     await holdPack(p, 14, 2, 3.2, 'grunt');
     strip = [];
