@@ -5,10 +5,11 @@
 //   npm run size-options -w @tdt/client [-- --out DIR] [--frames DIR]
 //
 // Holds one real wave-13 moment of a solo Full match on the Warden (the e2e build, `?lab`, clear weather, the
-// afternoon's light): every pad of the Spire's four columns built, Arrow, Cannon, Frost, Arcane and Flak at tiers 1-3
-// (PLAN), the Warden at the top of the West lane with Runners and a Brute round him (wave 13 has no Grunts; further
-// down the lane 26 towers leave no pack to hold). Once he has his pack
-// the simulation is paused (`__tdt.pause`) and the same frame is drawn three times, at each column's sizes (OPTIONS):
+// afternoon's light), the Warden (level 8) on the West lane's lower stretch above its bend with Runners and a Brute
+// round him (wave 13 has no Grunts). Every pad would kill a wave long before it reached him there, so the towers are
+// built once the pack is round him: every pad of the Spire's four columns, Arrow, Cannon, Frost, Arcane and Flak at
+// tiers 1-3 (PLAN), in three ticks, and the simulation paused (`__tdt.pause`). The same frame is then drawn three
+// times, at each column's sizes (OPTIONS):
 //
 // - the towers, the Heart and the portals scaled about their ground points: their roots (found in the Pixi stage
 //   through Pixi's own devtools hook, `__PIXI_APP_INIT__`, by their ground points) get a factor on whatever scale the
@@ -17,8 +18,8 @@
 // - the hero through the e2e hook's `scales`, today's `entityScales` with HERO_BOOST in proportion to the column's
 //   (Han's numbers are V-04's 1.4; the game has V-07e's 1.75, so ×1.25 is 1.75 × 1.25 / 1.4).
 //
-// Then, on the phone, wave 14 (Grunts and Brutes) for the strip: the Warden beside a Grunt and a Brute, cropped, at
-// each column's hero size, and once more at column 3 with the creeps a step smaller (CREEP_3).
+// Before that, on the phone, wave 12 (Grunts and Brutes) for the strip: the Warden beside a Grunt and a Brute,
+// cropped, at each column's hero size, and once more at column 3 with the creeps a step smaller (CREEP_3).
 //
 // Writes docs/art/size-options.png (the sheet: three columns, 1, 2 and 3, each the 412 × 839 phone at 2× over the
 // 1280 × 720 desktop at 1×, the measured numbers under it, then the strip), docs/art/size-options/<n>.png (each
@@ -61,9 +62,8 @@ const HAN_HERO_TODAY = 1.4;
 const HAN_CREEP_TODAY = 1.2;
 /** The strip's extra cell: column 3 with the creeps at Han's "×1.1" too. */
 const CREEP_3 = 1.1;
-/** The Warden's rows on the West lane: the wave-13 hold, and the strip's wave 14. */
-const HOLD_ROW = 3;
-const STRIP_ROW = 3;
+/** The Warden's row on the West lane, its lower stretch above the bend. */
+const HOLD_ROW = 20;
 const heroBoost = (o: Option) => (HERO_BOOST * o.hero) / HAN_HERO_TODAY;
 const creepBoost = (han: number) => (CREEP_BOOST * han) / HAN_CREEP_TODAY;
 
@@ -94,20 +94,24 @@ async function buildAll(p: Page): Promise<void> {
     return xs.map((x) => own.filter((q) => q.x === x).sort((a, b) => a.y - b.y)); })()`)) as { id: number; x: number; y: number }[][];
   if (cols.length !== PLAN.length || cols.some((c, i) => c.length !== PLAN[i]!.length))
     throw new Error(`the pads are not the plan's: ${cols.map((c) => c.length).join(', ')}`);
-  // Every tower first, then the upgrades: the lab's 5,000 gold covers the plan (4,960).
-  const all = cols.flatMap((c, i) => c.map((pad, j) => ({ pad, kind: PLAN[i]![j]![0], tier: PLAN[i]![j]![1] })));
-  for (const { pad, kind } of all) {
-    await p.evaluate(([id, k]) => (window as any).__tdt.command({ type: 'build', padId: id, tower: k }), [pad.id, kind] as const);
-    await p.waitForFunction((id) => (window as any).__tdt.latest().towers.some((q: any) => q.padId === id), pad.id);
-  }
-  for (const { pad, tier } of all) {
-    for (let t = 2; t <= tier; t++) {
-      await p.evaluate((id) => {
-        const tw = (window as any).__tdt.latest().towers.find((q: any) => q.padId === id);
-        (window as any).__tdt.command({ type: 'upgrade', towerId: tw.id });
-      }, pad.id);
-      await p.waitForFunction(([id, n]) => (window as any).__tdt.latest().towers.find((q: any) => q.padId === id)?.tier >= n, [pad.id, t] as const);
-    }
+  // Every tower in one tick, then each tier's upgrades in one tick: the lab's 5,000 gold covers the plan (4,960). The
+  // pack is round the Warden already, so the towers land on it within a few ticks.
+  const all = cols.flatMap((c, i) => c.map((pad, j) => ({ id: pad.id, kind: PLAN[i]![j]![0], tier: PLAN[i]![j]![1] })));
+  await p.evaluate((list) => {
+    for (const q of list) (window as any).__tdt.command({ type: 'build', padId: q.id, tower: q.kind });
+  }, all);
+  await p.waitForFunction((n) => (window as any).__tdt.latest().towers.length >= n, all.length, { polling: 'raf' });
+  for (const tier of [2, 3]) {
+    const ids = all.filter((q) => q.tier >= tier).map((q) => q.id);
+    await p.evaluate((list) => {
+      const t = (window as any).__tdt;
+      for (const id of list) t.command({ type: 'upgrade', towerId: t.latest().towers.find((w: any) => w.padId === id).id });
+    }, ids);
+    await p.waitForFunction(
+      ([list, n]) => list.every((id) => (window as any).__tdt.latest().towers.find((w: any) => w.padId === id)?.tier >= n),
+      [ids, tier] as const,
+      { polling: 'raf' },
+    );
   }
 }
 
@@ -141,7 +145,7 @@ async function walk(p: Page, at: { x: number; y: number }): Promise<void> {
  * Starts `wave` and pauses once the Warden has creeps round him: at least `count` ground creeps within `r` tiles, a
  * Brute among them, and `need` too (a Grunt for the strip).
  */
-async function holdPack(p: Page, wave: number, count: number, r: number, need: string | null): Promise<void> {
+async function holdPack(p: Page, wave: number, count: number, r: number, need: string | null, before?: () => Promise<void>): Promise<void> {
   // A pack forms most waves; when one does not (the towers took it first), the wave is started again.
   for (let attempt = 1; ; attempt++) {
     await p.evaluate((w) => (window as any).__tdt.skipTo(w), wave);
@@ -169,6 +173,7 @@ async function holdPack(p: Page, wave: number, count: number, r: number, need: s
       if (!s.hero || s.hero.hp <= 0) await p.waitForFunction(() => (window as any).__tdt.latest().heroes[0].hp > 0, undefined, { timeout: 60_000 });
     }
   }
+  if (before) await before();
   await p.evaluate(() => (window as any).__tdt.pause(true));
   await p.waitForTimeout(700);
   for (const b of await p.getByRole('button', { name: 'Got it' }).all()) if (await b.isVisible()) await b.click();
@@ -368,26 +373,14 @@ interface Shot {
 async function heldDevice(browser: Browser, url: string, device: Device): Promise<{ shots: Shot[]; strip: Buffer[] | null }> {
   const viewport = device === 'desktop' ? { width: 1280, height: 720 } : undefined;
   const p = await openHeld(browser, device, url, { hero: 'warden', viewport, init: INIT });
-  await buildAll(p);
   const tilePx = (await frameInfo(p)).tilePx;
-  // The Warden at the top of the West lane, under its portal: further down, 26 towers leave no pack to hold.
+  // A mid-match Warden (his size does not change with his level; his HP keeps him standing in the pack).
+  await p.evaluate(() => (window as any).__tdt.setLevel(8));
   await walk(p, await westLane(p, HOLD_ROW));
-  await holdPack(p, 13, 4, 3, null);
-  const shots: Shot[] = [];
-  for (const o of OPTIONS) {
-    const applied = await apply(p, o, tilePx);
-    const png = await p.screenshot();
-    shots.push({ png, info: await frameInfo(p), applied });
-    if (framesDir) writeFileSync(join(framesDir, `${device}-${o.n}.png`), png);
-    console.log(`${device} ${o.n}: ${applied.found.towers} towers, heart ${applied.found.heart}, ${applied.found.portals} portals`);
-  }
   let strip: Buffer[] | null = null;
   if (device === 'phone') {
-    // The strip: wave 14's Grunts and Brutes, the Warden among them, cropped round him.
-    await apply(p, OPTIONS[0], tilePx);
-    await p.evaluate(() => (window as any).__tdt.pause(false));
-    await walk(p, await westLane(p, STRIP_ROW));
-    await holdPack(p, 14, 2, 3.2, 'grunt');
+    // The strip first, before a tower stands: wave 12's Grunts and Brutes round the Warden, cropped round him.
+    await holdPack(p, 12, 3, 2.6, 'grunt');
     strip = [];
     const cells: [Option, number][] = [...OPTIONS.map((o) => [o, HAN_CREEP_TODAY] as [Option, number]), [OPTIONS[2], CREEP_3]];
     for (const [o, creep] of cells) {
@@ -399,6 +392,21 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
       strip.push(await p.screenshot({ clip }));
       if (framesDir) writeFileSync(join(framesDir, `strip-${strip.length}.png`), strip[strip.length - 1]!);
     }
+    await apply(p, OPTIONS[0], tilePx);
+    await p.evaluate(() => (window as any).__tdt.pause(false));
+    await walk(p, await westLane(p, HOLD_ROW));
+  }
+  // Wave 13: once a pack is round the Warden, every pad is built in three ticks and the match paused.
+  await holdPack(p, 13, 4, 2.8, null, () => buildAll(p));
+  // The towers' drop onto their pads plays out (the render runs while the simulation is held).
+  await p.waitForTimeout(1200);
+  const shots: Shot[] = [];
+  for (const o of OPTIONS) {
+    const applied = await apply(p, o, tilePx);
+    const png = await p.screenshot();
+    shots.push({ png, info: await frameInfo(p), applied });
+    if (framesDir) writeFileSync(join(framesDir, `${device}-${o.n}.png`), png);
+    console.log(`${device} ${o.n}: ${applied.found.towers} towers, heart ${applied.found.heart}, ${applied.found.portals} portals`);
   }
   await p.context().close();
   return { shots, strip };
