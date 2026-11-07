@@ -23,7 +23,8 @@
     "build:embed": "tsx scripts/buildEmbed.ts",
     "embed:serve": "tsx scripts/embedServe.ts",
     "camera-options": "tsx scripts/cameraOptions.ts",
-    "camera-ab": "tsx scripts/cameraAb.ts"
+    "camera-ab": "tsx scripts/cameraAb.ts",
+    "size-options": "tsx scripts/sizeOptions.ts"
   },
   "dependencies": {
     "@tdt/protocol": "0.1.0",
