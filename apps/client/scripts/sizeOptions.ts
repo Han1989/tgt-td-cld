@@ -45,6 +45,7 @@ const dist = join(root, 'dist-e2e');
 if (!existsSync(join(dist, 'index.html'))) throw new Error('missing dist-e2e (npm run build:e2e -w @tdt/client)');
 const outDir = path(arg('out') ?? join(repo, 'docs', 'art'));
 const framesDir = arg('frames') ? path(arg('frames')!) : null;
+if (framesDir) mkdirSync(framesDir, { recursive: true });
 const art3d = join(root, 'src', 'render', 'art3d');
 
 /** Han's three columns (7 Nov 2026). `hero` is his phone hero number (V-04's scale; today is 1.4 there). */
@@ -59,6 +60,9 @@ const HAN_HERO_TODAY = 1.4;
 const HAN_CREEP_TODAY = 1.2;
 /** The strip's extra cell: column 3 with the creeps at Han's "×1.1" too. */
 const CREEP_3 = 1.1;
+/** The Warden's rows on the West lane: the wave-13 hold, and the strip's wave 14. */
+const HOLD_ROW = 18;
+const STRIP_ROW = 8;
 const heroBoost = (o: Option) => (HERO_BOOST * o.hero) / HAN_HERO_TODAY;
 const creepBoost = (han: number) => (CREEP_BOOST * han) / HAN_CREEP_TODAY;
 
@@ -138,17 +142,27 @@ async function walk(p: Page, at: { x: number; y: number }): Promise<void> {
  */
 async function holdPack(p: Page, wave: number, count: number, r: number, need: string | null): Promise<void> {
   await p.evaluate((w) => (window as any).__tdt.skipTo(w), wave);
-  await p.waitForFunction(
-    ([w, n, rr, k]) => {
-      const s = (window as any).__tdt.latest();
-      const h = s.heroes[0];
-      if (s.wave !== w || !h || h.hp <= 0) return false;
-      const near = s.creeps.filter((c: any) => c.hp > 0 && c.kind !== 'wisp' && Math.hypot(c.x - h.x, c.y - h.y) < rr);
-      return near.length >= n && near.some((c: any) => c.kind === 'brute') && (!k || near.some((c: any) => c.kind === k));
-    },
-    [wave, count, r, need] as const,
-    { timeout: 150_000, polling: 50 },
-  );
+  try {
+    await p.waitForFunction(
+      ([w, n, rr, k]) => {
+        const s = (window as any).__tdt.latest();
+        const h = s.heroes[0];
+        if (s.wave !== w || !h || h.hp <= 0) return false;
+        const near = s.creeps.filter((c: any) => c.hp > 0 && c.kind !== 'wisp' && Math.hypot(c.x - h.x, c.y - h.y) < rr);
+        return near.length >= n && near.some((c: any) => c.kind === 'brute') && (!k || near.some((c: any) => c.kind === k));
+      },
+      [wave, count, r, need] as const,
+      { timeout: 150_000, polling: 50 },
+    );
+  } catch (e) {
+    const s = await p.evaluate(() => {
+      const t = (window as any).__tdt.latest();
+      const h = t.heroes[0];
+      return { wave: t.wave, hero: h && { x: h.x, y: h.y, hp: h.hp }, creeps: t.creeps.map((c: any) => `${c.kind}@${c.x.toFixed(1)},${c.y.toFixed(1)}`) };
+    });
+    console.error('no pack round the Warden:', JSON.stringify(s));
+    throw e;
+  }
   await p.evaluate(() => (window as any).__tdt.pause(true));
   await p.waitForTimeout(700);
   for (const b of await p.getByRole('button', { name: 'Got it' }).all()) if (await b.isVisible()) await b.click();
@@ -351,13 +365,14 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
   await buildAll(p);
   const tilePx = (await frameInfo(p)).tilePx;
   // The Warden on the West lane's lower stretch, below the towers' fourth row.
-  await walk(p, await westLane(p, 18));
+  await walk(p, await westLane(p, HOLD_ROW));
   await holdPack(p, 13, 4, 2.8, null);
   const shots: Shot[] = [];
   for (const o of OPTIONS) {
     const applied = await apply(p, o, tilePx);
     const png = await p.screenshot();
     shots.push({ png, info: await frameInfo(p), applied });
+    if (framesDir) writeFileSync(join(framesDir, `${device}-${o.n}.png`), png);
     console.log(`${device} ${o.n}: ${applied.found.towers} towers, heart ${applied.found.heart}, ${applied.found.portals} portals`);
   }
   let strip: Buffer[] | null = null;
@@ -365,7 +380,9 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
     // The strip: wave 14's Grunts and Brutes, the Warden among them, cropped round him.
     await apply(p, OPTIONS[0], tilePx);
     await p.evaluate(() => (window as any).__tdt.pause(false));
-    await holdPack(p, 14, 3, 2.6, 'grunt');
+    // Higher up the lane, under the first row of towers, where the Grunts still walk with the Brutes.
+    await walk(p, await westLane(p, STRIP_ROW));
+    await holdPack(p, 14, 2, 3.2, 'grunt');
     strip = [];
     const cells: [Option, number][] = [...OPTIONS.map((o) => [o, HAN_CREEP_TODAY] as [Option, number]), [OPTIONS[2], CREEP_3]];
     for (const [o, creep] of cells) {
@@ -375,6 +392,7 @@ async function heldDevice(browser: Browser, url: string, device: Device): Promis
       const ch = 120;
       const clip = { x: Math.max(0, w.x - cw / 2), y: Math.max(0, w.y - ch * 0.62), width: cw, height: ch };
       strip.push(await p.screenshot({ clip }));
+      if (framesDir) writeFileSync(join(framesDir, `strip-${strip.length}.png`), strip[strip.length - 1]!);
     }
   }
   await p.context().close();
@@ -412,12 +430,6 @@ try {
   const sheets = await measureSheets(browser);
   const phone = await heldDevice(browser, url, 'phone');
   const desktop = await heldDevice(browser, url, 'desktop');
-  if (framesDir) {
-    mkdirSync(framesDir, { recursive: true });
-    phone.shots.forEach((s, i) => writeFileSync(join(framesDir, `phone-${i + 1}.png`), s.png));
-    desktop.shots.forEach((s, i) => writeFileSync(join(framesDir, `desktop-${i + 1}.png`), s.png));
-    phone.strip?.forEach((s, i) => writeFileSync(join(framesDir, `strip-${i + 1}.png`), s));
-  }
 
   // The numbers, per column, on the phone (CSS px at the fit; device px on a 2.625× Pixel 7 and a 3× phone).
   const measures = OPTIONS.map((o, i) => {
