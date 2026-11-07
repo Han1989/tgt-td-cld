@@ -207,8 +207,17 @@ The first screen loads the same files (374 KB), so the lobby is usable as before
 | V-07d | 5 | median **22.00 s** (21.85–22.11 s) | 2,467 KB (the structures' sheet lossless WebP) | median 6.11 s (6.00–6.17 s): the 6 s limit in every run |
 | V-07d, the Warden (`--hero warden`) | 3 | median 24.71 s (24.25–24.75 s) | 3,012 KB (his sheet is 834 KB) | median 6.01 s, the limit |
 | V-08b build 2 (the structures' four pages at 30°, the turrets at eight headings) | 1 | **54.74 s** | 7,895 KB (the four pages 7.03 MB) | 6.06 s, the limit |
+| V-08b build 4 (the whole tilted camera; 7 Nov 2026) | 3 | median **54.95 s** (54.78–54.98 s) | 7,895 KB | median 6.05 s (6.04–6.05 s), the limit in every run |
 
 On `main` the hero's sheet came last, after all nine creeps' (the chain's order), so a first match on Slow 4G drew the 2D Ranger for over a minute. With V-07d, after the tap (three runs): the Ranger's sheet in at −0.05 to 0.61 s (it started on the home card), the Grunts' at about 5 s, the plate at about 10 s, the structures' at about 21.5 s; the first wave starts 30 s after the 6 s hold, so every creep of it is 3D from its first step even here; on this line the towers, the Heart and the portals are the last to swap (the structures' sheet, 1.4 MB, is the long pole). What else shares the line in those seconds: the stage video kept downloading its 1 MB into the match until V-07d drops it when the stage stops (27.8 s → 22.0 s, one probe run each), and the match music's stream (P2-11) takes about 1.5 MB of it (left as it is).
+
+**Results, 7 Nov 2026** (V-08b build 4, the tilted camera finished; this session's 4-core container, local `vite preview`, 3 runs each; the container's Chromium is 153, newer than the checkout's Playwright revision, so compare within this block):
+
+| Build | Runs | First contentful paint | `tdt:ready` | Usable (Play solo tappable) | Transferred | Map plate ready | HUD frames in |
+|---|---|---|---|---|---|---|---|
+| V-08b build 4 (`npm run first-load -- --runs 3`) | 3 | median **2.04 s** (1.64–2.07 s) | median 4.66 s (4.65–4.67 s) | median **4.98 s** (4.96–4.98 s) | 391 KB | median 14.83 s (634 KB, decoded in 0.10 s) | median 16.55 s (37 KB) |
+
+The lobby is as before (V-08a's session measured 5.33 s on its machine, 389 KB): the camera adds nothing to the first screen. **Play solo → the first wave's art** (the `--match` row above, 3 runs): the Ranger's sheet in at 3.4–4.3 s after the tap, the Grunts' at 5.5 s, the plate at 19.6–20.0 s, the structures' four pages at 43.8, 53.3, 54.1 and 54.8 s. Full's first creep comes 30 s after the 6 s hold, about 36 s after the tap, so **on Slow 4G the first wave now starts with the 2D towers, the Heart and the portals, for about 19 s** (V-07d's 22.0 s were inside it). The art and the hold stay as they are; the structures' pages left the precache instead (`docs/ART.md` §15 "The tilted camera": on a real first visit the install no longer downloads their 7 MB on the same line), which these runs cannot show (the worker is blocked in them). On a 5 Mbit/s line the set takes about 13 s, inside the hold and the build phase.
 
 **Not re-measured for the home card of 10 Oct 2026** (V-01, PR #100: a hero stage and Play solo under it, no dock). The session that built it could not run this script. Its layout was checked another way: on a 412 × 839 and a 390 × 664 screen Play solo is on screen with no scrolling and takes the tap at its centre (`e2e/lobby.spec.ts`). The stage adds one Canvas 2D drawing of the hero after `tdt:ready`. Re-run the script and add a row here.
 

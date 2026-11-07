@@ -266,24 +266,24 @@ describe('the first wave\'s art: the host\'s clock', () => {
 });
 
 describe('the first wave\'s art: the service worker', () => {
-  const STRUCTURES = '/assets/structures-match-Bf8A_88E.webp';
+  const STRUCTURES = '/assets/structures-match-0-Bf8A_88E.webp';
+  const STRUCTURES_3 = '/assets/structures-match-3-D2xq-0aL.webp';
   const SHEETS = ['/assets/grunt-match-Co320hkV.webp', '/assets/shardback-match-D9-c_Gh.webp', '/assets/ranger-match-CB7K37RF.png', '/assets/warden-match-BRXA0Qy2.png'];
 
-  it('precaches the structures\' sheet and the map plate with the shell; the creeps\' and heroes\' sheets are not', () => {
-    expect(isOnDemandSheet(STRUCTURES)).toBe(false);
+  it('precaches the map plate with the shell; the structures\' pages and the creeps\' and heroes\' sheets are not (V-08b build 4)', () => {
     expect(isOnDemandSheet('/map/spire.webp')).toBe(false);
-    for (const s of SHEETS) {
+    for (const s of [STRUCTURES, STRUCTURES_3, ...SHEETS]) {
       expect(isOnDemandSheet(s), s).toBe(true);
       expect(isMediaPath(s), s).toBe(false);
     }
     expect(isOnDemandSheet('/assets/index-CeQBLyDq.js')).toBe(false);
     expect(isOnDemandSheet('/assets/ui-CDnhCoLV.webp')).toBe(false);
-    const sw = swSource('v', ['/index.html', '/map/spire.webp', STRUCTURES, ...SHEETS]);
+    const sw = swSource('v', ['/index.html', '/map/spire.webp', STRUCTURES, STRUCTURES_3, ...SHEETS]);
     const shell = JSON.parse(/const SHELL = (\[.*\]);/.exec(sw)![1]!) as string[];
-    expect(shell).toEqual(['/index.html', '/map/spire.webp', STRUCTURES]);
+    expect(shell).toEqual(['/index.html', '/map/spire.webp']);
   });
 
-  it('keeps a creep\'s or hero\'s sheet the first time a match asks for it, in this version\'s cache', async () => {
+  it('keeps a match sheet the first time a match asks for it, in this version\'s cache', async () => {
     const stores = new Map<string, Map<string, string>>();
     const net: string[] = [];
     const store = (name: string) => stores.get(name) ?? stores.set(name, new Map()).get(name)!;
@@ -317,11 +317,11 @@ describe('the first wave\'s art: the service worker', () => {
       net.push(url);
       return res(url, `net:${url}`);
     };
-    new Function('self', 'caches', 'fetch', swSource('v1', ['/index.html', STRUCTURES, ...SHEETS]))(self, caches, fetch);
+    new Function('self', 'caches', 'fetch', swSource('v1', ['/index.html', STRUCTURES, STRUCTURES_3, ...SHEETS]))(self, caches, fetch);
     let installed: Promise<unknown> | undefined;
     listeners.install!({ waitUntil: (w: Promise<unknown>) => (installed = w) });
     await installed;
-    expect([...store('tdt-v1').keys()]).toEqual(['https://td.test/index.html', `https://td.test${STRUCTURES}`]);
+    expect([...store('tdt-v1').keys()]).toEqual(['https://td.test/index.html']);
     const get = async (path: string) => {
       let answered: Promise<{ body: string }> | undefined;
       listeners.fetch!({ request: { method: 'GET', url: `https://td.test${path}`, mode: 'cors' }, respondWith: (a: Promise<{ body: string }>) => (answered = a) });
@@ -334,19 +334,20 @@ describe('the first wave\'s art: the service worker', () => {
     expect(await get(grunt)).toBe(`net:https://td.test${grunt}`);
     expect(net).toEqual([`https://td.test${grunt}`]);
     expect(store('tdt-v1').has(`https://td.test${grunt}`)).toBe(true);
-    // The structures' sheet comes from the shell: no network.
-    expect(await get(STRUCTURES)).toBe(STRUCTURES);
-    expect(net).toHaveLength(1);
+    // A structures' page likewise (V-08b build 4): from the network once, then from the cache.
+    expect(await get(STRUCTURES)).toBe(`net:https://td.test${STRUCTURES}`);
+    expect(await get(STRUCTURES)).toBe(`net:https://td.test${STRUCTURES}`);
+    expect(net).toHaveLength(2);
     // A first visit's page loaded the others before the worker was its own: told which, the worker keeps them (from
-    // the HTTP cache), and nothing else: not the structures (in the shell), another site's file or a script.
+    // the HTTP cache), and nothing else: not another site's file or a script.
     net.length = 0;
     let kept: Promise<unknown> | undefined;
     listeners.message!({
-      data: { type: 'KEEP_SHEETS', urls: [...SHEETS, STRUCTURES, 'https://elsewhere.test/assets/grunt-match-x.webp', '/assets/index-a.js', 7] },
+      data: { type: 'KEEP_SHEETS', urls: [...SHEETS, STRUCTURES, STRUCTURES_3, 'https://elsewhere.test/assets/grunt-match-x.webp', '/assets/index-a.js', 7] },
       waitUntil: (w: Promise<unknown>) => (kept = w),
     });
     await kept;
-    expect(net).toEqual(SHEETS.slice(1).map((sh) => `https://td.test${sh}`));
-    for (const sh of SHEETS) expect(store('tdt-v1').has(`https://td.test${sh}`), sh).toBe(true);
+    expect(net).toEqual([...SHEETS.slice(1), STRUCTURES_3].map((sh) => `https://td.test${sh}`));
+    for (const sh of [...SHEETS, STRUCTURES, STRUCTURES_3]) expect(store('tdt-v1').has(`https://td.test${sh}`), sh).toBe(true);
   });
 });

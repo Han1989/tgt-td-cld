@@ -390,18 +390,16 @@ test('Play solo on the home card is the match picked, never the lesson; Change h
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
 });
 
-test('the service worker precaches the structures\' pages with the shell; the creeps\' and heroes\' are kept once the page has them (V-07d)', async ({ page }) => {
+test('the service worker precaches the map plate; the structures\' pages and the creeps\' and heroes\' sheets are kept once the page has them (V-07d, V-08b build 4)', async ({ page }) => {
   await page.goto('/');
   await waitForReady(page, 'solo');
   const sw = await (await page.request.get('/sw.js')).text();
   const shell = JSON.parse(/const SHELL = (\[.*\]);/.exec(sw)![1]!) as string[];
   expect(shell).toContain('/map/spire.webp');
-  // Of the match sheets, only the structures' pages (lossless WebP; several since V-08b build 2's turret headings) are
-  // in the shell, every one of them.
-  const pages = shell.filter((f) => /-match-/.test(f));
+  // No match sheet is in the shell: the structures' pages (7 MB since V-08b build 2's turret headings) left it in build 4,
+  // so a first visit's install never shares the line with the pages its first match is waiting for.
+  expect(shell.filter((f) => /-match-/.test(f))).toEqual([]);
   const layout = JSON.parse(readFileSync(new URL('../src/render/art3d/structures.json', import.meta.url), 'utf8')) as { match: { pages: unknown[] } };
-  expect(pages.length).toBe(layout.match.pages.length);
-  for (const f of pages) expect(f).toMatch(/^\/assets\/structures-match-\d+-[\w-]+\.webp$/);
   const cached = () =>
     page.evaluate(async () => {
       const out: string[] = [];
@@ -409,10 +407,11 @@ test('the service worker precaches the structures\' pages with the shell; the cr
       return out;
     });
   const sheets = (files: string[]) => files.filter((f) => /\/assets\/(?!structures)[a-z]+-match-/.test(f));
+  const pages = (files: string[]) => files.filter((f) => /^\/assets\/structures-match-\d+-[\w-]+\.webp$/.test(f));
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
-  await expect.poll(async () => (await cached()).some((f) => /\/assets\/structures-match-/.test(f))).toBe(true);
-  // This first visit's page is not the worker's: the sheets it loads after the first screen reach the worker once
-  // they are in, the nine creeps' and the three heroes', for offline solo.
+  // This first visit's page is not the worker's: the pages and sheets it loads after the first screen reach the worker
+  // once they are in, the structures' four pages, the nine creeps' and the three heroes', for offline solo.
   await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 60_000 });
+  await expect.poll(async () => pages(await cached()).length, { timeout: 15_000 }).toBe(layout.match.pages.length);
   await expect.poll(async () => sheets(await cached()).length, { timeout: 15_000 }).toBe(12);
 });

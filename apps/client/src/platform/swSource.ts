@@ -20,13 +20,14 @@
 //   from the stored file with a 206 and its Content-Range. iPhones play a video only from proper range answers: a
 //   whole 200 to a range request can stop it playing. Their posters and the empty clearing are small pictures shown
 //   at once on the first screen, so they are part of the shell.
-// - The match's 3D sheets (V-07d, docs/ART.md §15): the towers', Heart's and portals' sheet is part of the shell
-//   (every match draws it from its first frame), but the creeps' and the heroes' (`/assets/<kind>-match-<hash>.webp`
-//   or `.png`, about 4 MB together) are not: an install that fetched them all would share a first visit's line with
-//   the very sheets its first match is waiting for. Each is kept in this version's cache the first time a match asks
-//   for it, so the next match, and solo offline, has it; a first visit's page loads them before the worker controls
-//   it, so the page tells it which it has (`KEEP_SHEETS`) and the worker fetches each from the HTTP cache. A deploy's
-//   new worker drops them with the old cache (their names carry their hash, so a new picture is a new file anyway).
+// - The match's 3D sheets (V-07d, docs/ART.md §15): the creeps' and the heroes' (`/assets/<kind>-match-<hash>.webp`
+//   or `.png`, about 4 MB together) and, since V-08b build 4, the towers', Heart's and portals' pages
+//   (`/assets/structures-match-<n>-<hash>.webp`, 7 MB since the turrets' eight headings) are not precached: an install
+//   that fetched them would share a first visit's line with the very sheets its first match is waiting for (on Slow 4G
+//   the four pages alone are about 40 s of it). Each is kept in this version's cache the first time a match asks for
+//   it, so the next match, and solo offline, has it; a first visit's page loads them before the worker controls it, so
+//   the page tells it which it has (`KEEP_SHEETS`) and the worker fetches each from the HTTP cache. A deploy's new
+//   worker drops them with the old cache (their names carry their hash, so a new picture is a new file anyway).
 // - The link-preview card (`/og-card.png`, docs/PRESS.md) is not precached either: only link
 //   crawlers fetch it, so a player would download it on every deploy for nothing.
 // - A page load gets index.html (the game), except another page of the shell (privacy.html), which
@@ -43,15 +44,13 @@ export function isMediaPath(path: string): boolean {
 }
 
 /**
- * A creep's or a hero's 3D match sheet (`/assets/<kind>-match-<hash>.webp|png`), or the map plate's dusk or night
- * (`/map/spire-dusk.webp`, `-night-extra.webp`…; V-08a): not precached, kept in this version's cache the first time a
- * match asks for it (`sheet` in the worker). The structures' sheet and the afternoon's plate are not: they are precached.
+ * A 3D match sheet (`/assets/<kind>-match-<hash>.webp|png`: a creep's, a hero's, or since V-08b build 4 a page of the
+ * structures', `structures-match-<n>-<hash>.webp`), or the map plate's dusk or night (`/map/spire-dusk.webp`,
+ * `-night-extra.webp`…; V-08a): not precached, kept in this version's cache the first time a match asks for it (`sheet`
+ * in the worker). The afternoon's plate is not: it is precached.
  */
 export function isOnDemandSheet(path: string): boolean {
-  return (
-    (/^\/assets\/[a-z]+-match-[\w-]+\.(webp|png)$/.test(path) && !path.startsWith('/assets/structures-match-')) ||
-    /^\/map\/[a-z]+-(dusk|night)(-extra)?\.webp$/.test(path)
-  );
+  return /^\/assets\/[a-z]+-match-[\w-]+\.(webp|png)$/.test(path) || /^\/map\/[a-z]+-(dusk|night)(-extra)?\.webp$/.test(path);
 }
 
 /** A stage video: stored whole, and range requests answered from it (`video` in the worker). */
@@ -86,7 +85,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// The page asks a waiting worker to take over when the player taps "Update available", and tells it which creep and hero
+// The page asks a waiting worker to take over when the player taps "Update available", and tells it which match
 // sheets it has loaded (a first visit's page is not the worker's yet): they are kept, fetched from the HTTP cache.
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
@@ -149,7 +148,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// The page tells the worker which creep and hero sheets it has loaded (a first visit's page is not the worker's yet):
+// The page tells the worker which match sheets it has loaded (a first visit's page is not the worker's yet):
 // they are kept, fetched from the HTTP cache. A host's upload has no update banner, so nothing asks it to skip waiting.
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'KEEP_SHEETS' && Array.isArray(event.data.urls)) {
@@ -176,12 +175,10 @@ ${HELPERS}${HOSTED_FETCH}`;
 }
 
 /** The helpers both workers carry: which files are sheets, the media and sheet caches, byte ranges. */
-const HELPERS = `// A creep's or a hero's match sheet, or the map plate's dusk or night (isOnDemandSheet in swSource.ts).
+const HELPERS = `// A 3D match sheet (a creep's, a hero's or a page of the structures'), or the map plate's dusk or night
+// (isOnDemandSheet in swSource.ts).
 function onDemand(path) {
-  return (
-    (/^\\/assets\\/[a-z]+-match-[\\w-]+\\.(webp|png)$/.test(path) && !path.startsWith('/assets/structures-match-')) ||
-    /^\\/map\\/[a-z]+-(dusk|night)(-extra)?\\.webp$/.test(path)
-  );
+  return /^\\/assets\\/[a-z]+-match-[\\w-]+\\.(webp|png)$/.test(path) || /^\\/map\\/[a-z]+-(dusk|night)(-extra)?\\.webp$/.test(path);
 }
 
 // Keeps a whole answer (200) in the media cache, dropping older uploads of the same file (another ?v=).
