@@ -254,10 +254,27 @@ export class TouchControls {
     this.zoomBtn.setAttribute('aria-label', 'See the whole map');
     this.zoomBtn.innerHTML = `${ico('fitMap')}<span class="zoom-level"></span>`;
     hud.appendChild(this.zoomBtn);
-    this.zoomBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.zoomBtn.addEventListener('click', () => {
+    // ⤢ acts on its own press (a pointer that went down on it and comes up on it), not on `click`: a tap right after a
+    // pinch gets no click from the browser (Chromium's gesture handling drops a tap that soon after two fingers lift),
+    // so "pinch in, then ⤢" lost the tap (V-08b load-all, CI fix). `click` is kept for the keyboard (`detail` 0).
+    const fitMap = () => {
       if (this.actions.zoomLevel() > 1) this.actions.zoomBack();
       else this.actions.toast('Pinch to zoom in. Double-tap to see the whole map.');
+    };
+    let pressed: number | null = null;
+    this.zoomBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (e.button === 0) pressed = e.pointerId;
+    });
+    this.zoomBtn.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== pressed) return;
+      pressed = null;
+      fitMap();
+    });
+    this.zoomBtn.addEventListener('pointercancel', () => (pressed = null));
+    this.zoomBtn.addEventListener('pointerleave', () => (pressed = null));
+    this.zoomBtn.addEventListener('click', (e) => {
+      if (e.detail === 0) fitMap();
     });
 
     this.joy.addEventListener('pointerdown', (e) => this.onStickDown(e));

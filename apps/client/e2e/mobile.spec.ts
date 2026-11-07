@@ -602,6 +602,12 @@ test.describe('portrait phone layout', () => {
   });
 
   test('build ring: one tap builds, a hold previews and does not build; nothing sits on a tower until it is tapped', async ({ page }) => {
+    // The phone's one-time zoom hint (a toast a few seconds into a first match) is not what "nothing sits on a tower"
+    // means, and it lands over a pad whenever the check meets it (every run on Chromium 153, main included): seen.
+    await page.addInitScript(() => {
+      const s = JSON.parse(localStorage.getItem('tdt.settings') ?? '{}') as Record<string, unknown>;
+      localStorage.setItem('tdt.settings', JSON.stringify({ ...s, zoomHint: 'seen' }));
+    });
     await startSolo(page);
     const finger = await Finger.on(page);
     const [padId, otherPad] = await myPadsBottomFirst(page);
