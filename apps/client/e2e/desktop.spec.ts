@@ -390,16 +390,18 @@ test('Play solo on the home card is the match picked, never the lesson; Change h
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
 });
 
-test('the service worker precaches the map plate; the structures\' pages and the creeps\' and heroes\' sheets are kept once the page has them (V-07d, V-08b build 4)', async ({ page }) => {
+test('the service worker precaches the map plate, then the structures\' pages (V-08b load-all); a first visit\'s page brings them, and a second visit waits for nothing', async ({ page }) => {
   await page.goto('/');
   await waitForReady(page, 'solo');
   const sw = await (await page.request.get('/sw.js')).text();
-  const shell = JSON.parse(/const SHELL = (\[.*\]);/.exec(sw)![1]!) as string[];
+  const list = (name: string) => JSON.parse(new RegExp(`const ${name} = (\\[.*\\]);`).exec(sw)![1]!) as string[];
+  const shell = list('SHELL');
   expect(shell).toContain('/map/spire.webp');
-  // No match sheet is in the shell: the structures' pages (7 MB since V-08b build 2's turret headings) left it in build 4,
-  // so a first visit's install never shares the line with the pages its first match is waiting for.
+  // The shell first, with no match sheet in it, so the lobby is usable before the pages; the pages after it.
   expect(shell.filter((f) => /-match-/.test(f))).toEqual([]);
   const layout = JSON.parse(readFileSync(new URL('../src/render/art3d/structures.json', import.meta.url), 'utf8')) as { match: { pages: unknown[] } };
+  expect(list('PAGES')).toHaveLength(layout.match.pages.length);
+  expect(list('PAGES').every((f) => /^\/assets\/structures-match-\d+-[\w-]+\.webp$/.test(f))).toBe(true);
   const cached = () =>
     page.evaluate(async () => {
       const out: string[] = [];
@@ -409,9 +411,24 @@ test('the service worker precaches the map plate; the structures\' pages and the
   const sheets = (files: string[]) => files.filter((f) => /\/assets\/(?!structures)[a-z]+-match-/.test(f));
   const pages = (files: string[]) => files.filter((f) => /^\/assets\/structures-match-\d+-[\w-]+\.webp$/.test(f));
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
-  // This first visit's page is not the worker's: the pages and sheets it loads after the first screen reach the worker
-  // once they are in, the structures' four pages, the nine creeps' and the three heroes', for offline solo.
+  // A first visit's page downloads every sheet from the lobby (its worker fetches none of them, so nothing comes twice)
+  // and hands them to the worker once they are in: the four pages, the nine creeps' and the three heroes'.
   await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 60_000 });
   await expect.poll(async () => pages(await cached()).length, { timeout: 15_000 }).toBe(layout.match.pages.length);
   await expect.poll(async () => sheets(await cached()).length, { timeout: 15_000 }).toBe(12);
+  // A second visit: every sheet from the worker's cache (decoded while the lobby is up), so Play solo waits for nothing.
+  await page.goto('/?artwait');
+  await waitForReady(page, 'solo');
+  await expect(page.locator('html')).toHaveAttribute('data-hero-sheets', 'ready', { timeout: 30_000 });
+  await page.locator('#lobby-offline').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.tick ?? -1)).toBeGreaterThanOrEqual(0);
+  expect(await page.locator('#art-wait:not(.hidden)').count()).toBe(0);
+  const served = await page.evaluate(() =>
+    performance
+      .getEntriesByType('resource')
+      .filter((e) => /-match-/.test(e.name))
+      .map((e) => (e as PerformanceResourceTiming).workerStart > 0),
+  );
+  expect(served.length).toBeGreaterThan(0);
+  expect(served.every(Boolean)).toBe(true);
 });

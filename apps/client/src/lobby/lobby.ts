@@ -17,6 +17,7 @@ import {
 } from '@tdt/protocol';
 import { currentAgeBand } from '../analytics/age';
 import { wantHero } from '../artLoad/order';
+import { readyAllowed, roomStart, seatState } from '../artLoad/rules';
 import { dailyTileLine, type DailyToday } from '../daily/text';
 import type { EndlessToday } from '../endless/board';
 import { endlessBest } from '../endless/best';
@@ -144,6 +145,9 @@ export class LobbyUi {
   private readonly roomPicker: HeroPicker;
   private readonly modePicker: ModePicker;
   private amReady = false;
+  /** This page's art for a room, a whole percent (V-08b load-all): your seat and Ready show it before the server's echo. */
+  private myArt = 100;
+  private meId: PlayerId | null = null;
   private current: LobbyState | null = null;
   private readonly dailyTile = $('lobby-daily') as HTMLButtonElement;
   private readonly dailyLine = $('lobby-daily-line');
@@ -196,6 +200,13 @@ export class LobbyUi {
     // a reload would load the same files, so it opens the real game instead.
     this.refresh.addEventListener('click', () => void (__EMBED__ ? openCanonical(__EMBED__.canonical) : updateAndReload()));
     this.stage = new HeroStage($('lobby-stage'), HERO_KINDS, this.hero);
+    // The wait's card covers the home card (V-08b load-all): its stage stops under it, its video's download dropped so
+    // the match's art has the line, and plays again on Back.
+    window.addEventListener('tdt:art-card', (e) => {
+      const covered = (e as CustomEvent<boolean>).detail;
+      if (covered) this.stage.stop();
+      else if (!this.root.classList.contains('hidden') && !this.home.classList.contains('hidden')) this.stage.start();
+    });
     this.homePicker = new HeroPicker($('lobby-heroes-home'), this.hero, (hero) => {
       this.hero = hero;
       storeHero(hero);
@@ -436,6 +447,7 @@ export class LobbyUi {
     this.room.classList.remove('hidden');
     this.roomCode.textContent = lobby.code;
 
+    this.meId = me;
     const isHost = lobby.hostId === me;
     const self = lobby.players.find((p) => p.id === me);
     this.amReady = !!self?.ready;
@@ -451,17 +463,40 @@ export class LobbyUi {
     const seats = lobby.players.length;
     this.playersCount.textContent = `Players ${seats} / ${MAX_PLAYERS} · one per lane`;
     this.players.replaceChildren(
-      ...lobby.players.map((p) => seat(p, p.id === me, p.id === lobby.hostId)),
+      ...this.seats(lobby, me).map((p) => seat(p, p.id === me, p.id === lobby.hostId)),
       ...Array.from({ length: Math.max(0, MAX_PLAYERS - seats) }, openSeat),
     );
 
     this.ready.classList.toggle('hidden', isHost);
-    this.ready.textContent = this.amReady ? 'Not ready' : 'Ready';
-    this.ready.classList.toggle('waiting', this.amReady);
     this.start.classList.toggle('hidden', !isHost);
-    const allReady = lobby.players.every((p) => p.id === lobby.hostId || (p.ready && p.connected));
-    this.start.disabled = !allReady;
-    this.start.textContent = allReady ? 'Start match' : 'Waiting for players…';
+    this.syncButtons();
+  }
+
+  /**
+   * This page's art (V-08b load-all): until it is in, Ready is "Loading 63%" and can't be tapped, and your seat says so.
+   * Called as it moves (online.ts); the room card is drawn again with it.
+   */
+  setMyArt(pct: number, me: PlayerId | null): void {
+    if (pct === this.myArt) return;
+    this.myArt = pct;
+    if (this.current && !this.room.classList.contains('hidden')) this.showRoom(this.current, me);
+  }
+
+  /** The room's players, your own seat's art as this page knows it. */
+  private seats(lobby: LobbyState, me: PlayerId | null): LobbyState['players'] {
+    return lobby.players.map((p) => (p.id === me ? { ...p, art: this.myArt } : p));
+  }
+
+  private syncButtons(): void {
+    const lobby = this.current;
+    if (!lobby) return;
+    const loaded = readyAllowed(this.myArt);
+    this.ready.disabled = !loaded;
+    this.ready.textContent = !loaded ? `Loading ${this.myArt}%` : this.amReady ? 'Not ready' : 'Ready';
+    this.ready.classList.toggle('waiting', this.amReady || !loaded);
+    const start = roomStart({ hostId: lobby.hostId, players: this.seats(lobby, this.meId) });
+    this.start.disabled = !start.ok;
+    this.start.textContent = start.label;
   }
 
   showError(message: string): void {
@@ -503,7 +538,7 @@ function hostLabel(el: HTMLElement, name: string, host: boolean): void {
   if (best) el.append(best);
 }
 
-/** One seat on the room card: the hero's emblem, the name, the hero, and Host, Ready, Not ready or reconnecting. */
+/** One seat on the room card: the hero's emblem, the name, the hero, and Host, Ready, Not ready, Loading 63% or reconnecting. */
 function seat(p: LobbyState['players'][number], you: boolean, host: boolean): HTMLLIElement {
   const li = document.createElement('li');
   li.className = 'seat';
@@ -524,8 +559,10 @@ function seat(p: LobbyState['players'][number], you: boolean, host: boolean): HT
   hero.textContent = HERO_INFO[p.hero].name;
   who.append(name, hero);
   const state = document.createElement('span');
-  state.className = `state${!p.connected ? '' : host ? ' host' : p.ready ? ' ready' : ''}`;
-  state.textContent = !p.connected ? 'reconnecting…' : host ? 'Host' : p.ready ? 'Ready' : 'Not ready';
+  // Protocol 25: a seat still loading its art says how far it is, for everyone (V-08b load-all).
+  const st = seatState(p, host);
+  state.className = `state${st.kind === 'away' || st.kind === 'waiting' ? '' : ` ${st.kind}`}`;
+  state.textContent = st.text;
   li.append(emblem, who, state);
   return li;
 }

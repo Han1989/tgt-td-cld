@@ -78,8 +78,8 @@ const test = base.extend<object, { browser: Browser; harness: void }>({
 test.describe.configure({ mode: 'serial' });
 
 /** The game's frame on the host page, once its first screen is up. */
-async function openGame(page: Page, mobile: boolean, sandboxed = false): Promise<Frame> {
-  await page.goto(`${HARNESS.hostOrigin}${mobile ? '' : '/desktop'}${sandboxed ? '/sandboxed' : '/'}`);
+async function openGame(page: Page, mobile: boolean, sandboxed = false, frameQuery = ''): Promise<Frame> {
+  await page.goto(`${HARNESS.hostOrigin}${mobile ? '' : '/desktop'}${sandboxed ? '/sandboxed' : '/'}${frameQuery ? `?frame=${frameQuery}` : ''}`);
   const handle = await page.locator('#game').elementHandle();
   const frame = await handle!.contentFrame();
   await expect(frame!.locator('html')).toHaveAttribute('data-ready', 'online', { timeout: 60_000 });
@@ -242,6 +242,38 @@ test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; 
     expect((await frame.evaluate(() => caches.keys())).filter((k) => !k.startsWith(ours))).toEqual([]);
   }
   expect(missing, 'a file the zip should hold').toEqual([]);
+});
+
+test.describe('the wait in a frame', () => {
+  // The page fetches the pages itself, so the route below sees them (a worker's own fetches would pass it by).
+  test.use({ serviceWorkers: 'block' });
+  test('the wait before a match (V-08b load-all) is the same bar inside the frame, inside its bounds, and then the match', async ({ page, isMobile }) => {
+    let open!: () => void;
+    const gate = new Promise<void>((ok) => (open = ok));
+    // The frame's structures' pages wait until the test lets them through.
+    await page.context().route(/structures-match-\d+-[\w-]+\.webp(\?|$)/, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    const frame = await openGame(page, isMobile, false, 'artwait');
+    await frame.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
+    await frame.locator('#lobby-offline').click();
+    await answerAge(frame);
+    const card = frame.locator('#art-wait');
+    await expect(card).toBeVisible();
+    await expect(frame.locator('.art-wait-line')).toHaveText(/^Loading the (map|frames|towers|creeps|heroes)… \d+\.\d of \d+\.\d MB$/);
+    // Inside the frame: the card's box within the frame's, nothing on the host's page.
+    const [c, f] = await Promise.all([frame.locator('.art-wait-card').boundingBox(), page.locator('#game').boundingBox()]);
+    expect(c!.y).toBeGreaterThanOrEqual(f!.y);
+    expect(c!.y + c!.height).toBeLessThanOrEqual(f!.y + f!.height);
+    expect(c!.x).toBeGreaterThanOrEqual(f!.x);
+    expect(c!.x + c!.width).toBeLessThanOrEqual(f!.x + f!.width);
+    expect(await page.locator('#art-wait').count()).toBe(0);
+    expect(await frame.evaluate(() => (window as unknown as { __tdt: { latest(): unknown } }).__tdt.latest() ?? null)).toBeNull();
+    open();
+    await expect(card).toBeHidden({ timeout: 30_000 });
+    await expect.poll(() => frame.evaluate(() => (window as unknown as { __tdt: { latest(): { tick: number } | undefined } }).__tdt.latest()?.tick ?? -1)).toBeGreaterThanOrEqual(0);
+  });
 });
 
 test('with no storage at all (a sandbox, third-party storage blocked) the game plays, asks the age every visit, sends only the open count', async ({

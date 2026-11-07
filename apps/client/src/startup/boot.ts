@@ -10,6 +10,9 @@
 /** How long the page may be visible and still not ready before the splash admits it. */
 export const BOOT_SLOW_MS = 15_000;
 
+/** While a download moves, the slow message looks again this often, ms. */
+export const BUSY_RECHECK_MS = 1000;
+
 /** The graphics are gone; shown at once. */
 export type BootFailure = 'webgl_unavailable' | 'webgl_context_lost';
 /** What a crash report carries as its message (the server groups on it). */
@@ -34,6 +37,11 @@ export class GraphicsUnavailableError extends Error {
 }
 
 export interface BootWatchdogOptions {
+  /**
+   * A download is in progress and moving (V-08b load-all: the match sheets, artLoad/track.ts): the slow message waits
+   * while it is, and looks again a second later.
+   */
+  busy?(): boolean;
   /** The start-up is taking long: say so, with a Reload button. */
   onSlow(): void;
   /** The graphics are gone: say so, with a Reload button. */
@@ -68,6 +76,11 @@ export function createBootWatchdog(options: BootWatchdogOptions): BootWatchdog {
     timer = setTimeout(() => {
       timer = null;
       if (phase !== 'starting') return;
+      if (options.busy?.()) {
+        remaining = BUSY_RECHECK_MS;
+        arm();
+        return;
+      }
       phase = 'slow';
       options.onSlow();
       options.onReport('boot_timeout');

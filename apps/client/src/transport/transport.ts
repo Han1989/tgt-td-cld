@@ -17,12 +17,6 @@ export interface Transport {
   /** Local play only: stops or restarts the simulation clock (the page was hidden, docs/MOBILE.md §7). */
   setPaused?(paused: boolean): void;
   /**
-   * Local play only: holds the simulation clock at the match's start while its first wave's art loads (V-07d), with the
-   * same control as `setPaused`; the clock runs only while neither holds it. Held ticks are never stepped, so the
-   * match and its replay are the same as one that was never held.
-   */
-  hold?(on: boolean): void;
-  /**
    * The current match's seed for the client's weather (V-08a), and whether it is the Daily run: solo the host's own,
    * online the room's code standing in for it (the snapshot carries no seed). Null until known.
    */

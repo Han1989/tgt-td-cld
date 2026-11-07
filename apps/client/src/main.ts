@@ -2,11 +2,12 @@ import { COMBO_KINDS } from '@tdt/protocol';
 import './style.css';
 import { countBootFailure, currentAnalytics, installAnalytics } from './analytics/install';
 import { scheduleArt } from './artLoad/order';
+import { artDownloadMoving } from './artLoad/track';
 import { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
 import { storedMode } from './lobby/modePicker';
-import { OnlineController, playSolo } from './online';
+import { afterArt, OnlineController, playSolo } from './online';
 import { ageGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
@@ -22,6 +23,8 @@ import { showBootMessage } from './startup/splash';
  * Local solo (no analytics) sends neither.
  */
 const bootWatchdog = createBootWatchdog({
+  // Never while a download is in progress and moving (V-08b load-all): it is not stuck.
+  busy: artDownloadMoving,
   onSlow: () => showBootMessage(BOOT_COPY.slow),
   onFailed: () => showBootMessage(BOOT_COPY.graphics),
   onReport: reportBoot,
@@ -50,14 +53,11 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
   const boot = document.getElementById('boot');
   boot?.classList.add('done');
   setTimeout(() => boot?.remove(), 400);
-  // The map plate (docs/ART.md §16), the HUD's rendered frames (§12) and the 3D sheets (§15) load a second after the
-  // first screen, never in its way, in the order artLoad/order.ts keeps (the picked hero's sheet and a match's first
-  // wave go first).
-  if (screen === 'solo' || screen === 'online' || screen === 'stress') scheduleArt(SHEETS_AFTER_MS);
+  // Every match sheet (docs/ART.md §15, §16: the map plate, the HUD's frames, the 3D sheets) starts loading as soon as
+  // the first screen is interactive, behind the shell at low priority, in the order artLoad/order.ts keeps: time in the
+  // lobby counts, since no match starts before they are in (V-08b load-all).
+  if (screen === 'solo' || screen === 'online' || screen === 'stress') scheduleArt(0);
 }
-
-/** How long after the first screen the map plate and then the 3D sheets start loading, ms. */
-const SHEETS_AFTER_MS = 1000;
 
 async function main(): Promise<void> {
   setupPwa();
@@ -126,20 +126,24 @@ async function main(): Promise<void> {
     const lobby: LobbyUi = new LobbyUi(
       {
         playSolo: (pick) =>
-          ageGate(() => {
-            lobby.hide();
-            playSolo(view, 'play', pick, home);
-          }),
+          ageGate(() =>
+            afterArt(pick.hero, pick.mode, () => {
+              lobby.hide();
+              playSolo(view, 'play', pick, home);
+            }),
+          ),
         learnToPlay: (hero) =>
-          ageGate(() => {
-            lobby.hide();
-            playSolo(view, 'lesson', { hero, mode: storedMode() }, home);
-          }),
+          ageGate(() =>
+            afterArt(hero, 'quick', () => {
+              lobby.hide();
+              playSolo(view, 'lesson', { hero, mode: storedMode() }, home);
+            }),
+          ),
       },
       null,
     );
     // ⚙ → Learn to play: the lesson at once, in place of the match running.
-    view.onLearnToPlay = () => ageGate(() => playSolo(view, 'lesson', { hero: storedHero(), mode: storedMode() }, home));
+    view.onLearnToPlay = () => ageGate(() => afterArt(storedHero(), 'quick', () => playSolo(view, 'lesson', { hero: storedHero(), mode: storedMode() }, home)));
     lobby.showHome();
     ready('solo');
     return;

@@ -1,6 +1,8 @@
 // Online mode: lobby screens + NetworkTransport + the game view.
 
-import { PROTOCOL_VERSION, type GameMode, type HeroKind, type LobbyState, type ServerMessage } from '@tdt/protocol';
+import { HERO_KINDS, PROTOCOL_VERSION, type GameMode, type HeroKind, type LobbyState, type ServerMessage } from '@tdt/protocol';
+import { artGate, percentOf } from './artLoad/gate';
+import { roomSheets, wantSheets } from './artLoad/order';
 import { currentAnalytics } from './analytics/install';
 import { fetchToday } from './daily/api';
 import type { DailyToday } from './daily/text';
@@ -21,6 +23,9 @@ export class OnlineController {
   private readonly ui: LobbyUi;
   /** The home card's mode for the room this page is creating, sent once when its first lobby comes (`openingMode`). */
   private createMode: GameMode | null = null;
+  /** This page's art as the room last heard it (protocol 25), and the timer that tells it as it moves. */
+  private sentArt = -1;
+  private artTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly view: GameView,
@@ -83,6 +88,35 @@ export class OnlineController {
     this.view.attach(transport);
     transport.onMessage((msg) => this.onMessage(transport, msg));
     transport.onStatus((status, detail) => this.onStatus(transport, status, detail));
+    this.reportArt(transport);
+  }
+
+  /**
+   * A room's ready rule (protocol 25, V-08b load-all): every picture a room's match draws starts loading now (the
+   * room's heroes all three), and the room hears this page's share of it as it moves, a whole percent, at most four
+   * times a second; Ready and the host's Start wait for 100 from everyone.
+   */
+  private reportArt(transport: NetworkTransport): void {
+    this.stopArtReport();
+    this.sentArt = -1;
+    const ids = roomSheets();
+    wantSheets(ids);
+    const tick = () => {
+      if (transport !== this.transport) return this.stopArtReport();
+      const pct = percentOf(ids);
+      this.ui.setMyArt(pct, this.view.me);
+      if (pct === this.sentArt || !transport.session) return;
+      this.sentArt = pct;
+      transport.send({ t: 'art', pct });
+      if (pct === 100) this.stopArtReport();
+    };
+    tick();
+    this.artTimer = setInterval(tick, 250);
+  }
+
+  private stopArtReport(): void {
+    if (this.artTimer) clearInterval(this.artTimer);
+    this.artTimer = null;
   }
 
   private onMessage(transport: NetworkTransport, msg: ServerMessage): void {
@@ -90,6 +124,9 @@ export class OnlineController {
     switch (msg.t) {
       case 'welcome':
         this.view.hud.clearNotice();
+        // A new connection (a rejoin too): the room hears this page's art again.
+        if (this.sentArt !== 100) this.sentArt = -1;
+        else transport.send({ t: 'art', pct: 100 });
         if (msg.room) history.replaceState(null, '', `?room=${msg.room.code}`);
         break;
       case 'lobby': {
@@ -108,12 +145,19 @@ export class OnlineController {
         this.lobby = lobby;
         this.view.hud.setRoom(lobby);
         if (lobby.phase === 'lobby') {
+          artGate.cancel();
           this.view.resetView();
           this.ui.showRoom(lobby, this.view.me);
         } else {
           this.ui.hide();
         }
-        if (started) this.view.matchStarting();
+        if (started) {
+          this.view.matchStarting();
+          // A page that joins a running match (a rejoin after a reload) loads first, then sees it: the wait's card
+          // covers the match until every picture is in. A room started the normal way is in already: no card.
+          const mine = lobby.players.find((p) => p.id === this.view.me)?.hero ?? storedHero();
+          artGate.wait({ mode: lobby.mode, heroes: HERO_KINDS, hero: mine, back: () => this.leave(), backLabel: 'Leave room' }, () => {});
+        }
         break;
       }
       case 'error':
@@ -167,6 +211,8 @@ export class OnlineController {
 
   /** Forget the connection without leaving the room. */
   private drop(): void {
+    this.stopArtReport();
+    if (this.lobby) artGate.cancel();
     this.transport?.dispose();
     this.transport = null;
     this.lobby = null;
@@ -181,6 +227,10 @@ export class OnlineController {
    * leaving an online room first. "Change hero / mode" on its end screen comes back to the home card.
    */
   private playSolo(start: SoloStart, pick: SoloPick): void {
+    afterArt(pick.hero, pick.mode, () => this.playSoloNow(start, pick));
+  }
+
+  private playSoloNow(start: SoloStart, pick: SoloPick): void {
     const inRoom = this.transport !== null;
     this.transport?.close();
     this.drop();
@@ -191,6 +241,10 @@ export class OnlineController {
 
   /** The Daily tile: today's run on the card's hero, locally like Play solo, leaving an online room first. */
   private playDaily(hero: HeroKind, today: DailyToday): void {
+    afterArt(hero, 'quick', () => this.playDailyNow(hero, today));
+  }
+
+  private playDailyNow(hero: HeroKind, today: DailyToday): void {
     const inRoom = this.transport !== null;
     this.transport?.close();
     this.drop();
@@ -201,6 +255,15 @@ export class OnlineController {
 }
 
 let soloTransport: LocalTransport | null = null;
+
+/**
+ * A solo match (Play solo, Learn to play, the Daily run) starts once every picture it draws is in (V-08b load-all,
+ * artLoad/gate.ts): at once when they are, else after the wait's card. Back drops the wait and leaves the home card as
+ * it was.
+ */
+export function afterArt(hero: HeroKind, mode: GameMode, go: () => void): void {
+  artGate.wait({ mode, heroes: [hero], hero, back: () => {} }, go);
+}
 
 /** Stops the local match, if one is running (⚙ → Learn to play starts the lesson in its place). */
 export function endSolo(view: GameView): void {
@@ -217,7 +280,7 @@ export function endSolo(view: GameView): void {
  */
 export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home: () => void): void {
   const match = beginSolo(sharedSettings(), start, pick);
-  const transport = startLocal(view, home, match);
+  const transport = startLocal(view, home);
   // Each of these starts a new match in the local host; the last one is the match played.
   transport.send({ t: 'mode', mode: match.mode });
   transport.send({ t: 'hero', hero: match.hero });
@@ -230,7 +293,7 @@ export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home:
  * end screen offers Post my run; "Change hero / mode" comes back to the home card.
  */
 export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, home: () => void): void {
-  const transport = startLocal(view, home, { mode: 'quick', hero });
+  const transport = startLocal(view, home);
   // Counts as a solo start for the lesson offer, like Play solo; never the lesson.
   beginSolo(sharedSettings(), 'play', { hero, mode: 'quick' });
   transport.daily(today.seed);
@@ -239,16 +302,13 @@ export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, hom
   view.setDaily({ day: today.day, seed: today.seed });
 }
 
-/**
- * A new local host attached to the view, its start held for the first wave's art of `pick` (V-07d); "Change hero /
- * mode" on its end screen ends it and calls `home`.
- */
-function startLocal(view: GameView, home: () => void, pick: { mode: GameMode; hero: HeroKind }): LocalTransport {
+/** A new local host attached to the view; "Change hero / mode" on its end screen ends it and calls `home`. */
+function startLocal(view: GameView, home: () => void): LocalTransport {
   endSolo(view);
   const transport = new LocalTransport();
   soloTransport = transport;
   view.attach(transport);
-  view.matchStarting(pick);
+  view.matchStarting();
   view.onChangeHero = () => {
     endSolo(view);
     home();

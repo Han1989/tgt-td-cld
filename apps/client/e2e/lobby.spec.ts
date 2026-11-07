@@ -986,17 +986,32 @@ interface Seat {
   hero: 'ranger' | 'warden' | 'arcanist';
   ready: boolean;
   connected: boolean;
+  /** Protocol 25: the seat's art, 0..100. */
+  art: number;
 }
 
 /**
  * Answers the room's WebSocket (`?lobby` points at ws://127.0.0.1:9) like a game server would: Create or Join gets
  * this player's id and a lobby with `players` (the first one hosts).
  */
-async function fakeRoom(page: Page, me: string, players: Seat[], opens: Mode = 'quick'): Promise<{ t: string; mode?: Mode }[]> {
-  const sent: { t: string; mode?: Mode }[] = [];
+async function fakeRoom(
+  page: Page,
+  me: string,
+  players: Seat[],
+  opens: Mode = 'quick',
+  live?: { send?: (players: Seat[]) => void },
+): Promise<{ t: string; mode?: Mode; pct?: number }[]> {
+  const sent: { t: string; mode?: Mode; pct?: number }[] = [];
   await page.routeWebSocket(/127\.0\.0\.1:9/, (ws) => {
     // Each connection is a new room, on `opens`.
     let mode = opens;
+    // The test can send the room a new lobby (seats that change).
+    if (live) {
+      live.send = (next) => {
+        players = next;
+        ws.send(lobby());
+      };
+    }
     const lobby = () => JSON.stringify({ t: 'lobby', lobby: { code: 'KQXYZ', phase: 'lobby', hostId: players[0]!.id, mode, players } });
     ws.onMessage((raw) => {
       const msg = JSON.parse(String(raw)) as { t: string; mode?: Mode };
@@ -1016,9 +1031,9 @@ async function fakeRoom(page: Page, me: string, players: Seat[], opens: Mode = '
 
 type Mode = 'full' | 'quick' | 'endless';
 
-const HOST: Seat = { id: 'p1', name: 'Han', hero: 'ranger', ready: false, connected: true };
-const GUEST: Seat = { id: 'p2', name: 'Mya', hero: 'warden', ready: false, connected: true };
-const THIRD: Seat = { id: 'p3', name: 'Kai', hero: 'arcanist', ready: true, connected: true };
+const HOST: Seat = { id: 'p1', name: 'Han', hero: 'ranger', ready: false, connected: true, art: 100 };
+const GUEST: Seat = { id: 'p2', name: 'Mya', hero: 'warden', ready: false, connected: true, art: 100 };
+const THIRD: Seat = { id: 'p3', name: 'Kai', hero: 'arcanist', ready: true, connected: true, art: 100 };
 
 test('a new room opens on the home card\'s mode: Quick for a host who never picked one, Full for one who picked it', async ({ page }) => {
   // The server opens every room on Full (room.ts); the page that created it sends the home card's mode once.
@@ -1039,9 +1054,9 @@ test('a new room opens on the home card\'s mode: Quick for a host who never pick
   await expect(page.locator('#lobby-room')).toBeVisible();
   await expect(page.locator('#lobby-mode-room .mode-pick.selected')).toHaveAttribute('data-mode', 'full');
   // A later message (the room's hero) arrives after anything sent on the room's first lobby: no mode came before it.
-  // (The first room's `leave` may land after `before` was read.)
+  // (The first room's `leave` may land after `before` was read; the page's art, protocol 25, goes whenever it moves.)
   await page.locator('#lobby-heroes-room .hero-pick[data-hero="warden"]').click();
-  await expect.poll(() => sent.slice(before).map((m) => m.t).filter((t) => t !== 'leave')).toEqual(['create', 'hero']);
+  await expect.poll(() => sent.slice(before).map((m) => m.t).filter((t) => t !== 'leave' && t !== 'art')).toEqual(['create', 'hero']);
 });
 
 /** The room card fits a 412 × 839 phone with nothing to scroll: all three seats, your hero, Mode and the dock. */
@@ -1127,3 +1142,56 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await fitsOneScreen(page, viewport);
   });
 }
+
+test('a room waits for every player\'s art (protocol 25): a seat still loading says so to everyone, and the host\'s Start waits for it', async ({ page }) => {
+  const live: { send?: (players: Seat[]) => void } = {};
+  await fakeRoom(page, 'p1', [HOST, { ...GUEST, art: 63 }], 'quick', live);
+  await openHome(page, 'skipped');
+  await page.locator('#lobby-name').fill('Han');
+  await page.locator('#lobby-create').click();
+  await expect(page.locator('#lobby-room')).toBeVisible();
+  const seats = page.locator('#lobby-players .seat');
+  await expect(seats.nth(1).locator('.state')).toHaveText('Loading 63%');
+  // The host sees who is still loading, and cannot start.
+  await expect(page.locator('#lobby-start')).toHaveText('Loading: Mya 63%');
+  await expect(page.locator('#lobby-start')).toBeDisabled();
+  // Mya's art comes in and she readies up: Start.
+  live.send!([HOST, { ...GUEST, art: 100 }]);
+  await expect(seats.nth(1).locator('.state')).toHaveText('Not ready');
+  await expect(page.locator('#lobby-start')).toHaveText('Waiting for players…');
+  live.send!([HOST, { ...GUEST, art: 100, ready: true }]);
+  await expect(page.locator('#lobby-start')).toHaveText('Start match');
+  await expect(page.locator('#lobby-start')).toBeEnabled();
+});
+
+test('your own Ready waits for your art: "Loading N%" until every sheet is in, and the room hears it as it moves', async ({ page }) => {
+  let open!: () => void;
+  const gate = new Promise<void>((ok) => (open = ok));
+  // The first structures' page waits until the test lets it through; the rest come at once.
+  await page.route(/\/assets\/structures-match-0-[\w-]+\.webp(\?|$)/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  const sent = await fakeRoom(page, 'p2', [HOST, { ...GUEST, art: 0 }]);
+  await openHome(page, 'skipped', '&room=kqxyz&artwait');
+  await page.locator('#lobby-name').fill('Mya');
+  await page.locator('#lobby-join').click();
+  await expect(page.locator('#lobby-room')).toBeVisible();
+  const ready = page.locator('#lobby-ready');
+  await expect(ready).toHaveText(/^Loading \d{1,2}%$/);
+  await expect(ready).toBeDisabled();
+  await expect(page.locator('#lobby-players .seat').nth(1).locator('.state')).toHaveText(/^Loading \d{1,2}%$/);
+  // The room hears a percent under 100 (a whole number), and no Ready.
+  await expect.poll(() => sent.filter((m) => m.t === 'art').length).toBeGreaterThan(0);
+  expect(sent.filter((m) => m.t === 'art').every((m) => Number.isInteger(m.pct) && m.pct! < 100)).toBe(true);
+  expect(sent.some((m) => m.t === 'ready')).toBe(false);
+  open();
+  await expect(ready).toHaveText('Ready', { timeout: 30_000 });
+  await expect(ready).toBeEnabled();
+  await expect.poll(() => sent.filter((m) => m.t === 'art').at(-1)?.pct).toBe(100);
+  // Percents only go up.
+  const pcts = sent.filter((m) => m.t === 'art').map((m) => m.pct!);
+  expect(pcts).toEqual([...pcts].sort((a, b) => a - b));
+  await ready.click();
+  await expect.poll(() => sent.filter((m) => m.t === 'ready').length).toBe(1);
+});

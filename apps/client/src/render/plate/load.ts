@@ -10,7 +10,8 @@
 // goes back to it.
 
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
-import { fetchWithProgress, trackSheet } from '../../artLoad/track';
+import { toGpu } from '../../artLoad/gpu';
+import { fetchSheet, trackSheet } from '../../artLoad/track';
 import type { PlateLight } from '../fx/atmosphere';
 import { lightFiles, plateUrl, SPIRE_PLATE, type PlateFile, type PlateLayout } from './layout';
 
@@ -55,6 +56,8 @@ export function loadPlate(layout: PlateLayout = SPIRE_PLATE): Promise<Plate | nu
     try {
       const p = await decodePlate(layout, 'afternoon', track.bytes);
       if (!p) throw new Error('no afternoon plate');
+      // On the GPU before the match (V-08b load-all).
+      toGpu([p.texture.source, ...[...p.patches.values()].map((q) => q.texture.source)]);
       plate = p;
       performance.mark('tdt:plate');
       track.done(true);
@@ -63,7 +66,9 @@ export function loadPlate(layout: PlateLayout = SPIRE_PLATE): Promise<Plate | nu
       return p;
     } catch (e) {
       track.done(false);
-      console.warn('The map plate did not load; the painted ground stays', e);
+      // Asked again (the wait's Retry) tries again.
+      started = null;
+      console.warn('The map plate did not load', e);
       return null;
     }
   })();
@@ -143,7 +148,7 @@ async function decodePlate(layout: PlateLayout, light: PlateLight, onBytes?: (re
 function fetchBytes(f: PlateFile, onBytes?: (received: number, expected: number | null) => void): Promise<Blob> {
   let b = bytes.get(f.name);
   if (!b) {
-    b = fetchWithProgress(plateUrl(f), onBytes);
+    b = fetchSheet(plateUrl(f), onBytes);
     bytes.set(f.name, b);
     // A failed fetch is tried again next time.
     b.catch(() => bytes.delete(f.name));

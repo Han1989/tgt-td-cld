@@ -46,6 +46,8 @@ describe('NetworkTransport', () => {
     expect(t.session!.code).toMatch(/^A[A-Z]{4}$/);
     expect(r.statuses).toContain('open');
 
+    // The room starts once this page's art is in (protocol 25).
+    t.send({ t: 'art', pct: 100 });
     t.send({ t: 'start' });
     await until(() => r.snaps().length > 30);
     const ticks = r.snaps().map((s) => s.tick);
@@ -73,6 +75,8 @@ describe('NetworkTransport', () => {
     const t = new NetworkTransport(url, { t: 'create', v: PROTOCOL_VERSION, name: 'Ada', hero: 'ranger' });
     const r = record(t);
     await until(() => t.session !== null);
+    // The room starts once this page's art is in (protocol 25).
+    t.send({ t: 'art', pct: 100 });
     t.send({ t: 'start' });
     await until(() => r.snaps().length > 5);
 

@@ -1459,64 +1459,105 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   top: calc(var(--map-top, 48px) + 164px);
 }
 
-/* "Loading the art…" (V-07d): under the wave counter while a match's first wave's art downloads (a solo match's start
-   is held meanwhile; hud/artLine.ts places it). The HUD's look, see-through as the lesson's strip (it sits over the
-   portals, which online may already send the first wave): the panels' edge, the text inked, a thin rune-teal bar. It
-   fades out. The cards that sit under the top bar move down while it shows. */
-.art-line {
-  position: absolute;
-  z-index: 4;
-  top: calc(var(--topbar-bottom, 44px) + 3px);
-  left: 50%;
-  transform: translateX(-50%);
+/* The wait before a match (V-08b load-all, artLoad/gate.ts): every match sheet in before the match starts. One card over
+   everything (the lobby stays under it, so Back is the lobby as it was), on the night of the boot splash: the hero's
+   portrait cut from his stage poster, his name, a bar that moves with the bytes, one line, a tip from his kit. */
+.art-wait {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: radial-gradient(120% 80% at 50% 30%, #1d2c33 0%, #0d0c15 70%);
+  color: #f4f8ff;
+}
+
+.art-wait-card {
+  width: min(360px, 100%);
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 3px;
-  padding: 3px 9px 4px;
-  border-radius: 8px;
-  background: rgba(14, 16, 24, 0.38);
-  border: 1px solid rgba(207, 230, 255, 0.34);
-  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.18), 0 0 0 1px rgba(16, 12, 22, 0.4);
-  color: #f4f8ff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 13px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  text-shadow: 0 0 1px #100c16, 0 1px 2px #100c16, 0 0 8px rgba(16, 12, 22, 0.95);
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 300ms ease-out;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
 }
 
-.art-line.out {
-  opacity: 0;
+.art-wait-portrait {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background-color: #10141c;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px rgba(127, 252, 216, 0.55), 0 8px 24px rgba(0, 0, 8, 0.6);
 }
 
-.art-line .art-bar {
-  display: block;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(16, 12, 22, 0.55);
-  box-shadow: 0 0 0 1px rgba(16, 12, 22, 0.5);
+.art-wait-name {
+  margin: 2px 0 4px;
+  font-family: var(--title-font);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+
+.art-wait-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(16, 12, 22, 0.75);
+  box-shadow: 0 0 0 1px rgba(207, 230, 255, 0.22);
   overflow: hidden;
 }
 
-.art-line .fill {
+.art-wait-bar .fill {
   display: block;
   height: 100%;
   background: var(--rune);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 200ms linear;
+  transition: transform 160ms linear;
 }
 
-body.art-loading .tutorial,
-body.art-loading .match-flags,
-body.art-loading .air-flag {
-  margin-top: 30px;
+.art-wait-bar.failed .fill {
+  background: #ff8a6a;
 }
+
+.art-wait-line {
+  margin: 0;
+  min-height: 18px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.art-wait-tip {
+  margin: 6px 0 0;
+  min-height: 54px;
+  font-size: 13px;
+  line-height: 18px;
+  color: rgba(244, 248, 255, 0.78);
+}
+
+.art-wait-tip b {
+  display: block;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.art-wait-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art-wait-bar .fill {
+    transition: none;
+  }
+}
+
 
 .surge-flag {
   display: flex;
@@ -3096,6 +3137,11 @@ body.art-loading .air-flag {
 
 .seat .state.ready {
   color: var(--accent);
+}
+
+.seat .state.loading {
+  color: var(--rune);
+  font-variant-numeric: tabular-nums;
 }
 
 .seat .state.host {

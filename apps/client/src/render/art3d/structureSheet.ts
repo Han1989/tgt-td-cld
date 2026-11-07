@@ -1,13 +1,15 @@
 // The towers', the Heart's and the portals' 3D sheet (docs/ART.md §15, V-05d): lossless WebP pages (V-07d: a third
 // smaller than the PNG, the same pixels; V-08b build 2: the turrets' eight headings take several pages of 2048,
 // `structures-match-<n>.webp`), loaded after the map plate and before the creeps' sheets (never in the first screen's
-// way), turned into textures. Not precached since V-08b build 4 (7 MB): the service worker keeps them once the page has
-// them (`structurePageUrls`, `keepSheets`), as the creeps' and the heroes'. From then on a tower gets Tower3DRig and the Heart and the
-// portals their 3D views (the renderer swaps those already drawn, `structuresVersion`), once every page is in; until
-// then, or if loading fails, their 2D art.
+// way), turned into textures and put on the GPU. Precached again since V-08b load-all (Han, 7 Nov 2026): a first visit's
+// page downloads them from the lobby and tells the service worker it has them (`structurePageUrls`, `keepSheets`); an
+// update's worker carries them over or fetches them after the shell. No match starts before every page is in
+// (artLoad/gate.ts), so a normal match draws Tower3DRig and the 3D Heart and portals from its first frame; the 2D art and
+// the swap (`structuresVersion`) are for the stress scene and the browser tests' `?towers2d` only.
 
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
-import { fetchWithProgress, trackSheet } from '../../artLoad/track';
+import { toGpu } from '../../artLoad/gpu';
+import { fetchSheet, trackSheet } from '../../artLoad/track';
 import type { StructureCell, StructureMatchLayout } from './structures';
 
 /** The pages' URLs by file name (structures-match-0.webp…), as the build hashes them. */
@@ -51,7 +53,7 @@ export function structuresVersion(): number {
   return version;
 }
 
-/** Loads the sheet (once). A failure is logged and leaves the 2D art in place. */
+/** Loads the sheet (once; again after a failure, the wait's Retry). A failure is logged. */
 export function loadStructureSheet(): Promise<void> {
   started ??= (async () => {
     const track = trackSheet('structures');
@@ -59,11 +61,13 @@ export function loadStructureSheet(): Promise<void> {
       // The layout comes with the sheet, not with the first screen (a chunk of data only, as the creeps').
       const { default: layout } = await import('./structures.json');
       loaded = await load(layout.match as StructureMatchLayout, track.bytes);
+      toGpu(new Set([...loaded.frames.values()].map((f) => f.tex.source)));
       version++;
       track.done(true);
     } catch (e) {
       track.done(false);
-      console.warn('3D structures: the sheet did not load; the 2D art stays', e);
+      started = null;
+      console.warn('3D structures: the sheet did not load', e);
     }
   })();
   return started;
@@ -84,7 +88,7 @@ async function load(layout: StructureMatchLayout, onBytes: (received: number, ex
       const url = PAGE_URLS[page.file];
       if (!url) throw new Error(`no page ${page.file} in the build`);
       const bitmap = await createImageBitmap(
-        await fetchWithProgress(url, (received, expected) => {
+        await fetchSheet(url, (received, expected) => {
           got[i] = { received, expected };
           report();
         }),

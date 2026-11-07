@@ -87,6 +87,9 @@ export function decodeClientMessage(raw: unknown): ClientMessage | null {
     case 'ready':
       if (!hasOnlyKeys(data, ['t', 'ready']) || typeof data.ready !== 'boolean') return null;
       return { t: 'ready', ready: data.ready };
+    case 'art':
+      if (!hasOnlyKeys(data, ['t', 'pct']) || !Number.isInteger(data.pct) || (data.pct as number) < 0 || (data.pct as number) > 100) return null;
+      return { t: 'art', pct: data.pct as number };
     case 'cmd': {
       if (!hasOnlyKeys(data, ['t', 'cmd'])) return null;
       const cmd = parseCommand(data.cmd);

@@ -56,8 +56,15 @@ interface Hook {
   /** Coins launched to the gold counter so far. */
   coins(): number;
   clock(): { lag: number };
-  /** The match's first wave's art (V-07d): its start held (solo, `?arthold`), the line shown, its bar, each picture. */
-  firstArt(): { held: boolean; line: boolean; fraction: number; sheets: Record<string, { status: string; received: number; expected: number | null }> };
+  /** The wait before a match (V-08b load-all, `?artwait`): waiting, the card shown, the percent, the line, each picture. */
+  artWait(): {
+    waiting: boolean;
+    shown: boolean;
+    percent: number;
+    line: string;
+    failed: boolean;
+    sheets: Record<string, { status: string; received: number; expected: number | null }>;
+  };
   /** V-08a: the light (its crossfade), the plates decoded, the lanterns and windows lit, the weather's particles. */
   atmosphere(): {
     light: { from: string; to: string; t: number };
