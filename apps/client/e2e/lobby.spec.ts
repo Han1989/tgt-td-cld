@@ -1164,34 +1164,43 @@ test('a room waits for every player\'s art (protocol 25): a seat still loading s
   await expect(page.locator('#lobby-start')).toBeEnabled();
 });
 
-test('your own Ready waits for your art: "Loading N%" until every sheet is in, and the room hears it as it moves', async ({ page }) => {
-  let open!: () => void;
-  const gate = new Promise<void>((ok) => (open = ok));
-  // The first structures' page waits until the test lets it through; the rest come at once.
-  await page.route(/\/assets\/structures-match-0-[\w-]+\.webp(\?|$)/, async (route) => {
-    await gate;
-    await route.continue();
+test.describe('your own art in a room', () => {
+  // The page must fetch the sheets itself so the route below holds the one it holds: a service worker that has claimed
+  // the page answers it past `page.route` (Playwright does not route a worker's requests). On CI the first screen comes
+  // after the worker's install and claim (Pixi on a software GPU), so with the worker allowed the held page loaded
+  // anyway and Ready read "Ready" (run 42333612650, every project). The same rule as the wait's other route tests
+  // (mobile.spec's "every sheet in before a match", embed.spec's "the wait in a frame").
+  test.use({ serviceWorkers: 'block' });
+
+  test('your own Ready waits for your art: "Loading N%" until every sheet is in, and the room hears it as it moves', async ({ page }) => {
+    let open!: () => void;
+    const gate = new Promise<void>((ok) => (open = ok));
+    // The first structures' page waits until the test lets it through; the rest come at once.
+    await page.route(/\/assets\/structures-match-0-[\w-]+\.webp(\?|$)/, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    const sent = await fakeRoom(page, 'p2', [HOST, { ...GUEST, art: 0 }]);
+    await openHome(page, 'skipped', '&room=kqxyz&artwait');
+    await page.locator('#lobby-name').fill('Mya');
+    await page.locator('#lobby-join').click();
+    await expect(page.locator('#lobby-room')).toBeVisible();
+    const ready = page.locator('#lobby-ready');
+    await expect(ready).toHaveText(/^Loading \d{1,2}%$/);
+    await expect(ready).toBeDisabled();
+    await expect(page.locator('#lobby-players .seat').nth(1).locator('.state')).toHaveText(/^Loading \d{1,2}%$/);
+    // The room hears a percent under 100 (a whole number), and no Ready.
+    await expect.poll(() => sent.filter((m) => m.t === 'art').length).toBeGreaterThan(0);
+    expect(sent.filter((m) => m.t === 'art').every((m) => Number.isInteger(m.pct) && m.pct! < 100)).toBe(true);
+    expect(sent.some((m) => m.t === 'ready')).toBe(false);
+    open();
+    await expect(ready).toHaveText('Ready', { timeout: 30_000 });
+    await expect(ready).toBeEnabled();
+    await expect.poll(() => sent.filter((m) => m.t === 'art').at(-1)?.pct).toBe(100);
+    // Percents only go up.
+    const pcts = sent.filter((m) => m.t === 'art').map((m) => m.pct!);
+    expect(pcts).toEqual([...pcts].sort((a, b) => a - b));
+    await ready.click();
+    await expect.poll(() => sent.filter((m) => m.t === 'ready').length).toBe(1);
   });
-  const sent = await fakeRoom(page, 'p2', [HOST, { ...GUEST, art: 0 }]);
-  await openHome(page, 'skipped', '&room=kqxyz&artwait');
-  await page.locator('#lobby-name').fill('Mya');
-  await page.locator('#lobby-join').click();
-  await expect(page.locator('#lobby-room')).toBeVisible();
-  const ready = page.locator('#lobby-ready');
-  await expect(ready).toHaveText(/^Loading \d{1,2}%$/);
-  await expect(ready).toBeDisabled();
-  await expect(page.locator('#lobby-players .seat').nth(1).locator('.state')).toHaveText(/^Loading \d{1,2}%$/);
-  // The room hears a percent under 100 (a whole number), and no Ready.
-  await expect.poll(() => sent.filter((m) => m.t === 'art').length).toBeGreaterThan(0);
-  expect(sent.filter((m) => m.t === 'art').every((m) => Number.isInteger(m.pct) && m.pct! < 100)).toBe(true);
-  expect(sent.some((m) => m.t === 'ready')).toBe(false);
-  open();
-  await expect(ready).toHaveText('Ready', { timeout: 30_000 });
-  await expect(ready).toBeEnabled();
-  await expect.poll(() => sent.filter((m) => m.t === 'art').at(-1)?.pct).toBe(100);
-  // Percents only go up.
-  const pcts = sent.filter((m) => m.t === 'art').map((m) => m.pct!);
-  expect(pcts).toEqual([...pcts].sort((a, b) => a - b));
-  await ready.click();
-  await expect.poll(() => sent.filter((m) => m.t === 'ready').length).toBe(1);
 });

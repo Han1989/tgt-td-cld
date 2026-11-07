@@ -18,6 +18,7 @@ import {
   sent,
   stall,
   startSolo,
+  towerDrawn,
   waitForReady,
   type Box,
   type TapTarget,
@@ -47,8 +48,9 @@ function heartVignette(page: Page): Promise<{ parent: string; shown: boolean; bo
   });
 }
 
-/** Taps the centre of a pad (by map pad id). */
+/** Taps the centre of a pad (by map pad id); a pad with a tower once that tower is drawn (`towerDrawn`). */
 async function tapPad(page: Page, padId: number): Promise<void> {
+  await towerDrawn(page, padId);
   // Once the camera stands still, where the canvas owns the pad (helpers.ts, `padTapPoint`).
   const p = await padTapPoint(page, padId);
   expect(p, `pad ${padId} has a tappable point on screen`).not.toBeNull();

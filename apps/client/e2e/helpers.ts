@@ -431,6 +431,24 @@ export async function padTapPoint(page: Page, padId: number): Promise<{ x: numbe
   }, padId);
 }
 
+/**
+ * Waits until the tower on `padId` (when the newest snapshot has one) is in the last frame the renderer drew. A click or
+ * a tap picks from the drawn towers (`pickTower`, `tapTargets`), and the newest snapshot runs ahead of the drawn frame
+ * whenever a long task delays the next one (on CI's software GPU, a sheet decoding or uploading): a test that clicked
+ * the moment `latest()` had the tower clicked the bare ground (V-08b load-all, run 42333612650's desktop repeat). A
+ * player clicks what is drawn, so this is when a test may.
+ */
+export async function towerDrawn(page: Page, padId: number): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate((id) => {
+        const t = window.__tdt.latest()?.towers.find((q) => q.padId === id);
+        return !t || window.__tdt.tapTargets().some((k) => k.kind === 'tower' && k.id === t.id);
+      }, padId),
+    )
+    .toBe(true);
+}
+
 /** Screen position of a world point in tiles. */
 export function toScreen(page: Page, x: number, y: number) {
   return page.evaluate(([tx, ty]) => window.__tdt.camera.worldToScreen(tx! * 32, ty! * 32), [x, y]);

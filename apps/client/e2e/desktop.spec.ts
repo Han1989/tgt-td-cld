@@ -3,7 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { box, expectSameBoxes, framesAB, framesIn, lessonCard, sent, startSolo, toScreen, waitForReady } from './helpers';
+import { box, expectSameBoxes, framesAB, framesIn, lessonCard, sent, startSolo, toScreen, towerDrawn, waitForReady } from './helpers';
 
 test('wide layout: map centred and fitted to the height, HUD in the side margins, no touch overlay', async ({ page }) => {
   await startSolo(page);
@@ -27,6 +27,8 @@ test('the rendered frames move nothing: the stats, the hero panel and the open t
   await page.mouse.click(at.x, at.y);
   await page.keyboard.press('1');
   await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+  // Click the tower once it is drawn (helpers.ts, `towerDrawn`).
+  await towerDrawn(page, padId);
   await page.mouse.click(at.x, at.y);
   await expect(page.locator('#tower-panel')).toBeVisible();
   const { frames, css } = await framesAB(page, ['#topbar', '#topbar .stat', '#call-early', '#hero-panel', '#hero-panel .skill', '#tower-panel', '#tower-panel button']);
@@ -52,6 +54,8 @@ test('mouse and keyboard: right-click moves, left-click a pad and press 1 to bui
   await page.keyboard.press('1');
   await expect.poll(() => sent(page, 'build')).toEqual([{ type: 'build', padId, tower: 'arrow' }]);
   await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+  // Click the tower once it is drawn (helpers.ts, `towerDrawn`).
+  await towerDrawn(page, padId);
 
   await page.mouse.click(at.x, at.y);
   await expect(page.locator('#tower-panel')).toBeVisible();
@@ -155,6 +159,8 @@ test('desktop tower panel: at tier 3 it offers the two specialisations; clicking
   await page.mouse.click(at.x, at.y);
   await page.keyboard.press('2');
   await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+  // Click the tower once it is drawn (helpers.ts, `towerDrawn`).
+  await towerDrawn(page, padId);
   await page.mouse.click(at.x, at.y);
   await expect(page.locator('#tower-panel')).toBeVisible();
   await page.keyboard.press('u');
@@ -191,6 +197,8 @@ test('desktop tower panel, Endless: past the branch Reinforce +N for its price; 
   await page.mouse.click(at.x, at.y);
   await page.keyboard.press('2');
   await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+  // Click the tower once it is drawn (helpers.ts, `towerDrawn`).
+  await towerDrawn(page, padId);
   await page.mouse.click(at.x, at.y);
   await expect(page.locator('#tower-panel')).toBeVisible();
   await page.keyboard.press('u');
@@ -228,6 +236,8 @@ test('desktop tower panel: Repair shows only while damaged; F and the button rep
   await page.mouse.click(at.x, at.y);
   await page.keyboard.press('1');
   await expect.poll(() => tower().then((t) => t?.tier)).toBe(1);
+  // Click the tower once it is drawn (helpers.ts, `towerDrawn`).
+  await towerDrawn(page, padId);
   await page.mouse.click(at.x, at.y);
   await expect(page.locator('#tower-panel')).toBeVisible();
   const repair = page.locator('#tower-panel button[data-action="repair"]');
