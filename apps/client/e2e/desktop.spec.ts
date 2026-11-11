@@ -491,3 +491,26 @@ test('laptop fixes (q1): whole numbers in the hero panel past level 10, and a co
     }
   }
 });
+
+test('Call early waits for the wave (q2): off and "Wave arriving" while it comes out, a click sends nothing, then on again', async ({ page }) => {
+  await startSolo(page);
+  const call = page.locator('#call-early');
+  await expect(call).toBeEnabled();
+  await expect(call).toContainText('Call early');
+  await call.click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.wave)).toBe(1);
+  // Wave 1 is still arriving: the button is off and says so; a forced click sends no second call.
+  await expect(call).toBeDisabled();
+  await expect(call).toHaveText('Wave arriving');
+  await call.click({ force: true });
+  await call.dispatchEvent('click');
+  expect(await sent(page, 'callEarly')).toHaveLength(1);
+  // Out of the portals: on again with its bonus, and one more click is one more wave.
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.canCallEarly), { timeout: 30_000 }).toBe(true);
+  await expect(call).toBeEnabled();
+  await expect(call).toContainText(/Call early \+\d+/);
+  await call.click();
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.wave)).toBe(2);
+  expect(await sent(page, 'callEarly')).toHaveLength(2);
+  await expect(call).toBeDisabled();
+});

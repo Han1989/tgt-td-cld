@@ -5,7 +5,7 @@
 // its rank counts up under the title. 13 to 15 is asked each run; under 13 sees no card, no board and posts nothing.
 
 import { expect, test, type Page } from '@playwright/test';
-import { box, waitForReady } from './helpers';
+import { box, sent, startSolo, waitForReady } from './helpers';
 
 // The stub answers on this page's own origin, which a service worker would answer itself after a reload (in production
 // the game server is another origin, which the service worker never touches).
@@ -194,4 +194,38 @@ test('under 13: no card, nothing posted, and no board in the lobby', async ({ pa
   await expect(page.locator('#end-board')).toBeHidden();
   expect(bodies).toHaveLength(0);
   expect(asked).toBe(0);
+});
+
+test('End run (q2): ⚙ → End run asks with the wave, Keep playing keeps it, End run ends it and the end card shows the wave', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ tutorial: 'skipped' })));
+  await startSolo(page, '?lab', 'endless', 'Warden');
+  await page.locator('#call-early').dispatchEvent('click');
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.wave)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.canCallEarly), { timeout: 30_000 }).toBe(true);
+
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#settings-leave-btn')).toBeVisible();
+  await expect(page.locator('#settings-endrun-btn')).toBeVisible();
+  await page.locator('#settings-endrun-btn').click();
+  await expect(page.locator('#settings-endrun-q')).toHaveText('End this run on wave 1? It counts and can be posted.');
+  await page.locator('#settings-endrun-no').click();
+  await expect(page.locator('#settings-endrun-ask')).toBeHidden();
+  await expect(page.locator('#settings-endrun-btn')).toBeVisible();
+  expect(await sent(page, 'endRun')).toHaveLength(0);
+
+  await page.locator('#settings-endrun-btn').click();
+  await page.locator('#settings-endrun-yes').click();
+  await expect(page.locator('#settings')).toBeHidden();
+  expect(await sent(page, 'endRun')).toHaveLength(1);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.phase)).toBe('defeat');
+  await expect(page.locator('#end-screen')).toBeVisible();
+  await expect(page.locator('#end-title')).toHaveText('Fallen on wave 1');
+});
+
+test('End run is not offered in Quick (nor Full, the Daily run or a room)', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ tutorial: 'skipped' })));
+  await startSolo(page, '?lab', 'quick', 'Warden');
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#settings-leave-btn')).toBeVisible();
+  await expect(page.locator('#settings-endrun-btn')).toBeHidden();
 });
