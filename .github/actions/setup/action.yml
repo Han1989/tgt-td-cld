@@ -37,7 +37,11 @@ runs:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
 
+    # No --with-deps: the ubuntu-24.04 runner already has every library Chromium needs. All --with-deps added
+    # was nine font packages (CJK, Thai, Unifont, FreeFont, old X fonts) fetched from Ubuntu's archive on every
+    # run, and when that archive could not be reached (11 Nov 2026) every browser job stopped before a test ran.
+    # A cached browser needs no network here; a new Playwright version downloads it from Playwright's own CDN.
     - name: Install Playwright Chromium
       if: inputs.playwright == 'true'
       shell: bash
-      run: npx playwright install --with-deps chromium
+      run: npx playwright install chromium
