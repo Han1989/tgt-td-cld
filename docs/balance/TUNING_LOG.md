@@ -854,3 +854,20 @@ repair bounds stay provisional.
 The solo Warden falls on wave 39.1 / 82.1 / 84.0 (novice / casual / expert; main 38.9 / 81.5 / 82.9), every expert run
 reaching wave 31 (the expert's highest 91); the Ranger and the Arcanist are unchanged to the number. `tuning.endless` is
 unchanged; the expert gate's bound moved to before 92 (above).
+
+# Round 10: call early waits for the wave (q2, 11 Nov 2026, protocol 26)
+
+No tuning change. A call early is accepted only once the current wave has finished spawning, and the expert bot (the only
+bot that calls) reads the snapshot's `canCallEarly` before it calls; End run is used by no bot.
+
+**Before / after** (`npm run balance:matrix`, every bot, Normal and Hard, Full and Quick, solo, pairs and trio, 30
+seeds; then `-- endless`, 30 seeds), main at cb482bc against this branch: **every table is the same to the digit**
+(the two printed outputs differ in nothing but the command line), and `npm run balance:matrix:targets` prints the
+same PASS / FAIL list for both. No bot ever called while a wave was still arriving: the expert waits for the field to
+have been clear for a while, which is after the wave's last spawn. The targets of `docs/GAME_DESIGN.md` §13 and the
+Endless gate hold as they did on main (`final.txt`, `endless.txt` and `quake-3-final.txt` stay the reference).
+
+The two Playtest 2 replay fixtures (`test/fixtures/playtests/`) are re-run only by `npm run counterfactual`, which
+stamps them with today's protocol; they hold two calls each, made while a wave was arriving in the defeat file, which
+are now refused there (its counterfactual ends on wave 8 instead of 7). No test re-runs them, so they are kept as
+recorded.
