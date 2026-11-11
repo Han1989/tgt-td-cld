@@ -46,7 +46,9 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    `in-progress` in `STATUS.md`, commit with `[skip ci]` in the message, push, and open the pull
    request titled `WIP: queue q<n>: <title>` before building, so no other session starts the task.
 4. **Build** what the task file's brief says. That task only. Push at least once an hour while you
-   build, so the pull request shows the task is alive.
+   build, so the pull request shows the task is alive. Every push before the finishing one has
+   `[skip ci]` in its newest commit's message: unfinished work does not run CI (a red check on a
+   `WIP:` pull request says nothing and sends Han a failure notice).
 5. **Verify** as `CLAUDE.md`'s Session rules say: `npm test` and `npm run build` after the last
    edit; only the browser specs the brief names, once; never the whole suite; never `TDT_E2E_ALL`.
 6. **Finish the pull request.** In the same branch set the task's row to `done` and fill its PR
@@ -59,7 +61,8 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    Restarts the game server: yes | no
    ```
 
-   The last commit must run CI (no `[skip ci]`).
+   The last commit must run CI: its message has no `[skip ci]` anywhere, not even quoted in a
+   sentence (GitHub skips on the text alone, and the required `ci` check then never reports).
 7. **Stop.** One task per session. Do not wait for CI: a later run merges or fixes. End with the
    report.
 
@@ -112,6 +115,17 @@ tests). Fix the cause on the task's branch as `CLAUDE.md`'s Session rules say: a
 on a re-run is a test to fix; never a retry, a skip or a wider bound without the reason written in
 the test. Start the fix commit's message with `ci fix <n>:` (1, 2, 3), push and stop. If the pull
 request is still red after `ci fix 3`, open a decision and leave it.
+
+**When the runner failed, not the code.** A job that stopped before any test ran (it could not
+install the browsers, download a package or reach an address: `Failed to install browsers`,
+`Temporary failure resolving …`, a 5xx from a registry) leaves nothing to fix on the branch. Run
+the failed jobs again:
+`gh api -X POST repos/Han1989/tgt-td-cld/actions/runs/<run id>/rerun-failed-jobs`. If that is
+refused, push an empty commit `ci: run again (<what failed>)`. Neither is a `ci fix` and neither
+counts toward the three. Then stop, as after any push. If the same step has failed the same way
+on three runs in a row, open a decision.
+
+A red check on a `WIP:` pull request is not a red CI: the session that owns it has not finished.
 
 ## Keeping a waiting pull request mergeable
 
