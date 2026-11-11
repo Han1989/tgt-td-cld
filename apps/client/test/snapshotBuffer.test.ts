@@ -15,6 +15,7 @@ function snap(tick: number, x: number, events: Snapshot['events'] = []): Snapsho
     totalWaves: 10,
     nextWaveIn: 100,
     callEarlyBonus: 5,
+    canCallEarly: true,
     players: [],
     heroes: [],
     creeps: [

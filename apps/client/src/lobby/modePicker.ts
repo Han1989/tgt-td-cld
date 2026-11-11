@@ -5,7 +5,6 @@
 
 import { GAME_MODES, type GameMode, type LobbyState, type PlayerId } from '@tdt/protocol';
 import { TUNING, tuningForMode } from '@tdt/sim';
-import { bestLine } from '../endless/best';
 
 const MODE_KEY = 'tdt.mode';
 /**
@@ -111,10 +110,11 @@ export class ModePicker {
   }
 
   /** The best Endless wave of the picked hero in this browser ("Best: wave 37"), or null: no note. */
-  showBest(wave: number | null): void {
+  /** The Endless segment's line (`endlessBestLine`): "Best: wave 37", the reset line once, or nothing. */
+  showBest(line: string | null): void {
     if (!this.best) return;
-    this.best.textContent = wave === null ? '' : bestLine(wave);
-    this.best.classList.toggle('hidden', wave === null);
+    this.best.textContent = line ?? '';
+    this.best.classList.toggle('hidden', line === null);
   }
 
   /** Only the host may change the mode of an online room. */

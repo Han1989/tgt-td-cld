@@ -4,7 +4,17 @@
 import { describe, expect, it } from 'vitest';
 import { isBossWave } from '../src/audio/gameAudio';
 import { tuningForMode, TUNING } from '@tdt/sim';
-import { bestLine, endlessEndCopy, endlessRunLine, parseBests, withRun } from '../src/endless/best';
+import {
+  bestLine,
+  bestShown,
+  BESTS_RESET_LINE,
+  endlessEndCopy,
+  endlessRunLine,
+  parseBests,
+  parseStore,
+  serializeStore,
+  withRun,
+} from '../src/endless/best';
 import { atTopLevel, levelBadge, levelUpToast, xpFill } from '../src/hud/heroLevel';
 import { modeSub } from '../src/lobby/modePicker';
 import { waveListsFlyers } from '../src/teach/cues';
@@ -14,7 +24,26 @@ describe('the best Endless wave', () => {
     expect(parseBests(null)).toEqual({});
     expect(parseBests('nope')).toEqual({});
     expect(parseBests('[37]')).toEqual({});
-    expect(parseBests(JSON.stringify({ ranger: 37, warden: 0, arcanist: 4.5, ninja: 50 }))).toEqual({ ranger: 37 });
+    const stored = (bests: unknown) => JSON.stringify({ v: 2, bests, dropped: [] });
+    expect(parseBests(stored({ ranger: 37, warden: 0, arcanist: 4.5, ninja: 50 }))).toEqual({ ranger: 37 });
+  });
+
+  it('drops the bests stored before protocol 26 once, and says so once (Call early could stack waves)', () => {
+    // Han's "Best: wave 148" of 24 Oct: a bare value from before the version keeps no best.
+    const old = parseStore(JSON.stringify({ arcanist: 148, ranger: 37 }));
+    expect(old).toEqual({ bests: {}, dropped: ['ranger', 'arcanist'] });
+    expect(bestShown(old, 'arcanist')).toEqual({ line: BESTS_RESET_LINE, told: true });
+    expect(BESTS_RESET_LINE).toBe('Bests start again: Call early can no longer stack waves');
+    // A hero who had no best says nothing.
+    expect(bestShown(old, 'warden')).toEqual({ line: null, told: false });
+    // Once told, the store names nobody: never again.
+    const told = parseStore(serializeStore({ ...old, dropped: [] }));
+    expect(bestShown(told, 'arcanist')).toEqual({ line: null, told: false });
+    // A new best is kept and shown.
+    const kept = parseStore(serializeStore({ bests: { arcanist: 12 }, dropped: [] }));
+    expect(kept.bests).toEqual({ arcanist: 12 });
+    expect(bestShown(kept, 'arcanist')).toEqual({ line: 'Best: wave 12', told: false });
+    expect(JSON.parse(serializeStore(kept))).toEqual({ v: 2, bests: { arcanist: 12 }, dropped: [] });
   });
 
   it('is kept per hero: a run counts only when it goes further', () => {
