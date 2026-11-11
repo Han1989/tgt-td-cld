@@ -40,7 +40,7 @@ interface Hook {
     phase: string;
     difficulty: string;
     surgeLane: number | null;
-    heroes: { owner: string; kind: string; x: number; y: number; mana: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
+    heroes: { owner: string; kind: string; x: number; y: number; mana: number; level: number; hp: number; maxHp: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
     creeps: { x: number; y: number; kind: string }[];
     towers: { id: number; padId: number; owner: string; kind: string; tier: number; branch: string | null; reinforced: number; priority: string; x: number; y: number; hp: number; maxHp: number }[];
     pads: { id: number; owner: string | null }[];
