@@ -95,14 +95,23 @@ async function castMeteor(page: Page, quality: 'high' | 'low'): Promise<void> {
   await startSolo(page, '?lab&ult', 'quick', 'Arcanist');
   await waitForReady(page);
   expect(await page.evaluate(() => window.__tdt.fx().particles)).toBe(quality === 'high');
-  // Call waves 1 to 3 at once and cast once a Brute (wave 3) is on the map: it outlives three pulses of the rain.
+  // Call waves 1 to 3 as early as the game allows (a wave can be called once the one before it has finished arriving)
+  // and cast once a Brute (wave 3) is on the map: it outlives three pulses of the rain.
   const state = () =>
     page.evaluate(() => ({
       wave: window.__tdt.latest()?.wave,
+      canCallEarly: window.__tdt.latest()?.canCallEarly,
       creeps: window.__tdt.latest()?.creeps.length,
       brutes: window.__tdt.latest()?.creeps.filter((c) => c.kind === 'brute').length,
     }));
   for (const wave of [1, 2, 3]) {
+    await waitInGame(
+      page,
+      `Wave ${wave} callable`,
+      () => page.evaluate(() => window.__tdt.latest()?.canCallEarly ?? false),
+      { ticks: 600, frames: 5 },
+      state,
+    );
     await page.locator('#call-early').tap({ force: true });
     await waitInGame(
       page,
