@@ -61,7 +61,8 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    Restarts the game server: yes | no
    ```
 
-   The last commit must run CI (no `[skip ci]`).
+   The last commit must run CI: its message has no `[skip ci]` anywhere, not even quoted in a
+   sentence (GitHub skips on the text alone, and the required `ci` check then never reports).
 7. **Stop.** One task per session. Do not wait for CI: a later run merges or fixes. End with the
    report.
 
