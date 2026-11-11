@@ -158,6 +158,7 @@ import {
 import { LIGHTING, RL, type Display } from './art/tokens';
 import type { FxLevel } from './quality';
 import { archRatio, depth, groundAngle, overGround, padLift, viewCos } from './view';
+import { whole } from '../hud/num';
 
 const S = TILE_PX;
 
@@ -1360,7 +1361,7 @@ export class WorldRenderer {
           fx.ring(hx, hy, 1.5, COLORS.good, 520, 0.2, 'shock');
           fx.ring(hx, hy, 0.9, FX.moonLight, 360, 0.3);
           fx.sparkle(hx, hy, COLORS.good, 8, 0.5);
-          if (e.amount > 0) fx.label(hx, hy - 0.9, `+${e.amount}`, COLORS.good, 18, true);
+          if (e.amount > 0) fx.label(hx, hy - 0.9, `+${whole(e.amount)}`, COLORS.good, 18, true);
           break;
         }
         case 'towerBuilt': {

@@ -927,6 +927,15 @@ const items: ProgressItem[] = [
     proof: pr(77),
   },
   {
+    id: 'D-11',
+    title: 'Laptop run fixes',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only, protocol stays 25. From Han’s Endless run on his laptop: whole numbers on the HUD (current HP rounds up, max to the nearest, mana down), Back to lobby on the solo end card and in Settings during a solo match (asked once inside the sheet), and the desktop skill countdown over the icon, never the name, with the HP and mana lines inside their bars.',
+    proof: pr(170),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

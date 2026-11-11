@@ -8,6 +8,7 @@ import { toCss } from '../render/palette';
 import { playerTint } from '../coop/cues';
 import { ultColor, type HealLine, type UltPop } from '../ult/cues';
 import type { UltimateTag } from '@tdt/protocol';
+import { whole } from './num';
 
 /** A popup stays this long (matches the CSS). At most `MAX_POPS` at once: the oldest goes first. */
 export const POP_MS = 2200;
@@ -82,7 +83,7 @@ export class UltHud {
     if (line.amount > 0) {
       const num = document.createElement('b');
       num.className = 'heal-num';
-      num.textContent = `+${line.amount}`;
+      num.textContent = `+${whole(line.amount)}`;
       chip.li.appendChild(num);
       window.setTimeout(() => num.remove(), HEAL_MS);
     }

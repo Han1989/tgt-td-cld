@@ -1843,3 +1843,33 @@ test.describe('every sheet in before a match (V-08b load-all)', () => {
     expect((await page.evaluate(() => window.__tdt.artWait())).waiting).toBe(false);
   });
 });
+
+test('the way back (q1): the end card\'s Back to lobby, and ⚙ → Back to lobby in a solo match asks, then goes home', async ({ page }) => {
+  await startSolo(page);
+  // The end card: the second button says where it goes.
+  await page.evaluate(() => window.__tdt.lose());
+  await expect(page.locator('#end-change-hero')).toHaveText('Back to lobby');
+  await page.locator('#end-change-hero').click();
+  await expect(page.locator('#lobby-home')).toBeVisible();
+
+  // During a solo match: ⚙ → Back to lobby asks once inside the sheet; Stay keeps the match, Leave goes home.
+  await page.locator('#lobby-offline').click();
+  await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+  await page.locator('#settings-btn').click();
+  await expect(page.locator('#settings-leave-btn')).toBeVisible();
+  await expect(page.locator('#settings-leave-ask')).toBeHidden();
+  let dialogs = 0;
+  page.on('dialog', () => dialogs++);
+  await page.locator('#settings-leave-btn').click();
+  await expect(page.locator('#settings-leave-ask')).toBeVisible();
+  await expect(page.locator('#settings-leave-ask')).toContainText("Leave this match? It won't be saved.");
+  await page.locator('#settings-leave-no').click();
+  await expect(page.locator('#settings-leave-ask')).toBeHidden();
+  await expect(page.locator('#settings')).toBeVisible();
+  await expect(page.locator('#lobby')).toBeHidden();
+  await page.locator('#settings-leave-btn').click();
+  await page.locator('#settings-leave-yes').click();
+  await expect(page.locator('#lobby-home')).toBeVisible();
+  await expect(page.locator('#settings')).toBeHidden();
+  expect(dialogs).toBe(0);
+});

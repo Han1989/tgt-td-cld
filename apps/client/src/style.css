@@ -495,8 +495,18 @@ button {
   background-color: var(--hp);
 }
 
+/* The mana line's text sits fully inside its bar (q1: "332 / 332" was cut at the bottom of a 10 px bar). */
 .bar.mana {
-  height: 10px;
+  height: 12px;
+}
+
+.bar.mana .bar-text {
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.bar.hp .bar-text {
+  line-height: 14px;
 }
 
 .bar.mana .fill {
@@ -598,9 +608,13 @@ button {
   pointer-events: none;
 }
 
+/* The countdown sits over the icon, as on the touch buttons, so it never covers the skill's name (q1). */
 .skill .cd-text {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38px;
   display: grid;
   place-items: center;
   font-size: 18px;
@@ -637,8 +651,8 @@ button {
   mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
 }
 
-/* No dark fill on a cooling ultimate: fade its name so the seconds stay readable. */
-.skill.ult.cooling .name {
+/* Counting down: the icon fades under its seconds; the name stays as it is (q1). */
+.skill.cooling .skill-ico {
   opacity: 0.35;
 }
 
@@ -3630,6 +3644,9 @@ body.layout-wide .tutorial {
 body.layout-wide .settings {
   left: calc(var(--margin) + 4px);
   top: 12px;
+  /* The sheet scrolls inside the screen, as on phones (q1's Match row made it taller than a laptop's 720 px). */
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
 }
 
 /* Tall: phones held upright ----------------------------------------------- */
@@ -4710,6 +4727,30 @@ body.touch .settings .touch-only {
   margin: 0;
   font-size: 11px;
   color: var(--muted);
+}
+
+/* ⚙ → Back to lobby (a solo match only): asks once inside the sheet, never a browser dialog (q1). */
+.settings .leave-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(10, 14, 18, 0.55);
+}
+
+.settings .leave-ask.hidden {
+  display: none;
+}
+
+.settings .leave-ask p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--moon);
+}
+
+.settings .leave-ask .choices.row .btn {
+  text-align: center;
 }
 
 .settings .btn.active {
