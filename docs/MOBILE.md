@@ -107,6 +107,8 @@
 - Taps inside the control overlay never select anything on the map.
 - A radial menu or ring **moves up whenever it would overlap the control overlay.** It never covers the joystick or skills.
 
+**The way back to the lobby** (q1, Han's laptop run of 11 Nov 2026). A solo end card (Play solo, the lesson, the Daily run, Endless) has **Play again** and **Back to lobby**, which ends the match and opens the home card (the hero and mode picks, Play with friends under them); its id stays `#end-change-hero`. During a solo match, **⚙ → Match → Back to lobby** sits at the top of the sheet: one tap asks inside the sheet, "Leave this match? It won't be saved." with **Leave** and **Stay** (never a browser dialog); Leave does what the end card's button does. An online room has no Match row: its end card keeps **Leave room** (and the host's Back to lobby to the room), as before. The rule is `settingsLeaveShown` in `hud/leaveMatch.ts` (a solo match only).
+
 **Settings → Controls layout**, two rows:
 - **Stick:** **Floating** (default; a drag anywhere walks, the resting stick is a hint) or **Fixed** (the joystick stays where it is drawn).
 - **Skills:** **Around the stick** (default; the one-thumb arc at the bottom, with the **Joystick** row Left / Center / Right below it), **Right corner** (the stick bottom-left, the skills in a quarter arc around E bottom-right) or **Left corner** (the mirror, for left thumbs: W and E mirror, Q and R trade places so both corners read Q, W, R from left to right). The Joystick row shows only for Around the stick.

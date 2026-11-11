@@ -893,7 +893,7 @@ test('a new player who picks a hero and a mode and taps Play solo gets that matc
   await expect(page.locator('#tutorial')).toBeHidden();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).tutorial)).toBe('skipped');
 
-  // The end screen's Change hero / mode is the home card, with both picks as they were and no lesson line any more.
+  // The end screen's Back to lobby is the home card, with both picks as they were and no lesson line any more.
   await page.evaluate(() => window.__tdt.lose());
   await page.locator('#end-change-hero').click();
   await expect(page.locator('#lobby-home')).toBeVisible();

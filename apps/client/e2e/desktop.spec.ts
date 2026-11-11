@@ -368,7 +368,7 @@ test('Learn to play on the home card starts the Quick lesson: Move advances, Ski
   expect(await page.evaluate(() => localStorage.getItem('tdt.mode'))).toBe('full');
 });
 
-test('Play solo on the home card is the match picked, never the lesson; Change hero / mode comes back to the card', async ({ page }) => {
+test('Play solo on the home card is the match picked, never the lesson; Back to lobby comes back to the card', async ({ page }) => {
   await page.goto('/?lab');
   await waitForReady(page, 'solo');
   await expect(page.locator('#lobby-learn')).toBeVisible();
@@ -387,7 +387,7 @@ test('Play solo on the home card is the match picked, never the lesson; Change h
   await expect(page.locator('#tutorial')).toBeHidden();
   await expect(page.locator('#match-flags')).toBeHidden();
 
-  // The end screen's Change hero / mode is the home card again, with the picks as they were.
+  // The end screen's Back to lobby is the home card again, with the picks as they were.
   await page.evaluate(() => window.__tdt.lose());
   await expect(page.locator('#end-change-hero')).toBeVisible();
   await page.locator('#end-change-hero').click();
@@ -441,4 +441,53 @@ test('the service worker precaches the map plate, then the structures\' pages (V
   );
   expect(served.length).toBeGreaterThan(0);
   expect(served.every(Boolean)).toBe(true);
+});
+
+test('laptop fixes (q1): whole numbers in the hero panel past level 10, and a countdown that never covers a name', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await startSolo(page, '?lab', 'endless', 'Arcanist');
+  // A level up past 10 (Endless's veteran levels) makes max HP fractional: "271 / 949.2799999999999" before q1.
+  await page.evaluate(() => window.__tdt.setLevel(13));
+  await page.evaluate(() => window.__tdt.skipTo(1));
+  const mine = () =>
+    page.evaluate(() => {
+      const h = window.__tdt.latest()!.heroes.find((x) => x.owner === window.__tdt.me())!;
+      return { level: h.level, maxHp: h.maxHp };
+    });
+  await expect.poll(async () => (await mine()).level, { timeout: 90_000 }).toBeGreaterThanOrEqual(14);
+  expect(Number.isInteger((await mine()).maxHp)).toBe(false);
+  for (const id of ['#hp-text', '#mana-text']) await expect(page.locator(id)).toHaveText(/^\d+ \/ \d+$/);
+
+  // Frost Nova on cooldown: its count and its name side by side, never one over the other.
+  await page.keyboard.press('Shift+W');
+  await page.mouse.move(640, 360);
+  await page.keyboard.press('W');
+  await page.mouse.click(640, 360);
+  const nova = page.locator('#hero-panel .skill').nth(1);
+  await expect(nova.locator('.cd-text')).toHaveText(/^\d+$/);
+  await expect(nova.locator('.name')).toHaveText('Frost Nova');
+  const count = await nova.locator('.cd-text').evaluate((el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return r.getBoundingClientRect().toJSON() as DOMRect;
+  });
+  const name = await box(page, '#hero-panel .skill-wrap:nth-child(2) .name');
+  expect(count.right).toBeLessThanOrEqual(name.left);
+
+  // The HP and mana lines sit inside their bars at the laptop sizes.
+  for (const [width, height] of [[1280, 720], [1366, 768], [1920, 1080]] as const) {
+    await page.setViewportSize({ width, height });
+    for (const id of ['hp-text', 'mana-text']) {
+      const fit = await page.evaluate((i) => {
+        const text = document.getElementById(i)!;
+        const bar = text.parentElement!.getBoundingClientRect();
+        const r = document.createRange();
+        r.selectNodeContents(text);
+        const g = r.getBoundingClientRect();
+        return { top: g.top - bar.top, bottom: bar.bottom - g.bottom };
+      }, id);
+      expect(fit.top, `${id} at ${width} × ${height}`).toBeGreaterThanOrEqual(-0.5);
+      expect(fit.bottom, `${id} at ${width} × ${height}`).toBeGreaterThanOrEqual(-0.5);
+    }
+  }
 });

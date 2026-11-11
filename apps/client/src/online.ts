@@ -224,7 +224,7 @@ export class OnlineController {
 
   /**
    * Play solo (the home card's hero and mode) or Learn to play (from the home card or ⚙), at once: a local match,
-   * leaving an online room first. "Change hero / mode" on its end screen comes back to the home card.
+   * leaving an online room first. "Back to lobby" on its end screen comes back to the home card.
    */
   private playSolo(start: SoloStart, pick: SoloPick): void {
     afterArt(pick.hero, pick.mode, () => this.playSoloNow(start, pick));
@@ -275,7 +275,7 @@ export function endSolo(view: GameView): void {
 /**
  * Starts a local solo match (simulation in a Web Worker), always on Normal. `start` says how: Play solo runs `pick` as
  * it is; Learn to play runs the lesson (Quick, the picked hero). Never the lesson otherwise, whatever is stored
- * (`beginSolo`). "Change hero / mode" on the end screen ends the match and calls `home` (the home card, which carries
+ * (`beginSolo`). "Back to lobby" on the end screen ends the match and calls `home` (the home card, which carries
  * both picks).
  */
 export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home: () => void): void {
@@ -290,7 +290,7 @@ export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home:
 /**
  * Starts today's Daily run locally (docs/GAME_DESIGN.md "Daily run"): Play solo's flow on `hero`, with the day's seed,
  * Quick on Hard (the local host's daily control). Play again runs the same day's seed again: tries are unlimited. Its
- * end screen offers Post my run; "Change hero / mode" comes back to the home card.
+ * end screen offers Post my run; "Back to lobby" comes back to the home card.
  */
 export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, home: () => void): void {
   const transport = startLocal(view, home);
@@ -302,7 +302,7 @@ export function playDaily(view: GameView, hero: HeroKind, today: DailyToday, hom
   view.setDaily({ day: today.day, seed: today.seed });
 }
 
-/** A new local host attached to the view; "Change hero / mode" on its end screen ends it and calls `home`. */
+/** A new local host attached to the view; "Back to lobby" on its end screen ends it and calls `home`. */
 function startLocal(view: GameView, home: () => void): LocalTransport {
   endSolo(view);
   const transport = new LocalTransport();

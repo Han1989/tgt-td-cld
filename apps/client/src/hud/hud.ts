@@ -36,6 +36,7 @@ import { endlessEndCopy, endlessRunLine, recordEndlessRun, type EndlessRun } fro
 import { EndlessEndCard } from '../endless/endCard';
 import { recordDailyRank, recordMatch, type MatchGain } from '../record/record';
 import { dailyBestLine, heartBestLine } from '../record/text';
+import { hpLine, manaLine } from './num';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
@@ -1152,9 +1153,9 @@ export class Hud {
     setText(this.heroLevel, levelBadge(hero));
     setWidth(this.xpFill, xpFill(hero));
     setWidth(this.hpFill, hero.hp / hero.maxHp);
-    setText(this.hpText, `${hero.hp} / ${hero.maxHp}`);
+    setText(this.hpText, hpLine(hero.hp, hero.maxHp));
     setWidth(this.manaFill, hero.mana / Math.max(1, hero.maxMana));
-    setText(this.manaText, `${hero.mana} / ${hero.maxMana}`);
+    setText(this.manaText, manaLine(hero.mana, hero.maxMana));
     this.skillPoints.classList.toggle('hidden', hero.skillPoints === 0);
     setText(this.skillPoints, `+${hero.skillPoints} skill point${hero.skillPoints === 1 ? '' : 's'}`);
     setText(this.topLevelText, `Lv ${hero.level}`);
@@ -1326,7 +1327,7 @@ export class Hud {
       // HP changes often; update it (and the repair price that follows it) in place so the buttons aren't rebuilt
       // under the pointer.
       const hp = this.towerPanel.querySelector<HTMLElement>('.tower-hp');
-      if (hp) setText(hp, `${tower.hp} / ${tower.maxHp}`);
+      if (hp) setText(hp, hpLine(tower.hp, tower.maxHp));
       const repairBtn = this.towerPanel.querySelector<HTMLButtonElement>('button[data-action="repair"]');
       if (repairBtn) {
         const cost = repairBtn.querySelector<HTMLElement>('.cost');

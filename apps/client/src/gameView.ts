@@ -27,6 +27,7 @@ import type { DailyRunInfo } from './daily/endCard';
 import { EmoteMenu } from './hud/emotes';
 import { CoopStage, type StageWho } from './hud/coopStage';
 import { Hud } from './hud/hud';
+import type { MatchOnScreen } from './hud/leaveMatch';
 import { EMOTE_LABEL, MarkerLayer, type Box as MarkerBox } from './hud/markers';
 import { installPressFeedback } from './hud/press';
 import { SettingsPanel } from './hud/settingsPanel';
@@ -74,7 +75,7 @@ export class GameView {
   me: PlayerId | null = null;
   /** Called when the player clicks "Leave room" on the end screen (online). */
   onLeave: () => void = () => {};
-  /** Called when the player clicks "Change hero" on the solo end screen. */
+  /** Called when the player clicks "Back to lobby" on the solo end screen, or ⚙ → Back to lobby in a solo match. */
   onChangeHero: () => void = () => {};
   /** ⚙ → Learn to play: the host starts the lesson at once (leaving an online room or ending a solo match). */
   onLearnToPlay: () => void = () => {};
@@ -312,7 +313,14 @@ export class GameView {
       return { left: a.x / TILE_PX, top: a.y / TILE_PX, right: b.x / TILE_PX, bottom: b.y / TILE_PX };
     };
 
-    new SettingsPanel(settings, () => audio.game.tap(performance.now()), () => view.onLearnToPlay());
+    new SettingsPanel(
+      settings,
+      () => audio.game.tap(performance.now()),
+      () => view.onLearnToPlay(),
+      // Read when the sheet opens; nothing is on screen while the view is still being built.
+      () => (view ? view.matchOnScreen() : { attached: false, online: false }),
+      () => view.onChangeHero(),
+    );
     installPressFeedback(document, () => audio.game.tap(performance.now()));
     const marks = new MarkerLayer();
     emotes = new EmoteMenu(ui, sendCmd, () => layout, () => ({ w: window.innerWidth, h: window.innerHeight }));
@@ -908,6 +916,11 @@ export class GameView {
     } catch {
       // Analytics is optional.
     }
+  }
+
+  /** What ⚙ → Back to lobby needs to know (hud/leaveMatch.ts). */
+  matchOnScreen(): MatchOnScreen {
+    return { attached: this.transport !== null, online: this.transport?.online === true };
   }
 
   detach(): void {

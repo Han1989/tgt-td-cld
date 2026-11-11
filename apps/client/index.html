@@ -313,6 +313,17 @@
 
 
       <div id="settings" class="popup settings hidden">
+        <section id="settings-leave" class="hidden">
+          <h3>Match</h3>
+          <button id="settings-leave-btn" class="btn" type="button">Back to lobby</button>
+          <div id="settings-leave-ask" class="leave-ask hidden" role="group" aria-labelledby="settings-leave-q">
+            <p id="settings-leave-q">Leave this match? It won't be saved.</p>
+            <div class="choices row">
+              <button id="settings-leave-yes" class="btn" type="button">Leave</button>
+              <button id="settings-leave-no" class="btn" type="button">Stay</button>
+            </div>
+          </div>
+        </section>
         <section>
           <h3>Sound</h3>
           <button id="settings-mute" class="btn sound-toggle" aria-pressed="false"><i class="ico"></i><span></span></button>
@@ -483,7 +494,7 @@
           </div>
           <div class="end-actions">
             <button id="restart" class="btn big">Play again</button>
-            <button id="end-change-hero" class="btn hidden">Change hero / mode</button>
+            <button id="end-change-hero" class="btn hidden">Back to lobby</button>
             <button id="end-leave" class="btn hidden">Leave room</button>
             <button id="end-save" class="btn hidden">Save match report</button>
             <button id="end-share" class="btn hidden" type="button">Share</button>

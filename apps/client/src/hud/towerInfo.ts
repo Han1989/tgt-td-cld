@@ -3,6 +3,7 @@
 
 import { TARGET_PRIORITIES, TOWER_BRANCHES, type TargetPriority, type TowerBranch, type TowerKind } from '@tdt/protocol';
 import { reinforceCost, reinforceMultiplier, towerStats, towerTier, TUNING, type TowerLevelStats, type Tuning } from '@tdt/sim';
+import { maxWhole, whole } from './num';
 
 export const PRIORITY_NAMES: Record<TargetPriority, string> = {
   first: 'First',
@@ -68,7 +69,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning, rank = 0): StatRow[] {
   const out: StatRow[] = [
     // Whole damage: a Reinforce rank (Endless) makes it fractional; plain tiers and branches are whole already.
-    { label: 'Damage', value: `${Math.round(t.damage)} ${tuning.towers[kind].damageType}` },
+    { label: 'Damage', value: `${whole(t.damage)} ${tuning.towers[kind].damageType}` },
     { label: 'Attacks/s', value: round(1 / t.attackCooldown) },
     { label: 'Range', value: round(t.range, 1) },
   ];
@@ -85,7 +86,7 @@ function rows(kind: TowerKind, t: TowerLevelStats, tuning: Tuning, rank = 0): St
   if (t.ignoreResist) out.push({ label: 'Pierce', value: 'Ignores armour and resist' });
   if (t.hpPercent > 0) out.push({ label: '% HP', value: `+${pct(t.hpPercent)} of max HP` });
   if (rank > 0) out.push({ label: 'Reinforced', value: reinforcedValue(rank, tuning) });
-  out.push({ label: 'Max HP', value: String(t.hp) });
+  out.push({ label: 'Max HP', value: String(maxWhole(t.hp)) });
   return out;
 }
 
@@ -216,7 +217,7 @@ export function branchChip(branch: TowerBranch, tuning: Tuning = TUNING): string
 export function buildPreviewChip(kind: TowerKind, names: Record<TowerKind, string>, tuning: Tuning = TUNING): string {
   const t = towerStats(tuning, kind, 1, null);
   return [
-    `${names[kind]} (${buildCost(kind, tuning)}): Dmg ${t.damage}`,
+    `${names[kind]} (${buildCost(kind, tuning)}): Dmg ${whole(t.damage)}`,
     `Spd ${round(1 / t.attackCooldown)}`,
     `Rng ${round(t.range, 1)}`,
     targetsText(kind, tuning),

@@ -66,8 +66,9 @@ describe('progress dashboard data', () => {
     // camera, build 4 of 4: the budget, the phone checklist and the five-second test; PR #165), and V-08b-load (every
     // sheet in before a match, behind a real loading bar; PR #166), and V-08c-look (the sizes of the towers, the Heart,
     // the portals and the heroes, three columns for Han, images only; PR #167), and V-08c-build (the picked sizes,
-    // column 3 with the creeps a step smaller; PR #168).
-    expect(summary.done).toBe(109);
+    // column 3 with the creeps a step smaller; PR #168), and D-11 (laptop run fixes: whole numbers, a way back to the
+    // lobby, tidy skill buttons; PR #170).
+    expect(summary.done).toBe(110);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -79,7 +80,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(147);
+    expect(summary.total).toBe(148);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -91,6 +92,7 @@ describe('progress dashboard data', () => {
       'T-05': 31,
       'D-01': 25,
       'D-07': 74,
+      'D-11': 170,
       'H-04': 42,
       'SL-05': 66,
       'P2-03': 66,
