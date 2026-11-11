@@ -936,6 +936,15 @@ const items: ProgressItem[] = [
     proof: pr(170),
   },
   {
+    id: 'D-12',
+    title: 'Call early waits for the wave',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Protocol 26 (sim, protocol, server, bots, client). From Han’s Endless run: seven presses in a second took wave 42 to 49 and the run to #1 on the board. One press, one wave: a call is accepted only once the current wave has come out of its portals, and the button reads Wave arriving until then. End run for solo Endless (⚙ → Match, asked once): the run ends on the wave it is in and counts. Endless bests kept before it start again.',
+    proof: pr(173),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
@@ -1477,7 +1486,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 25,
+  protocol: 26,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',
