@@ -16,7 +16,7 @@ import { emptyUltStats, type GameConfig, type GameState, type Hero } from './sta
 import { planSurgeLanes, surgeNotice } from './surges';
 import { updateProjectiles, updateTowers, updateTraps } from './towers';
 import { heroLevelXp, secondsToTicks, TICK_RATE, towerStats, tuningForMode, TUNING } from './tuning';
-import { callEarlyBonus, totalWaves, updateWaves } from './waves';
+import { callEarlyBonus, canCallEarly, totalWaves, updateWaves } from './waves';
 
 export function createGame(config: GameConfig, seed: number): GameState {
   if (config.players.length === 0) throw new Error('A game needs at least one player');
@@ -183,6 +183,7 @@ export function snapshot(state: GameState): Snapshot {
     totalWaves: totalWaves(state),
     nextWaveIn: state.nextWaveTick < 0 ? -1 : Math.max(0, state.nextWaveTick - state.tick),
     callEarlyBonus: callEarlyBonus(state),
+    canCallEarly: canCallEarly(state),
     players: state.players.map((p) => ({
       id: p.id,
       name: p.name,

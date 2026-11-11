@@ -12,7 +12,7 @@ import type { GameState, Hero, Tower } from './state';
 import { reinforceTower, upgradeTower } from './towers';
 import { reinforceCost, repairCost, towerTier } from './tuning';
 import { dist } from './vec';
-import { callEarly } from './waves';
+import { callEarly, canCallEarly, waveArriving } from './waves';
 
 /**
  * A point cast only sets the hero's order; the hero casts on its next update. A new order that arrives
@@ -207,7 +207,17 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
     }
     case 'callEarly':
       if (state.nextWaveTick < 0) return reject('No waves left to call');
+      if (!canCallEarly(state)) return reject('This wave is still arriving');
       callEarly(state, playerId);
+      return true;
+    case 'endRun':
+      // Solo Endless only: the honest way to end a run (protocol 26). The Heart falls now, on the wave the match is
+      // in, or on the wave before while this one is still arriving (it was not fought). The Daily run is Quick.
+      if (state.mode !== 'endless') return reject('Only an Endless run can be ended');
+      if (state.players.length !== 1) return reject('Only a solo run can be ended');
+      if (state.phase !== 'build' && state.phase !== 'waves') return reject('The match is over');
+      if (waveArriving(state) && state.wave > 0) state.wave--;
+      state.heartHp = 0;
       return true;
     case 'gift': {
       if (command.to === playerId) return reject('You cannot gift gold to yourself');

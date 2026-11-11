@@ -159,7 +159,8 @@ export function parseCommand(value: unknown): Command | null {
     case 'stop':
       return hasOnlyKeys(value, ['type']) ? { type: 'stop' } : null;
     case 'callEarly':
-      return hasOnlyKeys(value, ['type']) ? { type: 'callEarly' } : null;
+    case 'endRun':
+      return hasOnlyKeys(value, ['type']) ? { type: value.type } : null;
     case 'cast': {
       if (!hasOnlyKeys(value, ['type', 'slot', 'x', 'y']) || !isSkillSlot(value.slot)) return null;
       const hasX = value.x !== undefined;
@@ -279,6 +280,7 @@ export function encodeReplayCommand(cmd: Command): (string | number)[] {
       return [cmd.type, cmd.targetId];
     case 'stop':
     case 'callEarly':
+    case 'endRun':
       return [cmd.type];
     case 'cast':
       return cmd.x === undefined || cmd.y === undefined ? [cmd.type, cmd.slot] : [cmd.type, cmd.slot, cmd.x, cmd.y];
@@ -312,6 +314,7 @@ export function decodeReplayCommand(parts: readonly unknown[]): Command | null {
     attack: ['targetId'],
     stop: [],
     callEarly: [],
+    endRun: [],
     cast: ['slot', 'x', 'y'],
     learn: ['slot'],
     build: ['padId', 'tower'],

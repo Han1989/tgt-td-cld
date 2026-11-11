@@ -10,7 +10,22 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PROTOCOL_VERSION, type HeroKind, type MatchReport, type Replay } from '@tdt/protocol';
-import { createBalanceBot, createNoviceBot, dailyKey, ENDLESS_BOARD_SIZE, runHeadlessMatch, type Bot } from '@tdt/sim';
+import {
+  createBalanceBot,
+  createMatch,
+  createNoviceBot,
+  dailyKey,
+  ENDLESS_BOARD_SIZE,
+  matchCommand,
+  matchOver,
+  matchReplay,
+  matchReport,
+  matchStep,
+  runHeadlessMatch,
+  snapshot,
+  TICK_RATE,
+  type Bot,
+} from '@tdt/sim';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { visitorFromKey } from '../src/analytics/dataKey';
 import { ReplayQueue } from '../src/daily/verify';
@@ -24,6 +39,18 @@ type RunFile = { report: MatchReport; replay: Replay };
 
 function record(seed: number, bot: (id: string) => Bot, hero: HeroKind, mode: 'endless' | 'quick' | 'full' = 'endless'): RunFile {
   return runHeadlessMatch({ bots: [bot('local')], heroes: [hero], seed, mode, record: true }).file!;
+}
+
+/** A casual Endless run its player ends with End run (protocol 26) once wave `wave` has arrived. */
+function endedRun(seed: number, wave: number): RunFile {
+  const match = createMatch({ players: [{ id: 'local', name: 'local', hero: 'warden' }], mode: 'endless' }, seed, 'test');
+  const bot = createBalanceBot('local');
+  while (!matchOver(match) && match.state.tick < 60 * 60 * TICK_RATE) {
+    if (match.state.tick % 5 === 0) for (const cmd of bot.decide(snapshot(match.state))) matchCommand(match, 'local', cmd);
+    if (match.state.wave === wave && match.state.spawnQueue.length === 0) matchCommand(match, 'local', { type: 'endRun' });
+    matchStep(match);
+  }
+  return { report: matchReport(match), replay: matchReplay(match) };
 }
 
 const copy = <T>(value: T): T => structuredClone(value);
@@ -252,6 +279,19 @@ describe('/endless routes on the game server', () => {
     const summary = (await (await fetch(`${http}/analytics/summary?key=dash`)).json()) as { endless: unknown[] };
     expect(summary.endless[0]).toMatchObject({ posts: 1, players: 1, mismatches: 1, topWave: short.replay.end.wave });
     expect(logs.some((l) => l.startsWith('endless ') && l.includes('report mismatch'))).toBe(true);
+  });
+
+  it('accepts a run ended with End run, ranked by the server’s own wave and ticks', async () => {
+    const { post } = await serve();
+    const ended = endedRun(2, 12);
+    expect(ended.replay.end).toMatchObject({ result: 'defeat', wave: 12 });
+    expect(ended.replay.log.some((e) => e[2] === 'endRun')).toBe(true);
+    const boasting = copy(ended);
+    boasting.replay.end = { ...boasting.replay.end, wave: 40 };
+    const res = await post({ key: newKey(), name: 'Quit', file: boasting });
+    expect(res.status).toBe(200);
+    expect(res.body.run).toEqual({ wave: 12, ticks: ended.replay.end.tick, hero: 'warden' });
+    expect(res.body.you).toMatchObject({ rank: 1, wave: 12, ticks: ended.replay.end.tick });
   });
 
   it('keeps one best run per browser, updating its name', async () => {
