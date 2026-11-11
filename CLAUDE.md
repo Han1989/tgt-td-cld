@@ -69,6 +69,7 @@ For every agent session (Claude Code, Cursor or any other). They keep a session 
 - **Don't wait for CI:** no polling, no monitors, no timers or check-ins.
 - **When the pull request is open, stop.** Turn on auto-merge first if the task says so, unsubscribe the session from the pull request's activity if it was subscribed, write the summary and end. If CI fails, a new session takes it.
 - **A merged or closed pull request ends the task.** A session that is resumed checks the pull request's state before it does anything else.
+- **Autopilot sessions** (started with the prompt in `docs/queue/AUTOPILOT_PROMPT.md`, by a scheduled task or by hand; Han, 11 Nov 2026) work through `docs/queue/STATUS.md` under [`docs/queue/README.md`](docs/queue/README.md): one task a session, claimed with a `WIP:` pull request, merged or fixed by a later run. Where that file differs from the rules above, it decides for those sessions.
 
 ## Repo layout
 
@@ -78,6 +79,8 @@ docs/ROADMAP.md            Vision, locked decisions and phases (live status is T
 docs/ART.md                Art direction ("Runelight"): palette tokens, painter, camera, sizes, animation, performance, new-entity checklist
 docs/DEPLOY.md             Render + Vercel setup, env vars, operations, room-code routing design
 docs/PRESS.md              Press kit: the pitch, link-preview tags and card, screenshots, a 15 s clip, tagged links, first-load numbers
+docs/queue/                The autopilot's work list: README.md (the loop and its rules), STATUS.md (the order), one brief per task,
+                           AUTOPILOT_PROMPT.md (the prompt a scheduled task sends); the game's tracker stays TASKS.md
 packages/protocol/         @tdt/protocol: wire contract
   src/types.ts             PROTOCOL_VERSION, Command, Snapshot, GameEvent, lobby types, Client/ServerMessage
   src/codec.ts             encode/decode; strict validation of untrusted client messages (names, codes, tokens)
