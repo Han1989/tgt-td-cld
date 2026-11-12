@@ -12,7 +12,7 @@ import os
 import bpy
 import numpy as np
 
-from . import figure, grip, imageio, motion, npr, scene, shading
+from . import encode, figure, grip, imageio, motion, npr, scene, shading
 
 RES = 4        # sheet px per world px
 SS = 2         # rendered at SS × RES, then averaged down (anti-aliasing for the ink and the edges)
@@ -126,7 +126,7 @@ def _point(fig, spec):
 
 
 def render_match(spec, out_dir, tmp, draft=False):
-    """Renders the hero's match sheet into out_dir (<id>-match.png) and returns its layout and the file's size."""
+    """Renders the hero's match sheet into out_dir (<id>-match.webp, lossless) and returns its layout and the file's size."""
     name = spec['name']
     m = spec['match']
     fig = figure.Figure(spec)
@@ -217,8 +217,8 @@ def render_match(spec, out_dir, tmp, draft=False):
         sheet[fy:fy + c.shape[0], fx:fx + c.shape[1]] = npr.white_twin(c)
         cells.append({'x': int(x), 'y': int(y), 'fx': int(fx), 'fy': int(fy)})
     os.makedirs(out_dir, exist_ok=True)
-    file = f'{name}-match.png'
-    size = imageio.write_png(os.path.join(out_dir, file), sheet)
+    file = f'{name}-match.webp'
+    size = encode.sheet(sheet, os.path.join(out_dir, file))
 
     def box(b):
         x0, y0, x1, y1 = b

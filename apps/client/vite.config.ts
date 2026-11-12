@@ -172,6 +172,9 @@ function artBytes(): Plugin {
   };
 }
 
+/** The heroes' sheets among the match sheets (the rest are the creeps' and the structures'). */
+const HERO_SHEET_NAMES = ['ranger', 'warden', 'arcanist'];
+
 /** Each match picture's bytes on disk (the plate, the HUD's frames, the structures' pages together, each creep and hero). */
 function sheetBytes(art3d: string, publicDir: string): Record<string, number> {
   const size = (p: string) => {
@@ -184,10 +187,10 @@ function sheetBytes(art3d: string, publicDir: string): Record<string, number> {
   const out: Record<string, number> = { plate: size(join(publicDir, 'map/spire.webp')), ui: size(join(art3d, 'ui.webp')) };
   let structures = 0;
   for (const name of readdirSync(art3d)) {
-    const m = /^([a-z]+)-match(-\d+)?\.(webp|png)$/.exec(name);
+    const m = /^([a-z]+)-match(-\d+)?\.webp$/.exec(name);
     if (!m) continue;
     if (m[1] === 'structures') structures += size(join(art3d, name));
-    else out[`${m[3] === 'png' ? 'hero' : 'creep'}:${m[1]}`] = size(join(art3d, name));
+    else out[`${HERO_SHEET_NAMES.includes(m[1]!) ? 'hero' : 'creep'}:${m[1]}`] = size(join(art3d, name));
   }
   out.structures = structures;
   return out;

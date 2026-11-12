@@ -1,7 +1,7 @@
 {
  "id": "arcanist",
  "match": {
-  "file": "arcanist-match.png",
+  "file": "arcanist-match.webp",
   "frames": {
    "body": {
     "hit": [

@@ -3,9 +3,20 @@
 
 /** The hosts' limits, from their own pages (docs/DEPLOY.md "Hosted builds" says which were read). */
 export const LIMITS = {
-  crazygames: { initial: 50e6, initialMobileHome: 20e6, total: 250e6, files: 1500 },
+  // `homeBuild`: a game is on CrazyGames' phone homepage only if its download is 20 MB or less, and with no SDK the
+  // whole build counts (q4), so the zip is held to it.
+  crazygames: { initial: 50e6, initialMobileHome: 20e6, homeBuild: 20e6, total: 250e6, files: 1500 },
   itch: { zip: 1e9 },
 } as const;
+
+/**
+ * Files of the site's build a hosted zip leaves out (q4): the stage's VP9 WebMs. The stage plays the MP4 wherever it
+ * can (`pickVideo`), and a hosted page asks for nothing else (`pickHostedVideo`): where H.264 does not play, the
+ * poster stays, as it does under reduced motion.
+ */
+export function hostedLeavesOut(path: string): boolean {
+  return /^stage\/[^/]+\.webm$/.test(path);
+}
 
 /** The first screen's pictures, fetched as the home card shows (the stage's clearing and the picked hero's poster). */
 export const FIRST_SCREEN = ['stage/clearing.webp', 'stage/ranger-poster.webp'];
@@ -70,6 +81,8 @@ export function reportLines(opts: {
   zipPath: string;
   zipBytes: number;
   files: ReadonlyMap<string, Uint8Array>;
+  /** The host the zip is for: CrazyGames' gets the whole build against its phone homepage's 20 MB on a line of its own. */
+  host?: string;
 }): string[] {
   const total = [...opts.files.values()].reduce((n, b) => n + b.byteLength, 0);
   const initial = initialFiles(opts.files);
@@ -83,5 +96,8 @@ export function reportLines(opts: {
     `CrazyGames: initial ${MB(initialBytes)} / ${MB(cg.initial)} ${mark(initialBytes <= cg.initial)} (mobile homepage ${MB(cg.initialMobileHome)} ${mark(initialBytes <= cg.initialMobileHome)}), ` +
       `total ${MB(total)} / ${MB(cg.total)} ${mark(total <= cg.total)}, files ${opts.files.size} / ${cg.files} ${mark(opts.files.size <= cg.files)}`,
     `itch.io: zip ${MB(opts.zipBytes)} / ${MB(LIMITS.itch.zip)} ${mark(opts.zipBytes <= LIMITS.itch.zip)}`,
+    ...(opts.host === 'crazygames'
+      ? [`CrazyGames phone homepage (no SDK, the whole build counts): zip ${MB(opts.zipBytes)} / ${MB(cg.homeBuild)} ${mark(opts.zipBytes <= cg.homeBuild)}`]
+      : []),
   ];
 }

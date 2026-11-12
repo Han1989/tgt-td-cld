@@ -1,7 +1,7 @@
 {
  "id": "ranger",
  "match": {
-  "file": "ranger-match.png",
+  "file": "ranger-match.webp",
   "frames": {
    "arm": {
     "draw": [

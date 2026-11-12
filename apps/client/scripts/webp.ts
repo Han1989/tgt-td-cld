@@ -1,7 +1,8 @@
 // A lossless WebP (VP8L) decoder for the tests and asset scripts, beside png.ts: the 3D creep sheets are lossless
 // WebP (docs/ART.md §15), and the tests read their pixels. The whole of RFC 9649's lossless format: the transforms
 // (predictor, colour, subtract green, colour indexing), the colour cache, meta prefix codes and LZ77 backward
-// references. Lossy WebP (VP8) is not read: nothing the tests decode is lossy.
+// references. Lossy WebP (VP8) is not read, except its alpha plane (`decodeWebpAlpha`): the game ships the creep and
+// structure sheets lossy with the alpha exact (q4), and the tests check that alpha against the lossless masters.
 
 import type { Image } from './png';
 
@@ -312,24 +313,8 @@ function undo(t: Transform, px: Uint32Array, h: number): Uint32Array {
   return px;
 }
 
-/** Decodes a lossless WebP file (a RIFF with one VP8L chunk, or VP8X with one) into RGBA. */
-export function decodeWebp(file: Buffer): Image {
-  if (file.toString('ascii', 0, 4) !== 'RIFF' || file.toString('ascii', 8, 12) !== 'WEBP') throw new Error('webp: not a WebP file');
-  let at = 12;
-  let chunk: Buffer | null = null;
-  while (at + 8 <= file.length) {
-    const kind = file.toString('ascii', at, at + 4);
-    const size = file.readUInt32LE(at + 4);
-    if (kind === 'VP8L') chunk = file.subarray(at + 8, at + 8 + size);
-    if (kind === 'VP8 ') throw new Error('webp: lossy WebP is not read here');
-    at += 8 + size + (size & 1);
-  }
-  if (!chunk || chunk[0] !== 0x2f) throw new Error('webp: no lossless image');
-  const br = new Bits(chunk.subarray(1));
-  const width = br.read(14) + 1;
-  const height = br.read(14) + 1;
-  br.read(1); // alpha is used: a hint only
-  if (br.read(3) !== 0) throw new Error('webp: an unknown version');
+/** A VP8L image stream after its header (the transforms, then the pixels), as ARGB words. */
+function decodeStream(br: Bits, width: number, height: number): Uint32Array {
   const transforms: Transform[] = [];
   let w = width;
   while (br.read(1)) {
@@ -350,6 +335,28 @@ export function decodeWebp(file: Buffer): Image {
   }
   let px = decodePixels(br, w, height, true);
   for (let i = transforms.length - 1; i >= 0; i--) px = undo(transforms[i]!, px, height);
+  return px;
+}
+
+/** Decodes a lossless WebP file (a RIFF with one VP8L chunk, or VP8X with one) into RGBA. */
+export function decodeWebp(file: Buffer): Image {
+  if (file.toString('ascii', 0, 4) !== 'RIFF' || file.toString('ascii', 8, 12) !== 'WEBP') throw new Error('webp: not a WebP file');
+  let at = 12;
+  let chunk: Buffer | null = null;
+  while (at + 8 <= file.length) {
+    const kind = file.toString('ascii', at, at + 4);
+    const size = file.readUInt32LE(at + 4);
+    if (kind === 'VP8L') chunk = file.subarray(at + 8, at + 8 + size);
+    if (kind === 'VP8 ') throw new Error('webp: lossy WebP is not read here');
+    at += 8 + size + (size & 1);
+  }
+  if (!chunk || chunk[0] !== 0x2f) throw new Error('webp: no lossless image');
+  const br = new Bits(chunk.subarray(1));
+  const width = br.read(14) + 1;
+  const height = br.read(14) + 1;
+  br.read(1); // alpha is used: a hint only
+  if (br.read(3) !== 0) throw new Error('webp: an unknown version');
+  const px = decodeStream(br, width, height);
   const data = Buffer.alloc(width * height * 4);
   for (let i = 0; i < px.length; i++) {
     const p = px[i]!;
@@ -359,4 +366,57 @@ export function decodeWebp(file: Buffer): Image {
     data[i * 4 + 3] = ch(p, 24);
   }
   return { width, height, channels: 4, data };
+}
+
+/** The chunks of a WebP file, by kind (the first of each). */
+function chunks(file: Buffer): Map<string, Buffer> {
+  if (file.toString('ascii', 0, 4) !== 'RIFF' || file.toString('ascii', 8, 12) !== 'WEBP') throw new Error('webp: not a WebP file');
+  const out = new Map<string, Buffer>();
+  let at = 12;
+  while (at + 8 <= file.length) {
+    const kind = file.toString('ascii', at, at + 4);
+    const size = file.readUInt32LE(at + 4);
+    if (!out.has(kind)) out.set(kind, file.subarray(at + 8, at + 8 + size));
+    at += 8 + size + (size & 1);
+  }
+  return out;
+}
+
+/**
+ * A lossy WebP with alpha (VP8X, ALPH, VP8): its size, its alpha plane (RFC 9649 §5.2.3: raw or lossless-compressed,
+ * the spatial filter undone) and the ALPH header's fields. The colour (VP8) is not decoded.
+ */
+export function decodeWebpAlpha(file: Buffer): { width: number; height: number; alpha: Uint8Array; compression: number; filter: number } {
+  const c = chunks(file);
+  const x = c.get('VP8X');
+  const a = c.get('ALPH');
+  if (!x || !a || !c.has('VP8 ')) throw new Error('webp: not a lossy WebP with alpha');
+  const width = x.readUIntLE(4, 3) + 1;
+  const height = x.readUIntLE(7, 3) + 1;
+  const head = a[0]!;
+  const compression = head & 3;
+  const filter = (head >> 2) & 3;
+  const n = width * height;
+  const alpha = new Uint8Array(n);
+  if (compression === 0) alpha.set(a.subarray(1, 1 + n));
+  else if (compression === 1) {
+    const px = decodeStream(new Bits(a.subarray(1)), width, height);
+    for (let i = 0; i < n; i++) alpha[i] = ch(px[i]!, 8);
+  } else throw new Error('webp: an unknown alpha compression');
+  // Undo the filter in place, row by row: each value is its predictor plus what is stored, mod 256.
+  if (filter !== 0) {
+    for (let y = 0; y < height; y++) {
+      for (let xx = 0; xx < width; xx++) {
+        const i = y * width + xx;
+        let p: number;
+        if (y === 0) p = xx === 0 ? 0 : alpha[i - 1]!;
+        else if (xx === 0) p = alpha[i - width]!;
+        else if (filter === 1) p = alpha[i - 1]!;
+        else if (filter === 2) p = alpha[i - width]!;
+        else p = clamp(alpha[i - 1]! + alpha[i - width]! - alpha[i - width - 1]!);
+        alpha[i] = (alpha[i]! + p) & 0xff;
+      }
+    }
+  }
+  return { width, height, alpha, compression, filter };
 }
