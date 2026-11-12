@@ -290,7 +290,7 @@ test('play data already off when the page opens: nothing is posted and no visito
   expect(await page.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 });
 
-test('the age question comes at the first Play, not on load, and only one anonymous count goes before it', async ({ page }) => {
+test('the age question comes at the first Play on the site, not on load, and only the anonymous counts go before it', async ({ page }) => {
   const posts = await catchPosts(page);
   const counts = await catchCounts(page);
   await page.goto('/?lobby&analytics&src=cold');
@@ -301,12 +301,15 @@ test('the age question comes at the first Play, not on load, and only one anonym
   await tick(page);
   await page.waitForTimeout(500);
   expect(posts).toEqual([]);
-  // A new browser sends exactly one count of the page open: the link's tag, the platform and the browser family,
-  // and nothing else (no id, no session, no time).
+  // A new browser sends the count of the page open and of its first open: the link's tag, the platform and the
+  // browser family, and nothing else (no id, no session, no time). The day of the first open stays here.
+  const body = { channel: 'cold', platform: expect.stringMatching(/^(web|ios|android)$/), browser: expect.stringMatching(/^(chrome|safari)$/) };
   expect(counts).toEqual([
-    { what: 'open', channel: 'cold', platform: expect.stringMatching(/^(web|ios|android)$/), browser: expect.stringMatching(/^(chrome|safari)$/) },
+    { what: 'open', ...body },
+    { what: 'first_open', ...body },
   ]);
-  expect(Object.keys(counts[0]!).sort()).toEqual(['browser', 'channel', 'platform', 'what']);
+  for (const count of counts) expect(Object.keys(count).sort()).toEqual(['browser', 'channel', 'platform', 'what']);
+  expect(await page.evaluate(() => localStorage.getItem('tdt.firstDay'))).toMatch(/^\{"day":\d+,"counted":\[\]\}$/);
   expect(await page.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 
   await page.locator('#lobby-offline').click();
@@ -328,8 +331,9 @@ test('the age question comes at the first Play, not on load, and only one anonym
   expect(posts[0]).toMatchObject({ channel: 'cold' });
   expect(posts[1]).toMatchObject({ step: 'lobby' });
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem('tdt.age')))!)).toMatchObject({ age: 34 });
-  // The answer sends no count of its own.
-  expect(counts).toHaveLength(1);
+  // The answer sends no count of its own; the match a second in is counted, still with no id.
+  await expect.poll(() => counts.map((c) => c.what)).toContain('match_start');
+  expect(counts.map((c) => c.what).filter((what) => !what.startsWith('match_'))).toEqual(['open', 'first_open']);
 
   // Asked once: the next visit goes straight through, and its page load is counted again.
   await page.reload();
@@ -337,7 +341,8 @@ test('the age question comes at the first Play, not on load, and only one anonym
   await page.locator('#lobby-offline').click();
   await expect(page.locator('#lobby')).toBeHidden();
   await expect(page.locator('#age-check')).toHaveCount(0);
-  await expect.poll(() => counts.map((c) => c.what)).toEqual(['open', 'open']);
+  // The same day: an open, no first open and no return.
+  await expect.poll(() => counts.map((c) => c.what).filter((what) => !what.startsWith('match_'))).toEqual(['open', 'first_open', 'open']);
   await expect.poll(() => posts.filter((p) => p.t === 'session_start').length).toBe(2);
 });
 
@@ -363,7 +368,7 @@ test('after an under-13 answer nothing more is sent, not even the count of the n
   const counts = await catchCounts(page);
   await page.goto('/?lobby&analytics');
   await waitForReady(page, 'online');
-  await expect.poll(() => counts.map((c) => c.what)).toEqual(['open']);
+  await expect.poll(() => counts.map((c) => c.what)).toEqual(['open', 'first_open']);
   await page.locator('#lobby-offline').click();
   await page.locator('#age-input').fill('10');
   await page.locator('#age-continue').click();
@@ -374,9 +379,11 @@ test('after an under-13 answer nothing more is sent, not even the count of the n
   await page.locator('#lobby-offline').click();
   await expect(page.locator('#lobby')).toBeHidden();
   await tick(page);
-  await page.waitForTimeout(500);
-  expect(counts.map((c) => c.what)).toEqual(['open']);
+  await page.waitForTimeout(1500);
+  // No match counts either, and the kept day of the first open went with the deletion.
+  expect(counts.map((c) => c.what)).toEqual(['open', 'first_open']);
   expect(posts).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem('tdt.firstDay'))).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 });
 

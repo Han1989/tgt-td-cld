@@ -11,6 +11,7 @@ import { ANALYTICS_KEY, browserSignals, playDataStatus, readAnalyticsChoice, typ
 import { dailyServer } from '../daily/api';
 import { switchStatus } from '../endless/board';
 import { askAge } from '../privacy/ageCheck';
+import { askAgeAtPlay } from '../privacy/askAt';
 import { wireMyData } from '../privacy/myDataUi';
 import { endRunQuestion, endRunShown, endRunWave, settingsLeaveShown, type MatchOnScreen } from './leaveMatch';
 import type { SkillsPlace, StickAnchor, StickMode } from '../layout';
@@ -199,7 +200,7 @@ export class SettingsPanel {
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
     this.choices(this.shake, Object.entries(SHAKE_NAMES) as [ShakeSetting, string][], s.shake, (v) => this.store.set({ shake: v }));
     this.choices(this.display, Object.entries(DISPLAY_NAMES) as [Display, string][], s.display, (v) => this.store.set({ display: v }));
-    const playData = playDataStatus(readAnalyticsChoice(), browserSignals(), currentAgeBand());
+    const playData = playDataStatus(readAnalyticsChoice(), browserSignals(), currentAgeBand(), askAgeAtPlay(__EMBED__));
     const pickData = (v: AnalyticsChoice) => {
       if (v === 'on' && readAgeAnswer() === null) {
         void askAge().then(() => pickData('on'));

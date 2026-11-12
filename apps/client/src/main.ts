@@ -8,7 +8,7 @@ import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
 import { storedMode } from './lobby/modePicker';
 import { afterArt, OnlineController, playSolo } from './online';
-import { ageGate } from './privacy/ageCheck';
+import { playGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
@@ -126,14 +126,14 @@ async function main(): Promise<void> {
     const lobby: LobbyUi = new LobbyUi(
       {
         playSolo: (pick) =>
-          ageGate(() =>
+          playGate(() =>
             afterArt(pick.hero, pick.mode, () => {
               lobby.hide();
               playSolo(view, 'play', pick, home);
             }),
           ),
         learnToPlay: (hero) =>
-          ageGate(() =>
+          playGate(() =>
             afterArt(hero, 'quick', () => {
               lobby.hide();
               playSolo(view, 'lesson', { hero, mode: storedMode() }, home);
@@ -143,7 +143,7 @@ async function main(): Promise<void> {
       null,
     );
     // ⚙ → Learn to play: the lesson at once, in place of the match running.
-    view.onLearnToPlay = () => ageGate(() => afterArt(storedHero(), 'quick', () => playSolo(view, 'lesson', { hero: storedHero(), mode: storedMode() }, home)));
+    view.onLearnToPlay = () => playGate(() => afterArt(storedHero(), 'quick', () => playSolo(view, 'lesson', { hero: storedHero(), mode: storedMode() }, home)));
     lobby.showHome();
     ready('solo');
     return;

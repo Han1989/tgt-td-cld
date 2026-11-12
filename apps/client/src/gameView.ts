@@ -17,8 +17,9 @@ import {
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, isWebGLSupported, UPDATE_PRIORITY, type TextureSource } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
-import { currentAnalytics } from './analytics/install';
+import { countMatch, currentAnalytics } from './analytics/install';
 import { MatchTracker } from './analytics/matchTracker';
+import { MatchCounts } from './analytics/matchCounts';
 import type { FunnelStep } from './analytics/session';
 import { artGate } from './artLoad/gate';
 import { setGpuUpload } from './artLoad/gpu';
@@ -84,6 +85,8 @@ export class GameView {
   private transport: Transport | null = null;
   private unsubscribe: (() => void) | null = null;
   private readonly matches = new MatchTracker();
+  /** The anonymous match counts (started, a minute, ended, a second match), sent before the age answer too. */
+  private readonly matchCounts = new MatchCounts();
   private needsCentre = true;
   /** Solo was paused because the page was hidden; waiting for a tap to resume. */
   private paused = false;
@@ -913,6 +916,11 @@ export class GameView {
     const client = currentAnalytics();
     if (!client) return;
     try {
+      for (const what of this.matchCounts.feed(snap)) countMatch(what);
+    } catch {
+      // Counting is optional.
+    }
+    try {
       for (const action of this.matches.feed(snap, this.me, online)) {
         if (action.t === 'start') client.matchStart(action.info);
         else if (action.t === 'step') client.funnel(action.step);
@@ -934,6 +942,7 @@ export class GameView {
 
   detach(): void {
     this.matches.reset();
+    this.matchCounts.reset();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.transport = null;
