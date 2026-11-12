@@ -21,20 +21,27 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    - **Decisions.** Read the open issues labelled `decision` (see "Decisions"). Apply each one that
      has an answer, then close it.
    - **Open task pull requests** (the title holds `queue q<n>:`), oldest first:
-     - `WIP: queue q<n>: …`, newest commit less than 3 hours old: another session is building it.
-       Leave it alone.
-     - `WIP: queue q<n>: …`, no commit for 3 hours: it was abandoned. Continuing it is your task
+     - `WIP: queue q<n>: …`, updated (a commit or its title) less than 3 hours ago: another session
+       is building or fixing it. Leave it alone.
+     - `WIP: queue q<n>: …`, not updated for 3 hours: it was abandoned. Continuing it is your task
        for this session (step 4, on its branch).
      - `BLOCKED: queue q<n>: …`: it waits for a decision. Leave it unless step 0 just applied
        that decision; then continuing it is your task for this session.
-     - Ready (no prefix), first line of the description `Merge: autopilot`: read the `ci` check run
-       on its head commit. `success`: review it and merge it (see "Merging"), then go on to step 1.
-       Failed: fixing it is your task for this session (see "A red CI"). Still running: leave it.
-     - Ready, `Merge: Han`: the merge is Han's. If Han has commented on it since its last commit
-       (a comment that does not start with `Autopilot:` or `Advisor:`), doing what he asks is your
-       task for this session. If it no longer merges cleanly because `main` moved, bring it up to
-       date first (see "Keeping a waiting pull request mergeable"); that alone does not use up the
-       session.
+     - Ready (no prefix), **whoever merges it**: keep it mergeable. Read the `ci` check run on its
+       head commit and the pull request's `mergeable_state`:
+       - `ci` failed: fixing it is your task for this session (see "A red CI"). A red pull request
+         that waits for Han is fixed too: he should never find one.
+       - `ci` has not started 20 minutes after the head commit (no `ci` check run, or a run still
+         queued with no jobs): GitHub lost it. Restart it (see "A red CI", "CI that never started").
+         That alone does not use up the session.
+       - behind `main` or in conflict with it: bring it up to date (see "Keeping a waiting pull
+         request mergeable"). That alone does not use up the session.
+       - `ci` still running: leave it.
+     - Ready, `ci` is `success`, first line of the description `Merge: autopilot`: review it and
+       merge it (see "Merging"), then go on to step 1.
+     - Ready, `ci` is `success`, `Merge: Han`: the merge is Han's. If Han has commented on it since
+       its last commit (a comment that does not start with `Autopilot:` or `Advisor:`), doing what
+       he asks is your task for this session.
 1. **Pick.** The first row of `STATUS.md` with status `todo` whose `Needs` are all `done` on `main`
    (merged, not merely open as a pull request). Skip `han`, `blocked` and `done` rows.
    **At most two task pull requests open at once**, and one that waits for Han counts: with two
@@ -50,7 +57,12 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    `[skip ci]` in its newest commit's message: unfinished work does not run CI (a red check on a
    `WIP:` pull request says nothing and sends Han a failure notice).
 5. **Verify** as `CLAUDE.md`'s Session rules say: `npm test` and `npm run build` after the last
-   edit; only the browser specs the brief names, once; never the whole suite; never `TDT_E2E_ALL`.
+   edit; then the browser specs the brief names, the specs you changed **and every spec that covers
+   what you touched**: search `apps/client/e2e` for the command, the element id, the text or the
+   rule you changed (a task that changes what a button does breaks every test that presses it), and
+   run each of those specs once in every project `playwright.config.ts` runs it in. Never the whole
+   suite; never `TDT_E2E_ALL`. A spec that was red on CI is run until it is green here before the
+   fix is pushed.
 6. **Finish the pull request.** In the same branch set the task's row to `done` and fill its PR
    column (it becomes true on `main` when the pull request merges). Drop `WIP:` from the title. The
    description starts with these two lines, then what the brief asks for (tables, pictures, quoted
@@ -63,8 +75,17 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
 
    The last commit must run CI: its message has no `[skip ci]` anywhere, not even quoted in a
    sentence (GitHub skips on the text alone, and the required `ci` check then never reports).
-7. **Stop.** One task per session. Do not wait for CI: a later run merges or fixes. End with the
-   report.
+7. **See the first CI result, then stop.** After the finishing push stay subscribed to the pull
+   request: its CI result wakes the session (about 12 minutes; set one check-in 25 minutes after
+   the push if the session can). This is the one place where `CLAUDE.md`'s "don't wait for CI" does
+   not hold. On the result:
+   - green: nothing more to do. A `Merge: autopilot` pull request is reviewed and merged by the
+     next run, never by the session that wrote it;
+   - red: fix it now (see "A red CI");
+   - not started after 25 minutes: restart it once (see "A red CI").
+
+   Then end with the report. One task per session: do not start another. If no result reaches the
+   session, end; the next run does all of this from step 0.
 
 ## Merging (rows marked `autopilot` only)
 
@@ -72,7 +93,10 @@ Han has authorised a run to merge a task pull request when all of these hold:
 
 - the task's row and the description's first line both say `Merge: autopilot`;
 - the `ci` check run on the head commit is `success`;
-- the task file's merge condition, if it has one, is met, and the description says so;
+- the task file's merge condition, if it has one, is met, and the description says so. A balance
+  condition is met when the before / after tables are the same or differ only within noise: a
+  target that fails on `main` in the same way before the change is not this task's and does not
+  turn the merge over to Han (say so in the description, with the count);
 - `STATUS.md`'s header does not say `Live: yes`, or the pull request neither restarts the game
   server nor changes `PROTOCOL_VERSION` (see "When the game is live");
 - the self-review below finds nothing.
@@ -110,11 +134,16 @@ merge whatever its row says: write `Merge: Han` and the reason in its descriptio
 
 ## A red CI
 
+**Claim the fix first:** put `WIP: ` back in front of the pull request's title before you start,
+and take it off again with the fix's push, so two sessions never fix the same pull request (step 0
+leaves a fresh `WIP:` alone).
+
 Read the failed jobs' summaries and logs (the Playwright job summary lists the failed and the flaky
 tests). Fix the cause on the task's branch as `CLAUDE.md`'s Session rules say: a test that is green
 on a re-run is a test to fix; never a retry, a skip or a wider bound without the reason written in
-the test. Start the fix commit's message with `ci fix <n>:` (1, 2, 3), push and stop. If the pull
-request is still red after `ci fix 3`, open a decision and leave it.
+the test. Start the fix commit's message with `ci fix <n>:` (1, 2, 3), push, and see that push's CI
+result as step 7 says. If the pull request is still red after `ci fix 3`, open a decision and leave
+it.
 
 **When the runner failed, not the code.** A job that stopped before any test ran (it could not
 install the browsers, download a package or reach an address: `Failed to install browsers`,
@@ -125,16 +154,24 @@ refused, push an empty commit `ci: run again (<what failed>)`. Neither is a `ci 
 counts toward the three. Then stop, as after any push. If the same step has failed the same way
 on three runs in a row, open a decision.
 
+**CI that never started.** A `ci` check that is still missing, or a run still queued with no jobs,
+20 minutes after the commit was pushed will not start by itself, and GitHub refuses to cancel or
+re-run such a run. Push an empty commit, `ci: run again (never started)`, to the task's branch: the
+new run replaces the lost one. It is not a `ci fix`. If the new run does not start either, open a
+decision.
+
 A red check on a `WIP:` pull request is not a red CI: the session that owns it has not finished.
 
 ## Keeping a waiting pull request mergeable
 
-When `main` has moved and a ready pull request conflicts, merge `origin/main` into its branch (no
+`main` requires a pull request's branch to be up to date before it merges, so every merge to `main`
+leaves the other open pull requests behind. When a ready pull request is behind `main`
+(`mergeable_state` is `behind`) or conflicts with it, merge `origin/main` into its branch (no
 rebase, no force push). The usual conflicts are the trackers: keep both sides' rows in `TASKS.md`,
 `apps/client/src/progress/data.ts`, `docs/GAME_DESIGN.md`'s Decision Log and `CLAUDE.md`'s status
 paragraph; if the tracker id it chose is now taken, take the next free one; work the counts in
 `apps/client/test/progress.test.ts` out again; in `STATUS.md` keep every other row as `main` has
-it. Then `npm test`, `npm run build`, push.
+it. Then `npm test`, `npm run build`, push. A merge with no conflict is pushed as it is: CI checks it.
 
 ## Decisions (ask without stopping)
 
