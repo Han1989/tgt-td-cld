@@ -42,8 +42,9 @@ async function catchPosts(page: Page, { newBrowser = false } = {}): Promise<Post
 }
 
 const crashes = (posts: Post[]) => posts.filter((p) => p.t === 'client_error');
-/** The anonymous counts' `what`, in order: `open`, then a failed start's reason. */
-const counted = (posts: Post[]) => posts.filter((p) => p.t === 'count').map((p) => p.what);
+/** The anonymous counts' `what`, in order: `open`, then a failed start's reason (the first-session counts, q3, aside). */
+const FIRST_SESSION = /^(first_open|match_\w+|return_d\d)$/;
+const counted = (posts: Post[]) => posts.filter((p) => p.t === 'count' && !FIRST_SESSION.test(String(p.what))).map((p) => p.what);
 
 /**
  * The renderer's start-up waits for a chunk that never arrives (a network that stalls): the request is held, not
@@ -176,7 +177,9 @@ test('a first visit that cannot start is still counted, with no id, before the a
   await page.goto('/?analytics&src=reddit-playmygame');
   await expect(page.locator('#boot-note')).toHaveText(GRAPHICS);
   await expect.poll(() => counted(posts)).toEqual(['open', 'webgl_unavailable']);
-  for (const what of ['open', 'webgl_unavailable']) {
+  // A new browser's first open is counted too, the same way.
+  await expect.poll(() => posts.some((p) => p.t === 'count' && p.what === 'first_open')).toBe(true);
+  for (const what of ['open', 'first_open', 'webgl_unavailable']) {
     expect(posts.find((p) => p.what === what)).toEqual({
       t: 'count',
       what,

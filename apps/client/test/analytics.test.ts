@@ -338,13 +338,25 @@ describe('anonymous counts', () => {
     expect(broken.posts).toEqual([]);
   });
 
-  it('uses the four kinds the server accepts: the page open and the watchdog reasons', () => {
-    expect([...COUNT_KINDS]).toEqual(['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost']);
+  it('uses the kinds the server accepts: the page open, the watchdog reasons, the visits and the match counts', () => {
+    expect([...COUNT_KINDS]).toEqual([
+      'open',
+      'boot_timeout',
+      'webgl_unavailable',
+      'webgl_context_lost',
+      'first_open',
+      'match_start',
+      'match_minute',
+      'match_end',
+      'match_second',
+      'return_d1',
+      'return_d7',
+    ]);
     const server = readFileSync(new URL('../../server/src/analytics/channels.ts', import.meta.url), 'utf8');
     const list = /export const COUNT_KINDS = \[([^\]]*)\]/.exec(server)![1]!;
     expect([...list.matchAll(/'([\w-]+)'/g)].map((m) => m[1])).toEqual([...COUNT_KINDS]);
     const boot = readFileSync(new URL('../src/startup/boot.ts', import.meta.url), 'utf8');
-    for (const reason of COUNT_KINDS.slice(1)) expect(boot).toContain(`'${reason}'`);
+    for (const reason of COUNT_KINDS.slice(1, 4)) expect(boot).toContain(`'${reason}'`);
   });
 });
 
@@ -431,13 +443,15 @@ describe('play-data switch', () => {
     expect(playDataStatus(null, none, null)).toEqual({
       on: false,
       locked: false,
-      line: 'Off until the game knows your age. Until then it only sends an anonymous count with no id: that the page opened, or failed to start. It asks once, when you first press Play or turn this on.',
+      line: 'Off until the game knows your age. Until then it only sends anonymous counts with no id: that the page opened or failed to start, and how far a match got. It asks once, when you first press Play or turn this on.',
     });
     // Off by choice or by GPC stays explained as before; the age is asked when the player turns it on.
     expect(playDataStatus('off', none, null).line).toBe('Off: this browser sends nothing.');
     expect(playDataStatus('on', none, 'child')).toEqual({ on: false, locked: true, line: 'Off: nothing is sent for players under 13.' });
     expect(playDataStatus(null, none, 'teen').line).toContain('under 16 it starts off');
     expect(playDataStatus('on', none, 'teen')).toMatchObject({ on: true, locked: false });
+    // A hosted build does not ask at Play (privacy/askAt.ts).
+    expect(playDataStatus(null, none, null, false).line).toMatch(/It asks once, if you turn this on\.$/);
   });
 });
 
@@ -493,13 +507,24 @@ describe('privacy page and links', () => {
       'It has no id and no time from your browser',
       'adds it to a total for that day',
       'nothing is kept per person and there is nothing to copy or delete',
-      'It is the only thing sent before you answer the age question',
+      'These counts are the only thing sent before you answer the age question',
+      'Counts of how far a visit got, with no id',
+      "that this is this browser's first visit",
+      'that a match started, played for a minute, or ended (won or lost)',
+      'that a second match started in the same visit',
+      'exactly one day, or seven days, after the first',
+      'none carries an id, a time or anything you typed',
+      'tdt.firstDay',
+      'that day is never sent, and Delete my data clears it',
+      'when your browser sends Global Privacy Control or Do Not Track, under 13, and from 13 to 15 unless you turned play data on',
+      'On this site it asks at your first Play',
+      'the first match starts without it: it asks only when you post a run to a board or turn play data on',
       'It stops when play data is off, when your browser asks not to be tracked, and once the answer is under 13',
-      'how many times the page was opened or failed to start) are kept for 90 days',
-      'last updated 2 November 2026',
+      'how many times the page was opened or failed to start, and how far visits got) are kept for 90 days',
+      'last updated 12 November 2026',
       "that site serves the game's files inside its page, under its own privacy policy",
       "There it keeps its own settings and its own browser id, apart from this site's",
-      'the game sends no play data at all, only the anonymous count of page opens',
+      'the game sends no play data at all, only the anonymous counts of page opens and matches',
       '13 to 15:',
       '16 and over:',
       'A posted Endless run',
@@ -566,6 +591,11 @@ describe('privacy page and links', () => {
     const countEntry = /<dt id="count">[\s\S]*?<\/dd>/.exec(page)![0].replace(/\s+/g, ' ');
     for (const named of ['page was opened', 'failed to start', 'tag on the link', 'kind of device', 'browser family']) {
       expect(countEntry, named).toContain(named);
+    }
+    // Every count kind is named on the page: the first-session counts in their own entry.
+    const firstEntry = /<dt id="count-first">[\s\S]*?<\/dd>/.exec(page)![0].replace(/\s+/g, ' ');
+    for (const named of ['first visit', 'a match started', 'played for a minute', 'ended', 'a second match', 'one day, or seven days']) {
+      expect(firstEntry, named).toContain(named);
     }
   });
 

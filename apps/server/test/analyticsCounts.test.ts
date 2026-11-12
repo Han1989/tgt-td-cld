@@ -34,10 +34,25 @@ const ROW_KEYS = ['browser', 'channel', 'day', 'n', 'platform', 'what'];
 
 describe('parseCount', () => {
   it('takes exactly { what, channel, platform, browser } with known values', () => {
-    for (const what of ['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost']) {
-      expect(parseCount({ ...open, what })).toEqual({ ...open, what });
-    }
-    expect([...COUNT_KINDS]).toEqual(['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost']);
+    const kinds = [
+      'open',
+      'boot_timeout',
+      'webgl_unavailable',
+      'webgl_context_lost',
+      'first_open',
+      'match_start',
+      'match_minute',
+      'match_end',
+      'match_second',
+      'return_d1',
+      'return_d7',
+    ];
+    for (const what of kinds) expect(parseCount({ ...open, what })).toEqual({ ...open, what });
+    expect([...COUNT_KINDS]).toEqual(kinds);
+    // The new kinds take no more fields than the old: no id, no time, no day.
+    expect(parseCount({ ...open, what: 'return_d1', day: 20_000 })).toBeNull();
+    expect(parseCount({ ...open, what: 'match_minute', visitor: 'visitor-0001' })).toBeNull();
+    expect(parseCount({ ...open, what: 'return_d30' })).toBeNull();
   });
 
   it('rejects an unknown what, an extra or missing field, and anything that is not one object', () => {
@@ -110,7 +125,7 @@ describe('daily totals', () => {
     expect(before.opens).toBe(14);
     expect(before.sessions).toBe(9);
     const row = (channel: string) => before.channels.find((c) => c.channel === channel)!;
-    expect(row('reddit-playmygame')).toEqual({ channel: 'reddit-playmygame', label: 'r/PlayMyGame', opens: 10, sessions: 3, share: 0.3 });
+    expect(row('reddit-playmygame')).toMatchObject({ channel: 'reddit-playmygame', label: 'r/PlayMyGame', opens: 10, sessions: 3, share: 0.3 });
     expect(row('friends')).toMatchObject({ opens: 4, sessions: 4, share: 1 });
     // Sessions with no counted open (an older build) show, with no share.
     expect(row('direct')).toMatchObject({ opens: 0, sessions: 2, share: null });
@@ -124,6 +139,64 @@ describe('daily totals', () => {
       { reason: 'webgl_unavailable', label: 'No WebGL', platform: 'ios', platformLabel: 'iOS', browser: 'safari', browserLabel: 'Safari', starts: 2 },
       { reason: 'boot_timeout', label: 'Slow start', platform: 'android', platformLabel: 'Android', browser: 'chrome', browserLabel: 'Chrome', starts: 1 },
     ]);
+  });
+
+  it('reads the first sessions per channel without ids, and D1 / D7 over the first opens of the day before', () => {
+    const state = emptyCounts();
+    const now = at(40, 12);
+    const crazy = { ...open, channel: 'crazygames' } as const;
+    const add = (what: CountBody['what'], day: number, times: number, body: CountBody = crazy) => {
+      for (let i = 0; i < times; i++) addCount(state, { ...body, what }, at(day));
+    };
+    // Day 30: 10 first opens, 8 started, 6 played a minute, 3 finished, 1 a second match.
+    add('first_open', 30, 10);
+    add('match_start', 30, 8);
+    add('match_minute', 30, 6);
+    add('match_end', 30, 3);
+    add('match_second', 30, 1);
+    // Day 31: 3 back a day after day 30's 10; day 37: 1 back a week after.
+    add('return_d1', 31, 3);
+    add('return_d7', 37, 1);
+    // The panel's days are 11 to 40. Day 5's first opens are a D7 base (day 12) and no D1 base; day 9's a D7 base
+    // (day 16) and a D1 base for day 10, outside; day 3's a D7 base for day 10, outside; returns on day 10 are outside.
+    add('first_open', 5, 4);
+    add('first_open', 9, 2);
+    add('first_open', 3, 5);
+    add('return_d1', 10, 1);
+    add('return_d7', 10, 2);
+    // Another channel stays apart.
+    add('first_open', 30, 2, open);
+    add('match_start', 30, 2, open);
+    const before = summarizeBeforeAge(state, now, new Map());
+    const row = (channel: string) => before.channels.find((c) => c.channel === channel)!.first;
+    expect(row('crazygames')).toEqual({
+      firstOpens: 10,
+      starts: 8,
+      minutes: 6,
+      ends: 3,
+      seconds: 1,
+      startShare: 0.8,
+      minuteShare: 0.6,
+      endShare: 0.3,
+      secondShare: 0.1,
+      d1Returns: 3,
+      d1Base: 10,
+      d1: 0.3,
+      d7Returns: 1,
+      d7Base: 16,
+      d7: 1 / 16,
+    });
+    expect(row('cold')).toMatchObject({ firstOpens: 2, starts: 2, startShare: 1, d1Returns: 0, d1Base: 2, d1: 0 });
+    expect(row('friends')).toMatchObject({ firstOpens: 0, startShare: null, d1Base: 0, d1: null });
+    expect(before.first).toMatchObject({ firstOpens: 12, starts: 10, minutes: 6, d1Returns: 3, d1Base: 12, d7Base: 18 });
+    // The first-session counts are not opens and not failed starts.
+    expect(before.opens).toBe(0);
+    expect(before.failed.starts).toBe(0);
+    const html = renderDashboard(summarize([], now, live, undefined, state));
+    expect(html).toContain('First sessions (counted without ids: approximate)');
+    expect(html).toContain('<td>CrazyGames</td><td>10</td><td>8<br><span class="note">80%</span></td>');
+    expect(html).toContain('<td>30%<br><span class="note">3 of 10</span></td>');
+    expect(renderDashboard(summarize([], now, live))).toContain('No first opens counted yet.');
   });
 
   it('puts the panel on the dashboard and in the summary, with sessions from the event log', () => {

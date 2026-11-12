@@ -8,6 +8,7 @@ import { ageBand, monthOf, parseAgeInput, readAgeAnswer, writeAgeAnswer, type Ag
 import { applyAnalytics, currentAnalytics, resetAnalytics } from '../analytics/install';
 import { analyticsServer, deleteMyData, localIdStore } from '../analytics/myData';
 import { browserSignals, readAnalyticsChoice, wouldSend } from '../analytics/preference';
+import { gateAtPlay } from './askAt';
 
 let open: Promise<AgeBand> | null = null;
 
@@ -92,4 +93,12 @@ export function ageGate(next: () => void): void {
     return;
   }
   void askAge().then(() => next());
+}
+
+/**
+ * The gate on Play solo, Learn to play, the Daily run's start, Create room and Join room: `ageGate` on the site, `next`
+ * at once in a hosted build (`askAt.ts`).
+ */
+export function playGate(next: () => void): void {
+  gateAtPlay(__EMBED__, next, ageGate);
 }

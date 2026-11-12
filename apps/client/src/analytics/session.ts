@@ -73,9 +73,23 @@ export interface AnalyticsBody {
 
 /**
  * What an anonymous count says: the game page opened, or the start-up watchdog's reason for a start that failed
- * (startup/boot.ts `BootReason`). The server's list (channels.ts `COUNT_KINDS`) must stay the same.
+ * (startup/boot.ts `BootReason`); this browser's first counted open and its returns a day and a week later
+ * (visits.ts); a match started, played a minute, ended, and a second match in the same page load (matchCounts.ts).
+ * The server's list (channels.ts `COUNT_KINDS`) must stay the same.
  */
-export const COUNT_KINDS = ['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost'] as const;
+export const COUNT_KINDS = [
+  'open',
+  'boot_timeout',
+  'webgl_unavailable',
+  'webgl_context_lost',
+  'first_open',
+  'match_start',
+  'match_minute',
+  'match_end',
+  'match_second',
+  'return_d1',
+  'return_d7',
+] as const;
 export type CountKind = (typeof COUNT_KINDS)[number];
 
 /**

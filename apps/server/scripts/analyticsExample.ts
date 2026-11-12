@@ -4,7 +4,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { HERO_KINDS } from '@tdt/protocol';
-import { BROWSERS, CHANNELS, type Browser, type Channel, type Platform } from '../src/analytics/channels';
+import { BROWSERS, CHANNELS, type Browser, type Channel, type CountKind, type Platform } from '../src/analytics/channels';
 import { addCount, emptyCounts, expireCounts } from '../src/analytics/counts';
 import { renderDashboard } from '../src/analytics/page';
 import { DAY_MS, expireRetention, retentionFromEvents } from '../src/analytics/retention';
@@ -53,20 +53,35 @@ function browserFor(platform: Platform): Browser {
   if (platform === 'android') return rand() < 0.7 ? 'chrome' : pick(['samsung', 'firefox'] as const);
   return pick(BROWSERS);
 }
-function opened(ch: Channel, platform: Platform, at: number): void {
+/** The anonymous first-session counts of one page load (q3): a first open or a return, then how far a match got. */
+function firstSession(ch: Channel, platform: Platform, browser: Browser, at: number, first: boolean, back: number): void {
+  const add = (what: CountKind) => addCount(counts, { what, channel: ch, platform, browser }, at);
+  if (first) add('first_open');
+  else if (back === 1) add('return_d1');
+  else if (back === 7) add('return_d7');
+  if (rand() < (bounce[ch] ?? 0.3)) return;
+  add('match_start');
+  if (rand() < 0.18) return;
+  add('match_minute');
+  if (rand() < 0.4) return;
+  add('match_end');
+  if (rand() < 0.5) add('match_second');
+}
+function opened(ch: Channel, platform: Platform, at: number, first = false, back = 0): void {
   const browser = browserFor(platform);
   addCount(counts, { what: 'open', channel: ch, platform, browser }, at);
+  firstSession(ch, platform, browser, at, first, back);
   if (rand() < 0.02) addCount(counts, { what: 'boot_timeout', channel: ch, platform, browser }, at);
   else if (rand() < 0.008) addCount(counts, { what: pick(['webgl_unavailable', 'webgl_context_lost'] as const), channel: ch, platform, browser }, at);
 }
 let n = 0;
 const id = (prefix: string) => `${prefix}-${String(++n).padStart(8, '0')}`;
 
-function visit(visitor: string, ch: Channel, at: number, first: boolean): void {
+function visit(visitor: string, ch: Channel, at: number, first: boolean, back = 0): void {
   const session = id('session');
   const base = { visitor, session, channel: ch, platform: pick(['web', 'ios', 'android'] as const) };
   const push = (e: Omit<StoredEvent, keyof typeof base>) => events.push({ ...base, ...e } as StoredEvent);
-  opened(ch, base.platform, at);
+  opened(ch, base.platform, at, first, back);
   let t = at;
   push({ t: 'session_start', at: t });
   if (rand() < 0.04) {
@@ -134,12 +149,12 @@ for (let day = 45; day >= 0; day--) {
     const first = now - day * DAY_MS - Math.floor(rand() * 8 * 60 * 60 * 1000);
     // Some open the link and leave before the age question: an open count and nothing else.
     const left = bounce[ch] ?? 0.35;
-    while (rand() < left) opened(ch, pick(['web', 'ios', 'android'] as const), first - Math.floor(rand() * 60 * 60 * 1000));
+    while (rand() < left) opened(ch, pick(['web', 'ios', 'android'] as const), first - Math.floor(rand() * 60 * 60 * 1000), true);
     visit(visitor, ch, first, true);
     for (const back of [1, 2, 7, 14, 30]) {
       const odds = back === 1 ? 0.3 : back === 7 ? 0.11 : back === 30 ? 0.06 : 0.08;
       const at = first + back * DAY_MS;
-      if (at < now && rand() < odds) visit(visitor, back === 1 ? ch : 'direct', at, false);
+      if (at < now && rand() < odds) visit(visitor, back === 1 ? ch : 'direct', at, false, back);
     }
   }
 }

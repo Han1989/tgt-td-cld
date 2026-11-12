@@ -11,7 +11,7 @@ import type { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
 import { openingMode, storedMode } from './lobby/modePicker';
-import { ageGate } from './privacy/ageCheck';
+import { playGate } from './privacy/ageCheck';
 import { sharedSettings } from './settings';
 import { beginSolo, type SoloPick, type SoloStart } from './tutorial/logic';
 import { LocalTransport } from './transport/localTransport';
@@ -31,10 +31,11 @@ export class OnlineController {
     private readonly view: GameView,
     private readonly serverUrl: string,
   ) {
-    // The age question comes before the first room or solo match, never before the lobby (docs/ANALYTICS.md "Age").
+    // The age question comes before the first room or solo match on the site (a hosted build starts at once: askAt.ts),
+    // never before the lobby (docs/ANALYTICS.md "Age").
     // Nothing was sent before it, so the lobby step of the funnel goes once it is answered.
     const gated = (next: () => void) =>
-      ageGate(() => {
+      playGate(() => {
         currentAnalytics()?.funnel('lobby');
         next();
       });
@@ -65,7 +66,7 @@ export class OnlineController {
     );
     view.onLeave = () => this.leave();
     // ⚙ → Learn to play: the lesson at once, leaving an online room or ending a solo match first.
-    view.onLearnToPlay = () => ageGate(() => this.playSolo('lesson', { hero: storedHero(), mode: storedMode() }));
+    view.onLearnToPlay = () => playGate(() => this.playSolo('lesson', { hero: storedHero(), mode: storedMode() }));
   }
 
   start(): void {

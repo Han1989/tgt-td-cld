@@ -141,8 +141,16 @@ export interface PlayDataStatus {
   locked: boolean;
 }
 
-/** The switch's state and the line under it (Settings → Play data and the privacy page). */
-export function playDataStatus(choice: AnalyticsChoice | null, signals: PrivacySignals, age: AgeBand | null): PlayDataStatus {
+/**
+ * The switch's state and the line under it (Settings → Play data and the privacy page). `asksAtPlay` is false in a
+ * hosted build, where the first Play tap does not ask the age (privacy/askAt.ts).
+ */
+export function playDataStatus(
+  choice: AnalyticsChoice | null,
+  signals: PrivacySignals,
+  age: AgeBand | null,
+  asksAtPlay = true,
+): PlayDataStatus {
   const on = analyticsAllowed(choice, signals, age);
   if (age === 'child') return { on, locked: true, line: 'Off: nothing is sent for players under 13.' };
   if (on) return { on, locked: false, line: 'On: this browser sends anonymous play data.' };
@@ -150,7 +158,9 @@ export function playDataStatus(choice: AnalyticsChoice | null, signals: PrivacyS
     return {
       on,
       locked: false,
-      line: 'Off until the game knows your age. Until then it only sends an anonymous count with no id: that the page opened, or failed to start. It asks once, when you first press Play or turn this on.',
+      line: `Off until the game knows your age. Until then it only sends anonymous counts with no id: that the page opened or failed to start, and how far a match got. ${
+        asksAtPlay ? 'It asks once, when you first press Play or turn this on.' : 'It asks once, if you turn this on.'
+      }`,
     };
   }
   if (age === 'teen' && !choice) return { on, locked: false, line: 'Off: under 16 it starts off. You can turn it on.' };
