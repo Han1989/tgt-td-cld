@@ -27,6 +27,20 @@ export function callEarlyBonus(state: GameState): number {
   return Math.floor(secondsLeft * state.tuning.economy.callEarlyGoldPerSecond);
 }
 
+/**
+ * Whether a call would be accepted now (protocol 26, docs/GAME_DESIGN.md "Call early"): a next wave exists and the
+ * current one has finished arriving (nothing left in the spawn queue). One press starts one wave, so waves can't be
+ * stacked by pressing the button. Before wave 1 the queue is empty, so the build phase can always be cut short.
+ */
+export function canCallEarly(state: GameState): boolean {
+  return state.nextWaveTick >= 0 && state.spawnQueue.length === 0;
+}
+
+/** Whether the current wave is still coming out of its portals. */
+export function waveArriving(state: GameState): boolean {
+  return state.spawnQueue.length > 0;
+}
+
 export function callEarly(state: GameState, by: PlayerId): void {
   const bonus = callEarlyBonus(state);
   for (const p of state.players) p.gold += bonus;

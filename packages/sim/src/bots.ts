@@ -346,7 +346,7 @@ export function createBalanceBot(
         const firstThird = snap.wave <= Math.ceil(tuning.waves.list.length / 3);
         if (
           snap.wave >= 1 &&
-          snap.nextWaveIn >= 0 &&
+          snap.canCallEarly &&
           mineCount >= EXPERT_MIN_TOWERS &&
           clearFor >= EXPERT_CLEAR_SECONDS &&
           secondsLeft >= EXPERT_MIN_CALL_SECONDS &&

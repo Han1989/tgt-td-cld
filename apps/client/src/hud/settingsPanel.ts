@@ -12,7 +12,7 @@ import { dailyServer } from '../daily/api';
 import { switchStatus } from '../endless/board';
 import { askAge } from '../privacy/ageCheck';
 import { wireMyData } from '../privacy/myDataUi';
-import { settingsLeaveShown, type MatchOnScreen } from './leaveMatch';
+import { endRunQuestion, endRunShown, endRunWave, settingsLeaveShown, type MatchOnScreen } from './leaveMatch';
 import type { SkillsPlace, StickAnchor, StickMode } from '../layout';
 import { canInstall, isIos, isStandalone, onInstallChange, promptInstall } from '../platform/pwa';
 import type { Display } from '../render/art/tokens';
@@ -57,6 +57,9 @@ export class SettingsPanel {
   private readonly leave = $('settings-leave');
   private readonly leaveAsk = $('settings-leave-ask');
   private readonly leaveBtn = $('settings-leave-btn');
+  private readonly endRunBtn = $('settings-endrun-btn');
+  private readonly endRunAsk = $('settings-endrun-ask');
+  private readonly endRunQ = $('settings-endrun-q');
   private readonly install = $('install-btn');
   private readonly iosInstall = $('ios-install-btn');
   private readonly iosSheet = $('ios-install');
@@ -70,6 +73,7 @@ export class SettingsPanel {
    * `previewSfx` plays a sound after the effects volume changes, at the new level. `onLearn` (Lesson → Learn to play)
    * starts the lesson at once; the host stores what it changes as it starts (`beginSolo`). `match` says what is on
    * screen and `onLeave` goes home as the end card's Back to lobby does: Match → Back to lobby, a solo match only.
+   * `onEndRun` sends End run (Match → End run, a solo Endless match only): the run ends as a defeat and counts.
    */
   constructor(
     private readonly store: SettingsStore,
@@ -77,6 +81,7 @@ export class SettingsPanel {
     onLearn: () => void = () => {},
     private readonly match: () => MatchOnScreen = () => ({ attached: false, online: false }),
     onLeave: () => void = () => {},
+    onEndRun: () => void = () => {},
   ) {
     $('settings-btn').addEventListener('click', () => this.toggle());
     for (const b of this.mutes) b.addEventListener('click', () => store.set({ muted: !store.get().muted }));
@@ -92,6 +97,14 @@ export class SettingsPanel {
     $('settings-leave-yes').addEventListener('click', () => {
       this.close();
       if (settingsLeaveShown(this.match())) onLeave();
+    });
+    // End run asks once too, with the wave it would end on: End run sends it, Keep playing puts the buttons back.
+    this.endRunBtn.addEventListener('click', () => this.endAsking(true));
+    $('settings-endrun-no').addEventListener('click', () => this.endAsking(false));
+    $('settings-endrun-yes').addEventListener('click', () => {
+      const shown = endRunShown(this.match());
+      this.close();
+      if (shown) onEndRun();
     });
     $('settings-tutorial').addEventListener('click', () => {
       this.close();
@@ -133,21 +146,35 @@ export class SettingsPanel {
   toggle(): void {
     this.root.classList.toggle('hidden');
     this.asking(false);
+    this.endAsking(false);
     this.render();
   }
 
   close(): void {
     this.root.classList.add('hidden');
     this.asking(false);
+    this.endAsking(false);
   }
 
   private asking(on: boolean): void {
     this.leaveAsk.classList.toggle('hidden', !on);
     this.leaveBtn.classList.toggle('hidden', on);
+    if (on) this.endRunBtn.classList.add('hidden');
+    else this.endRunBtn.classList.toggle('hidden', !endRunShown(this.match()));
+  }
+
+  private endAsking(on: boolean): void {
+    const m = this.match();
+    if (on && m.snap) this.endRunQ.textContent = endRunQuestion(endRunWave(m.snap));
+    this.endRunAsk.classList.toggle('hidden', !on);
+    this.endRunBtn.classList.toggle('hidden', on || !endRunShown(m));
+    this.leaveBtn.classList.toggle('hidden', on);
   }
 
   private render(): void {
-    this.leave.classList.toggle('hidden', !settingsLeaveShown(this.match()));
+    const m = this.match();
+    this.leave.classList.toggle('hidden', !settingsLeaveShown(m));
+    if (this.endRunAsk.classList.contains('hidden') && this.leaveAsk.classList.contains('hidden')) this.endRunBtn.classList.toggle('hidden', !endRunShown(m));
     const s = this.store.get();
     for (const b of this.mutes) {
       b.setAttribute('aria-pressed', String(s.muted));

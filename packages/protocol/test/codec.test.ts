@@ -37,6 +37,8 @@ describe('client message codec', () => {
     { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'strongest' } },
     { t: 'cmd', cmd: { type: 'setPriority', towerId: 7, priority: 'closest' } },
     { t: 'cmd', cmd: { type: 'callEarly' } },
+    // Protocol 26: End run (solo Endless).
+    { t: 'cmd', cmd: { type: 'endRun' } },
     { t: 'cmd', cmd: { type: 'gift', to: 'p2', amount: 50 } },
     { t: 'cmd', cmd: { type: 'ping', x: 12.5, y: 4 } },
     { t: 'cmd', cmd: { type: 'emote', emote: 'help' } },
@@ -82,6 +84,7 @@ describe('client message codec', () => {
     ['fractional id', '{"t":"cmd","cmd":{"type":"attack","targetId":1.5}}'],
     ['bad tower', '{"t":"cmd","cmd":{"type":"build","padId":1,"tower":"laser"}}'],
     ['bad slot', '{"t":"cmd","cmd":{"type":"cast","slot":"X"}}'],
+    ['endRun with a field', '{"t":"cmd","cmd":{"type":"endRun","wave":3}}'],
     ['lower-case slot', '{"t":"cmd","cmd":{"type":"learn","slot":"r"}}'],
     ['learn with a target', '{"t":"cmd","cmd":{"type":"learn","slot":"R","x":1,"y":2}}'],
     ['non-finite cast point', '{"t":"cmd","cmd":{"type":"cast","slot":"R","x":1e999,"y":2}}'],
@@ -185,6 +188,7 @@ describe('replay command encoding', () => {
     { type: 'attack', targetId: 42 },
     { type: 'stop' },
     { type: 'callEarly' },
+    { type: 'endRun' },
     { type: 'cast', slot: 'Q' },
     { type: 'cast', slot: 'R', x: 13, y: 20.25 },
     { type: 'learn', slot: 'E' },
@@ -211,6 +215,7 @@ describe('replay command encoding', () => {
     expect(decodeReplayCommand(['move', 1, 2, 3])).toBeNull();
     expect(decodeReplayCommand(['build', 1, 'laser'])).toBeNull();
     expect(decodeReplayCommand(['reinforce', 9, 2])).toBeNull();
+    expect(decodeReplayCommand(['endRun', 3])).toBeNull();
     expect(decodeReplayCommand(['toString'])).toBeNull();
     expect(decodeReplayCommand([])).toBeNull();
   });

@@ -2,6 +2,7 @@
 // the snapshot buffer, the screen layout and the sound (music in the lobby too),
 // fed by whichever Transport is attached (local worker, game server or the stress scene).
 
+import { canCallNow } from './hud/callEarly';
 import {
   allowSocial,
   freshSocialClock,
@@ -250,7 +251,10 @@ export class GameView {
       repair: (towerId) => controls.repair(towerId),
       reinforce: (towerId) => controls.reinforce(towerId),
       setPriority: (towerId, priority) => sendCmd({ type: 'setPriority', towerId, priority }),
-      callEarly: () => sendCmd({ type: 'callEarly' }),
+      // Only a press the sim would take (protocol 26: one press, one wave), so a fast finger sends no stream of refusals.
+      callEarly: () => {
+        if (buffer.latest && canCallNow(buffer.latest)) sendCmd({ type: 'callEarly' });
+      },
       gift: (to, amount) => sendCmd({ type: 'gift', to, amount }),
       learn: (slot) => controls.learnSkill(slot),
       pressSkill: (slot) => controls.pressSkill(slot),
@@ -320,6 +324,7 @@ export class GameView {
       // Read when the sheet opens; nothing is on screen while the view is still being built.
       () => (view ? view.matchOnScreen() : { attached: false, online: false }),
       () => view.onChangeHero(),
+      () => sendCmd({ type: 'endRun' }),
     );
     installPressFeedback(document, () => audio.game.tap(performance.now()));
     const marks = new MarkerLayer();
@@ -920,7 +925,11 @@ export class GameView {
 
   /** What ⚙ → Back to lobby needs to know (hud/leaveMatch.ts). */
   matchOnScreen(): MatchOnScreen {
-    return { attached: this.transport !== null, online: this.transport?.online === true };
+    return {
+      attached: this.transport !== null,
+      online: this.transport?.online === true,
+      snap: this.transport ? this.buffer.latest : null,
+    };
   }
 
   detach(): void {

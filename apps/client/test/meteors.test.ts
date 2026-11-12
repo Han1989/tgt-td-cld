@@ -34,7 +34,9 @@ function meteorMatch(waves = 1): GameState {
   for (const c of Object.values(tuning.creeps)) c.hp *= 50;
   const state = createGame({ players: [{ id: 'p1', name: 'Arc', hero: 'arcanist' }], tuning }, 3);
   for (let i = 0; i < 6000 && (state.wave < waves || state.creeps.length < 12); i++) {
-    if (state.wave < waves && state.nextWaveTick > 0) applyCommand(state, 'p1', { type: 'callEarly' });
+    // Waves started back to back, as a call early once did (protocol 26 makes a call wait for the wave): the test
+    // wants several waves on the map at once.
+    if (state.wave < waves && state.nextWaveTick > 0) state.nextWaveTick = state.tick;
     step(state);
   }
   state.heroes[0]!.ranks.R = 1;

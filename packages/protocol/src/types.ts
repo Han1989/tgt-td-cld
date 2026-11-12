@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 25;
+export const PROTOCOL_VERSION = 26;
 
 export type PlayerId = string;
 export type EntityId = number;
@@ -245,7 +245,16 @@ export type Command =
    * grow; refused in Full and Quick and before the branch.
    */
   | { type: 'reinforce'; towerId: EntityId }
+  /**
+   * Start the next wave now, for gold (`callEarlyBonus`). Refused while the current wave is still arriving (protocol
+   * 26: one press, one wave; `canCallEarly`).
+   */
   | { type: 'callEarly' }
+  /**
+   * Solo Endless only (protocol 26): end the run as a defeat now, on the wave the match is in, or on the wave before
+   * while the current one is still arriving. Refused in a room, Full, Quick and the Daily run.
+   */
+  | { type: 'endRun' }
   /** Give some of your gold to a teammate. */
   | { type: 'gift'; to: PlayerId; amount: number }
   /** A map marker for teammates. */
@@ -521,6 +530,8 @@ export interface Snapshot {
   nextWaveIn: number;
   /** Gold every player would receive for calling the next wave now. */
   callEarlyBonus: number;
+  /** Whether a `callEarly` would be accepted now: a next wave exists and the current one has finished arriving. */
+  canCallEarly: boolean;
   players: PlayerSnap[];
   heroes: HeroSnap[];
   creeps: CreepSnap[];

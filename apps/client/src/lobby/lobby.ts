@@ -20,7 +20,7 @@ import { wantHero } from '../artLoad/order';
 import { readyAllowed, roomStart, seatState } from '../artLoad/rules';
 import { dailyTileLine, type DailyToday } from '../daily/text';
 import type { EndlessToday } from '../endless/board';
-import { endlessBest } from '../endless/best';
+import { endlessBestLine } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
 import { storedRecord } from '../record/record';
 import { fittedLine, recordLines } from '../record/text';
@@ -359,7 +359,7 @@ export class LobbyUi {
   private syncRoomHero(): void {
     this.roomRole.textContent = HERO_INFO[this.hero].role;
     this.roomBlurb.textContent = HERO_INFO[this.hero].blurb;
-    this.modePicker.showBest(endlessBest(this.hero));
+    this.modePicker.showBest(endlessBestLine(this.hero));
     this.roomPicker.showMarks(storedRecord());
   }
 
@@ -373,7 +373,7 @@ export class LobbyUi {
     wantHero(this.hero);
     this.role.textContent = info.role;
     this.blurb.textContent = info.blurb;
-    this.homeMode.showBest(endlessBest(this.hero));
+    this.homeMode.showBest(endlessBestLine(this.hero));
     this.syncRecord();
   }
 
