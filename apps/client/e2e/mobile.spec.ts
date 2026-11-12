@@ -543,6 +543,25 @@ test.describe('portrait phone layout', () => {
       .toBeLessThan(0.05);
   });
 
+  test('Call early waits for the wave (q2): a tap calls one wave, the button is off while it arrives, then on again', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 839 });
+    await startSolo(page);
+    const call = page.locator('#call-early');
+    await expect(call).toBeEnabled();
+    await call.tap();
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.wave)).toBe(1);
+    await expect(call).toBeDisabled();
+    // The compact HUD says it in the room it has ("Arriving"), the wide one "Wave arriving".
+    await expect(call).toHaveText(/Arriving|Wave arriving/);
+    await call.tap({ force: true });
+    await call.tap({ force: true });
+    expect(await sent(page, 'callEarly')).toHaveLength(1);
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.canCallEarly), { timeout: 30_000 }).toBe(true);
+    await expect(call).toBeEnabled();
+    await expect(call).toContainText(/\+\d+/);
+    expect(await page.evaluate(() => window.__tdt.latest()!.wave)).toBe(1);
+  });
+
   test('touch only, solo Quick match: move, build, tower ring (upgrade, priority, hold to sell)', async ({ page }) => {
     await startSolo(page);
     const finger = await Finger.on(page);

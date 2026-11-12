@@ -709,7 +709,7 @@ for (const size of [
 ]) {
   test(`Mode at ${size.width} × ${size.height}: Full, Quick and Endless fit one line each, and the best Endless wave sits over Endless`, async ({ page }) => {
     await page.setViewportSize(size);
-    await page.addInitScript(() => localStorage.setItem('tdt.endlessBest', JSON.stringify({ ranger: 37 })));
+    await page.addInitScript(() => localStorage.setItem('tdt.endlessBest', JSON.stringify({ v: 2, bests: { ranger: 37 }, dropped: [] })));
     await openHome(page);
     await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
     await modeRowFits(page);
@@ -769,7 +769,7 @@ for (const size of [
   test(`Endless's board at ${size.width} × ${size.height}: the link keeps the Mode row's height, the card is one screen`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.addInitScript(() => {
-      localStorage.setItem('tdt.endlessBest', JSON.stringify({ ranger: 37 }));
+      localStorage.setItem('tdt.endlessBest', JSON.stringify({ v: 2, bests: { ranger: 37 }, dropped: [] }));
       // This browser posted today: the read sends its key, and the server marks its row (27th, under the ten).
       localStorage.setItem('tdt.endlessPosted', JSON.stringify([new Date().toISOString().slice(0, 10)]));
       localStorage.setItem('tdt.visitorKey', 'ab'.repeat(32));
@@ -847,7 +847,7 @@ test('Play solo on Endless: Hard with no last wave, "Wave 1" alone, "Fallen on w
   await expect(page.locator('#end-screen')).toBeVisible();
   await expect(page.locator('#end-title')).toHaveText('Fallen on wave 1');
   await expect(page.locator('#end-text')).toContainText('New best!');
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.endlessBest') ?? 'null'))).toEqual({ warden: 1 });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.endlessBest') ?? 'null'))).toEqual({ v: 2, bests: { warden: 1 }, dropped: [] });
   // Play again stays Endless; a run that does not go further is not a new best.
   await page.locator('#restart').click();
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick)).toBeGreaterThan(0);

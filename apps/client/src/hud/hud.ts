@@ -36,6 +36,7 @@ import { endlessEndCopy, endlessRunLine, recordEndlessRun, type EndlessRun } fro
 import { EndlessEndCard } from '../endless/endCard';
 import { recordDailyRank, recordMatch, type MatchGain } from '../record/record';
 import { dailyBestLine, heartBestLine } from '../record/text';
+import { callEarlyFace } from './callEarly';
 import { hpLine, manaLine } from './num';
 import type { Camera } from '../input/camera';
 import { HERO_INFO } from '../heroInfo';
@@ -463,11 +464,11 @@ export class Hud {
       setText(this.timerLabel, snap.phase === 'build' ? (c ? 'Start' : 'First wave in') : c ? 'Next' : 'Next wave');
       setText(this.timer, formatSeconds(snap.nextWaveIn, snap.tickRate));
     }
-    const canCall = snap.nextWaveIn >= 0 && (snap.phase === 'build' || snap.phase === 'waves');
-    this.callEarly.disabled = !canCall;
-    const label = c ? '<span class="call">Call</span>' : 'Call early';
-    const callHtml = canCall ? `${label} <span class="bonus">+${snap.callEarlyBonus}</span>` : label;
-    if (this.callEarly.innerHTML !== callHtml) this.callEarly.innerHTML = callHtml;
+    // One press, one wave (protocol 26): off and "Wave arriving" while the sim would refuse a call.
+    const call = callEarlyFace(snap, c);
+    this.callEarly.disabled = call.disabled;
+    this.callEarly.classList.toggle('arriving', call.disabled && snap.nextWaveIn >= 0);
+    if (this.callEarly.innerHTML !== call.html) this.callEarly.innerHTML = call.html;
 
     this.updateBuildHint(player?.gold ?? 0);
     if (hero) this.updateHero(hero, snap.tickRate);

@@ -37,6 +37,7 @@ interface Hook {
     wave: number;
     /** Ticks until the next wave starts. */
     nextWaveIn: number;
+    canCallEarly: boolean;
     phase: string;
     difficulty: string;
     surgeLane: number | null;

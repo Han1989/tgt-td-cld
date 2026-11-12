@@ -253,6 +253,8 @@ export class Room {
           if ((msg.cmd.type === 'ping' || msg.cmd.type === 'emote') && !allowSocial(member.social, msg.cmd.type, now)) {
             return this.error(member, 'rate_limited', 'Slow down');
           }
+          // End run is for a solo Endless match on the player's own device, never a room (protocol 26).
+          if (msg.cmd.type === 'endRun') return this.error(member, 'bad_request', 'End run is for solo Endless runs');
           this.queue.push({ playerId: member.id, cmd: msg.cmd });
         }
         return;

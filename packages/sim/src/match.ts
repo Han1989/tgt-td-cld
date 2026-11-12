@@ -360,7 +360,7 @@ export function matchReplay(match: Match): Replay {
  * Re-runs a replay with the simulation: every logged input at its tick, then steps until the match ends (or
  * the tick it ended at in the recording, if that was cut short). Throws on a malformed log entry, and on a match
  * whose rules are gone (`replayRefusal`: match modifiers, Meteor Rain practice, Endless before protocol 22, anything
- * before protocol 24: the kits of 23 and Rampart Slam's lane quake of 24).
+ * before protocol 26: the kits of 23, Rampart Slam's lane quake of 24 and the call-early rule of 26).
  */
 export function replayMatch(
   replay: Replay,
@@ -472,6 +472,8 @@ const ENDLESS_RULES_PROTOCOL = 22;
 const KIT_RULES_PROTOCOL = 23;
 /** Rampart Slam round 2 (Han, 4 Nov 2026): the slam became a lane quake. */
 const QUAKE_PROTOCOL = 24;
+/** The protocol where Call early began to wait for the wave (one press, one wave) and End run came: earlier is refused. */
+const CALL_EARLY_PROTOCOL = 26;
 
 /**
  * Why this build cannot re-run a replay whose rules are gone, or null. Match modifiers (Swift, Ironclad, Sky Tide,
@@ -510,6 +512,12 @@ export function replayRefusal(
     return (
       `This match was recorded under protocol ${replay.protocol}, before the Warden's Rampart Slam became a lane quake ` +
       `in protocol ${QUAKE_PROTOCOL}; only a build from before then can re-run it${where}.`
+    );
+  }
+  if (replay.protocol < CALL_EARLY_PROTOCOL) {
+    return (
+      `This match was recorded under protocol ${replay.protocol}, before Call early began to wait for the wave in ` +
+      `protocol ${CALL_EARLY_PROTOCOL} (one press, one wave); only a build from before then can re-run it${where}.`
     );
   }
   return null;

@@ -323,6 +323,16 @@ From Han's Endless run on his laptop (Arcanist, fell on wave 49). Play a solo **
 - [ ] 22.2 **The way back:** on a solo end card (a Quick match, the Daily run, an Endless run) the second button reads **Back to lobby** and brings you to the home card, with Play with friends under it. During a solo match, ⚙ shows **Match → Back to lobby** at the top of the sheet: it asks once inside the sheet ("Leave this match? It won't be saved." **Leave** / **Stay**), never with a browser box; Stay keeps playing, Leave goes to the home card. In an online room ⚙ has no such row, and the end card keeps **Leave room**.
 - [ ] 22.3 **Tidy skill buttons (desktop, 1280 × 720, 1366 × 768 and 1920 × 1080):** a skill on cooldown shows its seconds over its icon, its name readable beside them (no "Fireball1" or "Meteo6"); the HP and mana numbers sit fully inside their bars, nothing cut at the bottom; the ⚙ sheet scrolls if it is taller than the window.
 
+## 23. Call early waits for the wave, and End run (q2, protocol 26)
+
+From Han's Endless run of 11 Nov 2026 (seven presses in a second took wave 42 to 49). A solo match on the phone, then a room of two, then a solo Endless run.
+
+- [ ] 23.1 **Try to stack waves.** In a solo Quick match tap **Call early** in the build phase: wave 1 starts. Now tap it as fast as you can, many times: the button is off and reads **Arriving** (on a laptop **Wave arriving**), the wave counter stays on 1, no "This wave is still arriving" toasts pile up and no gold arrives. Once the last creep of the wave is out of the portals the button lights again with its bonus (**Call +N**); one tap starts wave 2 and the button goes off again.
+- [ ] 23.2 **In a room of two**, both players tap Call early at once while a wave arrives: neither press starts a wave and nobody gets gold; once it has arrived one tap from either starts exactly one wave.
+- [ ] 23.3 **End an Endless run.** In a solo Endless match reach a wave you like (wave 3 is enough), open ⚙: **Match** shows **Back to lobby** and **End run**. Tap End run: the sheet asks once, "End this run on wave 3? It counts and can be posted.", with **End run** and **Keep playing**. Keep playing puts the buttons back and the match goes on. End run closes the sheet, the Heart falls, and the end card reads **"Fallen on wave 3"**; with the board on, the run posts and ranks like any other. Tap End run while a wave is still arriving: the question and the end card name the wave before.
+- [ ] 23.4 **Not offered** in a Quick or Full match, the Daily run or an online room (⚙ shows no End run).
+- [ ] 23.5 **Bests start again:** in a browser that had an Endless best before this build, the Mode row's Endless line reads **"Bests start again: Call early can no longer stack waves"** once (for the rest of that visit), then nothing until a new run sets a best.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |
