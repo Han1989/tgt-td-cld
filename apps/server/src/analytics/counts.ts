@@ -1,7 +1,8 @@
 // Anonymous counts (POST /analytics/count; docs/ANALYTICS.md → Before the age question). Pure: the clock is passed in.
 //
 // A browser may send these before the age question is answered, because they carry no id: the game page opened, or
-// it failed to start (the watchdog's reason), with the link's tag, the platform and the browser family. No visitor id,
+// it failed to start (the watchdog's reason); its first counted open and its returns a day and a week later; a match
+// started, played a minute, ended, a second match (q3), with the link's tag, the platform and the browser family. No visitor id,
 // no session, no text and no time from the client. The server adds each one to a total per UTC day, what, channel,
 // platform and browser, and keeps nothing else: no address, no line per request, nothing in events.jsonl. Totals are
 // kept 90 days, like the cohort counts. A copy or deletion request has nothing to find here: nothing is per person.
@@ -125,6 +126,31 @@ export function parseCounts(raw: unknown): CountState {
   return state;
 }
 
+/**
+ * A channel's first sessions, counted without ids (approximate): first opens, then how many page loads started a
+ * match, played a minute of one, finished one, and started a second, each also over the first opens; and the D1 / D7
+ * returns, a day's `return_d1` over the `first_open` of the day before (`return_d7`: of 7 days before).
+ */
+export interface FirstSession {
+  firstOpens: number;
+  starts: number;
+  minutes: number;
+  ends: number;
+  seconds: number;
+  /** Each over `firstOpens`; null with none. Page loads, so a returning player's match counts too: a ceiling. */
+  startShare: number | null;
+  minuteShare: number | null;
+  endShare: number | null;
+  secondShare: number | null;
+  /** `return_d1` counted on the panel's days, and the `first_open` of each day before them. */
+  d1Returns: number;
+  d1Base: number;
+  d1: number | null;
+  d7Returns: number;
+  d7Base: number;
+  d7: number | null;
+}
+
 export interface BeforeAgeChannel {
   channel: Channel;
   label: string;
@@ -134,6 +160,7 @@ export interface BeforeAgeChannel {
   sessions: number;
   /** Sessions over opens, 0–1 or more; null with no opens. */
   share: number | null;
+  first: FirstSession;
 }
 
 export interface BeforeAgeReason {
@@ -162,6 +189,8 @@ export interface BeforeAgeSummary {
   opens: number;
   sessions: number;
   share: number | null;
+  /** Every channel's first sessions together. */
+  first: FirstSession;
   /** Every channel, in the dashboard's order. */
   channels: BeforeAgeChannel[];
   failed: {
@@ -174,6 +203,49 @@ export interface BeforeAgeSummary {
 
 function ratio(part: number, whole: number): number | null {
   return whole > 0 ? part / whole : null;
+}
+
+/** The first-session counts, with the D1 / D7 bases. */
+const FIRST_KINDS = ['first_open', 'match_start', 'match_minute', 'match_end', 'match_second', 'return_d1', 'return_d7'] as const;
+type FirstKind = (typeof FIRST_KINDS)[number];
+type FirstTally = Record<FirstKind | 'd1Base' | 'd7Base', number>;
+
+function emptyTally(): FirstTally {
+  return {
+    first_open: 0,
+    match_start: 0,
+    match_minute: 0,
+    match_end: 0,
+    match_second: 0,
+    return_d1: 0,
+    return_d7: 0,
+    d1Base: 0,
+    d7Base: 0,
+  };
+}
+
+function isFirstKind(what: CountKind): what is FirstKind {
+  return (FIRST_KINDS as readonly string[]).includes(what);
+}
+
+function firstSession(t: FirstTally): FirstSession {
+  return {
+    firstOpens: t.first_open,
+    starts: t.match_start,
+    minutes: t.match_minute,
+    ends: t.match_end,
+    seconds: t.match_second,
+    startShare: ratio(t.match_start, t.first_open),
+    minuteShare: ratio(t.match_minute, t.first_open),
+    endShare: ratio(t.match_end, t.first_open),
+    secondShare: ratio(t.match_second, t.first_open),
+    d1Returns: t.return_d1,
+    d1Base: t.d1Base,
+    d1: ratio(t.return_d1, t.d1Base),
+    d7Returns: t.return_d7,
+    d7Base: t.d7Base,
+    d7: ratio(t.return_d7, t.d7Base),
+  };
 }
 
 /**
@@ -189,10 +261,27 @@ export function summarizeBeforeAge(
   const opens = new Map<Channel, number>();
   const reasons = new Map<BootReason, number>();
   const failed = new Map<string, FailedStartRow>();
+  const tallies = new Map<Channel, FirstTally>();
+  const tally = (channel: Channel) => {
+    let t = tallies.get(channel);
+    if (!t) tallies.set(channel, (t = emptyTally()));
+    return t;
+  };
+  // The returns' bases: the first opens of the day before each panel day (D1), and of 7 days before (D7).
+  const inPanel = (day: number) => today - day < COUNT_PANEL_DAYS && day <= today;
   for (const row of state.values()) {
-    if (today - row.day >= COUNT_PANEL_DAYS || row.day > today) continue;
+    if (row.what !== 'first_open') continue;
+    if (inPanel(row.day + 1)) tally(row.channel).d1Base += row.n;
+    if (inPanel(row.day + 7)) tally(row.channel).d7Base += row.n;
+  }
+  for (const row of state.values()) {
+    if (!inPanel(row.day)) continue;
     if (row.what === 'open') {
       opens.set(row.channel, (opens.get(row.channel) ?? 0) + row.n);
+      continue;
+    }
+    if (isFirstKind(row.what)) {
+      tally(row.channel)[row.what] += row.n;
       continue;
     }
     const reason = row.what;
@@ -213,8 +302,10 @@ export function summarizeBeforeAge(
   const channels = CHANNELS.map((channel) => {
     const o = opens.get(channel) ?? 0;
     const s = sessionsByChannel.get(channel) ?? 0;
-    return { channel, label: CHANNEL_LABELS[channel], opens: o, sessions: s, share: ratio(s, o) };
+    return { channel, label: CHANNEL_LABELS[channel], opens: o, sessions: s, share: ratio(s, o), first: firstSession(tally(channel)) };
   });
+  const all = emptyTally();
+  for (const t of tallies.values()) for (const k of Object.keys(all) as (keyof FirstTally)[]) all[k] += t[k];
   const totalOpens = channels.reduce((sum, row) => sum + row.opens, 0);
   const totalSessions = channels.reduce((sum, row) => sum + row.sessions, 0);
   const order = (row: FailedStartRow) =>
@@ -226,6 +317,7 @@ export function summarizeBeforeAge(
     opens: totalOpens,
     sessions: totalSessions,
     share: ratio(totalSessions, totalOpens),
+    first: firstSession(all),
     channels,
     failed: {
       starts: rows.reduce((sum, row) => sum + row.starts, 0),

@@ -83,14 +83,28 @@ export type FunnelStep = (typeof FUNNEL_STEPS)[number];
 
 /**
  * What an anonymous count says (POST /analytics/count, counts.ts): the game page opened, or the start-up watchdog's
- * reason for a start that failed. The client list in apps/client/src/analytics/session.ts must stay the same.
+ * reason for a start that failed; a browser's first counted open and its returns 1 and 7 UTC days later; a match
+ * started, played a minute, ended, and a second match in the same page load. The client list in
+ * apps/client/src/analytics/session.ts must stay the same.
  */
-export const COUNT_KINDS = ['open', 'boot_timeout', 'webgl_unavailable', 'webgl_context_lost'] as const;
+export const COUNT_KINDS = [
+  'open',
+  'boot_timeout',
+  'webgl_unavailable',
+  'webgl_context_lost',
+  'first_open',
+  'match_start',
+  'match_minute',
+  'match_end',
+  'match_second',
+  'return_d1',
+  'return_d7',
+] as const;
 
 export type CountKind = (typeof COUNT_KINDS)[number];
 
 /** The three failed-start reasons, in the dashboard's order. */
-export type BootReason = Exclude<CountKind, 'open'>;
+export type BootReason = 'boot_timeout' | 'webgl_unavailable' | 'webgl_context_lost';
 
 export const BOOT_REASONS: readonly BootReason[] = ['boot_timeout', 'webgl_unavailable', 'webgl_context_lost'];
 

@@ -5,6 +5,7 @@
 
 import { ENDLESS_BEST_KEY } from '../endless/best';
 import { RECORD_KEY } from '../record/record';
+import { FIRST_DAY_KEY } from './visits';
 import { clearVisitor, storedDataKey, VISITOR_KEY, type IdStore } from './dataKey';
 import { analyticsEndpoint } from './session';
 
@@ -16,6 +17,12 @@ export const CHANNEL_KEY = 'tdt.channel';
  * Endless's best waves (endless/best.ts). Delete my data clears them here at once, whatever the server answers.
  */
 export const LOCAL_RECORD_KEYS = [RECORD_KEY, ENDLESS_BEST_KEY] as const;
+
+/**
+ * What this browser keeps for the anonymous counts and never sends: the day of its first counted open (visits.ts).
+ * Delete my data clears it too (the next open is a first open again); it is not part of the record the line reports.
+ */
+export const LOCAL_COUNT_KEYS = [FIRST_DAY_KEY] as const;
 
 /** The game server this page posts play data to, or '' when this build sends none. */
 export function analyticsServer(): string {
@@ -195,6 +202,13 @@ export async function deleteMyData(
   fetchFn: Fetch = fetch,
 ): Promise<MyDataResult> {
   const local = clearRecord(store);
+  for (const key of LOCAL_COUNT_KEYS) {
+    try {
+      store.removeItem(key);
+    } catch {
+      // Storage is gone anyway.
+    }
+  }
   const result = await deleteOnServer(server, store, cleared, fetchFn);
   return local ? { ...result, local: true } : result;
 }

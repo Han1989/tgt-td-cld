@@ -1,6 +1,6 @@
 // One HTML page. No scripts, no external assets. Numbers come from summarize().
 
-import type { BeforeAgeSummary } from './counts';
+import type { BeforeAgeSummary, FirstSession } from './counts';
 import type { ErrorGroup } from './errors';
 import { CHANNEL_FUNNEL, type ChannelFunnelStage } from './funnel';
 import type { MatchRow } from './matches';
@@ -147,6 +147,33 @@ function endlessPanel(days: EndlessDayStat[]): string {
     </section>`;
 }
 
+/** One first-session row: a count with its share of first opens under it. */
+function firstCells(f: FirstSession): string {
+  const cell = (n: number, of: number | null) => `<td>${n}<br><span class="note">${share(of)}</span></td>`;
+  const back = (n: number, base: number, of: number | null) => `<td>${share(of)}<br><span class="note">${n} of ${base}</span></td>`;
+  return `<td>${f.firstOpens}</td>${cell(f.starts, f.startShare)}${cell(f.minutes, f.minuteShare)}${cell(f.ends, f.endShare)}${cell(
+    f.seconds,
+    f.secondShare,
+  )}${back(f.d1Returns, f.d1Base, f.d1)}${back(f.d7Returns, f.d7Base, f.d7)}`;
+}
+
+/** The first-session funnel and the returns per channel, from the anonymous counts. */
+function firstSessionTable(before: BeforeAgeSummary): string {
+  const rows = before.channels
+    .filter((row) => row.first.firstOpens > 0 || row.first.starts > 0 || row.first.d1Base > 0 || row.first.d7Base > 0)
+    .map((row) => `<tr><td>${esc(row.label)}</td>${firstCells(row.first)}</tr>`)
+    .join('');
+  const table =
+    rows === ''
+      ? '<p class="note">No first opens counted yet.</p>'
+      : `<div class="scroll"><table><thead><tr><th>Channel</th><th>First opens</th><th>Matches started</th><th>Played a minute</th><th>Finished</th><th>A second match</th><th>D1</th><th>D7</th></tr></thead><tbody>${rows}<tr><td><b>All links</b></td>${firstCells(
+          before.first,
+        )}</tr></tbody></table></div>`;
+  return `<h2 style="margin-top:12px">First sessions (counted without ids: approximate)</h2>
+      ${table}
+      <p class="note">Each page load counts each step once: <b>First opens</b>, a browser’s first counted open; <b>Matches started</b>, a match reached one second; <b>Played a minute</b>, 60 s of one match (CrazyGames’ conversion); <b>Finished</b>, a match won or lost; <b>A second match</b>, two in one page load. The share under each is of the first opens; a returning player’s page load counts too, so read them as a ceiling. <b>D1</b> is a day’s day-1 returns over the first opens of the day before, <b>D7</b> of 7 days before, over the last ${before.days} days. A browser that clears its storage counts as new.</p>`;
+}
+
 /** Page opens and failed starts: anonymous counts with no id, the only thing sent before the age answer. */
 function beforeAgePanel(before: BeforeAgeSummary): string {
   const rows = before.channels
@@ -172,7 +199,7 @@ function beforeAgePanel(before: BeforeAgeSummary): string {
       : `<div class="scroll"><table><thead><tr><th>Reason</th><th>Platform</th><th>Browser</th><th>Starts</th></tr></thead><tbody>${failedRows}</tbody></table></div>`;
   return `<section class="span">
       <h2>Before the age question</h2>
-      <p class="note">Anonymous counts with no id, last ${before.days} days (UTC; kept ${before.keepDays}). Each load of the game page sends one, before the age answer too, and a start that fails sends its reason once. None with play data off, from a browser that asks not to be tracked, under 13, or from 13 to 15 unless play data was turned on. A session needs the age answer and play data on. <b>An open is a page load, so reloads and returning visitors count again and the share is a floor.</b></p>
+      <p class="note">Anonymous counts with no id, last ${before.days} days (UTC; kept ${before.keepDays}). Each load of the game page sends one, before the age answer too, and a start that fails sends its reason once; so do the first-session steps below. None with play data off, from a browser that asks not to be tracked, under 13, or from 13 to 15 unless play data was turned on. A session needs the age answer and play data on. <b>An open is a page load, so reloads and returning visitors count again and the share is a floor.</b></p>
       <div class="stats">
         <div><b>${before.opens}</b><span class="note">pages opened</span></div>
         <div><b>${before.sessions}</b><span class="note">sessions started</span></div>
@@ -184,6 +211,7 @@ function beforeAgePanel(before: BeforeAgeSummary): string {
           ? '<p class="note">No page opens counted yet.</p>'
           : `<div class="scroll"><table><thead><tr><th>Channel</th><th>Opened</th><th>Sessions</th><th>Share</th></tr></thead><tbody>${rows}${total}</tbody></table></div>`
       }
+      ${firstSessionTable(before)}
       <h2 style="margin-top:12px">Failed starts</h2>
       <div class="stats">${reasons}</div>
       ${failedTable}

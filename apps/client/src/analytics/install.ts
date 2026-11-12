@@ -8,6 +8,8 @@ import { AGE_KEY } from './age';
 import { DATA_KEY_KEY, ensureVisitor } from './dataKey';
 import { CHANNEL_KEY } from './myData';
 import type { BootReason } from '../startup/boot';
+import type { MatchCountKind } from './matchCounts';
+import { countVisit } from './visits';
 import { ANALYTICS_KEY, analyticsOn, countOn, writeAnalyticsChoice, type AnalyticsChoice } from './preference';
 import {
   analyticsEndpoint,
@@ -130,6 +132,18 @@ export function countBootFailure(reason: BootReason): void {
   }
 }
 
+/**
+ * A match count (matchCounts.ts: started, a minute, ended, a second match), anonymous like the page open: once per
+ * page load each, only when `countOn` allows it. Nothing when analytics is not installed. Never throws.
+ */
+export function countMatch(what: MatchCountKind): void {
+  try {
+    counter?.count(what);
+  } catch {
+    // Counting must never get in the way of the match.
+  }
+}
+
 /** The page is on screen (for ticks). */
 function visible(): boolean {
   return document.visibilityState === 'visible';
@@ -195,6 +209,10 @@ export function installAnalytics(serverUrl: string): void {
     if (countUrl) {
       counter = createCounter({ channel, platform, browser, post: (body) => post(countUrl, body, false), allowed: countOn });
       counter.count('open');
+      // The first counted open and the day-1 / day-7 returns: only for an open that was counted, and only where this
+      // page's storage keeps what it is given (a hosted frame with none sends the match counts and no returns).
+      const counts = counter;
+      if (countOn() && storageKept()) countVisit(store, Date.now(), (kind) => counts.count(kind));
     }
     const client = createAnalyticsClient({
       visitor,

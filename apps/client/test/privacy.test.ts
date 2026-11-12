@@ -15,6 +15,7 @@ import {
   visitorFromKey,
   type IdStore,
 } from '../src/analytics/dataKey';
+import { FIRST_DAY_KEY } from '../src/analytics/visits';
 import { CHANNEL_KEY, copyMyData, deleteMyData, myDataFile, myDataLine } from '../src/analytics/myData';
 import { createAnalyticsClient, type AnalyticsBody } from '../src/analytics/session';
 
@@ -177,6 +178,12 @@ describe('your data: copy and delete', () => {
       throw new Error('offline');
     });
     expect(thrown).toEqual({ kind: 'error' });
+  });
+
+  it('clears the day of the first counted open (never sent) and still says nothing was sent', async () => {
+    const store = memory({ [FIRST_DAY_KEY]: JSON.stringify({ day: 20_000, counted: [] }) });
+    expect(await deleteMyData(server, store, () => {}, fakeFetch(200, {}, []))).toEqual({ kind: 'nothing' });
+    expect(store.map.has(FIRST_DAY_KEY)).toBe(false);
   });
 
   it('says so when nothing was sent, or when the id is from before data keys', async () => {
