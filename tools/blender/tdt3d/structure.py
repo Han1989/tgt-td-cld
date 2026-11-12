@@ -2,7 +2,8 @@
 # CC0 KayKit pieces in tools/blender/assets/kaykit/ for the kit's small additions; never modelled in code), one row
 # each in tools/blender/structures.py, repainted in Runelight's tokens, lit by the map plate's moon (map.MOON: upper
 # left, 40° up, shadows down-right) and painted by the same look, rendered ahead of time into one sheet
-# (apps/client/src/render/art3d/structures-match.webp, lossless) with its layout (structures.json).
+# (apps/client/src/render/art3d/structures-match-<n>.webp, lossy with the alpha exact since q4: their lossless masters in
+# tools/blender/masters/) with its layout (structures.json).
 #
 # Everything is seen through the match's camera (V-08b, Han's pick B of 6 Nov 2026, docs/ART.md §15 "The tilted
 # camera"): orthographic, from the south, tilted map.PITCH (30°) from straight down, as the plate is (VIEW). A tower is

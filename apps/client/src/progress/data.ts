@@ -945,6 +945,15 @@ const items: ProgressItem[] = [
     proof: pr(173),
   },
   {
+    id: 'D-14',
+    title: 'A lighter download',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Art, music and the hosted build; no sim, protocol or server change. The same pictures in fewer bytes: the creep and structure sheets lossy with their alpha exact (their lossless masters kept in tools/blender/masters/), the hero sheets lossless WebP, the music at 96 kbps, one stage video a hero in a hosted zip. A first match waits for 4.8 MB instead of 9.9; the CrazyGames zip is 16.6 MB (27.7).',
+    proof: pr(176),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

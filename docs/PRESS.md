@@ -232,6 +232,17 @@ The lobby is as before (V-08a's session measured 5.33 s on its machine, 389 KB):
 
 The first screen is unchanged (the sheets start at `ready()`, at low priority). A first visit on Slow 4G now waits for all 9.9 MB (about 55 s of the line, plus the lobby music's 2.7 MB stream the first tap starts) and then plays with no placeholder; one sheet after another it was 90.0 s, all at once 75.3 s (`docs/ART.md` §15 "Loading").
 
+**Results, 12 Nov 2026** (q4, a lighter download: the creep and structure sheets lossy with the alpha exact, the hero sheets lossless WebP; `docs/ART.md` §15 "Lighter sheets"; this session's 4-core container, `main` at beb75db in the same hour, 5 runs each, the Ranger, Play solo tapped the moment the lobby is usable):
+
+| Build | Profile | Usable lobby | Play solo → the match starts | Bar shown | Sheets |
+|---|---|---|---|---|---|
+| `main` | Fast 4G (`--match --fast-4g`) | median 2.31 s (2.28–3.24) | median **10.53 s** (10.46–10.70) | 5 of 5 | 9,927 KB |
+| q4 | Fast 4G | median 2.41 s (2.32–2.44) | median **5.10 s** (5.02–5.82) | 5 of 5 | **4,705 KB** |
+| `main` | none (`--match --no-throttle`) | median 0.54 s | median 0.78 s (0.68–0.82) | 0 of 5 | 9,927 KB |
+| q4 | none | median 0.53 s | median 0.73 s (0.72–0.86) | 0 of 5 | 4,705 KB |
+
+The lobby is unchanged (the sheets load behind it); on Slow 4G (1.47 Mbit/s) the 4.7 MB are about 26 s of the line, against 55 s. The hosted CrazyGames zip is 16.6 MB (27.7), under the 20 MB its phone homepage asks for (`docs/DEPLOY.md` §10).
+
 **Not re-measured for the home card of 10 Oct 2026** (V-01, PR #100: a hero stage and Play solo under it, no dock). The session that built it could not run this script. Its layout was checked another way: on a 412 × 839 and a 390 × 664 screen Play solo is on screen with no scrolling and takes the tap at its centre (`e2e/lobby.spec.ts`). The stage adds one Canvas 2D drawing of the hero after `tdt:ready`. Re-run the script and add a row here.
 
 The production row is a baseline, not a like-for-like timing: it went over the real internet to Vercel on top of the emulated network. What it shows is the layout: before this change a new player on a Pixel 7 (and an iPhone 13) had to scroll to find Play solo, and the first paint was the in-match HUD markup ("WAVE 0 / 10", a hero bar) rather than the title.

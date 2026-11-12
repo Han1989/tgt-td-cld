@@ -430,13 +430,13 @@ apps/client/src/render/art/
                    matriarch, shardback, arrowTower, cannonTower, frostTower, arcaneTower, flakTower, heart, portal, pad,
                    tree, rock, mushrooms, runestone; projectiles: arrowShot, cannonShot, frostShot, arcaneShot, flakShot,
                    rangerArrow, critArrow, multishotArrow, arcanistBolt, fireball, archerArrow; traps: snareTrap)
-apps/client/src/render/art3d/ 3D heroes rendered ahead of time (§15): <hero>.json (layouts), <hero>-match.png (sheet),
+apps/client/src/render/art3d/ 3D heroes rendered ahead of time (§15): <hero>.json (layouts), <hero>-match.webp (sheet, lossless),
                               layout.ts (types, cycleFrame / drawStep / progressFrame / walkCadence / fitStage),
                               sheet.ts (loading), heroRig.ts (Hero3DRig, one rig for all three), index.ts (heroRig3d);
                               the creeps' (creepData.ts, creepSheet.ts, creepRig.ts, creeps.ts, <kind>.json /
-                              -match.webp, lossless);
-                              the towers', Heart's and portals': structures.json and structures-match.webp (one sheet,
-                              lossless since V-07d),
+                              -match.webp, lossy with the alpha exact since q4, their masters in tools/blender/masters/);
+                              the towers', Heart's and portals': structures.json and structures-match-<n>.webp (four
+                              pages, lossy with the alpha exact since q4, "Lighter sheets"),
                               structures.ts (types, towerVariant / recoilFrame / flameFrame), structureSheet.ts (loading),
                               towerRig.ts (Tower3DRig), buildings.ts (Heart3DView, Portal3DView);
                               the HUD's frames (§12, §15 "The HUD's frames"): ui.json and ui.webp (one sheet, lossless)
@@ -597,15 +597,16 @@ tools/blender/
     match.py       the match sheet: the layers with white twins, and their layout
     creep.py       a creep's match sheet: its states' frames, trimmed and packed 2048 wide, the fringe check on each
                    (over the road), its contact shadow, the Shardback's hide masks; the two-page budget check
-    encode.py      the encodes; a creep's (or the UI's) sheet as lossless WebP, checked for colour under a clear
-                   pixel and written in libwebp's exact mode if it has some (V-06j)
+    encode.py      the encodes; a sheet's master (or the UI's sheet) as lossless WebP, checked for colour under a clear
+                   pixel and written in libwebp's exact mode if it has some (V-06j); the game's lossy copy of a
+                   creep's or a structure page's master (`shipped`, `SHIPPED_QUALITY`, q4)
     structure.py   the towers', the Heart's and the portals' sheet: pieces placed and repainted, rendered straight down
                    or from the south, painted, the moon's shadow from a squashed copy, the fringe and pad checks,
                    the glow layers, one page packed (a partial render keeps the other frames)
     ui.py          the HUD's sheet: each piece rendered straight on, a 9-slice drawn large and cut, its edges evened,
                    the fringe check on each, one 1024 px page packed
     encode.py      ffmpeg: the MP4, the WebM, the WebP poster and stills, each searched to its size budget; the
-                   creeps' match sheets as lossless WebP
+                   match sheets as lossless WebP, and the shipped lossy copies (q4)
     imageio.py     PNG writing (deterministic) and reading
 ```
 
@@ -686,7 +687,7 @@ The whole stage is rendered in Blender: the moonlit clearing with the hero in it
 
 ### The match frames
 
-One sheet per hero at **4 px per world px** (`src/render/art3d/<hero>-match.png`, PNG, RGBA), rendered at 8 and averaged down, with its layout in `<hero>.json`. Each frame is a clip's pose at one moment (`hero.py` `match.frames`), timed by the hero's 2D rig; every frame has its **white twin** (the hit flash: the same alpha, white), each kind of frame (idle, walk, the swing…) is cropped to its own box, its anchor the same point, so frames swap without moving (V-06b; V-05b cropped a whole layer to one box).
+One sheet per hero at **4 px per world px** (`src/render/art3d/<hero>-match.webp`, RGBA; PNG until q4, now lossless WebP, the same pixels, 1.60 → 1.03 MB for the three), rendered at 8 and averaged down, with its layout in `<hero>.json`. Each frame is a clip's pose at one moment (`hero.py` `match.frames`), timed by the hero's 2D rig; every frame has its **white twin** (the hit flash: the same alpha, white), each kind of frame (idle, walk, the swing…) is cropped to its own box, its anchor the same point, so frames swap without moving (V-06b; V-05b cropped a whole layer to one box).
 
 | Layer | View | Frames | Anchor |
 |---|---|---|---|
@@ -1189,6 +1190,18 @@ on a 412 × 839 phone at 3× and a crop round the Ironhorn (the frame alone: `do
   | load-all, second visit, tapped 2 s after the lobby (1 run) | 0.80 s | 0.12 s, no bar | none | from the worker |
 
   On Slow 4G the bytes alone are about 55 s of the line (9.9 MB at 1.47 Mbit/s), on Fast 4G about 10 s: the bar ends within about a second of the last byte, and a player who spends that long on the home card sees no bar. **Two things were cut on the way:** the chain loaded one sheet after another, each waiting for the last one's decode (Slow 4G 90.0 s: the creeps alone took 29 s for 2.2 MB), so every sheet is now fetched at once; and the lobby's stage stops while the card covers it (its video's download dropped). **What still shares the line:** the lobby music's stream (2.7 MB), which the first tap starts, and in a measurement the first tap is Play solo: about 15 s of Slow 4G; left as it is (Han's call). **The perf spec alone** (the stress scene): 16.6 ms of JavaScript a frame (build 4: 13.2–15.4, budget 33.3), 31.2 draw calls (30.1–31.1), **25 textures, 131.8 MiB on the GPU** (build 4: 19, 99.8 MiB): +32.0 MiB, exactly the six sheets that scene does not draw but a match must have up (the Ironhorn 3.2, the Matriarch 8.2, the Shardback 4.6, the three heroes 16.0); a solo match uploads the two heroes it does not show too (up to 13 MiB), since the chain loads all three.
+
+### Lighter sheets (q4, "A lighter download", 12 Nov 2026)
+
+**The same pictures in fewer bytes** (the advisor's review of 10 Nov 2026; Han's rule of 7 Nov stands: every sheet a match draws is in before it starts). Tools, generated art, the music and the hosted build; nothing rendered again, no sim, protocol or server change.
+
+- **The hero sheets are lossless WebP** (`<hero>-match.webp`, `encode.sheet`; `tdt3d/match.py` writes them so): the same pixels as the PNGs (decoded and compared), 1.60 → **1.03 MB** for the three (the Ranger 276 → 181 KB, the Warden 835 → 554, the Arcanist 486 → 294). The PNGs kept colour under some clear pixels; the WebPs are cleared there, which never shows (every sheet is premultiplied as it goes on the GPU).
+- **The creep and structure sheets ship lossy with the alpha exact.** Each has a **lossless master in `tools/blender/masters/`** (the pixels the build made: what the tests read, what a partial re-render keeps frames from), and the game's copy is libwebp's lossy encode of it with the alpha plane stored losslessly (`alpha_quality` 100, method 6; `encode.shipped`, `SHIPPED_QUALITY`): **the four structure pages at quality 90, the nine creep and boss sheets at 92**, 9.20 → **3.95 MB** (the pages 7.03 → 2.97, the creeps 2.17 → 0.98). `build.py` writes both on every render; `python3 tools/blender/lighter.py ladder` measures a ladder of qualities (80–95) on the masters, `lighter.py write` writes the shipped copies from the committed masters and `masters/shipped.json` (each file's quality, bytes, hash and change), `lighter.py sheet` draws `docs/art/lighter-ab.png`.
+- **The change** (over the master's opaque pixels; the full table is `masters/shipped.json`): the alpha is the master's to the pixel on all thirteen (`test/art3d.test.ts` decodes the shipped files' alpha plane, `scripts/webp.ts` `decodeWebpAlpha`, and compares it), so every silhouette, `TOWER_REACH`, tap box and fringe check is as before; the fringe check over the meadow's grass is the master's on every sheet (at most +0.0001); the 2-pixel band inside every silhouette changes by 5–10 levels (99th percentile; the Wisp's glowing edge 19 at every quality); 0.1% of opaque pixels move by 23–46 levels at any quality from 80 to 95, the colour planes being half size in lossy WebP (a thin ink line beside gold or a rune's glow is a little softer at 1:1; at a phone's size, where a sheet is drawn smaller than 1:1, it does not show). Quality is chosen per kind as the highest that keeps a first match's pictures under 5 MB: 92 on the pages would be 3.22 MB, and the creeps at 95 another 0.17.
+- **The cost** is nothing on the GPU: a decoded sheet is its pixels. The stress scene (this container, main in the same hour): 25 textures, 131.8 MiB, 29.8 draw calls a frame (main 30.0), 20.6 ms of JavaScript a frame (main 18.1; the same build's noise there, the budget 33.3).
+- **Going back to lossless** for a sheet: give its kind `None` in `SHIPPED_QUALITY` (`tdt3d/encode.py`) and run `lighter.py write`: its shipped file is then its master, byte for byte (the test accepts that). The tests' bound on the shipped pages' total (3.5 MB) would have to move with it.
+- **The music** (`public/music/*.mp3`) is 96 kbps joint stereo (128 before), re-encoded from the 128 kbps files: 7.0 → **5.2 MB**; the game's own trim (`fitFile`) finds the same loop points to the sample (the match file's end 0.4 ms sooner), the jump across the seam is the same size (0.0005–0.0012), the levels measured again (`musicLevels.json`, each 0.43 dB lower: the encoder's low-pass). Not listened to in the session that made it: Han's ear on the lobby's plucked strings decides (128 for that file if 96 is audibly worse).
+- **Measured** (`npm run first-load -w @tdt/client -- --match`, the Ranger, 5 runs each, this container, main in the same hour): Fast 4G, Play solo → the match **10.53 → 5.10 s** (10.46–10.70 → 5.02–5.82); no throttling 0.78 → 0.73 s; the sheets a first match waits for **9,927 → 4,705 KB** (the Warden's: 5.2 MB). `docs/PRESS.md` §5.
 
 ### The stress budget after the 3D sprites (V-05e, 17 Oct 2026)
 

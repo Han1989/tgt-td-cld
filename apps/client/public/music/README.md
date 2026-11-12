@@ -11,7 +11,7 @@ as soon as it's in this folder (after the next deploy; no code change):
 
 - Each file loops. The game trims the encoder's silence at both ends, so a file cut on the beat
   loops without a gap, and it levels every file to the same loudness.
-- Stereo, 44.1 kHz, 128 kbps, a loop of 1–2 minutes: 1–2 MB (a warning at build time above 4.5 MB).
+- Stereo, 44.1 or 48 kHz, 96 kbps joint stereo (the three files here since q4; 128 kbps is fine for a file that needs it), a loop of 1–2 minutes: 1–2 MB (a warning at build time above 4.5 MB).
 - Files aren't downloaded when the app installs: each one is fetched the first time it's needed (the
   lobby's on the first tap, the match's when a match is created) and then kept for offline play. It plays
   while it downloads (streamed), fading in within about a second of the tap, and the game switches to its

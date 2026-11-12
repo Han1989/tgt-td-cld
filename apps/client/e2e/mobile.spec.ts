@@ -1787,7 +1787,9 @@ test.describe('every sheet in before a match (V-08b load-all)', () => {
     // The line names what it waits for and the megabytes of the whole set; the hero's portrait, his name and a tip.
     await expect(page.locator('.art-wait-line')).toHaveText(/^Loading the (map|frames|towers|creeps|heroes)… \d+\.\d of \d+\.\d MB$/);
     const total = Number(/of (\d+\.\d) MB/.exec((await page.locator('.art-wait-line').textContent()) ?? '')![1]);
-    expect(total).toBeGreaterThan(8);
+    // Every sheet the match draws: 5.2 MB with the Warden since q4's lighter sheets (9.9 MB before).
+    expect(total).toBeGreaterThan(4);
+    expect(total).toBeLessThan(6);
     await expect(page.locator('.art-wait-name')).toHaveText('Warden');
     expect(await page.locator('.art-wait-portrait').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('warden-poster');
     await expect(page.locator('.art-wait-tip b')).toHaveText(/^[QWER] · /);

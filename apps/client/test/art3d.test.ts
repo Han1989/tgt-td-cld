@@ -15,7 +15,7 @@ import { TUNING } from '@tdt/sim';
 import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
 import { decodeWebp, decodeWebpAlpha } from '../scripts/webp';
-import { pickVideo } from '../src/lobby/stageBackdrop';
+import { pickHostedVideo, pickVideo } from '../src/lobby/stageBackdrop';
 import { isMediaPath, isStageVideo, swSource } from '../src/platform/swSource';
 import {
   cycleFrame,
@@ -506,6 +506,9 @@ describe('3D heroes: the rig and stage rules', () => {
     expect(pickVideo((t) => (t.includes('avc1') ? 'probably' : 'probably'))).toBe('mp4');
     expect(pickVideo((t) => (t.includes('vp9') ? 'probably' : ''))).toBe('webm');
     expect(pickVideo(() => '')).toBeNull();
+    // A hosted build has only the MP4s (q4): where H.264 does not play, the poster stays.
+    expect(pickHostedVideo((t) => (t.includes('avc1') ? 'probably' : ''))).toBe('mp4');
+    expect(pickHostedVideo((t) => (t.includes('vp9') ? 'probably' : ''))).toBeNull();
   });
 });
 

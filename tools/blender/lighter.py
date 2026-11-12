@@ -6,6 +6,12 @@
 #   python3 tools/blender/lighter.py write             writes the shipped files at the picked qualities, and
 #                                                      tools/blender/masters/shipped.json (what the tests check)
 #                                                      and the pages' bytes in structures.json
+#   python3 tools/blender/lighter.py sheet [--held DIR] [--out FILE]
+#                                                      docs/art/lighter-ab.png for Han: crops of each structure
+#                                                      page, the Matriarch and the Grunt, lossless beside shipped,
+#                                                      marked 1 and 2 (the key under the sheet), and the held wave-10
+#                                                      phone frame before and after (`npm run camera-ab -- --zero
+#                                                      <main's dist-e2e> --frames DIR`: zero.png main, pitched.png this)
 #
 # The change against the master, over the master's opaque pixels (alpha 255): the largest colour difference (any
 # channel, 0..255) and its 99.9th percentile; the same over the 2-pixel band inside every silhouette; and the fringe
@@ -86,6 +92,118 @@ def write_one(name):
     return name, row
 
 
+def _font(size):
+    from PIL import ImageFont
+
+    try:
+        return ImageFont.truetype('DejaVuSans-Bold.ttf', size)
+    except OSError:
+        return ImageFont.load_default(size=size)
+
+
+def _crop(path, box):
+    """A cell of a sheet (x, y, w, h), composited over the grass as the GPU draws it."""
+    x, y, w, h = box
+    a = np.asarray(Image.open(path).convert('RGBA'))[y:y + h, x:x + w]
+    pad = np.zeros((h + 16, w + 16, 4), np.uint8)
+    pad[8:8 + h, 8:8 + w] = a
+    return Image.fromarray(over_grass(pad))
+
+
+def _picks():
+    """What the sheet shows: three tower cells a structure page (the biggest of three kinds), the Matriarch's and the
+    Grunt's first walk frames."""
+    layout = json.load(open(os.path.join(SHIPPED, 'structures.json')))['match']
+    rows = []
+    for n, pg in enumerate(layout['pages']):
+        seen, cells = set(), []
+        towers = sorted(((k, c) for k, c in layout['cells'].items() if c['page'] == n and '/h1/turret0' in k or
+                         (c['page'] == n and k.endswith('/base'))), key=lambda kc: -kc[1]['w'] * kc[1]['h'])
+        for k, c in towers:
+            kind = k.split('/')[0]
+            if kind in seen:
+                continue
+            seen.add(kind)
+            cells.append((k, (c['x'], c['y'], c['w'], c['h'])))
+            if len(cells) == 3:
+                break
+        rows.append((pg['file'], cells))
+    for kind in ('matriarch', 'grunt'):
+        m = json.load(open(os.path.join(SHIPPED, f'{kind}.json')))['match']
+        frames = [(f'{kind} walk {i}', (f['x'], f['y'], f['w'], f['h'])) for i, f in enumerate(m['frames']['walk'][:3])]
+        rows.append((m['file'], frames))
+    return rows
+
+
+def sheet(held, out):
+    from PIL import ImageDraw
+
+    rng = np.random.default_rng(4)  # fixed: the same sheet every time, the order not a pattern
+    big, small = _font(30), _font(20)
+    blocks, key = [], []
+    for file, cells in _picks():
+        pair = []
+        for name, box in cells:
+            a = _crop(os.path.join(MASTERS, file), box)
+            b = _crop(os.path.join(SHIPPED, file), box)
+            first_is_master = bool(rng.integers(2))
+            pair.append((name, (a, b) if first_is_master else (b, a)))
+            key.append(f'{file} {name}: 1 = {"lossless" if first_is_master else "shipped"}')
+        blocks.append((file, pair))
+    gap = 14
+    width = 1600
+    rows = []
+    for file, pair in blocks:
+        h = max(max(p[0].height, p[1].height) for _, p in pair) + 44
+        rows.append((file, pair, h))
+    heldims = []
+    if held:
+        before = Image.open(os.path.join(held, 'zero.png')).convert('RGB')
+        after = Image.open(os.path.join(held, 'pitched.png')).convert('RGB')
+        scale = (width - 3 * gap) / 2 / before.width
+        sz = (int(before.width * scale), int(before.height * scale))
+        heldims = [before.resize(sz, Image.LANCZOS), after.resize(sz, Image.LANCZOS)]
+    lines = len(key) + len(blocks) + 4
+    total = gap + sum(h + gap for *_, h in rows) + (heldims[0].height + 60 if heldims else 0) + lines * 26 + gap
+    canvas = Image.new('RGB', (width, total), (24, 28, 34))
+    d = ImageDraw.Draw(canvas)
+    y = gap
+    for file, pair, h in rows:
+        d.text((gap, y), file, fill=(230, 230, 230), font=small)
+        x = gap
+        for name, (one, two) in pair:
+            for label, im in (('1', one), ('2', two)):
+                canvas.paste(im, (x, y + 30))
+                d.text((x + 6, y + 32), label, fill=(255, 255, 255), font=big, stroke_width=3, stroke_fill=(0, 0, 0))
+                x += im.width + 4
+            x += gap * 2
+        y += h + gap
+    if heldims:
+        d.text((gap, y), 'Held wave-10 phone frame (scripts/heldMoment.ts): 1 = main before q4, 2 = this build',
+               fill=(230, 230, 230), font=small)
+        canvas.paste(heldims[0], (gap, y + 30))
+        canvas.paste(heldims[1], (2 * gap + heldims[0].width, y + 30))
+        d.text((gap + 8, y + 34), '1', fill=(255, 255, 255), font=big, stroke_width=3, stroke_fill=(0, 0, 0))
+        d.text((2 * gap + heldims[0].width + 8, y + 34), '2', fill=(255, 255, 255), font=big, stroke_width=3,
+               stroke_fill=(0, 0, 0))
+        y += heldims[0].height + 60
+    shipped = json.load(open(os.path.join(MASTERS, 'shipped.json')))['sheets']
+    d.text((gap, y), 'Key (crops at 1 sheet px a pixel, over the grass: as big as a 3x phone draws them or bigger)',
+           fill=(230, 230, 230), font=small)
+    y += 26
+    for line in key:
+        d.text((gap, y), line, fill=(200, 200, 200), font=small)
+        y += 26
+    for file in dict.fromkeys(f for f, _ in blocks):
+        r = shipped[file]
+        d.text((gap, y), f'{file}: lossless {r["masterBytes"] / 1e3:.0f} KB, shipped q{r["quality"]} {r["bytes"] / 1e3:.0f} KB',
+               fill=(200, 200, 200), font=small)
+        y += 26
+    canvas = canvas.crop((0, 0, width, y + 2 * gap))
+    canvas.save(out, optimize=True)
+    print(f'wrote {out} ({canvas.width} × {canvas.height})')
+
+
 def sheets():
     return sorted(f for f in os.listdir(MASTERS) if f.endswith('-match.webp') or f.startswith('structures-match-'))
 
@@ -120,8 +238,13 @@ def main():
         print(f'total {sum(r["masterBytes"] for r in rows.values()) / 1e6:.2f} → {sum(r["bytes"] for r in rows.values()) / 1e6:.2f} MB')
         if bad:
             raise SystemExit('The alpha changed or the fringe check failed on: ' + ', '.join(bad))
+    elif cmd == 'sheet':
+        args = sys.argv[2:]
+        held = args[args.index('--held') + 1] if '--held' in args else None
+        out = args[args.index('--out') + 1] if '--out' in args else os.path.join(ROOT, 'docs', 'art', 'lighter-ab.png')
+        sheet(held, out)
     else:
-        raise SystemExit('usage: lighter.py ladder [file…] | write')
+        raise SystemExit('usage: lighter.py ladder [file…] | write | sheet [--held DIR] [--out FILE]')
 
 
 if __name__ == '__main__':

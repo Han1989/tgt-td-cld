@@ -36,6 +36,14 @@ export function pickVideo(canPlay: (type: string) => string): 'mp4' | 'webm' | n
   return null;
 }
 
+/**
+ * A hosted build's choice (q4): its zip carries only the MP4s (`hostedLeavesOut`, scripts/embedReport.ts), so where
+ * H.264 does not play the stage keeps its poster, as it does under reduced motion.
+ */
+export function pickHostedVideo(canPlay: (type: string) => string): 'mp4' | null {
+  return canPlay('video/mp4; codecs="avc1.640028"') ? 'mp4' : null;
+}
+
 type Shown = 'none' | 'clearing' | 'poster' | 'video';
 
 export class StageBackdrop {
@@ -211,7 +219,7 @@ export class StageBackdrop {
     const hero = this.hero;
     if (!s || this.video) return;
     const v = document.createElement('video');
-    const kind = pickVideo((t) => v.canPlayType(t));
+    const kind = __EMBED__ ? pickHostedVideo((t) => v.canPlayType(t)) : pickVideo((t) => v.canPlayType(t));
     if (!kind) return;
     v.className = 'stage-video';
     v.muted = true;
