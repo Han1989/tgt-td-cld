@@ -92,7 +92,8 @@ async function frameAt(page: Page): Promise<{ x: number; y: number }> {
   return { x: b!.x, y: b!.y };
 }
 
-/** Answers the age question (a fresh browser is asked at its first Play / Create / Join). */
+/** Answers the age question (on the site a fresh browser is asked at its first Play / Create / Join; in a hosted
+ * build only where a name is posted or play data is turned on). */
 async function answerAge(frame: Frame | Page): Promise<void> {
   await expect(frame.locator('#age-input')).toBeVisible();
   await frame.locator('#age-input').fill('30');
@@ -171,12 +172,11 @@ test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; 
   await expect(privacy.locator('h1')).toBeVisible();
   await privacy.close();
 
-  // Play solo (Quick): the age question first, its "Why we ask" the real game's page too; then the match.
+  // Play solo (Quick): the match at once, with no age question (q3: a hosted build does not ask at Play).
   await frame.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
   await frame.locator('#lobby-offline').click();
-  await expect(frame.locator('#age-check a')).toHaveAttribute('href', `${HARNESS.siteOrigin}/privacy.html#age`);
-  await answerAge(frame);
   await expect.poll(() => frame.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect(frame.locator('#age-check')).toHaveCount(0);
   await expect.poll(() => frame.evaluate(() => window.__tdt.me())).not.toBeNull();
   // ⚙ Settings has no App row (Install app, Add to Home Screen).
   await frame.locator('#settings-btn').click();
@@ -224,10 +224,18 @@ test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; 
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   }
 
-  // Every visit from the host counts under its channel: the anonymous open, and the session's events.
-  await expect.poll(() => posts.some((p) => p.path === '/analytics/count' && p.body.what === 'open')).toBe(true);
-  await expect.poll(() => posts.filter((p) => p.path === '/analytics/event').length, { timeout: 30_000 }).toBeGreaterThan(0);
-  for (const p of posts) expect(p.body.channel, `${p.path} ${JSON.stringify(p.body).slice(0, 120)}`).toBe('itch');
+  // Every visit from the host counts under its channel. With no age answer nothing with an id goes: only the
+  // anonymous counts, the open, the first open, the match a second in and a minute in, each exactly what, channel,
+  // platform and browser.
+  const counted = () => posts.filter((p) => p.path === '/analytics/count').map((p) => p.body.what);
+  await expect.poll(counted).toEqual(expect.arrayContaining(['open', 'first_open', 'match_start']));
+  await expect.poll(counted, { timeout: 90_000, message: 'match_minute after 60 s of match time' }).toContain('match_minute');
+  for (const p of posts) {
+    expect(p.path, JSON.stringify(p.body).slice(0, 120)).toBe('/analytics/count');
+    expect(Object.keys(p.body).sort()).toEqual(['browser', 'channel', 'platform', 'what']);
+    expect(p.body.channel, `${p.path} ${JSON.stringify(p.body).slice(0, 120)}`).toBe('itch');
+  }
+  expect(await frame.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 
   // The service worker registers in the frame, or the game ran without it: both pass, and the run says which.
   await expect(html).toHaveAttribute('data-sw', /^(registered|failed|unavailable)$/);
@@ -258,7 +266,6 @@ test.describe('the wait in a frame', () => {
     const frame = await openGame(page, isMobile, false, 'artwait');
     await frame.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
     await frame.locator('#lobby-offline').click();
-    await answerAge(frame);
     const card = frame.locator('#art-wait');
     await expect(card).toBeVisible();
     await expect(frame.locator('.art-wait-line')).toHaveText(/^Loading the (map|frames|towers|creeps|heroes)… \d+\.\d of \d+\.\d MB$/);
@@ -276,7 +283,7 @@ test.describe('the wait in a frame', () => {
   });
 });
 
-test('with no storage at all (a sandbox, third-party storage blocked) the game plays, asks the age every visit, sends only the open count', async ({
+test('with no storage at all (a sandbox, third-party storage blocked) the game plays at once, sends only the open and match counts', async ({
   page,
   isMobile,
 }) => {
@@ -297,23 +304,27 @@ test('with no storage at all (a sandbox, third-party storage blocked) the game p
     const frame = await openGame(page, isMobile);
     await frame.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
     await frame.locator('#lobby-offline').click();
-    // Nothing was remembered: the question again on the second visit.
-    await answerAge(frame);
+    // No question at Play in a hosted build, on either visit.
     await expect.poll(() => frame.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0), { timeout: 30_000 }).toBeGreaterThan(0);
+    await expect(frame.locator('#age-check')).toHaveCount(0);
     await expect.poll(() => posts.filter((p) => p.path === '/analytics/count' && p.body.what === 'open').length).toBe(visit);
+    await expect.poll(() => posts.filter((p) => p.path === '/analytics/count' && p.body.what === 'match_start').length).toBe(visit);
   }
-  // A few seconds of play: still no play data, and the open counts were the host's.
+  // A few seconds of play: still no play data, the counts were the host's, and with nowhere to keep a day no first
+  // open and no return.
   await page.waitForTimeout(2000);
   expect(posts.filter((p) => p.path !== '/analytics/count')).toEqual([]);
   for (const p of posts) expect(p.body.channel).toBe('itch');
+  expect(posts.map((p) => p.body.what).filter((what) => what === 'first_open' || String(what).startsWith('return_'))).toEqual([]);
 });
 
 test('a room made in the frame: its invite link opens the real game, a friend there joins, and both play one match', async ({ page, browser, isMobile }) => {
   const frame = await openGame(page, isMobile);
   await frame.locator('#lobby-name').fill('Framed');
   await frame.locator('#lobby-create').click();
-  await answerAge(frame);
+  // Create room asks nothing in a hosted build.
   await expect(frame.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+  await expect(frame.locator('#age-check')).toHaveCount(0);
   const code = (await frame.locator('#lobby-room-code').textContent())!.trim();
   expect(code).toMatch(/^[A-Z0-9]{4,5}$/);
 
@@ -342,7 +353,8 @@ test('a room made in the frame: its invite link opens the real game, a friend th
     await expect(friend.locator('html')).toHaveAttribute('data-embed', 'top');
     await friend.locator('#lobby-name').fill('Site');
     await friend.locator('#lobby-join').click();
-    await answerAge(friend);
+    // The stand-in runs the hosted build at the top (`data-embed="top"`), so Join asks nothing here either.
+    await expect(friend.locator('#age-check')).toHaveCount(0);
     await expect(friend.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
     await expect(frame.locator('#lobby-players')).toContainText('Site');
     await friend.locator('#lobby-ready').click();
@@ -360,4 +372,23 @@ test('a room made in the frame: its invite link opens the real game, a friend th
   } finally {
     await friendContext.close();
   }
+});
+
+test('a Daily run in the frame starts with no question, and Post my run still asks the age first', async ({ page, isMobile }) => {
+  const posts = await capturePosts(page);
+  const frame = await openGame(page, isMobile);
+  await expect(frame.locator('#lobby-daily')).toBeVisible({ timeout: 30_000 });
+  await frame.locator('#lobby-daily').click();
+  await expect.poll(() => frame.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect(frame.locator('#age-check')).toHaveCount(0);
+  await frame.evaluate(() => window.__tdt.lose());
+  await expect(frame.locator('#end-daily-post')).toBeVisible({ timeout: 30_000 });
+  await frame.locator('#end-daily-post').click();
+  // A name is about to be posted: the question first, its "Why we ask" the real game's page.
+  await expect(frame.locator('#age-check')).toBeVisible();
+  await expect(frame.locator('#age-check a')).toHaveAttribute('href', `${HARNESS.siteOrigin}/privacy.html#age`);
+  // Until the answer only the anonymous counts went, with no id.
+  expect(posts.map((p) => p.path).filter((path) => path !== '/analytics/count')).toEqual([]);
+  await answerAge(frame);
+  await expect(frame.locator('#end-daily-msg')).toContainText('Pick a nickname');
 });

@@ -333,6 +333,15 @@ From Han's Endless run of 11 Nov 2026 (seven presses in a second took wave 42 to
 - [ ] 23.4 **Not offered** in a Quick or Full match, the Daily run or an online room (⚙ shows no End run).
 - [ ] 23.5 **Bests start again:** in a browser that had an Endless best before this build, the Mode row's Endless line reads **"Bests start again: Call early can no longer stack waves"** once (for the rest of that visit), then nothing until a new run sets a best.
 
+## 24. No question before the first match in a hosted build (q3)
+
+On the itch.io Draft (or `npm run embed:serve -- itch` on a laptop), in a private window or with the host's site data cleared, then on the site.
+
+- [ ] 24.1 **Hosted: Play starts the match.** On the host's page, tap **Play solo**: the match starts at once, no "How old are you?" sheet. **Learn to play**, the **Daily run** tile and **Create room** do the same.
+- [ ] 24.2 **Hosted: the question where a name goes.** Finish a Daily run and tap **Post my run**: the age sheet comes first, then the nickname. ⚙ → **Play data** before an answer reads *…It asks once, if you turn this on.*; turning it **On** asks the age.
+- [ ] 24.3 **The site still asks at Play.** On https://tgt-td-cld.vercel.app in a private window, Play solo opens the age sheet as before, and Continue goes straight into the match.
+- [ ] 24.4 **The counts (Han).** After a few first visits, `/analytics` → **Before the age question** → **First sessions** shows the host's row: first opens, matches started, a minute played, finished; D1 / D7 fill in a day and a week later.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |

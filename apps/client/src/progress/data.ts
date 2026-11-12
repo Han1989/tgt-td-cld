@@ -945,6 +945,15 @@ const items: ProgressItem[] = [
     proof: pr(173),
   },
   {
+    id: 'D-13',
+    title: 'No question before the first match',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client, the server’s analytics and docs; protocol stays 26. For CrazyGames’ Basic Launch: in a hosted build (itch.io, Newgrounds, CrazyGames) Play starts the match with no “How old are you?” sheet; the site still asks at Play, and both still ask where a name is posted or play data is turned on. Nothing with an id goes before an answer, so a first session is counted with no id: first open, a match started, a minute played, a match finished, a second match, and the day-1 and day-7 returns (the first visit’s day kept on the device, never sent). The dashboard shows them per channel, approximate.',
+    proof: pr(175),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
