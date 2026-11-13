@@ -19,8 +19,13 @@
    "browser": "No"
   },
   {
+   "key": "X",
+   "does": "Cancels a build, an aim or a selection, and closes the open panel (the key every hint names, with right-click)",
+   "browser": "No"
+  },
+  {
    "key": "Escape",
-   "does": "Cancels a build, an aim or a selection",
+   "does": "The same as X where the page receives it (outside fullscreen); no text in the game names it",
    "browser": "Yes: in fullscreen the browser takes Escape to leave it (the page sees it only out of fullscreen)"
   },
   {
@@ -103,7 +108,7 @@
      "shot": "frames/821x462-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "W · Snare Trap"
      },
      "cutOff": [],
      "below": [
@@ -153,7 +158,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 38,
+     "heroPx": 51,
      "gruntPx": null
     },
     {
@@ -167,7 +172,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 13\"",
+      ".btn \"Repair 10\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -215,7 +220,7 @@
      "shot": "frames/907x510-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "W · Snare Trap"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [],
@@ -257,7 +262,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 44,
+     "heroPx": 43,
      "gruntPx": null
     },
     {
@@ -271,7 +276,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 12\"",
+      ".btn \"Repair 10\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -361,7 +366,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 65,
+     "heroPx": 61,
      "gruntPx": null
     },
     {
@@ -375,7 +380,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 10\"",
+      ".btn \"Repair 7\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -423,7 +428,7 @@
      "shot": "frames/1216x684-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "E · Keen Eye"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [],
@@ -465,7 +470,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 80,
+     "heroPx": 81,
      "gruntPx": null
     },
     {
@@ -479,7 +484,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 10\"",
+      ".btn \"Repair 5\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -527,7 +532,7 @@
      "shot": "frames/1280x720-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "R · Arrow Storm"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [],
@@ -569,7 +574,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 90,
+     "heroPx": 82,
      "gruntPx": null
     },
     {
@@ -583,7 +588,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 8\"",
+      ".btn \"Repair 13\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -631,7 +636,7 @@
      "shot": "frames/1366x768-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "W · Snare Trap"
+      "text": "R · Arrow Storm"
      },
      "cutOff": [],
      "below": [],
@@ -673,7 +678,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 61,
+     "heroPx": 84,
      "gruntPx": null
     },
     {
@@ -687,7 +692,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 6\"",
+      ".btn \"Repair 10\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -735,7 +740,7 @@
      "shot": "frames/1536x864-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "R · Arrow Storm"
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
      "below": [],
@@ -777,8 +782,8 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 81,
-     "gruntPx": 34
+     "heroPx": 73,
+     "gruntPx": null
     },
     {
      "step": "ring",
@@ -791,7 +796,6 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 8\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -839,7 +843,7 @@
      "shot": "frames/1920x1080-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
      "below": [],
@@ -881,7 +885,7 @@
      "playSoloShown": null,
      "touchControls": [],
      "cardOutside": [],
-     "heroPx": 69,
+     "heroPx": 61,
      "gruntPx": 29
     },
     {
@@ -895,7 +899,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 5\"",
+      ".btn \"Repair 13\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -943,7 +947,7 @@
      "shot": "frames/450x800-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
      "below": [
@@ -1017,8 +1021,8 @@
       ".tskill-btn \"R\""
      ],
      "cardOutside": [],
-     "heroPx": 61,
-     "gruntPx": null
+     "heroPx": 41,
+     "gruntPx": 37
     },
     {
      "step": "ring",
@@ -1039,6 +1043,7 @@
       ".radial-btn \"Upgrade375\"",
       ".radial-btn \"TargetFirst\"",
       ".radial-btn \"Sell203\"",
+      ".radial-btn \"Repair5\"",
       "#zoom-btn"
      ],
      "layout": "tall",
@@ -1162,7 +1167,7 @@
       ".tskill-btn \"R\""
      ],
      "cardOutside": [],
-     "heroPx": 66,
+     "heroPx": 74,
      "gruntPx": null
     },
     {
@@ -1301,7 +1306,7 @@
       ".tskill-btn \"R\""
      ],
      "cardOutside": [],
-     "heroPx": 77,
+     "heroPx": 69,
      "gruntPx": 30
     },
     {
@@ -1466,5 +1471,44 @@
    "heapLimitMB": 608,
    "gpuMB": 132.5
   }
- ]
+ ],
+ "lesson": [
+  {
+   "frame": "907x510",
+   "card": "Move",
+   "shot": "frames/907x510-lesson-move.jpg",
+   "picture": [
+    "mouseRight"
+   ]
+  },
+  {
+   "frame": "907x510",
+   "card": "Build a tower",
+   "shot": "frames/907x510-lesson-build.jpg",
+   "picture": [
+    "mouseLeft",
+    "or",
+    "B",
+    "1–5",
+    "X cancel"
+   ]
+  },
+  {
+   "frame": "450x800",
+   "card": "Move",
+   "shot": "frames/450x800-lesson-move.jpg",
+   "picture": [
+    "gestureStick"
+   ]
+  },
+  {
+   "frame": "450x800",
+   "card": "Build a tower",
+   "shot": "frames/450x800-lesson-build.jpg",
+   "picture": [
+    "gesturePad"
+   ]
+  }
+ ],
+ "escText": []
 }

@@ -35,8 +35,8 @@ Made by `npm run cg-audit -w @tdt/client` on 2026-11-13 from the crazygames buil
 | Gameplay | Legible at 800 × 450 (phone, sideways) | **NOT SERVED** | their phone frame held sideways: SUBMISSION.md declares portrait on phones, so CrazyGames turns the phone and never serves this frame (the game asks to rotate) |
 | Gameplay | The same speed at 60, 144 and 165 Hz | **PASS** | 60 Hz (49 frames/s drawn): 401 ticks in 20 s, 400 expected; 144 Hz (47.4 frames/s drawn): 1200 ticks in 60 s, 1200 expected; 165 Hz (49.4 frames/s drawn): 401 ticks in 20 s, 400 expected. The sim runs on its own 20 Hz clock in the worker; the drawing interpolates on real time |
 | Gameplay | English | **PASS** | every text in the game is English |
-| Gameplay | Controls explained on each device (keyboard picture or gestures) | **NOT CHECKED** | a first solo match on the site starts the lesson (move, build, cast Q, upgrade, ping); CrazyGames asks for a keyboard picture or gestures shown, which the game does not draw: judge it |
-| Gameplay | No key the browser owns (Escape leaves fullscreen) | **FAIL** | Escape cancels a build, an aim or a selection (src/input/controls.ts `onKeyDown`) |
+| Gameplay | Controls explained on each device (keyboard picture or gestures) | **PASS** | the first-match lesson (Learn to play; in gameplay, skippable) shows each move as keycaps and a mouse with its button lit, or a touch gesture, over one line (q8): [907x510 Move](frames/907x510-lesson-move.jpg) (mouseRight), [907x510 Build a tower](frames/907x510-lesson-build.jpg) (mouseLeft or B 1–5 X cancel), [450x800 Move](frames/450x800-lesson-move.jpg) (gestureStick), [450x800 Build a tower](frames/450x800-lesson-build.jpg) (gesturePad). The judgement stays CrazyGames' |
+| Gameplay | No key the browser owns (Escape leaves fullscreen) | **PASS** | X cancels (src/input/keys.ts); Escape still does outside fullscreen but no text in the DOM names it (the hints, the Controls list and the lesson say "X or right-click"), read at 907 × 510 with the build hint up and the Controls list open |
 | Gameplay | Loads fast, no errors | **PASS** | no page error in any frame run; time to gameplay above |
 | Gameplay | Original name and art | **PASS** | Tower Defense Together; every model the game's own design (Meshy from Claude's concepts) or CC0 KayKit pieces repainted; the sound made in code or CC0 (docs/SOUND_CREDITS.md) |
 | Gameplay | No fullscreen button of the game's own | **PASS** | the crazygames build adds none (platform/embed.ts `linkless`); e2e/embed.spec.ts with TDT_EMBED_HOST=crazygames checks it; the match's ⤢ is the map zoom, not fullscreen |
@@ -76,58 +76,58 @@ CrazyGames' frames, one device px per CSS px; a mouse on the desktop sizes, touc
 | Frame | Step | Layout | Tile | Hero | Grunt | Smallest text | Cut off | Scrolled to | Over the map | Result | Picture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 821 × 462 | home | wide | — | — | — | 11 px "Ranged DPS" | none | #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **PASS** | [home](frames/821x462-home.jpg) |
-| 821 × 462 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **PASS** | [loading](frames/821x462-loading.jpg) |
-| 821 × 462 | wave10 | wide | 10 | 38 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/821x462-wave10.jpg) |
-| 821 × 462 | ring | wide | 10 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 13", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/821x462-ring.jpg) |
+| 821 × 462 | loading | wide | — | — | — | 13 px "W · Snare Trap" | none | #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **PASS** | [loading](frames/821x462-loading.jpg) |
+| 821 × 462 | wave10 | wide | 10 | 51 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/821x462-wave10.jpg) |
+| 821 × 462 | ring | wide | 10 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/821x462-ring.jpg) |
 | 821 × 462 | end | wide | 10 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/821x462-end.jpg) |
 | 907 × 510 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/907x510-home.jpg) |
-| 907 × 510 | loading | wide | — | — | — | 13 px "W · Snare Trap" | none | none | none | **PASS** | [loading](frames/907x510-loading.jpg) |
-| 907 × 510 | wave10 | wide | 11.4 | 44 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/907x510-wave10.jpg) |
-| 907 × 510 | ring | wide | 11.4 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 12", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/907x510-ring.jpg) |
+| 907 × 510 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/907x510-loading.jpg) |
+| 907 × 510 | wave10 | wide | 11.4 | 43 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/907x510-wave10.jpg) |
+| 907 × 510 | ring | wide | 11.4 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/907x510-ring.jpg) |
 | 907 × 510 | end | wide | 11.4 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/907x510-end.jpg) |
 | 1077 × 606 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1077x606-home.jpg) |
 | 1077 × 606 | loading | wide | — | — | — | 13 px "R · Arrow Storm" | none | none | none | **PASS** | [loading](frames/1077x606-loading.jpg) |
-| 1077 × 606 | wave10 | wide | 13.6 | 65 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1077x606-wave10.jpg) |
-| 1077 × 606 | ring | wide | 13.6 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1077x606-ring.jpg) |
+| 1077 × 606 | wave10 | wide | 13.6 | 61 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1077x606-wave10.jpg) |
+| 1077 × 606 | ring | wide | 13.6 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 7", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1077x606-ring.jpg) |
 | 1077 × 606 | end | wide | 13.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1077x606-end.jpg) |
 | 1216 × 684 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1216x684-home.jpg) |
-| 1216 × 684 | loading | wide | — | — | — | 13 px "E · Keen Eye" | none | none | none | **PASS** | [loading](frames/1216x684-loading.jpg) |
-| 1216 × 684 | wave10 | wide | 15.4 | 80 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1216x684-wave10.jpg) |
-| 1216 × 684 | ring | wide | 15.4 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1216x684-ring.jpg) |
+| 1216 × 684 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/1216x684-loading.jpg) |
+| 1216 × 684 | wave10 | wide | 15.4 | 81 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1216x684-wave10.jpg) |
+| 1216 × 684 | ring | wide | 15.4 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 5", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1216x684-ring.jpg) |
 | 1216 × 684 | end | wide | 15.4 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1216x684-end.jpg) |
 | 1280 × 720 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1280x720-home.jpg) |
-| 1280 × 720 | loading | wide | — | — | — | 13 px "R · Arrow Storm" | none | none | none | **PASS** | [loading](frames/1280x720-loading.jpg) |
-| 1280 × 720 | wave10 | wide | 16.3 | 90 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1280x720-wave10.jpg) |
-| 1280 × 720 | ring | wide | 16.3 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 8", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1280x720-ring.jpg) |
+| 1280 × 720 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/1280x720-loading.jpg) |
+| 1280 × 720 | wave10 | wide | 16.3 | 82 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1280x720-wave10.jpg) |
+| 1280 × 720 | ring | wide | 16.3 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 13", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1280x720-ring.jpg) |
 | 1280 × 720 | end | wide | 16.3 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1280x720-end.jpg) |
 | 1366 × 768 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1366x768-home.jpg) |
-| 1366 × 768 | loading | wide | — | — | — | 13 px "W · Snare Trap" | none | none | none | **PASS** | [loading](frames/1366x768-loading.jpg) |
-| 1366 × 768 | wave10 | wide | 17.4 | 61 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1366x768-wave10.jpg) |
-| 1366 × 768 | ring | wide | 17.4 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 6", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1366x768-ring.jpg) |
+| 1366 × 768 | loading | wide | — | — | — | 13 px "R · Arrow Storm" | none | none | none | **PASS** | [loading](frames/1366x768-loading.jpg) |
+| 1366 × 768 | wave10 | wide | 17.4 | 84 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1366x768-wave10.jpg) |
+| 1366 × 768 | ring | wide | 17.4 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1366x768-ring.jpg) |
 | 1366 × 768 | end | wide | 17.4 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1366x768-end.jpg) |
 | 1536 × 864 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1536x864-home.jpg) |
-| 1536 × 864 | loading | wide | — | — | — | 13 px "R · Arrow Storm" | none | none | none | **PASS** | [loading](frames/1536x864-loading.jpg) |
-| 1536 × 864 | wave10 | wide | 19.6 | 81 | 34 | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1536x864-wave10.jpg) |
-| 1536 × 864 | ring | wide | 19.6 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 8", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1536x864-ring.jpg) |
+| 1536 × 864 | loading | wide | — | — | — | 13 px "E · Keen Eye" | none | none | none | **PASS** | [loading](frames/1536x864-loading.jpg) |
+| 1536 × 864 | wave10 | wide | 19.6 | 73 | — | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1536x864-wave10.jpg) |
+| 1536 × 864 | ring | wide | 19.6 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1536x864-ring.jpg) |
 | 1536 × 864 | end | wide | 19.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1536x864-end.jpg) |
 | 1920 × 1080 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1920x1080-home.jpg) |
-| 1920 × 1080 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/1920x1080-loading.jpg) |
-| 1920 × 1080 | wave10 | wide | 24.6 | 69 | 29 | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1920x1080-wave10.jpg) |
-| 1920 × 1080 | ring | wide | 24.6 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 5", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1920x1080-ring.jpg) |
+| 1920 × 1080 | loading | wide | — | — | — | 13 px "E · Keen Eye" | none | none | none | **PASS** | [loading](frames/1920x1080-loading.jpg) |
+| 1920 × 1080 | wave10 | wide | 24.6 | 61 | 29 | 11 px "Q" | none | none | none | **PASS** | [wave10](frames/1920x1080-wave10.jpg) |
+| 1920 × 1080 | ring | wide | 24.6 | — | — | 11 px "Q" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 13", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **PASS** | [ring](frames/1920x1080-ring.jpg) |
 | 1920 × 1080 | end | wide | 24.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1920x1080-end.jpg) |
 | 450 × 800 | home | tall | — | — | — | 11 px "Ranged DPS" | none | #lobby-code, #lobby-join "Join room" | none | **PASS** | [home](frames/450x800-home.jpg) |
-| 450 × 800 | loading | tall | — | — | — | 13 px "Q · Multishot" | none | #lobby-code, #lobby-join "Join room" | none | **PASS** | [loading](frames/450x800-loading.jpg) |
-| 450 × 800 | wave10 | tall | 17.3 | 61 | — | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", #zoom-btn | **PASS** | [wave10](frames/450x800-wave10.jpg) |
-| 450 × 800 | ring | tall | 17.3 | — | — | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", #zoom-btn | **PASS** | [ring](frames/450x800-ring.jpg) |
+| 450 × 800 | loading | tall | — | — | — | 13 px "E · Keen Eye" | none | #lobby-code, #lobby-join "Join room" | none | **PASS** | [loading](frames/450x800-loading.jpg) |
+| 450 × 800 | wave10 | tall | 17.3 | 41 | 37 | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", #zoom-btn | **PASS** | [wave10](frames/450x800-wave10.jpg) |
+| 450 × 800 | ring | tall | 17.3 | — | — | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", .radial-btn "Repair5", #zoom-btn | **PASS** | [ring](frames/450x800-ring.jpg) |
 | 450 × 800 | end | tall | 17.3 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report", #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", #zoom-btn | **PASS** | [end](frames/450x800-end.jpg) |
 | 1080 × 607 | home | wide | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/1080x607-home.jpg) |
 | 1080 × 607 | loading | wide | — | — | — | 13 px "E · Keen Eye" | none | none | none | **PASS** | [loading](frames/1080x607-loading.jpg) |
-| 1080 × 607 | wave10 | wide | 13.6 | 66 | — | 12 px "Q" | none | none | none | **PASS** | [wave10](frames/1080x607-wave10.jpg) |
+| 1080 × 607 | wave10 | wide | 13.6 | 74 | — | 12 px "Q" | none | none | none | **PASS** | [wave10](frames/1080x607-wave10.jpg) |
 | 1080 × 607 | ring | wide | 13.6 | — | — | 11 px "Upgrade" | none | none | .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", .radial-btn "Repair6" | **PASS** | [ring](frames/1080x607-ring.jpg) |
 | 1080 × 607 | end | wide | 13.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1080x607-end.jpg) |
 | 607 × 1080 | home | tall | — | — | — | 11 px "Ranged DPS" | none | none | none | **PASS** | [home](frames/607x1080-home.jpg) |
 | 607 × 1080 | loading | tall | — | — | — | 13 px "W · Snare Trap" | none | none | none | **PASS** | [loading](frames/607x1080-loading.jpg) |
-| 607 × 1080 | wave10 | tall | 23.3 | 77 | 30 | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R" | **PASS** | [wave10](frames/607x1080-wave10.jpg) |
+| 607 × 1080 | wave10 | tall | 23.3 | 69 | 30 | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R" | **PASS** | [wave10](frames/607x1080-wave10.jpg) |
 | 607 × 1080 | ring | tall | 23.3 | — | — | 11 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203" | **PASS** | [ring](frames/607x1080-ring.jpg) |
 | 607 × 1080 | end | tall | 23.3 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report", #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R" | **PASS** | [end](frames/607x1080-end.jpg) |
 | 800 × 450 | home | rotate | — | — | — | 14 px "Tower Defense Together is played with th" | none | #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **NOT SERVED** (the submission declares portrait on phones: CrazyGames turns the phone) | [home](frames/800x450-home.jpg) |
@@ -159,7 +159,8 @@ Every key the desktop controls bind (src/input/controls.ts `onKeyDown`).
 | --- | --- | --- |
 | Arrow keys | Move the hero | Scroll the host page by default: the game calls preventDefault |
 | 1–5 | Build a tower (with the build menu open or a pad selected) | No |
-| Escape | Cancels a build, an aim or a selection | Yes: in fullscreen the browser takes Escape to leave it (the page sees it only out of fullscreen) |
+| X | Cancels a build, an aim or a selection, and closes the open panel (the key every hint names, with right-click) | No |
+| Escape | The same as X where the page receives it (outside fullscreen); no text in the game names it | Yes: in fullscreen the browser takes Escape to leave it (the page sees it only out of fullscreen) |
 | A | Attack-move | No |
 | Q | Cast Q (Shift+Q learns it) | No |
 | W | Cast W (Shift+W learns it) | No |
@@ -183,9 +184,10 @@ card is two columns with Play solo on the first screen in the short frames, and 
 - **800 × 450 (a phone held sideways): NOT SERVED.** SUBMISSION.md declares portrait on phones, and CrazyGames turns
   the phone for a game that does (the advisor's reading of their pages, 13 Nov 2026), so their landscape phone frame is
   never served to this game; it still asks a sideways phone to rotate. Not a build task.
-- **Escape.** The desktop controls use Escape to cancel a build, an aim or a selection; in the host's fullscreen the
-  browser takes Escape to leave fullscreen. q8 (keys CrazyGames allows, and a lesson that shows them) is the row for it.
+- **Escape: fixed in q8.** X cancels a build, an aim or a selection (with right-click); Escape still works outside
+  fullscreen but no text in the game names it. The lesson's cards show each move as keycaps and a mouse, or a gesture
+  (frames/907x510-lesson-*.jpg, frames/450x800-lesson-*.jpg).
 - **Not checked, for Han:** Edge and Safari (real browsers), CrazyGames' app fullscreen with safe areas, a real 4 GB
   Chromebook (the stand-in's JavaScript a frame is inside the 33.3 ms budget), PEGI 12 (CrazyGames rates it) and
-  whether the first match's lesson counts as "controls explained" (q8 adds the keys to it).
+  whether the lesson's pictures count as "controls explained" (CrazyGames' judgement).
 <!-- /notes -->
