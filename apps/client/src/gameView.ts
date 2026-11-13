@@ -2,6 +2,7 @@
 // the snapshot buffer, the screen layout and the sound (music in the lobby too),
 // fed by whichever Transport is attached (local worker, game server or the stress scene).
 
+import { ALLY_HINT, allyHintDue, humanCount } from './ally/rules';
 import { canCallNow } from './hud/callEarly';
 import {
   allowSocial,
@@ -784,7 +785,7 @@ export class GameView {
     const ask = this.stops.feed(events, {
       me: this.me,
       hero: hero ? { id: hero.id, kind: hero.kind } : null,
-      solo: latest.players.length <= 1,
+      solo: humanCount(latest) <= 1,
       now,
     });
     if (ask.hold > 0) this.clock.hold(now, ask.hold);
@@ -833,6 +834,11 @@ export class GameView {
     if (zoom) {
       this.hud.toast(zoom, 'zoom');
       sharedSettings().set({ zoomHint: 'seen' });
+    }
+    // Once ever: the first time your R and the bot teammate's are both ready with creeps out (q6).
+    if (settings.allyHint === 'new' && !quiet && allyHintDue(latest, this.me)) {
+      this.hud.toast(ALLY_HINT, 'ally');
+      sharedSettings().set({ allyHint: 'seen' });
     }
   }
 
