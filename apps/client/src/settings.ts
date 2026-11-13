@@ -67,6 +67,13 @@ export interface Settings {
   endlessPost: EndlessPost;
   /** The online room's "Solo runs post to the board" line on an Endless end screen: `new` until it showed once. */
   endlessRoomLine: ZoomHint;
+  /**
+   * The bot teammate (q6): Play solo in Full or Quick starts with one beside you (never the Daily run, Endless or the
+   * lesson). ⚙ → "Bot teammate: On / Off"; On by default.
+   */
+  botTeammate: boolean;
+  /** "Your ally is ready: cast R together for a combo": `new` until it showed once (both R ready, creeps out). */
+  allyHint: ZoomHint;
 }
 
 export type ZoomHint = 'new' | 'seen';
@@ -142,6 +149,8 @@ export const DEFAULT_SETTINGS: Settings = {
   zoomHint: 'new',
   endlessPost: 'unasked',
   endlessRoomLine: 'new',
+  botTeammate: true,
+  allyHint: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -181,6 +190,8 @@ export function parseSettings(raw: string | null): Settings {
     out.zoomHint = v.zoomHint === 'seen' ? 'seen' : 'new';
     out.endlessPost = parseEndlessPost(v.endlessPost);
     out.endlessRoomLine = v.endlessRoomLine === 'seen' ? 'seen' : 'new';
+    if (typeof v.botTeammate === 'boolean') out.botTeammate = v.botTeammate;
+    out.allyHint = v.allyHint === 'seen' ? 'seen' : 'new';
   } catch {
     // Corrupt value: defaults.
   }

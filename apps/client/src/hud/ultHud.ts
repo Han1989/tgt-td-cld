@@ -135,6 +135,14 @@ export class UltHud {
     const fill = document.createElement('i');
     bar.append(fill);
     li.append(ico, bar);
+    // The solo match's bot teammate (q6): a small "Bot" tag under its chip, nothing else drawn on it.
+    if (snap.players.find((p) => p.id === hero.owner)?.bot) {
+      li.classList.add('bot');
+      const tag = document.createElement('b');
+      tag.className = 'mate-bot';
+      tag.textContent = 'Bot';
+      li.append(tag);
+    }
     this.mates.appendChild(li);
     return { li, fill };
   }

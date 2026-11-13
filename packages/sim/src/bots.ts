@@ -1201,7 +1201,11 @@ export function createAllyBot(baseTuning: Tuning = TUNING): Bot {
       if (ready) {
         if (sinceTheirs >= ALLY_ANSWER_SECONDS * snap.tickRate && sinceTheirs <= ALLY_ANSWER_LATEST * snap.tickRate) {
           castR = true;
-        } else if (theirsIn > ALLY_ALONE_SECONDS && snap.creeps.length >= ALLY_RAIN_CREEPS) {
+        } else if (
+          sinceTheirs > ALLY_ANSWER_LATEST * snap.tickRate &&
+          theirsIn > ALLY_ALONE_SECONDS &&
+          snap.creeps.length >= ALLY_RAIN_CREEPS
+        ) {
           castR = true;
         } else if (
           !pinged &&

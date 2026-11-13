@@ -13,7 +13,8 @@ import { LobbyUi } from './lobby/lobby';
 import { openingMode, storedMode } from './lobby/modePicker';
 import { playGate } from './privacy/ageCheck';
 import { sharedSettings } from './settings';
-import { beginSolo, type SoloPick, type SoloStart } from './tutorial/logic';
+import { soloAlly } from './ally/rules';
+import { beginSolo, soloMatch, type SoloPick, type SoloStart } from './tutorial/logic';
 import { LocalTransport } from './transport/localTransport';
 import { NetworkTransport, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
 
@@ -228,7 +229,7 @@ export class OnlineController {
    * leaving an online room first. "Back to lobby" on its end screen comes back to the home card.
    */
   private playSolo(start: SoloStart, pick: SoloPick): void {
-    afterArt(pick.hero, pick.mode, () => this.playSoloNow(start, pick));
+    afterArt(pick.hero, pick.mode, () => this.playSoloNow(start, pick), allyOf(start, pick));
   }
 
   private playSoloNow(start: SoloStart, pick: SoloPick): void {
@@ -262,8 +263,13 @@ let soloTransport: LocalTransport | null = null;
  * artLoad/gate.ts): at once when they are, else after the wait's card. Back drops the wait and leaves the home card as
  * it was.
  */
-export function afterArt(hero: HeroKind, mode: GameMode, go: () => void): void {
-  artGate.wait({ mode, heroes: [hero], hero, back: () => {} }, go);
+export function afterArt(hero: HeroKind, mode: GameMode, go: () => void, ally: HeroKind | null = null): void {
+  artGate.wait({ mode, heroes: ally ? [hero, ally] : [hero], hero, back: () => {} }, go);
+}
+
+/** The bot teammate a solo start will have (q6): `soloAlly` with ⚙'s switch. */
+export function allyOf(start: SoloStart, pick: SoloPick): HeroKind | null {
+  return soloAlly(soloMatch(start, pick), sharedSettings().get().botTeammate);
 }
 
 /** Stops the local match, if one is running (⚙ → Learn to play starts the lesson in its place). */
@@ -282,6 +288,8 @@ export function endSolo(view: GameView): void {
 export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home: () => void): void {
   const match = beginSolo(sharedSettings(), start, pick);
   const transport = startLocal(view, home);
+  // The bot teammate first (a control message): the matches below start with it, or without.
+  transport.ally(soloAlly(match, sharedSettings().get().botTeammate) !== null);
   // Each of these starts a new match in the local host; the last one is the match played.
   transport.send({ t: 'mode', mode: match.mode });
   transport.send({ t: 'hero', hero: match.hero });
