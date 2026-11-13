@@ -143,7 +143,8 @@ apps/client/               @tdt/client: Vite + PixiJS + HTML/CSS HUD
                            reveal's words; pure, tested), endCard.ts (Post my run, the age and nickname in the card, the reveal)
   src/share/               The share card (Daily run session 3): text.ts (what the card says, the share text and link `?src=share`, the
                            poster's crop, each line shrunk to its column; pure, tested), card.ts (Canvas 2D drawing; renderCard → PNG),
-                           share.ts (`CardShare`: drawn ahead of the tap, the share sheet, else download + link copied)
+                           share.ts (`CardShare`: drawn ahead of the tap, the share sheet, else download + link copied), bare.ts (the
+                           CrazyGames build's card with no address, `BareCardShare`; imported only under `__EMBED__`)
   src/endless/best.ts      Endless's best wave per hero in this browser (`tdt.endlessBest`), the Mode row's "Best: wave 37" and the end
                            screen's "Fallen on wave 37" / "New best!" and "Level 14 · 9 Reinforce ranks." (pure parts tested)
   src/record/              The record per hero, kept in this browser only and never sent (n-stars, `tdt.record`): record.ts (matches,
