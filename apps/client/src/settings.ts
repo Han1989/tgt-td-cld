@@ -60,6 +60,11 @@ export interface Settings {
    */
   zoomHint: ZoomHint;
   /**
+   * The wheel-zoom line (q8): `new` shows it once, the first time a match in a small desktop window (a mouse, the wide
+   * layout, a tile under 14 px) has run a few seconds outside the lesson; then `seen` (also when the wheel zooms).
+   */
+  wheelHint: ZoomHint;
+  /**
    * Endless's daily board (endless/board.ts): `unasked` until the consent card after the first finished Endless match,
    * then `on` (Yes, every time: solo runs post by themselves from 16) or `off` (Not now). ⚙ Settings → Play data's
    * "Post Endless runs to the board" switches it.
@@ -147,6 +152,7 @@ export const DEFAULT_SETTINGS: Settings = {
   airLesson: 'new',
   repairHint: 'new',
   zoomHint: 'new',
+  wheelHint: 'new',
   endlessPost: 'unasked',
   endlessRoomLine: 'new',
   botTeammate: true,
@@ -188,6 +194,7 @@ export function parseSettings(raw: string | null): Settings {
     out.airLesson = parseAirLesson(v.airLesson);
     out.repairHint = parseRepairHint(v.repairHint);
     out.zoomHint = v.zoomHint === 'seen' ? 'seen' : 'new';
+    out.wheelHint = v.wheelHint === 'seen' ? 'seen' : 'new';
     out.endlessPost = parseEndlessPost(v.endlessPost);
     out.endlessRoomLine = v.endlessRoomLine === 'seen' ? 'seen' : 'new';
     if (typeof v.botTeammate === 'boolean') out.botTeammate = v.botTeammate;

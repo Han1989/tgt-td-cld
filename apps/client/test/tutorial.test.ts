@@ -16,13 +16,19 @@ import {
   stepSatisfied,
   tutorialMayAdvance,
   tutorialPrompt,
+  airPrompt,
+  lessonPicture,
+  LESSON_LINE_MAX,
+  TUTORIAL_STEPS,
   TUTORIAL_HOLD_MS,
   TUTORIAL_MOVE_TILES,
+  type LessonPicture,
   type SoloPick,
   type TutorialRun,
   type TutorialSample,
   type TutorialStatus,
 } from '../src/tutorial/logic';
+import { ICONS } from '../src/render/art/icons';
 
 function sample(patch: Partial<TutorialSample> = {}): TutorialSample {
   return {
@@ -192,7 +198,7 @@ describe('tutorial steps', () => {
 
   it('teaches the real controls, and tells a Ranger to wait for creeps', () => {
     expect(tutorialPrompt('move', 'touch', 'ranger', 0).body).toContain('joystick');
-    expect(tutorialPrompt('move', 'desktop', 'ranger', 0).body).toContain('Right-click');
+    expect(tutorialPrompt('move', 'desktop', 'ranger', 0).body).toContain('Click the ground');
     expect(tutorialPrompt('move', 'desktop', 'ranger', 0).body).not.toContain('WASD');
     const waiting = tutorialPrompt('cast', 'touch', 'ranger', 0);
     expect(waiting.body).toContain('Multishot');
@@ -208,20 +214,80 @@ describe('tutorial steps', () => {
     expect(done.next).toBe('Got it');
     expect(done.skip).toBe(false);
     expect(done.body).toContain('Wisps');
-    expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('hold');
-    expect(tutorialPrompt('ping', 'desktop', 'ranger', 1).body).toContain('Alt-click');
+    expect(done.picture).toBeNull();
+    expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('Hold');
   });
 
   it('teaches the floating stick by default, and the fixed joystick to players who picked one', () => {
     const floating = tutorialPrompt('move', 'touch', 'ranger', 0).body;
     expect(floating).toContain('anywhere');
-    expect(floating).toContain('joystick appears under it');
+    expect(floating).toContain('joystick appears');
     const fixed = tutorialPrompt('move', 'touch', 'ranger', 0, false).body;
     expect(fixed).toContain('Drag the joystick');
     expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('then lift');
-    expect(tutorialPrompt('ping', 'touch', 'ranger', 1).body).toContain('Dragging walks');
-    expect(tutorialPrompt('ping', 'touch', 'ranger', 1, false).body).toContain('not on the joystick');
+    expect(tutorialPrompt('ping', 'touch', 'ranger', 1, false).body).toContain('not the joystick');
     // Desktop does not change.
     expect(tutorialPrompt('move', 'desktop', 'ranger', 0, false).body).toBe(tutorialPrompt('move', 'desktop', 'ranger', 0).body);
+  });
+});
+
+describe('the lesson shows its moves (q8)', () => {
+  const heroes = ['ranger', 'warden', 'arcanist', null] as const;
+  const glyphs = (p: LessonPicture) => p.parts.flatMap((x) => ('glyph' in x ? [x.glyph] : []));
+  const keys = (p: LessonPicture) => p.parts.flatMap((x) => ('key' in x ? [x.key] : []));
+
+  it('every card has a picture for each input, one short line of words, and never names Escape', () => {
+    for (const step of TUTORIAL_STEPS) {
+      for (const input of ['touch', 'desktop'] as const) {
+        for (const hero of heroes) {
+          for (const wave of [0, 3]) {
+            for (const floating of [true, false]) {
+              const prompt = tutorialPrompt(step, input, hero, wave, floating);
+              const where = `${step} ${input} ${hero} ${wave} ${floating}`;
+              expect(prompt.picture, where).not.toBeNull();
+              expect(prompt.picture!.parts.length, where).toBeGreaterThan(0);
+              expect(lessonPicture(step, input, hero), where).toEqual(prompt.picture);
+              expect(prompt.body.length, where).toBeLessThanOrEqual(LESSON_LINE_MAX);
+              expect(prompt.body, where).not.toContain('\n');
+              for (const text of [prompt.body, prompt.title, prompt.kicker, JSON.stringify(prompt.picture)]) {
+                expect(text, where).not.toMatch(/\besc(ape)?\b/i);
+              }
+              // Touch shows gestures, never a keycap or the mouse.
+              if (input === 'touch') {
+                expect(keys(prompt.picture!), where).toEqual([]);
+                for (const g of glyphs(prompt.picture!)) expect(g.startsWith('gesture'), where).toBe(true);
+              } else {
+                for (const g of glyphs(prompt.picture!)) expect(g.startsWith('mouse'), where).toBe(true);
+              }
+              for (const g of glyphs(prompt.picture!)) expect(ICONS.has(g), g).toBe(true);
+            }
+          }
+        }
+      }
+    }
+    expect(tutorialPrompt('done', 'desktop', null, 1).picture).toBeNull();
+    expect(airPrompt('ranger').picture).toBeNull();
+  });
+
+  it('pictures each move with the keys and the mouse button it takes', () => {
+    expect(lessonPicture('move', 'desktop', 'ranger')).toEqual({ parts: [{ glyph: 'mouseRight' }], cancel: false });
+    expect(lessonPicture('build', 'desktop', 'ranger')).toEqual({
+      parts: [{ glyph: 'mouseLeft' }, { word: 'or' }, { key: 'B' }, { key: '1–5' }],
+      cancel: true,
+    });
+    expect(lessonPicture('cast', 'desktop', 'ranger')).toEqual({ parts: [{ key: 'Q' }], cancel: false });
+    expect(lessonPicture('cast', 'desktop', 'arcanist')).toEqual({ parts: [{ key: 'Q' }, { word: '+' }, { glyph: 'mouseLeft' }], cancel: true });
+    expect(lessonPicture('upgrade', 'desktop', 'warden')).toEqual({ parts: [{ glyph: 'mouseLeft' }, { word: 'or' }, { key: 'U' }], cancel: false });
+    expect(lessonPicture('ping', 'desktop', 'warden')).toEqual({ parts: [{ key: 'Alt' }, { word: '+' }, { glyph: 'mouseLeft' }], cancel: false });
+    expect(lessonPicture('emote', 'desktop', 'warden')).toEqual({ parts: [{ key: 'C' }], cancel: false });
+    expect(glyphs(lessonPicture('move', 'touch', 'ranger'))).toEqual(['gestureStick']);
+    expect(glyphs(lessonPicture('build', 'touch', 'ranger'))).toEqual(['gesturePad']);
+    expect(glyphs(lessonPicture('cast', 'touch', 'ranger'))).toEqual(['gestureTap']);
+    expect(glyphs(lessonPicture('cast', 'touch', 'arcanist'))).toEqual(['gestureTap', 'gestureAim']);
+    expect(glyphs(lessonPicture('upgrade', 'touch', 'ranger'))).toEqual(['gestureTower']);
+    expect(glyphs(lessonPicture('ping', 'touch', 'ranger'))).toEqual(['gestureHold']);
+    expect(glyphs(lessonPicture('emote', 'touch', 'ranger'))).toEqual(['gestureChat']);
+    // A touch card never starts a mode the X key cancels.
+    for (const step of TUTORIAL_STEPS) expect(lessonPicture(step, 'touch', 'arcanist').cancel).toBe(false);
   });
 });

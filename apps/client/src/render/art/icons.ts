@@ -448,6 +448,127 @@ const UI_ICONS: Record<string, IconDraw> = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// The lesson's pictures (q8): the mouse with the button to press lit, and touch gestures
+// ---------------------------------------------------------------------------
+
+/** A mouse, cable up, the `lit` button glowing rune-teal. */
+function mouse(c: Ctx, p: Painter, k: Tokens, lit: 'left' | 'right'): void {
+  p.line(c, pathLine([0, -15, 2, -18, 6, -18]), k.ink, 2.6);
+  const body = rrect(-10, -15, 20, 31, 10);
+  p.part(c, body, k.stone, box(-10, -15, 10, 16));
+  // The lit button: the body's upper quarter on that side, under its outline.
+  const s = lit === 'left' ? -1 : 1;
+  const button = new Path2D();
+  button.moveTo(0, -14.5);
+  button.lineTo(0, -2);
+  button.lineTo(9.5 * s, -2);
+  button.lineTo(9.5 * s, -6);
+  button.quadraticCurveTo(9.5 * s, -14.5, 0, -14.5);
+  button.closePath();
+  c.save();
+  c.shadowColor = css(k.rune, 0.9);
+  c.shadowBlur = 5;
+  p.accent(c, button, k.rune);
+  c.restore();
+  p.line(c, pathLine([0, -15, 0, -2]), k.ink, 1.6);
+  p.line(c, pathLine([-10, -2, 10, -2]), k.ink, 1.6);
+}
+
+/** A fingertip pressing at (x, y), coming in from the lower right. */
+function fingertip(c: Ctx, p: Painter, k: Tokens, x: number, y: number): void {
+  const finger = new Path2D();
+  finger.moveTo(x - 4, y - 2);
+  finger.quadraticCurveTo(x - 4, y - 7, x + 1, y - 7);
+  finger.quadraticCurveTo(x + 6, y - 7, x + 7, y - 1);
+  finger.lineTo(x + 15, y + 12);
+  finger.lineTo(x + 6, y + 17);
+  finger.closePath();
+  p.part(c, finger, k.skin, box(x - 4, y - 7, x + 15, y + 17), { line: 0.9 });
+  p.detail(c, ellipse(x + 1.2, y - 3.6, 2.4, 1.6), k.bone, false);
+}
+
+/** A tap's ring round (x, y). */
+function tapRing(c: Ctx, p: Painter, k: Tokens, x: number, y: number, r: number, sweep = Math.PI * 2): void {
+  const ring = new Path2D();
+  ring.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + sweep);
+  p.line(c, ring, k.ink, 4.4);
+  glowLine(c, p, ring, k.rune, 2.2);
+}
+
+/** A round skill button with its letter. */
+function skillDisc(c: Ctx, p: Painter, k: Tokens, x: number, y: number, r: number): void {
+  p.part(c, circle(x, y, r), k.stoneDark, box(x - r, y - r, x + r, y + r));
+  c.save();
+  c.fillStyle = css(k.moon);
+  c.font = `700 ${Math.round(r * 1.25)}px sans-serif`;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText('Q', x, y + 0.5);
+  c.restore();
+}
+
+const LESSON_ICONS: Record<string, IconDraw> = {
+  mouseLeft: (c, p, k) => mouse(c, p, k, 'left'),
+  mouseRight: (c, p, k) => mouse(c, p, k, 'right'),
+  // Move: a thumb on the stick, an arrow out of it.
+  gestureStick: (c, p, k) => {
+    p.part(c, circle(-3, 3, 13), k.stoneDark, box(-16, -10, 10, 16), { line: 0.8 });
+    p.part(c, circle(-3, 3, 6.5), k.stone, box(-9.5, -3.5, 3.5, 9.5));
+    const shaft = pathLine([-3, 3, 9, -9]);
+    p.line(c, shaft, k.ink, 5.2);
+    p.line(c, shaft, k.moon, 2.8);
+    p.detail(c, poly([16, -16, 5, -14, 14, -5], 0.6), k.moon);
+    fingertip(c, p, k, -3, 3);
+  },
+  // Build: a tap ring on a pad.
+  gesturePad: (c, p, k) => {
+    p.part(c, rrect(-16, -13, 26, 22, 3), k.padSand, box(-16, -13, 10, 9));
+    p.line(c, rrect(-12.5, -9.5, 19, 15, 2), k.padSandGroove, 1.2, 0.8);
+    tapRing(c, p, k, -3, -2, 8);
+    fingertip(c, p, k, -3, -2);
+  },
+  // Cast: a tap on the Q button.
+  gestureTap: (c, p, k) => {
+    skillDisc(c, p, k, -4, -4, 11);
+    tapRing(c, p, k, -4, -4, 14.5);
+    fingertip(c, p, k, -1, 2);
+  },
+  // An aimed skill: a drag arrow out of the Q button.
+  gestureAim: (c, p, k) => {
+    skillDisc(c, p, k, -8, 7, 9);
+    const drag = pathLine([-2, 1, 9, -10]);
+    p.line(c, drag, k.ink, 5.2);
+    glowLine(c, p, drag, k.rune, 2.6);
+    p.detail(c, poly([17, -17, 5, -15, 15, -5], 0.6), k.rune);
+    p.line(c, circle(13, -13, 5.5), k.ink, 3.4);
+    p.line(c, circle(13, -13, 5.5), k.moon, 1.6);
+  },
+  // Upgrade: a tap on a tower.
+  gestureTower: (c, p, k) => {
+    p.part(c, rrect(-14, -6, 18, 18, 2), k.stone, box(-14, -6, 4, 12));
+    p.part(c, poly([-16, -6, -5, -17, 6, -6], 1), k.wood, box(-16, -17, 6, -6), { line: 0.8 });
+    p.accent(c, ngon(-5, 3, 2.6, 4, 0, 0.3), k.rune);
+    tapRing(c, p, k, -5, 3, 9);
+    fingertip(c, p, k, -2, 6);
+  },
+  // Ping: a long-press ring filling on the map.
+  gestureHold: (c, p, k) => {
+    p.line(c, circle(-3, -3, 11), k.ink, 4.4, 0.45);
+    tapRing(c, p, k, -3, -3, 11, Math.PI * 1.4);
+    p.accent(c, circle(-3, -3, 2.4), k.rune);
+    fingertip(c, p, k, -3, -3);
+  },
+  // Quick chat: a tap on the speech button.
+  gestureChat: (c, p, k) => {
+    p.part(c, rrect(-16, -15, 26, 18, 5), k.stone, box(-16, -15, 10, 3));
+    p.part(c, poly([-10, 2, -5, 2, -12, 10], 1), k.stone, box(-12, 2, -5, 10), { line: 0.5 });
+    for (const x of [-9, -3, 3]) p.accent(c, circle(x, -6, 1.8), k.rune);
+    tapRing(c, p, k, -3, -6, 13);
+    fingertip(c, p, k, 1, 0);
+  },
+};
+
 /** A speaker: a box and a cone, facing right. */
 function speaker(c: Ctx, p: Painter, k: Tokens): void {
   p.part(c, poly([-16, -6, -8, -6, 3, -15, 3, 15, -8, 6, -16, 6], 1.5), k.stone, box(-16, -15, 3, 15));
@@ -476,7 +597,20 @@ export type IconId =
   | 'level'
   | 'sound'
   | 'muted'
-  | 'fitMap';
+  | 'fitMap'
+  | LessonGlyph;
+
+/** The lesson's pictures (q8): the mouse with a button lit, and the touch gestures. */
+export type LessonGlyph =
+  | 'mouseLeft'
+  | 'mouseRight'
+  | 'gestureStick'
+  | 'gesturePad'
+  | 'gestureTap'
+  | 'gestureAim'
+  | 'gestureTower'
+  | 'gestureHold'
+  | 'gestureChat';
 
 /** Every icon, by id. */
 export const ICONS: ReadonlyMap<string, IconDraw> = (() => {
@@ -487,6 +621,7 @@ export const ICONS: ReadonlyMap<string, IconDraw> = (() => {
     for (const s of SKILL_SLOTS) m.set(`skill-${h}-${s}`, SKILL_ICONS[h][s]);
   }
   for (const [id, d] of Object.entries(UI_ICONS)) m.set(id, d);
+  for (const [id, d] of Object.entries(LESSON_ICONS)) m.set(id, d);
   return m;
 })();
 

@@ -386,7 +386,6 @@ button {
 }
 
 .build-hint kbd,
-.help kbd,
 .skill kbd {
   font-family: inherit;
   font-size: 11px;
@@ -3391,6 +3390,70 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   font-size: 14px;
 }
 
+/* The lesson's picture (q8): what to press, over the card's one line. Keycaps are CSS; the mouse and the gestures
+   are icons from render/art/icons.ts. Click-through like the rest of the card. */
+.tutorial-picture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 2px 0 3px;
+  min-height: 28px;
+}
+
+.tutorial-picture .lesson-glyph {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 1px 1px rgba(16, 12, 22, 0.9));
+}
+
+.lesson-word {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f4f8ff;
+}
+
+.lesson-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  font-size: 11px;
+  color: #dfe8f6;
+}
+
+/* A keycap: the lesson's picture and the Controls list (q8). Its letter 13 px or more. */
+.keycap,
+.help kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 6px 1px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  text-shadow: none;
+  color: var(--moon);
+  background: linear-gradient(#3a3e50, #262938);
+  border: 1px solid var(--ink);
+  border-radius: 5px;
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.25), 0 2px 0 var(--ink);
+}
+
+.help kbd {
+  min-width: 0;
+  padding: 0 5px;
+  line-height: 16px;
+  box-shadow: inset 1px 1px 0 rgba(207, 230, 255, 0.25), 0 1px 0 var(--ink);
+}
+
+.keycap.small {
+  min-width: 18px;
+  padding: 0 4px;
+  line-height: 15px;
+}
+
 .tutorial-kicker {
   margin-bottom: 1px;
   font-size: 11px;
@@ -3655,6 +3718,12 @@ body.layout-wide .help {
 
 body.layout-wide .toasts {
   bottom: 28px;
+}
+
+/* The wheel line (q8) wraps inside the map's width, so it never lies over the side panels in a small window. */
+body.layout-wide .toast.wheel {
+  max-width: calc(var(--map-w, 320px) - 16px);
+  text-align: center;
 }
 
 body.layout-wide .build-hint,
