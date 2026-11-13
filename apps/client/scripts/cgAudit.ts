@@ -464,7 +464,8 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
       });
       if (!at) throw new Error('no tower on screen with a free point to tap');
       await tapAt(p, touch, at.x, at.y);
-      await p.waitForSelector('#radial:not(.hidden), #tower-panel:not(.hidden)', { state: 'visible', timeout: 10_000 });
+      // The ring's own box has no size (its buttons stand round it), so wait for a button, not the box.
+      await p.waitForSelector('#radial:not(.hidden) .radial-btn, #tower-panel:not(.hidden)', { state: 'visible', timeout: 10_000 });
       await p.waitForTimeout(400);
       const out = { shot: await shoot(p, spec, 'ring'), ...(await measure(p)) };
       await p.keyboard.press('Escape');

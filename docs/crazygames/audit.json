@@ -158,7 +158,7 @@
      ],
      "layout": "tall",
      "tilePx": 10.8,
-     "heroPx": 55,
+     "heroPx": 41,
      "gruntPx": null
     },
     {
@@ -186,7 +186,7 @@
       ".radial-btn \"Upgrade375\"",
       ".radial-btn \"TargetFirst\"",
       ".radial-btn \"Sell203\"",
-      ".radial-btn \"Repair5\""
+      ".radial-btn \"Repair10\""
      ],
      "layout": "tall",
      "tilePx": 10.8
@@ -207,7 +207,7 @@
      "shot": "frames/1216x684-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "W · Snare Trap"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [],
@@ -240,7 +240,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 15.4,
-     "heroPx": 63,
+     "heroPx": 96,
      "gruntPx": null
     },
     {
@@ -254,7 +254,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 2\"",
+      ".btn \"Repair 6\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -296,7 +296,7 @@
      "shot": "frames/1280x720-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "R · Arrow Storm"
      },
      "cutOff": [],
      "below": [],
@@ -329,7 +329,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 16.3,
-     "heroPx": 41,
+     "heroPx": 56,
      "gruntPx": null
     },
     {
@@ -343,6 +343,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 5\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -417,7 +418,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 24.6,
-     "heroPx": 60,
+     "heroPx": 61,
      "gruntPx": 29
     },
     {
@@ -470,7 +471,7 @@
    "steps": [
     {
      "step": "loading",
-     "error": "TimeoutError: locator.tap: Timeout 30000ms exceeded."
+     "error": "not reached: the rotate screen"
     },
     {
      "step": "home",
@@ -501,15 +502,15 @@
     },
     {
      "step": "wave10",
-     "error": "TimeoutError: locator.tap: Timeout 30000ms exceeded."
+     "error": "not reached: the rotate screen"
     },
     {
      "step": "ring",
-     "error": "Error: no match"
+     "error": "not reached: the rotate screen"
     },
     {
      "step": "end",
-     "error": "Error: no match"
+     "error": "not reached: the rotate screen"
     }
    ],
    "errors": []
@@ -527,7 +528,7 @@
      "shot": "frames/1080x607-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "R · Arrow Storm"
+      "text": "W · Snare Trap"
      },
      "cutOff": [],
      "below": [
@@ -572,7 +573,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 13.6,
-     "heroPx": 69,
+     "heroPx": 61,
      "gruntPx": null
     },
     {
@@ -594,13 +595,77 @@
       "#end-save \"Save match report\"",
       ".radial-btn \"Upgrade375\"",
       ".radial-btn \"TargetFirst\"",
-      ".radial-btn \"Sell203\""
+      ".radial-btn \"Sell203\"",
+      ".radial-btn \"Repair10\""
      ],
      "layout": "wide",
      "tilePx": 13.6
     }
    ],
    "errors": []
+  }
+ ],
+ "ttg": [
+  {
+   "label": "cold, unthrottled",
+   "readyMs": 1348,
+   "gameplayMs": 2838
+  },
+  {
+   "label": "cold, Fast 4G, CPU 4×",
+   "readyMs": 3622,
+   "gameplayMs": 6501
+  },
+  {
+   "label": "30 s on the home card, unthrottled",
+   "readyMs": 1338,
+   "gameplayMs": 2868
+  },
+  {
+   "label": "30 s on the home card, Fast 4G, CPU 4×",
+   "readyMs": 3819,
+   "gameplayMs": 5881
+  }
+ ],
+ "hz": [
+  {
+   "hz": 60,
+   "seconds": 20,
+   "ticks": 401,
+   "expected": 400,
+   "framesPerSecond": 49
+  },
+  {
+   "hz": 144,
+   "seconds": 60,
+   "ticks": 1200,
+   "expected": 1200,
+   "framesPerSecond": 47.4
+  },
+  {
+   "hz": 165,
+   "seconds": 20,
+   "ticks": 401,
+   "expected": 400,
+   "framesPerSecond": 49.4
+  }
+ ],
+ "chromebook": [
+  {
+   "label": "the stress scene (300 creeps, a tower on every pad, rain at night)",
+   "jsMs": 18.9,
+   "frames": 58,
+   "heapMB": 30.2,
+   "heapLimitMB": 608,
+   "gpuMB": 131.8
+  },
+  {
+   "label": "a real wave 10 (Full, five towers, the Ironhorn on its road, rain)",
+   "jsMs": 7.5,
+   "frames": 30,
+   "heapMB": 12.3,
+   "heapLimitMB": 608,
+   "gpuMB": 132.5
   }
  ]
 }
