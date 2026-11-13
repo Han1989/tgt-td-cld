@@ -102,6 +102,9 @@ describe('settings', () => {
     expect(DEFAULT_SETTINGS.zoomHint).toBe('new');
     expect(parseSettings(JSON.stringify({ zoomHint: 'seen' })).zoomHint).toBe('seen');
     expect(parseSettings(JSON.stringify({ zoomHint: true })).zoomHint).toBe('new');
+    expect(DEFAULT_SETTINGS.wheelHint).toBe('new');
+    expect(parseSettings(JSON.stringify({ wheelHint: 'seen' })).wheelHint).toBe('seen');
+    expect(parseSettings(JSON.stringify({ wheelHint: 1 })).wheelHint).toBe('new');
   });
 });
 

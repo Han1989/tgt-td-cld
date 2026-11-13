@@ -2,7 +2,7 @@
 // with the map fitted to the height and the HUD in the side margins.
 
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { box, expectSameBoxes, framesAB, framesIn, lessonCard, sent, startSolo, toScreen, towerDrawn, waitForReady } from './helpers';
 
 test('wide layout: map centred and fitted to the height, HUD in the side margins, no touch overlay', async ({ page }) => {
@@ -336,7 +336,9 @@ test('Learn to play on the home card starts the Quick lesson: Move advances, Ski
   await expect.poll(() => page.evaluate(() => window.__tdt.latest()?.totalWaves ?? 0)).toBe(15);
   expect(await page.evaluate(() => window.__tdt.latest()!.difficulty)).toBe('normal');
   await expect(page.locator('#tutorial-title')).toHaveText('Move');
-  await expect(page.locator('#tutorial-body')).toContainText('Right-click');
+  await expect(page.locator('#tutorial-body')).toContainText('Click the ground');
+  // The card shows its move (q8): the mouse with its right button lit.
+  await expect(page.locator('#tutorial-picture .lesson-glyph[data-glyph="mouseRight"]')).toBeVisible();
 
   const card = await lessonCard(page);
   expect(card.alpha).toBeGreaterThan(0.28);
@@ -350,6 +352,13 @@ test('Learn to play on the home card starts the Quick lesson: Move advances, Ski
   const target = await toScreen(page, 13, 20);
   await page.mouse.click(target.x, target.y, { button: 'right' });
   await expect(page.locator('#tutorial-title')).toHaveText('Build a tower');
+  // Build: the left button, "or" B and 1–5, and a small X keycap with "cancel" (q8). No text names Escape.
+  await expect(page.locator('#tutorial-picture .lesson-glyph[data-glyph="mouseLeft"]')).toBeVisible();
+  await expect(page.locator('#tutorial-picture kbd')).toHaveText(['B', '1–5', 'X']);
+  await expect(page.locator('#tutorial-picture .lesson-cancel')).toHaveText('X cancel');
+  const keycap = await page.locator('#tutorial-picture kbd >> nth=0').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(keycap).toBeGreaterThanOrEqual(13);
+  expect(await page.evaluate(() => /\besc(ape)?\b/i.test(document.body.innerText))).toBe(false);
 
   await page.locator('#tutorial-skip').click();
   await expect(page.locator('#tutorial')).toBeHidden();
@@ -578,3 +587,106 @@ for (const size of [
     await expect.poll(() => sent(page, 'sell').then((c) => c.length)).toBe(1);
   });
 }
+
+// Keys CrazyGames allows (q8): Escape belongs to the browser (it leaves fullscreen), so X cancels; right-click does too.
+test('X cancels a build, an aim and a selection; Escape still does outside fullscreen; right-click does; the hint says X', async ({ page }) => {
+  await startSolo(page, '?lab', 'quick', 'Arcanist');
+  const hint = page.locator('#build-hint');
+  const padId = await page.evaluate(() => window.__tdt.latest()!.pads[0]!.id);
+  const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
+  const at = await toScreen(page, pad.x, pad.y);
+
+  // The build menu and placing a tower: X, Escape and right-click each end it.
+  for (const cancel of ['x', 'Escape', 'right'] as const) {
+    await page.keyboard.press('b');
+    await expect(hint).toBeVisible();
+    await expect(hint).toContainText('X or right-click cancel');
+    await page.keyboard.press('1');
+    await expect(hint).toContainText('Placing');
+    await expect(hint).toContainText('X or right-click cancel');
+    await expect(hint).not.toContainText('Esc');
+    if (cancel === 'right') await page.mouse.click(at.x, at.y, { button: 'right' });
+    else await page.keyboard.press(cancel);
+    await expect(hint, cancel).toBeHidden();
+  }
+  // A click on the pad after the cancel opens its menu: nothing was built.
+  expect(await sent(page, 'build')).toEqual([]);
+
+  // An aim (the Arcanist's Fireball): the hint names the skill and the cancel keys; X, Escape and right-click end it.
+  const moves = (await sent(page, 'move')).length;
+  for (const cancel of ['x', 'Escape', 'right'] as const) {
+    await page.keyboard.press('q');
+    await expect(hint).toContainText('Aim Fireball');
+    await expect(hint).toContainText('X or right-click cancel');
+    if (cancel === 'right') await page.mouse.click(at.x, at.y, { button: 'right' });
+    else await page.keyboard.press(cancel);
+    await expect(hint, cancel).toBeHidden();
+  }
+  expect(await sent(page, 'cast')).toEqual([]);
+  // A right-click that cancels an aim does not also walk.
+  expect((await sent(page, 'move')).length).toBe(moves);
+
+  // A selection: the pad's menu, then a tower's panel. X and Escape close it; right-click closes it and still walks.
+  for (const cancel of ['x', 'Escape', 'right'] as const) {
+    await page.mouse.click(at.x, at.y);
+    await expect(page.locator('#pad-menu')).toBeVisible();
+    if (cancel === 'right') await page.mouse.click(at.x, at.y, { button: 'right' });
+    else await page.keyboard.press(cancel);
+    await expect(page.locator('#pad-menu'), cancel).toBeHidden();
+  }
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.press('1');
+  await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+  await towerDrawn(page, padId);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('#tower-panel')).toBeVisible();
+  await page.keyboard.press('x');
+  await expect(page.locator('#tower-panel')).toBeHidden();
+
+  // The Controls list says X, never Esc.
+  await page.locator('.help > summary').click();
+  await expect(page.locator('.help')).toContainText('X or Right-click cancel');
+  await expect(page.locator('.help')).not.toContainText('Esc');
+});
+
+/** The match has run past the wheel line's 3 s wait (`ZOOM_HINT_AFTER_MS`), counted in the sim's own ticks. */
+async function pastTheWait(page: Page): Promise<void> {
+  const start = await page.evaluate(() => window.__tdt.latest()!.tick);
+  const rate = await page.evaluate(() => window.__tdt.latest()!.tickRate);
+  await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.tick), { timeout: 15_000 }).toBeGreaterThan(start + 4 * rate);
+}
+
+// Han's decision of 13 Nov 2026 (q8): no zoomed start; in a small desktop window a one-time line says the wheel zooms.
+test('907 × 510 with a mouse: the wheel line shows once, goes when the wheel zooms, and does not come back', async ({ page }) => {
+  await page.setViewportSize({ width: 907, height: 510 });
+  await startSolo(page);
+  const line = page.locator('.toast.wheel');
+  await expect(line).toHaveText('Scroll to zoom in. Space centres on your hero.', { timeout: 10_000 });
+  // Inside the map: never over the stats, the hero panel or the Controls list.
+  const l = await page.evaluate(() => window.__tdt.layout());
+  const b = await box(page, '.toast.wheel');
+  expect(b.left).toBeGreaterThanOrEqual(l.map.left);
+  expect(b.right).toBeLessThanOrEqual(l.map.right);
+  const size = await line.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(size).toBeGreaterThanOrEqual(11);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings')!).wheelHint)).toBe('seen');
+  // Every match still opens on the whole map.
+  const zoom0 = await page.evaluate(() => window.__tdt.camera.zoom);
+  await page.mouse.move((l.map.left + l.map.right) / 2, (l.map.top + l.map.bottom) / 2);
+  await page.mouse.wheel(0, -300);
+  await expect(line).toHaveCount(0);
+  expect(await page.evaluate(() => window.__tdt.camera.zoom)).toBeGreaterThan(zoom0);
+
+  // A new page load in the same browser: the line is seen, so a match well past its wait stays quiet.
+  await startSolo(page);
+  await pastTheWait(page);
+  await expect(line).toHaveCount(0);
+});
+
+test('1280 × 720 with a mouse: the wheel line never shows', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await startSolo(page);
+  await pastTheWait(page);
+  await expect(page.locator('.toast.wheel')).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings') ?? '{}').wheelHint ?? 'new')).toBe('new');
+});

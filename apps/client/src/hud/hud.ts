@@ -39,6 +39,7 @@ import { dailyBestLine, heartBestLine } from '../record/text';
 import { callEarlyFace } from './callEarly';
 import { hpLine, manaLine } from './num';
 import type { Camera } from '../input/camera';
+import { CANCEL_HINT } from '../input/keys';
 import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
@@ -899,7 +900,12 @@ export class Hud {
     setTimeout(() => el.remove(), 3400);
   }
 
-  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom' | 'ally'): void {
+  /** Takes a teaching line down at once (the wheel line once the wheel zooms, q8). */
+  dropToast(kind: 'wheel'): void {
+    for (const el of this.toasts.querySelectorAll(`.toast.teach.${kind}`)) el.remove();
+  }
+
+  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom' | 'ally' | 'wheel'): void {
     this.onToast(text);
     // Gold short of a price: the gold plaque shakes too (the button that asked shakes on its own).
     if (text === 'Not enough gold') shake(this.goldStat);
@@ -1143,18 +1149,25 @@ export class Hud {
     this.banner.style.animation = '';
   }
 
+  /** The aimed skill's name for the aiming hint (the hero last drawn; the slot alone before that). */
+  private aimName(slot: SkillSlot): string {
+    return this.skillKind ? HERO_INFO[this.skillKind].skills[slot].name : slot;
+  }
+
   private updateBuildHint(gold: number): void {
     const mode = this.ui.mode;
-    const show = mode.type === 'buildMenu' || mode.type === 'build';
+    const show = mode.type === 'buildMenu' || mode.type === 'build' || mode.type === 'target';
     this.buildHint.classList.toggle('hidden', !show);
     if (!show) return;
     const html =
-      mode.type === 'build'
-        ? `Placing <b>${TOWER_NAMES[mode.tower]}</b> — left-click a build pad · <kbd>Esc</kbd> cancel`
+      mode.type === 'target'
+        ? `Aim <b>${this.aimName(mode.slot)}</b> — left-click the map · ${CANCEL_HINT}`
+        : mode.type === 'build'
+        ? `Placing <b>${TOWER_NAMES[mode.tower]}</b> — left-click a build pad · ${CANCEL_HINT}`
         : `Build: ${TOWER_KINDS.map((k, i) => {
             const cost = buildCost(k);
             return `<kbd>${i + 1}</kbd> ${TOWER_NAMES[k]} <span style="color:${gold >= cost ? 'var(--gold)' : 'var(--bad)'}">${cost}</span>`;
-          }).join(' · ')} · <kbd>Esc</kbd> cancel`;
+          }).join(' · ')} · ${CANCEL_HINT}`;
     if (this.buildHint.innerHTML !== html) this.buildHint.innerHTML = html;
   }
 

@@ -1190,6 +1190,9 @@ test.describe('portrait phone layout', () => {
     await page.locator('#lobby-learn-btn').click();
     await expect(page.locator('#tutorial-title')).toHaveText('Move');
     await expect(page.locator('#tutorial-body')).toContainText('joystick');
+    // The card shows its move (q8): a thumb on the stick, no keycap.
+    await expect(page.locator('#tutorial-picture .lesson-glyph[data-glyph="gestureStick"]')).toBeVisible();
+    await expect(page.locator('#tutorial-picture kbd')).toHaveCount(0);
 
     const card = await box(page, '#tutorial');
     const top = await box(page, '#topbar');
@@ -1218,6 +1221,14 @@ test.describe('portrait phone layout', () => {
     const joy = centre(await box(page, '#joystick'));
     await finger.drag(joy, { x: joy.x, y: joy.y - 55 }, 800);
     await expect(page.locator('#tutorial-title')).toHaveText('Build a tower');
+    await expect(page.locator('#tutorial-picture .lesson-glyph[data-glyph="gesturePad"]')).toBeVisible();
+    // Every text in the card is 11 px or more, and it still stays off the controls.
+    const sizes = await page.locator('#tutorial :is(h2, p, .tutorial-kicker, .lesson-word, .lesson-cancel, .btn)').evaluateAll((els) =>
+      els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => parseFloat(getComputedStyle(el).fontSize)),
+    );
+    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(11);
+    const built = await box(page, '#tutorial');
+    for (const sel of OVERLAY) expect(overlaps(built, await box(page, sel))).toBe(false);
 
     await page.locator('#tutorial-skip').click();
     await expect(page.locator('#tutorial')).toBeHidden();

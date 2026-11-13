@@ -11,9 +11,11 @@ import {
   stepSatisfied,
   tutorialMayAdvance,
   tutorialPrompt,
+  type LessonPicture,
   type TutorialRun,
   type TutorialSample,
 } from './logic';
+import { iconVar } from '../render/art/icons';
 
 export interface TutorialFeed extends TutorialSample {
   phase: string;
@@ -41,6 +43,7 @@ export class TutorialCoach {
   private readonly kicker = $('tutorial-kicker');
   private readonly title = $('tutorial-title');
   private readonly body = $('tutorial-body');
+  private readonly picture = $('tutorial-picture');
   private readonly skip = $('tutorial-skip');
   private readonly next = $('tutorial-next');
 
@@ -177,12 +180,13 @@ export class TutorialCoach {
     const run = this.run;
     if (!run) return;
     const prompt = tutorialPrompt(run.step, this.input(), this.heroKind, this.wave, this.floating());
-    const key = `${run.step}|${prompt.body}|${prompt.next}|${prompt.skip}`;
+    const key = `${run.step}|${prompt.body}|${prompt.next}|${prompt.skip}|${JSON.stringify(prompt.picture)}`;
     this.root.classList.remove('hidden', 'air');
     if (key === this.rendered) return;
     this.rendered = key;
     this.kicker.textContent = prompt.kicker;
     this.title.textContent = prompt.title;
+    this.showPicture(prompt.picture);
     this.body.textContent = prompt.body;
     this.skip.classList.toggle('hidden', !prompt.skip);
     this.next.classList.toggle('hidden', prompt.next === null);
@@ -198,10 +202,48 @@ export class TutorialCoach {
     this.rendered = key;
     this.kicker.textContent = prompt.kicker;
     this.title.textContent = prompt.title;
+    this.showPicture(prompt.picture);
     this.body.textContent = prompt.body;
     this.skip.classList.add('hidden');
     this.next.classList.remove('hidden');
     this.next.textContent = prompt.next ?? 'Got it';
+  }
+
+  /** The keycaps, the mouse or the gesture over the card's line (q8); hidden on a card with nothing to press. */
+  private showPicture(picture: LessonPicture | null): void {
+    this.picture.replaceChildren();
+    this.picture.classList.toggle('hidden', !picture);
+    if (!picture) return;
+    for (const part of picture.parts) {
+      if ('key' in part) {
+        const kbd = document.createElement('kbd');
+        kbd.className = 'keycap';
+        kbd.textContent = part.key;
+        kbd.dataset.key = part.key;
+        this.picture.append(kbd);
+      } else if ('glyph' in part) {
+        const glyph = document.createElement('i');
+        glyph.className = 'ico lesson-glyph';
+        glyph.dataset.glyph = part.glyph;
+        glyph.style.setProperty('--ico', iconVar(part.glyph));
+        this.picture.append(glyph);
+      } else {
+        const word = document.createElement('span');
+        word.className = 'lesson-word';
+        word.textContent = part.word;
+        this.picture.append(word);
+      }
+    }
+    if (picture.cancel) {
+      const cancel = document.createElement('span');
+      cancel.className = 'lesson-cancel';
+      const kbd = document.createElement('kbd');
+      kbd.className = 'keycap small';
+      kbd.textContent = 'X';
+      kbd.dataset.key = 'X';
+      cancel.append(kbd, ' cancel');
+      this.picture.append(cancel);
+    }
   }
 
   private hideAir(): void {

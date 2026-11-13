@@ -3,8 +3,9 @@
 // or the protocol — it only reads facts the client already has.
 
 import type { GameMode, HeroKind } from '@tdt/protocol';
-import { TUNING, towerTier, tuningForMode } from '@tdt/sim';
+import { TUNING, towerTier } from '@tdt/sim';
 import { HERO_INFO } from '../heroInfo';
+import type { LessonGlyph } from '../render/art/icons';
 
 /**
  * The lesson is the player's choice (Han, 13 Oct 2026): it runs only from Learn to play.
@@ -71,11 +72,8 @@ export interface TutorialSample {
   events: readonly TutorialEvent[];
 }
 
-const QUICK = tuningForMode(TUNING, 'quick');
 const ARROW_COST = towerTier(TUNING, 'arrow', 1).cost;
 const ARROW_UPGRADE = towerTier(TUNING, 'arrow', 2).cost;
-/** Wave 1 pay in Quick. Together with starting gold it covers one Arrow and its upgrade. */
-const WAVE_ONE_GOLD = QUICK.economy.waveIncomeBase;
 
 export function freshFacts(): TutorialFacts {
   return { moved: false, built: false, castQ: false, upgraded: false, pinged: false, emoted: false };
@@ -221,13 +219,71 @@ export function tutorialMayAdvance(satisfied: boolean, satisfiedWhenShown: boole
   return shownMs >= holdMs;
 }
 
+/**
+ * One piece of a lesson card's picture (q8): a keycap (CSS `<kbd>`), a glyph drawn in `render/art/icons.ts` (the
+ * mouse with its button lit, or a touch gesture), or the small words between them.
+ */
+export type LessonPart = { key: string } | { glyph: LessonGlyph } | { word: 'or' | '+' };
+
+/** What a card shows above its line: what to press. `cancel`: the card starts a mode, so a small X keycap says "cancel". */
+export interface LessonPicture {
+  parts: readonly LessonPart[];
+  cancel: boolean;
+}
+
 export interface TutorialPrompt {
   kicker: string;
   title: string;
+  /** One short line: what to do. The picture says which key or gesture. */
   body: string;
+  /** What to press, or null on a card with nothing to press (the closing card). */
+  picture: LessonPicture | null;
   /** Label of the forward button, or null when only Skip (and doing the action) moves on. */
   next: string | null;
   skip: boolean;
+}
+
+/** The longest line a step's card says (one sentence that fits the card in two lines on a 360 px phone). */
+export const LESSON_LINE_MAX = 64;
+
+/** The hero's Q is aimed at a point (only the Arcanist's Fireball today). */
+function aimedQ(hero: HeroKind | null): boolean {
+  return hero === 'arcanist';
+}
+
+/** What a step's card shows above its line, for a mouse and keyboard or for touch. Pure data. */
+export function lessonPicture(step: TutorialStepId, input: 'touch' | 'desktop', hero: HeroKind | null): LessonPicture {
+  const aimed = aimedQ(hero);
+  if (input === 'touch') {
+    switch (step) {
+      case 'move':
+        return { parts: [{ glyph: 'gestureStick' }], cancel: false };
+      case 'build':
+        return { parts: [{ glyph: 'gesturePad' }], cancel: false };
+      case 'cast':
+        return { parts: aimed ? [{ glyph: 'gestureTap' }, { word: 'or' }, { glyph: 'gestureAim' }] : [{ glyph: 'gestureTap' }], cancel: false };
+      case 'upgrade':
+        return { parts: [{ glyph: 'gestureTower' }], cancel: false };
+      case 'ping':
+        return { parts: [{ glyph: 'gestureHold' }], cancel: false };
+      case 'emote':
+        return { parts: [{ glyph: 'gestureChat' }], cancel: false };
+    }
+  }
+  switch (step) {
+    case 'move':
+      return { parts: [{ glyph: 'mouseRight' }], cancel: false };
+    case 'build':
+      return { parts: [{ glyph: 'mouseLeft' }, { word: 'or' }, { key: 'B' }, { key: '1–5' }], cancel: true };
+    case 'cast':
+      return { parts: aimed ? [{ key: 'Q' }, { word: '+' }, { glyph: 'mouseLeft' }] : [{ key: 'Q' }], cancel: aimed };
+    case 'upgrade':
+      return { parts: [{ glyph: 'mouseLeft' }, { word: 'or' }, { key: 'U' }], cancel: false };
+    case 'ping':
+      return { parts: [{ key: 'Alt' }, { word: '+' }, { glyph: 'mouseLeft' }], cancel: false };
+    case 'emote':
+      return { parts: [{ key: 'C' }], cancel: false };
+  }
 }
 
 export function tutorialPrompt(
@@ -243,6 +299,7 @@ export function tutorialPrompt(
       kicker: 'Lesson',
       title: "You're ready",
       body: 'You can move, build, cast, upgrade and ping. This Quick match keeps going. The first time Wisps appear, one note explains them. Settings → Learn to play runs the lesson again.',
+      picture: null,
       next: 'Got it',
       skip: false,
     };
@@ -250,79 +307,41 @@ export function tutorialPrompt(
   const n = TUTORIAL_STEPS.length;
   const index = TUTORIAL_STEPS.indexOf(step) + 1;
   const kicker = `Step ${index} of ${n}`;
+  const touch = input === 'touch';
+  const card = (title: string, body: string, next: string | null = null): TutorialPrompt => ({
+    kicker,
+    title,
+    body,
+    picture: lessonPicture(step, input, hero),
+    next,
+    skip: true,
+  });
   switch (step) {
     case 'move':
-      return {
-        kicker,
-        title: 'Move',
-        body:
-          input === 'touch'
-            ? floating
-              ? 'Drag your thumb anywhere on the map: a joystick appears under it and your hero walks. Let go to stop. Your hero keeps shooting.'
-              : 'Drag the joystick. A short push already walks at full speed, and your hero keeps shooting.'
-            : 'Right-click the ground, or hold the arrow keys. Your hero walks and keeps shooting.',
-        next: null,
-        skip: true,
-      };
+      return card(
+        'Move',
+        touch
+          ? floating
+            ? 'Drag anywhere: a joystick appears and your hero walks.'
+            : 'Drag the joystick to walk. Your hero keeps shooting.'
+          : 'Click the ground to walk. Your hero keeps shooting.',
+      );
     case 'build':
-      return {
-        kicker,
-        title: 'Build a tower',
-        body:
-          input === 'touch'
-            ? `Tap a pad beside a lane, then tap Arrow (${ARROW_COST} gold) to build it. Hold a tower button to see its range first. You'll upgrade it next.`
-            : `Left-click a pad and choose Arrow (${ARROW_COST} gold). With the pad open, 1 builds it too.`,
-        next: null,
-        skip: true,
-      };
+      return card('Build a tower', `Build an Arrow (${ARROW_COST} gold) on a pad beside a lane.`);
     case 'cast': {
       const name = hero ? HERO_INFO[hero].skills.Q.name : 'your skill';
-      const aim =
-        hero === 'arcanist'
-          ? input === 'touch'
-            ? `Tap Q (${name}), then tap where it should land. You can drag the button to aim.`
-            : `Press Q (${name}), then left-click where it should land.`
-          : input === 'touch'
-            ? `When a creep is close, tap Q (${name}). Hold a skill button to read what it does. If it says nothing in range, walk nearer and tap again.`
-            : `When a creep is close, press Q (${name}). If nothing is in range, walk nearer and press it again.`;
-      const wait = hero !== 'arcanist' && wave < 1 ? ' Creeps arrive when the first wave starts.' : '';
-      return { kicker, title: 'Cast a skill', body: aim + wait, next: null, skip: true };
+      if (aimedQ(hero)) return card('Cast a skill', `Cast ${name} where it should land.`);
+      return card('Cast a skill', wave < 1 ? `Cast ${name} near a creep, once the first wave starts.` : `Cast ${name} when a creep is close.`);
     }
     case 'upgrade':
-      return {
-        kicker,
-        title: 'Upgrade',
-        body:
-          input === 'touch'
-            ? `Tap your tower, then tap Upgrade (${ARROW_UPGRADE} gold). The ring stays open, so the next tier is one more tap. The first wave pays ${WAVE_ONE_GOLD}.`
-            : `Left-click your tower, then Upgrade (${ARROW_UPGRADE} gold), or press U. The first wave pays ${WAVE_ONE_GOLD}.`,
-        next: null,
-        skip: true,
-      };
+      return card('Upgrade', `Open your tower and Upgrade it (${ARROW_UPGRADE} gold).`);
     case 'ping':
-      return {
-        kicker,
-        title: 'Ping the map',
-        body:
-          input === 'touch'
-            ? floating
-              ? 'Press and hold a finger still on open ground until the ring fills, then lift it. A marker appears. Dragging walks instead.'
-              : 'Press and hold on open ground, not on the joystick, until the ring fills, then lift. A marker appears.'
-            : 'Alt-click the ground. A marker appears for your team.',
-        next: null,
-        skip: true,
-      };
+      return card(
+        'Ping the map',
+        touch && !floating ? 'Hold open ground, not the joystick, then lift.' : touch ? 'Hold still until the ring fills, then lift.' : 'Mark a spot on the map for your team.',
+      );
     case 'emote':
-      return {
-        kicker,
-        title: 'Quick chat',
-        body:
-          input === 'touch'
-            ? 'Optional. Tap the speech button and pick a phrase. There is nothing to type.'
-            : 'Optional. Press C, or tap the speech button, and pick a phrase. There is nothing to type.',
-        next: 'Continue',
-        skip: true,
-      };
+      return card('Quick chat', 'Optional: pick a phrase, nothing to type.', 'Continue');
   }
 }
 
@@ -337,6 +356,7 @@ export function airPrompt(hero: HeroKind | null): TutorialPrompt {
   return {
     kicker: 'Lesson',
     title: 'Wisps fly',
+    picture: null,
     body: ranged
       ? 'Cannon cannot hit Wisps. Arrow, Frost, Arcane and Flak can, and so can your shots. Each one wears a wing mark.'
       : 'Your swings cannot reach Wisps. Arrow, Frost, Arcane and Flak can. Each one wears a wing mark.',
