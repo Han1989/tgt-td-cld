@@ -41,6 +41,7 @@ import { e2eZipName, HARNESS, newestZip, startGameServer, startHarness } from '.
 import { holdWave10 } from './heldMoment';
 import { decodePng } from './png';
 import { readZip } from './zip';
+import { CANCEL_KEYS } from '../src/input/keys';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const repo = join(root, '..', '..');
@@ -57,7 +58,7 @@ const SITE = join(root, 'dist-e2e');
 const GAME = `${HARNESS.frameOrigin}${HARNESS.path}index.html`;
 const EXE = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
 /** The settings of a player who has played before: the lesson skipped, the one-time lines seen. */
-const PLAYED = { quality: 'high', display: 'normal', tutorial: 'skipped', airLesson: 'seen', repairHint: 'seen', zoomHint: 'seen', endlessRoomLine: 'seen' };
+const PLAYED = { quality: 'high', display: 'normal', tutorial: 'skipped', airLesson: 'seen', repairHint: 'seen', zoomHint: 'seen', wheelHint: 'seen', endlessRoomLine: 'seen' };
 const BARS = { text: 11, hero: 24 };
 /** DevTools' Fast 4G as `npm run first-load -- --fast-4g` uses it (scripts/firstLoad.ts `FAST_4G`, which runs on import). */
 const FAST_4G = { latencyMs: 165, downKbps: 8100, upKbps: 1350, cpu: 4 } as const;
@@ -126,6 +127,10 @@ const results: {
   chromebook?: { label: string; jsMs: number | null; frames: number; heapMB: number | null; heapLimitMB: number | null; gpuMB: number | null; error?: string }[];
   hz?: { hz: number; seconds: number; ticks: number; expected: number; framesPerSecond: number; error?: string }[];
   keys?: { key: string; does: string; browser: string }[];
+  /** The lesson's first two cards (q8), shot at 907 × 510 with a mouse and 450 × 800 with touch. */
+  lesson?: { frame: string; card: string; shot?: string; picture: string[]; error?: string }[];
+  /** Every text in the DOM that names Esc or Escape (q8: none), with the Controls list open and a build hint up. */
+  escText?: string[];
 } = {};
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -505,7 +510,7 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
       await p.waitForSelector('#radial:not(.hidden) .radial-btn, #tower-panel:not(.hidden)', { state: 'visible', timeout: 10_000 });
       await p.waitForTimeout(400);
       const out = { shot: await shoot(p, spec, 'ring'), ...(await measure(p)) };
-      await p.keyboard.press('Escape');
+      await p.keyboard.press('x');
       return out;
     });
     await run('end', async () => {
@@ -632,12 +637,77 @@ async function refreshRates(browser: Browser): Promise<void> {
   }
 }
 
+/** The lesson's first two cards (Move, Build a tower) as a new player sees them, and every text naming Esc (q8). */
+async function lessonShots(browser: Browser): Promise<void> {
+  results.lesson = [];
+  const esc = new Set<string>();
+  for (const spec of [
+    { w: 907, h: 510, input: 'mouse' as const },
+    { w: 450, h: 800, input: 'touch' as const },
+  ]) {
+    const touch = spec.input === 'touch';
+    const frame = `${spec.w}x${spec.h}`;
+    const ctx = await context(browser, spec, false);
+    const p = await ctx.newPage();
+    try {
+      await p.goto(`${GAME}?lab&weather=clear&light=afternoon`);
+      await p.waitForSelector('html[data-ready]', { timeout: 120_000 });
+      await press(p, touch, '#lobby-learn-btn');
+      const card = async (title: string) => {
+        await p.waitForFunction((t) => document.getElementById('tutorial-title')?.textContent === t, title, { timeout: 60_000 });
+        await p.waitForTimeout(800);
+        const picture = await p.$$eval('#tutorial-picture > *', (els) =>
+          els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => (el as HTMLElement).dataset.glyph ?? (el as HTMLElement).dataset.key ?? el.textContent ?? ''),
+        );
+        const file = `${frame}-lesson-${title === 'Move' ? 'move' : 'build'}.jpg`;
+        writeFileSync(join(framesDir, file), await p.screenshot({ type: 'jpeg', quality: 88 }));
+        results.lesson!.push({ frame, card: title, shot: `frames/${file}`, picture });
+      };
+      await card('Move');
+      // Walk two tiles: the Move step is done and the next card comes up.
+      await p.evaluate(() => {
+        const t = (window as any).__tdt;
+        const hero = t.latest().heroes.find((h: any) => h.owner === t.me());
+        t.command({ type: 'move', x: hero.x, y: hero.y - 3 });
+      });
+      await card('Build a tower');
+      if (!touch) {
+        // Every text the page holds, with the build hint up and the Controls list open.
+        await p.keyboard.press('b');
+        await p.keyboard.press('1');
+        await p.locator('.help > summary').click();
+        const found: string[] = await p.evaluate(() => {
+          const out: string[] = [];
+          const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const parent = n.parentElement;
+            if (!parent || parent.closest('script, style')) continue;
+            const text = (n.textContent ?? '').trim();
+            if (/\besc(ape)?\b/i.test(text)) out.push(text.slice(0, 60));
+          }
+          return out;
+        });
+        for (const f of found) esc.add(f);
+        await p.keyboard.press('x');
+      }
+    } catch (e) {
+      results.lesson.push({ frame, card: '?', picture: [], error: String(e).split('\n')[0]!.slice(0, 160) });
+    } finally {
+      await ctx.close();
+    }
+    console.log('lesson', frame, JSON.stringify(results.lesson.filter((r) => r.frame === frame)));
+  }
+  results.escText = [...esc];
+}
+
 function keys(): void {
   const src = readFileSync(join(root, 'src', 'input', 'controls.ts'), 'utf8');
   const body = src.slice(src.indexOf('private onKeyDown'));
-  const bound = [...body.matchAll(/case '([^']+)':/g)].map((m) => m[1]!);
+  // The cancel keys (src/input/keys.ts `CANCEL_KEYS`): X, and Escape where the page receives it.
+  const bound = [...CANCEL_KEYS, ...[...body.matchAll(/case '([^']+)':/g)].map((m) => m[1]!)];
   const does: Record<string, string> = {
-    escape: 'Cancels a build, an aim or a selection',
+    x: 'Cancels a build, an aim or a selection, and closes the open panel (the key every hint names, with right-click)',
+    escape: 'The same as X where the page receives it (outside fullscreen); no text in the game names it',
     a: 'Attack-move',
     q: 'Cast Q (Shift+Q learns it)',
     w: 'Cast W (Shift+W learns it)',
@@ -761,9 +831,26 @@ function report(): string {
     add('Gameplay', 'The same speed at 60, 144 and 165 Hz', ok ? 'PASS' : 'FAIL', hz.map((r) => `${r.hz} Hz (${r.framesPerSecond} frames/s drawn): ${r.ticks} ticks in ${r.seconds} s, ${r.expected} expected`).join('; ') + '. The sim runs on its own 20 Hz clock in the worker; the drawing interpolates on real time');
   }
   add('Gameplay', 'English', 'PASS', 'every text in the game is English');
-  add('Gameplay', 'Controls explained on each device (keyboard picture or gestures)', 'NOT CHECKED', 'a first solo match on the site starts the lesson (move, build, cast Q, upgrade, ping); CrazyGames asks for a keyboard picture or gestures shown, which the game does not draw: judge it');
-  const esc = (results.keys ?? []).some((k) => k.key === 'Escape');
-  add('Gameplay', 'No key the browser owns (Escape leaves fullscreen)', esc ? 'FAIL' : 'PASS', esc ? 'Escape cancels a build, an aim or a selection (src/input/controls.ts `onKeyDown`)' : 'no browser key bound');
+  const lesson = results.lesson ?? [];
+  const pictured = lesson.length === 4 && lesson.every((r) => !r.error && r.picture.length > 0);
+  add(
+    'Gameplay',
+    'Controls explained on each device (keyboard picture or gestures)',
+    lesson.length ? (pictured ? 'PASS' : 'FAIL') : 'NOT CHECKED',
+    `the first-match lesson (Learn to play; in gameplay, skippable) shows each move as keycaps and a mouse with its button lit, or a touch gesture, over one line (q8): ${lesson.map((r) => (r.error ? `${r.frame}: ${r.error}` : `[${r.frame} ${r.card}](${r.shot}) (${r.picture.join(' ')})`)).join(', ')}. The judgement stays CrazyGames'`,
+  );
+  const escText = results.escText;
+  const hasX = (results.keys ?? []).some((k) => k.key === 'X');
+  add(
+    'Gameplay',
+    'No key the browser owns (Escape leaves fullscreen)',
+    escText === undefined ? 'NOT CHECKED' : escText.length === 0 && hasX ? 'PASS' : 'FAIL',
+    escText === undefined
+      ? 'run `--only frames` to read the page\'s text'
+      : escText.length
+        ? `text naming Esc: ${escText.join(' | ')}`
+        : 'X cancels (src/input/keys.ts); Escape still does outside fullscreen but no text in the DOM names it (the hints, the Controls list and the lesson say "X or right-click"), read at 907 × 510 with the build hint up and the Controls list open',
+  );
   const errs = f.flatMap((r) => r.errors);
   add('Gameplay', 'Loads fast, no errors', errs.length ? 'FAIL' : 'PASS', errs.length ? `page errors: ${[...new Set(errs)].slice(0, 4).join(' | ')}` : 'no page error in any frame run; time to gameplay above');
   add('Gameplay', 'Original name and art', 'PASS', 'Tower Defense Together; every model the game\'s own design (Meshy from Claude\'s concepts) or CC0 KayKit pieces repainted; the sound made in code or CC0 (docs/SOUND_CREDITS.md)');
@@ -866,6 +953,7 @@ try {
     }
     results.frames = next;
   }
+  if (browser && only.has('frames') && !frameFilter) await lessonShots(browser);
   if (browser && only.has('hz')) await refreshRates(browser);
 } finally {
   await browser?.close();

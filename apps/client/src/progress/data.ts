@@ -981,6 +981,15 @@ const items: ProgressItem[] = [
     proof: pr(183),
   },
   {
+    id: 'D-17',
+    title: 'Keys and the lesson’s pictures',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only. X cancels a build, an aim or a selection where Escape did (in CrazyGames’ fullscreen the browser takes Escape to leave it), and no text in the game names Escape; a right-click cancels too. Each lesson card shows what to press: keycaps and a mouse with its button lit, or the touch gesture, drawn in code, over one short line. In a small desktop window a one-time line says the wheel zooms and Space centres on your hero; every match still opens on the whole map.',
+    proof: pr(187),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

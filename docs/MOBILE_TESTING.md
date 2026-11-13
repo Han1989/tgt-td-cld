@@ -353,6 +353,15 @@ On the phone, a solo match from the home card (⚙ → **Bot teammate** is **On*
 - [ ] 25.5 **The end card** lists the ultimates as before and, under **Bot teammate**, "Your bot Ranger · 6 casts · 4 combos · 212 kills · 21% of the damage".
 - [ ] 25.6 **Never** in Learn to play, the Daily run, Endless or an online room. ⚙ → Bot teammate **Off**, then Play solo: no bot.
 
+## 26. Keys CrazyGames allows, and the lesson's pictures (q8)
+
+On a laptop (a mouse), then on the phone.
+
+- [ ] 26.1 **X cancels.** In a solo match press **B**, then **1**: the hint reads "Placing Arrow — left-click a build pad · X or right-click cancel". Press **X**: the hint goes and nothing is built. The same with a right-click. As the Arcanist press **Q**: "Aim Fireball — left-click the map · X or right-click cancel"; X cancels it. Click a tower, then X: its panel closes. Open **Controls**: it says "X or Right-click cancel", nowhere "Esc".
+- [ ] 26.2 **The lesson's pictures, laptop.** ⚙ → Learn to play: **Move** shows a mouse with its right button lit over one line; **Build a tower** the left button, "or" **B** **1–5**, and a small **X cancel**; **Cast** a **Q** keycap (the Arcanist adds "+" and the left button); **Upgrade** the left button "or" **U**; **Ping** **Alt** + the left button; **Quick chat** **C**. The keycaps' letters are easy to read; the card sits in the left margin as before.
+- [ ] 26.3 **The lesson's pictures, phone.** Learn to play on the phone: Move a thumb on the stick, Build a tap on a pad, Cast a tap on Q (the Arcanist also a drag arrow), Upgrade a tap on a tower, Ping a long-press ring, Quick chat a tap on the speech button. The card is where it was, off the controls, and a tap through its words still reaches the map.
+- [ ] 26.4 **The wheel line.** In a desktop browser sized to about 907 × 510 (a fresh profile, or ⚙ → Your data → Delete my data), Play solo: about 3 s in, one line says "Scroll to zoom in. Space centres on your hero." inside the map, never over the side panels. Scroll on the map: the line goes at once and the map zooms. Play again: no line. At 1280 × 720 it never shows; on the phone it never shows (the pinch line is the phone's).
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |

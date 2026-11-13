@@ -33,6 +33,7 @@ take on the Daily run, or see how far Endless goes on today's top 10.
 - Arrow keys, the screen edges, middle-mouse drag and the wheel move and zoom the camera; **Space** centres it on your
   hero.
 - **C**: quick-chat. **Alt** + click: ping the map.
+- **X** or right-click: cancel a build, an aim or a selection.
 
 **Touch**
 
@@ -42,7 +43,9 @@ take on the Daily run, or see how far Endless goes on today's top 10.
 - **Q W E R** buttons cast; drag a button to aim, drag back to cancel.
 - Long-press the map to ping it; pinch to zoom, double-tap to zoom back out.
 
-A first solo match teaches moving, building, casting, upgrading and pinging; it can be skipped.
+Learn to play teaches moving, building, casting, upgrading and pinging inside a real match, each step a picture of the
+keys and the mouse button (or the touch gesture) over one line; it can be skipped. In a small desktop window a one-time
+line says the wheel zooms and Space centres on your hero.
 
 ## Tags
 
