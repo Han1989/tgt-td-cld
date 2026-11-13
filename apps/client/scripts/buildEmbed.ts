@@ -13,7 +13,8 @@
 //
 // `--e2e` builds the same hosted build in the e2e mode (the `window.__tdt` hook) for the harness's local origins: the
 // game server at ws://127.0.0.1:4182 and the canonical origin http://localhost:4183 (scripts/embedServe.ts `HARNESS`),
-// into dist-embed-e2e/ and embed-e2e.zip.
+// into dist-embed-e2e/ and embed-e2e.zip (`crazygames --e2e`: dist-embed-e2e-crazygames/ and embed-e2e-crazygames.zip,
+// which e2e/embed.spec.ts plays with TDT_EMBED_HOST=crazygames; embedServe.ts `e2eZipName`).
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CANONICAL_ORIGIN, EMBED_HOSTS, isEmbedHost } from '../src/platform/embedHost';
 import { hostedLeavesOut, reportLines } from './embedReport';
-import { HARNESS } from './embedServe';
+import { e2eZipName, HARNESS } from './embedServe';
 import { writeZip } from './zip';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -71,8 +72,8 @@ if (!e2e && serverUrl.startsWith('ws://')) console.warn(`Warning: ${serverUrl} i
 const sha = git(['rev-parse', 'HEAD']) || 'dev';
 const dirty = sha !== 'dev' && git(['status', '--porcelain']) !== '';
 const build = dirty ? `${sha}-dirty` : sha;
-const outDir = e2e ? 'dist-embed-e2e' : `dist-embed-${host}`;
-const zipName = e2e ? 'embed-e2e.zip' : `embed-${host}-${sha.slice(0, 12)}${dirty ? '-dirty' : ''}.zip`;
+const outDir = e2e ? e2eZipName(host).replace(/^embed-/, 'dist-embed-').replace(/\.zip$/, '') : `dist-embed-${host}`;
+const zipName = e2e ? e2eZipName(host) : `embed-${host}-${sha.slice(0, 12)}${dirty ? '-dirty' : ''}.zip`;
 const env = {
   ...process.env,
   VITE_EMBED_HOST: host,

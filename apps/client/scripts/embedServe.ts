@@ -8,6 +8,7 @@
 //   npm run embed:serve -- --zip <file>            that zip
 //   npm run embed:serve -- e2e --server            the browser test's zip (embed-e2e.zip, `build:embed -- itch --e2e`)
 //                                                  with a local game server on :4182 and the zip as the "site" on :4183
+//   npm run embed:serve -- e2e-crazygames --server the same for `build:embed -- crazygames --e2e`
 //
 // /sandboxed and /desktop/sandboxed frame it with `sandbox` and no `allow-same-origin` (an opaque origin: no storage,
 // no service worker): no host of the three does that, but the page says what happens if one did.
@@ -255,10 +256,16 @@ export async function startGameServer(): Promise<GameServer> {
   };
 }
 
-/** The newest `embed-<name>-*.zip` (or `embed-e2e.zip`) in apps/client. */
+/** The browser test's zip for a host (`build:embed -- <host> --e2e`): itch's is `embed-e2e.zip`, another's carries its name. */
+export function e2eZipName(host: string): string {
+  return host === 'itch' ? 'embed-e2e.zip' : `embed-e2e-${host}.zip`;
+}
+
+/** The newest `embed-<name>-*.zip` (or `embed-e2e.zip`; `e2e-crazygames`: `embed-e2e-crazygames.zip`) in apps/client. */
 export function newestZip(name: string): string | null {
   const dir = fileURLToPath(new URL('..', import.meta.url));
-  if (name === 'e2e') return join(dir, 'embed-e2e.zip');
+  if (name === 'e2e') return join(dir, e2eZipName('itch'));
+  if (name.startsWith('e2e-')) return join(dir, e2eZipName(name.slice(4)));
   const zips = readdirSync(dir)
     .filter((f) => f.startsWith(`embed-${name}-`) && f.endsWith('.zip'))
     .map((f) => ({ f, t: statSync(join(dir, f)).mtimeMs }))

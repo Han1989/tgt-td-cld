@@ -107,6 +107,12 @@ jobs:
         if: matrix.project != 'iphone'
         run: npm run build:embed -w @tdt/client -- itch --e2e
 
+      # The same spec on CrazyGames' build (q5: no fullscreen button, no link to a playable copy, rooms by their code),
+      # run once per project on its first shard, after the project's own tests.
+      - name: Build the CrazyGames e2e zip
+        if: matrix.project != 'iphone' && matrix.shard == 1
+        run: npm run build:embed -w @tdt/client -- crazygames --e2e
+
       # On CI each browser test gets one retry (playwright.config.ts; never the stress test), so one slow runner can't
       # block a pull request. A test that passes only on its retry is flaky, not green: the next step lists it in the
       # job summary and puts a warning annotation on the run.
@@ -120,6 +126,20 @@ jobs:
         run: >-
           node .github/scripts/playwright-summary.mjs apps/client/playwright-report/results.json
           "Browser tests: ${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }}"
+
+      - name: Browser tests (CrazyGames build)
+        id: crazygames
+        if: always() && matrix.project != 'iphone' && matrix.shard == 1 && steps.tests.outcome != 'skipped'
+        working-directory: apps/client
+        env:
+          TDT_EMBED_HOST: crazygames
+        run: npx playwright test e2e/embed.spec.ts --project=${{ matrix.project }}
+
+      - name: Job summary (CrazyGames build)
+        if: always() && steps.crazygames.outcome != 'skipped'
+        run: >-
+          node .github/scripts/playwright-summary.mjs apps/client/playwright-report/results.json
+          "Browser tests: ${{ matrix.project }}, CrazyGames build"
 
       - name: Keep traces of failed tests
         if: failure()
