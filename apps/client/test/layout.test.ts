@@ -140,13 +140,21 @@ describe('computeLayout: the tilted camera (V-08b, B: 30° from straight down)',
     expect(l.map.left).toBeCloseTo(1280 - l.map.right, 9);
   });
 
-  it('1100 × 500 (a short desktop window): the tall layout fitted to the height, 15% wider than before', () => {
+  it('1100 × 500 (a short desktop window) with a mouse: the wide layout fitted to the height (q7), 15% bigger than before', () => {
     const l = computeLayout(input(1100, 500, { touch: false, landscape: true }));
+    expect(l.kind).toBe('wide');
+    expect(l.map.bottom - l.map.top).toBeCloseTo(500 - 16, 9);
+    expect(l.tilePx).toBeCloseTo((500 - 16) / (50 * cos), 9);
+    expect(l.tilePx / computeLayout(input(1100, 500, { touch: false, landscape: true, pitch: 0 })).tilePx).toBeCloseTo(1 / cos, 9);
+    expect(l.controls).toBeNull();
+    expect(l.zoomButton).toBeNull();
+  });
+
+  it('700 × 500 (a narrow desktop window): still the tall layout fitted to the height', () => {
+    const l = computeLayout(input(700, 500, { touch: false, landscape: true }));
     expect(l.kind).toBe('tall');
     expect(l.map.bottom).toBeCloseTo(500, 9);
     expect(l.tilePx).toBeCloseTo((500 - TOP_BAR_H) / (50 * cos), 9);
-    expect(l.rowPx).toBeCloseTo((500 - TOP_BAR_H) / 50, 9);
-    expect(l.tilePx / computeLayout(input(1100, 500, { touch: false, landscape: true, pitch: 0 })).tilePx).toBeCloseTo(1 / cos, 9);
     expect(l.zoomButton).toBeNull();
   });
 });
@@ -446,5 +454,33 @@ describe('computeLayout: tablets and desktop', () => {
 
   it('never shows the rotate screen on a desktop window', () => {
     expect(computeLayout(input(800, 500, { touch: false, landscape: true })).kind).not.toBe('rotate');
+  });
+
+  // CrazyGames' frames (q7, docs/crazygames/AUDIT.md): with a mouse every desktop frame is wide, with no touch overlay.
+  const MOUSE_FRAMES: [number, number][] = [
+    [821, 462], [907, 510], [1077, 606], [1216, 684], [1280, 720], [1366, 768], [1536, 864], [1920, 1080], [800, 450],
+  ];
+  for (const [w, h] of MOUSE_FRAMES) {
+    it(`gives a mouse the wide layout at ${w} × ${h}, the whole map on screen and the side panels at least ${SIDE_MIN} px`, () => {
+      const l = computeLayout(input(w, h, { touch: false, landscape: true }));
+      expect(l.kind).toBe('wide');
+      expect(l.controls).toBeNull();
+      expect(l.map.left).toBeGreaterThanOrEqual(SIDE_MIN - 1e-9);
+      expect(l.map.right).toBeLessThanOrEqual(w - SIDE_MIN + 1e-9);
+      expect(l.map.top).toBeGreaterThanOrEqual(0);
+      expect(l.map.bottom).toBeLessThanOrEqual(h);
+    });
+  }
+
+  it('keeps the rotate screen for touch at 907 × 510 and 800 × 450, and the wide layout with touch controls at 1080 × 607', () => {
+    expect(computeLayout(input(907, 510)).kind).toBe('rotate');
+    expect(computeLayout(input(800, 450)).kind).toBe('rotate');
+    const tablet = computeLayout(input(1080, 607));
+    expect(tablet.kind).toBe('wide');
+    expect(tablet.controls).not.toBeNull();
+  });
+
+  it('keeps a portrait window with a mouse in the tall layout', () => {
+    expect(computeLayout(input(607, 1080, { touch: false, landscape: false })).kind).toBe('tall');
   });
 });

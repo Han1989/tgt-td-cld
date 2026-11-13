@@ -10,7 +10,8 @@
 //   back to the fit.
 // - `wide`: tablets in landscape and desktop. The map is fitted to the height and
 //   centred; the HUD sits in the side margins (and the touch controls too, on a
-//   touch screen).
+//   touch screen). A mouse in a landscape window always gets it, down to 800 × 450
+//   (MOUSE_WIDE_MIN_TILE).
 // - `rotate`: a phone held sideways; the page asks to rotate to portrait.
 //
 // The tilted camera (V-08b, render/view.ts): the ground's rows are drawn `cos(pitch)` as tall as its columns are wide,
@@ -27,6 +28,12 @@ export const SIDE_MIN = 280;
 export const WIDE_PAD = 8;
 /** Wide layout needs at least this tile size (px); otherwise the tall layout is used. */
 export const WIDE_MIN_TILE = 12;
+/**
+ * A mouse in a landscape window (no coarse pointer, w > h) keeps the wide layout down to this tile instead (q7,
+ * CrazyGames' frames): 9.2 px at 800 × 450, 10 at 821 × 462, 11.4 at 907 × 510, where the tall layout's touch controls
+ * would be drawn for a mouse. Narrower windows still fall to the tall layout.
+ */
+export const MOUSE_WIDE_MIN_TILE = 9;
 
 /** Joystick base radius and knob radius (px). The base is the grab area; full speed is a shorter travel. */
 export const JOY_R = 50;
@@ -180,7 +187,8 @@ export function computeLayout(input: LayoutInput): Layout {
   // The pitched map is shorter, so fitted to the height it is drawn bigger (1 / cos): the side margins narrow with it
   // (the HUD's panels are `--margin` wide, so they stay clear of the map), never under SIDE_MIN.
   const wideTile = Math.min((h - 2 * WIDE_PAD) / (mapH * cos), (w - 2 * SIDE_MIN) / mapW);
-  if (!phone && wideTile >= WIDE_MIN_TILE) {
+  const mouseLandscape = !touch && w > h;
+  if (!phone && wideTile >= (mouseLandscape ? MOUSE_WIDE_MIN_TILE : WIDE_MIN_TILE)) {
     const mw = mapW * wideTile;
     const mh = mapH * wideTile * cos;
     const left = (w - mw) / 2;
