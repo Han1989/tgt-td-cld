@@ -21,12 +21,12 @@ Made by `npm run cg-audit -w @tdt/client` on 2026-11-13 from the crazygames buil
 | Technical | body user-select: none (and -webkit-) | **PASS** | style.css `html, body { user-select: none; -webkit-user-select: none; }` (text fields and the privacy id selectable) |
 | Technical | Works in their app's fullscreen with the safe areas | **NOT CHECKED** | the layout reads `env(safe-area-inset-*)` and re-runs when the insets change (docs/MOBILE.md §4); not run in CrazyGames' app |
 | Technical | After an iOS interruption the AudioContext resumes inside a touch or click | **PASS** | audio/engine.ts: every pointerdown / touchend / click / keydown calls `unlock`, which resumes a context that is not running (`interrupted` included) inside that gesture; unchanged |
-| Gameplay | Legible at 907 × 510 (desktop, not fullscreen) | **FAIL** | wave10: text 9.5 px · ring: not reached: TimeoutError: page.waitForSelector: Timeout 10000ms exceeded. |
+| Gameplay | Legible at 907 × 510 (desktop, not fullscreen) | **FAIL** | wave10: text 9.5 px · ring: text 8.5 px |
 | Gameplay | Legible at 1216 × 684 (desktop, not fullscreen) | **FAIL** | home: text 10 px · wave10: text 10 px · ring: text 10 px |
 | Gameplay | Legible at 1280 × 720 (desktop, fullscreen) | **FAIL** | home: text 10 px · wave10: text 10 px · ring: text 10 px |
 | Gameplay | Legible at 1920 × 1080 (desktop, fullscreen) | **FAIL** | home: text 10 px · wave10: text 10 px · ring: text 10 px |
 | Gameplay | Legible at 800 × 450 (phone) | **FAIL** | loading: not reached: the rotate screen · home: asks to rotate · wave10: not reached: the rotate screen · ring: not reached: the rotate screen · end: not reached: the rotate screen |
-| Gameplay | Legible at 1080 × 607 (tablet) | **FAIL** | home: text 10 px · ring: not reached: TimeoutError: page.waitForSelector: Timeout 10000ms exceeded. |
+| Gameplay | Legible at 1080 × 607 (tablet) | **FAIL** | home: text 10 px · ring: text 8.5 px |
 | Gameplay | The same speed at 60, 144 and 165 Hz | **PASS** | 60 Hz (49 frames/s drawn): 401 ticks in 20 s, 400 expected; 144 Hz (47.4 frames/s drawn): 1200 ticks in 60 s, 1200 expected; 165 Hz (49.4 frames/s drawn): 401 ticks in 20 s, 400 expected. The sim runs on its own 20 Hz clock in the worker; the drawing interpolates on real time |
 | Gameplay | English | **PASS** | every text in the game is English |
 | Gameplay | Controls explained on each device (keyboard picture or gestures) | **NOT CHECKED** | a first solo match on the site starts the lesson (move, build, cast Q, upgrade, ping); CrazyGames asks for a keyboard picture or gestures shown, which the game does not draw: judge it |
@@ -70,24 +70,24 @@ One device px per CSS px; a mouse on the desktop sizes, touch on the phone and t
 | Frame | Step | Layout | Tile | Hero | Grunt | Smallest text | Cut off | Scrolled to | Over the map | Result | Picture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 907 × 510 | home | tall | — | — | — | 11 px "Ranged DPS" | none | #lobby-board-link "Today's top 10", .btn "Full30 waves", .btn "Quick15 waves", .btn "Endless∞", #lobby-daily "Daily run · Quick on Har", #lobby-offline "Play solo", #lobby-name, #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **PASS** | [home](frames/907x510-home.jpg) |
-| 907 × 510 | loading | tall | — | — | — | 13 px "R · Arrow Storm" | none | #lobby-sound, .btn "Ranger", .btn "Warden", .btn "Arcanist" | none | **PASS** | [loading](frames/907x510-loading.jpg) |
-| 907 × 510 | wave10 | tall | 10.8 | 41 | — | 9.5 px "Gold" | none | none | #joystick, .tskill-btn "Q", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R" | **FAIL** (text 9.5 px) | [wave10](frames/907x510-wave10.jpg) |
-| 907 × 510 | ring | — | — | — | — | — | none | none | none | **NOT CHECKED** (TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.) | — |
-| 907 × 510 | end | tall | 10.8 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report", #joystick, .tskill-btn "Q", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", .radial-btn "Repair10" | **PASS** | [end](frames/907x510-end.jpg) |
+| 907 × 510 | loading | tall | — | — | — | 13 px "Q · Multishot" | none | #lobby-sound, .btn "Ranger", .btn "Warden", .btn "Arcanist" | none | **PASS** | [loading](frames/907x510-loading.jpg) |
+| 907 × 510 | wave10 | tall | 10.8 | 47 | — | 9.5 px "Gold" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R" | **FAIL** (text 9.5 px) | [wave10](frames/907x510-wave10.jpg) |
+| 907 × 510 | ring | tall | 10.8 | — | — | 8.5 px "Upgrade" | none | none | #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R", .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", .radial-btn "Repair5" | **FAIL** (text 8.5 px) | [ring](frames/907x510-ring.jpg) |
+| 907 × 510 | end | tall | 10.8 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report", #joystick, .tskill-btn "Q", .learn "+", .tskill-btn "W", .tskill-btn "E", .tskill-btn "R" | **PASS** | [end](frames/907x510-end.jpg) |
 | 1216 × 684 | home | wide | — | — | — | 10 px "Today's top 10" | none | none | none | **FAIL** (text 10 px) | [home](frames/1216x684-home.jpg) |
-| 1216 × 684 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/1216x684-loading.jpg) |
-| 1216 × 684 | wave10 | wide | 15.4 | 96 | — | 10 px "28" | none | none | none | **FAIL** (text 10 px) | [wave10](frames/1216x684-wave10.jpg) |
-| 1216 × 684 | ring | wide | 15.4 | — | — | 10 px "28" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 6", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **FAIL** (text 10 px) | [ring](frames/1216x684-ring.jpg) |
+| 1216 × 684 | loading | wide | — | — | — | 13 px "E · Keen Eye" | none | none | none | **PASS** | [loading](frames/1216x684-loading.jpg) |
+| 1216 × 684 | wave10 | wide | 15.4 | 78 | — | 10 px "28" | none | none | none | **FAIL** (text 10 px) | [wave10](frames/1216x684-wave10.jpg) |
+| 1216 × 684 | ring | wide | 15.4 | — | — | 10 px "28" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 7", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **FAIL** (text 10 px) | [ring](frames/1216x684-ring.jpg) |
 | 1216 × 684 | end | wide | 15.4 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1216x684-end.jpg) |
 | 1280 × 720 | home | wide | — | — | — | 10 px "Today's top 10" | none | none | none | **FAIL** (text 10 px) | [home](frames/1280x720-home.jpg) |
-| 1280 × 720 | loading | wide | — | — | — | 13 px "R · Arrow Storm" | none | none | none | **PASS** | [loading](frames/1280x720-loading.jpg) |
-| 1280 × 720 | wave10 | wide | 16.3 | 56 | — | 10 px "28" | none | none | none | **FAIL** (text 10 px) | [wave10](frames/1280x720-wave10.jpg) |
-| 1280 × 720 | ring | wide | 16.3 | — | — | 10 px "28" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 5", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **FAIL** (text 10 px) | [ring](frames/1280x720-ring.jpg) |
+| 1280 × 720 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/1280x720-loading.jpg) |
+| 1280 × 720 | wave10 | wide | 16.3 | 88 | — | 10 px "28" | none | none | none | **FAIL** (text 10 px) | [wave10](frames/1280x720-wave10.jpg) |
+| 1280 × 720 | ring | wide | 16.3 | — | — | 10 px "28" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **FAIL** (text 10 px) | [ring](frames/1280x720-ring.jpg) |
 | 1280 × 720 | end | wide | 16.3 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1280x720-end.jpg) |
 | 1920 × 1080 | home | wide | — | — | — | 10 px "Today's top 10" | none | none | none | **FAIL** (text 10 px) | [home](frames/1920x1080-home.jpg) |
-| 1920 × 1080 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | none | none | **PASS** | [loading](frames/1920x1080-loading.jpg) |
-| 1920 × 1080 | wave10 | wide | 24.6 | 61 | 29 | 10 px "28" | none | none | none | **FAIL** (text 10 px) | [wave10](frames/1920x1080-wave10.jpg) |
-| 1920 × 1080 | ring | wide | 24.6 | — | — | 10 px "28" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 13", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **FAIL** (text 10 px) | [ring](frames/1920x1080-ring.jpg) |
+| 1920 × 1080 | loading | wide | — | — | — | 13 px "W · Snare Trap" | none | none | none | **PASS** | [loading](frames/1920x1080-loading.jpg) |
+| 1920 × 1080 | wave10 | wide | 24.6 | 59 | 29 | 10 px "28" | none | none | none | **FAIL** (text 10 px) | [wave10](frames/1920x1080-wave10.jpg) |
+| 1920 × 1080 | ring | wide | 24.6 | — | — | 10 px "28" | none | none | .btn "Upgrade to tier 3 375", .btn "Repair 10", .btn "First", .btn "Strongest", .btn "Closest", .btn "Sell for 203" | **FAIL** (text 10 px) | [ring](frames/1920x1080-ring.jpg) |
 | 1920 × 1080 | end | wide | 24.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1920x1080-end.jpg) |
 | 800 × 450 | home | rotate | — | — | — | 14 px "Tower Defense Together is played with th" | none | .btn "Ranger", .btn "Warden", .btn "Arcanist", #lobby-board-link "Today's top 10", .btn "Full30 waves", .btn "Quick15 waves", .btn "Endless∞", #lobby-daily "Daily run · Quick on Har", #lobby-offline "Play solo", #lobby-name, #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **FAIL** (asks to rotate) | [home](frames/800x450-home.jpg) |
 | 800 × 450 | loading | — | — | — | — | — | none | none | none | **FAIL** (not reached: the rotate screen) | — |
@@ -95,10 +95,10 @@ One device px per CSS px; a mouse on the desktop sizes, touch on the phone and t
 | 800 × 450 | ring | — | — | — | — | — | none | none | none | **FAIL** (not reached: the rotate screen) | — |
 | 800 × 450 | end | — | — | — | — | — | none | none | none | **FAIL** (not reached: the rotate screen) | — |
 | 1080 × 607 | home | wide | — | — | — | 10 px "Today's top 10" | none | .btn "Full30 waves", .btn "Quick15 waves", .btn "Endless∞", #lobby-daily "Daily run · Quick on Har", #lobby-offline "Play solo", #lobby-name, #lobby-create "Create room", #lobby-code, #lobby-join "Join room" | none | **FAIL** (text 10 px) | [home](frames/1080x607-home.jpg) |
-| 1080 × 607 | loading | wide | — | — | — | 13 px "W · Snare Trap" | none | #lobby-sound | none | **PASS** | [loading](frames/1080x607-loading.jpg) |
-| 1080 × 607 | wave10 | wide | 13.6 | 61 | — | 12 px "Q" | none | none | none | **PASS** | [wave10](frames/1080x607-wave10.jpg) |
-| 1080 × 607 | ring | — | — | — | — | — | none | none | none | **NOT CHECKED** (TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.) | — |
-| 1080 × 607 | end | wide | 13.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report", .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", .radial-btn "Repair10" | **PASS** | [end](frames/1080x607-end.jpg) |
+| 1080 × 607 | loading | wide | — | — | — | 13 px "Q · Multishot" | none | #lobby-sound | none | **PASS** | [loading](frames/1080x607-loading.jpg) |
+| 1080 × 607 | wave10 | wide | 13.6 | 68 | — | 12 px "Q" | none | none | none | **PASS** | [wave10](frames/1080x607-wave10.jpg) |
+| 1080 × 607 | ring | wide | 13.6 | — | — | 8.5 px "Upgrade" | none | none | .radial-btn "Upgrade375", .radial-btn "TargetFirst", .radial-btn "Sell203", .radial-btn "Repair7" | **FAIL** (text 8.5 px) | [ring](frames/1080x607-ring.jpg) |
+| 1080 × 607 | end | wide | 13.6 | — | — | 13 px "Back to lobby" | none | none | #restart "Play again", #end-change-hero "Back to lobby", #end-save "Save match report" | **PASS** | [end](frames/1080x607-end.jpg) |
 
 ## A 4 GB Chromebook stand-in
 

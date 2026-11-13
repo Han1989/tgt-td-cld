@@ -103,7 +103,7 @@
      "shot": "frames/907x510-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "R · Arrow Storm"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [
@@ -152,18 +152,39 @@
      "overMap": [
       "#joystick",
       ".tskill-btn \"Q\"",
+      ".learn \"+\"",
       ".tskill-btn \"W\"",
       ".tskill-btn \"E\"",
       ".tskill-btn \"R\""
      ],
      "layout": "tall",
      "tilePx": 10.8,
-     "heroPx": 41,
+     "heroPx": 47,
      "gruntPx": null
     },
     {
      "step": "ring",
-     "error": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded."
+     "shot": "frames/907x510-ring.jpg",
+     "smallest": {
+      "px": 8.5,
+      "text": "Upgrade"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\"",
+      ".radial-btn \"Upgrade375\"",
+      ".radial-btn \"TargetFirst\"",
+      ".radial-btn \"Sell203\"",
+      ".radial-btn \"Repair5\""
+     ],
+     "layout": "tall",
+     "tilePx": 10.8
     },
     {
      "step": "end",
@@ -180,13 +201,10 @@
       "#end-save \"Save match report\"",
       "#joystick",
       ".tskill-btn \"Q\"",
+      ".learn \"+\"",
       ".tskill-btn \"W\"",
       ".tskill-btn \"E\"",
-      ".tskill-btn \"R\"",
-      ".radial-btn \"Upgrade375\"",
-      ".radial-btn \"TargetFirst\"",
-      ".radial-btn \"Sell203\"",
-      ".radial-btn \"Repair10\""
+      ".tskill-btn \"R\""
      ],
      "layout": "tall",
      "tilePx": 10.8
@@ -207,7 +225,7 @@
      "shot": "frames/1216x684-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
      "below": [],
@@ -240,7 +258,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 15.4,
-     "heroPx": 96,
+     "heroPx": 78,
      "gruntPx": null
     },
     {
@@ -254,7 +272,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 6\"",
+      ".btn \"Repair 7\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -296,7 +314,7 @@
      "shot": "frames/1280x720-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "R · Arrow Storm"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [],
@@ -329,7 +347,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 16.3,
-     "heroPx": 56,
+     "heroPx": 88,
      "gruntPx": null
     },
     {
@@ -343,7 +361,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 5\"",
+      ".btn \"Repair 10\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -385,7 +403,7 @@
      "shot": "frames/1920x1080-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "W · Snare Trap"
      },
      "cutOff": [],
      "below": [],
@@ -418,7 +436,7 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 24.6,
-     "heroPx": 61,
+     "heroPx": 59,
      "gruntPx": 29
     },
     {
@@ -432,7 +450,7 @@
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 13\"",
+      ".btn \"Repair 10\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
@@ -528,7 +546,7 @@
      "shot": "frames/1080x607-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "W · Snare Trap"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [
@@ -573,12 +591,26 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 13.6,
-     "heroPx": 61,
+     "heroPx": 68,
      "gruntPx": null
     },
     {
      "step": "ring",
-     "error": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded."
+     "shot": "frames/1080x607-ring.jpg",
+     "smallest": {
+      "px": 8.5,
+      "text": "Upgrade"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".radial-btn \"Upgrade375\"",
+      ".radial-btn \"TargetFirst\"",
+      ".radial-btn \"Sell203\"",
+      ".radial-btn \"Repair7\""
+     ],
+     "layout": "wide",
+     "tilePx": 13.6
     },
     {
      "step": "end",
@@ -592,11 +624,7 @@
      "overMap": [
       "#restart \"Play again\"",
       "#end-change-hero \"Back to lobby\"",
-      "#end-save \"Save match report\"",
-      ".radial-btn \"Upgrade375\"",
-      ".radial-btn \"TargetFirst\"",
-      ".radial-btn \"Sell203\"",
-      ".radial-btn \"Repair10\""
+      "#end-save \"Save match report\""
      ],
      "layout": "wide",
      "tilePx": 13.6
