@@ -16,11 +16,11 @@
 // into dist-embed-e2e/ and embed-e2e.zip.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CANONICAL_ORIGIN, EMBED_HOSTS, isEmbedHost } from '../src/platform/embedHost';
-import { reportLines } from './embedReport';
+import { hostedLeavesOut, reportLines } from './embedReport';
 import { HARNESS } from './embedServe';
 import { writeZip } from './zip';
 
@@ -94,9 +94,11 @@ const vite = spawnSync('npx', ['vite', 'build', '--mode', e2e ? 'e2e' : 'embed',
 if (vite.status !== 0) die('The build failed.');
 
 const dist = join(root, outDir);
+// One stage video a hero: the WebMs stay on the site only (q4).
+for (const p of listFiles(dist)) if (hostedLeavesOut(p)) rmSync(join(dist, p));
 const files = new Map(listFiles(dist).map((p) => [p, readFileSync(join(dist, p))] as const));
 if (!files.has('index.html')) die(`${outDir} has no index.html`);
 const zip = writeZip([...files].map(([path, data]) => ({ path, data })));
 writeFileSync(join(root, zipName), zip);
 console.log('');
-for (const line of reportLines({ zipPath: `apps/client/${zipName}`, zipBytes: zip.length, files })) console.log(line);
+for (const line of reportLines({ zipPath: `apps/client/${zipName}`, zipBytes: zip.length, files, host })) console.log(line);

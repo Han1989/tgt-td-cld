@@ -4,7 +4,7 @@
 // (scripts/zip.ts) and what `npm run build:embed` reports about it (scripts/embedReport.ts).
 
 import { describe, expect, it } from 'vitest';
-import { headFiles, initialFiles, LIMITS, reportLines, staticImports } from '../scripts/embedReport';
+import { headFiles, hostedLeavesOut, initialFiles, LIMITS, reportLines, staticImports } from '../scripts/embedReport';
 import { readZip, writeZip } from '../scripts/zip';
 import { CHANNELS, hostedChannel } from '../src/analytics/channel';
 import { rebaseSoundFiles, soundFiles } from '../src/audio/files';
@@ -302,5 +302,21 @@ describe('hosted build: what build:embed reports', () => {
     const lines = reportLines({ zipPath: 'embed-itch-x.zip', zipBytes: 12_000, files });
     expect(lines.join('\n')).toContain(`files 10 / ${LIMITS.crazygames.files} ok`);
     expect(lines.join('\n')).not.toContain('OVER');
+    expect(lines.join('\n')).not.toContain('phone homepage (no SDK');
+  });
+
+  it('a CrazyGames zip gets the whole build against its phone homepage\'s 20 MB on a line of its own (q4)', () => {
+    const files = new Map([['index.html', new Uint8Array(10)]]);
+    const ok = reportLines({ zipPath: 'embed-crazygames-x.zip', zipBytes: 18_900_000, files, host: 'crazygames' });
+    expect(ok.at(-1)).toBe('CrazyGames phone homepage (no SDK, the whole build counts): zip 18.90 MB / 20.00 MB ok');
+    const over = reportLines({ zipPath: 'embed-crazygames-x.zip', zipBytes: 27_700_000, files, host: 'crazygames' });
+    expect(over.at(-1)).toContain('27.70 MB / 20.00 MB OVER');
+    expect(reportLines({ zipPath: 'embed-itch-x.zip', zipBytes: 1, files, host: 'itch' }).join('\n')).not.toContain('phone homepage (no SDK');
+  });
+
+  it('a hosted zip carries one stage video a hero: the MP4s, never the WebMs (q4)', () => {
+    expect(['stage/ranger.webm', 'stage/warden.webm', 'stage/arcanist.webm'].every(hostedLeavesOut)).toBe(true);
+    for (const keep of ['stage/ranger.mp4', 'stage/ranger-poster.webp', 'stage/clearing.webp', 'music/lobby.mp3', 'assets/x.webm', 'index.html'])
+      expect(hostedLeavesOut(keep), keep).toBe(false);
   });
 });

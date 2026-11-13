@@ -58,7 +58,7 @@ another name **stops the deploy** (see step 6 below), so a typo can't go live un
 
 **Music**
 
-- MP3, **stereo, 44.1 kHz, 128 kbps** (up to 160 kbps).
+- MP3, **stereo, 44.1 or 48 kHz, 96 kbps joint stereo** (the game's three files since q4, 12 Nov 2026: a lighter download; 128 kbps for a file whose plucked strings or cymbals sound worse at 96).
 - A **loop of 60–120 seconds**: about **1–2 MB**. Keep each under 3 MB; the build warns above 4.5 MB.
   (A phone holds the decoded music in memory, ~45 MB for a 2-minute loop, so longer files cost a lot.)
   `boss.mp3` can be shorter (30–90 s).

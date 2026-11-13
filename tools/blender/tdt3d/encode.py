@@ -1,7 +1,9 @@
 # Encoding with ffmpeg: the stage loop as an H.264 MP4 (yuv420p, faststart, muted: plays inline everywhere, iPhones
 # included; level 4.2 for its 2400 × 900 frame; one keyframe a loop, since a loop only ever starts at its first
 # frame), its first frame as a WebP poster, and stills. Each searches its quality setting for the best that stays
-# under the size budget (docs/ART.md §15). The creeps' match sheets are lossless WebP (`sheet`).
+# under the size budget (docs/ART.md §15). The match sheets are written twice (q4, "A lighter download"): a lossless
+# WebP master in tools/blender/masters/ (`sheet`: the pixels the build made, what the tests and a partial re-render
+# read) and the file the game ships, lossy WebP with its alpha exact (`shipped`, at `SHIPPED_QUALITY`).
 
 import os
 import shutil
@@ -77,6 +79,44 @@ def sheet(img, out):
         print(f'{os.path.basename(out)}: colour under clear pixels, written in exact mode', flush=True)
         if _hidden(out, img.shape):
             raise RuntimeError(f'{out}: colour under clear pixels even in exact mode')
+    return os.path.getsize(out)
+
+
+# The quality each shipped sheet is encoded at (libwebp's lossy 0..100, its alpha always lossless), picked by
+# tools/blender/lighter.py's ladder on the committed masters (docs/ART.md §15 "Lighter sheets"); a sheet not named here
+# ships lossless. To go back to lossless for a sheet, give it None: its shipped file is then its master, byte for byte.
+SHIPPED_QUALITY = {
+    'structures': 90,
+    'creeps': 92,
+}
+
+
+def quality_for(file):
+    """The shipped quality of a sheet file name (structures-match-2.webp, grunt-match.webp), or None (lossless)."""
+    if file.startswith('structures-match'):
+        return SHIPPED_QUALITY.get('structures')
+    if file.endswith('-match.webp'):
+        return SHIPPED_QUALITY.get('creeps')
+    return None
+
+
+def shipped(master, out, quality=None):
+    """The game's copy of a lossless master: lossy WebP at `quality` (`quality_for` its name by default) with its
+    alpha exact (alpha_quality 100: the alpha plane is stored losslessly, so every silhouette, reach and tap box is the
+    master's to the pixel), libwebp's slowest, smallest method; the colour under a fully clear pixel is libwebp's to
+    choose, since every sheet is premultiplied as it goes on the GPU. With no quality the master is copied. Returns the
+    shipped file's size."""
+    from PIL import Image
+
+    q = quality_for(os.path.basename(out)) if quality is None else quality
+    if q is None:
+        shutil.copyfile(master, out)
+        return os.path.getsize(out)
+    im = Image.open(master).convert('RGBA')
+    im.save(out, 'WEBP', quality=q, method=6, alpha_quality=100, exact=False)
+    back = np.asarray(Image.open(out).convert('RGBA'))
+    if not np.array_equal(back[..., 3], np.asarray(im)[..., 3]):
+        raise RuntimeError(f'{out}: the alpha changed in the lossy encode')
     return os.path.getsize(out)
 
 

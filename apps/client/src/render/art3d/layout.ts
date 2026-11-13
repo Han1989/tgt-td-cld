@@ -1,7 +1,7 @@
 // Heroes made in 3D and rendered ahead of time (docs/ART.md §15): what the Blender pipeline wrote for each one
 // (tools/blender, `npm run art:3d -- <hero>`, from the Meshy models in the hero table tools/blender/hero.py), and the
 // pure rules the rig and the lobby's stage use to play it. Nothing 3D runs here: the stage is a video, the match a
-// sheet of pictures. Generated files, not edited by hand: <hero>.json (both layouts) and <hero>-match.png (the sheet)
+// sheet of pictures. Generated files, not edited by hand: <hero>.json (both layouts) and <hero>-match.webp (the sheet, lossless)
 // in this folder, the stage files in public/stage/.
 
 import type { HeroKind } from '@tdt/protocol';

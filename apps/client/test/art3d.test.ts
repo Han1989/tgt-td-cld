@@ -2,7 +2,8 @@
 // models (V-06b), the creeps and bosses too (V-06i, V-06j: the Spire's host): the layout data the Blender pipeline writes must match the images it wrote (frame counts, sizes, points,
 // white twins), the stage files must be what the layout says and within budget, every hero's stage the same box in
 // the same clearing, every shipped stage frame and the creeps' kept frames must pass the fringe check, the creep sheets
-// (lossless WebP, read pixel for pixel by scripts/webp.ts) must fit the texture budget (two 2048 × 2048 pages), and
+// (their lossless WebP masters in tools/blender/masters/, read pixel for pixel by scripts/webp.ts; the game ships them
+// lossy with the alpha exact, q4) must fit the texture budget (two 2048 × 2048 pages), and
 // nothing 3D may reach the player's device.
 
 import { createHash } from 'node:crypto';
@@ -13,8 +14,8 @@ import { CREEP_KINDS, TOWER_BRANCHES, TOWER_KINDS, type CreepKind, type TowerKin
 import { TUNING } from '@tdt/sim';
 import { measureFringe } from '../scripts/fringe';
 import { decodePng, type Image } from '../scripts/png';
-import { decodeWebp } from '../scripts/webp';
-import { pickVideo } from '../src/lobby/stageBackdrop';
+import { decodeWebp, decodeWebpAlpha } from '../scripts/webp';
+import { pickHostedVideo, pickVideo } from '../src/lobby/stageBackdrop';
 import { isMediaPath, isStageVideo, swSource } from '../src/platform/swSource';
 import {
   cycleFrame,
@@ -63,6 +64,8 @@ import {
 
 const CLIENT = join(__dirname, '..');
 const ART3D = join(CLIENT, 'src', 'render', 'art3d');
+/** The creep and structure sheets' lossless masters (q4): the game ships them lossy with the alpha exact. */
+const MASTERS = join(CLIENT, '..', '..', 'tools', 'blender', 'masters');
 const STAGE = join(CLIENT, 'public', 'stage');
 
 /** docs/ART.md §15: the frame counts each hero's rig plays, by layer and kind. */
@@ -123,11 +126,11 @@ describe('3D heroes: the match sheet', () => {
 
   for (const [kind, hero] of heroes) {
     const m = hero!.match;
-    const png = decodePng(readFileSync(join(ART3D, m.file)));
+    const png = decodeWebp(readFileSync(join(ART3D, m.file)));
     const want = COUNTS[kind]!;
 
     it(`${kind}: the sheet is the size the layout says, 4 px per world px, RGBA, played as the 2D ${kind}`, () => {
-      expect(m.file).toBe(`${kind}-match.png`);
+      expect(m.file).toBe(`${kind}-match.webp`);
       expect([png.width, png.height]).toEqual([m.w, m.h]);
       expect(png.channels).toBe(4);
       expect(m.res).toBe(4);
@@ -503,6 +506,9 @@ describe('3D heroes: the rig and stage rules', () => {
     expect(pickVideo((t) => (t.includes('avc1') ? 'probably' : 'probably'))).toBe('mp4');
     expect(pickVideo((t) => (t.includes('vp9') ? 'probably' : ''))).toBe('webm');
     expect(pickVideo(() => '')).toBeNull();
+    // A hosted build has only the MP4s (q4): where H.264 does not play, the poster stays.
+    expect(pickHostedVideo((t) => (t.includes('avc1') ? 'probably' : ''))).toBe('mp4');
+    expect(pickHostedVideo((t) => (t.includes('vp9') ? 'probably' : ''))).toBeNull();
   });
 });
 
@@ -799,6 +805,46 @@ function skyline(sizes: [number, number][], width: number, height: number): [num
   return places as [number, number][];
 }
 
+describe('the shipped creep and structure sheets: lossy, the alpha exact (q4, a lighter download)', () => {
+  const doc = JSON.parse(readFileSync(join(MASTERS, 'shipped.json'), 'utf8')) as {
+    sheets: Record<string, { quality: number | null; bytes: number; masterBytes: number; sha256: string; alphaExact: boolean; fringe: number; masterFringe: number; opaqueP999: number; bandP99: number }>;
+  };
+  const names = [...CREEP_KINDS.map((k) => `${k}-match.webp`), ...(structuresDoc as unknown as StructuresLayout).match.pages.map((p) => p.file)];
+
+  it('every creep sheet and structure page has a master and a shipped copy, and nothing else is in the masters', () => {
+    expect(Object.keys(doc.sheets).sort()).toEqual([...names].sort());
+    expect(readdirSync(MASTERS).sort()).toEqual([...names, 'shipped.json'].sort());
+  });
+
+  for (const name of names) {
+    it(`${name}: the shipped file is what the build recorded, smaller than its master, its alpha the master's to the pixel`, () => {
+      const row = doc.sheets[name]!;
+      const master = readFileSync(join(MASTERS, name));
+      const file = readFileSync(join(ART3D, name));
+      expect(createHash('sha256').update(file).digest('hex')).toBe(row.sha256);
+      expect([file.length, master.length]).toEqual([row.bytes, row.masterBytes]);
+      expect(master.toString('ascii', 12, 16)).toBe('VP8L');
+      const m = decodeWebp(master);
+      if (row.quality === null) {
+        expect(file.equals(master)).toBe(true);
+        return;
+      }
+      expect(file.length).toBeLessThan(master.length * 0.7);
+      const got = decodeWebpAlpha(file);
+      expect([got.width, got.height]).toEqual([m.width, m.height]);
+      let off = 0;
+      for (let i = 0; i < got.alpha.length; i++) if (got.alpha[i] !== m.data[i * 4 + 3]) off++;
+      expect(off).toBe(0);
+      expect(row.alphaExact).toBe(true);
+      // The colour: the fringe check on the decoded copy over the grass no worse than the master's, the change small.
+      expect(row.fringe).toBeLessThanOrEqual(Math.max(0.01, row.masterFringe) + 0.001);
+      // The Wisp's glowing edge measures 19 at every quality from 80 to 95 (the colour planes are half size in lossy
+      // WebP, whatever its quality), the rest 5–14.
+      expect(row.bandP99).toBeLessThanOrEqual(20);
+    });
+  }
+});
+
 describe('3D creeps: the match sheets', () => {
   it('every creep kind is made in 3D', () => {
     expect(Object.keys(CREEP_3D).sort()).toEqual([...CREEP_KINDS].sort());
@@ -807,10 +853,10 @@ describe('3D creeps: the match sheets', () => {
   for (const kind of CREEP_KINDS) {
     const c = CREEP_3D[kind];
     const m = c.match;
-    const img = decodeWebp(readFileSync(join(ART3D, m.file)));
+    const img = decodeWebp(readFileSync(join(MASTERS, m.file)));
     const boss = TUNING.creeps[kind].boss;
 
-    it(`${kind}: the sheet is a lossless WebP the size the layout says, RGBA, 2048 wide, 4 px per world px (bosses 3), its own style`, () => {
+    it(`${kind}: the sheet's master is a lossless WebP the size the layout says, RGBA, 2048 wide, 4 px per world px (bosses 3), its own style`, () => {
       expect(c.id).toBe(kind);
       expect(m.file).toBe(`${kind}-match.webp`);
       expect([img.width, img.height]).toEqual([m.w, m.h]);
@@ -1069,7 +1115,8 @@ describe('nothing 3D runs on the device', () => {
 describe('3D towers, the Heart and the portals: the structures sheet', () => {
   const doc = structuresDoc as unknown as StructuresLayout;
   const m = doc.match;
-  const files = m.pages.map((p) => readFileSync(join(ART3D, p.file)));
+  const files = m.pages.map((p) => readFileSync(join(MASTERS, p.file)));
+  const shipped = m.pages.map((p) => readFileSync(join(ART3D, p.file)));
   const pages = files.map((f) => decodeWebp(f));
   const cells = Object.entries(m.cells);
   const COS = Math.cos((CAMERA_PITCH * Math.PI) / 180);
@@ -1117,7 +1164,7 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     return { side, down, up, reach: Math.max(side, down / COS) };
   };
 
-  it('is lossless RGBA WebP pages through the match\'s camera (30°), at most four of 2048 × 2048, as the layout says, 2.75 px per world px', () => {
+  it('is RGBA WebP pages through the match\'s camera (30°), at most four of 2048 × 2048, as the layout says, 2.75 px per world px', () => {
     expect(doc.id).toBe('structures');
     expect(m.pitch).toBe(CAMERA_PITCH);
     expect(m.headings).toBe(HEADINGS);
@@ -1126,14 +1173,14 @@ describe('3D towers, the Heart and the portals: the structures sheet', () => {
     expect(m.pages.length).toBeLessThanOrEqual(4);
     for (const [i, p] of m.pages.entries()) {
       expect(files[i]!.toString('ascii', 12, 16), p.file).toBe('VP8L');
-      expect(files[i]!.length, p.file).toBe(p.bytes);
+      expect(shipped[i]!.length, p.file).toBe(p.bytes);
       expect([pages[i]!.width, pages[i]!.height], p.file).toEqual([p.w, p.h]);
       expect(pages[i]!.channels).toBe(4);
       expect(p.w).toBe(2048);
       expect(p.h).toBeLessThanOrEqual(2048);
     }
-    // Precached with the shell (V-07d): every match draws from them from its first frame. Under 8 MB together.
-    expect(files.reduce((a, f) => a + f.length, 0)).toBeLessThan(8_000_000);
+    // Every match waits for them (V-08b load-all): shipped lossy (q4), under 3.5 MB together (6.9 MB lossless).
+    expect(shipped.reduce((a, f) => a + f.length, 0)).toBeLessThan(3_500_000);
     // A tower is drawn ~1.8 device px per world px on a 3× phone (docs/ART.md §6): 2.75 never magnifies.
     expect(m.res).toBe(2.75);
   });

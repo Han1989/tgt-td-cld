@@ -264,8 +264,9 @@ def pages(sheets):
     return None if left else out
 
 
-def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=None):
-    """Renders the creep's match sheet into out_dir (<kind>-match.webp); returns its layout, the file's size and the
+def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=None, masters_dir=None):
+    """Renders the creep's match sheet into out_dir (<kind>-match.webp, the game's lossy copy; its lossless master in
+    masters_dir, out_dir/masters by default: tdt3d/encode.py `shipped`); returns its layout, the file's size and the
     build's notes (render time, the fringe check on every frame)."""
     t_start = time.time()
     name = spec['name']
@@ -393,7 +394,10 @@ def render_creep(spec, out_dir, tmp, draft=False, checks_dir=None, frames_out=No
                             dx=int(hb[0] - union[0]), dy=int(hb[1] - union[1]))
     os.makedirs(out_dir, exist_ok=True)
     file = f'{name}-match.webp'
-    size = encode.sheet(sheet, os.path.join(out_dir, file))
+    masters_dir = masters_dir or os.path.join(out_dir, 'masters')
+    os.makedirs(masters_dir, exist_ok=True)
+    encode.sheet(sheet, os.path.join(masters_dir, file))
+    size = encode.shipped(os.path.join(masters_dir, file), os.path.join(out_dir, file))
 
     frames = {}
     hide_frames = {}

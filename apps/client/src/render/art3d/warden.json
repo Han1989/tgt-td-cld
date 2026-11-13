@@ -1,7 +1,7 @@
 {
  "id": "warden",
  "match": {
-  "file": "warden-match.png",
+  "file": "warden-match.webp",
   "frames": {
    "body": {
     "block": [

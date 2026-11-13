@@ -6,10 +6,10 @@ import type { HeroKind } from '@tdt/protocol';
 import { ImageSource, Rectangle, Texture } from 'pixi.js';
 import { toGpu } from '../../artLoad/gpu';
 import { fetchSheet, sheetOff, trackSheet } from '../../artLoad/track';
-import arcanistSheet from './arcanist-match.png?url';
+import arcanistSheet from './arcanist-match.webp?url';
 import { HERO_3D, kindBox, type Cell, type LayerName, type MatchLayout } from './layout';
-import rangerSheet from './ranger-match.png?url';
-import wardenSheet from './warden-match.png?url';
+import rangerSheet from './ranger-match.webp?url';
+import wardenSheet from './warden-match.webp?url';
 
 /** Each hero's sheet (a URL with its build hash). */
 export const HERO_SHEETS: Partial<Record<HeroKind, string>> = { ranger: rangerSheet, warden: wardenSheet, arcanist: arcanistSheet };

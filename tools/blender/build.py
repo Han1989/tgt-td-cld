@@ -15,12 +15,12 @@
 # builds all three, sharing one render of the clearing; `creeps` all nine creeps and bosses. The heroes are rows of
 # tools/blender/hero.py, the creeps of tools/blender/creeps.py.
 # Outputs: apps/client/public/stage/<hero>.mp4, .webm, <hero>-poster.webp and clearing.webp (the stage),
-# apps/client/src/render/art3d/<hero>-match.png (the match frame sheet) and <hero>.json (both layouts); for a creep
-# <kind>-match.webp (lossless) and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
+# apps/client/src/render/art3d/<hero>-match.webp (the match frame sheet, lossless) and <hero>.json (both layouts); for a creep
+# <kind>-match.webp (lossy, its alpha exact; the lossless master in tools/blender/masters/) and <kind>.json (match frames only: creeps have no stage), and its fringe fixtures.
 # Map plates: apps/client/public/map/spire.webp and spire-extra.webp (the patches) with their layout in
 # apps/client/src/render/plate/spire.json; the link card's plate (dev only) in apps/client/src/render/plate/card.webp.
-# The towers, the Heart and the portals (tools/blender/structures.py): one sheet, structures-match.webp (lossless, since
-# V-07d), and its layout structures.json in apps/client/src/render/art3d/; rendering some keeps the sheet's other frames.
+# The towers, the Heart and the portals (tools/blender/structures.py): pages structures-match-N.webp (lossy with the
+# alpha exact since q4, their lossless masters in tools/blender/masters/), and their layout structures.json in apps/client/src/render/art3d/; rendering some keeps the sheet's other frames.
 # The HUD's frames (tools/blender/ui.py, V-07a): one sheet, ui.webp (lossless), and its layout ui.json in
 # apps/client/src/render/art3d/, the fringe check's mask in apps/client/test/fixtures/ui-fringe/.
 
@@ -37,6 +37,14 @@ sys.path.insert(0, HERE)
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 STAGE_OUT = os.path.join(ROOT, 'apps', 'client', 'public', 'stage')
 MATCH_OUT = os.path.join(ROOT, 'apps', 'client', 'src', 'render', 'art3d')
+# The match sheets' lossless masters (q4): the pixels the build made, which the game ships as lossy WebP
+# (tdt3d/encode.py `shipped`); the tests and a partial re-render read these, never the shipped copies.
+MASTERS = os.path.join(HERE, 'masters')
+
+
+def masters_for(out):
+    """Where a build writing its sheets to `out` keeps their masters: tools/blender/masters/, or out/masters/."""
+    return MASTERS if os.path.abspath(out) == MATCH_OUT else os.path.join(out, 'masters')
 # The fringe check's fixtures (docs/ART.md §15): key frames of the stage, cut to the hero's silhouette, with his mask.
 CHECKS_OUT = os.path.join(ROOT, 'apps', 'client', 'test', 'fixtures', 'stage-fringe')
 # The creeps' fringe fixtures: two frames a kind (the stand and a step), cut to the silhouette, over the lane.
@@ -69,7 +77,8 @@ def build_creeps(names, args):
             spec = (table.LEGACY if args.legacy else table.CREEPS)[name]
             layout, size, notes, fixtures = creep.render_creep(spec, out, os.path.join(tmp, name),
                                                                draft=args.draft, checks_dir=checks,
-                                                               frames_out=args.frames_out)
+                                                               frames_out=args.frames_out,
+                                                               masters_dir=masters_for(out))
             times[name] = notes['renderS']
             w, h = notes['worstFringe'], notes['worstHard']
             print(f'creep {name}: sheet {layout["w"]} × {layout["h"]} ({size} bytes), {notes["frames"]} frames in '
@@ -142,8 +151,8 @@ def structures_main(argv):
         if not old_pages:
             raise SystemExit('structures.json is from before V-08b\'s pages (one sheet seen straight down): render '
                              'every structure (`npm run art:3d -- structures`)')
-        # Lossless: the frames kept are the pixels shipped.
-        previous = ([np.array(Image.open(os.path.join(MATCH_OUT, pg['file'])).convert('RGBA'))
+        # The masters: the frames kept are the pixels the build made, never a lossy copy's.
+        previous = ([np.array(Image.open(os.path.join(MASTERS, pg['file'])).convert('RGBA'))
                      for pg in layout['match']['pages']], layout['match'])
     tmp = os.path.abspath(args.work) if args.work else tempfile.mkdtemp(prefix='tdt3d-structures-')
     os.makedirs(tmp, exist_ok=True)
@@ -154,19 +163,23 @@ def structures_main(argv):
         if not args.work:
             shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(out, exist_ok=True)
-    # Lossless WebP, as the creeps' sheets (V-07d: a third smaller than the PNG, the same pixels): the pages are
-    # precached with the shell, so their bytes are every first visit's. One file a page (V-08b: structures-match-N.webp);
-    # pages an earlier build wrote past the last are removed, and the single sheet from before the pages.
+    # A lossless WebP master a page (V-07d, V-08b: structures-match-N.webp) and the game's lossy copy with its alpha
+    # exact (q4: the pages are every first match's biggest wait). Pages an earlier build wrote past the last are
+    # removed, and the single sheet from before the pages.
+    masters = masters_for(out)
+    os.makedirs(masters, exist_ok=True)
     size = 0
     for n, sh in enumerate(sheets):
         name = f'structures-match-{n}.webp'
-        b = encode.sheet(sh, os.path.join(out, name))
+        encode.sheet(sh, os.path.join(masters, name))
+        b = encode.shipped(os.path.join(masters, name), os.path.join(out, name))
         layout['pages'][n].update(file=name, bytes=b)
         size += b
-    for f in os.listdir(out):
-        if f == 'structures-match.webp' or (f.startswith('structures-match-') and f.endswith('.webp') and
-                                            f not in {pg['file'] for pg in layout['pages']}):
-            os.remove(os.path.join(out, f))
+    for d in (out, masters):
+        for f in os.listdir(d):
+            if f == 'structures-match.webp' or (f.startswith('structures-match-') and f.endswith('.webp') and
+                                                f not in {pg['file'] for pg in layout['pages']}):
+                os.remove(os.path.join(d, f))
     # Each frame's fringe check (the shares), kept for the frames not rendered this time.
     by_frame = {}
     if previous:
