@@ -73,6 +73,8 @@ Each cover: a hero large on the right from his poster, the meadow and a wave beh
 
 **On a real phone.** For a post that should show a real device, the same frames can be taken by hand: Chrome DevTools' device toolbar at **Pixel 7** (412 × 915) or **iPhone 12 Pro** (390 × 844), keeping the preset's pixel ratio, **⋮ → Capture screenshot** (not "full size"), Display **Normal**, and Skip on the first-match lesson. For a store page or a press post, a card from `/?showcase` (the **Heroes** or the **Towers** cards, Normal, cropped to the cards) can go beside them.
 
+**CrazyGames' covers and previews (q5, 13 Nov 2026).** CrazyGames asks for three covers of **one design** (1920 × 1080, 800 × 1200 and 800 × 800, the title the only text) and two preview videos (landscape 1080p 16:9 and portrait 1080p 2:3, 15–20 s, no sound, no cursor, real speed, opening on the cover). `npm run press-shots -w @tdt/client -- --only 7,cg` draws the covers by the same cover code (the Arcanist on the meadow in wave 10, the wordmark) into `docs/crazygames/`; `npm run cg-previews -w @tdt/client` records the previews in real time from a real solo Quick match on the e2e build (the build phase, a wave, Arrow Storm, the wave-5 boss; Chromium's screencast with its own timestamps, so a slow GPU drops frames but never changes the speed) into `docs/crazygames/preview-landscape-1920x1080.mp4` and `preview-portrait-1080x1620.mp4`. The store text: `docs/crazygames/SUBMISSION.md`. The covers in `docs/press/` (`cg-cover-16x9.png`, `cg-cover-1x1.png`) are superseded for CrazyGames by these.
+
 ## 3. A 15-second clip
 
 One take from a real match, about 15 s, portrait, sound on (Reddit and X autoplay muted, so the picture has to carry it):

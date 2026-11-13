@@ -68,12 +68,37 @@ export function canonicalUrl(canonical: string, path: string): string {
 }
 
 /**
- * The page's HTML in a hosted build: links to the site's own pages (`href="/privacy.html…"`, `href="/"`) point at the
- * real game, and the web app manifest goes (a host's upload is never installed: its start page would be the host's
- * root). Everything else Vite makes relative itself (`base: './'`).
+ * A host whose rules allow no link to a playable copy of the game (CrazyGames: "nothing that leads to a playable web
+ * version"). Its build has no invite link, no address on the share card, no link to the site on a version mismatch
+ * and no fullscreen button of its own (the host's player has one); a room is joined by its code, and its privacy
+ * links carry `?hosted` (`HOSTED_MARK`), which hides the privacy page's way back into the game.
  */
-export function hostedHtml(html: string, canonical: string): string {
+export function linkless(host: EmbedHost): boolean {
+  return host === 'crazygames';
+}
+
+/** The query key the privacy page reads to hide its "Back to the game" link (privacy/page.ts). */
+export const HOSTED_MARK = 'hosted';
+
+/** A privacy link marked for a linkless host: `/privacy.html#age` → `/privacy.html?hosted#age`. Other paths as given. */
+export function markPrivacy(path: string): string {
+  const m = /^(.*\/privacy\.html)(\?[^#]*)?(#.*)?$/.exec(path);
+  if (!m) return path;
+  const query = m[2] ? `${m[2]}&${HOSTED_MARK}` : `?${HOSTED_MARK}`;
+  return `${m[1]}${query}${m[3] ?? ''}`;
+}
+
+/**
+ * The page's HTML in a hosted build: links to the site's own pages (`href="/privacy.html…"`, `href="/"`) point at the
+ * real game (a linkless host's privacy links marked, `markPrivacy`), and the web app manifest goes (a host's upload is
+ * never installed: its start page would be the host's root). Everything else Vite makes relative itself (`base: './'`).
+ */
+export function hostedHtml(html: string, canonical: string, host?: EmbedHost): string {
+  const mark = host !== undefined && linkless(host);
   return html
-    .replace(/(<a\b[^>]*\bhref=")\/(privacy\.html[^"]*|)"/g, (_m, head: string, rest: string) => `${head}${canonical}/${rest}"`)
+    .replace(/(<a\b[^>]*\bhref=")\/(privacy\.html[^"]*|)"/g, (_m, head: string, rest: string) => {
+      const url = `${canonical}/${rest}`;
+      return `${head}${mark ? markPrivacy(url) : url}"`;
+    })
     .replace(/\s*<link rel="manifest"[^>]*>/g, '');
 }

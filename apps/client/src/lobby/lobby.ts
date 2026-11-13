@@ -27,6 +27,7 @@ import { fittedLine, recordLines } from '../record/text';
 import { heroIcon, iconVar } from '../render/art/icons';
 import { HERO_COLORS, toCss } from '../render/palette';
 import { updateAndReload } from '../platform/pwa';
+import { linkless } from '../platform/embedHost';
 import { sharedSettings } from '../settings';
 import { lessonOffer, type SoloPick } from '../tutorial/logic';
 import { BoardCard } from './boardCard';
@@ -420,6 +421,12 @@ export class LobbyUi {
 
   /** The server runs another protocol version: ask for a reload. */
   showVersionMismatch(): void {
+    // A linkless host's copy may not send players to the site (CrazyGames): it waits for its own update.
+    if (__EMBED__ && linkless(__EMBED__.host)) {
+      this.showHome('This copy is being updated. Try again in a few minutes.');
+      this.refresh.classList.add('hidden');
+      return;
+    }
     this.showHome(__EMBED__ ? `New version available at ${new URL(__EMBED__.canonical).host}` : 'New version available — refresh');
     if (__EMBED__) this.refresh.textContent = 'Play the new version';
     this.refresh.classList.remove('hidden');
@@ -570,6 +577,7 @@ function seat(p: LobbyState['players'][number], you: boolean, host: boolean): HT
 function openSeat(): HTMLLIElement {
   const li = document.createElement('li');
   li.className = 'seat open';
-  li.textContent = 'Open seat: send the invite link';
+  // A linkless host (CrazyGames) has no invite link: friends join by the code (platform/embedHost.ts `linkless`).
+  li.textContent = __EMBED__ && linkless(__EMBED__.host) ? 'Open seat: share the code' : 'Open seat: send the invite link';
   return li;
 }

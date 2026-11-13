@@ -56,6 +56,7 @@ import { addUltCueParts, applyUltCues } from './ultFace';
 import { UltHud } from './ultHud';
 import { matchFile, saveMatchFile } from './matchFile';
 import { CardShare } from '../share/share';
+import { BareCardShare } from '../share/bare';
 import { endlessFace, outcomeLine, type EndlessFace } from '../share/text';
 import { skillFace } from './skillFace';
 import {
@@ -86,6 +87,7 @@ import {
   upgradeCost,
 } from './towerInfo';
 import { levelBadge, levelUpToast, xpFill } from './heroLevel';
+import { linkless } from '../platform/embedHost';
 
 /** The Heart stat warns (red pulse) at or under this share of HP; matches the world's warning glow. */
 const HEART_LOW = 0.3;
@@ -271,8 +273,13 @@ export class Hud {
   /** An Endless run's share card (share/), beside Save match report. */
   private readonly endShare = $('end-share') as HTMLButtonElement;
   private readonly endToasts = $('end-toasts');
-  /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL. */
-  private readonly cards = __EMBED__ ? new CardShare(__EMBED__.canonical) : new CardShare();
+  /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL; a
+   * linkless host's (CrazyGames) carries none. */
+  private readonly cards = __EMBED__
+    ? linkless(__EMBED__.host)
+      ? new BareCardShare()
+      : new CardShare(__EMBED__.canonical)
+    : new CardShare();
   private shareFace: EndlessFace | null = null;
   private readonly endFeedback = $('end-feedback');
   private readonly endRatings = $('end-ratings');

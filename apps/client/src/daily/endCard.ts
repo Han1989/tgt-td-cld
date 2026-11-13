@@ -12,7 +12,9 @@ import { currentAgeBand } from '../analytics/age';
 import { storedName, storeName } from '../lobby/nickname';
 import { askAge } from '../privacy/ageCheck';
 import { CardShare } from '../share/share';
+import { BareCardShare } from '../share/bare';
 import { dailyFace, outcomeLine, type DailyFace } from '../share/text';
+import { linkless } from '../platform/embedHost';
 import { postRun, type PostOutcome } from './api';
 import { bestLine, gapLine, postErrorLine, rankLine, rankParts, retryable, rowText, type PostResult } from './text';
 
@@ -62,8 +64,13 @@ export class DailyEndCard {
   private frame = 0;
   /** The posted run's card, once the post went through. */
   private face: DailyFace | null = null;
-  /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL. */
-  private readonly cards = __EMBED__ ? new CardShare(__EMBED__.canonical) : new CardShare();
+  /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL; a
+   * linkless host's (CrazyGames) carries none. */
+  private readonly cards = __EMBED__
+    ? linkless(__EMBED__.host)
+      ? new BareCardShare()
+      : new CardShare(__EMBED__.canonical)
+    : new CardShare();
 
   /**
    * `toast` shows the share's outcome on the end card ("Card saved, link copied"); `posted` hears a post that went

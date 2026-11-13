@@ -5,6 +5,8 @@
 // and the stand-in for the real game, which serves the same zip at its root.
 //
 // Build it first: npm run build:embed -w @tdt/client -- itch --e2e
+// CrazyGames' build (q5: no fullscreen button, no link to a playable copy, rooms joined by their code):
+//   npm run build:embed -w @tdt/client -- crazygames --e2e, then TDT_EMBED_HOST=crazygames npx playwright test e2e/embed.spec.ts
 //
 // Chromium's device emulation does not reach a cross-site frame in another process (its `screen.orientation` would be
 // this machine's landscape monitor, and the phone layout would ask to rotate), so this file's browser keeps frames in
@@ -16,10 +18,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, expect, type Browser, type Frame, type Page } from '@playwright/test';
-import { HARNESS, startGameServer, startHarness } from '../scripts/embedServe';
+import { e2eZipName, HARNESS, startGameServer, startHarness } from '../scripts/embedServe';
 import { Finger } from './helpers';
 
-const ZIP = fileURLToPath(new URL('../embed-e2e.zip', import.meta.url));
+/** The host the zip was built for: itch's by default, `TDT_EMBED_HOST=crazygames` for CrazyGames' (linkless). */
+const HOST = process.env.TDT_EMBED_HOST?.trim() || 'itch';
+const LINKLESS = HOST === 'crazygames';
+const ZIP = fileURLToPath(new URL(`../${e2eZipName(HOST)}`, import.meta.url));
+/** The privacy page's address as the hosted build links it (a linkless host's carries `?hosted`, which hides its way back). */
+const PRIVACY = (hash = '') => `${HARNESS.siteOrigin}/privacy.html${LINKLESS ? '?hosted' : ''}${hash}`;
 /** The site's e2e build: the stand-in for the real game serves its privacy page (the zip has none). */
 const SITE = fileURLToPath(new URL('../dist-e2e/', import.meta.url));
 const LOCK = join(tmpdir(), 'tdt-embed-harness.lock');
@@ -59,7 +66,7 @@ const test = base.extend<object, { browser: Browser; harness: void }>({
   ],
   harness: [
     async ({}, use) => {
-      if (!existsSync(ZIP)) throw new Error(`No ${ZIP}: run npm run build:embed -w @tdt/client -- itch --e2e first`);
+      if (!existsSync(ZIP)) throw new Error(`No ${ZIP}: run npm run build:embed -w @tdt/client -- ${HOST} --e2e first`);
       const release = await lock();
       const harness = await startHarness(ZIP, { site: true, siteFallback: SITE });
       const server = await startGameServer();
@@ -101,6 +108,19 @@ async function answerAge(frame: Frame | Page): Promise<void> {
   await expect(frame.locator('#age-check')).toHaveCount(0);
 }
 
+/** Every link's address on the page that leaves its own origin (anchors, and any `?room=` text the page shows). */
+function offOrigin(frame: Frame): Promise<string[]> {
+  return frame.evaluate(() => {
+    const out = new Set<string>();
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+      const url = new URL(a.getAttribute('href')!, location.href);
+      if (url.origin !== location.origin && url.protocol !== 'mailto:') out.add(url.href);
+    }
+    for (const m of document.body.innerText.matchAll(/https?:\/\/[^\s"')]+/g)) out.add(m[0]);
+    return [...out].sort();
+  });
+}
+
 /** How far a document has moved: its scroll both ways, the visual viewport's offset, and how far it could scroll. */
 function moved(frame: Frame): Promise<number[]> {
   return frame.evaluate(() => {
@@ -131,7 +151,7 @@ async function capturePosts(page: Page): Promise<Post[]> {
   return posts;
 }
 
-test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; no install, no update banner, no scrolling; channel itch', async ({
+test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; no install, no update banner, no scrolling; the host\'s channel', async ({
   page,
   isMobile,
 }) => {
@@ -151,26 +171,38 @@ test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; 
   await expect(frame.locator('#ios-install')).toBeHidden();
 
   // Fullscreen (the frame allows it): a button on the stage under the sound button; the card still fits the frame.
+  // CrazyGames' build has none: the host's player has its own, and its rules allow no other (q5).
   const fullscreen = frame.locator('#lobby-fullscreen');
-  await expect(fullscreen).toBeVisible();
-  const [fsBox, soundBox, stageBox, playBox, frameBox] = await Promise.all([
-    fullscreen.boundingBox(),
-    frame.locator('#lobby-sound').boundingBox(),
-    frame.locator('#lobby-stage').boundingBox(),
-    frame.locator('#lobby-offline').boundingBox(),
-    page.locator('#game').boundingBox(),
-  ]);
-  expect(fsBox!.y).toBeGreaterThanOrEqual(soundBox!.y + soundBox!.height);
-  expect(fsBox!.y + fsBox!.height).toBeLessThanOrEqual(stageBox!.y + stageBox!.height);
-  expect(fsBox!.x + fsBox!.width).toBeLessThanOrEqual(stageBox!.x + stageBox!.width);
+  const [playBox, frameBox] = await Promise.all([frame.locator('#lobby-offline').boundingBox(), page.locator('#game').boundingBox()]);
+  if (LINKLESS) {
+    await expect(html).toHaveAttribute('data-linkless', '');
+    await expect(fullscreen).toHaveCount(0);
+  } else {
+    await expect(fullscreen).toBeVisible();
+    const [fsBox, soundBox, stageBox] = await Promise.all([
+      fullscreen.boundingBox(),
+      frame.locator('#lobby-sound').boundingBox(),
+      frame.locator('#lobby-stage').boundingBox(),
+    ]);
+    expect(fsBox!.y).toBeGreaterThanOrEqual(soundBox!.y + soundBox!.height);
+    expect(fsBox!.y + fsBox!.height).toBeLessThanOrEqual(stageBox!.y + stageBox!.height);
+    expect(fsBox!.x + fsBox!.width).toBeLessThanOrEqual(stageBox!.x + stageBox!.width);
+  }
   if (isMobile) expect(playBox!.y + playBox!.height, 'Play solo on the frame\'s first screen').toBeLessThanOrEqual(frameBox!.y + frameBox!.height);
 
   // The privacy page is the real game's: the lobby's link opens it in a new tab.
-  await expect(frame.locator('#lobby-privacy')).toHaveAttribute('href', `${HARNESS.siteOrigin}/privacy.html`);
+  await expect(frame.locator('#lobby-privacy')).toHaveAttribute('href', PRIVACY());
   const [privacy] = await Promise.all([page.context().waitForEvent('page'), frame.locator('#lobby-privacy').click()]);
-  await expect(privacy).toHaveURL(`${HARNESS.siteOrigin}/privacy.html`);
+  await expect(privacy).toHaveURL(PRIVACY());
   await expect(privacy.locator('h1')).toBeVisible();
+  // From a linkless host's build the policy offers no way into the game (its "Back to the game" links hidden).
+  if (LINKLESS) await expect(privacy.locator('.back a')).toHaveCount(2);
+  if (LINKLESS) for (const a of await privacy.locator('.back a').all()) await expect(a).toBeHidden();
+  else await expect(privacy.locator('.back a').first()).toBeVisible();
   await privacy.close();
+
+  // CrazyGames: no link on the first screen to any other origin but the privacy page (any of its sections).
+  if (LINKLESS) expect((await offOrigin(frame)).filter((u) => !u.startsWith(PRIVACY()))).toEqual([]);
 
   // Play solo (Quick): the match at once, with no age question (q3: a hosted build does not ask at Play).
   await frame.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
@@ -233,7 +265,7 @@ test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; 
   for (const p of posts) {
     expect(p.path, JSON.stringify(p.body).slice(0, 120)).toBe('/analytics/count');
     expect(Object.keys(p.body).sort()).toEqual(['browser', 'channel', 'platform', 'what']);
-    expect(p.body.channel, `${p.path} ${JSON.stringify(p.body).slice(0, 120)}`).toBe('itch');
+    expect(p.body.channel, `${p.path} ${JSON.stringify(p.body).slice(0, 120)}`).toBe(HOST);
   }
   expect(await frame.evaluate(() => localStorage.getItem('tdt.visitor'))).toBeNull();
 
@@ -314,11 +346,12 @@ test('with no storage at all (a sandbox, third-party storage blocked) the game p
   // open and no return.
   await page.waitForTimeout(2000);
   expect(posts.filter((p) => p.path !== '/analytics/count')).toEqual([]);
-  for (const p of posts) expect(p.body.channel).toBe('itch');
+  for (const p of posts) expect(p.body.channel).toBe(HOST);
   expect(posts.map((p) => p.body.what).filter((what) => what === 'first_open' || String(what).startsWith('return_'))).toEqual([]);
 });
 
 test('a room made in the frame: its invite link opens the real game, a friend there joins, and both play one match', async ({ page, browser, isMobile }) => {
+  test.skip(LINKLESS, 'CrazyGames\' build has no invite link: the next test joins its room by the code');
   const frame = await openGame(page, isMobile);
   await frame.locator('#lobby-name').fill('Framed');
   await frame.locator('#lobby-create').click();
@@ -374,6 +407,46 @@ test('a room made in the frame: its invite link opens the real game, a friend th
   }
 });
 
+test('CrazyGames: a room made in the frame shows its code and no link; a friend in another frame types it, and both play', async ({
+  page,
+  browser,
+  isMobile,
+}) => {
+  test.skip(!LINKLESS, 'CrazyGames\' build only (TDT_EMBED_HOST=crazygames)');
+  const frame = await openGame(page, isMobile);
+  await frame.locator('#lobby-name').fill('Framed');
+  await frame.locator('#lobby-create').click();
+  await expect(frame.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+  const code = (await frame.locator('#lobby-room-code').textContent())!.trim();
+  expect(code).toMatch(/^[A-Z0-9]{4,5}$/);
+  // No invite link: the code, with how friends join where Copy invite link was; the open seat asks for the code.
+  await expect(frame.locator('#lobby-copy')).toBeHidden();
+  await expect(frame.locator('#lobby-code-hint')).toHaveText('Friends on CrazyGames tap Join room and type this code');
+  await expect(frame.locator('#lobby-players')).toContainText('Open seat: share the code');
+  expect((await offOrigin(frame)).filter((u) => !u.startsWith(PRIVACY()))).toEqual([]);
+
+  // A friend on the same host: another host page, Join room with the code typed.
+  const friendContext = await browser.newContext(isMobile ? { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true } : {});
+  try {
+    const friendPage = await friendContext.newPage();
+    const friend = await openGame(friendPage, isMobile);
+    await friend.locator('#lobby-name').fill('Friend');
+    await friend.locator('#lobby-code').fill(code);
+    await friend.locator('#lobby-join').click();
+    await expect(friend.locator('#age-check')).toHaveCount(0);
+    await expect(friend.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+    await expect(frame.locator('#lobby-players')).toContainText('Friend');
+    await friend.locator('#lobby-ready').click();
+    await expect(frame.locator('#lobby-start')).toBeEnabled({ timeout: 15_000 });
+    await frame.locator('#lobby-start').click();
+    const heroes = (p: Frame) => p.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0);
+    await expect.poll(() => heroes(frame), { timeout: 30_000 }).toBe(2);
+    await expect.poll(() => heroes(friend), { timeout: 30_000 }).toBe(2);
+  } finally {
+    await friendContext.close();
+  }
+});
+
 test('a Daily run in the frame starts with no question, and Post my run still asks the age first', async ({ page, isMobile }) => {
   const posts = await capturePosts(page);
   const frame = await openGame(page, isMobile);
@@ -386,7 +459,7 @@ test('a Daily run in the frame starts with no question, and Post my run still as
   await frame.locator('#end-daily-post').click();
   // A name is about to be posted: the question first, its "Why we ask" the real game's page.
   await expect(frame.locator('#age-check')).toBeVisible();
-  await expect(frame.locator('#age-check a')).toHaveAttribute('href', `${HARNESS.siteOrigin}/privacy.html#age`);
+  await expect(frame.locator('#age-check a')).toHaveAttribute('href', PRIVACY('#age'));
   // Until the answer only the anonymous counts went, with no id.
   expect(posts.map((p) => p.path).filter((path) => path !== '/analytics/count')).toEqual([]);
   await answerAge(frame);
