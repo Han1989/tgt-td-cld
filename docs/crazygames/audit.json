@@ -1,0 +1,606 @@
+{
+ "sizes": {
+  "zip": "apps/client/embed-e2e-crazygames.zip",
+  "zipBytes": 16599890,
+  "unzipped": 17770993,
+  "files": 86,
+  "initial": 1365549,
+  "initialFiles": 15
+ },
+ "keys": [
+  {
+   "key": "Arrow keys",
+   "does": "Move the hero",
+   "browser": "Scroll the host page by default: the game calls preventDefault"
+  },
+  {
+   "key": "1–5",
+   "does": "Build a tower (with the build menu open or a pad selected)",
+   "browser": "No"
+  },
+  {
+   "key": "Escape",
+   "does": "Cancels a build, an aim or a selection",
+   "browser": "Yes: in fullscreen the browser takes Escape to leave it (the page sees it only out of fullscreen)"
+  },
+  {
+   "key": "A",
+   "does": "Attack-move",
+   "browser": "No"
+  },
+  {
+   "key": "Q",
+   "does": "Cast Q (Shift+Q learns it)",
+   "browser": "No"
+  },
+  {
+   "key": "W",
+   "does": "Cast W (Shift+W learns it)",
+   "browser": "No"
+  },
+  {
+   "key": "E",
+   "does": "Cast E (Shift+E learns it)",
+   "browser": "No"
+  },
+  {
+   "key": "R",
+   "does": "Cast R (Shift+R learns it)",
+   "browser": "No"
+  },
+  {
+   "key": "B",
+   "does": "The build menu",
+   "browser": "No"
+  },
+  {
+   "key": "C",
+   "does": "Quick-chat",
+   "browser": "No"
+  },
+  {
+   "key": "S",
+   "does": "Stop",
+   "browser": "No"
+  },
+  {
+   "key": "U",
+   "does": "Upgrade the selected tower (Endless: Reinforce)",
+   "browser": "No"
+  },
+  {
+   "key": "F",
+   "does": "Repair the selected tower",
+   "browser": "No (F11 is the browser's, F is not)"
+  },
+  {
+   "key": "Space",
+   "does": "Centre the camera on your hero",
+   "browser": "Scrolls the host page by default: the game calls preventDefault"
+  },
+  {
+   "key": "Ctrl / ⌘ / Alt + a key",
+   "does": "Nothing: the game ignores them (the browser keeps its shortcuts)",
+   "browser": "Yes, and left to it"
+  },
+  {
+   "key": "Alt + click",
+   "does": "Ping the map",
+   "browser": "No (no default in a page)"
+  }
+ ],
+ "frames": [
+  {
+   "spec": {
+    "w": 907,
+    "h": 510,
+    "input": "mouse",
+    "what": "desktop, not fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/907x510-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "R · Arrow Storm"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-sound",
+      ".btn \"Ranger\"",
+      ".btn \"Warden\"",
+      ".btn \"Arcanist\""
+     ],
+     "overMap": [],
+     "layout": "tall",
+     "tilePx": null
+    },
+    {
+     "step": "home",
+     "shot": "frames/907x510-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-board-link \"Today's top 10\"",
+      ".btn \"Full30 waves\"",
+      ".btn \"Quick15 waves\"",
+      ".btn \"Endless∞\"",
+      "#lobby-daily \"Daily run · Quick on Har\"",
+      "#lobby-offline \"Play solo\"",
+      "#lobby-name",
+      "#lobby-create \"Create room\"",
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "tall",
+     "tilePx": null
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/907x510-wave10.jpg",
+     "smallest": {
+      "px": 9.5,
+      "text": "Gold"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "layout": "tall",
+     "tilePx": 10.8,
+     "heroPx": 55,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "error": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded."
+    },
+    {
+     "step": "end",
+     "shot": "frames/907x510-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\"",
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\"",
+      ".radial-btn \"Upgrade375\"",
+      ".radial-btn \"TargetFirst\"",
+      ".radial-btn \"Sell203\"",
+      ".radial-btn \"Repair5\""
+     ],
+     "layout": "tall",
+     "tilePx": 10.8
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1216,
+    "h": 684,
+    "input": "mouse",
+    "what": "desktop, not fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1216x684-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "W · Snare Trap"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "home",
+     "shot": "frames/1216x684-home.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "Today's top 10"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1216x684-wave10.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "28"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 15.4,
+     "heroPx": 63,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "shot": "frames/1216x684-ring.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "28"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 2\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 15.4
+    },
+    {
+     "step": "end",
+     "shot": "frames/1216x684-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 15.4
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1280,
+    "h": 720,
+    "input": "mouse",
+    "what": "desktop, fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1280x720-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Q · Multishot"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "home",
+     "shot": "frames/1280x720-home.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "Today's top 10"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1280x720-wave10.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "28"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 16.3,
+     "heroPx": 41,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "shot": "frames/1280x720-ring.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "28"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 16.3
+    },
+    {
+     "step": "end",
+     "shot": "frames/1280x720-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 16.3
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1920,
+    "h": 1080,
+    "input": "mouse",
+    "what": "desktop, fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1920x1080-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Q · Multishot"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "home",
+     "shot": "frames/1920x1080-home.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "Today's top 10"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1920x1080-wave10.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "28"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 24.6,
+     "heroPx": 60,
+     "gruntPx": 29
+    },
+    {
+     "step": "ring",
+     "shot": "frames/1920x1080-ring.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "28"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 13\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 24.6
+    },
+    {
+     "step": "end",
+     "shot": "frames/1920x1080-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 24.6
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 800,
+    "h": 450,
+    "input": "touch",
+    "what": "phone"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "error": "TimeoutError: locator.tap: Timeout 30000ms exceeded."
+    },
+    {
+     "step": "home",
+     "shot": "frames/800x450-home.jpg",
+     "smallest": {
+      "px": 14,
+      "text": "Tower Defense Together is played with th"
+     },
+     "cutOff": [],
+     "below": [
+      ".btn \"Ranger\"",
+      ".btn \"Warden\"",
+      ".btn \"Arcanist\"",
+      "#lobby-board-link \"Today's top 10\"",
+      ".btn \"Full30 waves\"",
+      ".btn \"Quick15 waves\"",
+      ".btn \"Endless∞\"",
+      "#lobby-daily \"Daily run · Quick on Har\"",
+      "#lobby-offline \"Play solo\"",
+      "#lobby-name",
+      "#lobby-create \"Create room\"",
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "rotate",
+     "tilePx": null
+    },
+    {
+     "step": "wave10",
+     "error": "TimeoutError: locator.tap: Timeout 30000ms exceeded."
+    },
+    {
+     "step": "ring",
+     "error": "Error: no match"
+    },
+    {
+     "step": "end",
+     "error": "Error: no match"
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1080,
+    "h": 607,
+    "input": "touch",
+    "what": "tablet"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1080x607-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "R · Arrow Storm"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-sound"
+     ],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "home",
+     "shot": "frames/1080x607-home.jpg",
+     "smallest": {
+      "px": 10,
+      "text": "Today's top 10"
+     },
+     "cutOff": [],
+     "below": [
+      ".btn \"Full30 waves\"",
+      ".btn \"Quick15 waves\"",
+      ".btn \"Endless∞\"",
+      "#lobby-daily \"Daily run · Quick on Har\"",
+      "#lobby-offline \"Play solo\"",
+      "#lobby-name",
+      "#lobby-create \"Create room\"",
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1080x607-wave10.jpg",
+     "smallest": {
+      "px": 12,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 13.6,
+     "heroPx": 69,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "error": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded."
+    },
+    {
+     "step": "end",
+     "shot": "frames/1080x607-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\"",
+      ".radial-btn \"Upgrade375\"",
+      ".radial-btn \"TargetFirst\"",
+      ".radial-btn \"Sell203\""
+     ],
+     "layout": "wide",
+     "tilePx": 13.6
+    }
+   ],
+   "errors": []
+  }
+ ]
+}

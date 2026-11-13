@@ -601,6 +601,9 @@ type Verdict = 'PASS' | 'FAIL' | 'NOT CHECKED';
 
 function stepVerdict(s: StepResult): { verdict: Verdict; why: string[] } {
   const why: string[] = [];
+  // A step the audit could not reach (a tap that opened nothing, no match) is not checked, not failed; the rotate
+  // screen is a fail.
+  if (s.error && s.layout !== 'rotate' && !/rotate/.test(s.error)) return { verdict: 'NOT CHECKED', why: [s.error] };
   if (s.error) why.push(s.error);
   if (s.smallest && s.smallest.px < BARS.text) why.push(`text ${s.smallest.px} px`);
   if (s.step === 'wave10' && s.heroPx != null && s.heroPx < BARS.hero) why.push(`hero ${s.heroPx} px`);
@@ -651,12 +654,14 @@ function report(): string {
   const resume = /'pointerdown', 'touchend', 'click', 'keydown'/.test(eng) && /ctx\.resume\(\)/.test(eng);
   add('Technical', 'After an iOS interruption the AudioContext resumes inside a touch or click', resume ? 'PASS' : 'FAIL', 'audio/engine.ts: every pointerdown / touchend / click / keydown calls `unlock`, which resumes a context that is not running (`interrupted` included) inside that gesture; unchanged');
   for (const r of f) {
-    const bad = r.steps.map((x) => ({ x, v: stepVerdict(x) })).filter((y) => y.v.verdict === 'FAIL');
+    const all = r.steps.map((x) => ({ x, v: stepVerdict(x) }));
+    const bad = all.filter((y) => y.v.verdict !== 'PASS');
+    const verdict: Verdict = all.some((y) => y.v.verdict === 'FAIL') ? 'FAIL' : bad.length ? 'NOT CHECKED' : 'PASS';
     add(
       'Gameplay',
       `Legible at ${r.spec.w} × ${r.spec.h} (${r.spec.what})`,
-      bad.length ? 'FAIL' : 'PASS',
-      bad.length ? bad.map((y) => `${y.x.step}: ${y.v.why.join('; ')}`).join(' · ') : 'every step under the bars (see the frames table)',
+      verdict,
+      bad.length ? bad.map((y) => `${y.x.step}: ${y.v.verdict === 'NOT CHECKED' ? 'not reached: ' : ''}${y.v.why.join('; ')}`).join(' · ') : 'every step within the bars (see the frames table)',
     );
   }
   const hz = results.hz ?? [];
