@@ -1,0 +1,80 @@
+# The hosted build's zip (docs/DEPLOY.md "Hosted builds"), built on GitHub for a computer with no checkout.
+#
+# Run it by hand: Actions → Hosted zip → Run workflow → pick the host. When it is done, download the artifact from
+# the run's page: the downloaded file IS the zip to upload (index.html at its root). Do not unzip it first.
+#
+# The game server's address comes from the repository variable VITE_SERVER_URL (Settings → Secrets and variables →
+# Actions → Variables): wss://<the Render service>.onrender.com, the same value Vercel's build has. It is read from
+# the environment and never written in the repo, as for a build on a laptop.
+#
+# The artifact is the folder `npm run build:embed` zips (dist-embed-<host>/, after the files a hosted build leaves
+# out are removed), so it holds the same files as the script's own embed-<host>-<commit>.zip. The script's size
+# report against the hosts' limits is on the run's summary page.
+
+name: Hosted zip
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: The site the zip is for
+        type: choice
+        options:
+          - itch
+          - crazygames
+          - newgrounds
+        default: itch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-zip-${{ inputs.host }}
+  cancel-in-progress: true
+
+jobs:
+  zip:
+    name: zip (${{ inputs.host }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      HOST: ${{ inputs.host }}
+      VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the game server's address
+        run: |
+          if [ -z "${VITE_SERVER_URL}" ]; then
+            echo "::error::The repository variable VITE_SERVER_URL is not set. Add it under Settings → Secrets and variables → Actions → Variables: wss://<the Render service>.onrender.com, the same value Vercel's build has."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/setup
+
+      - name: Build the hosted zip
+        run: |
+          set -o pipefail
+          npm run build:embed -- "${HOST}" | tee build.log
+
+      - name: Name the zip and write the summary
+        id: zip
+        run: |
+          echo "name=embed-${HOST}-$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Hosted zip for ${HOST}"
+            echo
+            echo "Download the artifact below and upload that file as it is: it is the zip, with index.html at its root."
+            echo
+            echo '```'
+            sed -n '/^apps\/client\/embed-/,$p' build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.name }}
+          path: apps/client/dist-embed-${{ inputs.host }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
