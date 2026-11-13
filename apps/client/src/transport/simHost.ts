@@ -3,6 +3,7 @@
 // messages and emits raw server messages.
 
 import {
+  ALLY_ID,
   allowSocial,
   decodeClientMessage,
   encodeServerMessage,
@@ -15,6 +16,8 @@ import {
   type SocialClock,
 } from '@tdt/protocol';
 import {
+  allyHeroFor,
+  createAllyBot,
   createMatch,
   dailyConfig,
   heroLevelXp,
@@ -25,12 +28,16 @@ import {
   matchReport,
   matchStep,
   snapshot,
+  type Bot,
   type GameState,
   type Match,
   type Tuning,
 } from '@tdt/sim';
 
 export const LOCAL_PLAYER_ID: PlayerId = 'local';
+
+/** The bot teammate decides every this many ticks (4 a second at 20 Hz). */
+const ALLY_EVERY = 5;
 
 export class SimHost {
   private match!: Match;
@@ -43,6 +50,13 @@ export class SimHost {
   private dailySeed: number | null = null;
   /** Browser tests only: tuning for the next match (see `LocalTransport`'s lab option). */
   tuning: Tuning | undefined;
+  /**
+   * The bot teammate (q6, a worker control message): on, a Full or Quick match this host starts has one beside the
+   * player (never the Daily run, Endless or the lesson, whose page leaves it off).
+   */
+  private allyOn = false;
+  /** The current match's bot teammate, or null. */
+  private allyBot: Bot | null = null;
   /** Same ping / emote gap the game server enforces. */
   private social: SocialClock = freshSocialClock();
 
@@ -63,14 +77,20 @@ export class SimHost {
   /** Starts a fresh match and tells the client who it is. */
   reset(): void {
     const player = { id: LOCAL_PLAYER_ID, name: 'You', hero: this.hero };
+    const ally = this.allyOn && this.dailySeed === null && this.mode !== 'endless' ? allyHeroFor(this.hero) : null;
     // Every match a player starts is Normal (Han, 17 Oct 2026), except the Daily run (Quick on Hard, the day's seed) and
     // Endless, whose mode sets Hard whatever the config asks.
     this.match =
       this.dailySeed === null
-        ? createMatch({ players: [player], mode: this.mode, difficulty: 'normal', tuning: this.tuning }, this.nextSeed(), normalizeBuild(this.build))
+        ? createMatch(
+            { players: [player], mode: this.mode, difficulty: 'normal', tuning: this.tuning, ...(ally ? { ally } : {}) },
+            this.nextSeed(),
+            normalizeBuild(this.build),
+          )
         : createMatch({ ...dailyConfig(player), tuning: this.tuning }, this.dailySeed, normalizeBuild(this.build));
     this.reported = false;
     this.queue = [];
+    this.allyBot = this.match.state.ally ? createAllyBot(this.tuning) : null;
     this.social = freshSocialClock();
     this.onMatch(this.match.seed, this.dailySeed !== null);
     this.emit(encodeServerMessage({ t: 'welcome', playerId: LOCAL_PLAYER_ID }));
@@ -85,6 +105,14 @@ export class SimHost {
     if (!Number.isSafeInteger(seed) || seed < 0 || this.state.phase === 'waves') return;
     this.dailySeed = seed;
     this.reset();
+  }
+
+  /**
+   * The bot teammate on or off (a worker control message, sent before the match's mode and hero): it takes effect with
+   * the next match this host starts.
+   */
+  setAlly(on: boolean): void {
+    this.allyOn = on;
   }
 
   /** Handles one raw message from the client. Malformed input is ignored. */
@@ -165,7 +193,13 @@ export class SimHost {
     for (const cmd of this.queue) matchCommand(this.match, LOCAL_PLAYER_ID, cmd);
     this.queue = [];
     matchStep(this.match);
-    this.emit(encodeServerMessage({ t: 'snapshot', snap: snapshot(this.state) }));
+    const snap = snapshot(this.state);
+    // The bot teammate thinks four times a second on the snapshot the page gets; its commands are logged as the
+    // player's are, so the replay re-runs them. A paused worker does not tick, so it holds too.
+    if (this.allyBot && this.state.tick % ALLY_EVERY === 0 && !matchOver(this.match)) {
+      for (const cmd of this.allyBot.decide(snap)) matchCommand(this.match, ALLY_ID, cmd);
+    }
+    this.emit(encodeServerMessage({ t: 'snapshot', snap }));
     if (matchOver(this.match) && !this.reported) {
       this.reported = true;
       const report = matchReport(this.match);

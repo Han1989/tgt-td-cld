@@ -4,6 +4,7 @@
 
 import {
   TOWER_BRANCHES,
+  ALLY_ID,
   type Command,
   type CreepKind,
   type CreepSnap,
@@ -19,7 +20,7 @@ import {
   type TowerKind,
   type TowerSnap,
 } from '@tdt/protocol';
-import { shieldStandPoint } from './coop';
+import { heroHitLane, shieldStandPoint } from './coop';
 import { waveGroups } from './endless';
 import { getMap, laneDistance, type BuildPad } from './map';
 import { lanePointAt, laneSpot, quakeCatch } from './quake';
@@ -40,6 +41,11 @@ export interface Bot {
  * player uses them), no retreat, no early calls, and it does not answer a teammate's ultimate.
  */
 export type BotStyle = 'casual' | 'expert' | 'novice';
+
+/** The players who are people (or play as one): every seat but the solo match's bot teammate (q6). */
+function humans(snap: Snapshot): Snapshot['players'] {
+  return snap.players.filter((p) => !p.bot);
+}
 
 /** Never issues a command. Used to prove that an idle player loses. */
 export function createIdleBot(playerId: PlayerId): Bot {
@@ -390,7 +396,7 @@ export function createBalanceBot(
       // Arrow Storm and Meteor rain on every lane wherever the hero stands; Rampart Slam quakes the lane he stands on:
       // with it ready, the expert Warden walks onto the busiest lane within reach of his post first.
       const quakeGoal = slamReady && expert && hero.kind === 'warden'
-        ? busiestLanePoint(snap, tuning, hero, post, snap.players.length === 1 ? SLAM_SEEK.solo : SLAM_SEEK.team)
+        ? busiestLanePoint(snap, tuning, hero, post, humans(snap).length === 1 ? SLAM_SEEK.solo : SLAM_SEEK.team)
         : null;
       const closest = nearest(nearPost(ranged ? ENGAGE_RADIUS : MELEE_ENGAGE_RADIUS), post);
       // A shielded boss takes no damage until two lanes hit it. Standing at the Heart lets it
@@ -407,7 +413,8 @@ export function createBalanceBot(
       const target = diveBoss ?? straggler ?? closest;
       // Wave-10 shield: stand just outside the Mid ribbon so this hit counts as a side lane
       // while Mid-zone towers count as Mid. Once the shield drops, the usual standoff resumes.
-      const shieldSide: -1 | 1 = snap.players.length >= 3 && botIndex === 2 ? 1 : snap.players.length === 2 && botIndex === 1 ? 1 : -1;
+      const teamSize = humans(snap).length;
+      const shieldSide: -1 | 1 = teamSize >= 3 && botIndex === 2 ? 1 : teamSize === 2 && botIndex === 1 ? 1 : -1;
       const stand =
         diveBoss && diveBoss.shield && diveBoss.shield !== 'off'
           ? shieldStandPoint(diveBoss, shieldSide, ranged ? hero.attackRange : hero.attackRange + 1.4)
@@ -683,7 +690,7 @@ function neediestTeammate(snap: Snapshot, playerId: PlayerId, tuning: Tuning): P
   let best: PlayerId | undefined;
   let most = 0;
   for (const p of snap.players) {
-    if (p.id === playerId || !p.connected) continue;
+    if (p.id === playerId || !p.connected || p.bot) continue;
     let left = 0;
     for (const t of snap.towers) {
       if (t.owner !== p.id || t.branch) continue;
@@ -723,8 +730,9 @@ function standoff(
  * has its own hero, which plays forward in later waves.
  */
 function heroPosts(snap: Snapshot, playerId: PlayerId, botIndex: number): { guard: Vec2; forward: Vec2 } {
-  const n = snap.players.length;
-  const found = snap.players.findIndex((p) => p.id === playerId);
+  const seats = humans(snap);
+  const n = seats.length;
+  const found = seats.findIndex((p) => p.id === playerId);
   const i = found >= 0 ? found : botIndex;
   if (n <= 2) {
     const guard = lanePoint(n === 1 ? 1 : i === 0 ? 0 : 2, GUARD_DISTANCE);
@@ -830,7 +838,7 @@ function surgeLaneOwner(snap: Snapshot, lane: LaneId): PlayerId | null {
  */
 function giftForSurge(cmds: Command[], snap: Snapshot, playerId: PlayerId, gold: number, giftedWave: number): number {
   const upcoming = snap.nextSurge;
-  if (!upcoming || upcoming.wave === giftedWave || snap.players.length < 2) return giftedWave;
+  if (!upcoming || upcoming.wave === giftedWave || humans(snap).length < 2) return giftedWave;
   const owner = surgeLaneOwner(snap, upcoming.lane);
   if (!owner || owner === playerId) return upcoming.wave;
   const amount = Math.min(20, Math.floor(gold - 60));
@@ -1093,3 +1101,195 @@ function busiestLanePoint(
   return best;
 }
 
+
+// ---------------------------------------------------------------------------
+// The bot teammate (q6)
+// ---------------------------------------------------------------------------
+
+/** The bot teammate answers the player's ultimate this long after it (seconds), inside the combo window. */
+export const ALLY_ANSWER_SECONDS = 0.5;
+/** Both ultimates ready and unused this long (seconds) with `ALLY_RAIN_CREEPS` out: the ally pings once and waits. */
+export const ALLY_PING_SECONDS = 20;
+/** The player's ultimate further off than this (seconds): the ally rains alone. */
+export const ALLY_ALONE_SECONDS = 25;
+/** Creeps on the map for the ally's ping and for its rain alone. */
+export const ALLY_RAIN_CREEPS = 12;
+/** How far from its post (tiles) the ally walks out to the front creep of its lane. */
+const ALLY_ENGAGE = 14;
+/** Its post: this far up its lane from the Heart (tiles), ahead of the towers round the Heart. */
+const ALLY_POST = 18;
+/** The latest the ally still answers the player's ultimate (seconds after it): inside the 5 s combo window. */
+const ALLY_ANSWER_LATEST = 4;
+
+/** The hero the bot teammate plays beside `hero` (q6): the Arcanist beside a Ranger, else the Ranger. */
+export function allyHeroFor(hero: HeroKind): HeroKind {
+  return hero === 'ranger' ? 'arcanist' : 'ranger';
+}
+
+/**
+ * The solo match's bot teammate (q6, `docs/GAME_DESIGN.md` "Bot teammate"): a hero only. It learns and casts Q and W
+ * as the casual bot does, walks the lane with the most creeps that the player is not standing in (the front creep's
+ * standoff), retreats when hurt, and keeps its ultimate for combos: it answers the player's `ALLY_ANSWER_SECONDS`
+ * after it when its own is ready; with both ready and unused for `ALLY_PING_SECONDS` and `ALLY_RAIN_CREEPS` out it
+ * pings once and waits; and when the player's is more than `ALLY_ALONE_SECONDS` away (or the player has none, or is
+ * dead) it rains alone on `ALLY_RAIN_CREEPS`. It never pings or emotes otherwise. It reads snapshots and acts through
+ * commands, so the host logs them and a replay re-runs them.
+ */
+export function createAllyBot(baseTuning: Tuning = TUNING): Bot {
+  let modeTuning: Tuning | null = null;
+  let retreating = false;
+  let lastGoal: Vec2 | null = null;
+  let lastMoveTick = -Infinity;
+  /** Tick since when both ultimates have been ready (-1: not both), and whether it pinged for this stretch. */
+  let bothReadySince = -1;
+  let pinged = false;
+  return {
+    playerId: ALLY_ID,
+    decide(snap) {
+      const tuning = (modeTuning ??= tuningForMode(baseTuning, snap.mode));
+      const cmds: Command[] = [];
+      const hero = snap.heroes.find((h) => h.owner === ALLY_ID);
+      const human = humans(snap)[0];
+      const mine = human && snap.heroes.find((h) => h.id === human.heroId);
+      if (!hero) return cmds;
+
+      if (hero.skillPoints > 0) {
+        const learnable = hero.skills.filter((sk) => sk.learnable);
+        const pick = learnable.find((sk) => sk.slot === 'R') ?? [...learnable].sort((a, b) => a.rank - b.rank)[0];
+        if (pick) cmds.push({ type: 'learn', slot: pick.slot });
+      }
+      if (!hero.alive) return cmds;
+
+      // Where to go: home when hurt; else the front creep of the busiest lane the player is not on.
+      const ranged = tuning.hero[hero.kind].ranged;
+      const hpFrac = hero.hp / hero.maxHp;
+      if (hpFrac < (ranged ? 0.3 : 0.4)) retreating = true;
+      if (hpFrac > (ranged ? 0.6 : 0.7)) retreating = false;
+      const lane = allyLane(snap, mine);
+      const heart = getMap().heroSpawn;
+      // It holds its lane's guard post as the casual bot holds its own, and fights the front creep near it.
+      const post = lanePoint(lane, ALLY_POST);
+      const lead = laneFront(snap, lane);
+      const front = lead && dist(lead.x, lead.y, post.x, post.y) <= ALLY_ENGAGE ? lead : undefined;
+      const goal = retreating
+        ? { x: heart.x, y: heart.y + 1 }
+        : front
+          ? standoff(hero, ranged, front, STANDOFF_MARGIN)
+          : post;
+      const moved = lastGoal === null || dist(goal.x, goal.y, lastGoal.x, lastGoal.y) > 1;
+      if (dist(hero.x, hero.y, goal.x, goal.y) > 0.5 && (moved || snap.tick - lastMoveTick > 40)) {
+        cmds.push({ type: 'move', x: goal.x, y: goal.y });
+        lastGoal = goal;
+        lastMoveTick = snap.tick;
+      }
+
+      // The ultimate, for combos.
+      const r = hero.skills.find((sk) => sk.slot === 'R');
+      const myR = mine?.skills.find((sk) => sk.slot === 'R');
+      const ready = r !== undefined && r.rank > 0 && r.cooldown === 0;
+      const theirsLearned = mine !== undefined && mine.alive && myR !== undefined && myR.rank > 0;
+      const theirsReady = theirsLearned && myR!.cooldown === 0;
+      const sinceTheirs = theirsLearned && myR!.cooldown > 0 ? myR!.cooldownTotal - myR!.cooldown : Infinity;
+      const theirsIn = !theirsLearned ? Infinity : myR!.cooldown / snap.tickRate;
+      if (ready && theirsReady) {
+        if (bothReadySince < 0) bothReadySince = snap.tick;
+      } else {
+        bothReadySince = -1;
+        pinged = false;
+      }
+      let castR = false;
+      if (ready) {
+        if (sinceTheirs >= ALLY_ANSWER_SECONDS * snap.tickRate && sinceTheirs <= ALLY_ANSWER_LATEST * snap.tickRate) {
+          castR = true;
+        } else if (
+          sinceTheirs > ALLY_ANSWER_LATEST * snap.tickRate &&
+          theirsIn > ALLY_ALONE_SECONDS &&
+          snap.creeps.length >= ALLY_RAIN_CREEPS
+        ) {
+          castR = true;
+        } else if (
+          !pinged &&
+          bothReadySince >= 0 &&
+          snap.tick - bothReadySince >= ALLY_PING_SECONDS * snap.tickRate &&
+          snap.creeps.length >= ALLY_RAIN_CREEPS
+        ) {
+          cmds.push({ type: 'ping', x: hero.x, y: hero.y });
+          pinged = true;
+        }
+      }
+      if (castR) cmds.push({ type: 'cast', slot: 'R' });
+      if (retreating) return cmds;
+
+      // Q and W as the casual bot casts them.
+      let mana = hero.mana;
+      for (const slot of ['Q', 'W'] as const) {
+        const sk = hero.skills.find((x) => x.slot === slot);
+        if (!sk || sk.rank === 0 || sk.passive || sk.cooldown > 0 || mana < sk.manaCost) continue;
+        const ground = GROUND_ONLY[hero.kind].includes(slot);
+        const near = snap.creeps.filter(
+          (c) =>
+            dist(hero.x, hero.y, c.x, c.y) <= Math.max(sk.range, sk.radius) && (!ground || !tuning.creeps[c.kind].flying),
+        );
+        const cmd = skillCommand(sk, near, hero, MIN_TARGETS[slot]);
+        if (!cmd) continue;
+        cmds.push(cmd);
+        mana -= sk.manaCost;
+      }
+      return cmds;
+    },
+  };
+}
+
+/** The lane each creep is on (its nearest), counted. */
+function laneCounts(snap: Snapshot): number[] {
+  const lanes = getMap().lanes;
+  const count = [0, 0, 0];
+  for (const c of snap.creeps) {
+    let best = 0;
+    let bestD = Infinity;
+    for (const l of lanes) {
+      const d = laneDistance([l], c.x, c.y);
+      if (d < bestD) {
+        bestD = d;
+        best = l.id;
+      }
+    }
+    count[best]!++;
+  }
+  return count;
+}
+
+/**
+ * The lane the bot teammate walks: the one with the most creeps that the player's hero is not standing in (a hero
+ * inside a lane's ribbon stands in it; one by the Heart or between lanes stands in none). Ties: Mid, West, East; an
+ * empty map: Mid unless the player is on it, then West.
+ */
+function allyLane(snap: Snapshot, mine: HeroSnap | undefined): LaneId {
+  const map = getMap();
+  let theirs: LaneId | null = null;
+  if (mine && mine.alive) {
+    const lane = heroHitLane(mine.x, mine.y);
+    const onIt = laneDistance([map.lanes[lane]!], mine.x, mine.y) <= map.laneHalfWidth;
+    const atHeart = dist(mine.x, mine.y, map.heroSpawn.x, map.heroSpawn.y) <= 4;
+    if (onIt && !atHeart) theirs = lane;
+  }
+  const count = laneCounts(snap);
+  const order = ([1, 0, 2] as LaneId[]).filter((l) => l !== theirs);
+  return order.reduce((a, b) => (count[b]! > count[a]! ? b : a));
+}
+
+/** The creep furthest along `lane` (nearest the Heart by its path), or undefined. */
+function laneFront(snap: Snapshot, lane: LaneId): CreepSnap | undefined {
+  const l = getMap().lanes[lane]!;
+  let best: CreepSnap | undefined;
+  let most = -Infinity;
+  for (const c of snap.creeps) {
+    const spot = laneSpot(l, c.x, c.y);
+    if (spot.dist > getMap().laneHalfWidth + 2) continue;
+    if (spot.progress > most) {
+      most = spot.progress;
+      best = c;
+    }
+  }
+  return best;
+}

@@ -4,6 +4,7 @@
 // `replayMatch` can re-run a replay to the same end.
 
 import {
+  ALLY_SEAT,
   decodeReplayCommand,
   encodeReplayCommand,
   DIFFICULTIES,
@@ -12,6 +13,7 @@ import {
   PROTOCOL_VERSION,
   R_OVERLAP_SECONDS,
   ULTIMATE_TAGS,
+  type AllyReport,
   type Command,
   type ComboKind,
   type CoopReport,
@@ -79,6 +81,10 @@ export interface Match {
   /** Combos by the pair of players whose ultimates fused (seat order inside a pair). */
   comboPairs: { players: [PlayerId, PlayerId]; combos: Record<ComboKind, number> }[];
   shields: ShieldTrack[];
+  /** Damage to creeps over the match by source (`damage` events: a player's hero and towers, or the ally's hero). */
+  damageBy: Record<string, number>;
+  /** Combos the bot teammate's ultimate fused into. */
+  allyCombos: number;
 }
 
 /** `build` is the host's build (its git commit, or 'dev'): the sim only carries it into the report and replay. */
@@ -113,6 +119,8 @@ export function createMatch(config: GameConfig, seed: number, build = 'dev'): Ma
     combos: { meteorRain: 0, stunStorm: 0, shockwave: 0 },
     comboPairs: [],
     shields: [],
+    damageBy: {},
+    allyCombos: 0,
   };
 }
 
@@ -128,15 +136,17 @@ const q = (v: number) => Math.round(v * 100) / 100;
  * accepted it. Commands after the match ended are ignored.
  */
 export function matchCommand(match: Match, playerId: PlayerId, command: Command): boolean {
-  const index = match.state.players.findIndex((p) => p.id === playerId);
-  if (index < 0 || matchOver(match)) return false;
+  const ally = match.state.ally?.id === playerId;
+  const index = ally ? ALLY_SEAT : match.state.players.findIndex((p) => p.id === playerId);
+  if ((index < 0 && !ally) || matchOver(match)) return false;
   const cmd: Command =
     'x' in command && command.x !== undefined && command.y !== undefined
       ? ({ ...command, x: q(command.x), y: q(command.y) } as Command)
       : command;
+  match.log.push([match.state.tick, index, ...(encodeReplayCommand(cmd) as [string, ...(string | number)[]])]);
+  if (ally) return applyCommand(match.state, playerId, cmd);
   const player = match.state.players[index]!;
   const before = player.gold;
-  match.log.push([match.state.tick, index, ...(encodeReplayCommand(cmd) as [string, ...(string | number)[]])]);
   const ok = applyCommand(match.state, playerId, cmd);
   if (ok) noteEconomy(match.heroes[index]!, cmd, before - player.gold);
   return ok;
@@ -204,8 +214,14 @@ export function matchStep(match: Match): void {
         t.casts[e.slot]++;
         if (e.slot === 'R') t.rTicks.push(state.tick);
       }
+    } else if (e.type === 'damage') {
+      const key = e.by ?? '';
+      let sum = 0;
+      for (let i = 1; i < e.hits.length; i += 2) sum += e.hits[i]!;
+      match.damageBy[key] = (match.damageBy[key] ?? 0) + sum;
     } else if (e.type === 'combo') {
       match.combos[e.combo]++;
+      if (state.ally && e.heroes.includes(state.ally.heroId)) match.allyCombos++;
       noteComboPair(match, e.heroes, e.combo);
     } else if (e.type === 'shieldUp') {
       match.shields.push({
@@ -267,9 +283,10 @@ function noteComboPair(match: Match, heroIds: readonly number[], combo: ComboKin
 export function matchReport(match: Match): MatchReport {
   const state = match.state;
   const window = R_OVERLAP_SECONDS * TICK_RATE;
-  const heroes: HeroReport[] = state.heroes.map((h, i) => {
+  const heroes: HeroReport[] = state.players.map((player) => {
+    const i = state.heroes.findIndex((h) => h.id === player.heroId);
+    const h = state.heroes[i]!;
     const t = match.heroes[i]!;
-    const player = state.players.find((p) => p.heroId === h.id)!;
     const others = match.heroes.flatMap((o, j) => (j === i ? [] : o.rTicks));
     return {
       player: player.id,
@@ -313,7 +330,27 @@ export function matchReport(match: Match): MatchReport {
     heartMaxHp: state.tuning.heart.maxHp,
     heartAfterWave: match.heartAfterWave.slice(),
     heroes,
+    ...(state.ally ? { ally: allyReport(match) } : {}),
     coop: coopReport(match),
+  };
+}
+
+/** The bot teammate's numbers (q6), apart from the player's. */
+function allyReport(match: Match): AllyReport {
+  const state = match.state;
+  const ally = state.ally!;
+  const i = state.heroes.findIndex((h) => h.id === ally.heroId);
+  const h = state.heroes[i]!;
+  const t = match.heroes[i]!;
+  const all = Object.values(match.damageBy).reduce((a, b) => a + b, 0);
+  return {
+    hero: h.kind,
+    level: h.level,
+    kills: ally.kills,
+    deaths: t.deaths,
+    casts: { ...t.casts },
+    combos: match.allyCombos,
+    damageShare: all > 0 ? Math.round(((match.damageBy[ally.id] ?? 0) / all) * 1000) / 1000 : 0,
   };
 }
 
@@ -351,6 +388,7 @@ export function matchReplay(match: Match): Replay {
     mode: state.mode,
     difficulty: state.difficulty,
     players: state.players.map((p) => ({ id: p.id, name: p.name, hero: state.heroes.find((h) => h.id === p.heroId)!.kind })),
+    ...(state.ally ? { ally: state.heroes.find((h) => h.id === state.ally!.heroId)!.kind } : {}),
     log: match.log.slice(),
     end: { tick: state.tick, result: state.phase, wave: state.wave, heartHp: state.heartHp },
   };
@@ -398,6 +436,7 @@ export function* replaySteps(
       players: replay.players,
       mode: replay.mode,
       difficulty: replay.difficulty ?? 'normal',
+      ...(replay.ally ? { ally: replay.ally } : {}),
       ...(tuning ? { tuning } : {}),
     },
     replay.seed,
@@ -417,7 +456,7 @@ export function* replaySteps(
   }
   for (const [tick, index, what, ...args] of replay.log) {
     yield* stepTo(tick);
-    const player = replay.players[index];
+    const player = index === ALLY_SEAT && state.ally ? state.ally : replay.players[index];
     if (!player) throw new Error(`Replay log names player ${index}, the match has ${replay.players.length}`);
     if (what === 'join' || what === 'drop' || what === 'leave') {
       matchPresence(match, player.id, what);
@@ -450,6 +489,7 @@ export function replayProblem(data: unknown): string | null {
     return 'bad modifiers';
   }
   if (r.practice !== undefined && (typeof r.practice !== 'object' || r.practice === null)) return 'bad practice';
+  if (r.ally !== undefined && !HERO_KINDS.includes(r.ally)) return 'bad ally';
   if (!Array.isArray(r.players) || r.players.length === 0) return 'no players';
   for (const p of r.players) {
     if (typeof p?.id !== 'string' || typeof p.name !== 'string' || !HERO_KINDS.includes(p.hero)) return 'bad player';
@@ -474,6 +514,8 @@ const KIT_RULES_PROTOCOL = 23;
 const QUAKE_PROTOCOL = 24;
 /** The protocol where Call early began to wait for the wave (one press, one wave) and End run came: earlier is refused. */
 const CALL_EARLY_PROTOCOL = 26;
+/** q6: the solo bot teammate came, with its own replay field, log seat and report entry. */
+const ALLY_PROTOCOL = 27;
 
 /**
  * Why this build cannot re-run a replay whose rules are gone, or null. Match modifiers (Swift, Ironclad, Sky Tide,
@@ -518,6 +560,12 @@ export function replayRefusal(
     return (
       `This match was recorded under protocol ${replay.protocol}, before Call early began to wait for the wave in ` +
       `protocol ${CALL_EARLY_PROTOCOL} (one press, one wave); only a build from before then can re-run it${where}.`
+    );
+  }
+  if (replay.protocol < ALLY_PROTOCOL) {
+    return (
+      `This match was recorded under protocol ${replay.protocol}, before the solo bot teammate changed the replay ` +
+      `format in protocol ${ALLY_PROTOCOL}; only a build from before then can re-run it${where}.`
     );
   }
   return null;

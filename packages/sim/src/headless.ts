@@ -1,8 +1,8 @@
 // Runs a complete match without any client: bots decide from snapshots and
 // act through applyCommand, exactly as they would through a transport.
 
-import type { CreepKind, Difficulty, GameMode, GamePhase, HeroKind, MatchReport, Replay } from '@tdt/protocol';
-import type { Bot } from './bots';
+import { ALLY_ID, type CreepKind, type Difficulty, type GameMode, type GamePhase, type HeroKind, type MatchReport, type Replay } from '@tdt/protocol';
+import { allyHeroFor, createAllyBot, type Bot } from './bots';
 import { applyCommand } from './commands';
 import { createGame, snapshot, step } from './game';
 import { heroManaRegen, heroMaxMana } from './combat';
@@ -61,6 +61,9 @@ export interface HeadlessResult {
   /** Reinforce ranks bought (`towerReinforced` events) and their gold (Endless). */
   reinforces: number;
   reinforceGold: number;
+  /** With `ally`: the bot teammate's damage to creeps (its share of `totalDamage`), and the combos its ultimate was in. */
+  allyDamage: number;
+  allyCombos: number;
   /** With `record`: the match's report and replay, as a host sends them when it ends. */
   file?: { report: MatchReport; replay: Replay };
 }
@@ -98,14 +101,19 @@ export function runHeadlessMatch(opts: {
    * its report and replay in `file`. Off for balance runs, which apply commands as the bots give them.
    */
   record?: boolean;
+  /** Solo only: the bot teammate (q6) beside the one bot, on `allyHeroFor` its hero; it thinks as often as the bots. */
+  ally?: boolean;
 }): HeadlessResult {
+  const players = opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' }));
   const config = {
-    players: opts.bots.map((b, i) => ({ id: b.playerId, name: `Bot ${i + 1}`, hero: opts.heroes?.[i] ?? 'ranger' })),
+    players,
+    ...(opts.ally ? { ally: allyHeroFor(players[0]!.hero) } : {}),
     ...(opts.tuning ? { tuning: opts.tuning } : {}),
     ...(opts.mode ? { mode: opts.mode } : {}),
     ...(opts.difficulty ? { difficulty: opts.difficulty } : {}),
   };
   const match = opts.record ? createMatch(config, opts.seed) : null;
+  const bots = opts.ally ? [...opts.bots, createAllyBot(opts.tuning ?? TUNING)] : opts.bots;
   const state = match?.state ?? createGame(config, opts.seed);
   const every = Math.max(1, Math.round(TICK_RATE / (opts.decisionsPerSecond ?? 4)));
   const waves = state.tuning.waves;
@@ -124,6 +132,8 @@ export function runHeadlessMatch(opts: {
   const flyerByLane = [0, 0, 0];
   let totalDamage = 0;
   let combos = 0;
+  let allyDamage = 0;
+  let allyCombos = 0;
   let repairs = 0;
   let repairGold = 0;
   let towersDestroyed = 0;
@@ -140,7 +150,7 @@ export function runHeadlessMatch(opts: {
     if (heartAfterList === null && state.wave > waves.list.length) heartAfterList = state.heartHp;
     if (state.tick % every === 0) {
       const snap = snapshot(state);
-      for (const bot of opts.bots) {
+      for (const bot of bots) {
         for (const cmd of bot.decide(snap)) {
           if (match) matchCommand(match, bot.playerId, cmd);
           else applyCommand(state, bot.playerId, cmd);
@@ -161,8 +171,16 @@ export function runHeadlessMatch(opts: {
           flyerByLane[e.lane]! += e.damage;
         }
       }
-      if (e.type === 'damage') for (let i = 1; i < e.hits.length; i += 2) totalDamage += e.hits[i]!;
-      if (e.type === 'combo') combos++;
+      if (e.type === 'damage') {
+        for (let i = 1; i < e.hits.length; i += 2) {
+          totalDamage += e.hits[i]!;
+          if (e.by === ALLY_ID) allyDamage += e.hits[i]!;
+        }
+      }
+      if (e.type === 'combo') {
+        combos++;
+        if (state.ally && e.heroes.includes(state.ally.heroId)) allyCombos++;
+      }
       if (e.type === 'towerRepaired') {
         repairs++;
         repairGold += e.cost;
@@ -217,6 +235,8 @@ export function runHeadlessMatch(opts: {
     ultKills: state.ultStats.kills,
     ultBy: state.ultStats.by,
     combos,
+    allyDamage,
+    allyCombos,
     repairs,
     repairGold,
     towersDestroyed,

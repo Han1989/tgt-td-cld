@@ -235,11 +235,12 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
   creep.hp = 0;
   const stats = state.tuning.creeps[creep.kind];
   const bounty = creepBounty(state, creep);
-  const killer = source === null ? undefined : state.players.find((p) => p.id === source);
-  if (killer) {
-    killer.gold += bounty;
-    killer.kills++;
-  }
+  const byAlly = source !== null && state.ally !== null && source === state.ally.id;
+  // The bot teammate's kills are counted as its own, and their bounty is the player's (q6).
+  const killer = source === null ? undefined : byAlly ? state.ally! : state.players.find((p) => p.id === source);
+  const paid = byAlly ? state.players[0] : killer;
+  if (killer) killer.kills++;
+  if (paid) paid.gold += bounty;
   emit(state, {
     type: 'kill',
     creepId: creep.id,
@@ -247,13 +248,23 @@ function killCreep(state: GameState, creep: Creep, source: PlayerId | null): voi
     x: creep.x,
     y: creep.y,
     by: killer ? killer.id : null,
-    bounty: killer ? bounty : 0,
+    bounty: paid ? bounty : 0,
   });
 
-  const nearby = state.heroes.filter(
-    (h) => h.alive && dist(h.x, h.y, creep.x, creep.y) <= state.tuning.combat.xpShareRadius,
-  );
-  for (const hero of nearby) grantXp(state, hero, stats.xp / nearby.length);
+  const r = state.tuning.combat.xpShareRadius;
+  const near = (h: Hero) => h.alive && dist(h.x, h.y, creep.x, creep.y) <= r;
+  if (!state.ally) {
+    const nearby = state.heroes.filter(near);
+    for (const hero of nearby) grantXp(state, hero, stats.xp / nearby.length);
+    return;
+  }
+  // With a bot teammate the player's hero takes the whole XP when either hero is near (the ally is not a sharer), and
+  // the ally gets the same: it levels with the player.
+  const allyHero = state.heroes.find((h) => h.id === state.ally!.heroId);
+  const mine = state.heroes.find((h) => h.id === state.players[0]?.heroId);
+  if (!allyHero || !mine || !(near(mine) || near(allyHero))) return;
+  grantXp(state, mine, stats.xp);
+  grantXp(state, allyHero, stats.xp);
 }
 
 /**

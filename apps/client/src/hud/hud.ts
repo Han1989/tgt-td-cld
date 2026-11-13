@@ -43,7 +43,7 @@ import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
-import { comboPairLines, ultimateLines } from '../coop/ultReport';
+import { allyLine, comboPairLines, ultimateLines } from '../coop/ultReport';
 import { healLines, heldPopDue, NO_ULT_CUES, ultPops, waitsForQuake, type UltCues, type UltPop } from '../ult/cues';
 import { matchFlagFace, surgeToastCopy } from './surgeFace';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
@@ -899,7 +899,7 @@ export class Hud {
     setTimeout(() => el.remove(), 3400);
   }
 
-  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom'): void {
+  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom' | 'ally'): void {
     this.onToast(text);
     // Gold short of a price: the gold plaque shakes too (the button that asked shakes on its own).
     if (text === 'Not enough gold') shake(this.goldStat);
@@ -1084,11 +1084,12 @@ export class Hud {
   private renderUlts(report: MatchReport | null): void {
     const ults = report ? ultimateLines(report) : [];
     const pairs = report ? comboPairLines(report) : [];
-    const key = JSON.stringify([ults.map((l) => l.text), pairs.map((l) => l.text)]);
+    const ally = report ? allyLine(report, (kind) => HERO_INFO[kind].name) : null;
+    const key = JSON.stringify([ults.map((l) => l.text), pairs.map((l) => l.text), ally]);
     if (key === this.ultKey) return;
     this.ultKey = key;
     this.endUlts.replaceChildren();
-    if (ults.length === 0 && pairs.length === 0) {
+    if (ults.length === 0 && pairs.length === 0 && !ally) {
       this.endUlts.classList.add('hidden');
       return;
     }
@@ -1112,6 +1113,10 @@ export class Hud {
     if (pairs.length > 0) {
       head('Combos by pair');
       for (const l of pairs) line(l.text);
+    }
+    if (ally) {
+      head('Bot teammate');
+      line(ally);
     }
     this.endUlts.classList.remove('hidden');
   }

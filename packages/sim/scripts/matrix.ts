@@ -21,6 +21,8 @@
 // `--print file.json` prints the tables of a saved `--json` run again (after a change to the tables), playing nothing.
 // `--tuning '{"hero":{"warden":{"armor":5}}}'` merges a patch over the tuning for this run (nested objects merge,
 // arrays and numbers replace), so a number can be tried without editing tuning.ts.
+// `--ally` (q6): solo rows only, each with the bot teammate (`allyHeroFor` the hero), not in Endless; the table adds
+// `ally%`, the bot teammate's share of all damage to creeps, and `combo` counts every combo (its ultimate's included).
 // Matches run in parallel (one process per core). Slow: the full matrix is about 2500 matches.
 
 import { spawn } from 'node:child_process';
@@ -56,6 +58,7 @@ interface Row {
   mode: GameMode;
   difficulty: Difficulty;
   team: HeroKind[];
+  ally?: boolean;
 }
 
 /** What the table needs of one match. */
@@ -82,6 +85,7 @@ interface Match {
   by: HeadlessResult['ultBy'];
   damage: number;
   combos: number;
+  allyDamage?: number;
   towers: number;
   repairs: number;
   repairGold: number;
@@ -114,6 +118,7 @@ function playMatch(row: Row, seed: number): Match {
     seed,
     mode: row.mode,
     difficulty: row.difficulty,
+    ...(row.ally ? { ally: true } : {}),
     ...(tuning ? { tuning } : {}),
   });
   return {
@@ -136,6 +141,7 @@ function playMatch(row: Row, seed: number): Match {
     by: r.ultBy,
     damage: r.totalDamage,
     combos: r.combos,
+    allyDamage: r.allyDamage,
     towers: r.towers,
     repairs: r.repairs,
     repairGold: r.repairGold,
@@ -151,6 +157,7 @@ const flag = (name: string): string | undefined => {
 const seedArg = flag('--seeds') ?? '30';
 const jobs = Number(flag('--jobs') ?? Math.max(1, cpus().length));
 const jsonOut = flag('--json');
+const withAlly = args.includes('--ally');
 const valued = ['--tuning', '--json', '--team', '--seeds', '--jobs', '--print'];
 const words = args.filter((a, i) => !a.startsWith('--') && !/^\d+$/.test(a) && !valued.includes(args[i - 1] ?? ''));
 const pick = <T extends string>(all: T[]): T[] => (words.some((w) => (all as string[]).includes(w)) ? all.filter((x) => words.includes(x)) : all);
@@ -165,7 +172,12 @@ const rows: Row[] = [];
 const modes = words.some((w) => (MODES as string[]).includes(w)) ? pick(MODES) : MODES.filter((m) => m !== 'endless');
 for (const mode of modes) {
   for (const difficulty of mode === 'endless' ? (['hard'] as Difficulty[]) : pick(DIFFICULTIES)) {
-    for (const bot of pick(BOTS)) for (const team of teams) rows.push({ bot, mode, difficulty, team });
+    for (const bot of pick(BOTS)) {
+      for (const team of teams) {
+        if (withAlly && (team.length !== 1 || mode === 'endless')) continue;
+        rows.push({ bot, mode, difficulty, team, ...(withAlly ? { ally: true } : {}) });
+      }
+    }
   }
 }
 const seeds = seedArg.includes(',')
@@ -287,6 +299,7 @@ const ENDLESS_COLS = [
 ];
 
 function print(results: Match[][], printed: Row[] = rows): void {
+  const ally = printed.some((r) => r.ally);
   const cols = ['team', 'win%', 'heart (mean min max)', 'lost 1st/2nd/3rd', 'fly (W/M/E)', 'dead (warden)', 'R', 'kill/AS', 'kill/M', 'kill/RS', 'dmg/R', 'combo', 'combo%', 'ult%', 'towers', 'repair (gold)', 'destroyed'];
   let group = '';
   let heads = cols;
@@ -305,7 +318,7 @@ function print(results: Match[][], printed: Row[] = rows): void {
     if (g !== group) {
       flush();
       group = g;
-      heads = row.mode === 'endless' ? ENDLESS_COLS : cols;
+      heads = row.mode === 'endless' ? ENDLESS_COLS : ally ? [...cols, 'ally%'] : cols;
     }
     const ms = results[i]!;
     if (row.mode === 'endless') {
@@ -335,6 +348,7 @@ function print(results: Match[][], printed: Row[] = rows): void {
       f(mean(ms.map((m) => m.towers)), 1),
       `${f(mean(ms.map((m) => m.repairs ?? 0)), 1)} (${f(mean(ms.map((m) => m.repairGold ?? 0)))})`,
       f(mean(ms.map((m) => m.destroyed ?? 0)), 1),
+      ...(ally ? [pct(sum(ms.map((m) => m.allyDamage ?? 0)) / Math.max(1, sum(ms.map((m) => m.damage))))] : []),
     ]);
   });
   flush();

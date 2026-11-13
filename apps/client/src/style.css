@@ -5135,6 +5135,23 @@ body.layout-tall .mates {
   background: var(--hp);
 }
 
+/* The solo match's bot teammate (q6): a small "Bot" tag under its chip. */
+.mate.bot {
+  margin-bottom: 12px;
+}
+
+.mate-bot {
+  position: absolute;
+  left: 3px;
+  top: 100%;
+  margin-top: 1px;
+  font: 700 11px/1 system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: var(--moon, #e8e2d0);
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+
 .mate.dead {
   opacity: 0.5;
   filter: grayscale(1);

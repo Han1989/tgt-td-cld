@@ -19,6 +19,7 @@
 // point's view position (`stand`), sorted back to front by `depth`. Rings that hang off an upright sprite (a creep's
 // status, a hero's vow and aura, the Heart's warning) are drawn as ellipses or under a small squashed container.
 
+import { humanCount } from '../ally/rules';
 import {
   isBossKind,
   type ComboKind,
@@ -1232,7 +1233,7 @@ export class WorldRenderer {
     const fx = this.fx;
     if (tick !== undefined) this.meteors.at(tick);
     // Damage numbers: everyone's in solo, only your hero's and towers' online.
-    const crits = this.hits.feed(events, me, !latest || latest.players.length <= 1);
+    const crits = this.hits.feed(events, me, !latest || humanCount(latest) <= 1);
     // Numbers start above the drawn creep: the offsets are tuned for creeps drawn ~1.6× and grow with their scale.
     const lift = this.scales.creep / 1.6;
     // Crits shown are yours (online `feed` keeps only yours): 1.3× and a hotter yellow; the render clock holds a frame.
@@ -2111,7 +2112,7 @@ export class WorldRenderer {
     this.padKey = key;
     const art = padArt();
     const scale = (this.map.padSize * S) / PAD_PX;
-    const solo = snap.players.length <= 1;
+    const solo = humanCount(snap) <= 1;
     const plate = this.plate;
     const seen = new Set<number>();
     for (const p of snap.pads) {
