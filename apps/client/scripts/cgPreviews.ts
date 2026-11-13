@@ -156,7 +156,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
       { timeout: 120_000, polling: 100 },
     );
     // 2. A wave on the towers.
-    cuts.push(await record(cdp, frames, 4800));
+    cuts.push(await record(cdp, frames, 4800, v.out));
     // 3. An ultimate: Arrow Storm on every lane, 0.4 s in.
     await t('window.__tdt.skipTo(4)');
     await p.waitForFunction(
@@ -180,7 +180,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
     const boss = (await t(`(() => { const b = window.__tdt.latest().creeps.find((c) => /ironhorn|matriarch|shardback/.test(c.kind)); return { x: b.x, y: b.y }; })()`)) as { x: number; y: number };
     await camAt(p, kind, boss.x, boss.y + 2);
     await p.waitForTimeout(600);
-    cuts.push(await record(cdp, frames, 5000));
+    cuts.push(await record(cdp, frames, 5000, v.out));
     return cuts;
   } finally {
     await ctx.close();
@@ -193,7 +193,10 @@ function encode(kind: Kind, cuts: Shot[][]): void {
   const list: string[] = [];
   const cover = join(outDir, v.cover);
   if (!existsSync(cover)) throw new Error(`no ${cover}: npm run press-shots -w @tdt/client -- --only cg first`);
-  list.push(`file '${cover}'`, 'duration 1.0');
+  // The cover is its own input, a second at 30 fps, joined to the frames by the concat filter (as an entry of the
+  // concat list its second was dropped).
+  const coverJpg = join(work, `${kind}-cover.jpg`);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', cover, '-vf', `scale=${v.out.w}:${v.out.h}:flags=lanczos`, '-q:v', '2', coverJpg]);
   for (const cut of cuts) {
     for (const [i, s] of cut.entries()) {
       const next = cut[i + 1];
@@ -209,9 +212,13 @@ function encode(kind: Kind, cuts: Shot[][]): void {
   execFileSync(
     'ffmpeg',
     [
-      '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', listFile,
-      '-vf', `scale=${w}:${h}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p`,
-      '-an', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-movflags', '+faststart', out,
+      '-y', '-loglevel', 'error', '-loop', '1', '-framerate', '30', '-t', '1', '-i', coverJpg,
+      '-f', 'concat', '-safe', '0', '-i', listFile,
+      '-filter_complex',
+      `[0:v]fps=30,format=yuv420p,setsar=1[c];` +
+        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p,setsar=1[g];` +
+        `[c][g]concat=n=2:v=1:a=0[v]`,
+      '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-movflags', '+faststart', out,
     ],
     { stdio: 'inherit' },
   );
@@ -227,16 +234,25 @@ function cut0(cuts: Shot[][]): string {
 if (!existsSync(join(dist, 'index.html'))) throw new Error('build the e2e client first: npm run build:e2e -w @tdt/client');
 mkdirSync(work, { recursive: true });
 const server = await preview({ root, logLevel: 'warn', build: { outDir: dist }, preview: { port: 0, host: '127.0.0.1' } });
-const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 try {
   const url = server.resolvedUrls?.local[0];
   if (!url) throw new Error('the preview server has no URL');
   for (const kind of ['landscape', 'portrait'] as const) {
     if (!only.has(kind)) continue;
     console.log(`${kind}…`);
-    encode(kind, await shoot(browser, url, kind));
+    // A screencast hands frames in CSS px under an emulated scale factor (412 × 618 for the phone); a browser started
+    // at the phone's scale hands them in device px (1080 × 1620), so the portrait video is not upscaled.
+    const scale = VIDEOS[kind].context.deviceScaleFactor;
+    const browser = await chromium.launch({
+      ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+      args: [`--force-device-scale-factor=${scale}`],
+    });
+    try {
+      encode(kind, await shoot(browser, url, kind));
+    } finally {
+      await browser.close();
+    }
   }
 } finally {
-  await browser.close();
   await new Promise<void>((r) => server.httpServer.close(() => r()));
 }

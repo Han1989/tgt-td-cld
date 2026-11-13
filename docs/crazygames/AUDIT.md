@@ -41,7 +41,7 @@ Made by `npm run cg-audit -w @tdt/client` on 2026-11-13 from the crazygames buil
 | Links | A privacy policy link is allowed | **PASS** | the lobby's Privacy opens the site's privacy.html in a new tab |
 | Links | No app-store links | **PASS** | none |
 | Covers | Three pictures of one design: 1920 × 1080, 800 × 1200, 800 × 800; the title the only text | **PASS** | cover-1920x1080.png, cover-800x1200.png, cover-800x800.png |
-| Previews | Two videos, landscape 1080p 16:9 and portrait 2:3, 15–20 s, 50 MB or less, no sound, no cursor | **FAIL** | preview-landscape-1920x1080.mp4 missing, preview-portrait-1080x1620.mp4 missing |
+| Previews | Two videos, landscape 1080p 16:9 and portrait 2:3, 15–20 s, 50 MB or less, no sound, no cursor | **PASS** | preview-landscape-1920x1080.mp4 5.75 MB, preview-portrait-1080x1620.mp4 6.91 MB |
 
 ## Sizes
 
@@ -145,5 +145,28 @@ Every key the desktop controls bind (src/input/controls.ts `onKeyDown`).
 <!-- notes -->
 ## What would fix each FAIL
 
-(written by hand)
+Written by hand for the advisor's next row; nothing here is changed in q5.
+
+- **Text under 11 px (every desktop and tablet frame).** The smallest lines are CSS sizes under 11 px:
+  the tall top bar's stat labels ("Gold", 9.5 px: `body.layout-tall .topbar .stat .label`), the skill buttons'
+  mana costs and the wide layout's skill tags ("28", 10 px: `.skill .tag`), the home card's "Today's top 10"
+  (`.pick-label .mode-board`, 10 px), the mana bar's numbers (`.bar.mana .bar-text`), the level badge's points
+  (`.top-level .pts`) and the ring's branch names and button labels ("Upgrade", 8.5 px at 907 × 510 and
+  1080 × 607: `.radial-btn` and `.radial-btn.branch .name`). Raise each to 11 px; where a box is fixed (the 44 px top
+  bar's 38 px plaques, the 54 px radial buttons), drop the label's letter-spacing or shorten the label ("Gold" → the
+  coin icon alone) rather than grow the box, so the layout and the e2e tests that measure it stay as they are.
+- **800 × 450 (a phone held sideways): the rotate screen.** The game is portrait on phones and asks a sideways phone to
+  turn. CrazyGames' phone frame is landscape; if their phone player is landscape-only, the game needs a landscape phone
+  layout (the wide layout at a 450 px height: the map down the middle as on desktop, the joystick and Q/W/E/R at the
+  sides). If their portal accepts "portrait" in the submission (SUBMISSION.md says portrait on phones), the frame is
+  not served and this FAIL is moot: Han can ask CrazyGames which holds before anything is built.
+- **Escape.** The desktop controls use Escape to cancel a build, an aim or a selection. In the host's fullscreen the
+  browser takes Escape to leave fullscreen, so a player loses fullscreen when they meant to cancel. Keep Escape out
+  of fullscreen and add a second key that the browser never owns (right-click already cancels a mode; add **X** as
+  "cancel" and show it in the build and aim hints), then say "right-click or X cancels" where the game says Escape.
+- **Not checked, for Han:** Edge and Safari (real browsers), CrazyGames' app fullscreen with safe areas, a real 4 GB
+  Chromebook (the stand-in's 18.9 ms of JavaScript a frame for the stress scene and 7.5 ms for a real wave 10 are inside
+  the 33.3 ms budget), PEGI 12 (CrazyGames rates it) and whether the first match's lesson counts as "controls
+  explained" (it shows the moves as text cards, not a keyboard picture: a keyboard and gesture picture on the
+  lesson's first card would settle it).
 <!-- /notes -->
