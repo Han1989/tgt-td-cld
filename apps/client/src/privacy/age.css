@@ -14,6 +14,10 @@
 
 .age-card {
   width: min(360px, 100%);
+  /* Inside a short window (q7: CrazyGames' 462 px frame), scrolling inside itself if it must. */
+  box-sizing: border-box;
+  max-height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;

@@ -514,3 +514,67 @@ test('Call early waits for the wave (q2): off and "Wave arriving" while it comes
   expect(await sent(page, 'callEarly')).toHaveLength(2);
   await expect(call).toBeDisabled();
 });
+
+// CrazyGames' frames (q7): a mouse in a landscape window gets the desktop layout down to 800 × 450, with the HUD inside
+// the frame and the tower panel's buttons on screen.
+for (const size of [
+  { width: 907, height: 510 },
+  { width: 821, height: 462 },
+]) {
+  test(`${size.width} × ${size.height} with a mouse: the wide layout, no joystick, the HUD inside the frame and a tower's panel with Sell on screen`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await startSolo(page);
+    const l = await page.evaluate(() => window.__tdt.layout());
+    expect(l.kind).toBe('wide');
+    expect(l.controls).toBeNull();
+    await expect(page.locator('#touch-overlay')).toBeHidden();
+    await expect(page.locator('#joystick')).toBeHidden();
+    await expect(page.locator('.tskill-btn:visible')).toHaveCount(0);
+    const inside = async (sel: string) => {
+      const b = await box(page, sel);
+      expect(b.left, sel).toBeGreaterThanOrEqual(0);
+      expect(b.top, sel).toBeGreaterThanOrEqual(0);
+      expect(b.right, sel).toBeLessThanOrEqual(size.width);
+      expect(b.bottom, sel).toBeLessThanOrEqual(size.height);
+      return b;
+    };
+    // The side panels beside the map, never over it.
+    const stats = await inside('#topbar');
+    const hero = await inside('#hero-panel');
+    expect(stats.right).toBeLessThanOrEqual(l.map.left);
+    expect(hero.left).toBeGreaterThanOrEqual(l.map.right);
+    for (let i = 0; i < 4; i++) await inside(`#hero-panel .skill >> nth=${i}`);
+    // The Controls list, open: inside the frame and off the map.
+    await page.locator('.help > summary').click();
+    const help = await inside('.help');
+    expect(help.right <= l.map.left || help.left >= l.map.right).toBe(true);
+    await page.locator('.help > summary').click();
+    // The settings sheet.
+    await page.locator('#settings-btn').click();
+    await inside('#settings');
+    await page.locator('#settings-btn').click();
+    await expect(page.locator('#settings')).toBeHidden();
+
+    // A tower's panel: inside the frame, Upgrade, the targets and Sell on screen.
+    const padId = await page.evaluate(() => window.__tdt.latest()!.pads[0]!.id);
+    const pad = await page.evaluate((id) => window.__tdt.map.pads[id]!, padId);
+    const at = await toScreen(page, pad.x, pad.y);
+    await page.mouse.click(at.x, at.y);
+    await expect(page.locator('#pad-menu')).toBeVisible();
+    await inside('#pad-menu');
+    await page.keyboard.press('2');
+    await expect.poll(() => page.evaluate((id) => window.__tdt.latest()!.towers.some((t) => t.padId === id), padId)).toBe(true);
+    await towerDrawn(page, padId);
+    await page.mouse.click(at.x, at.y);
+    await expect(page.locator('#tower-panel')).toBeVisible();
+    await inside('#tower-panel');
+    for (const name of [/Upgrade to tier 2/, /First/, /Strongest/, /Closest/, /Sell for/]) {
+      const b = page.locator('#tower-panel button', { hasText: name });
+      await expect(b).toBeVisible();
+      const r = await b.boundingBox();
+      expect(r!.y + r!.height, String(name)).toBeLessThanOrEqual(size.height);
+    }
+    await page.locator('#tower-panel button', { hasText: /Sell for/ }).click();
+    await expect.poll(() => sent(page, 'sell').then((c) => c.length)).toBe(1);
+  });
+}
