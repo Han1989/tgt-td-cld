@@ -972,6 +972,15 @@ const items: ProgressItem[] = [
     proof: pr(177),
   },
   {
+    id: 'D-16',
+    title: 'CrazyGames’ frames',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only. A mouse in a landscape window always gets the desktop layout, down to 800 × 450 (CrazyGames’ 907 × 510 and 821 × 462 frames drew the phone’s joystick and ring for a mouse), with the tower panel’s buttons always on screen; in a short, wide window the home card is two columns with Play solo on the first screen, and the room card fits one screen; every text in the page is 11 px or more. The audit runs CrazyGames’ own list of frames, every one passing.',
+    proof: pr(183),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

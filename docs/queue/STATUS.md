@@ -29,7 +29,7 @@ adding them did not touch the lines a claimed task's branch is changing.
 
 | Task | Title | Merge | Status | PR | Needs | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| q7 | [CrazyGames' frames: the desktop layout in every desktop frame, Play solo on the first screen, text of 11 px](q7-crazygames-frames.md) | autopilot | todo |  | q5 | Client only. Merge condition in the file. |
+| q7 | [CrazyGames' frames: the desktop layout in every desktop frame, Play solo on the first screen, text of 11 px](q7-crazygames-frames.md) | autopilot | done | #183 | q5 | Client only. Merge condition in the file. |
 | q8 | [Keys CrazyGames allows, and a lesson that shows them](q8-keys-and-lesson.md) | autopilot | todo |  | q7 | Client only. Merge condition in the file. |
 
 ## Han's own steps (the autopilot skips these)

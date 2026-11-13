@@ -1373,17 +1373,22 @@ export class Hud {
         return `<div class="row"><span>${r.label}</span><span>${r.value}${next}</span></div>`;
       })
       .join('');
+    // The stat rows in a box of their own, which scrolls inside the panel where the window is too short for it (q7: a
+    // 462 px desktop frame); the buttons under it never scroll.
     panel.innerHTML = `
       <h3>${towerName(tower.kind, tower.branch, TOWER_NAMES)} tower <span style="color:var(--muted);font-weight:400">${tower.branch ? `${TOWER_NAMES[tower.kind]}, ` : ''}tier ${tower.tier} / ${maxTier(tower.kind)}</span></h3>
+      <div class="tower-stats">
       <div class="row"><span>HP</span><span class="tower-hp"></span></div>
       ${statRows}
       <div class="row"><span>Hits</span><span>${targetsText(tower.kind, undefined, tower.branch)}</span></div>
-      <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
+      <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>
+      </div>`;
+    const stats = panel.querySelector<HTMLElement>('.tower-stats')!;
     if (mine && this.airNow && !hitsAir(tower.kind, tower.branch)) {
       panel.insertAdjacentHTML('beforeend', '<p class="air-note">This tower can\'t hit Wisps.</p>');
     }
     if (!mine) {
-      panel.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
+      stats.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
       return;
     }
 
@@ -1428,7 +1433,7 @@ export class Hud {
       up.addEventListener('click', () => this.actions.reinforce(tower.id));
       panel.appendChild(up);
     } else {
-      panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
+      stats.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
     }
 
     // Repair: only while the tower is damaged. The price is set (and kept current) by updateMenus.
@@ -1470,7 +1475,8 @@ export class Hud {
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     const x = Math.max(8, Math.min(this.camera.viewW - w - 8, p.x));
-    const y = Math.max(60, Math.min(this.camera.viewH - h - 8, p.y));
+    // 60 px clear of the top where the window has the room; a short window (q7) lets a tall popup up to 8 px.
+    const y = Math.max(Math.max(8, Math.min(60, this.camera.viewH - h - 8)), Math.min(this.camera.viewH - h - 8, p.y));
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
   }
