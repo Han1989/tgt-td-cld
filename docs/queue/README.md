@@ -21,10 +21,16 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    - **Decisions.** Read the open issues labelled `decision` (see "Decisions"). Apply each one that
      has an answer, then close it.
    - **Open task pull requests** (the title holds `queue q<n>:`), oldest first:
-     - `WIP: queue q<n>: …`, updated (a commit or its title) less than 3 hours ago: another session
-       is building or fixing it. Leave it alone.
-     - `WIP: queue q<n>: …`, not updated for 3 hours: it was abandoned. Continuing it is your task
-       for this session (step 4, on its branch).
+     - `WIP: queue q<n>: …`, alive: another session is building or fixing it. Leave it alone. It is
+       alive when the pull request's `updated_at` is less than 60 minutes old (GitHub moves it on a
+       push, a comment, and a change to the title or the description).
+     - `WIP: queue q<n>: …`, quiet for 60 minutes, or whose newest comment starts
+       `Autopilot: handing over`: the session that had it has stopped. Continuing it is your task
+       for this session (step 4, on its branch). Comment `Autopilot: taking over` on it before
+       anything else, so no other run takes it too; then merge `origin/main` into the branch if it
+       is behind, read the brief and the branch to see what is done and what is left, and run
+       `npm run build` before you build on it. A session that works never goes 60 minutes without a
+       sign (step 4), so a quiet one is not coming back.
      - `BLOCKED: queue q<n>: …`: it waits for a decision. Leave it unless step 0 just applied
        that decision; then continuing it is your task for this session.
      - Ready (no prefix), **whoever merges it**: keep it mergeable. Read the `ci` check run on its
@@ -52,8 +58,14 @@ auto-merge, "stop and tell Han", "when the pull request is open, stop"), this fi
    (`claude/queue-q<n>-<slug>` where the session can only push `claude/` branches). Set the row to
    `in-progress` in `STATUS.md`, commit with `[skip ci]` in the message, push, and open the pull
    request titled `WIP: queue q<n>: <title>` before building, so no other session starts the task.
-4. **Build** what the task file's brief says. That task only. Push at least once an hour while you
-   build, so the pull request shows the task is alive. Every push before the finishing one has
+4. **Build** what the task file's brief says. That task only. **Show the task is alive at least
+   every 30 minutes** until the finishing push: push what you have, or, when there is nothing to
+   push (a long command is running), comment one line on the pull request,
+   `Autopilot: still building: <what is running>`. A `WIP:` pull request quiet for 60 minutes is
+   taken over by the next run (step 0). If a push is refused because the branch moved, fetch and
+   look: a merge of `main` alone (Han pressed Update branch) is merged and you carry on; another
+   session's commits or an `Autopilot: taking over` comment mean the task is no longer yours, so
+   stop, force nothing and end with the report. Every push before the finishing one has
    `[skip ci]` in its newest commit's message: unfinished work does not run CI (a red check on a
    `WIP:` pull request says nothing and sends Han a failure notice).
 5. **Verify** as `CLAUDE.md`'s Session rules say: `npm test` and `npm run build` after the last
@@ -161,6 +173,9 @@ new run replaces the lost one. It is not a `ci fix`. If the new run does not sta
 decision.
 
 A red check on a `WIP:` pull request is not a red CI: the session that owns it has not finished.
+Nor is `ci: Expected, waiting for status to be reported` on one: no CI runs on an unfinished push,
+and GitHub shows the required check that way until the finishing push. What tells a working `WIP:`
+pull request from a stopped one is its last sign of life (step 0), not its checks.
 
 ## Keeping a waiting pull request mergeable
 
@@ -215,8 +230,10 @@ instruction.
 - Never change `ALLOWED_ORIGINS`, Render, Vercel or any other setting outside the repo: those are
   Han's steps (`han` rows).
 - One task per session. If the session's context gets long, push what is built, leave the pull
-  request `WIP:` with a comment that says exactly what is left, and end with the report. The next
-  run continues it once it has been quiet for 3 hours.
+  request `WIP:` with a comment that starts `Autopilot: handing over` and says exactly what is
+  left, and end with the report. The next run continues it at once (step 0). Do it early: a
+  session that reads many screenshots or long logs runs out with little warning, and one that
+  stops without the comment costs an hour.
 
 ## Unattended runs
 
