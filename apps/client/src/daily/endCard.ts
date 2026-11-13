@@ -12,6 +12,7 @@ import { currentAgeBand } from '../analytics/age';
 import { storedName, storeName } from '../lobby/nickname';
 import { askAge } from '../privacy/ageCheck';
 import { CardShare } from '../share/share';
+import { BareCardShare } from '../share/bare';
 import { dailyFace, outcomeLine, type DailyFace } from '../share/text';
 import { linkless } from '../platform/embedHost';
 import { postRun, type PostOutcome } from './api';
@@ -66,7 +67,9 @@ export class DailyEndCard {
   /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL; a
    * linkless host's (CrazyGames) carries none. */
   private readonly cards = __EMBED__
-    ? new CardShare(linkless(__EMBED__.host) ? null : __EMBED__.canonical)
+    ? linkless(__EMBED__.host)
+      ? new BareCardShare()
+      : new CardShare(__EMBED__.canonical)
     : new CardShare();
 
   /**

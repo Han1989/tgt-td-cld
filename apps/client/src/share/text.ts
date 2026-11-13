@@ -104,14 +104,13 @@ export function linkLabel(origin: string): string {
   return shareUrl(origin).replace(/^[a-z]+:\/\//i, '');
 }
 
-/** The words handed to the share sheet with the card and the link (`link` false: a card shared with no link). */
-export function shareText(face: ShareFace, link = true): string {
+/** The words handed to the share sheet with the card and the link. */
+export function shareText(face: ShareFace): string {
   if (face.kind === 'endless') {
     const today = face.today !== undefined ? `, #${groupDigits(face.today)} on today's board` : '';
     return `I held out to wave ${groupDigits(face.wave)} in Endless${today}. How far can you get?`;
   }
-  const lead = `I finished #${groupDigits(face.rank)} of ${groupDigits(face.total)} in today's Daily run of Tower Defense Together.`;
-  return link ? `${lead} Beat me:` : lead;
+  return `I finished #${groupDigits(face.rank)} of ${groupDigits(face.total)} in today's Daily run of Tower Defense Together. Beat me:`;
 }
 
 /** The PNG's name: `tdt-daily-2026-10-24-rank-14.png`, `tdt-endless-warden-wave-46.png`. */

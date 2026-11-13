@@ -56,6 +56,7 @@ import { addUltCueParts, applyUltCues } from './ultFace';
 import { UltHud } from './ultHud';
 import { matchFile, saveMatchFile } from './matchFile';
 import { CardShare } from '../share/share';
+import { BareCardShare } from '../share/bare';
 import { endlessFace, outcomeLine, type EndlessFace } from '../share/text';
 import { skillFace } from './skillFace';
 import {
@@ -275,7 +276,9 @@ export class Hud {
   /** A hosted build's card carries the real game's link (`__EMBED__`), never the host's frame URL; a
    * linkless host's (CrazyGames) carries none. */
   private readonly cards = __EMBED__
-    ? new CardShare(linkless(__EMBED__.host) ? null : __EMBED__.canonical)
+    ? linkless(__EMBED__.host)
+      ? new BareCardShare()
+      : new CardShare(__EMBED__.canonical)
     : new CardShare();
   private shareFace: EndlessFace | null = null;
   private readonly endFeedback = $('end-feedback');

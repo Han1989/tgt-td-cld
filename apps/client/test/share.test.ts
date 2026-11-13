@@ -11,6 +11,7 @@ import type { PostResult } from '../src/daily/text';
 import { withRun } from '../src/endless/best';
 import { HERO_3D } from '../src/render/art3d/layout';
 import { drawCard, type CardArt, type Ctx2D } from '../src/share/card';
+import { bareContext, bareShareText } from '../src/share/bare';
 import {
   BODY_FONT,
   CARD,
@@ -440,11 +441,16 @@ describe('the card drawn', () => {
 
   it('a linkless host\'s card (CrazyGames, q5): no address on it, and share text that asks for no link', () => {
     const { ctx, calls } = stubCanvas();
-    drawCard(ctx, daily(), null, art('warden'));
+    drawCard(bareContext(ctx), daily(), 'https://linkless.invalid', art('warden'));
     const said = calls.filter((c) => c.op === 'fillText').map((c) => String(c.args[0]));
     expect(said).toContain('Together');
-    expect(said.some((t) => t.includes('?src=') || t.includes('vercel'))).toBe(false);
-    expect(shareText(daily(), false)).toBe("I finished #14 of 212 in today's Daily run of Tower Defense Together.");
-    expect(shareText(endless(), false)).toBe(shareText(endless()));
+    expect(said.some((t) => t.includes('?src=') || t.includes('linkless'))).toBe(false);
+    // Everything else is drawn as the site's card draws it.
+    const site = stubCanvas();
+    drawCard(site.ctx, daily(), 'https://linkless.invalid', art('warden'));
+    const siteSaid = site.calls.filter((c) => c.op === 'fillText').map((c) => String(c.args[0]));
+    expect(said).toEqual(siteSaid.filter((t) => !t.includes('?src=')));
+    expect(bareShareText(daily())).toBe("I finished #14 of 212 in today's Daily run of Tower Defense Together.");
+    expect(bareShareText(endless())).toBe(shareText(endless()));
   });
 });

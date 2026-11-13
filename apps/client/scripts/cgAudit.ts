@@ -35,7 +35,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type Browser, type BrowserContext, type CDPSession, type Frame, type Page } from '@playwright/test';
+import { chromium, type Browser, type BrowserContext, type CDPSession, type Page } from '@playwright/test';
 import { initialFiles, LIMITS } from './embedReport';
 import { e2eZipName, HARNESS, newestZip, startGameServer, startHarness } from './embedServe';
 import { holdWave10 } from './heldMoment';
