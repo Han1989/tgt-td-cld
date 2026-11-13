@@ -9,7 +9,15 @@ import { readZip, writeZip } from '../scripts/zip';
 import { CHANNELS, hostedChannel } from '../src/analytics/channel';
 import { rebaseSoundFiles, soundFiles } from '../src/audio/files';
 import { inviteLink } from '../src/lobby/lobby';
-import { CANONICAL_ORIGIN, canonicalUrl, embedConfigFromEnv, hostedHtml, parseCanonical } from '../src/platform/embedHost';
+import {
+  CANONICAL_ORIGIN,
+  canonicalUrl,
+  embedConfigFromEnv,
+  hostedHtml,
+  linkless,
+  markPrivacy,
+  parseCanonical,
+} from '../src/platform/embedHost';
 import { swSource } from '../src/platform/swSource';
 
 describe('hosted build: settings', () => {
@@ -64,6 +72,21 @@ describe('hosted build: settings', () => {
     expect(out).toContain('<a href="https://g.test/">← Back');
     expect(out).toContain('<a href="#keep">');
     expect(out).toContain('content="https://tgt-td-cld.vercel.app/og-card.png"');
+  });
+
+  it('a linkless host (CrazyGames, q5): only CrazyGames, and its privacy links marked so the page hides its way back', () => {
+    expect(linkless('crazygames')).toBe(true);
+    expect(linkless('itch')).toBe(false);
+    expect(linkless('newgrounds')).toBe(false);
+    expect(markPrivacy('https://g.test/privacy.html')).toBe('https://g.test/privacy.html?hosted');
+    expect(markPrivacy('https://g.test/privacy.html#age')).toBe('https://g.test/privacy.html?hosted#age');
+    expect(markPrivacy('/privacy.html?x=1#daily')).toBe('/privacy.html?x=1&hosted#daily');
+    expect(markPrivacy('https://g.test/')).toBe('https://g.test/');
+    const html = '<a id="lobby-privacy" href="/privacy.html" target="_blank">Privacy</a>\n<a href="/privacy.html#endless">P</a>';
+    const out = hostedHtml(html, 'https://g.test', 'crazygames');
+    expect(out).toContain('href="https://g.test/privacy.html?hosted"');
+    expect(out).toContain('href="https://g.test/privacy.html?hosted#endless"');
+    expect(hostedHtml(html, 'https://g.test', 'itch')).toBe(hostedHtml(html, 'https://g.test'));
   });
 
   it('the invite link names the real game, never the frame\'s address', () => {

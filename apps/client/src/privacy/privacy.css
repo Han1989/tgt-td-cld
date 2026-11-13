@@ -120,6 +120,11 @@ code {
   margin-top: 24px;
 }
 
+/* Opened from a linkless host's build (`?hosted`, privacy/page.ts): no way into the game. */
+html[data-hosted] .back {
+  display: none;
+}
+
 .data dt {
   margin-top: 12px;
   font-weight: 700;

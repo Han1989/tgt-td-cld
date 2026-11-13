@@ -22,7 +22,8 @@ export class CardShare {
   /** The card once drawn, for the face `key` names. */
   private file: File | null = null;
 
-  constructor(private readonly origin: string = location.origin) {}
+  /** `origin` is where the card's link points; null: a card with no link at all (a linkless host's build). */
+  constructor(private readonly origin: string | null = location.origin) {}
 
   /** Starts drawing the card for `face` (again only when the face changed). */
   prepare(face: ShareFace): void {
@@ -55,10 +56,12 @@ export class CardShare {
     } catch {
       return 'failed';
     }
-    const url = shareUrl(this.origin);
+    const url = this.origin === null ? null : shareUrl(this.origin);
     if (shareSheetTakes(file)) {
       try {
-        await navigator.share({ files: [file], text: shareText(face), url });
+        await navigator.share(
+          url === null ? { files: [file], text: shareText(face, false) } : { files: [file], text: shareText(face), url },
+        );
         return 'shared';
       } catch (err) {
         const name = err instanceof DOMException ? err.name : '';
@@ -69,7 +72,7 @@ export class CardShare {
       }
     }
     downloadBlob(file, file.name);
-    return (await copyLink(url)) ? 'saved' : 'saved-no-link';
+    return url !== null && (await copyLink(url)) ? 'saved' : 'saved-no-link';
   }
 
   /** Drops the drawn card (a new match). */

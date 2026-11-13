@@ -178,8 +178,11 @@ function wordmark(ctx: Ctx2D, measure: Measure): void {
   text(ctx, 'Together', axis - b / 2, y2, m.large, 'rune', true);
 }
 
-/** Draws the whole card for `face` onto `ctx` (CARD px). `origin` is the page's own, for the link. */
-export function drawCard(ctx: Ctx2D, face: ShareFace, origin: string, art: CardArt): void {
+/**
+ * Draws the whole card for `face` onto `ctx` (CARD px). `origin` is the page's own, for the link; null draws no link
+ * (a linkless host's build, platform/embedHost.ts `linkless`).
+ */
+export function drawCard(ctx: Ctx2D, face: ShareFace, origin: string | null, art: CardArt): void {
   const measure: Measure = (s, font) => {
     ctx.font = font;
     return ctx.measureText(s).width;
@@ -218,7 +221,7 @@ export function drawCard(ctx: Ctx2D, face: ShareFace, origin: string, art: CardA
   ctx.textBaseline = 'alphabetic';
   wordmark(ctx, measure);
   for (const line of layoutLines(cardLines(face), measure)) drawLine(ctx, line);
-  drawLine(ctx, layoutLink(origin, measure));
+  if (origin !== null) drawLine(ctx, layoutLink(origin, measure));
   ctx.restore();
 }
 
@@ -251,7 +254,7 @@ export async function loadCardArt(hero: HeroKind): Promise<CardArt> {
 }
 
 /** The card as a PNG. */
-export async function renderCard(face: ShareFace, origin: string, art?: CardArt): Promise<Blob> {
+export async function renderCard(face: ShareFace, origin: string | null, art?: CardArt): Promise<Blob> {
   const canvas = document.createElement('canvas');
   canvas.width = CARD.w;
   canvas.height = CARD.h;

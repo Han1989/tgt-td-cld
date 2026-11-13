@@ -229,7 +229,7 @@ function hostedPage(embed: EmbedConfig): Plugin {
   return {
     name: 'tdt-hosted-page',
     apply: 'build',
-    transformIndexHtml: { order: 'post', handler: (html) => hostedHtml(html, embed.canonical) },
+    transformIndexHtml: { order: 'post', handler: (html) => hostedHtml(html, embed.canonical, embed.host) },
   };
 }
 

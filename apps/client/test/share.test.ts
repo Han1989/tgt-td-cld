@@ -437,4 +437,14 @@ describe('the card drawn', () => {
     const said = calls.filter((c) => c.op === 'fillText').map((c) => c.args[0]);
     for (const s of ['Endless', 'Fallen on wave', '46', 'Held out 38:12', 'Best: wave 51', 'Warden']) expect(said).toContain(s);
   });
+
+  it('a linkless host\'s card (CrazyGames, q5): no address on it, and share text that asks for no link', () => {
+    const { ctx, calls } = stubCanvas();
+    drawCard(ctx, daily(), null, art('warden'));
+    const said = calls.filter((c) => c.op === 'fillText').map((c) => String(c.args[0]));
+    expect(said).toContain('Together');
+    expect(said.some((t) => t.includes('?src=') || t.includes('vercel'))).toBe(false);
+    expect(shareText(daily(), false)).toBe("I finished #14 of 212 in today's Daily run of Tower Defense Together.");
+    expect(shareText(endless(), false)).toBe(shareText(endless()));
+  });
 });

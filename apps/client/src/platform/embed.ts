@@ -11,10 +11,14 @@
 //   Settings panel), the channel (analytics/install.ts), the invite link and the version message (lobby/lobby.ts),
 //   the share card's link (hud/hud.ts, daily/endCard.ts). The Wake Lock is asked for as everywhere (gameView.ts): a
 //   frame that may not have one refuses it quietly.
+// - A linkless host (CrazyGames, embedHost.ts `linkless`): no fullscreen button (the host's player has its own), no
+//   invite link (the room card shows its code with a line saying how friends join), privacy links marked `?hosted` so
+//   the privacy page shows no way into the game; the share card's address and the version message's link are decided
+//   at their call sites as above.
 
 import './embed.css';
 import { iconVar } from '../render/art/icons';
-import { canonicalUrl, type EmbedConfig } from './embedHost';
+import { canonicalUrl, linkless, markPrivacy, type EmbedConfig } from './embedHost';
 
 let framed: boolean | null = null;
 
@@ -32,23 +36,38 @@ export function embedded(): boolean {
 }
 
 /** A link to one of the site's own pages (`/privacy.html#age`), pointed at the real game. */
-function retarget(a: HTMLAnchorElement, canonical: string): void {
+function retarget(a: HTMLAnchorElement, canonical: string, mark: boolean): void {
   const href = a.getAttribute('href');
-  if (href && href.startsWith('/') && !href.startsWith('//')) a.setAttribute('href', canonicalUrl(canonical, href));
+  if (!href || !href.startsWith('/') || href.startsWith('//')) return;
+  const url = canonicalUrl(canonical, href);
+  a.setAttribute('href', mark ? markPrivacy(url) : url);
 }
 
 /** Every link to the site's own pages under `root`, now and as the game adds them. */
-function canonicalLinks(canonical: string): void {
-  for (const a of document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')) retarget(a, canonical);
+function canonicalLinks(canonical: string, mark: boolean): void {
+  for (const a of document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')) retarget(a, canonical, mark);
   new MutationObserver((records) => {
     for (const r of records) {
       for (const node of r.addedNodes) {
         if (!(node instanceof Element)) continue;
-        if (node instanceof HTMLAnchorElement) retarget(node, canonical);
-        for (const a of node.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')) retarget(a, canonical);
+        if (node instanceof HTMLAnchorElement) retarget(node, canonical, mark);
+        for (const a of node.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')) retarget(a, canonical, mark);
       }
     }
   }).observe(document.body, { childList: true, subtree: true });
+}
+
+/** The room card for a linkless host: the code alone, with how friends join, where Copy invite link was. */
+function codeOnlyRoom(): void {
+  const copy = document.getElementById('lobby-copy');
+  if (!copy) return;
+  const hint = document.createElement('p');
+  hint.id = 'lobby-code-hint';
+  hint.className = 'room-code-hint';
+  hint.textContent = 'Friends on CrazyGames tap Join room and type this code';
+  // Hidden, not removed: lobby.ts finds it by id whenever it starts.
+  copy.classList.add('hidden');
+  copy.after(hint);
 }
 
 function fullscreenOn(): boolean {
@@ -100,9 +119,18 @@ function fullscreenButton(): void {
   stage.appendChild(btn);
 }
 
-/** Starts the hosted build's page: `<html data-embed>` (`framed` or `top`), the links, the fullscreen button. */
+/**
+ * Starts the hosted build's page: `<html data-embed>` (`framed` or `top`), the links, the fullscreen button; a linkless
+ * host (`<html data-linkless>`) the room card's code line instead of the invite link, and no fullscreen button.
+ */
 export function installHosted(cfg: EmbedConfig): void {
   document.documentElement.dataset.embed = embedded() ? 'framed' : 'top';
-  canonicalLinks(cfg.canonical);
-  fullscreenButton();
+  const bare = linkless(cfg.host);
+  canonicalLinks(cfg.canonical, bare);
+  if (bare) {
+    document.documentElement.dataset.linkless = '';
+    codeOnlyRoom();
+  } else {
+    fullscreenButton();
+  }
 }

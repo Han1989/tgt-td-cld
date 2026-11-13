@@ -15,8 +15,13 @@ import {
   writeAnalyticsChoice,
   type AnalyticsChoice,
 } from '../analytics/preference';
+import { HOSTED_MARK } from '../platform/embedHost';
 import { askAge } from './ageCheck';
 import { wireMyData } from './myDataUi';
+
+// Opened from a linkless host's build (CrazyGames, `?hosted`): no way into the game from here, since the host's rules
+// allow no link to a playable copy (platform/embedHost.ts `linkless`). The policy itself reads the same.
+if (new URLSearchParams(location.search).has(HOSTED_MARK)) document.documentElement.dataset.hosted = '';
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
