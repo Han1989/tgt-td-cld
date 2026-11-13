@@ -963,6 +963,15 @@ const items: ProgressItem[] = [
     proof: pr(176),
   },
   {
+    id: 'D-15',
+    title: 'CrazyGames prep',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client build config and code for the CrazyGames build, scripts, images and docs; no sim, protocol or server change. The CrazyGames build has no fullscreen button of its own and no link to a playable copy: rooms are joined by their code, the share card carries no address, a version mismatch asks to try again later, and the privacy page opened from it hides its way back into the game. An audit against CrazyGames’ rules (sizes, time to gameplay, their six frames, a 4 GB Chromebook stand-in, 60 / 144 / 165 Hz, the keys) in docs/crazygames/AUDIT.md, and the submission kit: three covers of one design, two preview videos, the store text and the sound credits.',
+    proof: pr(177),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
