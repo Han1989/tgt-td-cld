@@ -22,10 +22,20 @@ is live").
 | q5 | [CrazyGames prep: their build, an audit against their rules, the submission kit](q5-crazygames-prep.md) | autopilot | done | #177 | q3, q4 | After it merges the advisor writes the audit's fix as a new task. |
 | q6 | [A bot teammate in solo](q6-bot-teammate.md) | Han | todo |  | q5 | Han reviews the balance tables and plays it before merging. |
 
+## Build tasks, continued (13 Nov: the fixes from the CrazyGames audit)
+
+One list with the table above: a session reads both, top to bottom. They are in a table of their own only so that
+adding them did not touch the lines a claimed task's branch is changing.
+
+| Task | Title | Merge | Status | PR | Needs | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| q7 | [CrazyGames' frames: the desktop layout in every desktop frame, Play solo on the first screen, text of 11 px](q7-crazygames-frames.md) | autopilot | todo |  | q5 | Client only. Merge condition in the file. |
+| q8 | [Keys CrazyGames allows, and a lesson that shows them](q8-keys-and-lesson.md) | autopilot | todo |  | q7 | Client only. Merge condition in the file. |
+
 ## Han's own steps (the autopilot skips these)
 
 | Task | Title | Merge | Status | PR | Needs | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | h1 | One room across three devices (Pixel, iPhone, laptop): a Quick match to the end |  | han |  |  |  |
 | h2 | Render origins, the itch zip, the itch.io Draft and its check |  | han |  |  |  |
-| h3 | Submit to CrazyGames with the kit in docs/crazygames/ |  | han |  |  | After q5 and the audit's fix. |
+| h3 | Submit to CrazyGames with the kit in docs/crazygames/ |  | han |  |  | After q7 and q8 (the audit's fixes), with Han's own checks in Edge and Safari. |
