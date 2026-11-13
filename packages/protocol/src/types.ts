@@ -7,9 +7,15 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 26;
+export const PROTOCOL_VERSION = 27;
 
 export type PlayerId = string;
+
+/**
+ * Protocol 27 (q6): the bot teammate of a solo Full or Quick match. Its id in commands, events and the snapshot's
+ * `players` (where it carries `bot: true`). It is never a player of the sim: it owns no pad and earns nothing.
+ */
+export const ALLY_ID: PlayerId = 'bot-ally';
 export type EntityId = number;
 
 export const TOWER_KINDS = ['arrow', 'cannon', 'frost', 'arcane', 'flak'] as const;
@@ -278,6 +284,11 @@ export interface PlayerSnap {
   kills: number;
   /** False while the player is disconnected or after they left. */
   connected: boolean;
+  /**
+   * Protocol 27: the solo match's bot teammate (`ALLY_ID`), listed last. A hero only: no gold (always 0), no pads; its
+   * kills' bounty goes to the player. Absent on every human player.
+   */
+  bot?: true;
 }
 
 export interface SkillSnap {
@@ -646,8 +657,23 @@ export interface MatchReport {
   /** Heart HP when each wave ended (when the next one started; the last: when the match ended). */
   heartAfterWave: number[];
   heroes: HeroReport[];
+  /** Protocol 27: the solo match's bot teammate, apart from the player's own numbers. Absent: no ally played. */
+  ally?: AllyReport;
   /** Combos fired and each wave-10 shield. Reports from before protocol 16 omit it. */
   coop?: CoopReport;
+}
+
+/** How the bot teammate's match went (`MatchReport.ally`). */
+export interface AllyReport {
+  hero: HeroKind;
+  level: number;
+  kills: number;
+  deaths: number;
+  casts: { Q: number; W: number; R: number };
+  /** Combos its ultimate fused into (with the player's). */
+  combos: number;
+  /** Its share of every hero's damage to creeps (auto-attacks and skills; 0..1). */
+  damageShare: number;
 }
 
 /** Soft-launch hook numbers on a match report. Seconds are match time. */
@@ -684,6 +710,9 @@ export interface CoopReport {
  */
 export type ReplayEntry = [tick: number, player: number, what: string, ...args: (string | number)[]];
 
+/** The replay log's player index for the bot teammate's commands (protocol 27). */
+export const ALLY_SEAT = -1;
+
 /** Everything needed to re-run a match with the simulation: the seed, the setup and every input with its tick. */
 export interface Replay {
   /** Replay format version. */
@@ -701,6 +730,11 @@ export interface Replay {
    */
   modifiers?: string[];
   players: { id: PlayerId; name: string; hero: HeroKind }[];
+  /**
+   * Protocol 27: the solo match's bot teammate, if it had one (its commands are logged under player index -1,
+   * `ALLY_SEAT`). Absent: no ally.
+   */
+  ally?: HeroKind;
   /** Inputs in the order the host applied them. */
   log: ReplayEntry[];
   /** How the match ended; a re-run must end the same way. */

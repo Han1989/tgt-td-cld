@@ -558,6 +558,11 @@ export interface Tuning {
     lateWaves: number;
     /** Creep count × (1 + countPerExtraPlayer × (players − 1)); bosses are not multiplied. */
     countPerExtraPlayer: number;
+    /**
+     * Solo with the bot teammate (q6): the whole player multiplier × this, so the ally's hero and second ultimate are
+     * paid back in creep HP and solo with an ally sits where solo sits. Found with `npm run balance:matrix -- --ally`.
+     */
+    allyHp: number;
   };
   combat: {
     /** Physical reduction = a·armor / (1 + a·armor). */
@@ -778,6 +783,7 @@ export const TUNING: Tuning = {
     lateHpBonus: [0.08, 0.5, 1.2],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
+    allyHp: 1,
   },
   combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5, ultimateBossFactor: 0.75 },
   // Chase cap, leash, time limit and cooldown: Han's rules of 21 Oct 2026 (was a leash of 9 tiles, no cap, no limit,

@@ -228,7 +228,8 @@ export function playerHpMultiplier(state: GameState, wave: number): number {
   const fade = Math.max(0, 1 - (wave - 1) / ps.earlyWaves);
   const lateStart = state.tuning.waves.list.length - ps.lateWaves;
   const ramp = ps.lateWaves > 0 ? Math.min(1, Math.max(0, (wave - lateStart) / ps.lateWaves)) : 0;
-  return at(ps.hp, 1) + at(ps.earlyHpBonus, 0) * fade + at(ps.lateHpBonus, 0) * ramp;
+  const team = at(ps.hp, 1) + at(ps.earlyHpBonus, 0) * fade + at(ps.lateHpBonus, 0) * ramp;
+  return state.ally ? team * ps.allyHp : team;
 }
 
 /** The wave whose growth (HP and armour per wave) a wave's creeps have: itself, or past the list in Endless its source. */

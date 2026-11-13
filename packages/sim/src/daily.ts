@@ -101,12 +101,13 @@ export function dailySeed(key: string): number {
  * Why a replay is not a daily run of the day whose seed is `seed`, or null: exactly one player, Quick (never Endless),
  * Hard, that seed, no Meteor Rain practice and no match modifiers. Check `replayProblem` first (the shape).
  */
-export function dailyRefusal(replay: Pick<Replay, 'players' | 'mode' | 'difficulty' | 'seed' | 'practice' | 'modifiers'>, seed: number): string | null {
+export function dailyRefusal(replay: Pick<Replay, 'players' | 'mode' | 'difficulty' | 'seed' | 'practice' | 'modifiers' | 'ally'>, seed: number): string | null {
   if (replay.players.length !== DAILY_RUN.players) return 'a daily run has one player';
   if (replay.mode === 'endless') return 'an Endless run is not a daily run';
   if (replay.mode !== DAILY_RUN.mode) return 'a daily run is Quick';
   if ((replay.difficulty ?? 'normal') !== DAILY_RUN.difficulty) return 'a daily run is on Hard';
   if (replay.practice) return 'a daily run is not practice';
+  if (replay.ally) return 'a daily run has no bot teammate';
   if (replay.modifiers && replay.modifiers.length > 0) return 'a daily run has no modifiers';
   if (replay.seed !== seed) return "not today's seed";
   return null;

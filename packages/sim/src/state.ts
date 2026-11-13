@@ -35,6 +35,11 @@ export interface GameConfig {
   difficulty?: Difficulty;
   /** Defaults to TUNING. Tests may pass a modified copy. */
   tuning?: Tuning;
+  /**
+   * Protocol 27 (q6): a bot teammate's hero beside a solo player in Full or Quick (createGame throws otherwise). A hero
+   * only, `state.ally`: not a player for pads, income, gold, team-size scaling or surges.
+   */
+  ally?: HeroKind;
 }
 
 export interface PlayerState {
@@ -362,6 +367,12 @@ export interface GameState {
   shields: BossShield[];
   /** What hero ultimates and combos did, for the balance matrix. Not in snapshots or reports. */
   ultStats: UltStats;
+  /**
+   * The solo match's bot teammate (q6), or null. Shaped as a player so its hero's commands go through `applyCommand`,
+   * but never in `players`: its gold stays 0 (its kills' bounty goes to the player), it owns no pad and is not counted
+   * for team size, income or surges. Its hero is the last of `heroes`.
+   */
+  ally: PlayerState | null;
 }
 
 /** What an ultimate or a combo is counted as in `UltStats`. */
