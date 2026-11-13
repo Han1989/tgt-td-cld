@@ -783,7 +783,7 @@ export const TUNING: Tuning = {
     lateHpBonus: [0.08, 0.5, 1.2],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
-    // q6: the bot teammate's hero and second ultimate, paid back so the novice's mean Heart is today's solo one (round 9
+    // q6: the bot teammate's hero and second ultimate, paid back so the novice's mean Heart is today's solo one (round 11
     // of docs/balance/TUNING_LOG.md: 72 against 71; Quick's own below).
     allyHp: 1.25,
   },

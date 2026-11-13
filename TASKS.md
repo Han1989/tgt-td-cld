@@ -247,7 +247,7 @@ On hold until D-06 passes. Then, in this order: L-01, then **Phase 6a** (below).
 
 | ID | Task | Owner |
 |---|---|---|
-| L-01 | **A bot teammate in solo:** a lone player gets a bot hero on another lane, so combos happen without a friend. It builds on the practice ally (`coop.ts`) and needs a balance run (`npm run balance:matrix`). | Team |
+| L-01 | **DONE** · **A bot teammate in solo** (q6, 13 Nov 2026, `PROTOCOL_VERSION` 27): Play solo in Full or Quick starts with a bot hero beside you (the Arcanist for a Ranger, else the Ranger), ⚙ → Bot teammate On / Off; never in the Daily run, Endless, the lesson or a room. A hero only (no pads, gold or scaling; its bounty yours; it levels with you), it walks the busiest lane you are not on and answers your ultimate 0.5 s later so they fuse; creep HP × `allyHp` (Full 1.25, Quick 1.35). `docs/GAME_DESIGN.md` "Bot teammate", `docs/balance/TUNING_LOG.md` round 11. PR #181. | Team |
 
 ### Phase 6a · Foundation: accounts and data
 
