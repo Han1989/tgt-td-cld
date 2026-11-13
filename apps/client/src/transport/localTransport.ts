@@ -46,6 +46,11 @@ export class LocalTransport implements Transport {
     return this.seed;
   }
 
+  /** The bot teammate (q6, a control message) on or off for the next match the worker starts. */
+  ally(on: boolean): void {
+    this.worker.postMessage({ ctl: 'ally', on });
+  }
+
   /** The Daily run: every match of this worker is the run of the day whose seed this is (a control message). */
   daily(seed: number): void {
     this.worker.postMessage({ ctl: 'daily', seed });

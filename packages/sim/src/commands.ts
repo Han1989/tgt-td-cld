@@ -28,14 +28,20 @@ function flushPointCast(state: GameState, hero: Hero): void {
   hero.order = { type: 'idle' };
 }
 
+/** What the bot teammate may send (q6). */
+const ALLY_COMMANDS: ReadonlySet<Command['type']> = new Set(['move', 'attackMove', 'attack', 'stop', 'cast', 'learn', 'ping']);
+
 /** Applies `command` for `playerId`. Returns true if it was accepted. */
 export function applyCommand(state: GameState, playerId: PlayerId, command: Command): boolean {
-  const player = state.players.find((p) => p.id === playerId);
+  const ally = state.ally !== null && state.ally.id === playerId;
+  const player = ally ? state.ally : state.players.find((p) => p.id === playerId);
   if (!player) return false;
   const reject = (reason: string): false => {
     emit(state, { type: 'rejected', player: playerId, command: command.type, reason });
     return false;
   };
+  // The bot teammate (q6) moves, fights, learns, casts and pings: nothing that touches gold, towers or the waves.
+  if (ally && !ALLY_COMMANDS.has(command.type)) return reject('A bot teammate only plays its hero');
   if (state.phase === 'victory' || state.phase === 'defeat') return reject('The match is over');
   const hero = state.heroes.find((h) => h.id === player.heroId);
   if (!hero) return false;

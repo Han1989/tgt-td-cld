@@ -871,3 +871,76 @@ The two Playtest 2 replay fixtures (`test/fixtures/playtests/`) are re-run only 
 stamps them with today's protocol; they hold two calls each, made while a wave was arriving in the defeat file, which
 are now refused there (its counterfactual ends on wave 8 instead of 7). No test re-runs them, so they are kept as
 recorded.
+
+# Round 11: a bot teammate in solo (q6, 13 Nov 2026, protocol 27)
+
+The bot teammate (`docs/GAME_DESIGN.md` "Bot teammate") adds a hero's damage and a second ultimate to Play solo in Full
+and Quick. It is paid back by one creep HP factor for solo with an ally, `playerScaling.allyHp` (the whole player
+multiplier × it), found with `npm run balance:matrix -- normal --ally` (solo, Normal, Full and Quick, the three bots, 30
+seeds). The before table is today's solo (`ally-before.txt`), the after one solo with the ally (`ally-final.txt`).
+
+## Every number, before → after
+
+| Number | Before | After |
+|---|---|---|
+| `playerScaling.allyHp` (Full) | (none) | 1.25 |
+| `modes.quick.playerScaling.allyHp` | (none) | 1.35 |
+
+Nothing else changed: with the ally off every number is main's. **Solo with the ally off is unchanged to the byte:** 60
+recorded solo matches (the casual bot, the three heroes, seeds 1–10, Full and Quick), the Daily run on the five gate
+seeds (the expert, Quick on Hard) and Endless on the five gate seeds, their whole report and replay hashed without the
+protocol number, are the same on main and on this branch.
+
+## What the sweep found (10 seeds, novice and casual; allyHp 1: 30 seeds)
+
+| allyHp | Full novice mean (R / W / A) | Quick novice mean | Quick casual mean |
+|---|---|---|---|
+| 1 | 98 / 98 / 99 | 89 / 95 / 96 | 100 / 100 / 100 |
+| 1.15 | 88 / 76 / 96 | 79 / 88 / 87 | 99 / 100 / 99 |
+| 1.25 | 76 / 63 / 72 | 72 / 89 / 77 | 95 / 100 / 95 |
+| 1.4 | 43 / 52 / 38 | 37 / 70 / 51 | 64 / 96 / 49 |
+| 1.7 | every team but the Warden loses | | |
+
+A steep cliff between 1.25 and 1.4 in Full. Quick needs a step more than Full for the same novice mean: 1.35.
+
+## Where it lands (30 seeds; today's solo before the arrow)
+
+| Bot · mode | Hero | Win % | Heart before: mean (min–max) | Heart with the ally | R casts a match (both heroes) before → with | Combos a match | Ally share of all damage |
+|---|---|---|---|---|---|---|---|
+| novice · full | ranger | 100 → 100 | 74.2 (57–88) | 77.0 (33–96) | 10.0 → 18.1 | 6.3 | 17% |
+| novice · full | warden | 100 → 100 | 82.0 (71–92) | 64.7 (53–75) | 10.4 → 20.1 | 5.3 | 17% |
+| novice · full | arcanist | 100 → 100 | 57.9 (34–77) | 74.2 (41–95) | 10.0 → 19.6 | 7.2 | 8% |
+| casual · full | ranger | 100 → 100 | 96.0 (79–100) | 98.8 (91–100) | 10.5 → 19.6 | 7.8 | 16% |
+| casual · full | warden | 100 → 100 | 97.4 (95–100) | 100.0 (99–100) | 12.9 → 24.5 | 12.3 | 18% |
+| casual · full | arcanist | 100 → 100 | 88.6 (71–100) | 98.5 (87–100) | 10.0 → 19.1 | 8.7 | 5% |
+| expert · full | ranger | 100 → 100 | 99.9 (98–100) | 99.9 (99–100) | 11.0 → 22.0 | 11.0 | 16% |
+| expert · full | warden | 100 → 100 | 94.0 (90–96) | 98.8 (96–100) | 9.1 → 19.9 | 9.9 | 16% |
+| expert · full | arcanist | 100 → 100 | 97.8 (88–100) | 100.0 (99–100) | 10.9 → 22.1 | 11.0 | 4% |
+| novice · quick | ranger | 100 → 100 | 61.2 (25–72) | 47.3 (8–76) | 4.2 → 8.4 | 2.5 | 18% |
+| novice · quick | warden | 100 → 100 | 69.2 (41–76) | 76.9 (57–97) | 5.4 → 10.5 | 2.4 | 19% |
+| novice · quick | arcanist | 100 → 100 | 50.0 (30–60) | 55.5 (3–84) | 3.4 → 9.1 | 2.8 | 11% |
+| casual · quick | ranger | 100 → 100 | 93.4 (82–100) | 85.2 (43–99) | 3.9 → 11.1 | 4.5 | 19% |
+| casual · quick | warden | 100 → 100 | 95.9 (88–97) | 99.0 (93–100) | 6.2 → 12.2 | 6.1 | 19% |
+| casual · quick | arcanist | 100 → 100 | 81.3 (57–100) | 68.1 (17–98) | 4.6 → 10.0 | 3.0 | 10% |
+| expert · quick | ranger | 100 → 100 | 98.3 (90–100) | 96.9 (90–100) | 6.0 → 11.7 | 5.6 | 21% |
+| expert · quick | warden | 100 → 100 | 92.5 (84–95) | 94.0 (88–100) | 4.9 → 9.5 | 4.6 | 18% |
+| expert · quick | arcanist | 100 → 100 | 97.2 (91–100) | 95.9 (79–100) | 5.9 → 11.5 | 5.5 | 6% |
+
+## Targets
+
+- **Novice wins at least 80% for each hero:** 100% everywhere, with and without the ally. Met.
+- **Solo with the ally sits where solo sits today:** the novice's mean over the three heroes is 72.0 against 71.4 in Full
+  and 59.9 against 60.1 in Quick; the casual's 99.1 against 94.0 in Full and 84.1 against 90.2 in Quick; the expert's
+  99.6 against 97.2 and 95.6 against 96.0. Met within a few Heart (the casual Full row a little easier).
+- **Casual ends with 50–90 Heart:** not met in Full (98.5–100), as today's solo does not meet it either (88.6–97.4).
+  Quick casual is 68–99 (today 81–96).
+- **Expert 85 or more:** met (94.0–100).
+- **The three heroes' means within 10 Heart:** not met. Full novice 64.7–77.0 (spread 12; today's 24), Quick novice
+  47.3–76.9 (spread 30; today's 19), Quick casual 68.1–99.0 (31; today's 15). The Warden gains the most from the Ranger
+  beside him; the Ranger and the Arcanist least from each other. Today's solo fails it too (Full novice 24). One factor
+  for every hero cannot close it; a factor per pair would be a new rule: Han's call.
+- **Combos a match:** 5–12 in Full, 2–6 in Quick (none before: solo had no partner).
+- **The ally's share of all damage (towers included):** 16–21%, and 4–11% beside an Arcanist (aim 25–40%). Under the
+  aim, so it does not carry the match and its auto-attack is not weakened. Beside an Arcanist the ally is the Ranger, and
+  a fused Meteor Rain's damage is the Meteor's caster's (the combo's lead), so the player's share takes the combos'.
+

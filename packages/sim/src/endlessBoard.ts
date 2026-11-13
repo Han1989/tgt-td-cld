@@ -26,13 +26,14 @@ export function endlessRankOrder(a: EndlessRun, b: EndlessRun): number {
  * practice and no match modifiers. Check `replayProblem` (the shape) and `replayRefusal` (rules that are gone) first.
  */
 export function endlessRefusal(
-  replay: Pick<Replay, 'players' | 'mode' | 'protocol' | 'practice' | 'modifiers'>,
+  replay: Pick<Replay, 'players' | 'mode' | 'protocol' | 'practice' | 'modifiers' | 'ally'>,
   protocol = PROTOCOL_VERSION,
 ): string | null {
   if (replay.mode !== 'endless') return 'the board takes Endless runs';
   if (replay.players.length !== 1) return 'the board takes solo runs';
   if (replay.protocol !== protocol) return `recorded under protocol ${replay.protocol}, this server runs ${protocol}`;
   if (replay.practice) return 'an Endless run is not practice';
+  if (replay.ally) return 'an Endless run has no bot teammate';
   if (replay.modifiers && replay.modifiers.length > 0) return 'an Endless run has no modifiers';
   return null;
 }

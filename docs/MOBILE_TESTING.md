@@ -342,6 +342,17 @@ On the itch.io Draft (or `npm run embed:serve -- itch` on a laptop), in a privat
 - [ ] 24.3 **The site still asks at Play.** On https://tgt-td-cld.vercel.app in a private window, Play solo opens the age sheet as before, and Continue goes straight into the match.
 - [ ] 24.4 **The counts (Han).** After a few first visits, `/analytics` → **Before the age question** → **First sessions** shows the host's row: first opens, matches started, a minute played, finished; D1 / D7 fill in a day and a week later.
 
+## 25. A bot teammate in solo (q6, protocol 27)
+
+On the phone, a solo match from the home card (⚙ → **Bot teammate** is **On** unless you turned it off).
+
+- [ ] 25.1 **It is there.** Pick the Warden, Quick, Play solo: a second hero, the Ranger, stands beside yours at the start, with its chip at the top left and a small **BOT** tag under it. Nothing is drawn over it in the map. A Ranger gets the Arcanist; an Arcanist the Ranger. The home card is the same as before (no new row).
+- [ ] 25.2 **It plays a lane, not yours.** Walk your hero onto the West lane during a wave: the bot walks to the busiest other lane and fights its front creeps; it walks home to the Heart when hurt and comes back.
+- [ ] 25.3 **A combo with the bot.** Reach level 6 and learn R. The first time both R buttons are ready with creeps out, one green-edged line says **"Your ally is ready: cast R together for a combo"** (once ever). Cast your R: half a second later the bot casts its own, the two fuse (the combo's banner and ribbon), as they would with a friend. Leave both ready for 20 s with a wave out: the bot pings once and waits for you.
+- [ ] 25.4 **It earns nothing for itself.** Your gold rises with the bot's kills; it never builds, and every pad is yours.
+- [ ] 25.5 **The end card** lists the ultimates as before and, under **Bot teammate**, "Your bot Ranger · 6 casts · 4 combos · 212 kills · 21% of the damage".
+- [ ] 25.6 **Never** in Learn to play, the Daily run, Endless or an online room. ⚙ → Bot teammate **Off**, then Play solo: no bot.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |

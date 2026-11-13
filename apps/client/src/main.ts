@@ -7,7 +7,7 @@ import { GameView } from './gameView';
 import { storedHero } from './lobby/heroPicker';
 import { LobbyUi } from './lobby/lobby';
 import { storedMode } from './lobby/modePicker';
-import { afterArt, OnlineController, playSolo } from './online';
+import { afterArt, allyOf, OnlineController, playSolo } from './online';
 import { playGate } from './privacy/ageCheck';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
@@ -127,10 +127,15 @@ async function main(): Promise<void> {
       {
         playSolo: (pick) =>
           playGate(() =>
-            afterArt(pick.hero, pick.mode, () => {
-              lobby.hide();
-              playSolo(view, 'play', pick, home);
-            }),
+            afterArt(
+              pick.hero,
+              pick.mode,
+              () => {
+                lobby.hide();
+                playSolo(view, 'play', pick, home);
+              },
+              allyOf('play', pick),
+            ),
           ),
         learnToPlay: (hero) =>
           playGate(() =>
