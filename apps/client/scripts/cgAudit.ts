@@ -365,6 +365,7 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
       // `artwait`: an e2e build waits for the art (and shows the card) only when asked.
       await p.goto(`${GAME}?lab&artwait&weather=clear&light=afternoon`);
       await p.waitForSelector('html[data-ready]', { timeout: 120_000 });
+      if ((await p.evaluate(() => (window as any).__tdt.layout().kind)) === 'rotate') return { error: 'not reached: the rotate screen' };
       await press(p, touch, '#lobby-offline');
       await p.waitForSelector('#art-wait:not(.hidden)', { state: 'visible', timeout: 30_000 });
       await p.waitForTimeout(1500);
@@ -387,6 +388,12 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
     });
     let playing = false;
     let gruntPx: number | null = null;
+    const sideways = (await p.evaluate(() => (window as any).__tdt.layout().kind)) === 'rotate';
+    if (sideways) {
+      // A phone held sideways gets the rotate screen over everything: nothing past the home card can be reached.
+      for (const step of ['wave10', 'ring', 'end'] as const) await run(step, async () => ({ error: 'not reached: the rotate screen' }));
+      return res;
+    }
     await run('wave10', async () => {
       await press(p, touch, '#lobby-heroes-home .hero-pick[data-hero="ranger"]');
       await press(p, touch, '#lobby-mode-home .mode-pick[data-mode="full"]');
@@ -424,12 +431,38 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
     });
     await run('ring', async () => {
       if (!playing) throw new Error('no match');
+      // A point that picks one of the towers and lies on the bare canvas (no button, the joystick or the top bar over
+      // it): the pad's centre can be under a control or a creep's drawn box (as e2e/helpers.ts `padTapPoint` finds).
       const at = await p.evaluate(() => {
         const t = (window as any).__tdt;
-        const tw = t.latest().towers[0];
-        const pad = t.map.pads[tw.padId];
-        return t.camera.worldToScreen(pad.x * 32, pad.y * 32);
+        const canvas = document.getElementById('game-canvas');
+        const l = t.layout();
+        const bottom = l.controls && l.kind === 'tall' ? l.controls.top : innerHeight;
+        const M = 8;
+        const on = (x: number, y: number) => document.elementFromPoint(x, y) === canvas;
+        const half = (t.map.padSize / 2) * 32 * t.camera.zoom;
+        const halfY = half * t.view().cos;
+        for (const tw of t.latest().towers) {
+          const pad = t.map.pads[tw.padId];
+          const c = t.camera.worldToScreen(pad.x * 32, pad.y * 32);
+          let best: { x: number; y: number; d: number } | null = null;
+          for (let dy = -halfY + 2; dy <= halfY - 2; dy += 3) {
+            for (let dx = -half + 2; dx <= half - 2; dx += 3) {
+              const x = c.x + dx;
+              const y = c.y + dy;
+              const d = dx * dx + dy * dy;
+              if (best && d >= best.d) continue;
+              if (y <= l.topBarBottom + M || y >= bottom - M) continue;
+              if (![[0, 0], [M, 0], [-M, 0], [0, M], [0, -M]].every(([a, b]) => on(x + a!, y + b!))) continue;
+              const r = t.tapAt(x, y);
+              if (r.type === 'pick' && r.pick.kind === 'tower' && r.pick.id === tw.id) best = { x, y, d };
+            }
+          }
+          if (best) return { x: best.x, y: best.y };
+        }
+        return null;
       });
+      if (!at) throw new Error('no tower on screen with a free point to tap');
       await tapAt(p, touch, at.x, at.y);
       await p.waitForSelector('#radial:not(.hidden), #tower-panel:not(.hidden)', { state: 'visible', timeout: 10_000 });
       await p.waitForTimeout(400);
