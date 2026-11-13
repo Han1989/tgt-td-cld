@@ -495,14 +495,15 @@ button {
   background-color: var(--hp);
 }
 
-/* The mana line's text sits fully inside its bar (q1: "332 / 332" was cut at the bottom of a 10 px bar). */
+/* The mana line's text sits fully inside its bar (q1: "332 / 332" was cut at the bottom of a 10 px bar); 11 px since
+   q7 (CrazyGames' legibility bar), the bar as tall as the HP bar for it. */
 .bar.mana {
-  height: 12px;
+  height: 14px;
 }
 
 .bar.mana .bar-text {
   font-size: 11px;
-  line-height: 12px;
+  line-height: 14px;
 }
 
 .bar.hp .bar-text {
