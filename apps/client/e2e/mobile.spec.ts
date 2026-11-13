@@ -1460,8 +1460,10 @@ test.describe('floating stick with the skills around it (the default) and taps w
     await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.creeps.length), { timeout: 30_000 }).toBeGreaterThan(3);
     const finger = await Finger.on(page);
     const r = centre(await box(page, '.tskill[data-slot="R"] .tskill-btn'));
-    await finger.down(r.x, r.y);
-    await finger.up();
+    // A quick tap by the events' own clock (on a loaded runner the two messages can arrive a second apart).
+    const t0 = Date.now() / 1000;
+    await finger.down(r.x, r.y, t0);
+    await finger.up(t0 + 0.08);
     await expect.poll(() => sent(page, 'cast')).toEqual([{ type: 'cast', slot: 'R' }]);
     // The bot answers half a second later, inside the combo window: its R goes on cooldown too.
     const allyR = () =>
