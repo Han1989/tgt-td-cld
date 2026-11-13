@@ -269,7 +269,16 @@ export function afterArt(hero: HeroKind, mode: GameMode, go: () => void, ally: H
 
 /** The bot teammate a solo start will have (q6): `soloAlly` with ⚙'s switch. */
 export function allyOf(start: SoloStart, pick: SoloPick): HeroKind | null {
-  return soloAlly(soloMatch(start, pick), sharedSettings().get().botTeammate);
+  return soloAlly(soloMatch(start, pick), botTeammateOn());
+}
+
+/**
+ * ⚙'s "Bot teammate" switch. Browser-test builds leave it off unless the page asks (`?ally`), so the solo specs that
+ * read one hero and one player stay as they were.
+ */
+function botTeammateOn(): boolean {
+  if (import.meta.env.MODE === 'e2e' && !new URLSearchParams(location.search).has('ally')) return false;
+  return sharedSettings().get().botTeammate;
 }
 
 /** Stops the local match, if one is running (⚙ → Learn to play starts the lesson in its place). */
@@ -289,7 +298,7 @@ export function playSolo(view: GameView, start: SoloStart, pick: SoloPick, home:
   const match = beginSolo(sharedSettings(), start, pick);
   const transport = startLocal(view, home);
   // The bot teammate first (a control message): the matches below start with it, or without.
-  transport.ally(soloAlly(match, sharedSettings().get().botTeammate) !== null);
+  transport.ally(soloAlly(match, botTeammateOn()) !== null);
   // Each of these starts a new match in the local host; the last one is the match played.
   transport.send({ t: 'mode', mode: match.mode });
   transport.send({ t: 'hero', hero: match.hero });

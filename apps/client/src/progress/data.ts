@@ -1144,9 +1144,10 @@ const items: ProgressItem[] = [
     id: 'L-01',
     title: 'A bot teammate in solo',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'after',
-    note: 'A lone player gets a bot hero on another lane, so combos happen without a friend. Builds on the practice ally and needs a balance run. On hold until D-06 passes.',
+    note: 'Play solo in Full or Quick starts with a bot hero beside you (the Arcanist for a Ranger, else the Ranger): it walks the busiest lane you are not on, answers your ultimate so they fuse into a combo, and earns nothing; its bounty is yours. Creep HP pays it back (`playerScaling.allyHp`). Never in the Daily run, Endless or the lesson. ⚙ → Bot teammate: On / Off. Protocol 27.',
+    proof: { label: 'PR #181', href: `${REPO}/pull/181` },
   },
   {
     id: 'p6a-db',
@@ -1513,7 +1514,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 26,
+  protocol: 27,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

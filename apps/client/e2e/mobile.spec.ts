@@ -1449,6 +1449,34 @@ test.describe('floating stick with the skills around it (the default) and taps w
     await finger.up();
   });
 
+  test('a bot teammate in solo (q6): it plays beside you, and your R and its R fuse into a combo', async ({ page }) => {
+    // `?ally`: e2e builds leave the bot teammate off unless asked; `?lab&ult` starts both heroes with R learned.
+    await startSolo(page, '?lab&ult&ally', 'quick', 'Ranger');
+    const first = await page.evaluate(() => window.__tdt.latest()!);
+    expect(first.players.map((p) => p.bot === true)).toEqual([false, true]);
+    expect(first.heroes.map((h) => h.kind)).toEqual(['ranger', 'arcanist']);
+    await expect(page.locator('.mate.bot .mate-bot')).toHaveText('Bot');
+    await page.evaluate(() => window.__tdt.command({ type: 'callEarly' }));
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.creeps.length), { timeout: 30_000 }).toBeGreaterThan(3);
+    const finger = await Finger.on(page);
+    const r = centre(await box(page, '.tskill[data-slot="R"] .tskill-btn'));
+    await finger.down(r.x, r.y);
+    await finger.up();
+    await expect.poll(() => sent(page, 'cast')).toEqual([{ type: 'cast', slot: 'R' }]);
+    // The bot answers half a second later, inside the combo window: its R goes on cooldown too.
+    const allyR = () =>
+      page.evaluate(() => {
+        const s = window.__tdt.latest()!;
+        const ally = s.players.find((p) => p.bot)!;
+        return s.heroes.find((h) => h.id === ally.heroId)!.skills.find((k) => k.slot === 'R')!.cooldown;
+      });
+    await expect.poll(allyR, { timeout: 10_000 }).toBeGreaterThan(0);
+    await page.evaluate(() => window.__tdt.lose());
+    await expect(page.locator('#end-ults')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#end-ults')).toContainText('Bot teammate');
+    await expect(page.locator('#end-ults')).toContainText(/Your bot Arcanist · 1 cast · 1 combo/);
+  });
+
   test('a drag that crosses the skill buttons casts nothing', async ({ page }) => {
     await startSolo(page, '?lab&ult');
     const finger = await Finger.on(page);

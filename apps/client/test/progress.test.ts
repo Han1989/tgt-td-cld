@@ -24,7 +24,7 @@ describe('progress dashboard data', () => {
   });
 
   it('seeds protocol 25, a finished polish path, and D-06 as the next gate', () => {
-    expect(PROGRESS.protocol).toBe(26);
+    expect(PROGRESS.protocol).toBe(27);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -69,14 +69,14 @@ describe('progress dashboard data', () => {
     // column 3 with the creeps a step smaller; PR #168), and D-11 (laptop run fixes: whole numbers, a way back to the
     // lobby, tidy skill buttons; PR #170), D-12 (call early waits for the wave, End run for Endless; PR #173), D-13
     // (no question before the first match in hosted builds, a first session counted with no id; PR #175), and D-14
-    // (a lighter download; PR #176), and D-15 (CrazyGames prep; PR #177).
-    expect(summary.done).toBe(114);
+    // (a lighter download; PR #176), and D-15 (CrazyGames prep; PR #177), and L-01 (a bot teammate in solo; PR #181).
+    expect(summary.done).toBe(115);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
     // round 2 PR #120), V-05d (the towers, the Heart and the portals in 3D, PR #118) and V-05e (the stress budget after
     // the 3D sprites, PR #121) are done, and V-05a (PR #106) is closed as superseded by V-05b.
-    expect(summary.open).toBe(38);
+    expect(summary.open).toBe(37);
     // Han's open rows in Now: P2-05, H-09, D-02, D-03, D-04, D-06 (the order from here), H-03, H-05 and D-05.
     // P2-01b (PR #82), P2-04c (PR #88) and P2-09 (PR #96) merged; H-02 is not needed; H-06 and H-07 are done.
     // The presentation pass has no open row.
@@ -150,6 +150,7 @@ describe('progress dashboard data', () => {
       'slam-r3': 159,
       'D-09': 98,
       'H-07': 98,
+      'L-01': 181,
     };
     for (const [id, pull] of Object.entries(proofs)) {
       const item = byId(id);
@@ -193,10 +194,10 @@ describe('progress dashboard data', () => {
     expect(byId('P2-05').note).toContain('P2-04b');
     expect(byId('P2-04').note.toLowerCase()).toContain('combo');
     expect(byId('P2-05').owner).toBe('Han');
-    for (const id of ['H-09', 'T-07', 'D-02', 'D-03', 'D-04', 'D-06', 'L-01', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
+    for (const id of ['H-09', 'T-07', 'D-02', 'D-03', 'D-04', 'D-06', 'g2-launch', 'g2-gate', 'p6a-accounts']) {
       expect(byId(id).status).toBe('todo');
     }
-    for (const id of ['H-02', 'H-06', 'H-07', 'H-08', 'D-09']) expect(byId(id).status).toBe('done');
+    for (const id of ['H-02', 'H-06', 'H-07', 'H-08', 'D-09', 'L-01']) expect(byId(id).status).toBe('done');
     expect(byId('D-10')).toMatchObject({ owner: 'Team', status: 'in_progress', proof: { href: 'https://github.com/Han1989/tgt-td-cld/pull/99' } });
     expect(byId('D-10').note).toContain('no id');
     expect(byId('D-10').note).toContain('In review');
@@ -343,7 +344,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('D-06');
-    expect(summary).toContain('26');
+    expect(summary).toContain('27');
     expect(summary).toContain('Complete');
   });
 

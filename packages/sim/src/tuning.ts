@@ -783,7 +783,9 @@ export const TUNING: Tuning = {
     lateHpBonus: [0.08, 0.5, 1.2],
     lateWaves: 10,
     countPerExtraPlayer: 0.3,
-    allyHp: 1,
+    // q6: the bot teammate's hero and second ultimate, paid back so the novice's mean Heart is today's solo one (round 9
+    // of docs/balance/TUNING_LOG.md: 72 against 71; Quick's own below).
+    allyHp: 1.25,
   },
   combat: { armorFactor: 0.06, maxMagicResist: 0.9, xpShareRadius: 22, bossControlFactor: 0.5, ultimateBossFactor: 0.75 },
   // Chase cap, leash, time limit and cooldown: Han's rules of 21 Oct 2026 (was a leash of 9 tiles, no cap, no limit,
@@ -1005,6 +1007,8 @@ export const TUNING: Tuning = {
         earlyWaves: 10,
         lateHpBonus: [0, 0.33, 1.6],
         lateWaves: 5,
+        // q6: Quick's bot teammate weighs more (fewer waves to level in, the same two ultimates): the novice's mean 60.
+        allyHp: 1.35,
       },
       hero: { xpForLevel: [0, 180, 450, 810, 1260, 1800, 2430, 3150, 3960, 4860] },
       // Quick is shorter, so the same Full bands either walk over a 3-player team or cliff a solo seed.
