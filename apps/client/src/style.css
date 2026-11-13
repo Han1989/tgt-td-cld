@@ -3390,6 +3390,20 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   font-size: 14px;
 }
 
+/* The card's title and its picture share a row, so the picture costs the card no line of its own (the phone's card
+   keeps its height). */
+.tutorial-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin-bottom: 2px;
+}
+
+.tutorial-head h2 {
+  margin: 0;
+}
+
 /* The lesson's picture (q8): what to press, over the card's one line. Keycaps are CSS; the mouse and the gestures
    are icons from render/art/icons.ts. Click-through like the rest of the card. */
 .tutorial-picture {
@@ -3397,13 +3411,12 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
-  margin: 2px 0 3px;
-  min-height: 28px;
+  min-height: 26px;
 }
 
 .tutorial-picture .lesson-glyph {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   filter: drop-shadow(0 1px 1px rgba(16, 12, 22, 0.9));
 }
 
