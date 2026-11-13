@@ -14,3 +14,4 @@ dist-embed-*/
 embed-*.zip
 .venv-blender
 __pycache__/
+dist-previews/

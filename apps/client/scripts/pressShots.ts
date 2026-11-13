@@ -45,9 +45,10 @@
 //    with no Palatino the script maps it to TeX Gyre Pagella, Palatino's metric clone (Debian / Ubuntu:
 //    `fonts-texgyre`), and says so when neither is there. Look at the result.
 //
-// `--only` takes the numbers and `covers` / `sheet` (the covers need shot 7's wide frame in --work, default
+// `--only` takes the numbers and `covers` / `cg` / `sheet` (the covers need shot 7's wide frame in --work, default
 // apps/client/dist-press). Stills go to --out (default docs/screenshots/press), covers and the sheet to --press
-// (default docs/press).
+// (default docs/press). `cg` (q5): CrazyGames' three covers of one design, 1920 × 1080, 800 × 1200 and 800 × 800, the
+// wordmark the only text, into docs/crazygames/ (`--cg DIR`).
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -69,6 +70,7 @@ const arg = (name: string, fallback: string) => {
 const path = (p: string) => (isAbsolute(p) ? p : resolve(process.cwd(), p));
 const out = path(arg('out', join(repo, 'docs', 'screenshots', 'press')));
 const pressDir = path(arg('press', join(repo, 'docs', 'press')));
+const cgDir = path(arg('cg', join(repo, 'docs', 'crazygames')));
 const work = path(arg('work', join(root, 'dist-press')));
 const dist = join(root, 'dist-e2e');
 const onlyArg = arg('only', '');
@@ -1369,6 +1371,13 @@ const COVERS = [
   { file: 'cg-cover-1x1.png', w: 1024, h: 1024, hero: 'ranger', where: 'CrazyGames: the 1:1 cover' },
 ] as const;
 
+/** CrazyGames' covers (q5, docs/crazygames/SUBMISSION.md): three shapes of one design, the title the only text. */
+const CG_COVERS = [
+  { file: 'cover-1920x1080.png', w: 1920, h: 1080, hero: 'arcanist', where: 'CrazyGames: the 16:9 cover' },
+  { file: 'cover-800x1200.png', w: 800, h: 1200, hero: 'arcanist', where: 'CrazyGames: the 2:3 cover' },
+  { file: 'cover-800x800.png', w: 800, h: 800, hero: 'arcanist', where: 'CrazyGames: the 1:1 cover' },
+] as const;
+
 async function covers(browser: Browser): Promise<void> {
   const meadow = join(work, 'cover-meadow.png');
   if (!existsSync(meadow)) throw new Error(`no ${meadow}: run shot 7 first (--only 7)`);
@@ -1422,9 +1431,17 @@ async function covers(browser: Browser): Promise<void> {
       writeFileSync(join(pressDir, 'heroes-banner.webp'), webp!);
       writeFileSync(join(work, 'heroes-banner.png'), banner);
       console.log(`${join(pressDir, 'heroes-banner.webp')}: 2400 × 900, ${(webp!.length / 1024).toFixed(0)} KB`);
-      // The covers, drawn at twice their size and scaled down.
-      for (const c of COVERS) {
-        const square = c.w === c.h;
+    }
+    // The covers, drawn at twice their size (under 1000 px wide) and scaled down; CrazyGames' (q5) one design at
+    // three shapes, the Arcanist on the meadow and the wordmark alone.
+    const sets = [
+      ...(only.has('covers') ? COVERS.map((c) => ({ ...c, dir: pressDir, tall: false })) : []),
+      ...(only.has('cg') ? CG_COVERS.map((c) => ({ ...c, dir: cgDir, tall: c.h > c.w })) : []),
+    ];
+    if (sets.length) {
+      mkdirSync(cgDir, { recursive: true });
+      for (const c of sets) {
+        const square = c.w <= c.h;
         const S = c.w < 1000 ? 2 : 1;
         await page.evaluate((spec) => (window as any).press.cover(spec), {
           w: c.w * S,
@@ -1432,10 +1449,10 @@ async function covers(browser: Browser): Promise<void> {
           hero: c.hero,
           square,
           center: square ? [0.5, 0.5] : [0.5, 0.52],
-          heroTall: square ? 0.6 : 0.82,
-          heroX: square ? 0.7 : 0.75,
+          heroTall: c.tall ? 0.56 : square ? 0.6 : 0.82,
+          heroX: c.tall ? 0.56 : square ? 0.7 : 0.75,
           heroFoot: 0.05,
-          logo: square ? [0.5, 0.05, 0.62] : [0.33, c.w / c.h > 1.9 ? 0.2 : 0.16, 0.4],
+          logo: c.tall ? [0.5, 0.06, 0.82] : square ? [0.5, 0.05, 0.62] : [0.33, c.w / c.h > 1.9 ? 0.2 : 0.16, 0.4],
         });
         const shot = await grab(c.w * S, c.h * S);
         const [full] = await scale(browserOf, shot, [{ w: c.w, h: c.h, type: 'image/png' }]);
@@ -1443,8 +1460,8 @@ async function covers(browser: Browser): Promise<void> {
         const img = decodePng(full!);
         const q = quantize(img, 256, 0.5);
         const png = encodeIndexedPng(img.width, img.height, q.indices, q.palette);
-        writeFileSync(join(pressDir, c.file), png);
-        console.log(`${join(pressDir, c.file)}: ${c.w} × ${c.h}, ${(png.length / 1024).toFixed(0)} KB (${(full!.length / 1024).toFixed(0)} KB before)`);
+        writeFileSync(join(c.dir, c.file), png);
+        console.log(`${join(c.dir, c.file)}: ${c.w} × ${c.h}, ${(png.length / 1024).toFixed(0)} KB (${(full!.length / 1024).toFixed(0)} KB before)`);
       }
     }
   } finally {
@@ -1562,7 +1579,7 @@ try {
       await closePreview(server);
     }
   }
-  if (only.has('covers')) await covers(browser);
+  if (only.has('covers') || only.has('cg')) await covers(browser);
   if (only.has('3')) {
     for (let attempt = 1; ; attempt++) {
       console.log(`shot 3${attempt > 1 ? ` (again: ${attempt})` : ''}…`);
