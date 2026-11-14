@@ -60,6 +60,11 @@ export interface Settings {
    */
   zoomHint: ZoomHint;
   /**
+   * The wheel-zoom line (q8): `new` shows it once, the first time a match in a small desktop window (a mouse, the wide
+   * layout, a tile under 14 px) has run a few seconds outside the lesson; then `seen` (also when the wheel zooms).
+   */
+  wheelHint: ZoomHint;
+  /**
    * Endless's daily board (endless/board.ts): `unasked` until the consent card after the first finished Endless match,
    * then `on` (Yes, every time: solo runs post by themselves from 16) or `off` (Not now). ⚙ Settings → Play data's
    * "Post Endless runs to the board" switches it.
@@ -67,6 +72,13 @@ export interface Settings {
   endlessPost: EndlessPost;
   /** The online room's "Solo runs post to the board" line on an Endless end screen: `new` until it showed once. */
   endlessRoomLine: ZoomHint;
+  /**
+   * The bot teammate (q6): Play solo in Full or Quick starts with one beside you (never the Daily run, Endless or the
+   * lesson). ⚙ → "Bot teammate: On / Off"; On by default.
+   */
+  botTeammate: boolean;
+  /** "Your ally is ready: cast R together for a combo": `new` until it showed once (both R ready, creeps out). */
+  allyHint: ZoomHint;
 }
 
 export type ZoomHint = 'new' | 'seen';
@@ -140,8 +152,11 @@ export const DEFAULT_SETTINGS: Settings = {
   airLesson: 'new',
   repairHint: 'new',
   zoomHint: 'new',
+  wheelHint: 'new',
   endlessPost: 'unasked',
   endlessRoomLine: 'new',
+  botTeammate: true,
+  allyHint: 'new',
 };
 
 /** A stored volume: a number in 0–1, rounded to 5% steps, else null. */
@@ -179,8 +194,11 @@ export function parseSettings(raw: string | null): Settings {
     out.airLesson = parseAirLesson(v.airLesson);
     out.repairHint = parseRepairHint(v.repairHint);
     out.zoomHint = v.zoomHint === 'seen' ? 'seen' : 'new';
+    out.wheelHint = v.wheelHint === 'seen' ? 'seen' : 'new';
     out.endlessPost = parseEndlessPost(v.endlessPost);
     out.endlessRoomLine = v.endlessRoomLine === 'seen' ? 'seen' : 'new';
+    if (typeof v.botTeammate === 'boolean') out.botTeammate = v.botTeammate;
+    out.allyHint = v.allyHint === 'seen' ? 'seen' : 'new';
   } catch {
     // Corrupt value: defaults.
   }

@@ -39,11 +39,12 @@ import { dailyBestLine, heartBestLine } from '../record/text';
 import { callEarlyFace } from './callEarly';
 import { hpLine, manaLine } from './num';
 import type { Camera } from '../input/camera';
+import { CANCEL_HINT } from '../input/keys';
 import { HERO_INFO } from '../heroInfo';
 import { HEART_CRACKED } from '../render/art/damage';
 import { heroIcon, iconVar, skillIcon, towerIcon } from '../render/art/icons';
 import { bossLaneRoles, giftLine, giftTotalsLines, playerTint, showGiftTotals, type GiftLine } from '../coop/cues';
-import { comboPairLines, ultimateLines } from '../coop/ultReport';
+import { allyLine, comboPairLines, ultimateLines } from '../coop/ultReport';
 import { healLines, heldPopDue, NO_ULT_CUES, ultPops, waitsForQuake, type UltCues, type UltPop } from '../ult/cues';
 import { matchFlagFace, surgeToastCopy } from './surgeFace';
 import { CREEP_NAMES, HERO_COLORS, toCss, TOWER_NAMES } from '../render/palette';
@@ -899,7 +900,12 @@ export class Hud {
     setTimeout(() => el.remove(), 3400);
   }
 
-  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom'): void {
+  /** Takes a teaching line down at once (the wheel line once the wheel zooms, q8). */
+  dropToast(kind: 'wheel'): void {
+    for (const el of this.toasts.querySelectorAll(`.toast.teach.${kind}`)) el.remove();
+  }
+
+  toast(text: string, kind?: 'air' | 'gold' | 'repair' | 'zoom' | 'ally' | 'wheel'): void {
     this.onToast(text);
     // Gold short of a price: the gold plaque shakes too (the button that asked shakes on its own).
     if (text === 'Not enough gold') shake(this.goldStat);
@@ -1084,11 +1090,12 @@ export class Hud {
   private renderUlts(report: MatchReport | null): void {
     const ults = report ? ultimateLines(report) : [];
     const pairs = report ? comboPairLines(report) : [];
-    const key = JSON.stringify([ults.map((l) => l.text), pairs.map((l) => l.text)]);
+    const ally = report ? allyLine(report, (kind) => HERO_INFO[kind].name) : null;
+    const key = JSON.stringify([ults.map((l) => l.text), pairs.map((l) => l.text), ally]);
     if (key === this.ultKey) return;
     this.ultKey = key;
     this.endUlts.replaceChildren();
-    if (ults.length === 0 && pairs.length === 0) {
+    if (ults.length === 0 && pairs.length === 0 && !ally) {
       this.endUlts.classList.add('hidden');
       return;
     }
@@ -1112,6 +1119,10 @@ export class Hud {
     if (pairs.length > 0) {
       head('Combos by pair');
       for (const l of pairs) line(l.text);
+    }
+    if (ally) {
+      head('Bot teammate');
+      line(ally);
     }
     this.endUlts.classList.remove('hidden');
   }
@@ -1138,18 +1149,25 @@ export class Hud {
     this.banner.style.animation = '';
   }
 
+  /** The aimed skill's name for the aiming hint (the hero last drawn; the slot alone before that). */
+  private aimName(slot: SkillSlot): string {
+    return this.skillKind ? HERO_INFO[this.skillKind].skills[slot].name : slot;
+  }
+
   private updateBuildHint(gold: number): void {
     const mode = this.ui.mode;
-    const show = mode.type === 'buildMenu' || mode.type === 'build';
+    const show = mode.type === 'buildMenu' || mode.type === 'build' || mode.type === 'target';
     this.buildHint.classList.toggle('hidden', !show);
     if (!show) return;
     const html =
-      mode.type === 'build'
-        ? `Placing <b>${TOWER_NAMES[mode.tower]}</b> — left-click a build pad · <kbd>Esc</kbd> cancel`
+      mode.type === 'target'
+        ? `Aim <b>${this.aimName(mode.slot)}</b> — left-click the map · ${CANCEL_HINT}`
+        : mode.type === 'build'
+        ? `Placing <b>${TOWER_NAMES[mode.tower]}</b> — left-click a build pad · ${CANCEL_HINT}`
         : `Build: ${TOWER_KINDS.map((k, i) => {
             const cost = buildCost(k);
             return `<kbd>${i + 1}</kbd> ${TOWER_NAMES[k]} <span style="color:${gold >= cost ? 'var(--gold)' : 'var(--bad)'}">${cost}</span>`;
-          }).join(' · ')} · <kbd>Esc</kbd> cancel`;
+          }).join(' · ')} · ${CANCEL_HINT}`;
     if (this.buildHint.innerHTML !== html) this.buildHint.innerHTML = html;
   }
 
@@ -1368,17 +1386,22 @@ export class Hud {
         return `<div class="row"><span>${r.label}</span><span>${r.value}${next}</span></div>`;
       })
       .join('');
+    // The stat rows in a box of their own, which scrolls inside the panel where the window is too short for it (q7: a
+    // 462 px desktop frame); the buttons under it never scroll.
     panel.innerHTML = `
       <h3>${towerName(tower.kind, tower.branch, TOWER_NAMES)} tower <span style="color:var(--muted);font-weight:400">${tower.branch ? `${TOWER_NAMES[tower.kind]}, ` : ''}tier ${tower.tier} / ${maxTier(tower.kind)}</span></h3>
+      <div class="tower-stats">
       <div class="row"><span>HP</span><span class="tower-hp"></span></div>
       ${statRows}
       <div class="row"><span>Hits</span><span>${targetsText(tower.kind, undefined, tower.branch)}</span></div>
-      <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>`;
+      <div class="row"><span>Owner</span><span>${mine ? 'You' : owner}</span></div>
+      </div>`;
+    const stats = panel.querySelector<HTMLElement>('.tower-stats')!;
     if (mine && this.airNow && !hitsAir(tower.kind, tower.branch)) {
       panel.insertAdjacentHTML('beforeend', '<p class="air-note">This tower can\'t hit Wisps.</p>');
     }
     if (!mine) {
-      panel.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
+      stats.insertAdjacentHTML('beforeend', `<div class="row"><span>Priority</span><span>${PRIORITY_NAMES[tower.priority]}</span></div>`);
       return;
     }
 
@@ -1423,7 +1446,7 @@ export class Hud {
       up.addEventListener('click', () => this.actions.reinforce(tower.id));
       panel.appendChild(up);
     } else {
-      panel.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
+      stats.insertAdjacentHTML('beforeend', '<div class="row"><span>Max tier</span><span></span></div>');
     }
 
     // Repair: only while the tower is damaged. The price is set (and kept current) by updateMenus.
@@ -1465,7 +1488,8 @@ export class Hud {
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     const x = Math.max(8, Math.min(this.camera.viewW - w - 8, p.x));
-    const y = Math.max(60, Math.min(this.camera.viewH - h - 8, p.y));
+    // 60 px clear of the top where the window has the room; a short window (q7) lets a tall popup up to 8 px.
+    const y = Math.max(Math.max(8, Math.min(60, this.camera.viewH - h - 8)), Math.min(this.camera.viewH - h - 8, p.y));
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
   }

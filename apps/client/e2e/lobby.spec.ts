@@ -401,7 +401,7 @@ test.describe('a short window', () => {
     // screen, layout.ts).
     const sizes = isMobile
       ? [{ width: 375, height: 553 }, { width: 360, height: 560 }]
-      : [{ width: 1100, height: 500 }, { width: 1280, height: 600 }, { width: 360, height: 560 }];
+      : [{ width: 360, height: 560 }, { width: 799, height: 560 }];
     for (const size of sizes) {
       await page.setViewportSize(size);
       await openHome(page, undefined, '&daily');
@@ -442,6 +442,100 @@ test.describe('a short window', () => {
       expect(spot.hit, at).toBe('lobby-offline');
     }
   });
+});
+
+// CrazyGames' frames (q7): a window under 640 px tall and at least 800 px wide gets the home card in two columns filling
+// the window, Play solo on the first screen with no scrolling, and the room card on one screen.
+test.describe('a short, wide window', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  for (const size of [
+    { width: 821, height: 462 },
+    { width: 907, height: 510 },
+    { width: 1077, height: 606 },
+    { width: 1280, height: 600 },
+  ]) {
+    const at = `${size.width} × ${size.height}`;
+    test(`the home card at ${at}: the stage on the left, the picks down to Play solo on the right with no scrolling, and one click starts the match`, async ({ page, isMobile }) => {
+      test.skip(isMobile, 'desktop frames');
+      await page.route('**/daily/today', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ day: '2026-11-13', seed: 1, closesAt: Date.now() + 3_600_000, runs: 12, champion: null }),
+        }),
+      );
+      await page.setViewportSize(size);
+      await openHome(page, 'skipped', '&daily');
+      await expect(page.locator('#lobby-daily')).toBeVisible();
+      const card = await box(page, '.lobby-card');
+      expect(card.top, at).toBeGreaterThanOrEqual(0);
+      expect(card.bottom, at).toBeLessThanOrEqual(size.height);
+      // The stage fills the card's left half, the full height; the title on it, clear of the sound button on it.
+      const stage = await box(page, '#lobby-stage');
+      expect(stage.top, at).toBeLessThanOrEqual(card.top + 2);
+      expect(stage.bottom, at).toBeGreaterThanOrEqual(card.bottom - 2);
+      const sound = await box(page, '#lobby-sound');
+      const logo = await box(page, '#lobby-stage .stage-logo');
+      expect(sound.right, at).toBeLessThanOrEqual(stage.right);
+      expect(sound.left >= logo.right || sound.bottom <= logo.top, at).toBe(true);
+      await expect.poll(() => heroShown(page)).toBe(true);
+      // The right column, top to bottom, beside the stage, nothing overlapping, down to Play solo on screen.
+      let above: { bottom: number } = { bottom: card.top };
+      for (const sel of ['#lobby-heroes-home', '#lobby-home > .hero-blurb', '#lobby-home > .mode-row', '#lobby-daily', '#lobby-offline']) {
+        const b = await box(page, sel);
+        expect(b.left, `${sel} at ${at}`).toBeGreaterThanOrEqual(stage.right);
+        expect(b.top, `${sel} at ${at}`).toBeGreaterThanOrEqual(above.bottom - 1);
+        expect(b.bottom, `${sel} at ${at}`).toBeLessThanOrEqual(size.height);
+        above = b;
+      }
+      const spot = await mainSpot(page, 'lobby-offline');
+      expect(spot.scrolled, at).toBe(0);
+      expect(spot.hit, at).toBe('lobby-offline');
+      // Only the right column scrolls, if anything: never the page or the lobby layer; the friends' controls and Privacy
+      // are reached in it.
+      expect(await page.evaluate(() => document.scrollingElement!.scrollHeight - innerHeight), at).toBeLessThanOrEqual(0);
+      expect(await page.locator('.lobby').evaluate((el) => el.scrollHeight - el.clientHeight), at).toBeLessThanOrEqual(0);
+      expect(await overflow(page), at).toBeLessThanOrEqual(0);
+      await page.locator('#lobby-join').scrollIntoViewIfNeeded();
+      const join = await box(page, '#lobby-join');
+      expect(join.bottom, at).toBeLessThanOrEqual(size.height);
+      expect((await box(page, '#lobby-stage')).top, `${at}: the stage stays`).toBe(stage.top);
+      const privacy = await box(page, '#lobby-privacy');
+      expect(privacy.left, at).toBeGreaterThanOrEqual(stage.right);
+      expect(privacy.bottom, at).toBeLessThanOrEqual(size.height);
+      // One click on Play solo starts a solo match.
+      await page.locator('#lobby-home').evaluate((el) => el.scrollTo(0, 0));
+      await page.locator('#lobby-offline').click();
+      await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0)).toBeGreaterThan(0);
+      await expect(page.locator('#lobby')).toBeHidden();
+    });
+  }
+
+  for (const size of [
+    { width: 821, height: 462 },
+    { width: 907, height: 510 },
+  ]) {
+    test(`the room card at ${size.width} × ${size.height}: the code, the three seats, your hero, the mode and Start with no scrolling`, async ({ page, isMobile }) => {
+      test.skip(isMobile, 'desktop frames');
+      await page.setViewportSize(size);
+      await fakeRoom(page, 'p1', [HOST, GUEST, THIRD]);
+      await openHome(page, 'skipped');
+      await page.locator('#lobby-name').fill('Han');
+      await page.locator('#lobby-create').click();
+      await expect(page.locator('#lobby-room')).toBeVisible();
+      await expect(page.locator('#lobby-players .seat')).toHaveCount(3);
+      expect(await overflow(page)).toBeLessThanOrEqual(0);
+      for (const sel of ['#lobby-room-code', '#lobby-copy', '#lobby-players', '#lobby-heroes-room', '#lobby-mode-room', '#lobby-leave', '#lobby-start']) {
+        const b = await box(page, sel);
+        expect(b.top, sel).toBeGreaterThanOrEqual(0);
+        expect(b.bottom, sel).toBeLessThanOrEqual(size.height);
+      }
+      const start = await mainSpot(page, 'lobby-start');
+      expect(start.scrolled).toBe(0);
+      expect(start.hit).toBe('lobby-start');
+    });
+  }
 });
 
 test('under a gesture bar (its bottom inset) the lobby layer itself never scrolls, only its card: Chrome gets no screen-filling scroller', async ({ page }) => {

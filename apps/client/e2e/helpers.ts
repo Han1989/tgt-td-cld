@@ -13,6 +13,8 @@ export interface Box {
 
 interface Hook {
   sent: { type: string; [k: string]: unknown }[];
+  /** Sends a command as the page does. */
+  command: (cmd: { type: string; [k: string]: unknown }) => void;
   lose: () => void;
   /** Solo: the last wave is cleared, so the match ends in victory on the next tick with the Heart as it is. */
   win: () => void;
@@ -41,11 +43,11 @@ interface Hook {
     phase: string;
     difficulty: string;
     surgeLane: number | null;
-    heroes: { owner: string; kind: string; x: number; y: number; mana: number; level: number; hp: number; maxHp: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
+    heroes: { id: number; owner: string; kind: string; x: number; y: number; mana: number; level: number; hp: number; maxHp: number; skills: { slot: string; range: number; cooldown: number; manaCost: number }[] }[];
     creeps: { x: number; y: number; kind: string }[];
     towers: { id: number; padId: number; owner: string; kind: string; tier: number; branch: string | null; reinforced: number; priority: string; x: number; y: number; hp: number; maxHp: number }[];
     pads: { id: number; owner: string | null }[];
-    players: { id: string; gold: number }[];
+    players: { id: string; gold: number; heroId: number; bot?: true }[];
   } | undefined;
   me(): string | null;
   frameCosts(): number[];

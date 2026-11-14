@@ -972,6 +972,24 @@ const items: ProgressItem[] = [
     proof: pr(177),
   },
   {
+    id: 'D-16',
+    title: 'CrazyGames’ frames',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only. A mouse in a landscape window always gets the desktop layout, down to 800 × 450 (CrazyGames’ 907 × 510 and 821 × 462 frames drew the phone’s joystick and ring for a mouse), with the tower panel’s buttons always on screen; in a short, wide window the home card is two columns with Play solo on the first screen, and the room card fits one screen; every text in the page is 11 px or more. The audit runs CrazyGames’ own list of frames, every one passing.',
+    proof: pr(183),
+  },
+  {
+    id: 'D-17',
+    title: 'Keys and the lesson’s pictures',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only. X cancels a build, an aim or a selection where Escape did (in CrazyGames’ fullscreen the browser takes Escape to leave it), and no text in the game names Escape; a right-click cancels too. Each lesson card shows what to press: keycaps and a mouse with its button lit, or the touch gesture, drawn in code, over one short line. In a small desktop window a one-time line says the wheel zooms and Space centres on your hero; every match still opens on the whole map.',
+    proof: pr(187),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
@@ -1144,9 +1162,10 @@ const items: ProgressItem[] = [
     id: 'L-01',
     title: 'A bot teammate in solo',
     owner: 'Team',
-    status: 'todo',
+    status: 'done',
     section: 'after',
-    note: 'A lone player gets a bot hero on another lane, so combos happen without a friend. Builds on the practice ally and needs a balance run. On hold until D-06 passes.',
+    note: 'Play solo in Full or Quick starts with a bot hero beside you (the Arcanist for a Ranger, else the Ranger): it walks the busiest lane you are not on, answers your ultimate so they fuse into a combo, and earns nothing; its bounty is yours. Creep HP pays it back (`playerScaling.allyHp`). Never in the Daily run, Endless or the lesson. ⚙ → Bot teammate: On / Off. Protocol 27.',
+    proof: { label: 'PR #181', href: `${REPO}/pull/181` },
   },
   {
     id: 'p6a-db',
@@ -1513,7 +1532,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 26,
+  protocol: 27,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

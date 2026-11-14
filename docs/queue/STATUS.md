@@ -20,7 +20,7 @@ is live").
 | q3 | [No question before the first match (hosted builds), and counts that need no id](q3-no-question.md) | Han | done | #175 | q2 | Han reads the privacy page's new paragraph before merging, and answers the one question in the pull request. |
 | q4 | [A lighter download: the hosted zip under 20 MB, a first match's art under 5 MB](q4-lighter-download.md) | Han | done | #176 | q2 | Han judges `docs/art/lighter-ab.png` on his Pixel before merging. May be built beside q3. |
 | q5 | [CrazyGames prep: their build, an audit against their rules, the submission kit](q5-crazygames-prep.md) | autopilot | done | #177 | q3, q4 | After it merges the advisor writes the audit's fix as a new task. |
-| q6 | [A bot teammate in solo](q6-bot-teammate.md) | Han | todo |  | q5 | Han reviews the balance tables and plays it before merging. |
+| q6 | [A bot teammate in solo](q6-bot-teammate.md) | Han | done | #181 | q5 | Han reviews the balance tables and plays it before merging. |
 
 ## Build tasks, continued (13 Nov: the fixes from the CrazyGames audit)
 
@@ -29,8 +29,8 @@ adding them did not touch the lines a claimed task's branch is changing.
 
 | Task | Title | Merge | Status | PR | Needs | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| q7 | [CrazyGames' frames: the desktop layout in every desktop frame, Play solo on the first screen, text of 11 px](q7-crazygames-frames.md) | autopilot | todo |  | q5 | Client only. Merge condition in the file. |
-| q8 | [Keys CrazyGames allows, and a lesson that shows them](q8-keys-and-lesson.md) | autopilot | todo |  | q7 | Client only. Merge condition in the file. |
+| q7 | [CrazyGames' frames: the desktop layout in every desktop frame, Play solo on the first screen, text of 11 px](q7-crazygames-frames.md) | autopilot | done | #183 | q5 | Client only. Merge condition in the file. |
+| q8 | [Keys CrazyGames allows, and a lesson that shows them](q8-keys-and-lesson.md) | autopilot | done | #187 | q7 | Client only. Merge condition in the file. |
 
 ## Han's own steps (the autopilot skips these)
 

@@ -1190,6 +1190,9 @@ test.describe('portrait phone layout', () => {
     await page.locator('#lobby-learn-btn').click();
     await expect(page.locator('#tutorial-title')).toHaveText('Move');
     await expect(page.locator('#tutorial-body')).toContainText('joystick');
+    // The card shows its move (q8): a thumb on the stick, no keycap.
+    await expect(page.locator('#tutorial-picture .lesson-glyph[data-glyph="gestureStick"]')).toBeVisible();
+    await expect(page.locator('#tutorial-picture kbd')).toHaveCount(0);
 
     const card = await box(page, '#tutorial');
     const top = await box(page, '#topbar');
@@ -1218,6 +1221,14 @@ test.describe('portrait phone layout', () => {
     const joy = centre(await box(page, '#joystick'));
     await finger.drag(joy, { x: joy.x, y: joy.y - 55 }, 800);
     await expect(page.locator('#tutorial-title')).toHaveText('Build a tower');
+    await expect(page.locator('#tutorial-picture .lesson-glyph[data-glyph="gesturePad"]')).toBeVisible();
+    // Every text in the card is 11 px or more, and it still stays off the controls.
+    const sizes = await page.locator('#tutorial :is(h2, p, .tutorial-kicker, .lesson-word, .lesson-cancel, .btn)').evaluateAll((els) =>
+      els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => parseFloat(getComputedStyle(el).fontSize)),
+    );
+    for (const size of sizes) expect(size).toBeGreaterThanOrEqual(11);
+    const built = await box(page, '#tutorial');
+    for (const sel of OVERLAY) expect(overlaps(built, await box(page, sel))).toBe(false);
 
     await page.locator('#tutorial-skip').click();
     await expect(page.locator('#tutorial')).toBeHidden();
@@ -1447,6 +1458,36 @@ test.describe('floating stick with the skills around it (the default) and taps w
     await finger.move(from.x + 50, from.y);
     await expect.poll(async () => ((await sent(page, 'move')).at(-1)!.x as number) < (await page.evaluate(() => window.__tdt.latest()!.heroes[0]!.x))).toBe(true);
     await finger.up();
+  });
+
+  test('a bot teammate in solo (q6): it plays beside you, and your R and its R fuse into a combo', async ({ page }) => {
+    // `?ally`: e2e builds leave the bot teammate off unless asked; `?lab&ult` starts both heroes with R learned.
+    await startSolo(page, '?lab&ult&ally', 'quick', 'Ranger');
+    const first = await page.evaluate(() => window.__tdt.latest()!);
+    expect(first.players.map((p) => p.bot === true)).toEqual([false, true]);
+    expect(first.heroes.map((h) => h.kind)).toEqual(['ranger', 'arcanist']);
+    await expect(page.locator('.mate.bot .mate-bot')).toHaveText('Bot');
+    await page.evaluate(() => window.__tdt.command({ type: 'callEarly' }));
+    await expect.poll(() => page.evaluate(() => window.__tdt.latest()!.creeps.length), { timeout: 30_000 }).toBeGreaterThan(3);
+    const finger = await Finger.on(page);
+    const r = centre(await box(page, '.tskill[data-slot="R"] .tskill-btn'));
+    // A quick tap by the events' own clock (on a loaded runner the two messages can arrive a second apart).
+    const t0 = Date.now() / 1000;
+    await finger.down(r.x, r.y, t0);
+    await finger.up(t0 + 0.08);
+    await expect.poll(() => sent(page, 'cast')).toEqual([{ type: 'cast', slot: 'R' }]);
+    // The bot answers half a second later, inside the combo window: its R goes on cooldown too.
+    const allyR = () =>
+      page.evaluate(() => {
+        const s = window.__tdt.latest()!;
+        const ally = s.players.find((p) => p.bot)!;
+        return s.heroes.find((h) => h.id === ally.heroId)!.skills.find((k) => k.slot === 'R')!.cooldown;
+      });
+    await expect.poll(allyR, { timeout: 10_000 }).toBeGreaterThan(0);
+    await page.evaluate(() => window.__tdt.lose());
+    await expect(page.locator('#end-ults')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#end-ults')).toContainText('Bot teammate');
+    await expect(page.locator('#end-ults')).toContainText(/Your bot Arcanist · 1 cast · 1 combo/);
   });
 
   test('a drag that crosses the skill buttons casts nothing', async ({ page }) => {

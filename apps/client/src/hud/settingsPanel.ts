@@ -31,6 +31,7 @@ import {
 } from '../settings';
 import type { StickFeelName } from '../touch/gestures';
 
+const BOT_NAMES: Record<'on' | 'off', string> = { on: 'On', off: 'Off' };
 const PLAY_DATA_NAMES: Record<AnalyticsChoice, string> = { on: 'On', off: 'Off' };
 
 function $(id: string): HTMLElement {
@@ -49,6 +50,7 @@ export class SettingsPanel {
   private readonly quality = $('settings-quality');
   private readonly shake = $('settings-shake');
   private readonly display = $('settings-display');
+  private readonly bot = $('settings-bot');
   private readonly analytics = $('settings-analytics');
   private readonly analyticsState = $('settings-analytics-state');
   private readonly endlessRow = $('settings-endless-row');
@@ -200,6 +202,10 @@ export class SettingsPanel {
     this.choices(this.quality, Object.entries(QUALITY_NAMES) as [Quality, string][], s.quality, (v) => this.store.set({ quality: v }));
     this.choices(this.shake, Object.entries(SHAKE_NAMES) as [ShakeSetting, string][], s.shake, (v) => this.store.set({ shake: v }));
     this.choices(this.display, Object.entries(DISPLAY_NAMES) as [Display, string][], s.display, (v) => this.store.set({ display: v }));
+    // The bot teammate (q6): the next solo match in Full or Quick has one, or not.
+    this.choices(this.bot, Object.entries(BOT_NAMES) as ['on' | 'off', string][], s.botTeammate ? 'on' : 'off', (v) =>
+      this.store.set({ botTeammate: v === 'on' }),
+    );
     const playData = playDataStatus(readAnalyticsChoice(), browserSignals(), currentAgeBand(), askAgeAtPlay(__EMBED__));
     const pickData = (v: AnalyticsChoice) => {
       if (v === 'on' && readAgeAnswer() === null) {

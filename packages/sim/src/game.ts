@@ -1,7 +1,7 @@
 // Public entry points of the simulation: createGame, step, snapshot.
 // applyCommand lives in commands.ts.
 
-import { MAX_PLAYERS, type EntityId, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
+import { ALLY_ID, MAX_PLAYERS, type EntityId, type HeroKind, type GameEvent, type SkillSlot, type Snapshot } from '@tdt/protocol';
 import { effectiveArmor, emit, HERO_SKILLS, heroManaRegen, heroMaxHp, heroMaxMana, slamGuard } from './combat';
 import { shieldSnap, updateCoop } from './coop';
 import { updateCreeps } from './creeps';
@@ -23,6 +23,9 @@ export function createGame(config: GameConfig, seed: number): GameState {
   const roster = config.players;
   if (roster.length > MAX_PLAYERS) throw new Error(`A game holds at most ${MAX_PLAYERS} players`);
   const mode = config.mode ?? 'full';
+  if (config.ally && (roster.length !== 1 || mode === 'endless')) {
+    throw new Error('A bot teammate plays only beside one player, in Full or Quick');
+  }
   const tuning = tuningForMode(config.tuning ?? TUNING, mode);
   const state: GameState = {
     tick: 0,
@@ -56,17 +59,18 @@ export function createGame(config: GameConfig, seed: number): GameState {
     firedCombo: null,
     shields: [],
     ultStats: emptyUltStats(),
+    ally: null,
   };
 
   const spawn = getMap().heroSpawn;
   const n = roster.length;
-  roster.forEach((p, i) => {
+  const newHero = (owner: string, kind: HeroKind, x: number): Hero => {
     const heroId: EntityId = state.nextId++;
     const hero: Hero = {
       id: heroId,
-      owner: p.id,
-      kind: p.hero,
-      x: spawn.x + (i - (n - 1) / 2) * 1.2,
+      owner,
+      kind,
+      x,
       y: spawn.y,
       hp: 0,
       mana: 0,
@@ -96,8 +100,18 @@ export function createGame(config: GameConfig, seed: number): GameState {
     hero.hp = heroMaxHp(state, hero);
     hero.mana = heroMaxMana(state, hero);
     state.heroes.push(hero);
-    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId, kills: 0, connected: true, left: false });
+    return hero;
+  };
+  roster.forEach((p, i) => {
+    const hero = newHero(p.id, p.hero, spawn.x + (i - (n - 1) / 2) * 1.2);
+    state.players.push({ id: p.id, name: p.name, gold: tuning.economy.startingGold, heroId: hero.id, kills: 0, connected: true, left: false });
   });
+  if (config.ally) {
+    // The ally's hero is the last; its "player" holds no gold and is never in `players` (see GameState.ally).
+    const hero = newHero(ALLY_ID, config.ally, spawn.x + 1.2);
+    const name = config.ally[0]!.toUpperCase() + config.ally.slice(1);
+    state.ally = { id: ALLY_ID, name, gold: 0, heroId: hero.id, kills: 0, connected: true, left: false };
+  }
   // Wave 0 (the build): the chip can name wave 1's surge before the first step. Wave 1 is before surges start.
   state.nextSurge = surgeNotice(state.surgeLanes, 1);
   return state;
@@ -184,14 +198,20 @@ export function snapshot(state: GameState): Snapshot {
     nextWaveIn: state.nextWaveTick < 0 ? -1 : Math.max(0, state.nextWaveTick - state.tick),
     callEarlyBonus: callEarlyBonus(state),
     canCallEarly: canCallEarly(state),
-    players: state.players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      gold: p.gold,
-      heroId: p.heroId,
-      kills: p.kills,
-      connected: p.connected,
-    })),
+    players: [
+      ...state.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        gold: p.gold,
+        heroId: p.heroId,
+        kills: p.kills,
+        connected: p.connected,
+      })),
+      // The bot teammate, last, so the client draws it as a teammate (its chip, its pings, the Combo! ring).
+      ...(state.ally
+        ? [{ id: state.ally.id, name: state.ally.name, gold: 0, heroId: state.ally.heroId, kills: state.ally.kills, connected: true, bot: true as const }]
+        : []),
+    ],
     heroes: state.heroes.map((h) => {
       const s = t.hero[h.kind];
       const vowLeft = h.alive ? (slamGuard(state)?.ticksLeft ?? 0) : 0;

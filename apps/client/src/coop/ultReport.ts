@@ -62,3 +62,19 @@ export function comboPairLines(report: MatchReport): PairLine[] {
   }
   return lines;
 }
+
+/**
+ * The bot teammate's line (q6), apart from yours: "Your bot Arcanist · 6 casts · 4 combos · 212 kills · 27% of the
+ * damage", or null when no ally played.
+ */
+export function allyLine(report: MatchReport, heroName: (kind: MatchReport['heroes'][number]['hero']) => string): string | null {
+  const a = report.ally;
+  if (!a) return null;
+  const parts = [
+    plural(a.casts.R, 'cast'),
+    plural(a.combos, 'combo'),
+    plural(a.kills, 'kill'),
+    `${Math.round(a.damageShare * 100)}% of the damage`,
+  ];
+  return `Your bot ${heroName(a.hero)} · ${parts.join(' · ')}`;
+}

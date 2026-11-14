@@ -342,6 +342,26 @@ On the itch.io Draft (or `npm run embed:serve -- itch` on a laptop), in a privat
 - [ ] 24.3 **The site still asks at Play.** On https://tgt-td-cld.vercel.app in a private window, Play solo opens the age sheet as before, and Continue goes straight into the match.
 - [ ] 24.4 **The counts (Han).** After a few first visits, `/analytics` → **Before the age question** → **First sessions** shows the host's row: first opens, matches started, a minute played, finished; D1 / D7 fill in a day and a week later.
 
+## 25. A bot teammate in solo (q6, protocol 27)
+
+On the phone, a solo match from the home card (⚙ → **Bot teammate** is **On** unless you turned it off).
+
+- [ ] 25.1 **It is there.** Pick the Warden, Quick, Play solo: a second hero, the Ranger, stands beside yours at the start, with its chip at the top left and a small **BOT** tag under it. Nothing is drawn over it in the map. A Ranger gets the Arcanist; an Arcanist the Ranger. The home card is the same as before (no new row).
+- [ ] 25.2 **It plays a lane, not yours.** Walk your hero onto the West lane during a wave: the bot walks to the busiest other lane and fights its front creeps; it walks home to the Heart when hurt and comes back.
+- [ ] 25.3 **A combo with the bot.** Reach level 6 and learn R. The first time both R buttons are ready with creeps out, one green-edged line says **"Your ally is ready: cast R together for a combo"** (once ever). Cast your R: half a second later the bot casts its own, the two fuse (the combo's banner and ribbon), as they would with a friend. Leave both ready for 20 s with a wave out: the bot pings once and waits for you.
+- [ ] 25.4 **It earns nothing for itself.** Your gold rises with the bot's kills; it never builds, and every pad is yours.
+- [ ] 25.5 **The end card** lists the ultimates as before and, under **Bot teammate**, "Your bot Ranger · 6 casts · 4 combos · 212 kills · 21% of the damage".
+- [ ] 25.6 **Never** in Learn to play, the Daily run, Endless or an online room. ⚙ → Bot teammate **Off**, then Play solo: no bot.
+
+## 26. Keys CrazyGames allows, and the lesson's pictures (q8)
+
+On a laptop (a mouse), then on the phone.
+
+- [ ] 26.1 **X cancels.** In a solo match press **B**, then **1**: the hint reads "Placing Arrow — left-click a build pad · X or right-click cancel". Press **X**: the hint goes and nothing is built. The same with a right-click. As the Arcanist press **Q**: "Aim Fireball — left-click the map · X or right-click cancel"; X cancels it. Click a tower, then X: its panel closes. Open **Controls**: it says "X or Right-click cancel", nowhere "Esc".
+- [ ] 26.2 **The lesson's pictures, laptop.** ⚙ → Learn to play: **Move** shows a mouse with its right button lit over one line; **Build a tower** the left button, "or" **B** **1–5**, and a small **X cancel**; **Cast** a **Q** keycap (the Arcanist adds "+" and the left button); **Upgrade** the left button "or" **U**; **Ping** **Alt** + the left button; **Quick chat** **C**. The keycaps' letters are easy to read; the card sits in the left margin as before.
+- [ ] 26.3 **The lesson's pictures, phone.** Learn to play on the phone: Move a thumb on the stick, Build a tap on a pad, Cast a tap on Q (the Arcanist also a drag arrow), Upgrade a tap on a tower, Ping a long-press ring, Quick chat a tap on the speech button. The card is where it was, off the controls, and a tap through its words still reaches the map.
+- [ ] 26.4 **The wheel line.** In a desktop browser sized to about 907 × 510 (a fresh profile, or ⚙ → Your data → Delete my data), Play solo: about 3 s in, one line says "Scroll to zoom in. Space centres on your hero." inside the map, never over the side panels. Scroll on the map: the line goes at once and the map zooms. Play again: no line. At 1280 × 720 it never shows; on the phone it never shows (the pinch line is the phone's).
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |

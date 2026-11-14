@@ -297,3 +297,26 @@ export function zoomHint(p: { due: boolean; zoomable: boolean; lesson: boolean; 
   if (!p.due || !p.zoomable || p.lesson || p.quiet || !p.playing) return null;
   return p.sinceMs >= ZOOM_HINT_AFTER_MS ? ZOOM_HINT_TEXT : null;
 }
+
+/** The desktop zoom line speaks only while a tile is drawn smaller than this (px): CrazyGames' small frames (q8). */
+export const WHEEL_HINT_MAX_TILE = 14;
+export const WHEEL_HINT_TEXT = 'Scroll to zoom in. Space centres on your hero.';
+
+/**
+ * The one-time wheel-zoom line (q8, Han's decision of 13 Nov 2026): the desktop twin of the pinch line. With a mouse,
+ * in the wide layout, while a tile is under `WHEEL_HINT_MAX_TILE` px, while it is still due, in a match that is not
+ * the lesson and has no card up, `ZOOM_HINT_AFTER_MS` after the match was first drawn. Otherwise null.
+ */
+export function wheelHint(p: {
+  due: boolean;
+  mouse: boolean;
+  wide: boolean;
+  tilePx: number;
+  lesson: boolean;
+  quiet: boolean;
+  playing: boolean;
+  sinceMs: number;
+}): string | null {
+  if (!p.due || !p.mouse || !p.wide || p.tilePx >= WHEEL_HINT_MAX_TILE || p.lesson || p.quiet || !p.playing) return null;
+  return p.sinceMs >= ZOOM_HINT_AFTER_MS ? WHEEL_HINT_TEXT : null;
+}

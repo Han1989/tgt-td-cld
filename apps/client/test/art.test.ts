@@ -210,6 +210,8 @@ describe('ui icons', () => {
       for (const s of SKILL_SLOTS) expect(ICONS.has(skillIcon(h, s)), `${h} ${s}`).toBe(true);
     }
     for (const id of ['coin', 'heart', 'heartCracked', 'wave', 'timer', 'gear', 'upgrade', 'sell', 'target']) expect(ICONS.has(id), id).toBe(true);
+    // The lesson's pictures (q8): the mouse with a button lit, and the touch gestures.
+    for (const id of ['mouseLeft', 'mouseRight', 'gestureStick', 'gesturePad', 'gestureTap', 'gestureAim', 'gestureTower', 'gestureHold', 'gestureChat']) expect(ICONS.has(id), id).toBe(true);
   });
 
   it('icons are drawn in code, deterministically, with palette tokens only', () => {

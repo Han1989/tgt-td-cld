@@ -19,8 +19,13 @@
    "browser": "No"
   },
   {
+   "key": "X",
+   "does": "Cancels a build, an aim or a selection, and closes the open panel (the key every hint names, with right-click)",
+   "browser": "No"
+  },
+  {
    "key": "Escape",
-   "does": "Cancels a build, an aim or a selection",
+   "does": "The same as X where the page receives it (outside fullscreen); no text in the game names it",
    "browser": "Yes: in fullscreen the browser takes Escape to leave it (the page sees it only out of fullscreen)"
   },
   {
@@ -92,6 +97,118 @@
  "frames": [
   {
    "spec": {
+    "w": 821,
+    "h": 462,
+    "input": "mouse",
+    "what": "desktop, not fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/821x462-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "W · Snare Trap"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-create \"Create room\"",
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "home",
+     "shot": "frames/821x462-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-create \"Create room\"",
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/821x462-wave10.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 10,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 51,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "shot": "frames/821x462-ring.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 10\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 10,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "end",
+     "shot": "frames/821x462-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 10,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
     "w": 907,
     "h": 510,
     "input": "mouse",
@@ -106,15 +223,13 @@
       "text": "Q · Multishot"
      },
      "cutOff": [],
-     "below": [
-      "#lobby-sound",
-      ".btn \"Ranger\"",
-      ".btn \"Warden\"",
-      ".btn \"Arcanist\""
-     ],
+     "below": [],
      "overMap": [],
-     "layout": "tall",
-     "tilePx": null
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "home",
@@ -124,67 +239,54 @@
       "text": "Ranged DPS"
      },
      "cutOff": [],
-     "below": [
-      "#lobby-board-link \"Today's top 10\"",
-      ".btn \"Full30 waves\"",
-      ".btn \"Quick15 waves\"",
-      ".btn \"Endless∞\"",
-      "#lobby-daily \"Daily run · Quick on Har\"",
-      "#lobby-offline \"Play solo\"",
-      "#lobby-name",
-      "#lobby-create \"Create room\"",
-      "#lobby-code",
-      "#lobby-join \"Join room\""
-     ],
+     "below": [],
      "overMap": [],
-     "layout": "tall",
-     "tilePx": null
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "wave10",
      "shot": "frames/907x510-wave10.jpg",
      "smallest": {
-      "px": 9.5,
-      "text": "Gold"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
-     "overMap": [
-      "#joystick",
-      ".tskill-btn \"Q\"",
-      ".learn \"+\"",
-      ".tskill-btn \"W\"",
-      ".tskill-btn \"E\"",
-      ".tskill-btn \"R\""
-     ],
-     "layout": "tall",
-     "tilePx": 10.8,
-     "heroPx": 47,
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 11.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 43,
      "gruntPx": null
     },
     {
      "step": "ring",
      "shot": "frames/907x510-ring.jpg",
      "smallest": {
-      "px": 8.5,
-      "text": "Upgrade"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [
-      "#joystick",
-      ".tskill-btn \"Q\"",
-      ".learn \"+\"",
-      ".tskill-btn \"W\"",
-      ".tskill-btn \"E\"",
-      ".tskill-btn \"R\"",
-      ".radial-btn \"Upgrade375\"",
-      ".radial-btn \"TargetFirst\"",
-      ".radial-btn \"Sell203\"",
-      ".radial-btn \"Repair5\""
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 10\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
      ],
-     "layout": "tall",
-     "tilePx": 10.8
+     "layout": "wide",
+     "tilePx": 11.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "end",
@@ -198,16 +300,117 @@
      "overMap": [
       "#restart \"Play again\"",
       "#end-change-hero \"Back to lobby\"",
-      "#end-save \"Save match report\"",
-      "#joystick",
-      ".tskill-btn \"Q\"",
-      ".learn \"+\"",
-      ".tskill-btn \"W\"",
-      ".tskill-btn \"E\"",
-      ".tskill-btn \"R\""
+      "#end-save \"Save match report\""
      ],
-     "layout": "tall",
-     "tilePx": 10.8
+     "layout": "wide",
+     "tilePx": 11.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1077,
+    "h": 606,
+    "input": "mouse",
+    "what": "desktop, not fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1077x606-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "R · Arrow Storm"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "home",
+     "shot": "frames/1077x606-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1077x606-wave10.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 13.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 61,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "shot": "frames/1077x606-ring.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 7\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 13.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "end",
+     "shot": "frames/1077x606-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 13.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     }
    ],
    "errors": []
@@ -225,61 +428,73 @@
      "shot": "frames/1216x684-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "E · Keen Eye"
+      "text": "Q · Multishot"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "home",
      "shot": "frames/1216x684-home.jpg",
      "smallest": {
-      "px": 10,
-      "text": "Today's top 10"
+      "px": 11,
+      "text": "Ranged DPS"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "wave10",
      "shot": "frames/1216x684-wave10.jpg",
      "smallest": {
-      "px": 10,
-      "text": "28"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
      "tilePx": 15.4,
-     "heroPx": 78,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 81,
      "gruntPx": null
     },
     {
      "step": "ring",
      "shot": "frames/1216x684-ring.jpg",
      "smallest": {
-      "px": 10,
-      "text": "28"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 7\"",
+      ".btn \"Repair 5\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
       ".btn \"Sell for 203\""
      ],
      "layout": "wide",
-     "tilePx": 15.4
+     "tilePx": 15.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "end",
@@ -296,7 +511,10 @@
       "#end-save \"Save match report\""
      ],
      "layout": "wide",
-     "tilePx": 15.4
+     "tilePx": 15.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     }
    ],
    "errors": []
@@ -320,55 +538,67 @@
      "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "home",
      "shot": "frames/1280x720-home.jpg",
      "smallest": {
-      "px": 10,
-      "text": "Today's top 10"
+      "px": 11,
+      "text": "Ranged DPS"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "wave10",
      "shot": "frames/1280x720-wave10.jpg",
      "smallest": {
-      "px": 10,
-      "text": "28"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
      "tilePx": 16.3,
-     "heroPx": 88,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 82,
      "gruntPx": null
     },
     {
      "step": "ring",
      "shot": "frames/1280x720-ring.jpg",
      "smallest": {
-      "px": 10,
-      "text": "28"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 10\"",
+      ".btn \"Repair 13\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
       ".btn \"Sell for 203\""
      ],
      "layout": "wide",
-     "tilePx": 16.3
+     "tilePx": 16.3,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "end",
@@ -385,7 +615,217 @@
       "#end-save \"Save match report\""
      ],
      "layout": "wide",
-     "tilePx": 16.3
+     "tilePx": 16.3,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1366,
+    "h": 768,
+    "input": "mouse",
+    "what": "desktop, fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1366x768-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "R · Arrow Storm"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "home",
+     "shot": "frames/1366x768-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1366x768-wave10.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 17.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 84,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "shot": "frames/1366x768-ring.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"Repair 10\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 17.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "end",
+     "shot": "frames/1366x768-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 17.4,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 1536,
+    "h": 864,
+    "input": "mouse",
+    "what": "desktop, fullscreen"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/1536x864-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "E · Keen Eye"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "home",
+     "shot": "frames/1536x864-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/1536x864-wave10.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "wide",
+     "tilePx": 19.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 73,
+     "gruntPx": null
+    },
+    {
+     "step": "ring",
+     "shot": "frames/1536x864-ring.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Q"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      ".btn \"Upgrade to tier 3 375\"",
+      ".btn \"First\"",
+      ".btn \"Strongest\"",
+      ".btn \"Closest\"",
+      ".btn \"Sell for 203\""
+     ],
+     "layout": "wide",
+     "tilePx": 19.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
+    },
+    {
+     "step": "end",
+     "shot": "frames/1536x864-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\""
+     ],
+     "layout": "wide",
+     "tilePx": 19.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     }
    ],
    "errors": []
@@ -403,61 +843,73 @@
      "shot": "frames/1920x1080-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "W · Snare Trap"
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "home",
      "shot": "frames/1920x1080-home.jpg",
      "smallest": {
-      "px": 10,
-      "text": "Today's top 10"
+      "px": 11,
+      "text": "Ranged DPS"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "wave10",
      "shot": "frames/1920x1080-wave10.jpg",
      "smallest": {
-      "px": 10,
-      "text": "28"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [],
      "layout": "wide",
      "tilePx": 24.6,
-     "heroPx": 59,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": [],
+     "heroPx": 61,
      "gruntPx": 29
     },
     {
      "step": "ring",
      "shot": "frames/1920x1080-ring.jpg",
      "smallest": {
-      "px": 10,
-      "text": "28"
+      "px": 11,
+      "text": "Q"
      },
      "cutOff": [],
      "below": [],
      "overMap": [
       ".btn \"Upgrade to tier 3 375\"",
-      ".btn \"Repair 10\"",
+      ".btn \"Repair 13\"",
       ".btn \"First\"",
       ".btn \"Strongest\"",
       ".btn \"Closest\"",
       ".btn \"Sell for 203\""
      ],
      "layout": "wide",
-     "tilePx": 24.6
+     "tilePx": 24.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     },
     {
      "step": "end",
@@ -474,61 +926,170 @@
       "#end-save \"Save match report\""
      ],
      "layout": "wide",
-     "tilePx": 24.6
+     "tilePx": 24.6,
+     "playSoloShown": null,
+     "touchControls": [],
+     "cardOutside": []
     }
    ],
    "errors": []
   },
   {
    "spec": {
-    "w": 800,
-    "h": 450,
+    "w": 450,
+    "h": 800,
     "input": "touch",
-    "what": "phone"
+    "what": "phone, upright"
    },
    "steps": [
     {
      "step": "loading",
-     "error": "not reached: the rotate screen"
-    },
-    {
-     "step": "home",
-     "shot": "frames/800x450-home.jpg",
+     "shot": "frames/450x800-loading.jpg",
      "smallest": {
-      "px": 14,
-      "text": "Tower Defense Together is played with th"
+      "px": 13,
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
      "below": [
-      ".btn \"Ranger\"",
-      ".btn \"Warden\"",
-      ".btn \"Arcanist\"",
-      "#lobby-board-link \"Today's top 10\"",
-      ".btn \"Full30 waves\"",
-      ".btn \"Quick15 waves\"",
-      ".btn \"Endless∞\"",
-      "#lobby-daily \"Daily run · Quick on Har\"",
-      "#lobby-offline \"Play solo\"",
-      "#lobby-name",
-      "#lobby-create \"Create room\"",
       "#lobby-code",
       "#lobby-join \"Join room\""
      ],
      "overMap": [],
-     "layout": "rotate",
-     "tilePx": null
+     "layout": "tall",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
+    },
+    {
+     "step": "home",
+     "shot": "frames/450x800-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "tall",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
     },
     {
      "step": "wave10",
-     "error": "not reached: the rotate screen"
+     "shot": "frames/450x800-wave10.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Gold"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\"",
+      "#zoom-btn"
+     ],
+     "layout": "tall",
+     "tilePx": 17.3,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": [],
+     "heroPx": 41,
+     "gruntPx": 37
     },
     {
      "step": "ring",
-     "error": "not reached: the rotate screen"
+     "shot": "frames/450x800-ring.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Gold"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\"",
+      ".radial-btn \"Upgrade375\"",
+      ".radial-btn \"TargetFirst\"",
+      ".radial-btn \"Sell203\"",
+      ".radial-btn \"Repair5\"",
+      "#zoom-btn"
+     ],
+     "layout": "tall",
+     "tilePx": 17.3,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
     },
     {
      "step": "end",
-     "error": "not reached: the rotate screen"
+     "shot": "frames/450x800-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\"",
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\"",
+      "#zoom-btn"
+     ],
+     "layout": "tall",
+     "tilePx": 17.3,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
     }
    ],
    "errors": []
@@ -538,7 +1099,7 @@
     "w": 1080,
     "h": 607,
     "input": "touch",
-    "what": "tablet"
+    "what": "tablet, landscape"
    },
    "steps": [
     {
@@ -546,38 +1107,44 @@
      "shot": "frames/1080x607-loading.jpg",
      "smallest": {
       "px": 13,
-      "text": "Q · Multishot"
+      "text": "E · Keen Eye"
      },
      "cutOff": [],
-     "below": [
-      "#lobby-sound"
-     ],
+     "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
     },
     {
      "step": "home",
      "shot": "frames/1080x607-home.jpg",
      "smallest": {
-      "px": 10,
-      "text": "Today's top 10"
+      "px": 11,
+      "text": "Ranged DPS"
      },
      "cutOff": [],
-     "below": [
-      ".btn \"Full30 waves\"",
-      ".btn \"Quick15 waves\"",
-      ".btn \"Endless∞\"",
-      "#lobby-daily \"Daily run · Quick on Har\"",
-      "#lobby-offline \"Play solo\"",
-      "#lobby-name",
-      "#lobby-create \"Create room\"",
-      "#lobby-code",
-      "#lobby-join \"Join room\""
-     ],
+     "below": [],
      "overMap": [],
      "layout": "wide",
-     "tilePx": null
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
     },
     {
      "step": "wave10",
@@ -591,14 +1158,23 @@
      "overMap": [],
      "layout": "wide",
      "tilePx": 13.6,
-     "heroPx": 68,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": [],
+     "heroPx": 74,
      "gruntPx": null
     },
     {
      "step": "ring",
      "shot": "frames/1080x607-ring.jpg",
      "smallest": {
-      "px": 8.5,
+      "px": 11,
       "text": "Upgrade"
      },
      "cutOff": [],
@@ -607,10 +1183,19 @@
       ".radial-btn \"Upgrade375\"",
       ".radial-btn \"TargetFirst\"",
       ".radial-btn \"Sell203\"",
-      ".radial-btn \"Repair7\""
+      ".radial-btn \"Repair6\""
      ],
      "layout": "wide",
-     "tilePx": 13.6
+     "tilePx": 13.6,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
     },
     {
      "step": "end",
@@ -627,7 +1212,198 @@
       "#end-save \"Save match report\""
      ],
      "layout": "wide",
-     "tilePx": 13.6
+     "tilePx": 13.6,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 607,
+    "h": 1080,
+    "input": "touch",
+    "what": "tablet, portrait"
+   },
+   "steps": [
+    {
+     "step": "loading",
+     "shot": "frames/607x1080-loading.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "W · Snare Trap"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "tall",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
+    },
+    {
+     "step": "home",
+     "shot": "frames/607x1080-home.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Ranged DPS"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [],
+     "layout": "tall",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
+    },
+    {
+     "step": "wave10",
+     "shot": "frames/607x1080-wave10.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Gold"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "layout": "tall",
+     "tilePx": 23.3,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": [],
+     "heroPx": 69,
+     "gruntPx": 30
+    },
+    {
+     "step": "ring",
+     "shot": "frames/607x1080-ring.jpg",
+     "smallest": {
+      "px": 11,
+      "text": "Gold"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\"",
+      ".radial-btn \"Upgrade375\"",
+      ".radial-btn \"TargetFirst\"",
+      ".radial-btn \"Sell203\""
+     ],
+     "layout": "tall",
+     "tilePx": 23.3,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
+    },
+    {
+     "step": "end",
+     "shot": "frames/607x1080-end.jpg",
+     "smallest": {
+      "px": 13,
+      "text": "Back to lobby"
+     },
+     "cutOff": [],
+     "below": [],
+     "overMap": [
+      "#restart \"Play again\"",
+      "#end-change-hero \"Back to lobby\"",
+      "#end-save \"Save match report\"",
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".learn \"+\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "layout": "tall",
+     "tilePx": 23.3,
+     "playSoloShown": null,
+     "touchControls": [
+      "#joystick",
+      ".tskill-btn \"Q\"",
+      ".tskill-btn \"W\"",
+      ".tskill-btn \"E\"",
+      ".tskill-btn \"R\""
+     ],
+     "cardOutside": []
+    }
+   ],
+   "errors": []
+  },
+  {
+   "spec": {
+    "w": 800,
+    "h": 450,
+    "input": "touch",
+    "what": "phone, sideways",
+    "notServed": true
+   },
+   "steps": [
+    {
+     "step": "home",
+     "shot": "frames/800x450-home.jpg",
+     "smallest": {
+      "px": 14,
+      "text": "Tower Defense Together is played with th"
+     },
+     "cutOff": [],
+     "below": [
+      "#lobby-create \"Create room\"",
+      "#lobby-code",
+      "#lobby-join \"Join room\""
+     ],
+     "overMap": [],
+     "layout": "rotate",
+     "tilePx": null,
+     "playSoloShown": true,
+     "touchControls": [],
+     "cardOutside": []
     }
    ],
    "errors": []
@@ -695,5 +1471,44 @@
    "heapLimitMB": 608,
    "gpuMB": 132.5
   }
- ]
+ ],
+ "lesson": [
+  {
+   "frame": "907x510",
+   "card": "Move",
+   "shot": "frames/907x510-lesson-move.jpg",
+   "picture": [
+    "mouseRight"
+   ]
+  },
+  {
+   "frame": "907x510",
+   "card": "Build a tower",
+   "shot": "frames/907x510-lesson-build.jpg",
+   "picture": [
+    "mouseLeft",
+    "or",
+    "B",
+    "1–5",
+    "X cancel"
+   ]
+  },
+  {
+   "frame": "450x800",
+   "card": "Move",
+   "shot": "frames/450x800-lesson-move.jpg",
+   "picture": [
+    "gestureStick"
+   ]
+  },
+  {
+   "frame": "450x800",
+   "card": "Build a tower",
+   "shot": "frames/450x800-lesson-build.jpg",
+   "picture": [
+    "gesturePad"
+   ]
+  }
+ ],
+ "escText": []
 }

@@ -261,7 +261,10 @@
       <div id="tutorial" class="tutorial hidden" role="dialog" aria-labelledby="tutorial-title">
         <div class="tutorial-copy">
           <div id="tutorial-kicker" class="tutorial-kicker"></div>
-          <h2 id="tutorial-title"></h2>
+          <div class="tutorial-head">
+            <h2 id="tutorial-title"></h2>
+            <div id="tutorial-picture" class="tutorial-picture hidden" aria-hidden="true"></div>
+          </div>
           <p id="tutorial-body"></p>
         </div>
         <div class="tutorial-actions">
@@ -306,7 +309,7 @@
           <li><kbd>Shift</kbd> + <kbd>Q</kbd>/<kbd>W</kbd>/<kbd>E</kbd>/<kbd>R</kbd> or <b>+</b> learn a skill · R from level 6</li>
           <li><kbd>Left-click</kbd> a pad to build, your tower to upgrade / sell / set its target priority</li>
           <li><kbd>B</kbd> then <kbd>1</kbd>–<kbd>5</kbd> build · <kbd>U</kbd> upgrade · <kbd>F</kbd> repair the selected tower</li>
-          <li><kbd>S</kbd> stop · <kbd>Esc</kbd> cancel</li>
+          <li><kbd>S</kbd> stop · <kbd>X</kbd> or <kbd>Right-click</kbd> cancel</li>
           <li>Camera: screen edges, arrows, middle-drag, wheel zoom, <kbd>Space</kbd> centres on hero</li>
         </ul>
       </details>
@@ -360,6 +363,11 @@
           <h3>Screen shake</h3>
           <div id="settings-shake" class="choices row"></div>
           <p class="settings-note">Shakes on ultimates, boss abilities and Heart hits. Low graphics and your device's reduced-motion setting turn it off.</p>
+        </section>
+        <section>
+          <h3>Bot teammate</h3>
+          <div id="settings-bot" class="choices row"></div>
+          <p class="settings-note">Play solo in Full or Quick with a bot hero beside you, to cast combos with. Never in the Daily run, Endless or the lesson.</p>
         </section>
         <section>
           <h3>Display</h3>

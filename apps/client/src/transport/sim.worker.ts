@@ -34,6 +34,11 @@ ctx.onmessage = (e) => {
     next = performance.now() + TICK_MS;
     return;
   }
+  // The bot teammate (q6): on or off for the next match this host starts (Play solo sends it before the mode and hero).
+  if (data && typeof data === 'object' && data.ctl === 'ally') {
+    host.setAlly((data as { on?: unknown }).on === true);
+    return;
+  }
   // The Daily run: the day's seed, Quick on Hard, for every match of this worker (Play again included).
   if (data && typeof data === 'object' && data.ctl === 'daily') {
     if (typeof data.seed === 'number') host.setDaily(data.seed);

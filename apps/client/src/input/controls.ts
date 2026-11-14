@@ -10,6 +10,7 @@ import { COLORS } from '../render/palette';
 import type { WorldRenderer } from '../render/world';
 import type { UiState } from '../uiState';
 import type { Camera } from './camera';
+import { isCancelKey } from './keys';
 
 const EDGE_PX = 12;
 const PAN_SPEED = 900; // screen px per second
@@ -25,6 +26,8 @@ export interface ControlActions {
   toast(text: string): void;
   /** Opens or closes the quick-chat wheel (C). */
   toggleEmotes(): void;
+  /** The wheel zoomed the map (the one-time wheel line goes at once, q8). */
+  wheelZoomed(): void;
 }
 
 export class Controls {
@@ -115,6 +118,7 @@ export class Controls {
     e.preventDefault();
     const rect = this.canvas.getBoundingClientRect();
     this.camera.zoomAt(Math.exp(-e.deltaY * WHEEL_ZOOM), e.clientX - rect.left, e.clientY - rect.top);
+    this.actions.wheelZoomed();
   }
 
   private onPointerDown(e: PointerEvent): void {
@@ -142,11 +146,20 @@ export class Controls {
     }
   }
 
+  /** X (or Escape outside fullscreen): cancels a build, an aim and a selection, and closes the open panel or menu. */
+  cancel(): void {
+    this.setMode({ type: 'none' });
+    this.clearSelection();
+  }
+
   private onRightClick(at: { x: number; y: number }): void {
+    // A right-click cancels as X does: a build or an aim, with whatever panel is open; a click with no mode
+    // still moves or attacks, and closes the selected tower's or pad's panel on the way.
     if (this.ui.mode.type !== 'none') {
-      this.setMode({ type: 'none' });
+      this.cancel();
       return;
     }
+    if (this.ui.selectedTowerId !== null || this.ui.selectedPadId !== null) this.clearSelection();
     const creep = this.renderer.pickCreep(at.x, at.y);
     if (creep) {
       this.actions.send({ type: 'attack', targetId: creep.id });
@@ -309,11 +322,11 @@ export class Controls {
       }
       return;
     }
+    if (isCancelKey(key)) {
+      this.cancel();
+      return;
+    }
     switch (key) {
-      case 'escape':
-        this.setMode({ type: 'none' });
-        this.clearSelection();
-        break;
       case 'a':
         this.setMode({ type: 'attackMove' });
         break;

@@ -2,6 +2,7 @@
 // the snapshot buffer, the screen layout and the sound (music in the lobby too),
 // fed by whichever Transport is attached (local worker, game server or the stress scene).
 
+import { ALLY_HINT, allyHintDue, humanCount } from './ally/rules';
 import { canCallNow } from './hud/callEarly';
 import {
   allowSocial,
@@ -51,7 +52,7 @@ import { GraphicsUnavailableError } from './startup/boot';
 import { guardCanvasContext } from './startup/glGuard';
 import { TutorialCoach } from './tutorial/coach';
 import { lessonStatus } from './tutorial/logic';
-import { repairHint, zoomHint } from './teach/cues';
+import { repairHint, wheelHint, zoomHint } from './teach/cues';
 import { INTERP_DELAY_MS, RenderClock, SnapshotBuffer } from './snapshotBuffer';
 import { TouchControls } from './touch/touchControls';
 import type { Transport } from './transport/transport';
@@ -94,6 +95,8 @@ export class GameView {
   private radialMenus: () => boolean = () => false;
   /** The layout pinch-zooms (a phone held upright): the zoom hint is for it. */
   private zoomable: () => boolean = () => false;
+  /** The wheel line's facts (q8): a mouse, the wide layout, the tile's size. */
+  private wheelZoom: () => { mouse: boolean; wide: boolean; tilePx: number } = () => ({ mouse: false, wide: false, tilePx: 0 });
   /** When this match was first drawn (ms; null before its first snapshot), for the zoom hint's wait. */
   private matchSeenAt: number | null = null;
   /** The weather's key (the match's seed, its team and mode): a new one picks the weather again (V-08a). */
@@ -282,6 +285,10 @@ export class GameView {
       closeMenus,
       toast: (text) => hud.toast(text),
       toggleEmotes: () => emotes.toggle(),
+      wheelZoomed: () => {
+        hud.dropToast('wheel');
+        if (settings.get().wheelHint === 'new') settings.set({ wheelHint: 'seen' });
+      },
     });
 
     const touch: TouchControls = new TouchControls(canvas, camera, ui, renderer, {
@@ -339,6 +346,7 @@ export class GameView {
     view = new GameView(hud, controls, touch, buffer, renderer, predictor, audio, marks, coach, stage, zoom);
     view.radialMenus = radial;
     view.zoomable = () => layout.zoomButton !== null;
+    view.wheelZoom = () => ({ mouse: !coarse?.matches && !touch.active, wide: layout.kind === 'wide', tilePx: layout.tilePx });
     coach.onSkip = () => {
       funnel('tutorial_skip');
       settings.set({ tutorial: lessonStatus('skip') });
@@ -396,6 +404,7 @@ export class GameView {
       root.setProperty('--topbar-bottom', `${Math.round(layout.topBarBottom)}px`);
       root.setProperty('--controls-top', `${Math.round(layout.controls?.top ?? h)}px`);
       root.setProperty('--map-top', `${Math.round(layout.map.top)}px`);
+      root.setProperty('--map-w', `${Math.round(layout.map.right - layout.map.left)}px`);
 
       // The camera is refitted only when the viewport or the layout changed. A settings write (a hint seen, ⚙) runs this
       // too, mid-frame: refitting then put a followed or zoomed phone camera back at the plain fit until the next frame,
@@ -784,7 +793,7 @@ export class GameView {
     const ask = this.stops.feed(events, {
       me: this.me,
       hero: hero ? { id: hero.id, kind: hero.kind } : null,
-      solo: latest.players.length <= 1,
+      solo: humanCount(latest) <= 1,
       now,
     });
     if (ask.hold > 0) this.clock.hold(now, ask.hold);
@@ -833,6 +842,24 @@ export class GameView {
     if (zoom) {
       this.hud.toast(zoom, 'zoom');
       sharedSettings().set({ zoomHint: 'seen' });
+    }
+    // Once ever, in a small desktop window (q8): the wheel zooms and Space centres. No zoomed start.
+    const wheel = wheelHint({
+      due: settings.wheelHint === 'new',
+      ...this.wheelZoom(),
+      lesson: this.lesson,
+      quiet,
+      playing: latest.phase === 'build' || latest.phase === 'waves',
+      sinceMs: now - (this.matchSeenAt ?? now),
+    });
+    if (wheel) {
+      this.hud.toast(wheel, 'wheel');
+      sharedSettings().set({ wheelHint: 'seen' });
+    }
+    // Once ever: the first time your R and the bot teammate's are both ready with creeps out (q6).
+    if (settings.allyHint === 'new' && !quiet && allyHintDue(latest, this.me)) {
+      this.hud.toast(ALLY_HINT, 'ally');
+      sharedSettings().set({ allyHint: 'seen' });
     }
   }
 

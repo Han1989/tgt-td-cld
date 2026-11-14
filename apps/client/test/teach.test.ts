@@ -23,6 +23,8 @@ import {
   repairHint,
   ZOOM_HINT_AFTER_MS,
   zoomHint,
+  WHEEL_HINT_MAX_TILE,
+  wheelHint,
   kindFlies,
   flyerLaneUncovered,
   readAir,
@@ -286,5 +288,26 @@ describe('zoom line (phones, V-07e)', () => {
     expect(zoomHint({ ...due, zoomable: false })).toBeNull();
     expect(zoomHint({ ...due, playing: false })).toBeNull();
     expect(zoomHint({ ...due, due: false })).toBeNull();
+  });
+});
+
+describe('wheel line (small desktop windows, q8)', () => {
+  const due = { due: true, mouse: true, wide: true, tilePx: 11.4, lesson: false, quiet: false, playing: true, sinceMs: ZOOM_HINT_AFTER_MS };
+
+  it('speaks once with a mouse in the wide layout under 14 px a tile, a few seconds into a match', () => {
+    expect(wheelHint(due)).toBe('Scroll to zoom in. Space centres on your hero.');
+    expect(wheelHint({ ...due, tilePx: WHEEL_HINT_MAX_TILE - 0.1 })).not.toBeNull();
+    expect(wheelHint({ ...due, sinceMs: ZOOM_HINT_AFTER_MS - 1 })).toBeNull();
+  });
+
+  it('stays quiet on touch, in the tall layout, at 14 px a tile or more, in the lesson, under a card, out of a match, once seen', () => {
+    expect(wheelHint({ ...due, mouse: false })).toBeNull();
+    expect(wheelHint({ ...due, wide: false })).toBeNull();
+    expect(wheelHint({ ...due, tilePx: WHEEL_HINT_MAX_TILE })).toBeNull();
+    expect(wheelHint({ ...due, tilePx: 16.3 })).toBeNull();
+    expect(wheelHint({ ...due, lesson: true })).toBeNull();
+    expect(wheelHint({ ...due, quiet: true })).toBeNull();
+    expect(wheelHint({ ...due, playing: false })).toBeNull();
+    expect(wheelHint({ ...due, due: false })).toBeNull();
   });
 });

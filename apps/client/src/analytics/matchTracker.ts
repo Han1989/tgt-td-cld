@@ -18,7 +18,7 @@ export interface MatchSample {
   wave: number;
   heartHp: number;
   heartMaxHp: number;
-  players: readonly { id: string; heroId: number }[];
+  players: readonly { id: string; heroId: number; bot?: true }[];
   heroes: readonly { id: number; kind: string; owner: string }[];
 }
 
@@ -87,6 +87,7 @@ export class MatchTracker {
 
 function matchInfo(snap: MatchSample, me: string | null, online: boolean): MatchInfo {
   const heroes = snap.players
+    .filter((player) => !player.bot)
     .map((player) => snap.heroes.find((hero) => hero.id === player.heroId)?.kind)
     .filter((kind): kind is string => kind !== undefined)
     .slice(0, 3);
@@ -94,7 +95,7 @@ function matchInfo(snap: MatchSample, me: string | null, online: boolean): Match
   const info: MatchInfo = {
     mode: snap.mode,
     difficulty: snap.difficulty,
-    players: snap.players.length,
+    players: snap.players.filter((p) => !p.bot).length,
     heroes,
     online,
   };

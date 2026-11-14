@@ -41,6 +41,7 @@ import { e2eZipName, HARNESS, newestZip, startGameServer, startHarness } from '.
 import { holdWave10 } from './heldMoment';
 import { decodePng } from './png';
 import { readZip } from './zip';
+import { CANCEL_KEYS } from '../src/input/keys';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const repo = join(root, '..', '..');
@@ -57,26 +58,48 @@ const SITE = join(root, 'dist-e2e');
 const GAME = `${HARNESS.frameOrigin}${HARNESS.path}index.html`;
 const EXE = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
 /** The settings of a player who has played before: the lesson skipped, the one-time lines seen. */
-const PLAYED = { quality: 'high', display: 'normal', tutorial: 'skipped', airLesson: 'seen', repairHint: 'seen', zoomHint: 'seen', endlessRoomLine: 'seen' };
+const PLAYED = { quality: 'high', display: 'normal', tutorial: 'skipped', airLesson: 'seen', repairHint: 'seen', zoomHint: 'seen', wheelHint: 'seen', endlessRoomLine: 'seen' };
 const BARS = { text: 11, hero: 24 };
 /** DevTools' Fast 4G as `npm run first-load -- --fast-4g` uses it (scripts/firstLoad.ts `FAST_4G`, which runs on import). */
 const FAST_4G = { latencyMs: 165, downKbps: 8100, upKbps: 1350, cpu: 4 } as const;
 
-/** CrazyGames' frames (q5): CSS px at one device px each. */
-const FRAMES = [
+/**
+ * CrazyGames' frames (q7, their list as the advisor read it on 13 Nov 2026): CSS px at one device px each. 800 × 450 is
+ * their landscape phone frame, never served to a game whose submission declares portrait on phones (CrazyGames turns
+ * the phone): the home step only, NOT SERVED.
+ */
+const FRAMES: readonly { w: number; h: number; input: 'mouse' | 'touch'; what: string; notServed?: true }[] = [
+  { w: 821, h: 462, input: 'mouse', what: 'desktop, not fullscreen' },
   { w: 907, h: 510, input: 'mouse', what: 'desktop, not fullscreen' },
+  { w: 1077, h: 606, input: 'mouse', what: 'desktop, not fullscreen' },
   { w: 1216, h: 684, input: 'mouse', what: 'desktop, not fullscreen' },
   { w: 1280, h: 720, input: 'mouse', what: 'desktop, fullscreen' },
+  { w: 1366, h: 768, input: 'mouse', what: 'desktop, fullscreen' },
+  { w: 1536, h: 864, input: 'mouse', what: 'desktop, fullscreen' },
   { w: 1920, h: 1080, input: 'mouse', what: 'desktop, fullscreen' },
-  { w: 800, h: 450, input: 'touch', what: 'phone' },
-  { w: 1080, h: 607, input: 'touch', what: 'tablet' },
-] as const;
+  { w: 450, h: 800, input: 'touch', what: 'phone, upright' },
+  { w: 1080, h: 607, input: 'touch', what: 'tablet, landscape' },
+  { w: 607, h: 1080, input: 'touch', what: 'tablet, portrait' },
+  { w: 800, h: 450, input: 'touch', what: 'phone, sideways', notServed: true },
+];
 type FrameSpec = (typeof FRAMES)[number];
+/** `--frames 821x462,907x510`: only these frames run; the others keep their saved results. */
+const frameFilter = (() => {
+  const f = arg('frames', '');
+  return f ? new Set(f.split(',')) : null;
+})();
+const frameKey = (s: { w: number; h: number }) => `${s.w}x${s.h}`;
 const STEPS = ['home', 'loading', 'wave10', 'ring', 'end'] as const;
 type Step = (typeof STEPS)[number];
 
 interface Measure {
   smallest: { px: number; text: string } | null;
+  /** Play solo (#lobby-offline) wholly inside the viewport before any scrolling (the home step). */
+  playSoloShown: boolean | null;
+  /** The joystick or a touch skill button drawn (a mouse frame must show neither). */
+  touchControls: string[];
+  /** The art-loading card's buttons and box outside the viewport (the loading step). */
+  cardOutside: string[];
   cutOff: string[];
   /** Controls past the viewport in a box that scrolls (reached by scrolling). */
   below: string[];
@@ -104,6 +127,10 @@ const results: {
   chromebook?: { label: string; jsMs: number | null; frames: number; heapMB: number | null; heapLimitMB: number | null; gpuMB: number | null; error?: string }[];
   hz?: { hz: number; seconds: number; ticks: number; expected: number; framesPerSecond: number; error?: string }[];
   keys?: { key: string; does: string; browser: string }[];
+  /** The lesson's first two cards (q8), shot at 907 × 510 with a mouse and 450 × 800 with touch. */
+  lesson?: { frame: string; card: string; shot?: string; picture: string[]; error?: string }[];
+  /** Every text in the DOM that names Esc or Escape (q8: none), with the Controls list open and a build hint up. */
+  escText?: string[];
 } = {};
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -205,7 +232,21 @@ function measure(p: Page): Promise<Measure> {
         overMap = [...new Set(overMap)];
       }
     }
-    return { smallest, cutOff: [...new Set(cutOff)], below: [...new Set(below)], overMap, layout, tilePx };
+    const solo = document.getElementById('lobby-offline');
+    let playSoloShown: boolean | null = null;
+    if (solo && shown(solo)) {
+      const r = solo.getBoundingClientRect();
+      playSoloShown = r.left >= -1 && r.top >= -1 && r.right <= W + 1 && r.bottom <= H + 1;
+    }
+    const touchControls = [...document.querySelectorAll('#joystick, .tskill-btn')].filter(shown).map(label);
+    const cardOutside = [...document.querySelectorAll('#art-wait:not(.hidden) .art-wait-card, #art-wait:not(.hidden) button')]
+      .filter(shown)
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.left < -1 || r.top < -1 || r.right > W + 1 || r.bottom > H + 1;
+      })
+      .map(label);
+    return { smallest, cutOff: [...new Set(cutOff)], below: [...new Set(below)], overMap, layout, tilePx, playSoloShown, touchControls: [...new Set(touchControls)], cardOutside };
   });
 }
 
@@ -355,7 +396,7 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
   };
 
   // The loading card: a cold page on Fast 4G, Play solo tapped at once.
-  {
+  if (!spec.notServed) {
     const ctx = await context(browser, spec);
     const p = await ctx.newPage();
     p.on('pageerror', (e) => res.errors.push(e.message));
@@ -386,6 +427,7 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
       if (fullscreen) res.errors.push('a fullscreen button of the game\'s own (#lobby-fullscreen)');
       return { shot: await shoot(p, spec, 'home'), ...(await measure(p)) };
     });
+    if (spec.notServed) return res;
     let playing = false;
     let gruntPx: number | null = null;
     const sideways = (await p.evaluate(() => (window as any).__tdt.layout().kind)) === 'rotate';
@@ -468,7 +510,7 @@ async function frameOf(browser: Browser, spec: FrameSpec): Promise<FrameResult> 
       await p.waitForSelector('#radial:not(.hidden) .radial-btn, #tower-panel:not(.hidden)', { state: 'visible', timeout: 10_000 });
       await p.waitForTimeout(400);
       const out = { shot: await shoot(p, spec, 'ring'), ...(await measure(p)) };
-      await p.keyboard.press('Escape');
+      await p.keyboard.press('x');
       return out;
     });
     await run('end', async () => {
@@ -595,12 +637,77 @@ async function refreshRates(browser: Browser): Promise<void> {
   }
 }
 
+/** The lesson's first two cards (Move, Build a tower) as a new player sees them, and every text naming Esc (q8). */
+async function lessonShots(browser: Browser): Promise<void> {
+  results.lesson = [];
+  const esc = new Set<string>();
+  for (const spec of [
+    { w: 907, h: 510, input: 'mouse' as const },
+    { w: 450, h: 800, input: 'touch' as const },
+  ]) {
+    const touch = spec.input === 'touch';
+    const frame = `${spec.w}x${spec.h}`;
+    const ctx = await context(browser, spec, false);
+    const p = await ctx.newPage();
+    try {
+      await p.goto(`${GAME}?lab&weather=clear&light=afternoon`);
+      await p.waitForSelector('html[data-ready]', { timeout: 120_000 });
+      await press(p, touch, '#lobby-learn-btn');
+      const card = async (title: string) => {
+        await p.waitForFunction((t) => document.getElementById('tutorial-title')?.textContent === t, title, { timeout: 60_000 });
+        await p.waitForTimeout(800);
+        const picture = await p.$$eval('#tutorial-picture > *', (els) =>
+          els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => (el as HTMLElement).dataset.glyph ?? (el as HTMLElement).dataset.key ?? el.textContent ?? ''),
+        );
+        const file = `${frame}-lesson-${title === 'Move' ? 'move' : 'build'}.jpg`;
+        writeFileSync(join(framesDir, file), await p.screenshot({ type: 'jpeg', quality: 88 }));
+        results.lesson!.push({ frame, card: title, shot: `frames/${file}`, picture });
+      };
+      await card('Move');
+      // Walk two tiles: the Move step is done and the next card comes up.
+      await p.evaluate(() => {
+        const t = (window as any).__tdt;
+        const hero = t.latest().heroes.find((h: any) => h.owner === t.me());
+        t.command({ type: 'move', x: hero.x, y: hero.y - 3 });
+      });
+      await card('Build a tower');
+      if (!touch) {
+        // Every text the page holds, with the build hint up and the Controls list open.
+        await p.keyboard.press('b');
+        await p.keyboard.press('1');
+        await p.locator('.help > summary').click();
+        const found: string[] = await p.evaluate(() => {
+          const out: string[] = [];
+          const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const parent = n.parentElement;
+            if (!parent || parent.closest('script, style')) continue;
+            const text = (n.textContent ?? '').trim();
+            if (/\besc(ape)?\b/i.test(text)) out.push(text.slice(0, 60));
+          }
+          return out;
+        });
+        for (const f of found) esc.add(f);
+        await p.keyboard.press('x');
+      }
+    } catch (e) {
+      results.lesson.push({ frame, card: '?', picture: [], error: String(e).split('\n')[0]!.slice(0, 160) });
+    } finally {
+      await ctx.close();
+    }
+    console.log('lesson', frame, JSON.stringify(results.lesson.filter((r) => r.frame === frame)));
+  }
+  results.escText = [...esc];
+}
+
 function keys(): void {
   const src = readFileSync(join(root, 'src', 'input', 'controls.ts'), 'utf8');
   const body = src.slice(src.indexOf('private onKeyDown'));
-  const bound = [...body.matchAll(/case '([^']+)':/g)].map((m) => m[1]!);
+  // The cancel keys (src/input/keys.ts `CANCEL_KEYS`): X, and Escape where the page receives it.
+  const bound = [...CANCEL_KEYS, ...[...body.matchAll(/case '([^']+)':/g)].map((m) => m[1]!)];
   const does: Record<string, string> = {
-    escape: 'Cancels a build, an aim or a selection',
+    x: 'Cancels a build, an aim or a selection, and closes the open panel (the key every hint names, with right-click)',
+    escape: 'The same as X where the page receives it (outside fullscreen); no text in the game names it',
     a: 'Attack-move',
     q: 'Cast Q (Shift+Q learns it)',
     w: 'Cast W (Shift+W learns it)',
@@ -631,10 +738,11 @@ function keys(): void {
 // The report
 // ---------------------------------------------------------------------------------------------------------------
 
-type Verdict = 'PASS' | 'FAIL' | 'NOT CHECKED';
+type Verdict = 'PASS' | 'FAIL' | 'NOT CHECKED' | 'NOT SERVED';
 
-function stepVerdict(s: StepResult): { verdict: Verdict; why: string[] } {
+function stepVerdict(s: StepResult, spec?: FrameSpec): { verdict: Verdict; why: string[] } {
   const why: string[] = [];
+  if (spec?.notServed) return { verdict: 'NOT SERVED', why: ['the submission declares portrait on phones: CrazyGames turns the phone'] };
   // A step the audit could not reach (a tap that opened nothing, no match) is not checked, not failed; the rotate
   // screen is a fail.
   if (s.error && s.layout !== 'rotate' && !/rotate/.test(s.error)) return { verdict: 'NOT CHECKED', why: [s.error] };
@@ -643,6 +751,15 @@ function stepVerdict(s: StepResult): { verdict: Verdict; why: string[] } {
   if (s.step === 'wave10' && s.heroPx != null && s.heroPx < BARS.hero) why.push(`hero ${s.heroPx} px`);
   if (s.cutOff?.length) why.push(`cut off: ${s.cutOff.join(', ')}`);
   if (s.layout === 'rotate') why.push('asks to rotate');
+  if (spec?.input === 'mouse') {
+    if (s.step !== 'home' && s.step !== 'loading' && s.layout && s.layout !== 'wide') why.push(`a mouse in the ${s.layout} layout`);
+    if (s.touchControls?.length) why.push(`touch controls for a mouse: ${s.touchControls.join(', ')}`);
+  }
+  if (s.step === 'home' && s.playSoloShown === false) why.push('Play solo below the fold');
+  // Outside the frame in a box that scrolls: allowed on the home card (the friends' controls) and under the loading
+  // card (the lobby behind it), a fail anywhere else.
+  if (s.step !== 'home' && s.step !== 'loading' && s.below?.length) why.push(`a button outside the frame: ${s.below.join(', ')}`);
+  if (s.step === 'loading' && s.cardOutside?.length) why.push(`the loading card past the frame: ${s.cardOutside.join(', ')}`);
   if (!s.shot && !s.error) why.push('no picture');
   return { verdict: why.length ? 'FAIL' : 'PASS', why };
 }
@@ -688,14 +805,24 @@ function report(): string {
   const resume = /'pointerdown', 'touchend', 'click', 'keydown'/.test(eng) && /ctx\.resume\(\)/.test(eng);
   add('Technical', 'After an iOS interruption the AudioContext resumes inside a touch or click', resume ? 'PASS' : 'FAIL', 'audio/engine.ts: every pointerdown / touchend / click / keydown calls `unlock`, which resumes a context that is not running (`interrupted` included) inside that gesture; unchanged');
   for (const r of f) {
-    const all = r.steps.map((x) => ({ x, v: stepVerdict(x) }));
+    const all = r.steps.map((x) => ({ x, v: stepVerdict(x, r.spec) }));
     const bad = all.filter((y) => y.v.verdict !== 'PASS');
-    const verdict: Verdict = all.some((y) => y.v.verdict === 'FAIL') ? 'FAIL' : bad.length ? 'NOT CHECKED' : 'PASS';
+    const verdict: Verdict = r.spec.notServed
+      ? 'NOT SERVED'
+      : all.some((y) => y.v.verdict === 'FAIL')
+        ? 'FAIL'
+        : bad.length
+          ? 'NOT CHECKED'
+          : 'PASS';
     add(
       'Gameplay',
       `Legible at ${r.spec.w} × ${r.spec.h} (${r.spec.what})`,
       verdict,
-      bad.length ? bad.map((y) => `${y.x.step}: ${y.v.verdict === 'NOT CHECKED' ? 'not reached: ' : ''}${y.v.why.join('; ')}`).join(' · ') : 'every step within the bars (see the frames table)',
+      r.spec.notServed
+        ? 'their phone frame held sideways: SUBMISSION.md declares portrait on phones, so CrazyGames turns the phone and never serves this frame (the game asks to rotate)'
+        : bad.length
+          ? bad.map((y) => `${y.x.step}: ${y.v.verdict === 'NOT CHECKED' ? 'not reached: ' : ''}${y.v.why.join('; ')}`).join(' · ')
+          : 'every step within the bars (see the frames table)',
     );
   }
   const hz = results.hz ?? [];
@@ -704,9 +831,26 @@ function report(): string {
     add('Gameplay', 'The same speed at 60, 144 and 165 Hz', ok ? 'PASS' : 'FAIL', hz.map((r) => `${r.hz} Hz (${r.framesPerSecond} frames/s drawn): ${r.ticks} ticks in ${r.seconds} s, ${r.expected} expected`).join('; ') + '. The sim runs on its own 20 Hz clock in the worker; the drawing interpolates on real time');
   }
   add('Gameplay', 'English', 'PASS', 'every text in the game is English');
-  add('Gameplay', 'Controls explained on each device (keyboard picture or gestures)', 'NOT CHECKED', 'a first solo match on the site starts the lesson (move, build, cast Q, upgrade, ping); CrazyGames asks for a keyboard picture or gestures shown, which the game does not draw: judge it');
-  const esc = (results.keys ?? []).some((k) => k.key === 'Escape');
-  add('Gameplay', 'No key the browser owns (Escape leaves fullscreen)', esc ? 'FAIL' : 'PASS', esc ? 'Escape cancels a build, an aim or a selection (src/input/controls.ts `onKeyDown`)' : 'no browser key bound');
+  const lesson = results.lesson ?? [];
+  const pictured = lesson.length === 4 && lesson.every((r) => !r.error && r.picture.length > 0);
+  add(
+    'Gameplay',
+    'Controls explained on each device (keyboard picture or gestures)',
+    lesson.length ? (pictured ? 'PASS' : 'FAIL') : 'NOT CHECKED',
+    `the first-match lesson (Learn to play; in gameplay, skippable) shows each move as keycaps and a mouse with its button lit, or a touch gesture, over one line (q8): ${lesson.map((r) => (r.error ? `${r.frame}: ${r.error}` : `[${r.frame} ${r.card}](${r.shot}) (${r.picture.join(' ')})`)).join(', ')}. The judgement stays CrazyGames'`,
+  );
+  const escText = results.escText;
+  const hasX = (results.keys ?? []).some((k) => k.key === 'X');
+  add(
+    'Gameplay',
+    'No key the browser owns (Escape leaves fullscreen)',
+    escText === undefined ? 'NOT CHECKED' : escText.length === 0 && hasX ? 'PASS' : 'FAIL',
+    escText === undefined
+      ? 'run `--only frames` to read the page\'s text'
+      : escText.length
+        ? `text naming Esc: ${escText.join(' | ')}`
+        : 'X cancels (src/input/keys.ts); Escape still does outside fullscreen but no text in the DOM names it (the hints, the Controls list and the lesson say "X or right-click"), read at 907 × 510 with the build hint up and the Controls list open',
+  );
   const errs = f.flatMap((r) => r.errors);
   add('Gameplay', 'Loads fast, no errors', errs.length ? 'FAIL' : 'PASS', errs.length ? `page errors: ${[...new Set(errs)].slice(0, 4).join(' | ')}` : 'no page error in any frame run; time to gameplay above');
   add('Gameplay', 'Original name and art', 'PASS', 'Tower Defense Together; every model the game\'s own design (Meshy from Claude\'s concepts) or CC0 KayKit pieces repainted; the sound made in code or CC0 (docs/SOUND_CREDITS.md)');
@@ -725,9 +869,9 @@ function report(): string {
   add('Previews', 'Two videos, landscape 1080p 16:9 and portrait 2:3, 15–20 s, 50 MB or less, no sound, no cursor', vids.every(cg) ? 'PASS' : 'FAIL', vids.map((v) => (cg(v) ? `${v} ${MB(statSync(join(outDir, v)).size)} MB` : `${v} missing`)).join(', '));
 
   const lines: string[] = [];
-  lines.push('# CrazyGames audit (q5)', '');
+  lines.push('# CrazyGames audit (q5, frames q7)', '');
   lines.push(
-    `Made by \`npm run cg-audit -w @tdt/client\` on ${new Date().toISOString().slice(0, 10)} from the crazygames build's e2e zip (\`${e2eZipName('crazygames')}\`: the crazygames build with the e2e hook), served as a host serves it (scripts/embedServe.ts), in headless Chromium on a software GPU. The rules are the advisor's reading of CrazyGames' pages on 10 Nov 2026 (docs/queue/q5-crazygames-prep.md): this machine cannot open docs.crazygames.com, so none was checked against the live pages.`,
+    `Made by \`npm run cg-audit -w @tdt/client\` on ${new Date().toISOString().slice(0, 10)} from the crazygames build's e2e zip (\`${e2eZipName('crazygames')}\`: the crazygames build with the e2e hook), served as a host serves it (scripts/embedServe.ts), in headless Chromium on a software GPU. The rules are the advisor's reading of CrazyGames' pages on 10 Nov 2026 (docs/queue/q5-crazygames-prep.md) and, for the frames, on 13 Nov 2026 (docs/queue/q7-crazygames-frames.md): this machine cannot open docs.crazygames.com, so none was checked against the live pages.`,
     '',
   );
   lines.push('## Every requirement', '', '| | Requirement | Result | Evidence |', '| --- | --- | --- | --- |');
@@ -746,9 +890,9 @@ function report(): string {
   }
   if (f.length) {
     lines.push(
-      '## The six frames',
+      '## The frames',
       '',
-      `One device px per CSS px; a mouse on the desktop sizes, touch on the phone and tablet. The tile is the map's tile on screen; a hero's and a Grunt's height are the pixels that change when its scale is set to 0 (its ground ring and shadow included; a Grunt the median of those standing alone, on wave 1); the smallest text is the DOM's (the canvas's damage numbers and HP bars are not counted). FAIL under ${BARS.text} px of text, a hero under ${BARS.hero} px, or anything cut off.`,
+      `CrazyGames' frames, one device px per CSS px; a mouse on the desktop sizes, touch on the phone and tablet. The tile is the map's tile on screen; a hero's and a Grunt's height are the pixels that change when its scale is set to 0 (its ground ring and shadow included; a Grunt the median of those standing alone, on wave 1); the smallest text is the DOM's (the canvas's damage numbers and HP bars are not counted). FAIL under ${BARS.text} px of text, a hero under ${BARS.hero} px, anything cut off, a button outside the frame (on the home card only Play solo and what is above it must be inside before any scrolling), and, with a mouse, a match not in the wide layout or showing the joystick or a touch skill button. 800 × 450 is NOT SERVED: the submission declares portrait on phones.`,
       '',
       '| Frame | Step | Layout | Tile | Hero | Grunt | Smallest text | Cut off | Scrolled to | Over the map | Result | Picture |',
       '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
@@ -757,7 +901,7 @@ function report(): string {
       for (const st of STEPS) {
         const x = r.steps.find((y) => y.step === st);
         if (!x) continue;
-        const v = stepVerdict(x);
+        const v = stepVerdict(x, r.spec);
         const cell = (c: string) => c.replace(/\|/g, '\\|');
         lines.push(
           `| ${r.spec.w} × ${r.spec.h} | ${st} | ${x.layout ?? '—'} | ${x.tilePx ?? '—'} | ${x.heroPx ?? '—'} | ${x.gruntPx ?? '—'} | ${x.smallest ? cell(`${x.smallest.px} px "${x.smallest.text}"`) : '—'} | ${cell(x.cutOff?.join(', ') || 'none')} | ${cell(x.below?.join(', ') || 'none')} | ${cell(x.overMap?.join(', ') || 'none')} | **${v.verdict}**${v.why.length ? ` (${cell(v.why.join('; '))})` : ''} | ${x.shot ? `[${st}](${x.shot})` : '—'} |`,
@@ -801,9 +945,15 @@ const browser = needs ? await chromium.launch({ ...EXE, args: ['--disable-site-i
 try {
   if (browser && only.has('ttg')) await timeToGameplay(browser);
   if (browser && only.has('frames')) {
-    results.frames = [];
-    for (const spec of FRAMES) results.frames.push(await frameOf(browser, spec));
+    const before = new Map((results.frames ?? []).map((r) => [frameKey(r.spec), r] as const));
+    const next: FrameResult[] = [];
+    for (const spec of FRAMES) {
+      const keep = frameFilter && !frameFilter.has(frameKey(spec)) ? before.get(frameKey(spec)) : undefined;
+      next.push(keep ? { ...keep, spec } : await frameOf(browser, spec));
+    }
+    results.frames = next;
   }
+  if (browser && only.has('frames') && !frameFilter) await lessonShots(browser);
   if (browser && only.has('hz')) await refreshRates(browser);
 } finally {
   await browser?.close();
