@@ -999,6 +999,15 @@ const items: ProgressItem[] = [
     proof: pr(189),
   },
   {
+    id: 'D-19',
+    title: 'Previews, round 2',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'One small HUD change and the previews again. A combo’s kill count now stands just above the combo’s band instead of on it, on phones as on desktop. The store previews no longer end on a fallen hero: the Ranger stays out of the boss’s reach through the boss cut and is alive on the last frame, with the boss whole in the frame under the towers’ fire; the combo cut starts after the wave banner has gone.',
+    proof: pr(191),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

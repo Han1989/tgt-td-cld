@@ -92,7 +92,9 @@ The covers: `npm run press-shots -w @tdt/client -- --only 7,cg` (one design, the
 the wordmark the only text). The previews: `npm run cg-previews -w @tdt/client` (recorded in real time from a real
 solo Quick match, no sound, no cursor, opening on the cover): the build phase, a wave on the towers with the Ranger and
 his bot teammate, the Arcanist, both in the frame, the Ranger's Arrow Storm answered by her Meteor and fused into
-Meteor Rain, and the wave-5 boss. Six frames of each are on [previews-sheet.jpg](previews-sheet.jpg).
+Meteor Rain (the cut starts once the wave's banner has gone), and the wave-5 boss under the towers' fire with the
+Ranger alive and out of its reach to the last frame. Seven frames of each, the last one included, are on
+[previews-sheet.jpg](previews-sheet.jpg).
 
 ## A note for Han
 

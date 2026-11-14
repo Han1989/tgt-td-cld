@@ -15,7 +15,10 @@ import {
 import { describe, expect, it } from 'vitest';
 import { comboPairLines, ultimateLines } from '../src/coop/ultReport';
 import {
+  BAND_GAP_PX,
   emptyUltCues,
+  popsBottom,
+  popsPlacement,
   healLines,
   heldPopDue,
   NUDGE_SECONDS,
@@ -333,5 +336,25 @@ describe('the end screen lines', () => {
     const solo = JSON.parse(JSON.stringify(coop)) as NonNullable<MatchReport['coop']>;
     solo.comboPairs = [];
     expect(comboPairLines(report(solo))).toEqual([]);
+  });
+});
+
+describe('kill-count popups and the fuse band (q10)', () => {
+  it('stand on the band from the frame it shows, and go home only once it and its popups are gone', () => {
+    expect(popsPlacement(true, false, 0)).toBe('onBand');
+    expect(popsPlacement(true, false, 2)).toBe('onBand');
+    expect(popsPlacement(true, true, 1)).toBe('keep');
+    // The band has gone but a count is still fading: it does not jump.
+    expect(popsPlacement(false, true, 1)).toBe('keep');
+    expect(popsPlacement(false, true, 0)).toBe('home');
+    expect(popsPlacement(false, false, 3)).toBe('keep');
+  });
+
+  it("puts the column's bottom the gap above the band's top", () => {
+    // 412 x 618: the band's top at 230 of a 618 px HUD.
+    const bottom = popsBottom(230, 618);
+    expect(bottom).toBe(618 - 230 + BAND_GAP_PX);
+    expect(618 - bottom).toBeLessThan(230);
+    expect(BAND_GAP_PX).toBeGreaterThan(8 * 1.08);
   });
 });

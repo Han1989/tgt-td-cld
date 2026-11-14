@@ -6,7 +6,7 @@ import type { HeroSnap, PlayerId, Snapshot } from '@tdt/protocol';
 import { heroIcon, iconVar } from '../render/art/icons';
 import { toCss } from '../render/palette';
 import { playerTint } from '../coop/cues';
-import { ultColor, type HealLine, type UltPop } from '../ult/cues';
+import { popsBottom, popsPlacement, ultColor, type HealLine, type UltPop } from '../ult/cues';
 import type { UltimateTag } from '@tdt/protocol';
 import { whole } from './num';
 
@@ -31,6 +31,9 @@ interface MateChip {
 
 export class UltHud {
   private readonly pops = $('ult-pops');
+  private readonly band = $('fuse-ribbon');
+  /** The popups' column stands on the fuse band (`placePops`). */
+  private onBand = false;
   private readonly flash = $('ult-flash');
   private readonly mates = $('mates');
   private readonly chips = new Map<number, MateChip>();
@@ -60,6 +63,30 @@ export class UltHud {
     this.pops.appendChild(el);
     while (this.pops.children.length > MAX_POPS) this.pops.firstElementChild?.remove();
     window.setTimeout(() => el.remove(), POP_MS);
+  }
+
+  /**
+   * Once a frame: while a combo's fuse band is up, the popups' column stands just above it and stacks upward, so a
+   * count never covers the band (ult/cues.ts, `popsPlacement`); it goes back once the band and its popups are gone.
+   */
+  placePops(): void {
+    const up = !this.band.classList.contains('hidden');
+    const place = popsPlacement(up, this.onBand, this.pops.children.length);
+    if (place === 'onBand') {
+      const host = this.pops.offsetParent ?? document.documentElement;
+      const bottom = popsBottom(this.band.getBoundingClientRect().top, host.getBoundingClientRect().bottom);
+      this.pops.style.top = 'auto';
+      this.pops.style.bottom = `${bottom}px`;
+      this.pops.classList.add('on-band');
+      this.onBand = true;
+    } else if (place === 'home') this.home();
+  }
+
+  private home(): void {
+    this.pops.style.removeProperty('top');
+    this.pops.style.removeProperty('bottom');
+    this.pops.classList.remove('on-band');
+    this.onBand = false;
   }
 
   /** The whole screen blinks in the ultimate's colour for half a second. Under reduced motion it is fainter (CSS). */
@@ -114,6 +141,7 @@ export class UltHud {
     window.clearTimeout(this.flashTimer);
     this.flash.classList.remove('on');
     this.pops.replaceChildren();
+    this.home();
     this.mates.replaceChildren();
     this.mates.classList.add('hidden');
     this.chips.clear();

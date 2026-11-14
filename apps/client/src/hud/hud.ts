@@ -730,9 +730,12 @@ export class Hud {
 
   /**
    * Once a frame, after the world is drawn: a held Rampart Slam count shows once no lane quake is being drawn (its
-   * front has reached the lane's ends), or at `QUAKE_POP_CAP_MS` (ult/cues.ts).
+   * front has reached the lane's ends), or at `QUAKE_POP_CAP_MS` (ult/cues.ts). While a combo's fuse band is up the
+   * popups' column stands on it (`UltHud.placePops`).
    */
   releasePops(now: number, quakeDrawing: boolean): void {
+    // While a combo's fuse band is up the popups stand on it (q10).
+    this.ults.placePops();
     if (this.heldPops.length === 0) return;
     const keep: typeof this.heldPops = [];
     for (const h of this.heldPops) {

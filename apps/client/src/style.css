@@ -1169,7 +1169,8 @@ body.layout-tall #together-kill {
 #fuse-ribbon {
   position: absolute;
   left: 50%;
-  /* Below the Heart-save word (28-34%) and the wave banner (22%), which a rain is often cast over. */
+  /* Below the Heart-save word (28-34%) and the wave banner (22%), which a rain is often cast over. The kill-count
+     popups (#ult-pops) stand just above it while it is up (q10). */
   top: 50%;
   z-index: 5;
   display: flex;
@@ -5099,7 +5100,10 @@ body.layout-rotate .rotate {
   100% { opacity: 0; }
 }
 
-/* Between the Heart-save word (28-34%) and the fuse band (46%): one line each, three at most. */
+/* Between the Heart-save word (28-34%) and the fuse band (46%): one line each, three at most. While a combo's fuse band
+   is up the column stands on it instead (UltHud.placePops sets `bottom` 12 px above the band's top and adds .on-band),
+   so the newest count sits just above the band and older ones stack upward; it comes back here once the band and its
+   popups have gone (q10). */
 #ult-pops {
   position: absolute;
   left: 50%;

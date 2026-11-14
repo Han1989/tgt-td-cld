@@ -47,7 +47,7 @@ Made by `npm run cg-audit -w @tdt/client` on 2026-11-13 from the crazygames buil
 | Links | A privacy policy link is allowed | **PASS** | the lobby's Privacy opens the site's privacy.html in a new tab |
 | Links | No app-store links | **PASS** | none |
 | Covers | Three pictures of one design: 1920 × 1080, 800 × 1200, 800 × 800; the title the only text | **PASS** | cover-1920x1080.png, cover-800x1200.png, cover-800x800.png |
-| Previews | Two videos, landscape 1080p 16:9 and portrait 2:3, 15–20 s, 50 MB or less, no sound, no cursor | **PASS** | preview-landscape-1920x1080.mp4 6.43 MB, 19.3 s; preview-portrait-1080x1620.mp4 7.43 MB, 18.2 s (q9: recorded again with the bot teammate and Meteor Rain) |
+| Previews | Two videos, landscape 1080p 16:9 and portrait 2:3, 15–20 s, 50 MB or less, no sound, no cursor | **PASS** | preview-landscape-1920x1080.mp4 7.2 MB, 18.2 s; preview-portrait-1080x1620.mp4 7.0 MB, 17.6 s (q9: recorded again with the bot teammate and Meteor Rain; q10: the Ranger alive through the boss cut and on the last frame, the combo cut after the wave banner) |
 
 ## Sizes
 
