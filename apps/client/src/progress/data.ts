@@ -990,6 +990,15 @@ const items: ProgressItem[] = [
     proof: pr(187),
   },
   {
+    id: 'D-18',
+    title: 'CrazyGames’ previews again',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'A script, two videos, a contact sheet and docs; nothing in the game changed. The two store previews are recorded again with the bot teammate beside the Ranger and a combo on screen: his Arrow Storm, the ally’s Meteor half a second later, fused into Meteor Rain, both heroes in the frame. Still 15 to 20 s, no sound, opening on the cover.',
+    proof: pr(189),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

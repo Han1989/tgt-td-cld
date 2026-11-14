@@ -20,7 +20,8 @@ flyers ignore the lanes and head straight for the Heart, and three bosses each b
 ultimates within a few seconds of a teammate's and they fuse into a combo.
 
 Play a Quick match of 15 waves (about 11 minutes) or the Full 30, alone or with friends in a room joined by its code,
-take on the Daily run, or see how far Endless goes on today's top 10.
+take on the Daily run, or see how far Endless goes on today's top 10. A solo match starts with a bot teammate beside
+you, and your ultimate cast with its own fuses into a combo.
 
 ## Controls
 
@@ -89,7 +90,9 @@ type it); there is no invite link in this build. Solo is the home screen's main 
 
 The covers: `npm run press-shots -w @tdt/client -- --only 7,cg` (one design, the Arcanist on the meadow in wave 10,
 the wordmark the only text). The previews: `npm run cg-previews -w @tdt/client` (recorded in real time from a real
-solo Quick match, no sound, no cursor, opening on the cover).
+solo Quick match, no sound, no cursor, opening on the cover): the build phase, a wave on the towers with the Ranger and
+his bot teammate, the Arcanist, both in the frame, the Ranger's Arrow Storm answered by her Meteor and fused into
+Meteor Rain, and the wave-5 boss. Six frames of each are on [previews-sheet.jpg](previews-sheet.jpg).
 
 ## A note for Han
 

@@ -18,7 +18,7 @@
 //
 //   npm run build:e2e -w @tdt/client && npm run cg-previews -w @tdt/client [-- --only landscape,portrait] [--out DIR]
 //
-// `CHROMIUM_PATH` for a Chromium of another revision than Playwright's. About 6 minutes. Look at both before committing.
+// `CHROMIUM_PATH` for a Chromium of another revision than Playwright's. About 10 minutes. Look at both before committing.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -393,7 +393,7 @@ function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void
     if (!m) continue;
     const [build, wave, combo] = m.log.cuts as [number, number, number, number];
     const at = 1 + build + wave;
-    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.2, at + combo + 2];
+    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.8, at + combo + 2];
     const tiles = times.map((time, i) => {
       const f = join(work, `${kind}-sheet-${i}.png`);
       const w = 400;

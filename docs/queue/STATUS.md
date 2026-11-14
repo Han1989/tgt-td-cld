@@ -31,7 +31,7 @@ adding them did not touch the lines a claimed task's branch is changing.
 | --- | --- | --- | --- | --- | --- | --- |
 | q7 | [CrazyGames' frames: the desktop layout in every desktop frame, Play solo on the first screen, text of 11 px](q7-crazygames-frames.md) | autopilot | done | #183 | q5 | Client only. Merge condition in the file. |
 | q8 | [Keys CrazyGames allows, and a lesson that shows them](q8-keys-and-lesson.md) | autopilot | done | #187 | q7 | Client only. Merge condition in the file. |
-| q9 | [CrazyGames' previews again: the bot teammate and a combo on screen](q9-previews-with-the-ally.md) | autopilot | in-progress |  | q8 | The script, two videos and docs: nothing in the game. Merge condition in the file. |
+| q9 | [CrazyGames' previews again: the bot teammate and a combo on screen](q9-previews-with-the-ally.md) | autopilot | done | #189 | q8 | The script, two videos and docs: nothing in the game. Merge condition in the file. |
 
 ## Han's own steps (the autopilot skips these)
 

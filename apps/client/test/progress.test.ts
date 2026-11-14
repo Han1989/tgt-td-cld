@@ -70,8 +70,9 @@ describe('progress dashboard data', () => {
     // lobby, tidy skill buttons; PR #170), D-12 (call early waits for the wave, End run for Endless; PR #173), D-13
     // (no question before the first match in hosted builds, a first session counted with no id; PR #175), and D-14
     // (a lighter download; PR #176), and D-15 (CrazyGames prep; PR #177), and L-01 (a bot teammate in solo; PR #181),
-    // and D-16 (CrazyGames' frames; PR #183), and D-17 (keys and the lesson's pictures; PR #187).
-    expect(summary.done).toBe(117);
+    // and D-16 (CrazyGames' frames; PR #183), and D-17 (keys and the lesson's pictures; PR #187), and D-18
+    // (CrazyGames' previews again; PR #189).
+    expect(summary.done).toBe(118);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -83,7 +84,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(154);
+    expect(summary.total).toBe(155);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -102,6 +103,7 @@ describe('progress dashboard data', () => {
       'D-15': 177,
       'D-16': 183,
       'D-17': 187,
+      'D-18': 189,
       'H-04': 42,
       'SL-05': 66,
       'P2-03': 66,
