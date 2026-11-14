@@ -24,7 +24,7 @@ describe('progress dashboard data', () => {
   });
 
   it('seeds protocol 25, a finished polish path, and D-06 as the next gate', () => {
-    expect(PROGRESS.protocol).toBe(27);
+    expect(PROGRESS.protocol).toBe(28);
     expect(PROGRESS.polishComplete).toBe(true);
     const summary = summarize(PROGRESS);
     expect(summary.polishComplete).toBe(true);
@@ -72,8 +72,8 @@ describe('progress dashboard data', () => {
     // (a lighter download; PR #176), and D-15 (CrazyGames prep; PR #177), and L-01 (a bot teammate in solo; PR #181),
     // and D-16 (CrazyGames' frames; PR #183), and D-17 (keys and the lesson's pictures; PR #187), and D-18
     // (CrazyGames' previews again; PR #189), and D-19 (previews, round 2; PR #191), and D-20 (iPhone fix: a lost
-    // finger never leaves the hero walking; PR #193).
-    expect(summary.done).toBe(120);
+    // finger never leaves the hero walking; PR #193), and D-21 (coming back to a running match; PR #194).
+    expect(summary.done).toBe(121);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -85,7 +85,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(157);
+    expect(summary.total).toBe(158);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -159,6 +159,7 @@ describe('progress dashboard data', () => {
       'H-07': 98,
       'L-01': 181,
       'D-20': 193,
+      'D-21': 194,
     };
     for (const [id, pull] of Object.entries(proofs)) {
       const item = byId(id);

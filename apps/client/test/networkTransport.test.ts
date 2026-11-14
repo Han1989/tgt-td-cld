@@ -67,7 +67,8 @@ describe('NetworkTransport', () => {
 
     t.close();
     expect(t.status).toBe('closed');
-    await until(() => room.members[0]?.left === true || !server!.rooms.has(room.code));
+    // A leave mid-match frees the seat for a join by code (protocol 28), or the room closes with nobody in it.
+    await until(() => room.members[0]?.freed === true || !server!.rooms.has(room.code));
   });
 
   it('rejoins at once when the page wakes up with a socket that went silent mid-match', async () => {

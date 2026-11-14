@@ -5,6 +5,7 @@
 
 import { ENDLESS_BEST_KEY } from '../endless/best';
 import { RECORD_KEY } from '../record/record';
+import { SEAT_KEY } from '../transport/seat';
 import { FIRST_DAY_KEY } from './visits';
 import { clearVisitor, storedDataKey, VISITOR_KEY, type IdStore } from './dataKey';
 import { analyticsEndpoint } from './session';
@@ -23,6 +24,9 @@ export const LOCAL_RECORD_KEYS = [RECORD_KEY, ENDLESS_BEST_KEY] as const;
  * Delete my data clears it too (the next open is a first open again); it is not part of the record the line reports.
  */
 export const LOCAL_COUNT_KEYS = [FIRST_DAY_KEY] as const;
+
+/** The seat in a running match this browser remembers (q12, `tdt.seat`): Delete my data forgets it too. */
+export const LOCAL_SEAT_KEYS = [SEAT_KEY] as const;
 
 /** The game server this page posts play data to, or '' when this build sends none. */
 export function analyticsServer(): string {
@@ -202,7 +206,7 @@ export async function deleteMyData(
   fetchFn: Fetch = fetch,
 ): Promise<MyDataResult> {
   const local = clearRecord(store);
-  for (const key of LOCAL_COUNT_KEYS) {
+  for (const key of [...LOCAL_COUNT_KEYS, ...LOCAL_SEAT_KEYS]) {
     try {
       store.removeItem(key);
     } catch {

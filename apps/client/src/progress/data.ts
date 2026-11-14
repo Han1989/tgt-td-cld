@@ -1017,6 +1017,15 @@ const items: ProgressItem[] = [
     proof: pr(193),
   },
   {
+    id: 'D-21',
+    title: 'Coming back to a running match: at any time, and by the room code too',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Sim, protocol 28, server and client: the merge restarts the game server. A seat belongs to its player until the match ends: a dropped player comes back at any moment (after a minute their empty pads open to the team, and stay open). Three ways back: the same tab reloads; another tab of the same browser offers "Rejoin your match"; any device types the room code (the same nickname at once, another after a minute away). A connected player is never replaced, and teammates see "<name> is back".',
+    proof: pr(194),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
@@ -1559,7 +1568,7 @@ const items: ProgressItem[] = [
 
 export const PROGRESS: ProgressData = {
   asOf: '22 Oct 2026',
-  protocol: 27,
+  protocol: 28,
   polishLabel: 'T-00–T-06',
   polishComplete: true,
   nextGate: 'D-06',

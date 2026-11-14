@@ -165,6 +165,11 @@
             <span id="lobby-daily-line" class="daily-line"></span>
           </button>
           <div class="solo-dock">
+            <!-- A seat in a running match this browser remembers (q12): the main button, Play solo beside it. -->
+            <button id="lobby-rejoin" class="btn big hidden" type="button">
+              <span class="rejoin-head">Rejoin your match</span>
+              <span id="lobby-rejoin-code" class="rejoin-code"></span>
+            </button>
             <button id="lobby-offline" class="btn big" type="button">Play solo</button>
           </div>
           <p id="lobby-learn" class="learn-line hidden">New here? <button id="lobby-learn-btn" class="link learn-link" type="button">Learn to play</button></p>
@@ -406,7 +411,11 @@
       </div>
 
       <div id="notice" class="notice hidden"></div>
-      <div id="reconnecting" class="reconnecting hidden">Connection lost — reconnecting…</div>
+      <div id="reconnecting" class="reconnecting hidden">
+        <p class="reconnecting-text">Connection lost — reconnecting…</p>
+        <!-- After a minute (q12): the seat stays yours; the home card then offers "Rejoin your match". -->
+        <button id="reconnecting-back" class="btn hidden" type="button">Back to lobby</button>
+      </div>
 
       <div id="toasts" class="toasts"></div>
       <div id="match-flags" class="match-flags hidden"></div>

@@ -2618,6 +2618,45 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   min-height: 50px;
 }
 
+/* A seat in a running match this browser remembers (q12): "Rejoin your match" is the main button, with the room's
+   code under it, and Play solo stays beside it at the same height, so nothing under the dock moves. */
+.solo-dock.has-seat {
+  flex-direction: row;
+  gap: 8px;
+}
+
+.solo-dock.has-seat #lobby-rejoin {
+  flex: 2 1 0;
+  min-width: 0;
+}
+
+.solo-dock.has-seat #lobby-offline {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 15px;
+}
+
+#lobby-rejoin {
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1.15;
+}
+
+.rejoin-head {
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.rejoin-code {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
 /* The Daily run's tile (docs/GAME_DESIGN.md "Daily run"), under Mode: carved stone with a gold edge (the one main
    button stays Play solo), two short lines at a fixed height. Its room (the tile and one gap) comes out of the stage,
    so Play solo does not move when the tile appears after the server answers. */
@@ -3608,10 +3647,23 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   inset: 0;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 14px;
   background: rgba(0, 0, 8, 0.6);
   font-family: var(--title-font);
   font-size: 22px;
   font-weight: 700;
+}
+
+.reconnecting-text {
+  margin: 0;
+  padding: 0 16px;
+  text-align: center;
+}
+
+#reconnecting-back {
+  font-family: inherit;
+  font-size: 15px;
 }
 
 .end-actions {
