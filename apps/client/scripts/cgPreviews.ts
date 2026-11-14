@@ -133,20 +133,33 @@ const HEROES_JS = `(() => {
   };
 })()`;
 
-/** Every \`combo\` event of every snapshot the page draws, and the fuse ribbon's showing (a poll can miss a tick). */
-const COMBO_JS = `(() => {
-  window.__combos = []; let last = -1;
-  const loop = () => {
-    const s = window.__tdt?.latest();
-    if (s && s.tick !== last) {
-      last = s.tick;
-      for (const e of s.events ?? []) if (e.type === 'combo' && !window.__combos.some((x) => x.tick === s.tick)) window.__combos.push({ tick: s.tick, combo: e.combo });
+/**
+ * Every \`combo\` event the local host sends, read from the worker's messages themselves (a page that draws one frame
+ * in several ticks on a software GPU handles several messages in a row, so polling the latest snapshot misses some),
+ * and the fuse ribbon's word and tick when it shows. An init script: it wraps \`Worker\` before the game makes one.
+ */
+const COMBO_INIT = `(() => {
+  window.__combos = [];
+  const W = window.Worker;
+  window.Worker = class extends W {
+    constructor(...a) {
+      super(...a);
+      this.addEventListener('message', (e) => {
+        if (typeof e.data !== 'string' || !e.data.includes('"type":"combo"')) return;
+        try {
+          const m = JSON.parse(e.data); const s = m.snap ?? m;
+          for (const ev of s.events ?? []) if (ev.type === 'combo') window.__combos.push({ tick: s.tick, combo: ev.combo });
+        } catch {}
+      });
     }
-    const f = document.getElementById('fuse-ribbon');
-    if (f && f.classList.contains('on') && !window.__fuseSeen) window.__fuseSeen = s?.tick ?? 0;
-    requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  setInterval(() => {
+    const f = document.getElementById('fuse-ribbon');
+    if (f && f.classList.contains('on') && !window.__fuseSeen) {
+      window.__fuseSeen = window.__tdt?.latest()?.tick ?? 0;
+      window.__fuseWord = document.getElementById('fuse-ribbon-word')?.textContent ?? '';
+    }
+  }, 10);
 })()`;
 
 export interface CutLog {
@@ -167,6 +180,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
   mkdirSync(frames, { recursive: true });
   const ctx = await browser.newContext({ ...v.context, serviceWorkers: 'block' });
   await ctx.addInitScript('globalThis.__name = (f) => f;');
+  await ctx.addInitScript(COMBO_INIT);
   await ctx.addInitScript((s) => localStorage.setItem('tdt.settings', JSON.stringify(s)), SETTINGS);
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.error('page error:', e.message));
@@ -181,7 +195,6 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     await p.waitForFunction(() => !!(window as any).__tdt?.latest()?.heroes?.length, undefined, { timeout: 240_000 });
     await p.waitForSelector('html[data-plate="ready"][data-ui="ready"][data-structures][data-creep-sheets][data-hero-sheets]', { timeout: 240_000 });
     if (kind === 'landscape') await t(CAMERA_JS);
-    await t(COMBO_JS);
     if (!(await heroes()).ally) throw new Error('no bot teammate in the match (?ally)');
     // The pads: the middle lane's own, the rows just above the safe zone, nearest the Heart first.
     const pads = (await t(`(() => {
@@ -197,12 +210,12 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     await p.waitForTimeout(2500);
     const cuts: Shot[][] = [];
     const kinds = ['arrow', 'cannon', 'frost', 'arcane', 'flak', 'arrow', 'cannon', 'frost'];
-    // 1. The build phase: towers going up on the pads, one every 0.45 s.
+    // 1. The build phase: towers going up on the pads, one every 0.42 s.
     cuts.push(
-      await record(cdp, frames, 3600, v.out, async () => {
+      await record(cdp, frames, 3300, v.out, async () => {
         for (const [i, pad] of pads.slice(0, 7).entries()) {
           await p.evaluate(([id, k]) => (window as any).__tdt.command({ type: 'build', padId: id, tower: k }), [pad.id, kinds[i]!] as const);
-          await p.waitForTimeout(450);
+          await p.waitForTimeout(420);
         }
       }),
     );
@@ -245,7 +258,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     // 2. A wave on the towers, the Ranger beside his ally.
     const atWave = await frameBoth(4, 15_000);
     const waveFramed = atWave.meIn && atWave.allyIn;
-    cuts.push(await record(cdp, frames, 4000, v.out));
+    cuts.push(await record(cdp, frames, 3600, v.out));
     // 3. The combo: the Ranger's Arrow Storm 0.4 s in, the ally's Meteor 0.5 s later by its own rule, Meteor Rain.
     let combo: { tick: number; combo: string } | undefined;
     let tries = 0;
@@ -257,7 +270,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       await t('window.__tdt.skipTo(4)');
       const ready = await frameBoth(10, 90_000);
       console.log(`  combo try ${tries}: Ranger ${ready.meIn ? 'in' : 'OUT'}, ally ${ready.allyIn ? 'in' : 'OUT'}, ${ready.creepsIn} creeps in the frame, R ready ${ready.me.rReady}/${ready.ally?.rReady}`);
-      await t('window.__combos = []; window.__fuseSeen = 0;');
+      await t("window.__combos = []; window.__fuseSeen = 0; window.__fuseWord = '';");
       let castTick = 0;
       comboCut = await record(cdp, frames, 5500, v.out, async () => {
         await p.waitForTimeout(400);
@@ -266,9 +279,14 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
         castTick = at.tick;
         await t(`window.__tdt.command({ type: 'cast', slot: 'R' })`);
       });
-      const seen = (await t('({ combos: window.__combos, fuse: window.__fuseSeen })')) as { combos: { tick: number; combo: string }[]; fuse: number };
-      combo = seen.combos.find((c) => c.combo === 'meteorRain');
-      console.log(`  cast at tick ${castTick}; combos ${JSON.stringify(seen.combos)}; fuse ribbon at tick ${seen.fuse}`);
+      const seen = (await t('({ combos: window.__combos, fuse: window.__fuseSeen, word: window.__fuseWord })')) as {
+        combos: { tick: number; combo: string }[];
+        fuse: number;
+        word: string;
+      };
+      // The event; else the HUD's fuse ribbon naming Meteor Rain (the tick the page first saw it on).
+      combo = seen.combos.find((c) => c.combo === 'meteorRain') ?? (/meteor rain/i.test(seen.word) ? { tick: seen.fuse, combo: 'meteorRain (fuse ribbon)' } : undefined);
+      console.log(`  cast at tick ${castTick}; combos ${JSON.stringify(seen.combos)}; fuse ribbon "${seen.word}" at tick ${seen.fuse}`);
       if (combo) castAt = 0.4 + (combo.tick - castTick) / 20;
     }
     if (!combo) throw new Error('no meteorRain combo in three tries');
@@ -283,7 +301,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     const boss = (await t(`(() => { const b = window.__tdt.latest().creeps.find((c) => /ironhorn|matriarch|shardback/.test(c.kind)); return { x: b.x, y: b.y }; })()`)) as { x: number; y: number };
     await camAt(p, kind, boss.x, boss.y + 2);
     await p.waitForTimeout(600);
-    cuts.push(await record(cdp, frames, 4400, v.out));
+    cuts.push(await record(cdp, frames, 3800, v.out));
     const span = (c: Shot[]) => (c.length > 1 ? c.at(-1)!.t - c[0]!.t + 1 / 30 : 1 / 30);
     return {
       cuts,
