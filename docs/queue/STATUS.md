@@ -34,7 +34,7 @@ adding them did not touch the lines a claimed task's branch is changing.
 | q9 | [CrazyGames' previews again: the bot teammate and a combo on screen](q9-previews-with-the-ally.md) | autopilot | done | #189 | q8 | The script, two videos and docs: nothing in the game. Merge condition in the file. |
 | q10 | [Previews, round 2: the hero alive at the end, and the kill count clear of the combo band](q10-previews-round-2.md) | autopilot | done | #191 | q9 | Client HUD (one small change), the script, two videos. Merge condition in the file. |
 | q11 | [iPhone fix: a finger iOS takes away never leaves the stick held](q11-stick-never-stuck.md) | autopilot | done | #193 | q10 | Client only. From Han's three-device match of 14 Nov. Merge condition in the file; Han then tries it on the iPhone in Safari. |
-| q12 | [Coming back to a running match: at any time, and by the room code too](q12-come-back-to-a-match.md) | autopilot | todo |  | q11 | Sim, protocol (28), server and client: the merge restarts the game server and every hosted zip is built again. Han confirmed the rule by merging the brief. Merge condition in the file; Han tries it on the live site after the merge. |
+| q12 | [Coming back to a running match: at any time, and by the room code too](q12-come-back-to-a-match.md) | autopilot | in-progress |  | q11 | Sim, protocol (28), server and client: the merge restarts the game server and every hosted zip is built again. Han confirmed the rule by merging the brief. Merge condition in the file; Han tries it on the live site after the merge. |
 
 ## Han's own steps (the autopilot skips these)
 
