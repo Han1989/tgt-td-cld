@@ -91,7 +91,7 @@ describe('3-bot integration', () => {
     expect(taker.playerId).toBe('p3');
     await host.waitFor(() => state().players[2]!.connected && state().players[2]!.name === 'Zed', 60_000);
 
-    await host.waitFor(() => state().wave >= 6 || state().phase !== 'playing', 120_000);
+    await host.waitFor(() => state().wave >= 6 || state().phase === 'victory' || state().phase === 'defeat', 120_000);
     room.paused = true;
     const live = [host, back, taker];
     await Promise.all(live.map((c) => c.waitFor(() => c.snap?.tick === room.lastSnap!.tick, 5_000)));

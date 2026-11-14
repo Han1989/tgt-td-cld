@@ -83,6 +83,8 @@ export class NetworkTransport implements Transport {
   private attempt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMessageAt = 0;
+  /** The running match's report came (q12): its seat is no longer remembered for another tab. */
+  private matchEnded = false;
 
   /**
    * Online the snapshot carries no seed (a protocol change this pass does not make, V-08a): the room's code stands in,
@@ -190,7 +192,6 @@ export class NetworkTransport implements Transport {
         if (msg.room) {
           this.session = { url: this.url, code: msg.room.code, token: msg.room.token };
           sessionStore.save(this.session);
-          seatStore.save(this.session);
         }
         this.setStatus('open');
         break;
@@ -206,13 +207,21 @@ export class NetworkTransport implements Transport {
         return;
       }
       case 'lobby':
-        if (msg.lobby.phase === 'lobby') this.snap = null;
+        if (msg.lobby.phase === 'lobby') {
+          this.snap = null;
+          this.matchEnded = false;
+          seatStore.clear();
+        } else if (this.session && !this.matchEnded) {
+          // A running match: this browser remembers the seat, so another tab can come back to it (q12).
+          seatStore.save(this.session);
+        }
         break;
       case 'notice':
         this.serverRestarting = true;
         break;
       case 'report':
         // The match ended: there is no match to come back to from another tab.
+        this.matchEnded = true;
         seatStore.clear();
         break;
       case 'error':

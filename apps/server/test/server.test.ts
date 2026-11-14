@@ -484,7 +484,7 @@ describe('coming back to a running match (protocol 28, q12)', () => {
     await guest!.waitFor(() => guest!.snap !== null);
     const token = guest!.token!;
     guest!.send({ t: 'leave' });
-    await host!.waitFor(() => host!.snap!.players[1]!.connected === false && host!.snap!.pads.every((p) => p.owner !== 'p2'));
+    await host!.waitFor(() => host!.snap?.players[1]?.connected === false && host!.snap.pads.every((p) => p.owner !== 'p2'));
     const other = bot(url, 'Dee');
     await other.join(host!.code!);
     expect(other.playerId).toBe('p2');

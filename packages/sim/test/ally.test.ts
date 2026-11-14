@@ -236,7 +236,9 @@ describe('a match with the bot teammate', () => {
     expect(dailyRefusal({ ...base, mode: 'quick', difficulty: 'hard', ally: 'arcanist' }, 9)).toMatch(/bot teammate/);
     expect(dailyRefusal({ ...base, mode: 'quick', difficulty: 'hard' }, 9)).toBeNull();
     expect(endlessRefusal({ ...base, mode: 'endless', protocol: PROTOCOL_VERSION, ally: 'arcanist' })).toMatch(/bot teammate/);
-    expect(replayRefusal({ mode: 'quick', protocol: PROTOCOL_VERSION - 1, build: 'dev' })).toMatch(/bot teammate/);
+    // Before the ally's protocol (27) a replay is refused; 27's re-run as before (q12's protocol 28 refuses nothing).
+    expect(replayRefusal({ mode: 'quick', protocol: 26, build: 'dev' })).toMatch(/bot teammate/);
+    expect(replayRefusal({ mode: 'quick', protocol: 27, build: 'dev' })).toBeNull();
     expect(replayRefusal({ mode: 'quick', protocol: PROTOCOL_VERSION, build: 'dev' })).toBeNull();
   });
 });

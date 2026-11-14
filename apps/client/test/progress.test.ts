@@ -353,7 +353,7 @@ describe('progress dashboard data', () => {
 
     const summary = renderSummary(PROGRESS);
     expect(summary).toContain('D-06');
-    expect(summary).toContain('27');
+    expect(summary).toContain('28');
     expect(summary).toContain('Complete');
   });
 
