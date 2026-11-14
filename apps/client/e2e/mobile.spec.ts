@@ -2037,12 +2037,13 @@ test.describe('a finger iOS takes away never leaves the stick held (q11)', () =>
         return m ? m.x - (await heroAt(page)).x : 0;
       })
       .toBeGreaterThan(1);
-    // The old finger moves up again: nothing (the stick stays the new finger's).
+    // The old finger moves up again: nothing (the stick stays the new finger's). An up-steer would put the move's
+    // target STICK_AHEAD tiles above the hero; the new finger's right-steer keeps it on the hero's row.
     const n = (await sent(page, 'move')).length;
     await hand.move(0, from.x, from.y - 80);
     await frames(page, 6);
-    const last = (await sent(page, 'move')).slice(n);
-    for (const m of last) expect((m.x as number) - (await heroAt(page)).x).toBeGreaterThan(0);
+    const heroY = (await heroAt(page)).y;
+    for (const m of (await sent(page, 'move')).slice(n)) expect(Math.abs((m.y as number) - heroY)).toBeLessThan(1);
     // The new finger lifts: the hero stops; the old finger's lift does nothing.
     await hand.lift(1, other.x + 50, other.y);
     await expect.poll(() => sent(page, 'stop').then((s) => s.length)).toBe(1);
