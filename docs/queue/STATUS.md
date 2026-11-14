@@ -22,7 +22,7 @@ is live").
 | q5 | [CrazyGames prep: their build, an audit against their rules, the submission kit](q5-crazygames-prep.md) | autopilot | done | #177 | q3, q4 | After it merges the advisor writes the audit's fix as a new task. |
 | q6 | [A bot teammate in solo](q6-bot-teammate.md) | Han | done | #181 | q5 | Han reviews the balance tables and plays it before merging. |
 
-## Build tasks, continued (13 Nov: the fixes from the CrazyGames audit; 14 Nov: the previews)
+## Build tasks, continued (13 Nov: the fixes from the CrazyGames audit; 14 Nov: the previews, then the fixes from Han's three-device match)
 
 One list with the table above: a session reads both, top to bottom. They are in a table of their own only so that
 adding them did not touch the lines a claimed task's branch is changing.
@@ -33,11 +33,13 @@ adding them did not touch the lines a claimed task's branch is changing.
 | q8 | [Keys CrazyGames allows, and a lesson that shows them](q8-keys-and-lesson.md) | autopilot | done | #187 | q7 | Client only. Merge condition in the file. |
 | q9 | [CrazyGames' previews again: the bot teammate and a combo on screen](q9-previews-with-the-ally.md) | autopilot | done | #189 | q8 | The script, two videos and docs: nothing in the game. Merge condition in the file. |
 | q10 | [Previews, round 2: the hero alive at the end, and the kill count clear of the combo band](q10-previews-round-2.md) | autopilot | done | #191 | q9 | Client HUD (one small change), the script, two videos. Merge condition in the file. |
+| q11 | [iPhone fix: a finger iOS takes away never leaves the stick held](q11-stick-never-stuck.md) | autopilot | todo |  | q10 | Client only. From Han's three-device match of 14 Nov. Merge condition in the file; Han then tries it on the iPhone in Safari. |
+| q12 | [Coming back to a running match: at any time, and by the room code too](q12-come-back-to-a-match.md) | autopilot | todo |  | q11 | Sim, protocol (28), server and client: the merge restarts the game server and every hosted zip is built again. Han confirmed the rule by merging the brief. Merge condition in the file; Han tries it on the live site after the merge. |
 
 ## Han's own steps (the autopilot skips these)
 
 | Task | Title | Merge | Status | PR | Needs | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| h1 | One room across three devices (Pixel, iPhone, laptop): a Quick match to the end |  | han |  |  |  |
+| h1 | One room across three devices (Pixel, iPhone, laptop): a Quick match to the end |  | done |  |  | Played 14 Nov: won. It found q11 (the stuck stick on the iPhone) and q12 (no way back into a running match). |
 | h2 | Render origins, the itch zip, the itch.io Draft and its check |  | han |  |  |  |
-| h3 | Submit to CrazyGames with the kit in docs/crazygames/ |  | han |  |  | After q10 (the previews' round 2) and a fresh zip, with Han's own checks in Edge and Safari. |
+| h3 | Submit to CrazyGames with the kit in docs/crazygames/ |  | han |  |  | After q11 and q12 (the fixes from the three-device match) and a fresh zip, with Han's own checks in Edge and Safari. |
