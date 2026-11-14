@@ -4,8 +4,8 @@
 //   docs/crazygames/preview-landscape-1920x1080.mp4   the desktop layout at 1920 × 1080, the camera zoomed on the action
 //                                                     so the map fills the frame's width (no dark side bands)
 //   docs/crazygames/preview-portrait-1080x1620.mp4    the phone layout (412 × 618 at 2.62×: 1080 × 1620)
-//   docs/crazygames/previews-sheet.jpg                six frames a video (the cover, the build, the wave, the cast, the
-//                                                     fuse, the boss), the landscape row over the portrait row
+//   docs/crazygames/previews-sheet.jpg                seven frames a video (the cover, the build, the wave, the cast, the
+//                                                     fuse, the boss, the last frame), the landscape row over the portrait row
 //
 // Each opens on its cover (docs/crazygames/cover-1920x1080.png, cover-800x1200.png: `npm run press-shots -- --only
 // cg` first) for a second, then four moments at real speed, cut together: the build phase (towers going up), a wave
@@ -251,7 +251,7 @@ function keepAwayJs(safe: number, home: { x: number; y: number }, camera: boolea
         near = true; const k = (r - d) / d; ax += dx * k; ay += dy * k;
       }
       if (near) {
-        // Never more than `safe` + 3 tiles below the boss (the frame holds about 13 rows between them): sideways instead.
+        // Never more than SAFE + 3 tiles below the boss (the frame holds about 13 rows between them): sideways instead.
         let gx = me.x + ax * 0.6; let gy = me.y + ay * 0.6 + 0.5;
         if (b && gy > b.y + ${safe} + 3) { gy = b.y + ${safe} + 3; gx += Math.sign(ax || 1) * 1.5; }
         go(tt, gx, gy);
@@ -375,7 +375,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     let castAt = 0;
     let castIn = 0.4;
     let comboCut: Shot[] = [];
-    while (!combo && tries < 3) {
+    while ((!combo || !castFramed) && tries < 3) {
       tries++;
       await t('window.__tdt.skipTo(4)');
       await frameBoth(10, 90_000);
@@ -555,8 +555,8 @@ function cut0(cuts: Shot[][]): string {
 }
 
 /**
- * The contact sheet for Han's phone: six frames a video in order (the cover, the build, the wave, the cast, the fuse,
- * the boss), each frame's time under it, the landscape row over the portrait row, 2400 px wide.
+ * The contact sheet for Han's phone: seven frames a video in order (the cover, the build, the wave, the cast, the fuse,
+ * the boss, the last frame), each frame's time under it, the landscape row over the portrait row, 2380 px wide.
  */
 function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void {
   const rows: string[] = [];
@@ -566,10 +566,12 @@ function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void
     if (!m) continue;
     const [build, wave, combo] = m.log.cuts as [number, number, number, number];
     const at = 1 + build + wave;
-    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.8, at + combo + 2];
+    const length = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', m.file]).toString().trim());
+    // q10: the video's last frame as a seventh.
+    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.8, at + combo + 2, length - 0.05];
     const tiles = times.map((time, i) => {
       const f = join(work, `${kind}-sheet-${i}.png`);
-      const w = 400;
+      const w = 340;
       const label = `${time.toFixed(1)} s`;
       execFileSync('ffmpeg', [
         '-y', '-loglevel', 'error', '-ss', time.toFixed(2), '-i', m.file, '-frames:v', '1', '-vf',
