@@ -66,6 +66,7 @@ import {
   isDoubleTap,
   isDrag,
   mapPing,
+  lostPointers,
   mapTouchKind,
   pingRelease,
   pinch,
@@ -81,10 +82,13 @@ import {
   smartCast,
   STICK_FEELS,
   stickKnobOffset,
+  resumesStick,
   stickMoveTarget,
+  stickStalled,
   stickVector,
   type StickFeel,
   type StickFeelName,
+  type TouchPhase,
   type Candidate,
   type TapResult,
   type MapTouchKind,
@@ -166,6 +170,13 @@ export class TouchControls {
    * is now (it appears where the drag started and trails the thumb). `base` is null on the fixed joystick.
    */
   private stick: { id: number; vec: StickVec; r: number; base: Pt | null } | null = null;
+  /**
+   * A stick let go because the page went away or stalled (q11, rules 3–5): its pointer and its floating base (null on
+   * the fixed stick). If that pointer moves again it holds the stick again from the same base, with no new press.
+   */
+  private resume: { id: number; base: Pt | null } | null = null;
+  /** The last touch pointer that went down and where, to tell its touchstart's own finger from a lost one (q11). */
+  private freshDown: { id: number; x: number; y: number } | null = null;
   private stickFeel: StickFeel = STICK_FEELS.normal;
   private lastMoveDir: number | null = null;
   private lastMoveAt = 0;
@@ -288,6 +299,29 @@ export class TouchControls {
     canvas.addEventListener('pointerup', (e) => this.onMapUp(e));
     canvas.addEventListener('pointercancel', (e) => this.onMapCancel(e));
     canvas.addEventListener('lostpointercapture', (e) => this.onMapCancel(e));
+    // A control is held only while its finger is on the glass (q11, docs/MOBILE.md §5): iOS can take a finger away
+    // (its bottom-edge gestures, the app switcher) without a pointerup, pointercancel or lostpointercapture, and the
+    // stick then walked the hero on by itself. The touch events' `touches` say which fingers are really down.
+    window.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.pointerType === 'mouse') return;
+        // The first finger on the glass (the browser's primary touch pointer): whatever another pointer still holds is
+        // a finger that is gone (rule 2a). Released here, before the new touch's own handlers run, so it is handled as
+        // usual (a skill, a ring button, the map); the touchstart's `touches` below is the check for any other order.
+        if (e.pointerType === 'touch' && e.isPrimary) this.releasePointers(lostPointers(this.heldPointers(), 'start', 1, null));
+        this.freshDown = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      },
+      { capture: true, passive: true },
+    );
+    window.addEventListener('touchstart', (e) => this.onTouches(e, 'start'), { capture: true, passive: true });
+    window.addEventListener('touchend', (e) => this.onTouches(e, 'end'), { capture: true, passive: true });
+    window.addEventListener('touchcancel', (e) => this.onTouches(e, 'cancel'), { capture: true, passive: true });
+    window.addEventListener('blur', () => this.pageAway());
+    window.addEventListener('pagehide', () => this.pageAway());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.pageAway();
+    });
     // No synthesized click after a map tap: it would land on the radial menu the tap just opened.
     canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
     // Keep popups' touches away from the canvas below.
@@ -392,6 +426,8 @@ export class TouchControls {
     // A frame long after the last one follows a stall: holds wait for the next frame, by when a queued lift has run.
     const gap = this.lastFrame > 0 ? now - this.lastFrame : 0;
     this.lastFrame = now;
+    // A frame after a stopped page (q11, rule 4): the stick's finger may be gone; the same thumb takes it back by moving.
+    if (stickStalled(this.stick !== null, gap)) this.letGoStick();
     if (this.active && hero) this.updateSkills(hero, snap!.tickRate);
     this.driveStick(hero, now);
     this.updateHold(now, gap);
@@ -408,7 +444,11 @@ export class TouchControls {
 
   private onStickDown(e: PointerEvent): void {
     e.preventDefault();
-    if (this.stick || this.layout?.controls?.floating) return;
+    if (this.layout?.controls?.floating) return;
+    // A new press takes the stick even while another pointer holds it (q11, rule 2b): that one may be a lost finger.
+    // The old pointer does nothing more (its moves and lift no longer match the stick's id).
+    if (this.stick?.id === e.pointerId) return;
+    this.resume = null;
     this.joy.setPointerCapture?.(e.pointerId);
     this.stick = { id: e.pointerId, vec: { dx: 0, dy: 0, mag: 0 }, r: this.layout?.controls?.joystick.r ?? 50, base: null };
     this.lastMoveDir = null;
@@ -417,6 +457,7 @@ export class TouchControls {
   }
 
   private onStickMove(e: PointerEvent): void {
+    if (!this.stick && resumesStick(this.resume, e.pointerId)) return this.retakeStick(e);
     if (!this.stick || e.pointerId !== this.stick.id || this.stick.base) return;
     const r = this.joy.getBoundingClientRect();
     const radius = r.width / 2;
@@ -430,6 +471,7 @@ export class TouchControls {
   }
 
   private onStickUp(e: PointerEvent): void {
+    if (this.resume?.id === e.pointerId) this.resume = null;
     if (!this.stick || e.pointerId !== this.stick.id || this.stick.base) return;
     this.releaseStick(true);
   }
@@ -449,6 +491,10 @@ export class TouchControls {
       // The pointer is already gone; its pointerup ends the stick.
     }
     const { base, vec } = floatStick(t.client, { x: e.clientX, y: e.clientY }, FLOAT_R);
+    // The newest finger takes the stick (q11, rule 2b): a pointer that held it does nothing more until it lifts.
+    const old = this.stick;
+    if (old && old.id !== e.pointerId) this.spent.add(old.id);
+    this.resume = null;
     this.stick = { id: e.pointerId, vec, r: FLOAT_R, base };
     this.lastMoveDir = null;
     this.joy.classList.add('held');
@@ -486,6 +532,109 @@ export class TouchControls {
     // The floating base goes back to its resting place.
     const rest = this.layout?.controls?.joystick;
     if (was?.base && rest) this.putJoy(rest.x, rest.y, rest.r);
+  }
+
+  /**
+   * The page went away (q11, rule 3: hidden, pagehide, the window's blur): the stick and every aim end. The stick
+   * remembers its pointer, so a thumb that is still there takes it back by moving (rule 5).
+   */
+  private pageAway(): void {
+    this.letGoStick();
+    if (this.press) this.cancelPress();
+  }
+
+  /** The stick lets go with `stop`, remembering its pointer and base for the same thumb (q11, rules 3–5). */
+  private letGoStick(): void {
+    const s = this.stick;
+    if (!s) return;
+    this.resume = { id: s.id, base: s.base ? { ...s.base } : null };
+    this.releaseStick(true);
+  }
+
+  /** The remembered pointer moved again: it holds the stick again from the same base (q11, rule 5). */
+  private retakeStick(e: PointerEvent): void {
+    const r = this.resume;
+    const c = this.layout?.controls;
+    this.resume = null;
+    if (!r || this.stick || !c || (r.base !== null) !== c.floating) return;
+    this.lastMoveDir = null;
+    this.joy.classList.add('held');
+    if (r.base) {
+      const { base, vec } = floatStick(r.base, { x: e.clientX, y: e.clientY }, FLOAT_R);
+      this.stick = { id: e.pointerId, vec, r: FLOAT_R, base };
+      this.drawFloat();
+      this.driveStick(this.myHero(this.actions.latest()), performance.now());
+      return;
+    }
+    this.stick = { id: e.pointerId, vec: { dx: 0, dy: 0, mag: 0 }, r: c.joystick.r, base: null };
+    this.onStickMove(e);
+  }
+
+  /** A touch event: what a finger no longer on the glass held ends as a cancel (q11, rules 1 and 2a). */
+  private onTouches(e: TouchEvent, phase: TouchPhase): void {
+    let fresh: number | null = null;
+    if (phase === 'start') {
+      // The pointer that went down for this touch (its pointerdown usually comes first) keeps what it took.
+      const d = this.freshDown;
+      const own = d && Array.from(e.changedTouches).some((t) => Math.abs(t.clientX - d.x) <= 1 && Math.abs(t.clientY - d.y) <= 1);
+      fresh = own ? d!.id : null;
+    }
+    const ids = lostPointers(this.heldPointers(), phase, e.touches.length, fresh);
+    if (ids.length === 0) return;
+    if (phase === 'start') return this.releasePointers(ids);
+    // A lift: its own pointerup may still be on its way after this event; it ends what it held as usual first.
+    setTimeout(() => this.releasePointers(ids), 0);
+  }
+
+  /** Every pointer something is held by: the stick (and the one it remembers), a skill, a ring button, the map, a pinch. */
+  private heldPointers(): number[] {
+    const ids = new Set<number>(this.spent);
+    if (this.stick) ids.add(this.stick.id);
+    if (this.resume) ids.add(this.resume.id);
+    if (this.press) ids.add(this.press.id);
+    if (this.buildHold) ids.add(this.buildHold.id);
+    if (this.sellHold) ids.add(this.sellHold.id);
+    if (this.mapTouch) ids.add(this.mapTouch.id);
+    for (const id of this.pinchTouch?.ids ?? []) ids.add(id);
+    return [...ids];
+  }
+
+  /**
+   * Ends what these pointers hold as a cancel ends it: no cast, no build, no sale, no tap and no ping; a stick that was
+   * steering sends `stop`. Their pointers are forgotten (a lift that comes after all does nothing).
+   */
+  private releasePointers(ids: readonly number[]): void {
+    const gone = new Set(ids);
+    if (this.stick && gone.has(this.stick.id)) this.releaseStick(true);
+    if (this.resume && gone.has(this.resume.id)) this.resume = null;
+    if (this.press && gone.has(this.press.id)) this.cancelPress();
+    if (this.buildHold && gone.has(this.buildHold.id)) {
+      this.buildHold = null;
+      this.ui.preview = null;
+    }
+    const sell = this.sellHold;
+    if (sell && gone.has(sell.id)) {
+      this.sellHold = null;
+      sell.button.classList.remove('holding');
+      sell.button.style.setProperty('--hold', '0deg');
+    }
+    if (this.mapTouch && gone.has(this.mapTouch.id)) this.cancelMap();
+    const p = this.pinchTouch;
+    if (p && p.ids.some((id) => gone.has(id))) {
+      this.pinchTouch = null;
+      for (const id of p.ids) if (!gone.has(id)) this.spent.add(id);
+      this.actions.pinchEnd();
+    }
+    for (const id of gone) this.spent.delete(id);
+  }
+
+  /** A skill press ends with no cast: its aim and its cancel mark go. */
+  private cancelPress(): void {
+    const p = this.press;
+    if (!p) return;
+    this.press = null;
+    this.ui.aim = null;
+    p.button.classList.remove('cancel');
   }
 
   /** The joystick is held (the hero is being steered). */
@@ -739,16 +888,19 @@ export class TouchControls {
     if (this.spent.has(e.pointerId)) return;
     if (this.pinchTouch?.pts.has(e.pointerId)) return this.onPinchMove(e);
     if (this.stick?.base && e.pointerId === this.stick.id) return this.onFloatMove(e);
+    if (resumesStick(this.resume, e.pointerId)) return this.retakeStick(e);
     const t = this.mapTouch;
     if (!t || e.pointerId !== t.id) return;
     t.now = this.screenPt(e);
     // Distance, not time, decides: past the tap slop the touch is the floating stick (or, with a fixed stick, a
-    // drag that does nothing). Either way it never selects, pings or presses a button it passes over.
-    t.kind = mapTouchKind(t.start, t.now, t.kind, !!this.layout?.controls?.floating, this.stick === null);
+    // drag that does nothing). Either way it never selects, pings or presses a button it passes over. The newest
+    // drag takes the stick from another pointer (q11): that one may be a finger iOS took away.
+    t.kind = mapTouchKind(t.start, t.now, t.kind, !!this.layout?.controls?.floating);
     if (t.kind === 'stick') this.startFloat(e, t);
   }
 
   private onMapUp(e: PointerEvent): void {
+    if (this.resume?.id === e.pointerId) this.resume = null;
     if (this.spent.delete(e.pointerId)) return;
     if (this.pinchTouch?.pts.has(e.pointerId)) return this.endPinch(e.pointerId);
     if (this.stick?.base && e.pointerId === this.stick.id) return this.releaseStick(true);
@@ -762,6 +914,7 @@ export class TouchControls {
   }
 
   private onMapCancel(e: PointerEvent): void {
+    if (this.resume?.id === e.pointerId) this.resume = null;
     if (this.spent.delete(e.pointerId)) return;
     if (this.pinchTouch?.pts.has(e.pointerId)) return this.endPinch(e.pointerId);
     if (this.stick?.base && e.pointerId === this.stick.id) this.releaseStick(true);

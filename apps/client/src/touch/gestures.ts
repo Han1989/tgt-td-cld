@@ -154,12 +154,13 @@ export function floatStick(base: Pt, finger: Pt, radius: number = FLOAT_R): { ba
  * What a touch on the map is, as it moves. It stays a `press` (a tap, or a ping once held still) until it moves past
  * the tap slop; then, with the floating stick, it becomes the `stick` (its base where the touch started), and with a
  * fixed stick a `drag` that does nothing. Distance decides, never time, so a late frame cannot turn a drag into a tap.
- * `stickFree` is false while another finger already steers.
+ * The newest finger takes the stick (q11): a drag becomes the stick even while another pointer holds it, since that
+ * pointer may be a finger iOS took away and will never lift.
  */
-export function mapTouchKind(start: Pt, now: Pt, was: MapTouchKind, floating: boolean, stickFree: boolean): MapTouchKind {
+export function mapTouchKind(start: Pt, now: Pt, was: MapTouchKind, floating: boolean): MapTouchKind {
   if (was !== 'press') return was;
   if (!isDrag(start, now)) return 'press';
-  return floating && stickFree ? 'stick' : 'drag';
+  return floating ? 'stick' : 'drag';
 }
 export type MapTouchKind = 'press' | 'stick' | 'drag';
 
@@ -526,4 +527,39 @@ export function radialSpots(n: number, r: number, startDeg = -90): Pt[] {
     const a = ((startDeg + (i * 360) / n) * Math.PI) / 180;
     return { x: Math.cos(a) * r, y: Math.sin(a) * r };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Lost fingers (q11): a control is held only while its finger is on the glass
+// ---------------------------------------------------------------------------
+
+/** A frame this long after the one before (ms) follows a stopped page: a held stick lets go. */
+export const STALL_RELEASE_MS = 1000;
+
+export type TouchPhase = 'start' | 'end' | 'cancel';
+
+/**
+ * Which held pointers to end as a cancel, on a touch event that leaves `touchesLeft` fingers on the glass (its
+ * `touches.length`). No finger left: every held pointer is gone (its lift never reached the page). A touch that starts
+ * as the only one on the glass: everything held by another pointer is gone too; `fresh` is the pointer that just went
+ * down for it (its pointerdown came first), which keeps what it holds, or null when its pointerdown is still to come.
+ */
+export function lostPointers(held: readonly number[], phase: TouchPhase, touchesLeft: number, fresh: number | null): number[] {
+  if (touchesLeft <= 0) return [...held];
+  if (phase === 'start' && touchesLeft === 1) return held.filter((id) => id !== fresh);
+  return [];
+}
+
+/** A held stick lets go on a frame that comes more than `STALL_RELEASE_MS` after the one before (the page stopped). */
+export function stickStalled(held: boolean, frameGapMs: number): boolean {
+  return held && frameGapMs > STALL_RELEASE_MS;
+}
+
+/**
+ * A stick let go by the page going away or stalling remembers its pointer, so the same thumb takes it back by moving.
+ * It is forgotten when that pointer lifts or is cancelled, when another finger takes the stick, or when no finger is
+ * left on the glass.
+ */
+export function resumesStick(remembered: { id: number } | null, pointerId: number): boolean {
+  return remembered !== null && remembered.id === pointerId;
 }

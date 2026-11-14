@@ -1008,6 +1008,15 @@ const items: ProgressItem[] = [
     proof: pr(191),
   },
   {
+    id: 'D-20',
+    title: 'iPhone fix: a lost finger never leaves the hero walking',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only. On the iPhone in Safari, iOS can take a thumb away at the bottom of the page without telling the page, and the stick then walked the hero into a corner. Now a control is held only while its finger is on the glass: the next touch stops the hero, the newest drag takes the stick, and leaving the page (or a page that stopped for a second) stops it too; a thumb still on the glass takes the stick back by moving.',
+    proof: pr(193),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

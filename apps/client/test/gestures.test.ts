@@ -20,7 +20,11 @@ import {
   isDoubleTap,
   isDrag,
   mapPing,
+  lostPointers,
   mapTouchKind,
+  resumesStick,
+  STALL_RELEASE_MS,
+  stickStalled,
   PING_HOLD_MS,
   pingRelease,
   pinch,
@@ -403,18 +407,18 @@ describe('floating stick', () => {
   const start = { x: 200, y: 600 };
 
   it('a touch that does not move stays a press; past the tap slop it becomes the stick, by distance, never by time', () => {
-    expect(mapTouchKind(start, { x: 204, y: 603 }, 'press', true, true)).toBe('press');
-    expect(mapTouchKind(start, { x: start.x + TAP_SLOP + 1, y: start.y }, 'press', true, true)).toBe('stick');
+    expect(mapTouchKind(start, { x: 204, y: 603 }, 'press', true)).toBe('press');
+    expect(mapTouchKind(start, { x: start.x + TAP_SLOP + 1, y: start.y }, 'press', true)).toBe('stick');
     // Once the stick, always the stick, even back where it started.
-    expect(mapTouchKind(start, start, 'stick', true, true)).toBe('stick');
+    expect(mapTouchKind(start, start, 'stick', true)).toBe('stick');
     // A fixed-stick layout: a drag on the map does nothing (and never taps or pings).
-    expect(mapTouchKind(start, { x: 260, y: 600 }, 'press', false, true)).toBe('drag');
-    expect(mapTouchKind(start, start, 'drag', false, true)).toBe('drag');
+    expect(mapTouchKind(start, { x: 260, y: 600 }, 'press', false)).toBe('drag');
+    expect(mapTouchKind(start, start, 'drag', false)).toBe('drag');
   });
 
-  it('two fingers: while one steers, a second finger on the map can tap but not start another stick', () => {
-    expect(mapTouchKind(start, { x: 202, y: 601 }, 'press', true, false)).toBe('press');
-    expect(mapTouchKind(start, { x: 260, y: 600 }, 'press', true, false)).toBe('drag');
+  it('two fingers: a second finger still taps while one steers, and its drag takes the stick (q11: the newest finger)', () => {
+    expect(mapTouchKind(start, { x: 202, y: 601 }, 'press', true)).toBe('press');
+    expect(mapTouchKind(start, { x: 260, y: 600 }, 'press', true)).toBe('stick');
   });
 
   it('the base appears where the touch started and walks towards the drag', () => {
@@ -539,5 +543,38 @@ describe('pinch zoom and the double-tap back (phones, V-07e)', () => {
     expect(isDoubleTap(first, { at: 1100, p: { x: 200 + DOUBLE_TAP_PX + 1, y: 300 } })).toBe(false);
     // Out of order (a stamp from before the last tap) is not one.
     expect(isDoubleTap(first, { at: 900, p: first.p })).toBe(false);
+  });
+});
+
+describe('lost fingers (q11): a control is held only while its finger is on the glass', () => {
+  it('no finger left on the glass: every held pointer ends, whatever the event', () => {
+    for (const phase of ['start', 'end', 'cancel'] as const) expect(lostPointers([3, 7], phase, 0, null)).toEqual([3, 7]);
+    expect(lostPointers([], 'end', 0, null)).toEqual([]);
+  });
+
+  it('a touch that starts alone frees whatever another pointer holds, and keeps what its own pointer took', () => {
+    // Its pointerdown came first and holds the new map touch (9); the stick's lost finger (3) is let go.
+    expect(lostPointers([3, 9], 'start', 1, 9)).toEqual([3]);
+    // Its pointerdown is still to come: everything held is another pointer's.
+    expect(lostPointers([3], 'start', 1, null)).toEqual([3]);
+  });
+
+  it('with another finger still on the glass, nothing is released by the touch events (the newest drag takes the stick)', () => {
+    expect(lostPointers([3, 9], 'start', 2, 9)).toEqual([]);
+    expect(lostPointers([3], 'end', 1, null)).toEqual([]);
+    expect(lostPointers([3], 'cancel', 1, null)).toEqual([]);
+  });
+
+  it('a frame more than a second after the last lets a held stick go; a still thumb on a running page never', () => {
+    expect(stickStalled(true, STALL_RELEASE_MS + 1)).toBe(true);
+    expect(stickStalled(true, STALL_RELEASE_MS)).toBe(false);
+    expect(stickStalled(true, 16)).toBe(false);
+    expect(stickStalled(false, 5000)).toBe(false);
+  });
+
+  it('a stick let go by a pagehide or a stall is taken back only by the same pointer', () => {
+    expect(resumesStick({ id: 4 }, 4)).toBe(true);
+    expect(resumesStick({ id: 4 }, 5)).toBe(false);
+    expect(resumesStick(null, 4)).toBe(false);
   });
 });
