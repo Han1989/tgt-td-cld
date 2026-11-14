@@ -490,6 +490,15 @@ test('coming back to a running match (q12): a reload, a second tab ("Rejoin your
 
     // (b) The tab is closed; another tab of the same browser offers "Rejoin your match" with the room's code, and one
     // tap returns to the seat.
+    // Every toast the host's page shows, recorded as it appears (a toast fades after a few seconds, so a slow runner
+    // can miss a live one).
+    await host.evaluate(() => {
+      const w = window as unknown as { __toastLog: string[] };
+      w.__toastLog = [];
+      new MutationObserver((records) => {
+        for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement) w.__toastLog.push(n.textContent ?? '');
+      }).observe(document.getElementById('toasts')!, { childList: true });
+    });
     await tab1.close();
     const seatConnected = () => host.evaluate(() => (window.__tdt.latest()!.players[1] as { connected?: boolean }).connected);
     await expect.poll(seatConnected, { timeout: 15_000 }).toBe(false);
@@ -503,7 +512,9 @@ test('coming back to a running match (q12): a reload, a second tab ("Rejoin your
     await expect.poll(() => me(tab2), { timeout: 30_000 }).toBe('p2');
     await expect.poll(seatConnected, { timeout: 15_000 }).toBe(true);
     // The host is told.
-    await expect(host.locator('#toasts .toast').filter({ hasText: 'Bo is back' }).first()).toBeAttached({ timeout: 10_000 });
+    await expect
+      .poll(() => host.evaluate(() => (window as unknown as { __toastLog: string[] }).__toastLog), { timeout: 10_000 })
+      .toContain('Bo is back');
 
     // (c) That browser goes; a fresh one (another device) types the room code with the same nickname and takes the
     // seat at once: the same player, the same hero.
