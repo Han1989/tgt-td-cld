@@ -249,9 +249,10 @@ export function applyCommand(state: GameState, playerId: PlayerId, command: Comm
 }
 
 /**
- * Host-side hook, not a player command: the player is gone for good (they left, or their rejoin
- * window ran out). Their towers keep firing and stay theirs; their pads open to every teammate, so
- * anyone can build on the empty ones.
+ * Host-side hook, not a player command: the player has been away past the host's window, or left on purpose. Their
+ * towers keep firing and stay theirs; their pads open to every teammate, so anyone can build on the empty ones.
+ * `left` records that the pads opened. Since protocol 28 (q12) the player may come back (`setPlayerConnected`): their
+ * hero, gold and towers are theirs again, and the pads that opened stay open to all (they may build on any open pad).
  */
 export function setPlayerLeft(state: GameState, playerId: PlayerId): void {
   const player = state.players.find((p) => p.id === playerId);

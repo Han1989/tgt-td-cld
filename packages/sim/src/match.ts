@@ -32,7 +32,11 @@ import { skillInfo } from './skills';
 import type { GameConfig, GameState } from './state';
 import { TICK_RATE, type Tuning } from './tuning';
 
-/** What happens to a player's connection: back (rejoined), dropped, or gone for good. */
+/**
+ * What happens to a player's connection: back (`join`), dropped (`drop`), or away long enough (or left on purpose) that
+ * their empty pads open to the team (`leave`). Since protocol 28 (q12) a `join` may follow a `leave`: the seat is the
+ * player's until the match ends, and their pads stay open (`setPlayerLeft`).
+ */
 export type Presence = 'join' | 'drop' | 'leave';
 
 /** Re-exported so hosts that already import the window from the sim keep working. Defined in the protocol. */
@@ -176,12 +180,24 @@ function noteEconomy(track: HeroTrack, cmd: Command, spent: number): void {
   }
 }
 
-/** A player reconnected (`join`), dropped (`drop`) or left for good (`leave`); logged for the replay. */
+/** A player reconnected (`join`), dropped (`drop`) or was away long enough that their pads opened (`leave`); logged. */
 export function matchPresence(match: Match, playerId: PlayerId, presence: Presence): void {
   const index = match.state.players.findIndex((p) => p.id === playerId);
   if (index < 0 || matchOver(match)) return;
   match.log.push([match.state.tick, index, presence]);
   applyPresence(match.state, playerId, presence);
+}
+
+/**
+ * The seat is played under another nickname from now on (protocol 28, q12: a seat taken by the room code), logged for
+ * the replay as `[tick, index, 'name', name]`. Only the name changes: the hero, its level, the gold and the towers stay.
+ */
+export function matchRename(match: Match, playerId: PlayerId, name: string): void {
+  const index = match.state.players.findIndex((p) => p.id === playerId);
+  const player = match.state.players[index];
+  if (!player || matchOver(match) || player.name === name) return;
+  match.log.push([match.state.tick, index, 'name', name]);
+  player.name = name;
 }
 
 function applyPresence(state: GameState, playerId: PlayerId, presence: Presence): void {
@@ -460,6 +476,9 @@ export function* replaySteps(
     if (!player) throw new Error(`Replay log names player ${index}, the match has ${replay.players.length}`);
     if (what === 'join' || what === 'drop' || what === 'leave') {
       matchPresence(match, player.id, what);
+    } else if (what === 'name') {
+      if (typeof args[0] !== 'string') throw new Error(`Malformed name entry in the replay log at tick ${tick}`);
+      matchRename(match, player.id, args[0]);
     } else {
       const cmd = decodeReplayCommand([what, ...args]);
       if (!cmd) throw new Error(`Malformed command in the replay log at tick ${tick}: ${JSON.stringify([what, ...args])}`);

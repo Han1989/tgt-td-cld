@@ -10,6 +10,7 @@ import {
   matchCommand,
   matchOver,
   matchPresence,
+  matchRename,
   matchReplay,
   matchReport,
   matchStep,
@@ -60,6 +61,45 @@ describe('match reports and replays', () => {
     expect(again.state.tick).toBe(replay.end.tick);
     expect(again.state.phase).toBe(replay.end.result);
     expect(again.state.heartHp).toBe(replay.end.heartHp);
+    expect(matchReport(again)).toEqual(matchReport(match));
+  }, 30_000);
+
+  it('a seat whose pads opened comes back and a seat taken under another nickname re-run the same (q12)', () => {
+    // p2 drops, its pads open after the window, then it comes back; p3 drops, its pads open, and the seat is taken by
+    // the room code under another nickname.
+    const match = botMatch(['ranger', 'warden', 'arcanist'], 11, 'quick', (m) => {
+      const t = m.state.tick;
+      if (t === 1500) matchPresence(m, 'p2', 'drop');
+      if (t === 2700) matchPresence(m, 'p2', 'leave');
+      if (t === 3500) matchPresence(m, 'p2', 'join');
+      if (t === 4000) matchPresence(m, 'p3', 'drop');
+      if (t === 5200) matchPresence(m, 'p3', 'leave');
+      if (t === 6000) {
+        matchRename(m, 'p3', 'Cy');
+        matchPresence(m, 'p3', 'join');
+      }
+    });
+    expect(matchOver(match)).toBe(true);
+    expect(match.state.players.map((p) => [p.name, p.connected])).toEqual([
+      ['Bot 1', true],
+      ['Bot 2', true],
+      ['Cy', true],
+    ]);
+    const replay: Replay = JSON.parse(JSON.stringify(matchReplay(match)));
+    expect(replay.log.filter((e) => ['join', 'drop', 'leave', 'name'].includes(e[2]))).toEqual([
+      [1500, 1, 'drop'],
+      [2700, 1, 'leave'],
+      [3500, 1, 'join'],
+      [4000, 2, 'drop'],
+      [5200, 2, 'leave'],
+      [6000, 2, 'name', 'Cy'],
+      [6000, 2, 'join'],
+    ]);
+    expect(replayProblem(replay)).toBeNull();
+    const again = replayMatch(replay);
+    expect(again.state.tick).toBe(replay.end.tick);
+    expect(again.state.heartHp).toBe(replay.end.heartHp);
+    expect(again.state.players.map((p) => p.name)).toEqual(['Bot 1', 'Bot 2', 'Cy']);
     expect(matchReport(again)).toEqual(matchReport(match));
   }, 30_000);
 

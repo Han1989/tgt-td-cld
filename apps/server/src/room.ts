@@ -24,6 +24,7 @@ import {
   createMatch,
   matchCommand,
   matchPresence,
+  matchRename,
   matchReplay,
   matchReport,
   matchStep,
@@ -55,8 +56,15 @@ export interface Member {
   token: string;
   socket: ClientSocket | null;
   disconnectedAt: number | null;
-  /** Gone for good: left explicitly or missed the reconnect window. */
+  /**
+   * Gone for good: left the lobby (or a finished match), or away past the reconnect window outside a match. During a
+   * running match a seat is never `left` (protocol 28, q12): it is its player's until the match ends.
+   */
   left: boolean;
+  /** Away past the reconnect window (or left) during the match: the player's empty pads opened to the team. */
+  padsOpen: boolean;
+  /** Left the running match on purpose (a `leave`): any nickname may take the seat by the room code at once. */
+  freed: boolean;
   /** Next broadcast must be a full snapshot (just joined or reconnected). */
   needsKeyframe: boolean;
   /** Last accepted ping and emote (ms). The server drops anything sooner. */
@@ -66,6 +74,31 @@ export interface Member {
 /** WebSocket close code 1012: "service restart". */
 export const CLOSE_SERVICE_RESTART = 1012;
 export const CLOSE_NORMAL = 1000;
+
+/** Nicknames match a seat's without case or outer spaces (q12: a join by code with the away player's nickname). */
+export function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * The seat a join by the room code takes in a running match (protocol 28, q12), or why none: a seat whose player is
+ * away, with the joiner's nickname at once; otherwise one away for `windowMs` or more (or left on purpose), the one
+ * away longest first. A connected seat is never taken.
+ */
+export function seatToTake(
+  members: readonly Member[],
+  name: string,
+  now: number,
+  windowMs: number,
+): Member | 'match_full' | 'seat_recent' {
+  const away = members.filter((m) => !m.left && m.socket === null);
+  if (away.length === 0) return 'match_full';
+  const since = (m: Member) => (m.freed ? -Infinity : (m.disconnectedAt ?? now));
+  const order = [...away].sort((a, b) => since(a) - since(b));
+  return order.find((m) => sameName(m.name, name)) ?? order.find((m) => now - since(m) >= windowMs) ?? 'seat_recent';
+}
+
+const newToken = () => randomBytes(16).toString('hex');
 
 export class Room {
   readonly members: Member[] = [];
@@ -86,6 +119,8 @@ export class Room {
   bytesOut = 0;
 
   private queue: { playerId: PlayerId; cmd: Command }[] = [];
+  /** Tokens of seats taken by the room code (q12): a page that still holds one hears `seat_taken`. */
+  private readonly takenTokens = new Set<string>();
   private emptySince: number | null;
 
   constructor(
@@ -120,8 +155,8 @@ export class Room {
   // Membership
   // -------------------------------------------------------------------------
 
-  join(name: string, hero: HeroKind, socket: ClientSocket): Member | ErrorCode {
-    if (this.phase === 'playing') return 'match_in_progress';
+  join(name: string, hero: HeroKind, socket: ClientSocket, now: number): Member | ErrorCode {
+    if (this.phase === 'playing') return this.matchOver ? 'match_in_progress' : this.takeSeat(name, socket, now);
     if (this.activeMembers.length >= MAX_PLAYERS) return 'room_full';
     let slot = 1;
     while (this.activeMembers.some((m) => m.id === `p${slot}`)) slot++;
@@ -131,10 +166,12 @@ export class Room {
       hero,
       ready: false,
       art: 0,
-      token: randomBytes(16).toString('hex'),
+      token: newToken(),
       socket,
       disconnectedAt: null,
       left: false,
+      padsOpen: false,
+      freed: false,
       needsKeyframe: true,
       social: freshSocialClock(),
     };
@@ -146,12 +183,35 @@ export class Room {
     return member;
   }
 
+  /** Back to the seat with its token, at any time until the match ends (protocol 28: not only within the window). */
   rejoin(token: string, socket: ClientSocket): Member | ErrorCode {
+    if (this.takenTokens.has(token)) return 'seat_taken';
     const member = this.members.find((m) => m.token === token && !m.left);
     if (!member) return 'rejoin_failed';
+    return this.seat(member, socket);
+  }
+
+  /**
+   * A join by the room code into a running match (protocol 28, q12): takes a seat whose player is away (`seatToTake`),
+   * with its hero, level, gold and towers, under the joiner's nickname. The seat gets a new token; the old one answers
+   * `seat_taken` from now on.
+   */
+  private takeSeat(name: string, socket: ClientSocket, now: number): Member | ErrorCode {
+    const seat = seatToTake(this.members, name, now, this.config.reconnectWindowMs);
+    if (typeof seat === 'string') return seat;
+    if (!seat.freed) this.takenTokens.add(seat.token);
+    seat.token = newToken();
+    if (this.match) matchRename(this.match, seat.id, name);
+    seat.name = name;
+    return this.seat(seat, socket);
+  }
+
+  /** Puts a connection in a seat (a rejoin, or a seat taken by code) and brings it up to date. */
+  private seat(member: Member, socket: ClientSocket): Member {
     member.socket?.close(CLOSE_NORMAL, 'Replaced by a new connection');
     member.socket = socket;
     member.disconnectedAt = null;
+    member.freed = false;
     member.needsKeyframe = true;
     this.emptySince = null;
     if (this.match) matchPresence(this.match, member.id, 'join');
@@ -165,7 +225,10 @@ export class Room {
     return member;
   }
 
-  /** The member's connection dropped; their seat is kept for the reconnect window. */
+  /**
+   * The member's connection dropped. In the lobby their seat is kept for the reconnect window; in a match it is theirs
+   * until the match ends, and their pads open after the window (`tick`).
+   */
   disconnect(member: Member, now: number): void {
     if (member.socket === null) return;
     member.socket = null;
@@ -178,21 +241,36 @@ export class Room {
   }
 
   /**
-   * The member is gone for good. If a match is running their towers keep firing and stay theirs, and
-   * their pads open to every teammate.
+   * The member leaves. In a running match (protocol 28, q12) the seat stays in the match, free for a join by the room
+   * code at once: its empty pads open now, its towers keep firing and stay the seat's, and its token stops working.
+   * Otherwise the member is gone for good (removed in the lobby).
    */
   leave(member: Member, now: number): void {
     if (member.left) return;
     const socket = member.socket;
     member.socket = null;
-    member.left = true;
     member.disconnectedAt ??= now;
-    if (this.match) matchPresence(this.match, member.id, 'leave');
-    if (this.phase === 'lobby') this.members.splice(this.members.indexOf(member), 1);
+    if (this.phase === 'playing' && !this.matchOver) {
+      member.freed = true;
+      member.ready = false;
+      member.token = newToken();
+      this.openPads(member);
+    } else {
+      member.left = true;
+      if (this.match) matchPresence(this.match, member.id, 'leave');
+      if (this.phase === 'lobby') this.members.splice(this.members.indexOf(member), 1);
+    }
     socket?.close(CLOSE_NORMAL, 'Left the room');
     if (this.connectedCount === 0) this.emptySince ??= now;
     this.migrateHost();
     this.broadcastLobby();
+  }
+
+  /** The member's empty pads open to the team, once (away past the window, or left, during a match). */
+  private openPads(member: Member): void {
+    if (member.padsOpen) return;
+    member.padsOpen = true;
+    if (this.match) matchPresence(this.match, member.id, 'leave');
   }
 
   private isActive(id: PlayerId): boolean {
@@ -293,8 +371,11 @@ export class Room {
     this.queue = [];
     for (let i = this.members.length - 1; i >= 0; i--) {
       const m = this.members[i]!;
-      if (m.left) this.members.splice(i, 1);
-      else m.ready = false;
+      if (m.left || m.freed) this.members.splice(i, 1);
+      else {
+        m.ready = false;
+        m.padsOpen = false;
+      }
     }
     this.migrateHost();
     this.broadcastLobby();
@@ -306,9 +387,12 @@ export class Room {
 
   /** Called at the server tick rate. Returns true if the sim advanced. */
   tick(now: number, measure: () => number): boolean {
-    for (const m of this.members) {
+    // The reconnect window: in a match it is when the pads open (the seat stays the player's until the match ends);
+    // in the lobby, when the seat is given up.
+    for (const m of [...this.members]) {
       if (!m.left && m.socket === null && m.disconnectedAt !== null && now - m.disconnectedAt >= this.config.reconnectWindowMs) {
-        this.leave(m, now);
+        if (this.phase === 'playing') this.openPads(m);
+        else this.leave(m, now);
       }
     }
     const match = this.match;

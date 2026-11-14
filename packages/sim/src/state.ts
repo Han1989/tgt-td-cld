@@ -50,7 +50,7 @@ export interface PlayerState {
   kills: number;
   /** Set by the host; a disconnected player's hero walks back to the Heart. */
   connected: boolean;
-  /** Set by the host once the player is gone for good (their empty pads open to everyone). */
+  /** Set by the host once the player was away past its window or left (their empty pads opened to everyone; they stay open if the player comes back, protocol 28). */
   left: boolean;
 }
 

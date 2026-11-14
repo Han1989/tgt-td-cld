@@ -113,4 +113,28 @@ describe('leavers', () => {
     // p1's own pads stay p1's.
     expect(state.pads.filter((p) => p.owner === 'p1').length).toBe(base.length / 2);
   });
+
+  it('a player whose pads opened comes back (q12): their hero, gold and towers are theirs, the opened pads stay open', () => {
+    const state = game(2);
+    for (const p of state.players) p.gold = 1_000;
+    const theirs = state.pads.filter((p) => p.owner === 'p2');
+    expect(applyCommand(state, 'p2', { type: 'build', padId: theirs[0]!.id, tower: 'arrow' })).toBe(true);
+    const tower = state.towers[0]!;
+    setPlayerConnected(state, 'p2', false);
+    setPlayerLeft(state, 'p2');
+    const gold = state.players[1]!.gold;
+
+    setPlayerConnected(state, 'p2', true);
+    expect(state.players[1]).toMatchObject({ connected: true, gold, heroId: state.heroes[1]!.id });
+    // Their tower: they upgrade it as before; nobody else may.
+    expect(applyCommand(state, 'p1', { type: 'upgrade', towerId: tower.id })).toBe(false);
+    expect(applyCommand(state, 'p2', { type: 'upgrade', towerId: tower.id })).toBe(true);
+    // The pads that opened stay open to all: both may build there, and p2 also on any other open pad.
+    expect(state.pads.filter((p) => theirs.some((t) => t.id === p.id)).every((p) => p.owner === null)).toBe(true);
+    expect(applyCommand(state, 'p2', { type: 'build', padId: theirs[1]!.id, tower: 'arrow' })).toBe(true);
+    expect(applyCommand(state, 'p1', { type: 'build', padId: theirs[2]!.id, tower: 'arrow' })).toBe(true);
+    // p1's own pads stay p1's.
+    const mine = state.pads.find((p) => p.owner === 'p1')!;
+    expect(applyCommand(state, 'p2', { type: 'build', padId: mine.id, tower: 'arrow' })).toBe(false);
+  });
 });

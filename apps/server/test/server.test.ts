@@ -82,8 +82,10 @@ describe('lobby', () => {
     expect(guest.lobby!.phase).toBe('playing');
     expect(guest.snap!.players.map((p) => p.name)).toEqual(['Ada', 'Bo']);
 
+    // Everyone is in the match: a join by the room code is refused in a player's words (protocol 28).
     const late = bot(url, 'Late');
-    await expect(late.join(code)).rejects.toThrow(/match_in_progress/);
+    await expect(late.join(code)).rejects.toThrow(/match_full/);
+    expect(late.errors[0]).toMatchObject({ message: 'That match is full: all its players are in it.' });
   });
 
   it('a player still loading the art (protocol 25) is never Ready, and holds the start; the host too', async () => {
@@ -375,6 +377,135 @@ describe('reconnect', () => {
     back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code: guest!.code!, token: guest!.token! });
     await back.waitFor(() => back.errors.length > 0);
     expect(back.errors[0]).toMatchObject({ code: 'rejoin_failed' });
+  });
+});
+
+describe('coming back to a running match (protocol 28, q12)', () => {
+  /** A started two-seat match whose guest built one tower and then dropped. */
+  async function droppedGuest(overrides: Parameters<typeof startServer>[0] = {}) {
+    const started = await start(overrides);
+    const [host, guest] = await fullRoom(started.url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    const theirs = guest!.snap!.pads.filter((p) => p.owner === 'p2').map((p) => p.id);
+    guest!.send({ t: 'cmd', cmd: { type: 'build', padId: theirs[0]!, tower: 'arrow' } });
+    await guest!.waitFor(() => (guest!.snap?.towers.length ?? 0) === 1);
+    const seat = { gold: guest!.snap!.players[1]!.gold, heroId: guest!.snap!.players[1]!.heroId, token: guest!.token! };
+    guest!.ws.terminate();
+    await host!.waitFor(() => host!.snap?.players[1]?.connected === false);
+    return { ...started, host: host!, guest: guest!, code: host!.code!, theirs, seat };
+  }
+
+  it('a dropped player rejoins by token after the window: hero, gold and towers theirs, the opened pads stay open', async () => {
+    const { url, host, code, theirs, seat } = await droppedGuest({ reconnectWindowMs: 200 });
+    await host.waitFor(() => host.snap!.pads.every((p) => p.owner !== 'p2'));
+    await sleep(300);
+    const back = bot(url, 'Bo');
+    await back.open();
+    back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code, token: seat.token });
+    await back.waitFor(() => back.snap !== null && back.snap.players[1]!.connected);
+    expect(back.playerId).toBe('p2');
+    expect(back.snap!.players[1]).toMatchObject({ gold: seat.gold, heroId: seat.heroId, connected: true });
+    expect(back.snap!.towers[0]).toMatchObject({ owner: 'p2' });
+    expect(back.snap!.pads.filter((p) => theirs.includes(p.id)).every((p) => p.owner === null)).toBe(true);
+    // The seat still shows in the room's lobby state, as connected again.
+    expect(back.lobby!.players.map((p) => [p.id, p.connected])).toEqual([
+      ['p1', true],
+      ['p2', true],
+    ]);
+  });
+
+  it('a join by code with the away player’s nickname takes the seat at once; the old token then hears seat_taken', async () => {
+    const { server, url, code, seat } = await droppedGuest();
+    // fullRoom names the guest "Bot 2": any case, outer spaces.
+    const phone = bot(url, '  bot 2 ');
+    await phone.join(code);
+    phone.acting = false;
+    await phone.waitFor(() => phone.snap !== null && phone.snap.players[1]!.connected);
+    expect(phone.playerId).toBe('p2');
+    expect(phone.token).not.toBe(seat.token);
+    expect(phone.snap!.players[1]).toMatchObject({ gold: seat.gold, heroId: seat.heroId });
+    expect(phone.snap!.towers[0]).toMatchObject({ owner: 'p2' });
+    expect(server.rooms.get(code)!.members.map((m) => m.name)).toEqual(['Host', 'bot 2']);
+
+    const old = bot(url, 'Old tab');
+    await old.open();
+    old.send({ t: 'rejoin', v: PROTOCOL_VERSION, code, token: seat.token });
+    await old.waitFor(() => old.errors.length > 0);
+    expect(old.errors[0]).toMatchObject({ code: 'seat_taken', message: 'Your seat was taken from another device' });
+    // The seat's new token works as any token does.
+    const again = bot(url, 'Again');
+    await again.open();
+    again.send({ t: 'rejoin', v: PROTOCOL_VERSION, code, token: phone.token! });
+    await again.waitFor(() => again.playerId === 'p2');
+  });
+
+  it('another nickname is refused before the window and seated after it, under its own nickname', async () => {
+    const { url, host, code, seat } = await droppedGuest({ reconnectWindowMs: 500 });
+    const early = bot(url, 'Cy');
+    await expect(early.join(code)).rejects.toThrow(/seat_recent/);
+    expect(early.errors[0]).toMatchObject({
+      message:
+        'A player just dropped out of that match. If that was you, join with the same nickname. Otherwise try again in a minute.',
+    });
+    await sleep(600);
+    const late = bot(url, 'Cy');
+    await late.join(code);
+    late.acting = false;
+    await host.waitFor(() => host.snap!.players[1]!.connected && host.snap!.players[1]!.name === 'Cy');
+    expect(late.playerId).toBe('p2');
+    expect(host.snap!.players[1]).toMatchObject({ gold: seat.gold, heroId: seat.heroId });
+    expect(host.lobby!.players[1]).toMatchObject({ name: 'Cy', connected: true });
+  });
+
+  it('a connected seat is never taken by code, even with its own nickname', async () => {
+    const { url } = await start({ reconnectWindowMs: 0 });
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    for (const name of ['Host', 'Bot 2', 'Someone']) {
+      const intruder = bot(url, name);
+      await expect(intruder.join(host!.code!)).rejects.toThrow(/match_full/);
+    }
+    expect(guest!.closed).toBeNull();
+    expect(host!.closed).toBeNull();
+  });
+
+  it('a seat left on purpose is free for any nickname at once, and its pads open at once', async () => {
+    const { url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.acting = false;
+    guest!.acting = false;
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    const token = guest!.token!;
+    guest!.send({ t: 'leave' });
+    await host!.waitFor(() => host!.snap!.players[1]!.connected === false && host!.snap!.pads.every((p) => p.owner !== 'p2'));
+    const other = bot(url, 'Dee');
+    await other.join(host!.code!);
+    expect(other.playerId).toBe('p2');
+    // The leaver's own token no longer works.
+    const back = bot(url, 'Back');
+    await back.open();
+    back.send({ t: 'rejoin', v: PROTOCOL_VERSION, code: host!.code!, token });
+    await back.waitFor(() => back.errors.length > 0);
+    expect(back.errors[0]).toMatchObject({ code: 'rejoin_failed' });
+  });
+
+  it('a finished match takes no join by code', async () => {
+    const { server, url } = await start();
+    const [host, guest] = await fullRoom(url, 2);
+    host!.send({ t: 'start' });
+    await guest!.waitFor(() => guest!.snap !== null);
+    guest!.ws.terminate();
+    const room = server.rooms.get(host!.code!)!;
+    room.state!.heartHp = 0;
+    await host!.waitFor(() => host!.snap?.phase === 'defeat');
+    await expect(bot(url, 'Bot 2').join(host!.code!)).rejects.toThrow(/match_in_progress/);
   });
 });
 
