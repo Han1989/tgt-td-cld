@@ -204,6 +204,7 @@ const BOSS_WATCH_JS = `(() => {
     }
     const b = window.__bossId == null ? undefined : s.creeps.find((k) => k.id === window.__bossId);
     w.bossAlive = !!b;
+    w.at = { me: me && [me.x.toFixed(1), me.y.toFixed(1)], boss: b && [b.x.toFixed(1), b.y.toFixed(1)] };
     if (b) {
       const q = c.worldToScreen(b.x * 32, b.y * 32);
       // The drawn boss: about 3.4 tiles tall and 2.6 wide on the screen at this zoom (the match sheets' frames).
@@ -217,8 +218,8 @@ const BOSS_WATCH_JS = `(() => {
 
 /**
  * The boss cut's Ranger (q10), run in the page ten times a second from before the boss wave to the end of the cut:
- * away from the boss inside `safe` tiles and from any other creep inside 5.5 (just past the 5 tiles a chase starts
- * at), down-lane first; with nothing near, following the boss down its road `safe` + 0.5 tiles below it, or back to
+ * away from the boss inside `safe` tiles and, under 60% of his HP, from any other creep inside 5.5 (just past the 5 tiles a
+ * chase starts at), down-lane first; with nothing near, following the boss down its road `safe` + 0.5 tiles below it, or back to
  * `home` before it comes. The landscape camera stays between the two, the boss first: it never goes so low that the
  * boss (about 3.4 tiles tall) leaves the top of the frame (about 8.4 rows each side of the centre at this zoom).
  */
@@ -242,12 +243,19 @@ function keepAwayJs(safe: number, home: { x: number; y: number }, camera: boolea
       const b = window.__bossId == null ? undefined : s.creeps.find((c) => c.id === window.__bossId);
       let ax = 0; let ay = 0; let near = false;
       for (const c of s.creeps) {
-        const r = b && c.id === b.id ? ${safe} : 5.5;
+        // Other creeps only once they have hurt him: his arrows and the towers kill most of them, and stepping from every
+        // one pinned him by the Heart, out of the frame.
+        const r = b && c.id === b.id ? ${safe} : me.hp / me.maxHp < 0.6 ? 5.5 : 0;
         const dx = me.x - c.x; const dy = me.y - c.y; const d = Math.hypot(dx, dy);
         if (d > r || d < 0.01) continue;
         near = true; const k = (r - d) / d; ax += dx * k; ay += dy * k;
       }
-      if (near) go(tt, me.x + ax * 0.6, me.y + ay * 0.6 + 0.5);
+      if (near) {
+        // Never more than `safe` + 3 tiles below the boss (the frame holds about 13 rows between them): sideways instead.
+        let gx = me.x + ax * 0.6; let gy = me.y + ay * 0.6 + 0.5;
+        if (b && gy > b.y + ${safe} + 3) { gy = b.y + ${safe} + 3; gx += Math.sign(ax || 1) * 1.5; }
+        go(tt, gx, gy);
+      }
       else if (b && Math.hypot(me.x - b.x, me.y - b.y) > ${safe} + 1.5) go(tt, b.x + Math.sign(me.x - b.x || 1) * 1.5, b.y + ${safe} + 0.5);
       else if (!b && Math.hypot(me.x - ${home.x}, me.y - ${home.y}) > 1.5) go(tt, ${home.x}, ${home.y});
       ${
@@ -480,7 +488,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       const inside = watch.outside === 0 && watch.meOutside === 0;
       console.log(
         `  boss try ${bossTries}: Ranger's lowest HP ${(watch.lowest * 100).toFixed(0)}%, fallen ${watch.fallen}, respawn timer ${watch.respawn}, ` +
-          `boss outside the frame on ${watch.outside} of ${watch.frames} frames, the Ranger on ${watch.meOutside}, boss alive at the end ${watch.bossAlive}`,
+          `boss outside the frame on ${watch.outside} of ${watch.frames} frames, the Ranger on ${watch.meOutside}, boss alive at the end ${watch.bossAlive}, at the end ${JSON.stringify((watch as any).at)}`,
       );
       bossCut = cut;
       bossLog = { tries: bossTries, lowestHp: watch.lowest, inside };
