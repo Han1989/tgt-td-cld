@@ -362,6 +362,16 @@ On a laptop (a mouse), then on the phone.
 - [ ] 26.3 **The lesson's pictures, phone.** Learn to play on the phone: Move a thumb on the stick, Build a tap on a pad, Cast a tap on Q (the Arcanist also a drag arrow), Upgrade a tap on a tower, Ping a long-press ring, Quick chat a tap on the speech button. The card is where it was, off the controls, and a tap through its words still reaches the map.
 - [ ] 26.4 **The wheel line.** In a desktop browser sized to about 907 × 510 (a fresh profile, or ⚙ → Your data → Delete my data), Play solo: about 3 s in, one line says "Scroll to zoom in. Space centres on your hero." inside the map, never over the side panels. Scroll on the map: the line goes at once and the map zooms. Play again: no line. At 1280 × 720 it never shows; on the phone it never shows (the pinch line is the phone's).
 
+## 27. A finger iOS takes away never leaves the stick held (q11)
+
+On the iPhone in Safari (not the installed app), a solo Quick match with the floating stick (the default).
+
+- [ ] 27.1 **Off the bottom edge.** Drag your thumb down from the map, past the bottom of the page and off the screen (into Safari's bottom bar and iOS's home-bar strip), then lift it. If the hero still walks, touch the map once: the hero stops at once. Then drag anywhere: the hero follows the new drag, the stick under your thumb.
+- [ ] 27.2 **The app switcher.** Steer with the stick, and without lifting swipe up from the bottom edge to the app switcher, then come back to Safari: the hero has stopped. Touch and drag: the hero follows. If your thumb stayed on the glass the whole time, moving it steers again without a new press.
+- [ ] 27.3 **Two fingers.** Steer with one thumb and drag with another finger elsewhere on the map: the hero follows the newer finger. Lift it: the hero stops; the first thumb does nothing more until it lifts.
+- [ ] 27.4 **A still thumb.** Steer and hold your thumb still for 10 s: the hero keeps walking (nothing lets go by time). Rotate or let Safari's toolbars slide while steering: the stick keeps steering.
+- [ ] 27.5 **Fixed stick.** ⚙ → Controls → Stick **Fixed**: repeat 27.1 with the drag starting on the stick: the next press on the stick stops the hero and steers.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |
