@@ -91,7 +91,11 @@ const CAMERA_JS = `(() => {
       c.zoom = z;
       const want = window.__camAt;
       const cur = window.__camNow ?? want;
-      const k = 0.08;
+      // Eased by time, not by frame: a software GPU recording at 8 fps would otherwise trail the action by seconds.
+      const now = performance.now();
+      const dt = Math.min(0.5, (now - (window.__camT ?? now)) / 1000);
+      window.__camT = now;
+      const k = 1 - Math.exp(-dt / 0.3);
       window.__camNow = { x: cur.x + (want.x - cur.x) * k, y: cur.y + (want.y - cur.y) * k };
       c.x = t.map.width * 16;
       c.y = window.__camNow.y * t.view().cos;
@@ -210,6 +214,51 @@ const BOSS_WATCH_JS = `(() => {
   };
   requestAnimationFrame(loop);
 })()`;
+
+/**
+ * The boss cut's Ranger (q10), run in the page ten times a second from before the boss wave to the end of the cut:
+ * away from the boss inside `safe` tiles and from any other creep inside 5.5 (just past the 5 tiles a chase starts
+ * at), down-lane first; with nothing near, following the boss down its road `safe` + 0.5 tiles below it, or back to
+ * `home` before it comes. The landscape camera stays between the two, the boss first: it never goes so low that the
+ * boss (about 3.4 tiles tall) leaves the top of the frame (about 8.4 rows each side of the centre at this zoom).
+ */
+function keepAwayJs(safe: number, home: { x: number; y: number }, camera: boolean): string {
+  return `(() => {
+    window.__keepAwayOn = true;
+    let last = { x: -99, y: -99, at: 0 };
+    const go = (tt, x, y) => {
+      const m = tt.map;
+      x = Math.max(1.5, Math.min(m.width - 1.5, x)); y = Math.max(1.5, Math.min(m.height - 2, y));
+      const now = performance.now();
+      if (Math.hypot(x - last.x, y - last.y) < 0.6 && now - last.at < 400) return;
+      last = { x, y, at: now };
+      tt.command({ type: 'move', x, y });
+    };
+    const id = setInterval(() => {
+      if (!window.__keepAwayOn) { clearInterval(id); return; }
+      const tt = window.__tdt; const s = tt.latest();
+      const me = s.heroes.find((h) => h.owner === tt.me());
+      if (!me || !me.alive) return;
+      const b = window.__bossId == null ? undefined : s.creeps.find((c) => c.id === window.__bossId);
+      let ax = 0; let ay = 0; let near = false;
+      for (const c of s.creeps) {
+        const r = b && c.id === b.id ? ${safe} : 5.5;
+        const dx = me.x - c.x; const dy = me.y - c.y; const d = Math.hypot(dx, dy);
+        if (d > r || d < 0.01) continue;
+        near = true; const k = (r - d) / d; ax += dx * k; ay += dy * k;
+      }
+      if (near) go(tt, me.x + ax * 0.6, me.y + ay * 0.6 + 0.5);
+      else if (b && Math.hypot(me.x - b.x, me.y - b.y) > ${safe} + 1.5) go(tt, b.x + Math.sign(me.x - b.x || 1) * 1.5, b.y + ${safe} + 0.5);
+      else if (!b && Math.hypot(me.x - ${home.x}, me.y - ${home.y}) > 1.5) go(tt, ${home.x}, ${home.y});
+      ${
+        camera
+          ? `const cy = b ? Math.min(b.y + 4, Math.max(me.y - 6, (b.y + me.y) / 2 + 0.6)) : me.y - 1;
+      window.__camAt = { x: (b ? b.x : me.x) * 32, y: cy * 32 };`
+          : ''
+      }
+    }, 100);
+  })()`;
+}
 
 async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts: Shot[][]; log: CutLog }> {
   const v = VIDEOS[kind];
@@ -359,26 +408,23 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     // landscape camera between the two so the boss stays whole in the frame. A cut where he fell is played again (a
     // new wave 5), at most three tries.
     const SAFE = 7;
-    // Off camera first: the lab's gold on every free pad and every tower to tier 3, so the boss walks into fire and
-    // the waves the cuts skipped to do not pile up on the Heart; then the map clears.
+    // Off camera first: a tower on every free pad, so the boss walks into fire and the waves the cuts skipped to do
+    // not pile up on the Heart (upgraded too, they killed the boss before the cut); the map clears before each try.
     await t(`(() => {
       const tt = window.__tdt; const s = tt.latest(); const taken = new Set(s.towers.map((x) => x.padId));
       const kinds = ['arrow', 'cannon', 'frost', 'arcane', 'arrow', 'cannon'];
       s.pads.filter((q) => !taken.has(q.id)).forEach((q, i) => tt.command({ type: 'build', padId: q.id, tower: kinds[i % kinds.length] }));
     })()`);
-    for (let round = 0; round < 3; round++) {
-      await p.waitForTimeout(300);
-      await t(`(() => { const tt = window.__tdt; for (const tw of tt.latest().towers) if (tw.tier < 3) tt.command({ type: 'upgrade', towerId: tw.id }); })()`);
-    }
-    await p.waitForFunction(() => (window as any).__tdt.latest().creeps.length < 4, undefined, { timeout: 45_000, polling: 250 }).catch(() => {});
+    // From here to the end of the cut the page keeps the Ranger out of reach (KEEP_AWAY_JS), ten times a second.
+    await t(keepAwayJs(SAFE, { x: mid.x + 4, y: mid.y - 4 }, kind === 'landscape'));
     let bossCut: Shot[] = [];
     let bossTries = 0;
     let bossLog = { tries: 0, lowestHp: 0, inside: false };
     for (;;) {
       bossTries++;
       // Back by his towers with at least 60% of his HP (he waits for a respawn, then regenerates out of reach).
-      await p.evaluate(([x, y]) => (window as any).__tdt.command({ type: 'move', x, y }), [mid.x + 4, mid.y - 4]);
-      if (kind === 'landscape') await camAt(p, kind, mid.x, mid.y - 5);
+      await t('window.__bossId = null');
+      await p.waitForFunction(() => (window as any).__tdt.latest().creeps.length < 4, undefined, { timeout: 45_000, polling: 250 }).catch(() => {});
       await p
         .waitForFunction(() => {
           const tt = (window as any).__tdt;
@@ -389,7 +435,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       await noHint();
       await t('window.__tdt.skipTo(5)');
       // The boss on the lane nearest the middle pads, followed from its portal; the cut starts as it comes down among
-      // the middle pads' towers, about SAFE + 2 tiles above the Ranger and well above the Heart.
+      // the middle pads' towers, SAFE + 4 tiles above the Ranger's place and well above the Heart.
       await p.waitForFunction(() => (window as any).__tdt.latest().creeps.some((c: any) => /ironhorn|matriarch|shardback/.test(c.kind)), undefined, {
         timeout: 60_000,
         polling: 100,
@@ -405,7 +451,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
             const s = (window as any).__tdt.latest();
             const b = s.creeps.find((c: any) => c.id === (window as any).__bossId);
             if (!b) return { gone: true };
-            return b.y > y - 14 ? { x: b.x, y: b.y, hp: b.hp / b.maxHp } : false;
+            return b.y > y - 18 ? { x: b.x, y: b.y, hp: b.hp / b.maxHp } : false;
           },
           mid.y,
           { timeout: 120_000, polling: 100 },
@@ -417,45 +463,10 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
         continue;
       }
       console.log(`  boss try ${bossTries}: the boss at ${(boss.hp * 100).toFixed(0)}% HP as the cut starts`);
-      /** One step of the cut: the Ranger away from every creep inside SAFE tiles (down-lane first), the camera on both. */
-      const keepAway = async (): Promise<void> => {
-        const step = (await t(`(() => {
-          const tt = window.__tdt; const s = tt.latest(); const m = tt.map;
-          const me = s.heroes.find((h) => h.owner === tt.me());
-          const b = s.creeps.find((c) => c.id === window.__bossId);
-          if (!me || !me.alive) return null;
-          let ax = 0; let ay = 0; let near = false;
-          for (const c of s.creeps) {
-            // The boss is kept SAFE tiles away; the rest just past their reach to start a chase (aggro 5).
-            const r = c.id === window.__bossId ? ${SAFE} : 5.5;
-            const dx = me.x - c.x; const dy = me.y - c.y; const d = Math.hypot(dx, dy);
-            if (d > r || d < 0.01) continue;
-            near = true; const k = (r - d) / d; ax += dx * k; ay += dy * k;
-          }
-          const goal = near ? { x: me.x + ax * 0.6, y: me.y + ay * 0.6 + 0.5 } : null;
-          if (goal) { goal.x = Math.max(1.5, Math.min(m.width - 1.5, goal.x)); goal.y = Math.max(1.5, Math.min(m.height - 2, goal.y)); }
-          return { goal, me: { x: me.x, y: me.y }, boss: b ? { x: b.x, y: b.y } : null };
-        })()`)) as { goal: { x: number; y: number } | null; me: { x: number; y: number }; boss: { x: number; y: number } | null } | null;
-        if (!step) return;
-        if (step.goal) await p.evaluate(([x, y]) => (window as any).__tdt.command({ type: 'move', x, y }), [step.goal.x, step.goal.y]);
-        if (kind === 'landscape' && step.boss) {
-          // Between the two, but never so low that the boss (3.4 tiles tall) leaves the top of the frame (about 8.4
-          // rows each side of the centre at this zoom) nor so high that the Ranger leaves the bottom.
-          const between = (step.boss.y + step.me.y) / 2 + 0.6;
-          await camAt(p, kind, step.boss.x, Math.max(step.me.y - 7, Math.min(step.boss.y + 4, between)));
-        }
-      };
       void boss;
-      await keepAway();
       await t(BOSS_WATCH_JS);
       const BOSS_MS = 3800;
-      const cut = await record(cdp, frames, BOSS_MS, v.out, async () => {
-        const until = Date.now() + BOSS_MS - 150;
-        while (Date.now() < until) {
-          await keepAway();
-          await p.waitForTimeout(120);
-        }
-      });
+      const cut = await record(cdp, frames, BOSS_MS, v.out);
       const watch = (await t('(window.__bossWatchOn = false, window.__bossWatch)')) as {
         lowest: number;
         fallen: boolean;
@@ -479,6 +490,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       }
     }
     cuts.push(bossCut);
+    await t('window.__keepAwayOn = false');
     const span = (c: Shot[]) => (c.length > 1 ? c.at(-1)!.t - c[0]!.t + 1 / 30 : 1 / 30);
     return {
       cuts,
