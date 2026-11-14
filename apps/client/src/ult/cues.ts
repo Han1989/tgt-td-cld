@@ -93,6 +93,31 @@ export function heldPopDue(heldAt: number, now: number, quakeDrawing: boolean): 
   return !quakeDrawing || now - heldAt >= QUAKE_POP_CAP_MS;
 }
 
+/**
+ * While a combo's fuse band is up the kill-count popups stand on it: their column's bottom this far (CSS px) above the
+ * band's top, so they stack upward and never cover the band (q10: in the tall layout the column at 36% fell on the band
+ * at 46%, and a fused combo ends the first ultimate's rain at the fuse, so its count popped over the band every time).
+ * Wider than a popup's entry (it starts 8 px low) and the 1.08 overshoot need.
+ */
+export const BAND_GAP_PX = 12;
+
+/** What the popups' column does this frame: stand on the band, go back to its own place, or stay as it is. */
+export type PopsPlacement = 'onBand' | 'home' | 'keep';
+
+/**
+ * The column stands on the band from the frame the band shows, and goes home only once the band has gone and its last
+ * popup has faded (so no popup jumps while it is read).
+ */
+export function popsPlacement(bandUp: boolean, onBand: boolean, pops: number): PopsPlacement {
+  if (bandUp) return onBand ? 'keep' : 'onBand';
+  return onBand && pops === 0 ? 'home' : 'keep';
+}
+
+/** The column's CSS `bottom` (px from its container's bottom) that puts it `BAND_GAP_PX` above the band's top. */
+export function popsBottom(bandTop: number, containerBottom: number): number {
+  return Math.round(containerBottom - bandTop + BAND_GAP_PX);
+}
+
 // ---------------------------------------------------------------------------
 // The R button
 // ---------------------------------------------------------------------------

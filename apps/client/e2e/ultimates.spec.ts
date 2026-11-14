@@ -56,6 +56,9 @@ interface Cues {
   heal: { text: string; healed: boolean; tick: number } | null;
   /** Each popup as it was inserted, and how many lane quakes had been drawn to their end at that moment. */
   pops: { text: string; box: Box; color: string; tick: number; quakesDone: number }[];
+  /** Every frame the fuse band and a popup were both up (q10): how many, how many had a popup on the band, the least
+   * gap from a popup's bottom to the band's top, and the boxes of the first such frame. */
+  band: { frames: number; overlaps: number; gapMin: number; pop: Box | null; band: Box | null };
 }
 
 declare global {
@@ -66,7 +69,7 @@ declare global {
 
 /** Runs in the page before its scripts: records the first of each cue (every popup) as the DOM shows it. */
 function recordCues(buttons: readonly string[]): void {
-  const cues: Cues = { flash: null, rings: {}, nudges: {}, heal: null, pops: [] };
+  const cues: Cues = { flash: null, rings: {}, nudges: {}, heal: null, pops: [], band: { frames: 0, overlaps: 0, gapMin: Infinity, pop: null, band: null } };
   window.__cues = cues;
   const tick = () => window.__tdt?.latest()?.tick ?? -1;
   const rect = (el: Element): Box => {
@@ -116,6 +119,44 @@ function recordCues(buttons: readonly string[]): void {
     }
   };
   new MutationObserver(scan).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+  // The band and the popups move with CSS animations, which no mutation reports: look every frame while both are up.
+  const frame = () => {
+    const band = document.getElementById('fuse-ribbon');
+    const pops = document.querySelectorAll<HTMLElement>('#ult-pops .ult-pop');
+    if (band && !band.classList.contains('hidden') && pops.length > 0) {
+      const b = rect(band);
+      cues.band.frames++;
+      let hit = false;
+      for (const el of pops) {
+        const p = rect(el);
+        if (p.left < b.right && p.right > b.left && p.top < b.bottom && p.bottom > b.top) hit = true;
+        cues.band.gapMin = Math.min(cues.band.gapMin, b.top - p.bottom);
+        if (!cues.band.pop) cues.band.pop = p;
+      }
+      if (!cues.band.band) cues.band.band = b;
+      if (hit) cues.band.overlaps++;
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+/** Waits until the band and a popup have been up together for a few frames (the fuse's "Arrow Storm: 4"), then reads them. */
+async function bandWithPop(page: Page): Promise<Cues['band']> {
+  const by = byCycle(AT.fuse) + SLACK;
+  const handle = await page.waitForFunction(
+    (by) => {
+      const c = window.__cues.band;
+      if (c.frames >= 10) return { found: { ...c, gapMin: c.gapMin } };
+      const t = window.__tdt.latest()?.tick ?? -1;
+      return t > by ? { missedAt: t } : false;
+    },
+    by,
+    { polling: 100 },
+  );
+  const result = (await handle.jsonValue()) as { found: Cues['band'] } | { missedAt: number };
+  if ('missedAt' in result) throw new Error(`the fuse band and a popup were not up together by scene tick ${by} (now ${result.missedAt})`);
+  return result.found;
 }
 
 type CueQuery =
@@ -197,6 +238,13 @@ test('an ultimate cannot be missed: Combo! ring, cast blink and kick, kill-count
     }
     const closed = await cue(page, { kind: 'ringClosed', sel }, ring.tick + (AT.fuse - AT.allyCast) + SLACK);
     expect(closed.minLeft).toBeLessThan(ring.left);
+  });
+
+  await test.step("a combo's count pops while its band is up, above the band, never on it (q10)", async () => {
+    const seen = await bandWithPop(page);
+    expect(seen.overlaps).toBe(0);
+    expect(seen.gapMin).toBeGreaterThanOrEqual(0);
+    expect(seen.pop!.top).toBeGreaterThan((await box(page, '#topbar')).bottom);
   });
 
   await test.step("Rampart Slam's heal: the teammate's chip rings with a green number", async () => {
@@ -293,6 +341,27 @@ test.describe('412 × 839', () => {
   });
 });
 
+for (const vp of [
+  { width: 412, height: 839 },
+  { width: 412, height: 618 },
+]) {
+  test.describe(`${vp.width} × ${vp.height}: the count and the band`, () => {
+    test.use({ viewport: vp });
+
+    test("a fused combo's count stands above its band (q10)", async ({ page }) => {
+      test.setTimeout(150_000);
+      const layout = await open(page);
+      test.skip(layout !== 'tall', 'phone layout only');
+      const seen = await bandWithPop(page);
+      expect(seen.overlaps).toBe(0);
+      expect(seen.gapMin).toBeGreaterThanOrEqual(0);
+      expect(seen.pop!.top).toBeGreaterThan((await box(page, '#topbar')).bottom);
+      expect(seen.pop!.left).toBeGreaterThanOrEqual(0);
+      expect(seen.pop!.right).toBeLessThanOrEqual(vp.width);
+    });
+  });
+}
+
 test.describe('reduced motion', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
@@ -306,6 +375,8 @@ test.describe('reduced motion', () => {
     await cue(page, { kind: 'ring', sel: rButton(layout) }, byCycle(AT.allyCast));
     const flash = await cue(page, { kind: 'flash' }, byCycle(AT.fuse));
     expect(flash.animation).toBe('ult-flash-calm');
+    // The band fades instead of unrolling, and the count still stands clear of it (q10).
+    expect((await bandWithPop(page)).overlaps).toBe(0);
     const pop = await cue(page, { kind: 'pop', text: 'Meteor Rain: 12' }, byCycle(AT.myRain));
     expect(pop.text).toBe('Meteor Rain: 12');
     // The quake does not travel: its whole lane is marked on its first frame (two leading marks), then fades.
