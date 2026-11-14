@@ -186,6 +186,9 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
   p.on('pageerror', (e) => console.error('page error:', e.message));
   const t = (js: string) => p.evaluate(js);
   const heroes = () => t(HEROES_JS) as Promise<Heroes>;
+  /** No teach line on screen (the Wisps line, the gold nudge: \`.toast.teach\`, 3.4 s each), at most 8 s. */
+  const noHint = () =>
+    p.waitForFunction(() => !document.querySelector('.toast.teach'), undefined, { timeout: 8000, polling: 100 }).catch(() => {});
   try {
     await p.goto(`${url}?lab&ult&ally&weather=clear&light=afternoon`);
     await p.waitForSelector('html[data-ready]', { timeout: 120_000 });
@@ -219,6 +222,16 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
         }
       }),
     );
+    // An Arrow (it hits air) on the free pad nearest each edge, so every lane the Wisps walk has one and the game's
+    // on-the-wave air line stays quiet; then, off camera, an Arrow on a free pad every 12 s from the far end of the
+    // map, so gold never sits long enough for the unspent-gold nudge (it waits 22 s without a spend).
+    await t(`(() => {
+      const tt = window.__tdt; const m = tt.map;
+      const free = () => { const s = tt.latest(); const taken = new Set(s.towers.map((x) => x.padId)); return s.pads.filter((q) => !taken.has(q.id)).map((q) => ({ id: q.id, ...m.pads[q.id] })); };
+      const f = free().sort((a, b) => a.x - b.x);
+      for (const q of [f[0], f.at(-1)]) if (q) tt.command({ type: 'build', padId: q.id, tower: 'arrow' });
+      setInterval(() => { const q = free().sort((a, b) => a.y - b.y)[0]; if (q) tt.command({ type: 'build', padId: q.id, tower: 'arrow' }); }, 12000);
+    })()`);
     // Upgrades off camera, then wave 3.
     for (let round = 0; round < 2; round++) {
       await t(`(() => { const tt = window.__tdt; for (const tw of tt.latest().towers) tt.command({ type: 'upgrade', towerId: tw.id }); })()`);
@@ -257,6 +270,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     );
     // 2. A wave on the towers, the Ranger beside his ally.
     const atWave = await frameBoth(4, 15_000);
+    await noHint();
     const waveFramed = atWave.meIn && atWave.allyIn;
     cuts.push(await record(cdp, frames, 3600, v.out));
     // 3. The combo: the Ranger's Arrow Storm 0.4 s in, the ally's Meteor 0.5 s later by its own rule, Meteor Rain.
@@ -269,6 +283,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       tries++;
       await t('window.__tdt.skipTo(4)');
       const ready = await frameBoth(10, 90_000);
+      await noHint();
       console.log(`  combo try ${tries}: Ranger ${ready.meIn ? 'in' : 'OUT'}, ally ${ready.allyIn ? 'in' : 'OUT'}, ${ready.creepsIn} creeps in the frame, R ready ${ready.me.rReady}/${ready.ally?.rReady}`);
       await t("window.__combos = []; window.__fuseSeen = 0; window.__fuseWord = '';");
       let castTick = 0;
@@ -299,8 +314,10 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       { timeout: 180_000, polling: 100 },
     );
     const boss = (await t(`(() => { const b = window.__tdt.latest().creeps.find((c) => /ironhorn|matriarch|shardback/.test(c.kind)); return { x: b.x, y: b.y }; })()`)) as { x: number; y: number };
-    await camAt(p, kind, boss.x, boss.y + 2);
+    // The phone's camera follows the Ranger: he stands back from the boss, which comes down to him.
+    await camAt(p, kind, boss.x, boss.y + (kind === 'portrait' ? 5 : 2));
     await p.waitForTimeout(600);
+    await noHint();
     cuts.push(await record(cdp, frames, 3800, v.out));
     const span = (c: Shot[]) => (c.length > 1 ? c.at(-1)!.t - c[0]!.t + 1 / 30 : 1 / 30);
     return {
