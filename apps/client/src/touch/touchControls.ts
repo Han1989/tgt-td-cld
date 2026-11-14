@@ -305,7 +305,12 @@ export class TouchControls {
     window.addEventListener(
       'pointerdown',
       (e) => {
-        if (e.pointerType !== 'mouse') this.freshDown = { id: e.pointerId, x: e.clientX, y: e.clientY };
+        if (e.pointerType === 'mouse') return;
+        // The first finger on the glass (the browser's primary touch pointer): whatever another pointer still holds is
+        // a finger that is gone (rule 2a). Released here, before the new touch's own handlers run, so it is handled as
+        // usual (a skill, a ring button, the map); the touchstart's `touches` below is the check for any other order.
+        if (e.pointerType === 'touch' && e.isPrimary) this.releasePointers(lostPointers(this.heldPointers(), 'start', 1, null));
+        this.freshDown = { id: e.pointerId, x: e.clientX, y: e.clientY };
       },
       { capture: true, passive: true },
     );

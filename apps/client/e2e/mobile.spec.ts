@@ -1935,3 +1935,197 @@ test('the way back (q1): the end card\'s Back to lobby, and ⚙ → Back to lobb
   await expect(page.locator('#settings')).toBeHidden();
   expect(dialogs).toBe(0);
 });
+
+/**
+ * A lost finger (q11, Han's iPhone in Safari, 14 Nov 2026): iOS took the thumb away at the page's bottom edge and no
+ * pointerup, pointercancel, lostpointercapture, touchend or touchcancel reached the page, so the stick stayed held and
+ * the hero walked on. The test makes one: a capture listener on the window, registered by an init script before any of
+ * the game's, swallows those five events while `window.__lose` is set, so the finger really lifts (the browser knows
+ * it is gone) and the page never hears of it.
+ */
+test.describe('a finger iOS takes away never leaves the stick held (q11)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __lose: boolean };
+      w.__lose = false;
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture', 'touchend', 'touchcancel']) {
+        window.addEventListener(
+          type,
+          (e) => {
+            if (w.__lose) e.stopImmediatePropagation();
+          },
+          true,
+        );
+      }
+    });
+  });
+
+  const lose = (page: Page, on: boolean) => page.evaluate((v) => ((window as unknown as { __lose: boolean }).__lose = v), on);
+  /** The types of every command sent, in order. */
+  const types = (page: Page) => page.evaluate(() => window.__tdt.sent.map((c) => c.type));
+  /** The moves sent after the last `stop`. */
+  const movesAfterStop = (page: Page) =>
+    page.evaluate(() => {
+      const s = window.__tdt.sent;
+      const i = s.map((c) => c.type).lastIndexOf('stop');
+      return s.slice(i + 1).filter((c) => c.type === 'move') as unknown as { x: number; y: number }[];
+    });
+  const heroAt = (page: Page) => page.evaluate(() => window.__tdt.latest()!.heroes[0]!);
+  /** Waits for `n` frames of the page (no fixed sleep). */
+  const frames = (page: Page, n: number) =>
+    page.evaluate(
+      (k) =>
+        new Promise<void>((done) => {
+          let left = k;
+          const tick = () => (--left <= 0 ? done() : requestAnimationFrame(tick));
+          requestAnimationFrame(tick);
+        }),
+      n,
+    );
+  const mapSpot = async (page: Page) => {
+    const l = await page.evaluate(() => window.__tdt.layout());
+    return { x: (l.map.left + l.map.right) / 2 - 60, y: l.controls!.top - 60 };
+  };
+  const useFixedStick = async (page: Page) => {
+    await page.locator('#settings-btn').tap();
+    await page.locator('#settings-stick-mode button[data-value="fixed"]').tap();
+    await page.locator('#settings-btn').tap();
+    await expect(page.locator('#settings')).toBeHidden();
+  };
+
+  test('floating stick: the next touch frees it with a stop, and a new drag steers the new way', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const from = await mapSpot(page);
+    // Steer up, then the finger is lost.
+    await finger.drag(from, { x: from.x, y: from.y - 40 }, 0, false);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(0);
+    await lose(page, true);
+    await finger.up();
+    await lose(page, false);
+    await expect(page.locator('#joystick')).toHaveClass(/held/);
+    expect(await types(page)).not.toContain('stop');
+    // The next touch frees it: a stop, and a drag to the right steers right.
+    await finger.down(from.x, from.y);
+    await expect.poll(() => types(page)).toContain('stop');
+    for (let dx = 10; dx <= 50; dx += 10) await finger.move(from.x + dx, from.y);
+    await expect
+      .poll(async () => {
+        const m = (await movesAfterStop(page)).at(-1);
+        return m ? m.x - (await heroAt(page)).x : 0;
+      })
+      .toBeGreaterThan(1);
+    await finger.up();
+    await expect(page.locator('#joystick')).not.toHaveClass(/held/);
+  });
+
+  test('floating stick: with the lost finger still on the glass, a new drag takes the stick and the old one does nothing more', async ({ page }) => {
+    await startSolo(page);
+    const hand = await Hand.on(page);
+    const from = await mapSpot(page);
+    await hand.press(0, from.x, from.y);
+    for (let dy = 10; dy <= 40; dy += 10) await hand.move(0, from.x, from.y - dy);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(0);
+    const before = (await sent(page, 'move')).length;
+    // A second finger drags right: it takes the stick (it used to be a drag that did nothing).
+    const other = { x: from.x + 80, y: from.y - 120 };
+    await hand.press(1, other.x, other.y);
+    for (let dx = 10; dx <= 50; dx += 10) await hand.move(1, other.x + dx, other.y);
+    await expect
+      .poll(async () => {
+        const m = (await sent(page, 'move')).slice(before).at(-1) as unknown as { x: number } | undefined;
+        return m ? m.x - (await heroAt(page)).x : 0;
+      })
+      .toBeGreaterThan(1);
+    // The old finger moves up again: nothing (the stick stays the new finger's).
+    const n = (await sent(page, 'move')).length;
+    await hand.move(0, from.x, from.y - 80);
+    await frames(page, 6);
+    const last = (await sent(page, 'move')).slice(n);
+    for (const m of last) expect((m.x as number) - (await heroAt(page)).x).toBeGreaterThan(0);
+    // The new finger lifts: the hero stops; the old finger's lift does nothing.
+    await hand.lift(1, other.x + 50, other.y);
+    await expect.poll(() => sent(page, 'stop').then((s) => s.length)).toBe(1);
+    await hand.lift(0, from.x, from.y - 80);
+    await frames(page, 6);
+    expect(await sent(page, 'stop')).toHaveLength(1);
+    await expect(page.locator('#joystick')).not.toHaveClass(/held/);
+  });
+
+  test('floating stick: a pagehide stops the hero, and the same finger takes it back by moving', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const from = await mapSpot(page);
+    await finger.drag(from, { x: from.x, y: from.y - 40 }, 0, false);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(0);
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+    await expect.poll(() => types(page)).toContain('stop');
+    await expect(page.locator('#joystick')).not.toHaveClass(/held/);
+    await frames(page, 10);
+    expect(await movesAfterStop(page)).toHaveLength(0);
+    // The thumb is still there: it moves, and steers again with no new press.
+    await finger.move(from.x + 30, from.y - 40);
+    await expect.poll(() => movesAfterStop(page).then((m) => m.length)).toBeGreaterThan(0);
+    await expect(page.locator('#joystick')).toHaveClass(/held/);
+    await finger.up();
+    await expect.poll(() => sent(page, 'stop').then((s) => s.length)).toBe(2);
+  });
+
+  test('fixed stick: a lost finger is freed by the next press, and a pagehide gives it back to the same finger', async ({ page }) => {
+    await startSolo(page);
+    await useFixedStick(page);
+    const finger = await Finger.on(page);
+    const joy = centre(await box(page, '#joystick'));
+    await finger.drag(joy, { x: joy.x, y: joy.y - 40 }, 0, false);
+    await expect.poll(() => sent(page, 'move').then((m) => m.length)).toBeGreaterThan(0);
+    await lose(page, true);
+    await finger.up();
+    await lose(page, false);
+    await expect(page.locator('#joystick')).toHaveClass(/held/);
+    expect(await types(page)).not.toContain('stop');
+    // A new press on the stick takes it: a stop, then it steers left.
+    await finger.down(joy.x, joy.y);
+    await expect.poll(() => types(page)).toContain('stop');
+    for (let dx = 10; dx <= 40; dx += 10) await finger.move(joy.x - dx, joy.y);
+    await expect
+      .poll(async () => {
+        const m = (await movesAfterStop(page)).at(-1);
+        return m ? (await heroAt(page)).x - m.x : 0;
+      })
+      .toBeGreaterThan(1);
+    // A pagehide: a stop and no further move; the same finger moves and steers again with no new press.
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+    await expect.poll(() => sent(page, 'stop').then((s) => s.length)).toBe(2);
+    await frames(page, 10);
+    expect(await movesAfterStop(page)).toHaveLength(0);
+    await finger.move(joy.x, joy.y - 40);
+    await expect.poll(() => movesAfterStop(page).then((m) => m.length)).toBeGreaterThan(0);
+    await finger.up();
+    await expect.poll(() => sent(page, 'stop').then((s) => s.length)).toBe(3);
+  });
+
+  test('a skill\'s drag-aim that loses its finger ends with no cast, and the next touch is handled as usual', async ({ page }) => {
+    await startSolo(page);
+    const finger = await Finger.on(page);
+    const wBtn = page.locator('.tskill[data-slot="W"] .tskill-btn');
+    const w = centre(await box(page, '.tskill[data-slot="W"] .tskill-btn'));
+    // Aim, come back over the button (the cancel mark shows the aim is held), then aim out again and lose the finger.
+    await Promise.all([finger.down(w.x, w.y), finger.move(w.x, w.y - 20)]);
+    for (const dy of [-50, -20, 0]) await finger.move(w.x, w.y + dy);
+    await expect(wBtn).toHaveClass(/\bcancel\b/);
+    await finger.move(w.x, w.y - 60);
+    await expect(wBtn).not.toHaveClass(/\bcancel\b/);
+    await lose(page, true);
+    await finger.up();
+    await lose(page, false);
+    // The next touch, a quick tap on Q: the aim ends with no cast, and Q's tap is a tap (nothing in range: it shakes).
+    const qBtn = page.locator('.tskill[data-slot="Q"] .tskill-btn');
+    const q = centre(await box(page, '.tskill[data-slot="Q"] .tskill-btn'));
+    const t0 = Date.now() / 1000;
+    await finger.down(q.x, q.y, t0);
+    await finger.up(t0 + 0.08);
+    await expect(qBtn).toHaveClass(/shake/);
+    await frames(page, 6);
+    expect(await sent(page, 'cast')).toHaveLength(0);
+  });
+});
