@@ -16,7 +16,8 @@ import { sharedSettings } from './settings';
 import { soloAlly } from './ally/rules';
 import { beginSolo, soloMatch, type SoloPick, type SoloStart } from './tutorial/logic';
 import { LocalTransport } from './transport/localTransport';
-import { NetworkTransport, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
+import { NetworkTransport, RECONNECTING_LONG, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
+import { forgetsSeat, seatStore } from './transport/seat';
 
 export class OnlineController {
   private transport: NetworkTransport | null = null;
@@ -58,6 +59,14 @@ export class OnlineController {
         setReady: (ready) => this.transport?.send({ t: 'ready', ready }),
         start: () => this.transport?.send({ t: 'start' }),
         leave: () => this.leave(),
+        savedSeat: () => seatStore.load(this.serverUrl)?.code ?? null,
+        rejoin: () =>
+          gated(() => {
+            // The seat in a running match this browser remembers (q12): another tab, or the browser after a restart.
+            const seat = seatStore.load(this.serverUrl);
+            if (!seat) return this.ui.showHome();
+            this.connect({ t: 'rejoin', v: PROTOCOL_VERSION, code: seat.code, token: seat.token }, `Rejoining ${seat.code}…`);
+          }),
       },
       {
         today: () => fetchToday(),
@@ -165,8 +174,8 @@ export class OnlineController {
       case 'error':
         if (msg.code === 'version_mismatch') {
           this.versionMismatch();
-        } else if (!this.lobby || msg.code === 'rejoin_failed' || msg.code === 'room_not_found' || msg.code === 'wrong_server') {
-          // Could not get into a room: back to the home screen.
+        } else if (!this.lobby || forgetsSeat(msg.code)) {
+          // Could not get into a room, or the room or the seat is gone (taken from another device too): back home.
           this.drop();
           this.ui.showHome(msg.message);
         } else if (this.lobby.phase === 'lobby') {
@@ -186,7 +195,8 @@ export class OnlineController {
 
   private onStatus(transport: NetworkTransport, status: NetStatus, detail?: string): void {
     if (transport !== this.transport) return;
-    this.view.hud.setReconnecting(status === 'reconnecting');
+    // After a minute of trying, the notice offers Back to lobby; the page keeps trying until it is pressed (q12).
+    this.view.hud.setReconnecting(status === 'reconnecting', detail === RECONNECTING_LONG ? () => this.backHome() : null);
     if (status !== 'closed' || detail === 'left') return;
     if (detail === VERSION_MISMATCH) return this.versionMismatch();
     const why =
@@ -206,6 +216,16 @@ export class OnlineController {
   /** Leave the room for good. */
   private leave(): void {
     this.transport?.close();
+    this.drop();
+    history.replaceState(null, '', location.pathname);
+    this.ui.showHome();
+  }
+
+  /**
+   * Back to the home card without leaving the room (q12): the seat stays this player's until the match ends, and the
+   * home card offers "Rejoin your match".
+   */
+  private backHome(): void {
     this.drop();
     history.replaceState(null, '', location.pathname);
     this.ui.showHome();

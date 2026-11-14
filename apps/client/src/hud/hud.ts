@@ -3,6 +3,7 @@
 // Phase 4b feedback: gold and Heart count smoothly, coins fly to the gold counter,
 // wave and boss banners, and pulses when the Heart is hit or a skill fires.
 
+import { backLines, presenceOf, type PresenceMap } from './back';
 import {
   HERO_ULTIMATE,
   heroReinforceTotals,
@@ -319,6 +320,9 @@ export class Hud {
   private readonly teamList = $('team-list');
   private readonly noticeEl = $('notice');
   private readonly reconnecting = $('reconnecting');
+  private readonly reconnectBack = $('reconnecting-back') as HTMLButtonElement;
+  /** Who was connected in the last snapshot, online (q12: "<name> is back"). */
+  private presence: PresenceMap | null = null;
   private readonly topLevel = $('top-level');
   private readonly topLevelText = $('top-level-text');
   private readonly topPoints = $('top-points');
@@ -629,8 +633,14 @@ export class Hud {
     this.updateNotice();
   }
 
-  setReconnecting(on: boolean): void {
+  /**
+   * The connection-lost notice. `back` (q12: after a minute of trying) adds Back to lobby; the page keeps trying
+   * until it is pressed.
+   */
+  setReconnecting(on: boolean, back: (() => void) | null = null): void {
     this.reconnecting.classList.toggle('hidden', !on);
+    this.reconnectBack.classList.toggle('hidden', !on || !back);
+    this.reconnectBack.onclick = on && back ? () => back() : null;
   }
 
   private updateNotice(): void {
@@ -641,6 +651,9 @@ export class Hud {
   }
 
   private updateTeam(snap: Snapshot, me: PlayerId | null): void {
+    // A teammate who was away is back (q12): one line, online only.
+    if (this.room) for (const line of backLines(this.presence, snap.players, me)) this.toast(line);
+    this.presence = this.room ? presenceOf(snap.players) : null;
     const show = this.room !== null && (!this.compact || this.teamOpen);
     this.team.classList.toggle('hidden', !show);
     this.goldStat.classList.toggle('opens-team', this.compact && this.room !== null);

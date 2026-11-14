@@ -14,7 +14,10 @@ export interface ServerConfig {
   tickMs: number;
   /** A full snapshot is sent every this many ticks; deltas otherwise. */
   keyframeEveryTicks: number;
-  /** How long a dropped player's seat is kept. */
+  /**
+   * How long a dropped player may be away before their empty pads open to the team (in a match: the seat stays theirs
+   * until the match ends, protocol 28), or before their seat is given up (in the lobby).
+   */
   reconnectWindowMs: number;
   /** A room with nobody connected is closed after this long. */
   emptyRoomTtlMs: number;

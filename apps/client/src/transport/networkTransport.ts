@@ -1,6 +1,8 @@
 // WebSocket connection to the game server. Rebuilds full snapshots from
 // keyframes + deltas, and reconnects to the same seat (with the room token)
-// if the connection drops, for up to the server's 60 s reconnect window.
+// if the connection drops, for as long as the page is open and the server has
+// not said the room, the seat or the match is gone (protocol 28, q12: a seat is
+// its player's until the match ends).
 // If the server speaks another PROTOCOL_VERSION it closes for good with the
 // status detail 'version_mismatch' (the page must be reloaded).
 
@@ -14,6 +16,7 @@ import {
   type Snapshot,
 } from '@tdt/protocol';
 import { seedOfText } from '../render/fx/atmosphere';
+import { forgetsSeat, seatStore } from './seat';
 import type { Transport } from './transport';
 
 export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
@@ -27,8 +30,13 @@ export interface RoomSession {
   token: string;
 }
 
-/** The server keeps a dropped seat this long. */
+/**
+ * After this long reconnecting, the status says so (`reconnecting`, detail `long`): the notice offers Back to lobby.
+ * The server's reconnect window: the dropped player's pads open then, the seat stays theirs.
+ */
 const RECONNECT_WINDOW_MS = 60_000;
+/** The status detail of a reconnect that has gone on past `RECONNECT_WINDOW_MS`. */
+export const RECONNECTING_LONG = 'long';
 /** In a match the server sends ~20 messages/s; this long without one means the socket died while the page slept. */
 const STALE_MS = 3000;
 const SESSION_KEY = 'tdt.session';
@@ -75,6 +83,8 @@ export class NetworkTransport implements Transport {
   private attempt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMessageAt = 0;
+  /** The running match's report came (q12): its seat is no longer remembered for another tab. */
+  private matchEnded = false;
 
   /**
    * Online the snapshot carries no seed (a protocol change this pass does not make, V-08a): the room's code stands in,
@@ -110,6 +120,7 @@ export class NetworkTransport implements Transport {
   close(): void {
     this.send({ t: 'leave' });
     sessionStore.clear();
+    seatStore.clear();
     this.dispose();
     this.setStatus('closed', 'left');
   }
@@ -196,18 +207,31 @@ export class NetworkTransport implements Transport {
         return;
       }
       case 'lobby':
-        if (msg.lobby.phase === 'lobby') this.snap = null;
+        if (msg.lobby.phase === 'lobby') {
+          this.snap = null;
+          this.matchEnded = false;
+          seatStore.clear();
+        } else if (this.session && !this.matchEnded) {
+          // A running match: this browser remembers the seat, so another tab can come back to it (q12).
+          seatStore.save(this.session);
+        }
         break;
       case 'notice':
         this.serverRestarting = true;
+        break;
+      case 'report':
+        // The match ended: there is no match to come back to from another tab.
+        this.matchEnded = true;
+        seatStore.clear();
         break;
       case 'error':
         if (msg.code === 'version_mismatch') {
           this.emit(msg);
           return this.versionMismatch();
         }
-        if (msg.code === 'rejoin_failed' || msg.code === 'room_not_found' || msg.code === 'wrong_server') {
+        if (forgetsSeat(msg.code)) {
           if (this.session) sessionStore.clear();
+          seatStore.clear();
           this.session = null;
         }
         break;
@@ -219,6 +243,7 @@ export class NetworkTransport implements Transport {
   private versionMismatch(): void {
     if (this.closedByUs) return;
     sessionStore.clear();
+    seatStore.clear();
     this.session = null;
     this.dispose();
     this.setStatus('closed', VERSION_MISMATCH);
@@ -233,17 +258,17 @@ export class NetworkTransport implements Transport {
     const now = performance.now();
     const canRetry = this.session !== null && !this.serverRestarting && e.code !== 1008;
     if (!canRetry) {
-      if (this.serverRestarting) sessionStore.clear();
+      if (this.serverRestarting) {
+        sessionStore.clear();
+        seatStore.clear();
+      }
       this.setStatus('closed', this.serverRestarting ? 'server_restarting' : e.reason || `code ${e.code}`);
       return;
     }
     if (this.status !== 'reconnecting') this.droppedAt = now;
-    if (now - this.droppedAt > RECONNECT_WINDOW_MS) {
-      sessionStore.clear();
-      this.setStatus('closed', 'Could not reconnect');
-      return;
-    }
-    this.setStatus('reconnecting');
+    // Never given up while the page is open (q12): the seat is the player's until the match ends. After the window the
+    // notice offers Back to lobby, and the home card then offers "Rejoin your match".
+    this.setStatus('reconnecting', now - this.droppedAt > RECONNECT_WINDOW_MS ? RECONNECTING_LONG : undefined);
     const delay = Math.min(8000, 500 * 2 ** this.attempt++);
     this.retryTimer = setTimeout(() => this.retry(), delay);
   }

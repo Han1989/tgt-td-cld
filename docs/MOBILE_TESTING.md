@@ -372,6 +372,15 @@ On the iPhone in Safari (not the installed app), a solo Quick match with the flo
 - [ ] 27.4 **A still thumb.** Steer and hold your thumb still for 10 s: the hero keeps walking (nothing lets go by time). Rotate or let Safari's toolbars slide while steering: the stick keeps steering.
 - [ ] 27.5 **Fixed stick.** ⚙ → Controls → Stick **Fixed**: repeat 27.1 with the drag starting on the stick: the next press on the stick stops the hero and steers.
 
+## 28. Coming back to a running match (q12, protocol 28)
+
+Three devices in one room (the live site, after the merge), a Quick match started.
+
+- [ ] 28.1 **Close and come back by the code.** On one device close the game's tab mid-match. The others' chips show the player away; after a minute their empty pads open to the team. On that device open the site again (or any other device), type the room code with the same nickname and tap **Join room**: back in the seat at once, with the hero, its level, the gold and the towers; the others see "<name> is back".
+- [ ] 28.2 **Rejoin your match.** Close the tab again and open the site in the same browser: the home card's main button reads **Rejoin your match** with the room's code under it, Play solo beside it. One tap returns to the seat.
+- [ ] 28.3 **Another nickname.** Close the tab once more; on another device type the code with a different nickname: before a minute it says a player just dropped out; after a minute it takes the seat under the new nickname. The first device's Rejoin your match then says "Your seat was taken from another device".
+- [ ] 28.4 **No connection for a while.** Turn on airplane mode mid-match: "Connection lost — reconnecting…"; after a minute it adds **Back to lobby**. Turn airplane mode off before pressing it: the page is back in the match by itself.
+
 ## Results
 
 | Phone | OS / browser | Screen (CSS px) | Sections passed | Stress FPS (150 / 300) | Sound (§8) | Rains and vow (§9) | Camera (§21) | Notes |

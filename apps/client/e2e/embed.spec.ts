@@ -447,6 +447,103 @@ test('CrazyGames: a room made in the frame shows its code and no link; a friend 
   }
 });
 
+test('coming back to a running match (q12): a reload, a second tab ("Rejoin your match") and the room code on another device', async ({
+  browser,
+}) => {
+  // Played on the stand-in for the real game (the site, top level, with its own storage), against the local game server.
+  const hostContext = await browser.newContext();
+  const friendContext = await browser.newContext();
+  const phoneContext = await browser.newContext();
+  const open = async (page: Page) => {
+    await page.goto(`${HARNESS.siteOrigin}/`);
+    await expect(page.locator('html')).toHaveAttribute('data-ready', 'online', { timeout: 60_000 });
+  };
+  const me = (p: Page) => p.evaluate(() => window.__tdt?.me() ?? null);
+  const inMatch = (p: Page) => p.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0);
+  try {
+    const host = await hostContext.newPage();
+    await open(host);
+    await host.locator('#lobby-name').fill('Host');
+    await host.locator('#lobby-create').click();
+    await expect(host.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+    const code = (await host.locator('#lobby-room-code').textContent())!.trim();
+
+    const tab1 = await friendContext.newPage();
+    await open(tab1);
+    // Nothing to come back to yet.
+    await expect(tab1.locator('#lobby-rejoin')).toBeHidden();
+    await tab1.locator('#lobby-name').fill('Bo');
+    await tab1.locator('#lobby-code').fill(code);
+    await tab1.locator('#lobby-join').click();
+    await expect(tab1.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+    await tab1.locator('#lobby-ready').click();
+    await expect(host.locator('#lobby-start')).toBeEnabled({ timeout: 15_000 });
+    await host.locator('#lobby-start').click();
+    await expect.poll(() => inMatch(tab1), { timeout: 30_000 }).toBe(2);
+    expect(await me(tab1)).toBe('p2');
+
+    // (a) The same tab reloads: back in the seat at once, as before.
+    await tab1.reload();
+    await expect.poll(() => me(tab1), { timeout: 30_000 }).toBe('p2');
+    await expect.poll(() => inMatch(tab1), { timeout: 30_000 }).toBe(2);
+    await expect(tab1.locator('#lobby')).toBeHidden();
+
+    // (b) The tab is closed; another tab of the same browser offers "Rejoin your match" with the room's code, and one
+    // tap returns to the seat.
+    // Every toast the host's page shows, recorded as it appears (a toast fades after a few seconds, so a slow runner
+    // can miss a live one).
+    await host.evaluate(() => {
+      const w = window as unknown as { __toastLog: string[] };
+      w.__toastLog = [];
+      new MutationObserver((records) => {
+        for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement) w.__toastLog.push(n.textContent ?? '');
+      }).observe(document.getElementById('toasts')!, { childList: true });
+    });
+    await tab1.close();
+    const seatConnected = () => host.evaluate(() => (window.__tdt.latest()!.players[1] as { connected?: boolean }).connected);
+    await expect.poll(seatConnected, { timeout: 15_000 }).toBe(false);
+    const tab2 = await friendContext.newPage();
+    await open(tab2);
+    await expect(tab2.locator('#lobby-rejoin')).toBeVisible();
+    await expect(tab2.locator('#lobby-rejoin-code')).toHaveText(`Room ${code}`);
+    // Play solo stays on the home card beside it.
+    await expect(tab2.locator('#lobby-offline')).toBeVisible();
+    await tab2.locator('#lobby-rejoin').click();
+    await expect.poll(() => me(tab2), { timeout: 30_000 }).toBe('p2');
+    await expect.poll(seatConnected, { timeout: 15_000 }).toBe(true);
+    // The host is told.
+    await expect
+      .poll(() => host.evaluate(() => (window as unknown as { __toastLog: string[] }).__toastLog), { timeout: 10_000 })
+      .toContain('Bo is back');
+
+    // (c) That browser goes; a fresh one (another device) types the room code with the same nickname and takes the
+    // seat at once: the same player, the same hero.
+    await tab2.close();
+    await expect.poll(seatConnected, { timeout: 15_000 }).toBe(false);
+    const heroBefore = await host.evaluate(() => window.__tdt.latest()!.players[1]!.heroId);
+    const phone = await phoneContext.newPage();
+    await open(phone);
+    await phone.locator('#lobby-name').fill('bo');
+    await phone.locator('#lobby-code').fill(code);
+    await phone.locator('#lobby-join').click();
+    await expect.poll(() => me(phone), { timeout: 30_000 }).toBe('p2');
+    await expect.poll(() => inMatch(phone), { timeout: 30_000 }).toBe(2);
+    await expect.poll(seatConnected, { timeout: 15_000 }).toBe(true);
+    expect(await host.evaluate(() => window.__tdt.latest()!.players[1]!.heroId)).toBe(heroBefore);
+    expect(await host.evaluate(() => (window.__tdt.latest()!.players[1] as { name?: string }).name)).toBe('bo');
+
+    // The first browser's remembered seat is dead: its next home card hears so and offers nothing.
+    const tab3 = await friendContext.newPage();
+    await open(tab3);
+    await expect(tab3.locator('#lobby-rejoin')).toBeVisible();
+    await tab3.locator('#lobby-rejoin').click();
+    await expect(tab3.locator('#lobby-error')).toHaveText('Your seat was taken from another device', { timeout: 30_000 });
+    await expect(tab3.locator('#lobby-rejoin')).toBeHidden();
+  } finally {
+    await Promise.all([hostContext.close(), friendContext.close(), phoneContext.close()]);
+  }
+});
+
 test('a Daily run in the frame starts with no question, and Post my run still asks the age first', async ({ page, isMobile }) => {
   const posts = await capturePosts(page);
   const frame = await openGame(page, isMobile);

@@ -95,6 +95,18 @@ test('the tile starts the day’s run; Post my run asks the age and a nickname i
   await expect(page.locator('#end-daily-msg')).toContainText('Pick a nickname');
   expect(bodies).toHaveLength(0);
   await page.locator('#end-daily-name').fill('Wren');
+  // The stats' opacity on the first frame the rank shows: the stats wait while it counts up (read in the page, so a
+  // slow runner that reaches the check after the stats began to fade in does not fail it).
+  await page.evaluate(() => {
+    const w = window as unknown as { __statsAtRank?: string };
+    const look = () => {
+      const rank = document.getElementById('end-daily-rank');
+      if (rank && rank.getClientRects().length > 0 && getComputedStyle(rank).visibility !== 'hidden') {
+        w.__statsAtRank = getComputedStyle(document.getElementById('end-stats')!).opacity;
+      } else requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
   await page.locator('#end-daily-post').click();
 
   // One post: the key, the nickname and the run's report and replay, the day's seed, Quick on Hard.
@@ -110,7 +122,7 @@ test('the tile starts the day’s run; Post my run asks the age and a nickname i
   // The rank first: counting up to #14, while the stats wait; then the gap, the best in gold, the five rows.
   await expect(page.locator('#end-daily-rank')).toBeVisible();
   await expect(page.locator('#end-daily-ask')).toBeHidden();
-  expect(await page.locator('#end-stats').evaluate((el) => getComputedStyle(el).opacity)).toBe('0');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __statsAtRank?: string }).__statsAtRank)).toBe('0');
   await expect(page.locator('#end-daily-place')).toHaveText('#14 of 212 · top 7 %');
   await expect(page.locator('#end-daily-gap')).toHaveText('3 Heart behind Mira at #13');
   await expect(page.locator('#end-daily-best')).toHaveText('New personal best · 40 Heart · 10:30');

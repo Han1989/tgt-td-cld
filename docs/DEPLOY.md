@@ -69,6 +69,9 @@ After changing it: Render → *Environment* → edit → **Save, rebuild and dep
 3. The guest clicks **Ready**; the host clicks **Start match**.
 4. Play a few waves. Both players should see the same creeps, towers and Heart HP. Each player has their own gold, and the team panel (top left) lists both heroes.
 5. Reconnect check: reload one tab mid-match. It should rejoin the same seat, with the same hero and gold, within a couple of seconds.
+6. Coming back (protocol 28): close the guest's tab mid-match and wait past a minute (its empty pads open to the host). Open the site again in that browser: the home card offers **Rejoin your match**, and one tap returns to the seat. Close it again; on another device, **Join room** with the code and the guest's nickname takes the seat at once.
+
+**The reconnect window** (`reconnectWindowMs`, 60 s, set in `config.ts`, not from the environment) is, during a match, how long a dropped player is away before their empty pads open to the team; the seat stays theirs until the match ends (protocol 28). In the lobby it is how long a dropped seat is kept. A room with nobody connected still closes after `emptyRoomTtlMs` (60 s).
 
 ## 5. Server environment variables
 

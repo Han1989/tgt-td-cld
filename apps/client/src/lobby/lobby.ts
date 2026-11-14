@@ -69,6 +69,10 @@ export interface RoomActions {
   setReady(ready: boolean): void;
   start(): void;
   leave(): void;
+  /** The seat in a running match this browser remembers (q12): its room's code, or null when there is none. */
+  savedSeat(): string | null;
+  /** "Rejoin your match": back to that seat. */
+  rejoin(): void;
 }
 
 function $(id: string): HTMLElement {
@@ -122,6 +126,10 @@ export class LobbyUi {
   private readonly name = $('lobby-name') as HTMLInputElement;
   private readonly code = $('lobby-code') as HTMLInputElement;
   private readonly offline = $('lobby-offline');
+  private readonly rejoinBtn = $('lobby-rejoin') as HTMLButtonElement;
+  /** The room code of the seat "Rejoin your match" returns to, or null (q12). */
+  private seatCode: string | null = null;
+  private roomActions: RoomActions | null = null;
   private readonly joinBtn = $('lobby-join');
   private readonly role = $('lobby-hero-role');
   private readonly blurb = $('lobby-hero-blurb');
@@ -326,6 +334,8 @@ export class LobbyUi {
 
   /** The friends' controls on the home card, and the room card's buttons. */
   private bindRoom(actions: RoomActions): void {
+    this.roomActions = actions;
+    this.rejoinBtn.addEventListener('click', () => actions.rejoin());
     $('lobby-create').addEventListener('click', () => {
       const name = this.validName();
       if (name) actions.create(name, this.hero, this.homeMode.mode);
@@ -388,6 +398,19 @@ export class LobbyUi {
     return normalizeRoomCode(this.code.value);
   }
 
+  /**
+   * "Rejoin your match" (q12): the main button while this browser remembers a seat in a running match, with the room's
+   * code under it; Play solo stays beside it.
+   */
+  private syncSeat(): void {
+    this.seatCode = this.roomActions?.savedSeat() ?? null;
+    const offer = this.seatCode !== null;
+    this.rejoinBtn.classList.toggle('hidden', !offer);
+    this.offline.parentElement?.classList.toggle('has-seat', offer);
+    this.offline.classList.toggle('big', !this.invited && !offer);
+    $('lobby-rejoin-code').textContent = offer ? `Room ${this.seatCode}` : '';
+  }
+
   hide(): void {
     this.root.classList.add('hidden');
     this.stage.stop();
@@ -410,12 +433,13 @@ export class LobbyUi {
     this.syncLesson();
     this.syncDaily();
     this.syncBoard();
+    this.syncSeat();
     // A nickname typed on a Daily run's end screen fills the field.
     if (!this.name.value) this.name.value = storedName();
     this.showError(error);
     // Keyboard focus starts on the main button (with a mouse or trackpad; a phone shows no ring on it), or on
     // the nickname an invited friend still has to type. Never scroll the card for it.
-    const focus = this.invited ? (this.name.value ? this.joinBtn : this.name) : this.offline;
+    const focus = this.invited ? (this.name.value ? this.joinBtn : this.name) : this.seatCode ? this.rejoinBtn : this.offline;
     if (this.invited || matchMedia('(pointer: fine)').matches) focus.focus({ preventScroll: true });
   }
 

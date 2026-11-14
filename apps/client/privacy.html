@@ -120,7 +120,10 @@
         <p>
           The nickname you type is shown to the others in your room. When an online match ends, the game server writes one
           log line with the room code, each player's nickname and hero, and the match numbers. Pick a nickname that isn't
-          your real name. <em>Save match report</em> stays on your device unless you send it to someone.
+          your real name. <em>Save match report</em> stays on your device unless you send it to someone. While you are in an
+          online match, your browser keeps your seat in its storage (<code>tdt.seat</code>: the room code and a secret for
+          that seat) so you can come back to it; it is only ever sent to the game server, is forgotten when the match ends
+          or after two hours, and Delete my data clears it.
         </p>
       </section>
 

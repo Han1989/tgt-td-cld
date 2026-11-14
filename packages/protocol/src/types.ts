@@ -7,7 +7,7 @@
  * it on connect (`hello`) and rejects entry messages carrying another one; the
  * client then asks the player to refresh.
  */
-export const PROTOCOL_VERSION = 27;
+export const PROTOCOL_VERSION = 28;
 
 export type PlayerId = string;
 
@@ -706,7 +706,9 @@ export interface CoopReport {
 /**
  * One entry of a replay log, applied when the simulation is at `tick` (before stepping to tick + 1):
  * `[tick, player index, command type, …arguments]` (see `encodeReplayCommand`), or
- * `[tick, player index, 'join' | 'drop' | 'leave']` (reconnected / disconnected / gone for good).
+ * `[tick, player index, 'join' | 'drop' | 'leave']` (reconnected / disconnected / away past the window or left on
+ * purpose: the pads opened; since protocol 28 a `join` may follow it), or `[tick, player index, 'name', nickname]`
+ * (protocol 28: the seat taken by the room code under another nickname).
  */
 export type ReplayEntry = [tick: number, player: number, what: string, ...args: (string | number)[]];
 
@@ -787,6 +789,18 @@ export type ErrorCode =
   | 'room_full'
   | 'match_in_progress'
   | 'rejoin_failed'
+  /**
+   * Protocol 28 (q12): this seat was taken by the room code from another device; the token is dead and the page
+   * forgets it.
+   */
+  | 'seat_taken'
+  /** Protocol 28: a join by code into a running match where every player is in it (no seat is away). */
+  | 'match_full'
+  /**
+   * Protocol 28: a join by code into a running match where the only seats away dropped less than the window ago and
+   * none has the joiner's nickname.
+   */
+  | 'seat_recent'
   | 'not_host'
   | 'not_ready'
   | 'wrong_server'
@@ -840,9 +854,12 @@ export type ClientMessage =
   // Entry messages carry the client's PROTOCOL_VERSION as `v`.
   /** Create a room and join it as host (online). */
   | { t: 'create'; v: number; name: string; hero: HeroKind }
-  /** Join an existing room by code (online). */
+  /**
+   * Join an existing room by code (online). Into a running match (protocol 28, q12) it takes a seat whose player is
+   * away: at once with that player's nickname, else one away for the reconnect window or more (its hero, not `hero`).
+   */
   | { t: 'join'; v: number; code: string; name: string; hero: HeroKind }
-  /** Take back a seat after a disconnect, within the reconnect window (online). */
+  /** Take back a seat after a disconnect, at any time until the match ends (online; protocol 28). */
   | { t: 'rejoin'; v: number; code: string; token: string }
   /** Lobby: change hero. */
   | { t: 'hero'; hero: HeroKind }
@@ -860,7 +877,7 @@ export type ClientMessage =
   | { t: 'art'; pct: number }
   /** Lobby: host starts the match. */
   | { t: 'start' }
-  /** Leave the room for good (online). */
+  /** Leave the room for good (online). During a match the seat is free for a join by code at once (protocol 28). */
   | { t: 'leave' }
   | { t: 'cmd'; cmd: Command }
   /** After victory/defeat: local mode starts a new match; online the host returns the room to the lobby. */

@@ -53,6 +53,7 @@ export {
   createMatch,
   matchCommand,
   matchPresence,
+  matchRename,
   matchStep,
   matchOver,
   matchReport,

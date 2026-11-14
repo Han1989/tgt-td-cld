@@ -249,7 +249,8 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
 
     if (conn.room && conn.member) {
       conn.room.handle(conn.member, msg, now);
-      if (conn.member.left) {
+      // Gone from the room, or out of the seat (a `leave` mid-match frees it: protocol 28).
+      if (conn.member.left || conn.member.socket !== socketOf(conn)) {
         conn.room = null;
         conn.member = null;
       }
@@ -279,7 +280,7 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
       const code = generateRoomCode(config.shard, (c) => rooms.has(c), () => randomInt(0, 1 << 30) / (1 << 30));
       const room = new Room(code, config, () => randomInt(0, 2 ** 31 - 1), now, log);
       rooms.set(code, room);
-      enter(conn, room, room.join(msg.name, msg.hero, socketOf(conn)));
+      enter(conn, room, room.join(msg.name, msg.hero, socketOf(conn), now));
       return;
     }
 
@@ -290,13 +291,17 @@ export function createGameServer(config: ServerConfig, log: (msg: string) => voi
       }
       return entryError(conn, 'room_not_found', 'No room with that code');
     }
-    enter(conn, room, msg.t === 'join' ? room.join(msg.name, msg.hero, socketOf(conn)) : room.rejoin(msg.token, socketOf(conn)));
+    enter(conn, room, msg.t === 'join' ? room.join(msg.name, msg.hero, socketOf(conn), now) : room.rejoin(msg.token, socketOf(conn)));
   }
 
   function enter(conn: Conn, room: Room, result: Member | ErrorCode): void {
     if (typeof result === 'string') {
       const messages: Partial<Record<ErrorCode, string>> = {
-        match_in_progress: 'That match has already started',
+        match_in_progress: 'That match has just ended. Join once its host is back in the room.',
+        match_full: 'That match is full: all its players are in it.',
+        seat_recent:
+          'A player just dropped out of that match. If that was you, join with the same nickname. Otherwise try again in a minute.',
+        seat_taken: 'Your seat was taken from another device',
         room_full: `That room is full (${MAX_PLAYERS} players, one per lane)`,
         rejoin_failed: 'Your seat in that room is no longer available',
       };
