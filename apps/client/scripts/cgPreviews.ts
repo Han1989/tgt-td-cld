@@ -1,19 +1,24 @@
-// `npm run cg-previews -w @tdt/client`: CrazyGames' two preview videos (q5, docs/crazygames/SUBMISSION.md), recorded
-// in real time from a real solo Quick match on the e2e build:
+// `npm run cg-previews -w @tdt/client`: CrazyGames' two preview videos (q5, q9; docs/crazygames/SUBMISSION.md),
+// recorded in real time from a real solo Quick match on the e2e build, with the bot teammate beside the Ranger (q6):
 //
 //   docs/crazygames/preview-landscape-1920x1080.mp4   the desktop layout at 1920 × 1080, the camera zoomed on the action
 //                                                     so the map fills the frame's width (no dark side bands)
 //   docs/crazygames/preview-portrait-1080x1620.mp4    the phone layout (412 × 618 at 2.62×: 1080 × 1620)
+//   docs/crazygames/previews-sheet.jpg                six frames a video (the cover, the build, the wave, the cast, the
+//                                                     fuse, the boss), the landscape row over the portrait row
 //
 // Each opens on its cover (docs/crazygames/cover-1920x1080.png, cover-800x1200.png: `npm run press-shots -- --only
 // cg` first) for a second, then four moments at real speed, cut together: the build phase (towers going up), a wave
-// on the towers, an ultimate (the Ranger's Arrow Storm, `?lab&ult`), and a boss (Quick's wave 5). Frames come from
-// Chromium's screencast with their own timestamps, so a slow software GPU drops frames but never changes the speed;
-// ffmpeg writes 30 fps H.264, no sound, no cursor (a screencast has none), 15–20 s, under 50 MB.
+// on the towers with the Ranger and his bot teammate (the Arcanist, `?ally`) both in the frame, a combo (the Ranger's
+// Arrow Storm, `?lab&ult`, answered by the ally's Meteor 0.5 s later by its own rule: they fuse into Meteor Rain, and
+// the cut runs until it has landed; confirmed by the snapshots' `combo` event, else played again on a new wave, at
+// most three tries), and a boss (Quick's wave 5). Frames come from Chromium's screencast with their own timestamps,
+// so a slow software GPU drops frames but never changes the speed; ffmpeg writes 30 fps H.264, no sound, no cursor
+// (a screencast has none), 15–20 s, under 50 MB.
 //
 //   npm run build:e2e -w @tdt/client && npm run cg-previews -w @tdt/client [-- --only landscape,portrait] [--out DIR]
 //
-// `CHROMIUM_PATH` for a Chromium of another revision than Playwright's. About 5 minutes. Look at both before committing.
+// `CHROMIUM_PATH` for a Chromium of another revision than Playwright's. About 6 minutes. Look at both before committing.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -32,7 +37,7 @@ const outDir = ((p: string) => (isAbsolute(p) ? p : resolve(process.cwd(), p)))(
 const work = join(root, 'dist-previews');
 const only = new Set(arg('only', 'landscape,portrait').split(','));
 const dist = join(root, 'dist-e2e');
-const SETTINGS = { quality: 'high', display: 'normal', tutorial: 'skipped', airLesson: 'seen', repairHint: 'seen', zoomHint: 'seen', endlessRoomLine: 'seen' };
+const SETTINGS = { quality: 'high', display: 'normal', tutorial: 'skipped', airLesson: 'seen', repairHint: 'seen', zoomHint: 'seen', endlessRoomLine: 'seen', allyHint: 'seen', wheelHint: 'seen' };
 
 const VIDEOS = {
   landscape: {
@@ -101,7 +106,61 @@ async function camAt(p: Page, kind: Kind, x: number, y: number): Promise<void> {
   else await p.evaluate(([tx, ty]) => (window as any).__tdt.command({ type: 'move', x: tx, y: ty }), [x, y]);
 }
 
-async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][]> {
+/** The heroes on the screen: the Ranger (yours) and the ally (the hero of the player with `bot: true`). */
+interface Heroes {
+  me: { x: number; y: number; alive: boolean; rReady: boolean };
+  ally: { x: number; y: number; alive: boolean; rReady: boolean } | null;
+  /** Each hero's screen position inside the frame (40 px in from every edge, under the top bar). */
+  meIn: boolean;
+  allyIn: boolean;
+  /** Creeps drawn inside the frame. */
+  creepsIn: number;
+  tick: number;
+}
+
+const HEROES_JS = `(() => {
+  const tt = window.__tdt; const s = tt.latest(); const c = tt.camera;
+  const inside = (x, y) => { const q = c.worldToScreen(x * 32, y * 32); return q.x > 40 && q.x < innerWidth - 40 && q.y > 84 && q.y < innerHeight - 40; };
+  const meId = tt.me();
+  const allyP = s.players.find((p) => p.bot);
+  const view = (h) => h && { x: h.x, y: h.y, alive: h.alive, rReady: h.skills.some((k) => k.slot === 'R' && k.rank > 0 && k.cooldown === 0) };
+  const mine = s.heroes.find((h) => h.owner === meId);
+  const ally = allyP ? s.heroes.find((h) => h.id === allyP.heroId) : undefined;
+  return {
+    me: view(mine), ally: view(ally) ?? null,
+    meIn: !!mine && inside(mine.x, mine.y), allyIn: !!ally && inside(ally.x, ally.y),
+    creepsIn: s.creeps.filter((k) => inside(k.x, k.y)).length, tick: s.tick,
+  };
+})()`;
+
+/** Every \`combo\` event of every snapshot the page draws, and the fuse ribbon's showing (a poll can miss a tick). */
+const COMBO_JS = `(() => {
+  window.__combos = []; let last = -1;
+  const loop = () => {
+    const s = window.__tdt?.latest();
+    if (s && s.tick !== last) {
+      last = s.tick;
+      for (const e of s.events ?? []) if (e.type === 'combo' && !window.__combos.some((x) => x.tick === s.tick)) window.__combos.push({ tick: s.tick, combo: e.combo });
+    }
+    const f = document.getElementById('fuse-ribbon');
+    if (f && f.classList.contains('on') && !window.__fuseSeen) window.__fuseSeen = s?.tick ?? 0;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+})()`;
+
+export interface CutLog {
+  /** Each cut's length in the video (s), after the cover's second. */
+  cuts: number[];
+  /** Seconds into the combo cut: the Ranger's cast and the fuse. */
+  cast: number;
+  fuse: number;
+  comboTick: number;
+  tries: number;
+  framed: { wave: boolean; cast: boolean };
+}
+
+async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts: Shot[][]; log: CutLog }> {
   const v = VIDEOS[kind];
   const frames = join(work, kind);
   rmSync(frames, { recursive: true, force: true });
@@ -112,8 +171,9 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
   const p = await ctx.newPage();
   p.on('pageerror', (e) => console.error('page error:', e.message));
   const t = (js: string) => p.evaluate(js);
+  const heroes = () => t(HEROES_JS) as Promise<Heroes>;
   try {
-    await p.goto(`${url}?lab&ult&weather=clear&light=afternoon`);
+    await p.goto(`${url}?lab&ult&ally&weather=clear&light=afternoon`);
     await p.waitForSelector('html[data-ready]', { timeout: 120_000 });
     await p.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
     await p.locator('#lobby-mode-home .mode-pick[data-mode="quick"]').click();
@@ -121,6 +181,8 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
     await p.waitForFunction(() => !!(window as any).__tdt?.latest()?.heroes?.length, undefined, { timeout: 240_000 });
     await p.waitForSelector('html[data-plate="ready"][data-ui="ready"][data-structures][data-creep-sheets][data-hero-sheets]', { timeout: 240_000 });
     if (kind === 'landscape') await t(CAMERA_JS);
+    await t(COMBO_JS);
+    if (!(await heroes()).ally) throw new Error('no bot teammate in the match (?ally)');
     // The pads: the middle lane's own, the rows just above the safe zone, nearest the Heart first.
     const pads = (await t(`(() => {
       const tt = window.__tdt; const m = tt.map;
@@ -135,12 +197,12 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
     await p.waitForTimeout(2500);
     const cuts: Shot[][] = [];
     const kinds = ['arrow', 'cannon', 'frost', 'arcane', 'flak', 'arrow', 'cannon', 'frost'];
-    // 1. The build phase: towers going up on the pads, one every half second.
+    // 1. The build phase: towers going up on the pads, one every 0.45 s.
     cuts.push(
-      await record(cdp, frames, 4200, v.out, async () => {
+      await record(cdp, frames, 3600, v.out, async () => {
         for (const [i, pad] of pads.slice(0, 7).entries()) {
           await p.evaluate(([id, k]) => (window as any).__tdt.command({ type: 'build', padId: id, tower: k }), [pad.id, kinds[i]!] as const);
-          await p.waitForTimeout(520);
+          await p.waitForTimeout(450);
         }
       }),
     );
@@ -149,27 +211,68 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
       await t(`(() => { const tt = window.__tdt; for (const tw of tt.latest().towers) tt.command({ type: 'upgrade', towerId: tw.id }); })()`);
       await p.waitForTimeout(300);
     }
+    /**
+     * Both heroes in the frame: the Ranger walks to the ally's side of the pads (never the ally: it goes where the
+     * game sends it), the landscape camera between the two; the portrait camera follows the Ranger.
+     */
+    const frameBoth = async (minCreeps: number, timeout: number): Promise<Heroes> => {
+      const until = Date.now() + timeout;
+      let h = await heroes();
+      let lastGoal = { x: -99, y: -99 };
+      while (Date.now() < until) {
+        h = await heroes();
+        const ally = h.ally;
+        if (ally && h.meIn && h.allyIn && h.creepsIn >= minCreeps && ally.alive && ally.rReady && h.me.rReady) return h;
+        if (ally) {
+          // A spot two tiles toward the pads from the ally, as near the middle lane as it can be.
+          const goal = { x: ally.x + Math.sign(mid.x - ally.x) * Math.min(4, Math.abs(mid.x - ally.x)), y: ally.y + 1.5 };
+          if (Math.hypot(goal.x - lastGoal.x, goal.y - lastGoal.y) > 1.5) {
+            await p.evaluate(([x, y]) => (window as any).__tdt.command({ type: 'move', x, y }), [goal.x, goal.y]);
+            lastGoal = goal;
+          }
+          if (kind === 'landscape') await camAt(p, kind, (h.me.x + ally.x) / 2, (h.me.y + ally.y) / 2 + 1);
+        }
+        await p.waitForTimeout(150);
+      }
+      return h;
+    };
     await t('window.__tdt.skipTo(3)');
     await p.waitForFunction(
       (y) => (window as any).__tdt.latest().creeps.filter((c: any) => c.y > y - 9 && c.y < y + 1).length >= 6,
       mid.y,
       { timeout: 120_000, polling: 100 },
     );
-    // 2. A wave on the towers.
-    cuts.push(await record(cdp, frames, 4800, v.out));
-    // 3. An ultimate: Arrow Storm on every lane, 0.4 s in.
-    await t('window.__tdt.skipTo(4)');
-    await p.waitForFunction(
-      (y) => (window as any).__tdt.latest().creeps.filter((c: any) => c.y > y - 9 && c.y < y + 1).length >= 8,
-      mid.y,
-      { timeout: 120_000, polling: 100 },
-    );
-    cuts.push(
-      await record(cdp, frames, 3400, v.out, async () => {
+    // 2. A wave on the towers, the Ranger beside his ally.
+    const atWave = await frameBoth(4, 15_000);
+    const waveFramed = atWave.meIn && atWave.allyIn;
+    cuts.push(await record(cdp, frames, 4000, v.out));
+    // 3. The combo: the Ranger's Arrow Storm 0.4 s in, the ally's Meteor 0.5 s later by its own rule, Meteor Rain.
+    let combo: { tick: number; combo: string } | undefined;
+    let tries = 0;
+    let castFramed = false;
+    let castAt = 0;
+    let comboCut: Shot[] = [];
+    while (!combo && tries < 3) {
+      tries++;
+      await t('window.__tdt.skipTo(4)');
+      const ready = await frameBoth(10, 90_000);
+      console.log(`  combo try ${tries}: Ranger ${ready.meIn ? 'in' : 'OUT'}, ally ${ready.allyIn ? 'in' : 'OUT'}, ${ready.creepsIn} creeps in the frame, R ready ${ready.me.rReady}/${ready.ally?.rReady}`);
+      await t('window.__combos = []; window.__fuseSeen = 0;');
+      let castTick = 0;
+      comboCut = await record(cdp, frames, 5500, v.out, async () => {
         await p.waitForTimeout(400);
+        const at = await heroes();
+        castFramed = at.meIn && at.allyIn;
+        castTick = at.tick;
         await t(`window.__tdt.command({ type: 'cast', slot: 'R' })`);
-      }),
-    );
+      });
+      const seen = (await t('({ combos: window.__combos, fuse: window.__fuseSeen })')) as { combos: { tick: number; combo: string }[]; fuse: number };
+      combo = seen.combos.find((c) => c.combo === 'meteorRain');
+      console.log(`  cast at tick ${castTick}; combos ${JSON.stringify(seen.combos)}; fuse ribbon at tick ${seen.fuse}`);
+      if (combo) castAt = 0.4 + (combo.tick - castTick) / 20;
+    }
+    if (!combo) throw new Error('no meteorRain combo in three tries');
+    cuts.push(comboCut);
     // 4. The boss: Quick's wave 5, followed down its road.
     await t('window.__tdt.skipTo(5)');
     await p.waitForFunction(
@@ -180,15 +283,19 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<Shot[][
     const boss = (await t(`(() => { const b = window.__tdt.latest().creeps.find((c) => /ironhorn|matriarch|shardback/.test(c.kind)); return { x: b.x, y: b.y }; })()`)) as { x: number; y: number };
     await camAt(p, kind, boss.x, boss.y + 2);
     await p.waitForTimeout(600);
-    cuts.push(await record(cdp, frames, 5000, v.out));
-    return cuts;
+    cuts.push(await record(cdp, frames, 4400, v.out));
+    const span = (c: Shot[]) => (c.length > 1 ? c.at(-1)!.t - c[0]!.t + 1 / 30 : 1 / 30);
+    return {
+      cuts,
+      log: { cuts: cuts.map(span), cast: 0.4, fuse: castAt, comboTick: combo.tick, tries, framed: { wave: waveFramed, cast: castFramed } },
+    };
   } finally {
     await ctx.close();
   }
 }
 
 /** The cover for a second, then the cuts at their own pace, as 30 fps H.264 with no sound. */
-function encode(kind: Kind, cuts: Shot[][]): void {
+function encode(kind: Kind, cuts: Shot[][]): string {
   const v = VIDEOS[kind];
   const list: string[] = [];
   const cover = join(outDir, v.cover);
@@ -224,6 +331,7 @@ function encode(kind: Kind, cuts: Shot[][]): void {
   );
   const probe = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,codec_name', '-of', 'csv=p=0', out]).toString().trim();
   console.log(`${out}: ${(statSync(out).size / 1e6).toFixed(1)} MB, ${probe.replace(/\n/g, ' · ')}, ${cuts.map((c) => c.length).join(' + ')} frames`);
+  return out;
 }
 
 /** ffmpeg's concat demuxer drops the last entry's duration: the last frame again. */
@@ -231,9 +339,45 @@ function cut0(cuts: Shot[][]): string {
   return cuts.at(-1)!.at(-1)!.file;
 }
 
+/**
+ * The contact sheet for Han's phone: six frames a video in order (the cover, the build, the wave, the cast, the fuse,
+ * the boss), each frame's time under it, the landscape row over the portrait row, 2400 px wide.
+ */
+function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void {
+  const rows: string[] = [];
+  const font = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+  for (const kind of ['landscape', 'portrait'] as const) {
+    const m = made[kind];
+    if (!m) continue;
+    const [build, wave, combo] = m.log.cuts as [number, number, number, number];
+    const at = 1 + build + wave;
+    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.6, at + combo + 2];
+    const tiles = times.map((time, i) => {
+      const f = join(work, `${kind}-sheet-${i}.png`);
+      const w = 400;
+      const label = `${time.toFixed(1)} s`;
+      execFileSync('ffmpeg', [
+        '-y', '-loglevel', 'error', '-ss', time.toFixed(2), '-i', m.file, '-frames:v', '1', '-vf',
+        `scale=${w}:-2:flags=lanczos,pad=iw:ih+36:0:0:color=0x15171c,drawtext=fontfile=${font}:text='${label}':x=(w-tw)/2:y=h-28:fontsize=20:fontcolor=white`,
+        f,
+      ]);
+      return f;
+    });
+    const row = join(work, `${kind}-sheet.png`);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...tiles.flatMap((f) => ['-i', f]), '-filter_complex', `hstack=inputs=${tiles.length}`, row]);
+    rows.push(row);
+  }
+  if (rows.length === 0) return;
+  const out = join(outDir, 'previews-sheet.jpg');
+  const stack = rows.length > 1 ? ['-filter_complex', `vstack=inputs=${rows.length}`] : [];
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...rows.flatMap((f) => ['-i', f]), ...stack, '-q:v', '4', out]);
+  console.log(`${out}: ${(statSync(out).size / 1e6).toFixed(2)} MB`);
+}
+
 if (!existsSync(join(dist, 'index.html'))) throw new Error('build the e2e client first: npm run build:e2e -w @tdt/client');
 mkdirSync(work, { recursive: true });
 const server = await preview({ root, logLevel: 'warn', build: { outDir: dist }, preview: { port: 0, host: '127.0.0.1' } });
+const made: Partial<Record<Kind, { file: string; log: CutLog }>> = {};
 try {
   const url = server.resolvedUrls?.local[0];
   if (!url) throw new Error('the preview server has no URL');
@@ -248,11 +392,14 @@ try {
       args: [`--force-device-scale-factor=${scale}`],
     });
     try {
-      encode(kind, await shoot(browser, url, kind));
+      const { cuts, log } = await shoot(browser, url, kind);
+      made[kind] = { file: encode(kind, cuts), log };
+      console.log(`  ${kind}: ${JSON.stringify(log)}`);
     } finally {
       await browser.close();
     }
   }
+  sheet(made);
 } finally {
   await new Promise<void>((r) => server.httpServer.close(() => r()));
 }
