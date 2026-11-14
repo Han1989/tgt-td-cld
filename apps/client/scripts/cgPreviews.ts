@@ -278,6 +278,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     let tries = 0;
     let castFramed = false;
     let castAt = 0;
+    let castIn = 0.4;
     let comboCut: Shot[] = [];
     while (!combo && tries < 3) {
       tries++;
@@ -287,11 +288,13 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       console.log(`  combo try ${tries}: Ranger ${ready.meIn ? 'in' : 'OUT'}, ally ${ready.allyIn ? 'in' : 'OUT'}, ${ready.creepsIn} creeps in the frame, R ready ${ready.me.rReady}/${ready.ally?.rReady}`);
       await t("window.__combos = []; window.__fuseSeen = 0; window.__fuseWord = '';");
       let castTick = 0;
+      let castWall = 0;
       comboCut = await record(cdp, frames, 5500, v.out, async () => {
         await p.waitForTimeout(400);
         const at = await heroes();
         castFramed = at.meIn && at.allyIn;
         castTick = at.tick;
+        castWall = Date.now() / 1000;
         await t(`window.__tdt.command({ type: 'cast', slot: 'R' })`);
       });
       const seen = (await t('({ combos: window.__combos, fuse: window.__fuseSeen, word: window.__fuseWord })')) as {
@@ -302,7 +305,11 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
       // The event; else the HUD's fuse ribbon naming Meteor Rain (the tick the page first saw it on).
       combo = seen.combos.find((c) => c.combo === 'meteorRain') ?? (/meteor rain/i.test(seen.word) ? { tick: seen.fuse, combo: 'meteorRain (fuse ribbon)' } : undefined);
       console.log(`  cast at tick ${castTick}; combos ${JSON.stringify(seen.combos)}; fuse ribbon "${seen.word}" at tick ${seen.fuse}`);
-      if (combo) castAt = 0.4 + (combo.tick - castTick) / 20;
+      // In the cut's own time: the screencast's first frame comes a moment after the recording starts.
+      const first = comboCut[0]?.t ?? castWall;
+      const lag = castWall - first;
+      castIn = lag >= 0 && lag < 3 ? lag : 0.4;
+      if (combo) castAt = castIn + (combo.tick - castTick) / 20;
     }
     if (!combo) throw new Error('no meteorRain combo in three tries');
     cuts.push(comboCut);
@@ -322,7 +329,7 @@ async function shoot(browser: Browser, url: string, kind: Kind): Promise<{ cuts:
     const span = (c: Shot[]) => (c.length > 1 ? c.at(-1)!.t - c[0]!.t + 1 / 30 : 1 / 30);
     return {
       cuts,
-      log: { cuts: cuts.map(span), cast: 0.4, fuse: castAt, comboTick: combo.tick, tries, framed: { wave: waveFramed, cast: castFramed } },
+      log: { cuts: cuts.map(span), cast: castIn, fuse: castAt, comboTick: combo.tick, tries, framed: { wave: waveFramed, cast: castFramed } },
     };
   } finally {
     await ctx.close();
@@ -386,7 +393,7 @@ function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void
     if (!m) continue;
     const [build, wave, combo] = m.log.cuts as [number, number, number, number];
     const at = 1 + build + wave;
-    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.6, at + combo + 2];
+    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.2, at + combo + 2];
     const tiles = times.map((time, i) => {
       const f = join(work, `${kind}-sheet-${i}.png`);
       const w = 400;
