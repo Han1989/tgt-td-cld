@@ -1053,6 +1053,15 @@ const items: ProgressItem[] = [
     proof: pr(200),
   },
   {
+    id: 'D-25',
+    title: 'A stricter name filter for the boards and the rooms, and the Daily run’s top names in one answer',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'The game server only; its merge restarts it, protocol stays 28, the clients that are out keep working. A much stronger word filter for the names on both boards and in rooms: it sees through spaces, dots, stretched letters, look-alike digits and other alphabets’ letters, covers slurs, hate names, self-harm, sexual violence, nine other languages, names posing as staff and names that are addresses, and lets innocent names through (Therapist, Nazim, Scunthorpe). A refused name reads “Player” on a board, even one posted before, and is seated as “Player” or “Player 2” in a room. The Daily run’s answer also carries its top five and yesterday’s three, for the ribbon (q17).',
+    proof: pr(201),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

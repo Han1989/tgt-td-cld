@@ -6,6 +6,7 @@
 import type { HeroKind } from '@tdt/protocol';
 import { dailyClosesAt, ENDLESS_BOARD_SIZE, endlessRankOrder, type EndlessRun } from '@tdt/sim';
 import { ranksBy, sortBy } from '../daily/board';
+import { boardName } from '../names';
 import type { DayEntry } from '../daily/days';
 
 /** One browser's best Endless run of a day, as the server re-ran it. */
@@ -57,7 +58,7 @@ export function endlessView(day: string, entries: Iterable<EndlessEntry>, visito
   const mine = visitor === null ? -1 : sorted.findIndex((e) => e.visitor === visitor);
   const top = sorted.slice(0, ENDLESS_BOARD_SIZE).map((e, i) => ({
     rank: ranks[i]!,
-    name: e.name,
+    name: boardName(e.name),
     wave: e.wave,
     ticks: e.ticks,
     hero: e.hero,
@@ -79,7 +80,7 @@ export function endlessYesterday(entries: Iterable<EndlessEntry>): EndlessYester
   const ranks = ranksBy(sorted, endlessRankOrder);
   return sorted
     .slice(0, YESTERDAY_SIZE)
-    .map((e, i) => ({ rank: ranks[i]!, name: e.name, wave: e.wave, ticks: e.ticks, hero: e.hero }));
+    .map((e, i) => ({ rank: ranks[i]!, name: boardName(e.name), wave: e.wave, ticks: e.ticks, hero: e.hero }));
 }
 
 /** The day's top wave, or null on an empty board. */

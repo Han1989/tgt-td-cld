@@ -1,6 +1,7 @@
 // The Daily run's routes (docs/GAME_DESIGN.md "Daily run", docs/DEPLOY.md): HTTP only, no WebSocket message.
-//   GET  /daily/today              the day, its seed, when it closes, how many have run it, yesterday's champion
-//                                  (and, with this browser's data key in `x-data-key`, its rank today and yesterday)
+//   GET  /daily/today              the day, its seed, when it closes, how many have run it, yesterday's champion,
+//                                  today's first five rows and yesterday's first three (q16; with this browser's data
+//                                  key in `x-data-key`, its rank today and yesterday, and its row marked `mine`)
 //   GET  /daily/board?day=         today's or yesterday's board around the caller (`x-data-key`), or its top five
 //   POST /daily/post               { key, name, file: { report, replay } }: checked, re-run by the server, ranked
 // The same origin check, CORS, body limits and per-address token buckets as /analytics. The data key proves which
@@ -11,8 +12,8 @@ import { dailyClosesAt, dailyKey, dailySeed, shiftDailyKey } from '@tdt/sim';
 import { clientIp, readBody } from '../analytics/http';
 import { visitorFromKey } from '../analytics/dataKey';
 import { TokenBucket } from '../rateLimit';
-import { boardView, champion, type DailyEntry } from './board';
-import { boardName } from './names';
+import { boardView, champion, topRows, TODAY_TOP, YESTERDAY_TOP, type DailyEntry } from './board';
+import { boardName } from '../names';
 import { allPostsBucket, guard, headerVisitor, json, parsePost, refuse, slowReads, take, type Buckets } from './routing';
 import type { DailyStore } from './store';
 import { fileRefusal, reportMismatch, ReplayQueue, type PostedFile } from './verify';
@@ -70,6 +71,8 @@ export function createDailyHttp(opts: DailyHttpOptions): (req: IncomingMessage, 
       closesAt: dailyClosesAt(day),
       runs: opts.store.entries(day).length,
       champion: champion(opts.store.entries(yesterday)),
+      top: topRows(opts.store.entries(day), TODAY_TOP, visitor),
+      yesterdayTop: topRows(opts.store.entries(yesterday), YESTERDAY_TOP, null),
       ...(visitor ? { you: { today: rankOf(day, visitor), yesterday: rankOf(yesterday, visitor) } } : {}),
     });
   }

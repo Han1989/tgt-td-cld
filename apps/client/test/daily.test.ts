@@ -218,6 +218,23 @@ describe('the requests', () => {
     ).toBeNull();
   });
 
+  it('reads the server’s answer with q16’s `top` and `yesterdayTop` as it read the old one (the clients that are out)', async () => {
+    const calls: Call[] = [];
+    const row = (rank: number, name: string, mine = false) => ({
+      rank, name, hero: 'warden', won: true, heart: 90 - rank, wave: 15, ticks: 12_000 + rank, ...(mine ? { mine: true } : {}),
+    });
+    const answer = {
+      ...today({ champion: { name: 'Mira', heart: 80, ticks: 13_000 }, you: { today: { rank: 2, total: 5 }, yesterday: null } }),
+      top: [row(1, 'Kael'), row(2, 'Player', true), row(3, 'Wren'), row(4, 'Ada'), row(5, 'Bo')],
+      yesterdayTop: [row(1, 'Mira'), row(2, 'Sol'), row(3, 'Ivo')],
+    };
+    const got = await fetchToday('wss://game.example', fakeFetch(200, answer, calls), NOW);
+    expect(got).toEqual(answer);
+    // The tile reads it exactly as it reads the same answer without the two new fields.
+    const { top: _top, yesterdayTop: _yesterday, ...old } = answer;
+    expect(dailyTileLine(got!, NOW)).toEqual(dailyTileLine(old, NOW));
+  });
+
   it('posts the key, the name and the file, making a key when there is none, and remembers the day', async () => {
     const calls: Call[] = [];
     const reply = { day: '2026-10-22', total: 3, rank: 1, rows: [], improved: true };

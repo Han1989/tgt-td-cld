@@ -4,6 +4,7 @@
 
 import type { HeroKind } from '@tdt/protocol';
 import { rankOrder, type DailyRun } from '@tdt/sim';
+import { boardName } from '../names';
 import type { DayEntry } from './days';
 
 /** One browser's best run of a day, as the server re-ran it. The data key is never kept, only the id derived from it. */
@@ -76,7 +77,7 @@ export function boardView(day: string, entries: Iterable<DailyEntry>, visitor: s
   const start = mine < 0 ? 0 : Math.max(0, Math.min(mine - Math.floor(BOARD_ROWS / 2), sorted.length - BOARD_ROWS));
   const rows = sorted.slice(start, start + BOARD_ROWS).map((e, i) => ({
     rank: ranks[start + i]!,
-    name: e.name,
+    name: boardName(e.name),
     heart: e.heart,
     wave: e.wave,
     ticks: e.ticks,
@@ -94,5 +95,38 @@ export function boardView(day: string, entries: Iterable<DailyEntry>, visitor: s
 /** The day's winner, or null on an empty board. */
 export function champion(entries: Iterable<DailyEntry>): { name: string; heart: number; ticks: number } | null {
   const top = sortBoard(entries)[0];
-  return top ? { name: top.name, heart: top.heart, ticks: top.ticks } : null;
+  return top ? { name: boardName(top.name), heart: top.heart, ticks: top.ticks } : null;
+}
+
+/** A row of GET /daily/today's `top` and `yesterdayTop` (the first screen's ribbon, q17). */
+export interface TodayRow {
+  rank: number;
+  name: string;
+  hero: HeroKind;
+  won: boolean;
+  heart: number;
+  wave: number;
+  ticks: number;
+  /** Only on the caller's own row, when its key came with the request. */
+  mine?: true;
+}
+
+/** How many rows `top` holds, and `yesterdayTop`. */
+export const TODAY_TOP = 5;
+export const YESTERDAY_TOP = 3;
+
+/** A day's first `size` rows, the caller's own marked (never with `visitor` null). */
+export function topRows(entries: Iterable<DailyEntry>, size: number, visitor: string | null): TodayRow[] {
+  const sorted = sortBoard(entries);
+  const ranks = ranksOf(sorted);
+  return sorted.slice(0, size).map((e, i) => ({
+    rank: ranks[i]!,
+    name: boardName(e.name),
+    hero: e.hero,
+    won: e.won,
+    heart: e.heart,
+    wave: e.wave,
+    ticks: e.ticks,
+    ...(visitor !== null && e.visitor === visitor ? { mine: true as const } : {}),
+  }));
 }

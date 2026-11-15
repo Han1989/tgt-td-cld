@@ -98,7 +98,7 @@ Startup logs one analytics line: where events are stored, and whether the dashbo
 
 | Route | What |
 |---|---|
-| `GET /daily/today` | `{ day, seed, closesAt, runs, champion }`: today's UTC date, its seed, the next UTC midnight (ms), how many browsers are on today's board, yesterday's winner `{ name, heart, ticks }` or null. With a data key in `x-data-key`, also `you: { today, yesterday }` (rank and total, or null). |
+| `GET /daily/today` | `{ day, seed, closesAt, runs, champion, top, yesterdayTop }`: today's UTC date, its seed, the next UTC midnight (ms), how many browsers are on today's board, yesterday's winner `{ name, heart, ticks }` or null, today's first five rows and yesterday's first three (q16: `{ rank, name, hero, won, heart, wave, ticks }`). With a data key in `x-data-key`, also `you: { today, yesterday }` (rank and total, or null), and `mine: true` on the caller's own row of `top`. Every name on every board answer has been through the word filter at read time (`apps/server/src/names.ts`): a refused one reads "Player". |
 | `GET /daily/board?day=YYYY-MM-DD` | Today's or yesterday's board (any other day is 400): `total`, the caller's `rank` and `best` (by `x-data-key`), and five rows around the caller (or the top five), each `{ rank, name, heart, wave, ticks, mine }`. |
 | `POST /daily/post` | `{ key, name, file: { report, replay } }`, up to 448 KB. Checked, then re-run by the server one at a time (a few ms per slice, so rooms keep ticking); answers the caller's rank, total, best, this run, whether it improved the best, the personal best over the days kept and five rows. Refusals are JSON `{ error, message }`: 400 (`body`, `file`, `rerun`), 409 (`day`: another day's seed; `forgotten`), 413, 429 (`Retry-After: 20`), 503 (`busy`). |
 
