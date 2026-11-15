@@ -521,7 +521,7 @@ describe('privacy page and links', () => {
       'the first match starts without it: it asks only when you post a run to a board or turn play data on',
       'It stops when play data is off, when your browser asks not to be tracked, and once the answer is under 13',
       'how many times the page was opened or failed to start, and how far visits got) are kept for 90 days',
-      'last updated 12 November 2026',
+      'last updated 15 November 2026',
       "that site serves the game's files inside its page, under its own privacy policy",
       "There it keeps its own settings and its own browser id, apart from this site's",
       'the game sends no play data at all, only the anonymous counts of page opens and matches',

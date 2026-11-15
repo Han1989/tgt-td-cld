@@ -80,6 +80,13 @@ type it); there is no invite link in this build. Solo is the home screen's main 
 
 ## The pictures
 
+**The committed covers and previews are the ones uploaded on 15 Nov 2026.** The advisor made them by hand from the kit
+of 14 Nov: the title moved clear of the portal's label zone (lower on the 16:9 and the 2:3, to the right of the zone on
+the 1:1) and the first second of both previews rebuilt from the new covers. They stay as uploaded until the next real
+run of the scripts below, which now place the title clear of the zone themselves (q14, `scripts/labelZone.ts`;
+docs/DEPLOY.md §10, "CrazyGames' label zone"). `npm run cg-previews -w @tdt/client -- --sheet-only` remakes the sheet
+from the committed videos with no recording.
+
 | File | Use |
 | --- | --- |
 | [cover-1920x1080.png](cover-1920x1080.png) | Cover, 16:9 |
@@ -88,13 +95,51 @@ type it); there is no invite link in this build. Solo is the home screen's main 
 | [preview-landscape-1920x1080.mp4](preview-landscape-1920x1080.mp4) | Preview video, landscape |
 | [preview-portrait-1080x1620.mp4](preview-portrait-1080x1620.mp4) | Preview video, portrait |
 
-The covers: `npm run press-shots -w @tdt/client -- --only 7,cg` (one design, the Arcanist on the meadow in wave 10,
+The covers: `npm run press-shots -w @tdt/client -- --only 7,cg` (into another folder with `--cg DIR` unless a new
+upload is meant; one design, the Arcanist on the meadow in wave 10,
 the wordmark the only text). The previews: `npm run cg-previews -w @tdt/client` (recorded in real time from a real
 solo Quick match, no sound, no cursor, opening on the cover): the build phase, a wave on the towers with the Ranger and
 his bot teammate, the Arcanist, both in the frame, the Ranger's Arrow Storm answered by her Meteor and fused into
 Meteor Rain (the cut starts once the wave's banner has gone), and the wave-5 boss under the towers' fire with the
 Ranger alive and out of its reach to the last frame. Seven frames of each, the last one included, are on
 [previews-sheet.jpg](previews-sheet.jpg).
+
+## What was submitted
+
+Han submitted the game on 15 Nov 2026 at 14:43 (Singapore). The build was `main` at 1bc3492 (protocol 28), uploaded as
+the unzipped files of `build:embed -- crazygames`.
+
+| Where | What Han chose or answered |
+| --- | --- |
+| Launch | Basic Launch, game ID 173418, "Awaiting review" |
+| Build | `main` at 1bc3492, `PROTOCOL_VERSION` 28, its unzipped files (the portal takes files or a folder, not a zip) |
+| Engine | HTML5 |
+| Progress saved | "using LocalStorage" (signed-in players' storage copied to their CrazyGames account: `privacy.html`, `hosted`) |
+| Mobile | supports mobile devices; orientation "Both" |
+| Multiplayer | an online multiplayer game, "Online with Friends", a lobby of 2 to 3. The portal refuses a minimum of 1 and says such a game should use their invite link and button and `IsInstantMultiplayer`; this build has no SDK, and Han declared it anyway |
+| Muting through the SDK | not ticked |
+| Fullscreen | works well in fullscreen |
+| Category | Strategy |
+| Age rating | PEGI 12, confirmed |
+| QA: every Basic Launch row | Yes |
+| QA: the four SDK rows | "Not detected" |
+| QA: Invite Button used correctly | No |
+| QA: IsInstantMultiplayer | No |
+| QA: friend invitation flows | N/A |
+| QA: the game retains friends in a lobby at the end of a round | Yes |
+| QA: chat / disableChat | N/A / N/A |
+| Covers | the three in this folder, the title moved clear of the portal's label zone (top left: 40% × 20.5% on 16:9, 40% × 10% on 2:3, 35.4% × 30.5% on 1:1) |
+| Previews | the two videos in this folder, their first second rebuilt from the moved covers |
+
+## When the review answers
+
+- **Passed:** the game is live to a share of CrazyGames' players. From then on a change to `PROTOCOL_VERSION` needs a
+  new upload within the same hour as the server deploy, or the uploaded copy cannot play online ("This copy is being
+  updated").
+- **They ask for the invite and instant-multiplayer features:** that is the SDK work (their invite link and button,
+  `IsInstantMultiplayer`, a room joined from their link): a task of its own for the advisor to write.
+- **They mind the orientation:** upload a new version with **Portrait** as the orientation. Today a phone held sideways
+  shows the game's own "Rotate to portrait" card, which "Both" does not promise.
 
 ## A note for Han
 

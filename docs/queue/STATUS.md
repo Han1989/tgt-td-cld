@@ -37,7 +37,7 @@ adding them did not touch the lines a claimed task's branch is changing.
 | q11 | [iPhone fix: a finger iOS takes away never leaves the stick held](q11-stick-never-stuck.md) | autopilot | done | #193 | q10 | Client only. From Han's three-device match of 14 Nov. Merge condition in the file; Han then tries it on the iPhone in Safari. |
 | q12 | [Coming back to a running match: at any time, and by the room code too](q12-come-back-to-a-match.md) | autopilot | done | #194 | q11 | Sim, protocol (28), server and client: the merge restarts the game server and every hosted zip is built again. Han confirmed the rule by merging the brief. Merge condition in the file; Han tries it on the live site after the merge. |
 | q13 | [The lobby: hero faces that live, and today's champions on the first screen](q13-lobby-faces-and-champions.md) | Han | done | #196 | q12 | Client, and one field more in GET /endless/today (the merge restarts the game server; the protocol stays 28). Han judges it on his phone from the pictures and clips in the pull request. |
-| q14 | [After the CrazyGames submission: the kit as uploaded, the label zone, one privacy line](q14-after-the-submission.md) | autopilot | in-progress |  | q13 | Scripts, privacy.html and docs: no game code, no server restart. Merge condition in the file. |
+| q14 | [After the CrazyGames submission: the kit as uploaded, the label zone, one privacy line](q14-after-the-submission.md) | autopilot | done | #198 | q13 | Scripts, privacy.html and docs: no game code, no server restart. Merge condition in the file. |
 
 ## Han's own steps (the autopilot skips these)
 

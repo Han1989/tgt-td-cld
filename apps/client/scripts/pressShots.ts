@@ -48,7 +48,9 @@
 // `--only` takes the numbers and `covers` / `cg` / `sheet` (the covers need shot 7's wide frame in --work, default
 // apps/client/dist-press). Stills go to --out (default docs/screenshots/press), covers and the sheet to --press
 // (default docs/press). `cg` (q5): CrazyGames' three covers of one design, 1920 × 1080, 800 × 1200 and 800 × 800, the
-// wordmark the only text, into docs/crazygames/ (`--cg DIR`).
+// wordmark the only text, into docs/crazygames/ (`--cg DIR`), the title clear of the portal's label zone (q14,
+// scripts/labelZone.ts: the script stops otherwise). The committed ones are the covers Han uploaded on 15 Nov 2026
+// (docs/crazygames/SUBMISSION.md): run `cg` into another folder (`--cg DIR`) unless a new upload is meant.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -59,6 +61,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from '@playwri
 import { TUNING } from '@tdt/sim';
 import { build, preview, type PreviewServer } from 'vite';
 import { CUT_JS } from './heroCut';
+import { labelZone, zoneClash, type Box } from './labelZone';
 import { decodePng, encodeIndexedPng } from './png';
 import { quantize } from './quantize';
 
@@ -1238,7 +1241,8 @@ window.press = (() => {
     const h = heroes[spec.hero];
     const scale = (spec.heroTall * H) / (h.own.y1 - h.own.y0);
     hero(g, spec.hero, spec.heroX * W, H * (1 - spec.heroFoot), scale, Math.max(2, W / 260));
-    await logo(root, spec.logo[0] * W, spec.logo[1] * H, spec.logo[2] * W);
+    const r = await logo(root, spec.logo[0] * W, spec.logo[1] * H, spec.logo[2] * W);
+    return { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom };
   };
   // The contact sheet: the stills, the banner and the covers (each also at 160 px wide, a store's thumbnail), labelled.
   const sheet = async (spec) => {
@@ -1281,11 +1285,16 @@ const COVERS = [
   { file: 'cg-cover-1x1.png', w: 1024, h: 1024, hero: 'ranger', where: 'CrazyGames: the 1:1 cover' },
 ] as const;
 
-/** CrazyGames' covers (q5, docs/crazygames/SUBMISSION.md): three shapes of one design, the title the only text. */
+/**
+ * CrazyGames' covers (q5, docs/crazygames/SUBMISSION.md): three shapes of one design, the title the only text. q14:
+ * the title stands clear of the portal's label zone (scripts/labelZone.ts) as on the covers Han uploaded: lower on the
+ * wide and the tall, right of the zone on the square. `logo` is [centre x, top, "Together"'s width] as shares of the
+ * cover; the script stops when the drawn title comes within LABEL_GAP px of the zone.
+ */
 const CG_COVERS = [
-  { file: 'cover-1920x1080.png', w: 1920, h: 1080, hero: 'arcanist', where: 'CrazyGames: the 16:9 cover' },
-  { file: 'cover-800x1200.png', w: 800, h: 1200, hero: 'arcanist', where: 'CrazyGames: the 2:3 cover' },
-  { file: 'cover-800x800.png', w: 800, h: 800, hero: 'arcanist', where: 'CrazyGames: the 1:1 cover' },
+  { file: 'cover-1920x1080.png', w: 1920, h: 1080, hero: 'arcanist', where: 'CrazyGames: the 16:9 cover', logo: [0.33, 0.235, 0.4] },
+  { file: 'cover-800x1200.png', w: 800, h: 1200, hero: 'arcanist', where: 'CrazyGames: the 2:3 cover', logo: [0.5, 0.125, 0.82] },
+  { file: 'cover-800x800.png', w: 800, h: 800, hero: 'arcanist', where: 'CrazyGames: the 1:1 cover', logo: [0.7, 0.05, 0.48] },
 ] as const;
 
 async function covers(browser: Browser): Promise<void> {
@@ -1346,15 +1355,15 @@ async function covers(browser: Browser): Promise<void> {
     // The covers, drawn at twice their size (under 1000 px wide) and scaled down; CrazyGames' (q5) one design at
     // three shapes, the Arcanist on the meadow and the wordmark alone.
     const sets = [
-      ...(only.has('covers') ? COVERS.map((c) => ({ ...c, dir: pressDir, tall: false })) : []),
-      ...(only.has('cg') ? CG_COVERS.map((c) => ({ ...c, dir: cgDir, tall: c.h > c.w })) : []),
+      ...(only.has('covers') ? COVERS.map((c) => ({ ...c, dir: pressDir, tall: false, logo: null, zone: false })) : []),
+      ...(only.has('cg') ? CG_COVERS.map((c) => ({ ...c, dir: cgDir, tall: c.h > c.w, zone: true })) : []),
     ];
     if (sets.length) {
       mkdirSync(cgDir, { recursive: true });
       for (const c of sets) {
         const square = c.w <= c.h;
         const S = c.w < 1000 ? 2 : 1;
-        await page.evaluate((spec) => (window as any).press.cover(spec), {
+        const title: Box = await page.evaluate((spec) => (window as any).press.cover(spec), {
           w: c.w * S,
           h: c.h * S,
           hero: c.hero,
@@ -1363,8 +1372,16 @@ async function covers(browser: Browser): Promise<void> {
           heroTall: c.tall ? 0.56 : square ? 0.6 : 0.82,
           heroX: c.tall ? 0.56 : square ? 0.7 : 0.75,
           heroFoot: 0.05,
-          logo: c.tall ? [0.5, 0.06, 0.82] : square ? [0.5, 0.05, 0.62] : [0.33, c.w / c.h > 1.9 ? 0.2 : 0.16, 0.4],
+          logo: c.logo ?? (c.tall ? [0.5, 0.06, 0.82] : square ? [0.5, 0.05, 0.62] : [0.33, c.w / c.h > 1.9 ? 0.2 : 0.16, 0.4]),
         });
+        if (c.zone) {
+          // q14: CrazyGames' label zone, in the cover's own pixels (the stage is drawn S times larger).
+          const box = { x0: title.x0 / S, y0: title.y0 / S, x1: title.x1 / S, y1: title.y1 / S };
+          const clash = zoneClash(box, c.w, c.h);
+          if (clash) throw new Error(`${c.file}: ${clash}`);
+          const z = labelZone(c.w, c.h);
+          console.log(`${c.file}: the title ${Math.max(box.x0 - z.x1, box.y0 - z.y1).toFixed(0)} px clear of the label zone`);
+        }
         const shot = await grab(c.w * S, c.h * S);
         const [full] = await scale(browserOf, shot, [{ w: c.w, h: c.h, type: 'image/png' }]);
         // 256 colours with a light dither, as the link card (scripts/ogImage.ts): a third the bytes, the same look.
