@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { faceTable, measureFaces, type FaceNumbers } from './faceLevels';
 
 const root = resolve(fileURLToPath(import.meta.url), '../..');
 const args = process.argv.slice(2);
@@ -22,7 +23,7 @@ const flag = (name: string) => {
   return at >= 0 ? args[at + 1] : undefined;
 };
 const out = resolve(flag('--out') ?? join(root, '..', '..', 'docs', 'screenshots', 'lobby'));
-const only = new Set((flag('--only') ?? 'home,states,room,faces,clips').split(','));
+const only = new Set((flag('--only') ?? 'home,states,room,faces,measure,clips').split(','));
 const PORT = 4191;
 const BASE = `http://localhost:${PORT}`;
 const BEFORE_PORT = 4193;
@@ -178,6 +179,35 @@ async function shots(browser: Browser): Promise<void> {
   }
 }
 
+/**
+ * The faces' numbers (faceLevels.ts) on the home card at 412 × 839 and 4×, under reduced motion: this build, and with
+ * `--before DIR` that build too, printed and written to faces.json.
+ */
+async function measure(browser: Browser): Promise<void> {
+  const grab = async (base: string): Promise<FaceNumbers[]> => {
+    const ctx = await browser.newContext({ viewport: { width: 412, height: 839 }, deviceScaleFactor: 4, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+    const page = await home(ctx, board(10), '/?lobby&daily', base, base === BASE);
+    const rows = await measureFaces(page, 4);
+    await ctx.close();
+    return rows;
+  };
+  const result: Record<string, FaceNumbers[]> = {};
+  if (before) {
+    const server = serve(before, BEFORE_PORT);
+    try {
+      await up(`http://localhost:${BEFORE_PORT}`);
+      result.before = await grab(`http://localhost:${BEFORE_PORT}`);
+    } finally {
+      server.kill();
+    }
+    console.log(`Before\n${faceTable(result.before)}`);
+  }
+  result.after = await grab(BASE);
+  console.log(`After\n${faceTable(result.after)}`);
+  writeFileSync(join(out, 'faces.json'), `${JSON.stringify(result, null, 2)}\n`);
+  console.log('  faces.json');
+}
+
 /** Records `act` in real time at 412 × 839 into `name` (H.264, no sound). */
 async function clip(browser: Browser, name: string, today: unknown, act: (page: Page) => Promise<void>): Promise<void> {
   const dir = join(out, '.video');
@@ -243,6 +273,7 @@ async function main(): Promise<void> {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     try {
       await shots(browser);
+      if (only.has('measure')) await measure(browser);
       if (only.has('clips')) await clips(browser);
     } finally {
       await browser.close();

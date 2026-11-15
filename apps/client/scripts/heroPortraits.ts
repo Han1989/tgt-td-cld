@@ -25,6 +25,9 @@ const SIDE = 160;
 /** The most a picture may weigh. */
 const MAX_BYTES = 12 * 1024;
 
+/** The Warden's lift (q17, docs/ART.md §12): his iron a step lighter, so he stands off the button as the others do. */
+const LIFT_WARDEN: Lift = { gamma: 0.72, gain: 1.02 };
+
 /**
  * Each hero's square on his poster (2400 × 900 px, the stage's video frame): the head and the tops of the shoulders,
  * the face centred, his silhouette piece inside. `eyes`: where to look for the two glowing eyes (a box on the poster),
@@ -32,11 +35,18 @@ const MAX_BYTES = 12 * 1024;
  */
 const HEROES = {
   ranger: { square: { x: 1080, y: 296, side: 300 }, eyes: { x0: 1240, y0: 440, x1: 1320, y1: 500 } },
-  warden: { square: { x: 1092, y: 316, side: 300 }, eyes: { x0: 1215, y0: 430, x1: 1300, y1: 475 } },
+  // q17: his slate iron read as a dark shape on the slate button, so his cut alone is lifted (his poster untouched).
+  warden: { square: { x: 1092, y: 316, side: 300 }, eyes: { x0: 1215, y0: 430, x1: 1300, y1: 475 }, lift: LIFT_WARDEN },
   arcanist: { square: { x: 1110, y: 320, side: 300 }, eyes: { x0: 1225, y0: 430, x1: 1310, y1: 485 } },
 } as const;
 
 type Kind = keyof typeof HEROES;
+
+/** A hero's levels: each colour channel as (c / 255)^gamma, times gain (q17). */
+interface Lift {
+  gamma: number;
+  gain: number;
+}
 
 const PAGE_JS = String.raw`
 window.portrait = async (spec) => {
@@ -48,6 +58,17 @@ window.portrait = async (spec) => {
   const pad = 24;
   const box = { x0: q.x - pad, y0: q.y - pad, x1: q.x + q.side + pad, y1: Math.min(900, q.y + q.side + pad) };
   const { figure } = window.heroCut(poster, clearing, box);
+  if (spec.lift) {
+    const fg = figure.getContext('2d');
+    const img = fg.getImageData(0, 0, figure.width, figure.height);
+    const d = img.data;
+    const { gamma, gain } = spec.lift;
+    for (let k = 0; k < d.length; k += 4) {
+      if (d[k + 3] === 0) continue;
+      for (let c = 0; c < 3; c++) d[k + c] = Math.min(255, Math.round(255 * gain * Math.pow(d[k + c] / 255, gamma)));
+    }
+    fg.putImageData(img, 0, 0);
+  }
   const c = document.createElement('canvas');
   c.width = c.height = side;
   const g = c.getContext('2d');
@@ -124,6 +145,7 @@ async function main(): Promise<void> {
         clearing: data(join(stage, 'clearing.webp')),
         square: h.square,
         eyes: h.eyes,
+        lift: 'lift' in h ? h.lift : null,
         side: SIDE,
       })) as { check: string; eyes: { x: number; y: number; px: number }[]; edge: number; webp: { q: number; url: string }[] };
       if (check) writeFileSync(join(out, `${kind}-check.png`), Buffer.from(res.check.split(',')[1]!, 'base64'));
