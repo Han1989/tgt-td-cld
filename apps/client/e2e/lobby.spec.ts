@@ -912,6 +912,11 @@ for (const size of [
     expect(r.bottom - r.top).toBeGreaterThanOrEqual(28);
     expect(r.bottom - r.top).toBeLessThanOrEqual(34);
     expect(Math.abs(r.right - r.left - (tile.right - tile.left))).toBeLessThanOrEqual(1);
+    // A thumb's 44 px: a tap 6 px over or under the line still lands on it.
+    for (const y of [r.top - 6, r.bottom + 6]) {
+      const hit = await page.evaluate(([x, yy]) => document.elementFromPoint(x!, yy!)?.closest('button')?.id, [(r.left + r.right) / 2, y]);
+      expect(hit).toBe('lobby-ribbon');
+    }
     expect(Math.abs((await box(page, '#lobby-offline')).top - before.top)).toBeLessThanOrEqual(1);
     expect(await overflow(page)).toBeLessThanOrEqual(Math.max(0, overBefore));
     await onScreen(page, 'lobby-offline');
@@ -1349,7 +1354,7 @@ async function fitsOneScreen(page: Page, viewport: { width: number; height: numb
 }
 
 for (const viewport of [null, { width: 412, height: 839 }]) {
-  test(`the room card: the code, seats with emblems, the host's mode and one docked main button${viewport ? ', one screen at 412 × 839' : ''}`, async ({ page }) => {
+  test(`the room card: the code, seats with faces, the host's mode and one docked main button${viewport ? ', one screen at 412 × 839' : ''}`, async ({ page }) => {
     if (viewport) await page.setViewportSize(viewport);
     await fakeRoom(page, 'p1', [HOST, GUEST, THIRD]);
     await openHome(page, 'skipped');
@@ -1360,7 +1365,7 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await expect(page.locator('#lobby-copy')).toBeVisible();
     await expect(page.locator('.lobby-card > .logo')).toBeHidden();
 
-    // One seat per lane, all three taken, each with its hero's emblem.
+    // One seat per lane, all three taken, each with its hero's face.
     const seats = page.locator('#lobby-players .seat');
     await expect(seats).toHaveCount(3);
     await expect(page.locator('#lobby-players .seat.open')).toHaveCount(0);
@@ -1372,8 +1377,9 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await expect(seats.nth(1).locator('.state')).toHaveText('Not ready');
     await expect(seats.nth(2).locator('.state')).toHaveText('Ready');
     for (const i of [0, 1, 2]) {
+      // The hero's face (q13): his portrait, a picture of its own.
       const emblem = await seats.nth(i).locator('.hero-ico').evaluate((el) => getComputedStyle(el).backgroundImage);
-      expect(emblem).toContain('data:image/png');
+      expect(emblem).toMatch(/\.webp/);
     }
 
     // Your hero, as on the home card; the mode as one row. No difficulty, no modifiers.

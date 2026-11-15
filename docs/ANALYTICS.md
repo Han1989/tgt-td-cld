@@ -301,7 +301,7 @@ For the returns the browser keeps, in localStorage only, `tdt.firstDay`: `{ day,
 
 **What the server keeps.** As for the Daily run: the visitor id derived from the key (never the key), the nickname (after `normalizeName` and the word filter), the hero and the re-run's wave and ticks, plus when it was posted, per UTC day and per browser, the best run only (the wave, then the shorter time). The replay and the client's report are dropped after the re-run. Each day is one file, `endless/YYYY-MM-DD.json` beside `daily/` (the same `ANALYTICS_DIR` rule), kept **90 days**; the board shows only today's top 10, and the nickname with the result to anyone who plays.
 
-**Reading the board.** The home card's "Today's top 10" asks `GET /endless/today` with no key, unless this browser posted an Endless run today (`tdt.endlessPosted`, the last three days posted, kept in the browser): then the key goes in `x-data-key` to mark its row and pin it under the ten. The server keeps nothing about a read.
+**Reading the board.** The home card's ribbon of today's champions (q13) asks `GET /endless/today` when the home card shows and every 5 minutes while it is open, with no key, unless this browser posted an Endless run today (`tdt.endlessPosted`, the last three days posted, kept in the browser): then the key goes in `x-data-key` to mark its row and pin it under the ten. The server keeps nothing about a read.
 
 **Copy and deletion.** **Download my data** includes the posted Endless runs (`endless` beside `daily`), **Delete my data** and the dashboard-key deletion remove them from every day kept (`removedEndlessRuns`), and a post from a just-deleted id is refused for 15 minutes. An under-13 answer deletes them with everything else.
 

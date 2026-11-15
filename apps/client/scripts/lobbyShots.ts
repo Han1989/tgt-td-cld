@@ -1,15 +1,16 @@
-// `npm run lobby-shots -w @tdt/client [-- --only home,states,room,faces,clips] [--out DIR]` (q13): after
-// `npm run build:e2e -w @tdt/client`, the home card's pictures for Han (docs/screenshots/lobby/): the home card with
-// ten names on the ribbon at 412 × 839 (2×), 360 × 640 and 1280 × 720; the two-rows-and-yesterday and the empty states
-// at 412 × 839; the room card; the hero buttons before (main's code-drawn icons, kept beside the script as
-// `buttons-before.png`) and after, side by side and enlarged; and two clips recorded in real time at 412 × 839 (H.264,
+// `npm run lobby-shots -w @tdt/client [-- --only home,states,room,faces,clips] [--before DIR] [--out DIR]` (q13):
+// after `npm run build:e2e -w @tdt/client`, the home card's pictures for Han (docs/screenshots/lobby/): the home card
+// with ten names on the ribbon at 412 × 839 (2×), 360 × 640 and 1280 × 720; the two-rows-and-yesterday and the empty
+// states at 412 × 839; the room card (a stand-in room on a stubbed socket, as e2e/lobby.spec.ts's `fakeRoom`); the
+// hero buttons enlarged (`buttons-after.png`), and with `--before DIR` (an e2e build of the commit before, its
+// `dist-e2e`) the same buttons there and both side by side (`buttons-before-after.png`); and two clips recorded in real time at 412 × 839 (H.264,
 // no sound, about 10 s): `ribbon.mp4` (the names running, then a tap opening the board) and `faces.mp4` (the three
 // buttons at rest, then each picked in turn). The boards are made up (endless/today stubbed, as e2e/lobby.spec.ts
 // does). Needs ffmpeg with libx264. About 2 minutes; `CHROMIUM_PATH` for another Chromium. Look at every picture and
 // both clips before committing.
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -24,6 +25,8 @@ const out = resolve(flag('--out') ?? join(root, '..', '..', 'docs', 'screenshots
 const only = new Set((flag('--only') ?? 'home,states,room,faces,clips').split(','));
 const PORT = 4191;
 const BASE = `http://localhost:${PORT}`;
+const BEFORE_PORT = 4193;
+const before = flag('--before') ? resolve(flag('--before')!) : null;
 
 const NAMES = ['Kael', 'Mira the Bold', 'Wren', 'Aster', 'Oro', 'Tamsin', 'Ilse', 'Bram', 'Juno', 'Pellinore Ash'];
 const HEROES = ['warden', 'ranger', 'arcanist'];
@@ -46,17 +49,20 @@ function board(n: number, mine = false) {
 
 const DAILY = { day: '2026-11-15', seed: 1, closesAt: Date.now() + 3_600_000, runs: 212, champion: { name: 'Kael', heart: 82, ticks: 13_000 } };
 
-async function home(ctx: BrowserContext, today: unknown, path = '/?lobby&daily'): Promise<Page> {
+async function home(ctx: BrowserContext, today: unknown, path = '/?lobby&daily', base = BASE, ribbon = true): Promise<Page> {
   const page = await ctx.newPage();
   await page.addInitScript(() => localStorage.setItem('tdt.settings', JSON.stringify({ tutorial: 'skipped' })));
   await page.route('**/endless/today', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(today) }));
   await page.route('**/daily/today', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DAILY) }));
-  await page.goto(`${BASE}${path}`);
+  await page.goto(`${base}${path}`);
   await page.waitForSelector('html[data-ready]');
-  await page.waitForSelector('#lobby-ribbon:not(.hidden)');
   await page.waitForSelector('#lobby-daily:not(.hidden)');
-  // The faces loaded, the stage's poster in.
-  await page.waitForFunction(() => [...document.querySelectorAll<HTMLElement>('#lobby-heroes-home .face-img')].length === 3);
+  if (ribbon) {
+    await page.waitForSelector('#lobby-ribbon:not(.hidden)');
+    // The faces loaded.
+    await page.waitForFunction(() => document.querySelectorAll('#lobby-heroes-home .face-img').length === 3);
+  }
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await page.waitForTimeout(1500);
   return page;
 }
@@ -93,24 +99,82 @@ async function shots(browser: Browser): Promise<void> {
     }
   }
   if (only.has('room')) {
-    // The room card as a host sees it before anyone joins: a stand-in lobby, as the e2e hook draws it.
+    // A room of three as its host sees it, on a stubbed socket (the e2e build's game server is ws://127.0.0.1:9).
     const ctx = await browser.newContext(phone);
-    const page = await home(ctx, board(10));
-    await page.evaluate(() => (window as any).__tdt?.showRoom?.());
-    const room = await page.locator('#lobby-room').isVisible();
-    if (room) await shot(page, 'room-412x839.png');
-    else {
-      // No stand-in: the room card's hero buttons are the home card's, so the home card's are the picture.
-      console.log('  (no stand-in room: the room card is shown by e2e/lobby.spec.ts against a game server)');
-    }
+    const seat = (id: string, name: string, hero: string, ready: boolean) => ({ id, name, hero, ready, connected: true, art: 100 });
+    const players = [seat('p1', 'Han', 'ranger', false), seat('p2', 'Mya', 'warden', true), seat('p3', 'Kai', 'arcanist', true)];
+    await ctx.routeWebSocket(/127\.0\.0\.1:9/, (ws) => {
+      ws.onMessage((raw) => {
+        const msg = JSON.parse(String(raw)) as { t: string };
+        if (msg.t !== 'create') return;
+        ws.send(JSON.stringify({ t: 'welcome', playerId: 'p1', room: { code: 'KQXYZ', token: 'shots' } }));
+        ws.send(JSON.stringify({ t: 'lobby', lobby: { code: 'KQXYZ', phase: 'lobby', hostId: 'p1', mode: 'quick', players } }));
+      });
+    });
+    const host = await home(ctx, board(10));
+    await host.locator('#lobby-name').fill('Han');
+    await host.locator('#lobby-create').click();
+    await host.waitForSelector('#lobby-room:not(.hidden)');
+    await host.waitForTimeout(800);
+    await shot(host, 'room-412x839.png');
     await ctx.close();
   }
   if (only.has('faces')) {
-    const ctx = await browser.newContext({ ...phone, deviceScaleFactor: 4 });
-    const page = await home(ctx, board(10));
-    await page.locator('#lobby-heroes-home').screenshot({ path: join(out, 'buttons-after.png') });
+    const grab = async (base: string, ribbon: boolean) => {
+      const ctx = await browser.newContext({ ...phone, deviceScaleFactor: 4 });
+      const page = await home(ctx, board(10), '/?lobby&daily', base, ribbon);
+      const png = await page.locator('#lobby-heroes-home').screenshot();
+      await ctx.close();
+      return png;
+    };
+    const after = await grab(BASE, true);
+    writeFileSync(join(out, 'buttons-after.png'), after);
     console.log('  buttons-after.png');
-    await ctx.close();
+    if (before) {
+      const server = serve(before, BEFORE_PORT);
+      try {
+        await up(`http://localhost:${BEFORE_PORT}`);
+        const was = await grab(`http://localhost:${BEFORE_PORT}`, false);
+        writeFileSync(join(out, 'buttons-before.png'), was);
+        // Side by side, before on top, labelled.
+        const ctx = await browser.newContext({ deviceScaleFactor: 1 });
+        const page = await ctx.newPage();
+        const url = (b: Buffer) => `data:image/png;base64,${b.toString('base64')}`;
+        const png = await page.evaluate(
+          async ([a, b]) => {
+            // No named functions in the page (tsx would wrap them in a helper the page lacks).
+            const [x, y] = await Promise.all(
+              [a, b].map(async (src) => {
+                const i = new Image();
+                i.src = src;
+                await i.decode();
+                return i;
+              }),
+            );
+            const label = 64;
+            const c = document.createElement('canvas');
+            c.width = Math.max(x.width, y.width) + 40;
+            c.height = x.height + y.height + label * 2 + 40;
+            const g = c.getContext('2d')!;
+            g.fillStyle = '#121a1c';
+            g.fillRect(0, 0, c.width, c.height);
+            g.fillStyle = '#e9eef6';
+            g.font = '600 36px system-ui, sans-serif';
+            g.fillText('Before (main)', 20, 46);
+            g.drawImage(x, 20, label);
+            g.fillText('After (q13)', 20, label + x.height + 20 + 46);
+            g.drawImage(y, 20, label * 2 + x.height + 20);
+            return c.toDataURL('image/png');
+          },
+          [url(was), url(after)],
+        );
+        writeFileSync(join(out, 'buttons-before-after.png'), Buffer.from(png.split(',')[1]!, 'base64'));
+        console.log('  buttons-before.png, buttons-before-after.png');
+        await ctx.close();
+      } finally {
+        server.kill();
+      }
+    }
   }
 }
 
@@ -125,15 +189,14 @@ async function clip(browser: Browser, name: string, today: unknown, act: (page: 
     recordVideo: { dir, size: { width: 412, height: 839 } },
   });
   const page = await home(ctx, today);
-  const t0 = Date.now();
+  const start = Date.now();
   await act(page);
+  const seconds = (Date.now() - start) / 1000;
   await ctx.close();
   const webm = readdirSync(dir).find((f) => f.endsWith('.webm'));
   if (!webm) throw new Error('no video');
-  // The page's load trimmed off: the clip starts with the home card up.
-  const skip = Math.max(0, (Date.now() - t0) / 1000);
-  void skip;
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-sseof', '-11', '-i', join(dir, webm), '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-movflags', '+faststart', join(out, name)]);
+  // The page's load trimmed off: the clip is the act alone, recorded in real time.
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-sseof', `-${seconds.toFixed(2)}`, '-i', join(dir, webm), '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-movflags', '+faststart', join(out, name)]);
   rmSync(dir, { recursive: true, force: true });
   console.log(`  ${name}`);
 }
@@ -154,19 +217,29 @@ async function clips(browser: Browser): Promise<void> {
   });
 }
 
+/** `vite preview` of an e2e build on `port`. */
+function serve(dist: string, port: number): ChildProcess {
+  return spawn('npx', ['vite', 'preview', '--outDir', dist, '--port', String(port), '--strictPort'], { cwd: root, stdio: 'ignore' });
+}
+
+async function up(url: string): Promise<void> {
+  for (let i = 0; i < 150; i++) {
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`${url} did not start`);
+}
+
 async function main(): Promise<void> {
   if (!existsSync(join(root, 'dist-e2e', 'index.html'))) throw new Error('run npm run build:e2e -w @tdt/client first');
   mkdirSync(out, { recursive: true });
-  const server: ChildProcess = spawn('npx', ['vite', 'preview', '--outDir', 'dist-e2e', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'ignore' });
+  const server = serve(join(root, 'dist-e2e'), PORT);
   try {
-    for (let i = 0; i < 100; i++) {
-      try {
-        if ((await fetch(BASE)).ok) break;
-      } catch {
-        // not up yet
-      }
-      await new Promise((r) => setTimeout(r, 200));
-    }
+    await up(BASE);
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     try {
       await shots(browser);
@@ -177,7 +250,6 @@ async function main(): Promise<void> {
   } finally {
     server.kill();
   }
-  void renameSync;
   console.log(`wrote ${out}`);
 }
 

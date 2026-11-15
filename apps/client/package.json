@@ -19,6 +19,7 @@
     "share-cards": "tsx scripts/shareCards.ts",
     "press-shots": "tsx scripts/pressShots.ts",
     "hero-portraits": "tsx scripts/heroPortraits.ts",
+    "lobby-shots": "tsx scripts/lobbyShots.ts",
     "cg-audit": "tsx scripts/cgAudit.ts",
     "cg-previews": "tsx scripts/cgPreviews.ts",
     "atmosphere-shots": "tsx scripts/atmosphereShots.ts",

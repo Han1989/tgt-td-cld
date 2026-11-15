@@ -3016,12 +3016,19 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   align-items: center;
   gap: 8px;
   padding: 0 0 0 9px;
-  overflow: hidden;
+  position: relative;
   text-align: left;
   text-transform: none;
   letter-spacing: normal;
   border-color: rgba(232, 185, 74, 0.55);
   box-shadow: var(--stone-rim), inset 3px 0 0 rgba(255, 210, 74, 0.55);
+}
+
+/* A thumb's 44 px to tap it by: 7 px over and under the 30 px line, in the gaps beside it (12 px each). */
+.champ-ribbon::after {
+  content: '';
+  position: absolute;
+  inset: -7px 0;
 }
 
 .ribbon-head {
@@ -5547,7 +5554,7 @@ body.layout-rotate .rotate {
 }
 
 @media (pointer: coarse) {
-  .lobby .btn,
+  .lobby .btn:not(.champ-ribbon),
   .lobby input {
     min-height: 44px;
   }
