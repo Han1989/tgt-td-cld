@@ -3024,11 +3024,12 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   box-shadow: var(--stone-rim), inset 3px 0 0 rgba(255, 210, 74, 0.55);
 }
 
-/* A thumb's 44 px to tap it by: 7 px over and under the 30 px line, in the gaps beside it (12 px each). */
+/* A thumb's 44 px to tap it by: 7 px over and under the 30 px line (8 from inside its 1 px border), in the gaps beside
+   it (12 px each). */
 .champ-ribbon::after {
   content: '';
   position: absolute;
-  inset: -7px 0;
+  inset: -8px -1px;
 }
 
 .ribbon-head {
