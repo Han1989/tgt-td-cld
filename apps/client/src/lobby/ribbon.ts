@@ -1,16 +1,29 @@
-// Today's champions on the home card (q13; docs/ART.md §12 "The champions' ribbon"): one line between the Mode row and
-// the Daily run's tile. Left, standing: a crown and "Endless · today’s top 10". Right: the names (rank, face, nickname,
-// wave), running right to left as a loop with no seam, held while a finger or the mouse is on them; a set that fits
-// stands centred. One tap anywhere opens the board card. Screen readers hear one button (the moving text is hidden).
+// Today's champions on the home card (q13, q17; docs/ART.md §12 "The champions' ribbon"): one line between the Mode row
+// and the Daily run's tile. Left, standing: a crown and "Today’s champions" (the crown alone under 380 px). Right: the
+// names of both boards, each board's after its small label ("Endless", "Daily run"; rank, face, nickname, wave or
+// Heart), running right to left as a loop with no seam, held while a finger or the mouse is on them; a set that fits
+// stands centred. One tap opens the board card on the tab of the part tapped (the label: Endless). Screen readers hear
+// one button (the moving text is hidden).
 // What it shows is endless/ribbon.ts's (pure); this draws and moves it. Reduced motion: the first rows that fit, then
 // "+N more", standing still.
 
 import { heroIcon, iconVar } from '../render/art/icons';
-import { moreText, RIBBON_ARIA, RIBBON_YESTERDAY, ribbonMotion, ribbonStill, type RibbonModel, type RibbonRow } from '../endless/ribbon';
+import {
+  moreText,
+  RIBBON_ARIA,
+  ribbonLabel,
+  ribbonMotion,
+  ribbonStill,
+  type RibbonBoard,
+  type RibbonModel,
+  type RibbonRow,
+  type RibbonSection,
+} from '../endless/ribbon';
 
-function rowEl(r: RibbonRow): HTMLElement {
+function rowEl(r: RibbonRow, board: RibbonBoard): HTMLElement {
   const el = document.createElement('span');
   el.className = 'rib-row';
+  el.dataset.board = board;
   if (r.medal) el.classList.add(r.medal);
   el.classList.toggle('mine', r.mine);
   const rank = document.createElement('b');
@@ -28,7 +41,7 @@ function rowEl(r: RibbonRow): HTMLElement {
   name.textContent = r.name;
   const wave = document.createElement('span');
   wave.className = 'rib-wave';
-  wave.textContent = r.wave;
+  wave.textContent = r.score;
   el.append(name, wave);
   if (r.mine) {
     const you = document.createElement('small');
@@ -39,16 +52,15 @@ function rowEl(r: RibbonRow): HTMLElement {
   return el;
 }
 
-/** One set of the ribbon's items: today's rows, then "Yesterday" and its rows. */
+/** One set of the ribbon's items: each board's part, its small label then its rows. */
 function setItems(model: Extract<RibbonModel, { kind: 'rows' }>): HTMLElement[] {
-  const items = model.today.map(rowEl);
-  if (model.yesterday.length) {
+  return model.sections.flatMap((section: RibbonSection) => {
     const label = document.createElement('span');
-    label.className = 'rib-yday';
-    label.textContent = RIBBON_YESTERDAY;
-    items.push(label, ...model.yesterday.map(rowEl));
-  }
-  return items;
+    label.className = 'rib-yday rib-board';
+    label.dataset.board = section.board;
+    label.textContent = section.label;
+    return [label, ...section.rows.map((r) => rowEl(r, section.board))];
+  });
 }
 
 export class ChampionsRibbon {
@@ -57,14 +69,28 @@ export class ChampionsRibbon {
   private model: RibbonModel = { kind: 'hidden' };
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)');
 
+  private readonly label: HTMLElement;
+
   constructor(
     readonly root: HTMLButtonElement,
-    open: () => void,
+    open: (board: RibbonBoard) => void,
   ) {
     root.setAttribute('aria-label', RIBBON_ARIA);
     this.window = root.querySelector<HTMLElement>('.ribbon-window')!;
     this.track = root.querySelector<HTMLElement>('.ribbon-track')!;
-    root.addEventListener('click', open);
+    this.label = root.querySelector<HTMLElement>('.ribbon-label')!;
+    // The part tapped: a board's label or rows open its tab; the ribbon's own label and the gaps, Endless's.
+    root.addEventListener('click', (e) => {
+      const part = (e.target as Element | null)?.closest<HTMLElement>('[data-board]');
+      open(part?.dataset.board === 'daily' ? 'daily' : 'endless');
+    });
+    const fitLabel = () => {
+      const text = ribbonLabel(window.innerWidth);
+      this.label.textContent = text;
+      this.label.classList.toggle('hidden', !text);
+    };
+    fitLabel();
+    window.addEventListener('resize', fitLabel);
     // Held while a finger is on it (the mouse: :hover in style.css).
     const hold = (on: boolean) => () => root.classList.toggle('held', on);
     root.addEventListener('pointerdown', hold(true));
@@ -109,14 +135,19 @@ export class ChampionsRibbon {
     const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
     const widths = items.map((el) => el.getBoundingClientRect().width + gap);
     const set = widths.reduce((s, w) => s + w, 0);
+    const rows = items.filter((el) => el.classList.contains('rib-row')).length;
     if (this.reduced.matches) {
       const tag = document.createElement('span');
       tag.className = 'rib-more';
-      tag.textContent = moreText(items.length);
+      tag.textContent = moreText(rows);
       track.append(tag);
       const more = tag.getBoundingClientRect().width;
       tag.remove();
-      const still = ribbonStill(widths, width, more);
+      const still = ribbonStill(
+        items.map((el, k) => ({ width: widths[k]!, row: el.classList.contains('rib-row') })),
+        width,
+        more,
+      );
       if (still.more > 0) {
         items.slice(still.shown).forEach((el) => el.remove());
         tag.textContent = moreText(still.more);

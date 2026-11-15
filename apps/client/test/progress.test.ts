@@ -74,8 +74,8 @@ describe('progress dashboard data', () => {
     // (CrazyGames' previews again; PR #189), and D-19 (previews, round 2; PR #191), and D-20 (iPhone fix: a lost
     // finger never leaves the hero walking; PR #193), and D-21 (coming back to a running match; PR #194), and D-22
     // (the lobby's hero faces and today's champions; PR #196), and D-23 (after the CrazyGames submission; PR #198), and
-    // D-24 (CrazyGames' SDK; PR #200), and D-25 (a stricter name filter; PR #201).
-    expect(summary.done).toBe(125);
+    // D-24 (CrazyGames' SDK; PR #200), and D-25 (a stricter name filter; PR #201), and D-26 (lobby touch-ups; PR #202).
+    expect(summary.done).toBe(126);
     // D-10 (the anonymous counts, PR #99) is in review: open and in progress. V-01 (the first screen, PR #100), V-02
     // (the second screen, PR #102), V-03 (the map as a rendered picture, PR #114), V-04 (bigger units, PR #104), V-05b
     // (the three heroes from the KayKit models, PR #109, round 2 of #108), V-05c (the creeps and bosses in 3D, PR #115,
@@ -87,7 +87,7 @@ describe('progress dashboard data', () => {
     // The presentation pass has no open row.
     expect(summary.hanOpen).toBe(9);
     expect(summary.inProgress).toBe(1);
-    expect(summary.total).toBe(162);
+    expect(summary.total).toBe(163);
     expect(summary.total).toBe(summary.done + summary.open);
 
     const proofs: Record<string, number> = {
@@ -165,6 +165,7 @@ describe('progress dashboard data', () => {
       'D-22': 196,
       'D-23': 198,
       'D-25': 201,
+      'D-26': 202,
     };
     for (const [id, pull] of Object.entries(proofs)) {
       const item = byId(id);

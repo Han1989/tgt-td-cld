@@ -2614,6 +2614,9 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   --tone: 255, 162, 74;
   --breath: 4.4s;
   --phase: -1.3s;
+  /* q17 (docs/ART.md §12): his lifted iron (the portrait's levels) stands on a deeper ember than the others' discs, so
+     he reads as a light shape on a dark ground, not slate on slate. */
+  background: radial-gradient(circle at 50% 38%, rgba(var(--tone), 0.1), rgba(var(--tone), 0.04) 62%, rgba(8, 12, 14, 0.96) 100%), rgba(10, 12, 16, 0.55);
 }
 
 .hero-face[data-face='arcanist'] {
@@ -2733,6 +2736,19 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 .hero-face[data-face='warden'] .face-eye::after {
   animation-duration: 5.9s;
+}
+
+/* q17: his visor's slits glow brighter and wider than the hoods' eyes, so they stay lit over the lifted iron. */
+.hero-face[data-face='warden'] .face-eye::before {
+  inset: -2.5px;
+  background: radial-gradient(circle, rgba(255, 250, 220, 1), rgba(var(--eye), 0.8) 45%, transparent 72%);
+  opacity: 0.7;
+  animation-name: face-glow-visor;
+}
+
+@keyframes face-glow-visor {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
 }
 
 .hero-face[data-face='arcanist'] .face-eye {
@@ -3151,6 +3167,11 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   border-radius: 6px;
 }
 
+/* A board's small label before its rows (q17): "Endless", "Daily run", "Yesterday". */
+.rib-board + .rib-row {
+  margin-left: -6px;
+}
+
 .rib-yday,
 .rib-more {
   font-size: 11px;
@@ -3545,6 +3566,54 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 .lobby-card p.board-empty {
   font-size: 14px;
+  color: var(--text);
+}
+
+/* The two tabs (q17): Endless and the Daily run, the one on screen lit in gold. */
+.board-tabs {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.board-tab {
+  flex: 1 1 0;
+  min-height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(8, 6, 12, 0.45);
+  border: 1px solid var(--ink);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.board-tab.on {
+  color: var(--gold);
+  border-color: rgba(232, 185, 74, 0.6);
+  background: rgba(255, 210, 74, 0.1);
+}
+
+/* A tab's pane: its list scrolls, if anything does. */
+.board-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+.board-pane.hidden {
+  display: none;
+}
+
+.lobby-card p.board-daily-line {
+  margin: 0;
+}
+
+.lobby-card .board-note b {
   color: var(--text);
 }
 

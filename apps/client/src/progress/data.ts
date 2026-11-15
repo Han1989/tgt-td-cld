@@ -1062,6 +1062,15 @@ const items: ProgressItem[] = [
     proof: pr(201),
   },
   {
+    id: 'D-26',
+    title: 'Lobby touch-ups: the Warden’s face readable, and the Daily run’s leaders on the champions’ ribbon',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client only, protocol stays 28. The Warden’s face on the hero buttons is lighter, on a deeper ember disc with a brighter visor, so he no longer reads as a dark shape when another hero is picked (measured: 15.8 lightness over what is behind him, the three faces within 11.2 of each other). The champions’ ribbon reads “Today’s champions” and carries both boards: Endless’s names, then the Daily run’s first three (or yesterday’s). A tap opens the board card on that board’s tab: Endless, or the Daily run’s five with how many ran it and when it closes.',
+    proof: pr(202),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',
