@@ -459,6 +459,10 @@ test('CrazyGames: a room made in the frame shows its code and no link; a friend 
 test('coming back to a running match (q12): a reload, a second tab ("Rejoin your match") and the room code on another device', async ({
   browser,
 }) => {
+  // Three browsers, five page loads of the site, a reload and a match: about 28 s on a quiet machine, but 84–90 s on
+  // CI's pixel shard beside another worker (q16's run timed out at 90 s and passed its retry at 1.4 min; q17's run
+  // timed out on both tries). The steps keep their own waits; only the whole test's budget is the larger.
+  test.setTimeout(180_000);
   // Played on the stand-in for the real game (the site, top level, with its own storage), against the local game server.
   const hostContext = await browser.newContext();
   const friendContext = await browser.newContext();
