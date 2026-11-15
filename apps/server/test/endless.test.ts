@@ -156,6 +156,13 @@ describe('the board', () => {
     expect(endlessYesterday([])).toEqual([]);
     expect(view.closesAt).toBe(Date.parse(`${today}T00:00:00Z`) + 24 * 3600 * 1000);
   });
+  it('a stored name the filter refuses (q16) reads as Player in the top 10 and yesterday’s 3; a clean one as stored', () => {
+    const entries = [{ ...entry('a', 50, 1), name: 'n1gg3r' }, { ...entry('b', 40, 1), name: 'Kael ✨' }, { ...entry('c', 30, 1), name: 'Moderator' }];
+    expect(endlessView(today, entries, null).top.map((r) => r.name)).toEqual(['Player', 'Kael ✨', 'Player']);
+    expect(endlessYesterday(entries).map((r) => r.name)).toEqual(['Player', 'Kael ✨', 'Player']);
+    // The entries themselves (the day file's content) keep what was stored.
+    expect(entries.map((e) => e.name)).toEqual(['n1gg3r', 'Kael ✨', 'Moderator']);
+  });
 });
 
 describe('/endless routes on the game server', () => {

@@ -472,3 +472,106 @@ describe('the day rollover and the 90-day files', () => {
     expect(store.entries(today)).toHaveLength(1);
   });
 });
+
+describe('GET /daily/today: the day’s first five rows and yesterday’s three (q16)', () => {
+  let server: Server | null = null;
+  let dir = '';
+  afterEach(async () => {
+    await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
+    server = null;
+    if (dir) await rm(dir, { recursive: true, force: true });
+    dir = '';
+  });
+
+  const at = Date.parse('2026-11-15T12:00:00Z');
+  const day = '2026-11-15';
+  const yesterday = '2026-11-14';
+
+  async function serve(store: DailyStore): Promise<string> {
+    const handle = createDailyHttp({ store, isOriginAllowed: () => true, now: () => at, queue: new ReplayQueue() });
+    server = createServer((req, res) => {
+      void handle(req, res).then((done) => {
+        if (!done) res.writeHead(404).end();
+      });
+    });
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
+    return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  }
+
+  /** `n` runs on `key`'s day, the i-th with more Heart than the next; their visitors' data keys. */
+  function fill(store: DailyStore, key: string, n: number, name = (i: number) => `Run ${i + 1}`): string[] {
+    const keys: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const dataKey = newKey();
+      keys.push(dataKey);
+      const entry: DailyEntry = { visitor: visitorFromKey(dataKey), name: name(i), hero: 'warden', won: true, heart: 90 - i, wave: 15, ticks: 12_000 + i, at: at - 1000 + i };
+      store.record(key, entry, entry.at);
+    }
+    return keys;
+  }
+
+  type Today = Record<string, unknown> & { top: Record<string, unknown>[]; yesterdayTop: Record<string, unknown>[] };
+  const getToday = async (http: string, key?: string) =>
+    (await (await fetch(`${http}/daily/today`, key ? { headers: { 'x-data-key': key } } : {})).json()) as Today;
+
+  it.each([0, 1, 5, 8])('with %i runs today: top holds the first five, the old fields as before', async (n) => {
+    const store = new DailyStore('memory');
+    store.open(at);
+    fill(store, day, n);
+    fill(store, yesterday, 4, (i) => `Old ${i + 1}`);
+    const http = await serve(store);
+    const info = await getToday(http);
+    expect(info).toMatchObject({ day, seed: dailySeed(day), runs: n, champion: { name: 'Old 1', heart: 90, ticks: 12_000 } });
+    expect(info.you).toBeUndefined();
+    expect(info.top.map((r) => r.name)).toEqual(Array.from({ length: Math.min(n, 5) }, (_, i) => `Run ${i + 1}`));
+    if (n > 0) expect(info.top[0]).toEqual({ rank: 1, name: 'Run 1', hero: 'warden', won: true, heart: 90, wave: 15, ticks: 12_000 });
+    expect(info.top.some((r) => 'mine' in r)).toBe(false);
+    expect(info.yesterdayTop.map((r) => [r.rank, r.name])).toEqual([
+      [1, 'Old 1'],
+      [2, 'Old 2'],
+      [3, 'Old 3'],
+    ]);
+    // /daily/board is as it was.
+    const board = (await (await fetch(`${http}/daily/board`)).json()) as Record<string, unknown>;
+    expect(Object.keys(board).sort()).toEqual(['best', 'day', 'rank', 'rows', 'total']);
+  });
+
+  it('marks `mine` only on the caller’s own row, never yesterday’s', async () => {
+    const store = new DailyStore('memory');
+    store.open(at);
+    const keys = fill(store, day, 8);
+    const old = fill(store, yesterday, 3);
+    const http = await serve(store);
+    const third = await getToday(http, keys[2]);
+    expect(third.top.map((r) => r.mine ?? false)).toEqual([false, false, true, false, false]);
+    expect(third.you).toMatchObject({ today: { rank: 3, total: 8 } });
+    // A caller outside the five, or with yesterday's run only: no row marked.
+    expect((await getToday(http, keys[7])).top.some((r) => r.mine)).toBe(false);
+    const yesterdays = await getToday(http, old[0]);
+    expect(yesterdays.yesterdayTop.some((r) => 'mine' in r)).toBe(false);
+    expect(yesterdays.top.some((r) => r.mine)).toBe(false);
+  });
+
+  it('a stored name the new filter refuses reads as Player in every view, its day file unchanged', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'tdt-daily-names-'));
+    const store = new DailyStore(dir);
+    store.open(at);
+    // Names posted before the filter (the store keeps what it is given).
+    const bad = (i: number) => (i === 0 ? 'K1ll Y0urself' : i === 1 ? 'Clean Kael' : 'admin');
+    const keys = fill(store, day, 3, bad);
+    fill(store, yesterday, 2, bad);
+    await store.flush();
+    const file = path.join(dir, 'daily', `${day}.json`);
+    const before = await readFile(file, 'utf8');
+    const http = await serve(store);
+    const info = await getToday(http, keys[0]);
+    expect(info.champion).toMatchObject({ name: 'Player' });
+    expect(info.top.map((r) => r.name)).toEqual(['Player', 'Clean Kael', 'Player']);
+    expect(info.yesterdayTop.map((r) => r.name)).toEqual(['Player', 'Clean Kael']);
+    const board = (await (await fetch(`${http}/daily/board`, { headers: { 'x-data-key': keys[0]! } })).json()) as { rows: { name: string }[] };
+    expect(board.rows.map((r) => r.name)).toEqual(['Player', 'Clean Kael', 'Player']);
+    await store.flush();
+    expect(await readFile(file, 'utf8')).toBe(before);
+    expect(before).toContain('K1ll Y0urself');
+  });
+});

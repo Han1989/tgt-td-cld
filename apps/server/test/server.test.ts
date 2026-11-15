@@ -2,6 +2,7 @@ import { EMOTE_GAP_MS, encodeClientMessage, PING_GAP_MS, PROTOCOL_VERSION, type 
 import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { CLOSE_VERSION_MISMATCH, type GameServer, type HealthReport } from '../src/server';
+import { matchReplay, matchReport } from '@tdt/sim';
 import { bot, fullRoom, ORIGIN, sleep, startServer } from './helpers';
 
 let current: GameServer | null = null;
@@ -701,5 +702,65 @@ describe('pings and emotes', () => {
     await sleep(80);
     expect(room.match!.log.some((e) => String(e[2]).includes('chat') || e.includes('hello'))).toBe(false);
     expect(seen.filter((e) => e.type === 'emote').map((e) => (e.type === 'emote' ? e.emote : ''))).toEqual(['help', 'nice']);
+  });
+});
+
+describe('seat names (q16): a nickname the filter refuses is Player, with no refusal', () => {
+  it('creates and joins as "Player", "Player 2"; a clean nickname is untouched to the byte', async () => {
+    const { url, server } = await start();
+    const host = bot(url, 'ShitLord');
+    const code = await host.create();
+    const clean = bot(url, '  Mira ✨ Ö ');
+    await clean.join(code);
+    const third = bot(url, 'N1GG3R');
+    await third.join(code);
+    await host.waitFor(() => host.lobby?.players.length === 3);
+    // The codec trims and folds the spaces; the filter changes nothing else in a clean name.
+    expect(host.lobby!.players.map((p) => [p.id, p.name])).toEqual([
+      ['p1', 'Player'],
+      ['p2', 'Mira ✨ Ö'],
+      ['p3', 'Player 2'],
+    ]);
+    // Each page finds its own seat by id (the welcome's playerId), never by the nickname it typed.
+    expect([host.playerId, clean.playerId, third.playerId]).toEqual(['p1', 'p2', 'p3']);
+    expect(server.rooms.get(code)!.members.map((m) => m.name)).toEqual(['Player', 'Mira ✨ Ö', 'Player 2']);
+  });
+
+  it('a seat taken by the room code under a refused nickname is "Player 2" in the match, the replay and the report', async () => {
+    const { server, url } = await start({ reconnectWindowMs: 150 });
+    const host = bot(url, 'Player');
+    const code = await host.create();
+    const guest = bot(url, 'Bo', { hero: 'warden' });
+    await guest.join(code);
+    await host.waitFor(() => host.lobby?.players.length === 2);
+    host.acting = false;
+    guest.acting = false;
+    guest.send({ t: 'ready', ready: true });
+    await host.waitFor(() => host.lobby!.players[1]!.ready);
+    host.send({ t: 'start' });
+    await guest.waitFor(() => guest.snap !== null);
+    guest.ws.terminate();
+    await host.waitFor(() => host.snap?.players[1]?.connected === false);
+    await sleep(250);
+
+    const taker = bot(url, 'f.u.c.k y.o.u');
+    await taker.join(code);
+    taker.acting = false;
+    expect(taker.playerId).toBe('p2');
+    // "Player" is the host's own nickname here, so the seat is "Player 2".
+    await host.waitFor(() => host.snap!.players[1]!.name === 'Player 2' && host.snap!.players[1]!.connected);
+    const room = server.rooms.get(code)!;
+    expect(room.members.map((m) => m.name)).toEqual(['Player', 'Player 2']);
+    const replay = matchReplay(room.match!);
+    expect(replay.log.filter((e) => e[2] === 'name').map((e) => e.slice(1))).toEqual([[1, 'name', 'Player 2']]);
+    expect(matchReport(room.match!).heroes.map((h) => h.name)).toEqual(['Player', 'Player 2']);
+
+    // The seat's name is what a join by code matches: typing "Player 2" again takes it back at once.
+    taker.ws.terminate();
+    await host.waitFor(() => host.snap?.players[1]?.connected === false);
+    const back = bot(url, 'player 2');
+    await back.join(code);
+    back.acting = false;
+    expect(back.playerId).toBe('p2');
   });
 });
