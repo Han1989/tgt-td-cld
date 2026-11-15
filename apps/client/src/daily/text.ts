@@ -18,6 +18,19 @@ export interface DailyToday {
   runs: number;
   champion: { name: string; heart: number; ticks: number } | null;
   you?: { today: { rank: number; total: number } | null; yesterday: { rank: number; total: number } | null };
+  /** Today's first five (q16; absent from an older server). `mine` on this browser's row when its key went. */
+  top?: DailyTopRow[];
+  /** Yesterday's first three (q16; absent from an older server). */
+  yesterdayTop?: DailyTopRow[];
+}
+
+/** A row of `top` / `yesterdayTop` (apps/server/src/daily/board.ts `TodayRow`). */
+export interface DailyTopRow extends RunFace {
+  rank: number;
+  name: string;
+  hero: string;
+  won: boolean;
+  mine?: true;
 }
 
 export interface BoardRow extends RunFace {
@@ -161,4 +174,26 @@ export function postErrorLine(code: string): string {
 /** A code worth a second tap (the button stays). */
 export function retryable(code: string): boolean {
   return code === 'slow' || code === 'busy' || code === 'network';
+}
+
+/** The board card's Daily tab (q17): its title, its call to play, and a row's words ("#1", "Kael", "94 Heart", "11:20"). */
+export const DAILY_BOARD_TITLE = 'Daily run · today’s top 5';
+export const DAILY_BOARD_CALL = 'Play the Daily run to get on it.';
+
+export function dailyBoardRowText(row: Pick<DailyTopRow, 'rank' | 'name' | 'won' | 'heart' | 'wave' | 'ticks'>): {
+  rank: string;
+  name: string;
+  score: string;
+  time: string;
+} {
+  const score = row.won && row.heart > 0 ? `${row.heart} Heart` : `Wave ${row.wave}`;
+  return { rank: `#${row.rank}`, name: row.name, score, time: clock(row.ticks) };
+}
+
+/**
+ * The Daily tab's line under its rows (q17): the tile's words about today only, how many ran it and when it closes
+ * ("#2 of 12 · 3 h left to climb" for a browser that posted, "12 have run today · 3 h left", "Be the first today · …").
+ */
+export function dailyBoardLine(today: DailyToday, now: number): string {
+  return dailyTileLine({ ...today, champion: null, you: today.you?.today ? { today: today.you.today, yesterday: null } : undefined }, now).text;
 }

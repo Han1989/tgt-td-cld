@@ -7,6 +7,10 @@ import { fetchToday, POSTED_KEY, postRun } from '../src/daily/api';
 import {
   bestLine,
   clock,
+  DAILY_BOARD_CALL,
+  DAILY_BOARD_TITLE,
+  dailyBoardLine,
+  dailyBoardRowText,
   dailyTileLine,
   dayLabel,
   gapLine,
@@ -89,6 +93,24 @@ const row = (rank: number, name: string, heart: number, wave: number, ticks: num
   wave,
   ticks,
   mine,
+});
+
+describe('the board card\'s Daily tab (q17)', () => {
+  it('a row: the rank, the name, the Heart of a win or the wave of a run that fell, the time', () => {
+    expect(dailyBoardRowText({ rank: 1, name: 'Kael', won: true, heart: 94, wave: 15, ticks: 13_600 })).toEqual({ rank: '#1', name: 'Kael', score: '94 Heart', time: '11:20' });
+    expect(dailyBoardRowText({ rank: 4, name: 'Wren', won: false, heart: 0, wave: 12, ticks: 9_440 })).toEqual({ rank: '#4', name: 'Wren', score: 'Wave 12', time: '7:52' });
+    expect(DAILY_BOARD_TITLE).toBe('Daily run · today’s top 5');
+    expect(DAILY_BOARD_CALL).toBe('Play the Daily run to get on it.');
+  });
+
+  it('its line: how many ran today and when it closes, or your rank; never yesterday', () => {
+    const now = 0;
+    const today = { day: '2026-11-15', seed: 1, closesAt: 3 * 3_600_000 + 60_000, runs: 12, champion: { name: 'Kael', heart: 82, ticks: 1 } };
+    expect(dailyBoardLine(today, now)).toBe('12 have run today · 3 h left');
+    expect(dailyBoardLine({ ...today, you: { today: null, yesterday: { rank: 4, total: 9 } } }, now)).toBe('12 have run today · 3 h left');
+    expect(dailyBoardLine({ ...today, you: { today: { rank: 2, total: 12 }, yesterday: null } }, now)).toBe('#2 of 12 · 3 h left to climb');
+    expect(dailyBoardLine({ ...today, runs: 0 }, now)).toBe('Be the first today · 3 h left');
+  });
 });
 
 describe('the rank reveal', () => {

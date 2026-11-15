@@ -1,28 +1,40 @@
-// Today's champions on the first screen (q13; docs/GAME_DESIGN.md "Endless" → The board; docs/ART.md §12 "The
-// champions' ribbon"): the home card's one-line ribbon of Endless's top 10 under the Mode row. Pure, so it is unit
-// tested: what the ribbon shows for a board (hidden, the empty line, today's rows and yesterday's after them), each
-// row's words, and how the rows move for a window's width (a loop with no seam, or standing centred; under reduced
-// motion the first rows that fit and "+N more"). lobby/ribbon.ts draws it.
+// Today's champions on the first screen (q13, q17; docs/GAME_DESIGN.md "Endless" → The board, "Daily run"; docs/ART.md
+// §12 "The champions' ribbon"): the home card's one-line ribbon under the Mode row, Endless's top 10 then the Daily
+// run's first three. Pure, so it is unit tested: what the ribbon shows for the two boards (hidden, the empty line,
+// each board's part with its small label, yesterday's rows), each row's words, the label for the window's width, and
+// how the rows move for a window's width (a loop with no seam, or standing centred; under reduced motion the first
+// rows that fit and "+N more"). lobby/ribbon.ts draws it.
 
 import { HERO_KINDS, type HeroKind } from '@tdt/protocol';
+import type { DailyToday, DailyTopRow } from '../daily/text';
 import type { EndlessRow, EndlessToday } from './board';
 
-/** The label at the ribbon's left. */
-export const RIBBON_LABEL = 'Endless · today’s top 10';
+/** The label at the ribbon's left (q17: both boards' champions). */
+export const RIBBON_LABEL = 'Today’s champions';
+/** Under this viewport width the label is the crown alone (q17), so the names keep two thirds of the line at 360 px. */
+export const RIBBON_LABEL_MIN_WIDTH = 380;
 /** What a screen reader hears: the ribbon is one button. */
-export const RIBBON_ARIA = 'Endless, today’s top 10: open the board';
-/** With no row on today's board, nor yesterday's. */
+export const RIBBON_ARIA = 'Today’s champions of Endless and the Daily run: open the boards';
+/** With no row on either board today, nor yesterday's. */
 export const RIBBON_EMPTY = 'No runs on the board yet. Play Endless to be the first.';
+/** The small label before Endless's rows. */
+export const RIBBON_ENDLESS = 'Endless';
+/** The small label before the Daily run's rows. */
+export const RIBBON_DAILY = 'Daily run';
 /** The small label before yesterday's rows. */
 export const RIBBON_YESTERDAY = 'Yesterday';
 /** Today's board shows yesterday's best after it when it has fewer rows than this. */
 export const RIBBON_FEW = 3;
+/** How many of the Daily run's leaders the ribbon shows. */
+export const RIBBON_DAILY_ROWS = 3;
 /** How fast the names run, CSS px a second. */
 export const RIBBON_SPEED = 36;
-/** How often the home card asks for the board again while it is open and the page is visible. */
+/** How often the home card asks for both boards again while it is open and the page is visible. */
 export const RIBBON_REFRESH_MS = 5 * 60_000;
 
 export type Medal = 'gold' | 'silver' | 'bronze' | null;
+/** Which board a part of the ribbon belongs to: a tap on it opens the board card on that board's tab. */
+export type RibbonBoard = 'endless' | 'daily';
 
 /** One name on the ribbon. */
 export interface RibbonRow {
@@ -30,35 +42,89 @@ export interface RibbonRow {
   medal: Medal;
   hero: HeroKind | null;
   name: string;
-  /** "wave 54". */
-  wave: string;
+  /** "wave 54" (Endless, or a Daily run that fell), "94 Heart" (a Daily run won). */
+  score: string;
   /** This browser's own row (teal, "you"). */
   mine: boolean;
+}
+
+/** A board's part of the ribbon: its small label ("Endless", "Yesterday", "Daily run · yesterday") and its rows. */
+export interface RibbonSection {
+  board: RibbonBoard;
+  label: string;
+  rows: RibbonRow[];
 }
 
 export type RibbonModel =
   /** No ribbon: no game server, no answer, or under 13. */
   | { kind: 'hidden' }
-  /** No row today nor yesterday: the one line, standing still. */
+  /** No row on either board, today nor yesterday: the one line, standing still. */
   | { kind: 'empty'; text: string }
-  /** Today's rows, then (when today has fewer than 3) yesterday's best after a small "Yesterday". */
-  | { kind: 'rows'; today: RibbonRow[]; yesterday: RibbonRow[] };
+  /** Endless's part (today's, then yesterday's when today has fewer than 3), then the Daily run's. */
+  | { kind: 'rows'; sections: RibbonSection[] };
 
 const MEDALS: Medal[] = ['gold', 'silver', 'bronze'];
 
-const heroOf = (h: string): HeroKind | null => ((HERO_KINDS as readonly string[]).includes(h) ? (h as HeroKind) : null);
+const heroOf = (h: unknown): HeroKind | null => (typeof h === 'string' && (HERO_KINDS as readonly string[]).includes(h) ? (h as HeroKind) : null);
 
-function ribbonRow(r: Pick<EndlessRow, 'rank' | 'name' | 'wave' | 'hero'> & { mine?: boolean }): RibbonRow {
-  return { rank: r.rank, medal: MEDALS[r.rank - 1] ?? null, hero: heroOf(r.hero), name: r.name, wave: `wave ${r.wave}`, mine: !!r.mine };
+function row(rank: number, name: string, hero: unknown, score: string, mine: boolean): RibbonRow {
+  return { rank, medal: MEDALS[rank - 1] ?? null, hero: heroOf(hero), name, score, mine };
 }
 
-/** What the ribbon shows for `today` (null: no server or no answer); `child`: the player is under 13. */
-export function ribbonModel(today: EndlessToday | null, child: boolean): RibbonModel {
-  if (!today || child) return { kind: 'hidden' };
-  const rows = today.top.map(ribbonRow);
-  const yesterday = rows.length < RIBBON_FEW ? (today.yesterday ?? []).map((r) => ribbonRow({ ...r, mine: false })) : [];
-  if (rows.length === 0 && yesterday.length === 0) return { kind: 'empty', text: RIBBON_EMPTY };
-  return { kind: 'rows', today: rows, yesterday };
+const endlessRow = (r: Pick<EndlessRow, 'rank' | 'name' | 'wave' | 'hero'> & { mine?: boolean }): RibbonRow =>
+  row(r.rank, r.name, r.hero, `wave ${r.wave}`, !!r.mine);
+
+/** A Daily run's words on the ribbon: "94 Heart" for a win, "wave 12" for a run that fell. */
+export function dailyScore(r: Pick<DailyTopRow, 'won' | 'heart' | 'wave'>): string {
+  return r.won && r.heart > 0 ? `${r.heart} Heart` : `wave ${r.wave}`;
+}
+
+/** The rows of an answer's list that look like rows (an older or a broken answer: none). */
+function dailyRows(list: unknown, mine: boolean): RibbonRow[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter(
+      (r): r is DailyTopRow =>
+        !!r && typeof r === 'object' && Number.isSafeInteger((r as DailyTopRow).rank) && typeof (r as DailyTopRow).name === 'string' &&
+        typeof (r as DailyTopRow).heart === 'number' && typeof (r as DailyTopRow).wave === 'number',
+    )
+    .slice(0, RIBBON_DAILY_ROWS)
+    .map((r) => row(r.rank, r.name, r.hero, dailyScore(r), mine && r.mine === true));
+}
+
+/** Endless's part: today's rows after "Endless", yesterday's best after "Yesterday" when today has fewer than 3. */
+function endlessSections(today: EndlessToday): RibbonSection[] {
+  const rows = today.top.map(endlessRow);
+  const yesterday = rows.length < RIBBON_FEW ? (today.yesterday ?? []).map((r) => endlessRow({ ...r, mine: false })) : [];
+  const out: RibbonSection[] = [];
+  if (rows.length) out.push({ board: 'endless', label: RIBBON_ENDLESS, rows });
+  if (yesterday.length) out.push({ board: 'endless', label: rows.length ? RIBBON_YESTERDAY : `${RIBBON_ENDLESS} · ${RIBBON_YESTERDAY.toLowerCase()}`, rows: yesterday });
+  return out;
+}
+
+/** The Daily run's part: today's first three after "Daily run", or with none today yesterday's after "Daily run · yesterday". */
+function dailySections(today: DailyToday): RibbonSection[] {
+  const rows = dailyRows(today.top, true);
+  if (rows.length) return [{ board: 'daily', label: RIBBON_DAILY, rows }];
+  const yesterday = dailyRows(today.yesterdayTop, false);
+  return yesterday.length ? [{ board: 'daily', label: `${RIBBON_DAILY} · ${RIBBON_YESTERDAY.toLowerCase()}`, rows: yesterday }] : [];
+}
+
+/**
+ * What the ribbon shows for Endless's board and the Daily run's answer (each null: no server or no answer); `child`:
+ * the player is under 13. A Daily answer without `top` (an older server) adds nothing: Endless alone, as before q17.
+ */
+export function ribbonModel(endless: EndlessToday | null, daily: DailyToday | null, child: boolean): RibbonModel {
+  if (child || (!endless && !daily)) return { kind: 'hidden' };
+  const sections = [...(endless ? endlessSections(endless) : []), ...(daily ? dailySections(daily) : [])];
+  if (sections.length) return { kind: 'rows', sections };
+  // Neither board has a row: the empty line, but only when Endless answered (it is about Endless).
+  return endless ? { kind: 'empty', text: RIBBON_EMPTY } : { kind: 'hidden' };
+}
+
+/** The ribbon's label for a viewport `width` px wide: the words, or none (the crown alone) under 380 px. */
+export function ribbonLabel(width: number): string {
+  return width >= RIBBON_LABEL_MIN_WIDTH ? RIBBON_LABEL : '';
 }
 
 /**

@@ -1,6 +1,7 @@
 // Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode, today's
-// champions' ribbon (Endless's top 10, lobby/ribbon.ts), the Daily run's tile, Play solo, then nickname and create / join for friends), Endless's board
-// card (lobby/boardCard.ts), the room card (code + invite link, the seats, your hero, the host's mode, ready / start)
+// champions' ribbon (Endless's top 10 and the Daily run's first three, lobby/ribbon.ts), the Daily run's tile, Play
+// solo, then nickname and create / join for friends), the boards' card (Endless and the Daily run, lobby/boardCard.ts),
+// the room card (code + invite link, the seats, your hero, the host's mode, ready / start)
 // and a busy state. A build with no game server shows the home card alone, with no friends' controls, no Daily tile
 // and no board.
 
@@ -20,7 +21,7 @@ import { wantHero } from '../artLoad/order';
 import { readyAllowed, roomStart, seatState } from '../artLoad/rules';
 import { dailyTileLine, type DailyToday } from '../daily/text';
 import type { EndlessToday } from '../endless/board';
-import { RIBBON_REFRESH_MS, ribbonModel } from '../endless/ribbon';
+import { RIBBON_REFRESH_MS, ribbonModel, type RibbonBoard } from '../endless/ribbon';
 import { endlessBestLine } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
 import { storedRecord } from '../record/record';
@@ -238,10 +239,10 @@ export class LobbyUi {
       if (this.daily && this.dailyToday) this.daily.play(this.hero, this.dailyToday);
     });
     this.boardCard = new BoardCard(() => this.showHome());
-    this.ribbon = new ChampionsRibbon($('lobby-ribbon') as HTMLButtonElement, () => this.showBoard());
+    this.ribbon = new ChampionsRibbon($('lobby-ribbon') as HTMLButtonElement, (tab) => this.showBoard(tab));
     // Asked again every 5 minutes while the home card is open and the page visible; at once when it comes back.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.homeOpen()) this.syncBoard();
+      if (document.visibilityState === 'visible' && this.homeOpen()) this.syncBoards();
     });
     // The record's line is the longest that fits the stage, so a turned phone or a resized window fits it again.
     window.addEventListener('resize', () => this.syncRecordLine());
@@ -299,8 +300,19 @@ export class LobbyUi {
 
   private showRibbon(today: EndlessToday | null): void {
     this.boardToday = today;
-    this.ribbon.render(ribbonModel(today, currentAgeBand() === 'child'));
+    this.drawRibbon();
+  }
+
+  /** The ribbon from both boards as last heard (q17: the Daily run's rows come from the Daily tile's answer). */
+  private drawRibbon(): void {
+    this.ribbon.render(ribbonModel(this.boardToday, this.dailyToday, currentAgeBand() === 'child'));
     this.home.classList.toggle('has-ribbon', this.ribbon.shown);
+  }
+
+  /** Both boards asked again: Endless's for the ribbon, the Daily run's for its tile and its part of the ribbon. */
+  private syncBoards(): void {
+    this.syncBoard();
+    this.syncDaily();
   }
 
   /** The ribbon's 5-minute ask runs while the home card is open (`on`), and only when the page is visible. */
@@ -309,26 +321,35 @@ export class LobbyUi {
     this.boardTimer = null;
     if (!on || !this.board) return;
     this.boardTimer = setInterval(() => {
-      if (document.visibilityState === 'visible' && this.homeOpen()) this.syncBoard();
+      if (document.visibilityState === 'visible' && this.homeOpen()) this.syncBoards();
     }, RIBBON_REFRESH_MS);
   }
 
-  /** The board card in place of the home card: the board as last heard, then fresh. Back is the home card. */
-  showBoard(): void {
-    if (!this.boardToday) return;
+  /**
+   * The board card in place of the home card, on `tab` (the part of the ribbon tapped): the boards as last heard,
+   * then fresh. Back is the home card.
+   */
+  showBoard(tab: RibbonBoard = 'endless'): void {
+    if (!this.boardToday && !this.dailyToday) return;
     this.boardRefresh(false);
     this.stage.stop();
     this.home.classList.add('hidden');
     this.room.classList.add('hidden');
     this.busy.classList.add('hidden');
     this.boardCard.root.classList.remove('hidden');
-    this.boardCard.render(this.boardToday);
+    this.boardCard.render(this.boardToday, this.dailyToday, tab);
     this.showError('');
     const ask = ++this.boardAsk;
     void this.board?.today().then((today) => {
       if (ask !== this.boardAsk || !today) return;
       this.boardToday = today;
-      if (!this.boardCard.root.classList.contains('hidden')) this.boardCard.render(today);
+      if (!this.boardCard.root.classList.contains('hidden')) this.boardCard.render(today, this.dailyToday);
+    });
+    const dailyAsk = ++this.dailyAsk;
+    void this.daily?.today().then((today) => {
+      if (dailyAsk !== this.dailyAsk || !today) return;
+      this.dailyToday = today;
+      if (!this.boardCard.root.classList.contains('hidden')) this.boardCard.render(this.boardToday, today);
     });
     $('lobby-board-back').focus({ preventScroll: true });
   }
@@ -351,6 +372,7 @@ export class LobbyUi {
     this.dailyToday = today;
     this.dailyTile.classList.toggle('hidden', !today);
     this.home.classList.toggle('has-daily', !!today);
+    this.drawRibbon();
     if (!today) return;
     const line = dailyTileLine(today, Date.now());
     this.dailyLine.textContent = line.text;

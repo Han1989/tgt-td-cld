@@ -853,6 +853,20 @@ const YESTERDAY = [
   { rank: 3, name: 'Fen', wave: 49, ticks: 51_000, hero: 'ranger' },
 ];
 
+/** The Daily run's first five today and yesterday's three, as GET /daily/today carries them (q16); this browser 2nd. */
+const DAILY_TOP = [
+  { rank: 1, name: 'Ana', hero: 'warden', won: true, heart: 94, wave: 15, ticks: 13_600 },
+  { rank: 2, name: 'Bo', hero: 'arcanist', won: true, heart: 71, wave: 15, ticks: 14_000, mine: true },
+  { rank: 3, name: 'Cy', hero: 'ranger', won: false, heart: 0, wave: 12, ticks: 9_440 },
+  { rank: 4, name: 'Di', hero: 'ranger', won: false, heart: 0, wave: 9, ticks: 8_000 },
+  { rank: 5, name: 'Ed', hero: 'warden', won: false, heart: 0, wave: 8, ticks: 7_000 },
+];
+const DAILY_YESTERDAY = [
+  { rank: 1, name: 'Oro', hero: 'ranger', won: true, heart: 88, wave: 15, ticks: 13_000 },
+  { rank: 2, name: 'Ilse', hero: 'arcanist', won: true, heart: 60, wave: 15, ticks: 13_200 },
+  { rank: 3, name: 'Bram', hero: 'warden', won: false, heart: 0, wave: 11, ticks: 9_000 },
+];
+
 /** The ribbon's track: whether it runs, and where it is (its transform's x). */
 function ribbonTrack(page: Page) {
   return page.locator('#lobby-ribbon .ribbon-track').evaluate((el) => ({
@@ -866,8 +880,9 @@ function ribbonTrack(page: Page) {
 for (const size of [
   { width: 412, height: 839 },
   { width: 360, height: 640 },
+  { width: 1280, height: 720 },
 ]) {
-  test(`today's champions at ${size.width} × ${size.height}: ten names run under Mode, Play solo does not move, one tap opens the board`, async ({ page }) => {
+  test(`today's champions at ${size.width} × ${size.height}: Endless's ten and the Daily run's three run under Mode, Play solo does not move, a tap opens the board on its tab`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.addInitScript(() => {
       localStorage.setItem('tdt.endlessBest', JSON.stringify({ v: 2, bests: { ranger: 37 }, dropped: [] }));
@@ -887,7 +902,15 @@ for (const size of [
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ day: '2026-10-29', seed: 1, closesAt: Date.now() + 3_600_000, runs: 12, champion: { name: 'Kael', heart: 82, ticks: 13_000 } }),
+        body: JSON.stringify({
+          day: '2026-10-29',
+          seed: 1,
+          closesAt: Date.now() + 3 * 3_600_000 + 60_000,
+          runs: 12,
+          champion: { name: 'Kael', heart: 82, ticks: 13_000 },
+          top: DAILY_TOP,
+          yesterdayTop: DAILY_YESTERDAY,
+        }),
       }),
     );
     await openHome(page, undefined, '&daily');
@@ -900,9 +923,14 @@ for (const size of [
     await expect(ribbon).toBeVisible();
     // The Mode label has no link any more; the ribbon is one button for a screen reader, its moving text hidden.
     await expect(page.locator('.mode-row .pick-label button')).toHaveCount(0);
-    await expect(ribbon).toHaveAttribute('aria-label', 'Endless, today’s top 10: open the board');
+    await expect(ribbon).toHaveAttribute('aria-label', 'Today’s champions of Endless and the Daily run: open the boards');
     await expect(page.locator('#lobby-ribbon .ribbon-window')).toHaveAttribute('aria-hidden', 'true');
-    await expect(page.locator('#lobby-ribbon .ribbon-label')).toHaveText('Endless · today’s top 10');
+    // The label (q17): "Today’s champions", the crown alone under 380 px; at most a third of the line at 360 px.
+    if (size.width < 380) await expect(page.locator('#lobby-ribbon .ribbon-label')).toBeHidden();
+    else await expect(page.locator('#lobby-ribbon .ribbon-label')).toHaveText('Today’s champions');
+    const head = await box(page, '#lobby-ribbon .ribbon-head');
+    const line = await box(page, '#lobby-ribbon');
+    expect(head.right - head.left).toBeLessThanOrEqual((line.right - line.left) / (size.width < 380 ? 3 : 2.4));
     // Between the Mode row and the Daily tile, about 30 px, the card's width; Play solo where it was, the card one screen.
     const mode = await box(page, '#lobby-mode-home');
     const r = await box(page, '#lobby-ribbon');
@@ -925,22 +953,34 @@ for (const size of [
     // Text 11 px or more.
     const sizes = await ribbon.evaluate((el) => [...el.querySelectorAll('*')].filter((e) => e.textContent?.trim()).map((e) => parseFloat(getComputedStyle(e).fontSize)));
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(11);
-    // Ten names (the set drawn twice for the loop), the first three in their medals, each with its face; they run.
+    // "Endless" and its ten names, then "Daily run" and its first three (the set drawn twice for the loop), the first
+    // three of each in their medals, each with its face, yours teal with "you"; they run.
     expect(key).toBe('ab'.repeat(32));
     await expect.poll(async () => (await ribbonTrack(page)).moving).toBe(true);
-    expect((await ribbonTrack(page)).rows).toBe(20);
+    expect((await ribbonTrack(page)).rows).toBe(26);
+    await expect(page.locator('#lobby-ribbon .rib-board')).toHaveText(['Endless', 'Daily run', 'Endless', 'Daily run']);
     await expect(page.locator('#lobby-ribbon .rib-row').first()).toHaveText('1Kaelwave 54');
-    await expect(page.locator('#lobby-ribbon .rib-row.gold')).toHaveCount(2);
-    await expect(page.locator('#lobby-ribbon .rib-row.silver')).toHaveCount(2);
-    await expect(page.locator('#lobby-ribbon .rib-row.bronze')).toHaveCount(2);
+    await expect(page.locator('#lobby-ribbon .rib-row[data-board="daily"]')).toHaveText([
+      '1Ana94 Heart',
+      '2Bo71 Heartyou',
+      '3Cywave 12',
+      '1Ana94 Heart',
+      '2Bo71 Heartyou',
+      '3Cywave 12',
+    ]);
+    await expect(page.locator('#lobby-ribbon .rib-row.gold')).toHaveCount(4);
+    await expect(page.locator('#lobby-ribbon .rib-row.silver')).toHaveCount(4);
+    await expect(page.locator('#lobby-ribbon .rib-row.bronze')).toHaveCount(4);
+    await expect(page.locator('#lobby-ribbon .rib-row.mine')).toHaveCount(2);
     const faces = await page.locator('#lobby-ribbon .rib-face').evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundImage));
-    expect(faces).toHaveLength(20);
+    expect(faces).toHaveLength(26);
     for (const f of faces) expect(f).toMatch(/\.webp/);
     const x0 = (await ribbonTrack(page)).x;
     await expect.poll(async () => (await ribbonTrack(page)).x).toBeLessThan(x0 - 10);
-    // One tap opens the board card.
-    await ribbon.click();
+    // A tap on the label opens the board card on Endless's tab.
+    await page.locator('#lobby-ribbon .ribbon-head').click();
     await expect(page.locator('#lobby-board')).toBeVisible();
+    await expect(page.locator('#lobby-board-tab-endless')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#lobby-home')).toBeHidden();
     await expect(page.locator('#lobby-board-title')).toHaveText('Endless · today’s top 10');
     await expect(page.locator('#lobby-board-day')).toHaveText(/^29 Oct · 3 h left today$/);
@@ -965,9 +1005,30 @@ for (const size of [
       expect(row.cut).toBeLessThanOrEqual(0);
       expect(row.icon).toMatch(/\.webp/);
     }
+    // The Daily run's tab (q17): today's five, yours marked, the tile's line, the call to play; one screen.
+    await page.locator('#lobby-board-tab-daily').click();
+    await expect(page.locator('#lobby-board-tab-daily')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#lobby-board-title')).toHaveText('Daily run · today’s top 5');
+    await expect(page.locator('#lobby-board-rows')).toBeHidden();
+    await expect(page.locator('#lobby-board-daily-rows li')).toHaveText(['#1Ana94 Heart11:20', '#2Bo71 Heart11:40', '#3CyWave 127:52', '#4DiWave 96:40', '#5EdWave 85:50']);
+    await expect(page.locator('#lobby-board-daily-rows li.mine')).toHaveText('#2Bo71 Heart11:40');
+    await expect(page.locator('#lobby-board-daily-line')).toHaveText('12 have run today · 3 h left');
+    await expect(page.locator('#lobby-board-daily')).toContainText('Play the Daily run to get on it.');
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    for (const sel of ['#lobby-board-day', '#lobby-board-daily-rows', '#lobby-board-daily-call', '#lobby-board-back']) {
+      const b = await box(page, sel);
+      expect(b.top, sel).toBeGreaterThanOrEqual(0);
+      expect(b.bottom, sel).toBeLessThanOrEqual(vp.height);
+    }
     await page.locator('#lobby-board-back').click();
     await expect(page.locator('#lobby-home')).toBeVisible();
     await expect(page.locator('#lobby-board')).toBeHidden();
+    // A tap on a Daily row opens the card on the Daily run's tab.
+    await page.locator('#lobby-ribbon .rib-row[data-board="daily"]').first().dispatchEvent('click');
+    await expect(page.locator('#lobby-board-tab-daily')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#lobby-board-daily-rows li')).toHaveCount(5);
+    await page.locator('#lobby-board-back').click();
+    await expect(page.locator('#lobby-home')).toBeVisible();
   });
 }
 
@@ -985,10 +1046,10 @@ test.describe('today’s champions on a page opened again', () => {
     await openHome(page, undefined, '&daily');
     await expect(page.locator('#lobby-ribbon')).toBeVisible();
     // One set: the two rows, "Yesterday", its three; wider than the window, so it runs (drawn twice).
-    const set = '1Kaelwave 542Mira the Boldwave 52youYesterday1Night Owlwave 612Sablewave 573Fenwave 49';
+    const set = 'Endless1Kaelwave 542Mira the Boldwave 52youYesterday1Night Owlwave 612Sablewave 573Fenwave 49';
     await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText(set + set);
     expect((await ribbonTrack(page)).moving).toBe(true);
-    await expect(page.locator('#lobby-ribbon .rib-yday')).toHaveCount(2);
+    await expect(page.locator('#lobby-ribbon .rib-yday')).toHaveCount(4);
     // Yesterday's are never marked as yours; today's is teal, with "you".
     await expect(page.locator('#lobby-ribbon .rib-row.mine')).toHaveCount(2);
     expect(await page.locator('#lobby-ribbon .rib-row.mine .rib-name').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(127, 252, 216)');
@@ -997,7 +1058,7 @@ test.describe('today’s champions on a page opened again', () => {
     // One row and an older server's answer (no `yesterday`): it fits, so it stands, centred in the window.
     body = { ...endlessToday(false), top: endlessToday(false).top.slice(0, 1) };
     await openHome(page, undefined, '&daily');
-    await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText('1Kaelwave 54');
+    await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText('Endless1Kaelwave 54');
     const track = await ribbonTrack(page);
     expect(track.moving).toBe(false);
     const win = await box(page, '#lobby-ribbon .ribbon-window');
