@@ -11,7 +11,8 @@
 //
 // Sources: the advisor's groups in docs/queue/q16-name-filter.md; CrazyGames' requirements page could not be
 // opened from the session that wrote this list (see the pull request). A few hundred entries at most, so a person
-// can still read it. Words of the game's own world pass: kill, slayer, death, blood, doom, reaper, hell.
+// can still read it (414 today: 224 stems, 158 words, 32 innocent words). Words of the game's own world pass: kill,
+// slayer, death, blood, doom, reaper, hell.
 
 export const STEMS: readonly string[] = [
   // English obscenities and sexual terms
