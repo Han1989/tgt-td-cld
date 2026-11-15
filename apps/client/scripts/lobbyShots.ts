@@ -143,14 +143,14 @@ async function shots(browser: Browser): Promise<void> {
         const png = await page.evaluate(
           async ([a, b]) => {
             // No named functions in the page (tsx would wrap them in a helper the page lacks).
-            const [x, y] = await Promise.all(
-              [a, b].map(async (src) => {
+            const [x, y] = (await Promise.all(
+              [a!, b!].map(async (src) => {
                 const i = new Image();
                 i.src = src;
                 await i.decode();
                 return i;
               }),
-            );
+            )) as [HTMLImageElement, HTMLImageElement];
             const label = 64;
             const c = document.createElement('canvas');
             c.width = Math.max(x.width, y.width) + 40;
