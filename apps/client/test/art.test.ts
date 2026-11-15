@@ -203,10 +203,10 @@ describe('props', () => {
 });
 
 describe('ui icons', () => {
-  it('every tower, every hero and every hero skill has a code-drawn icon', () => {
+  it('every tower and every hero skill has a code-drawn icon; the heroes have their portraits (q13)', () => {
     for (const t of TOWER_KINDS) expect(ICONS.has(towerIcon(t)), t).toBe(true);
     for (const h of HERO_KINDS) {
-      expect(ICONS.has(heroIcon(h)), h).toBe(true);
+      expect(ICONS.has(heroIcon(h)), `${h}: a picture, not drawn in code`).toBe(false);
       for (const s of SKILL_SLOTS) expect(ICONS.has(skillIcon(h, s)), `${h} ${s}`).toBe(true);
     }
     for (const id of ['coin', 'heart', 'heartCracked', 'wave', 'timer', 'gear', 'upgrade', 'sell', 'target']) expect(ICONS.has(id), id).toBe(true);

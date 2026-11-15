@@ -465,9 +465,11 @@ test.describe('a short, wide window', () => {
           body: JSON.stringify({ day: '2026-11-13', seed: 1, closesAt: Date.now() + 3_600_000, runs: 12, champion: null }),
         }),
       );
+      await serveBoard(page, endlessToday(false));
       await page.setViewportSize(size);
       await openHome(page, 'skipped', '&daily');
       await expect(page.locator('#lobby-daily')).toBeVisible();
+      await expect(page.locator('#lobby-ribbon')).toBeVisible();
       const card = await box(page, '.lobby-card');
       expect(card.top, at).toBeGreaterThanOrEqual(0);
       expect(card.bottom, at).toBeLessThanOrEqual(size.height);
@@ -482,7 +484,7 @@ test.describe('a short, wide window', () => {
       await expect.poll(() => heroShown(page)).toBe(true);
       // The right column, top to bottom, beside the stage, nothing overlapping, down to Play solo on screen.
       let above: { bottom: number } = { bottom: card.top };
-      for (const sel of ['#lobby-heroes-home', '#lobby-home > .hero-blurb', '#lobby-home > .mode-row', '#lobby-daily', '#lobby-offline']) {
+      for (const sel of ['#lobby-heroes-home', '#lobby-home > .hero-blurb', '#lobby-home > .mode-row', '#lobby-ribbon', '#lobby-daily', '#lobby-offline']) {
         const b = await box(page, sel);
         expect(b.left, `${sel} at ${at}`).toBeGreaterThanOrEqual(stage.right);
         expect(b.top, `${sel} at ${at}`).toBeGreaterThanOrEqual(above.bottom - 1);
@@ -839,28 +841,33 @@ function endlessToday(mine: boolean) {
   };
 }
 
-test('Today’s top 10 stays hidden in a build with no game server, and when the server does not answer', async ({ page }) => {
-  let asked = 0;
-  await page.route('**/endless/today', (route) => {
-    asked++;
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
-  });
-  await openHome(page);
-  await page.waitForTimeout(500);
-  await expect(page.locator('#lobby-board-link')).toBeHidden();
-  expect(asked).toBe(0);
-  await page.unroute('**/endless/today');
-  await page.route('**/endless/today', (route) => route.fulfill({ status: 503, body: 'down' }));
-  await openHome(page, undefined, '&daily');
-  await page.waitForTimeout(500);
-  await expect(page.locator('#lobby-board-link')).toBeHidden();
-});
+/** Answers /endless/today with `body` (the ribbon's board). */
+async function serveBoard(page: Page, body: unknown): Promise<void> {
+  await page.route('**/endless/today', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
+}
+
+/** Yesterday's top 3, as GET /endless/today carries them (q13). */
+const YESTERDAY = [
+  { rank: 1, name: 'Night Owl', wave: 61, ticks: 60_000, hero: 'arcanist' },
+  { rank: 2, name: 'Sable', wave: 57, ticks: 58_000, hero: 'warden' },
+  { rank: 3, name: 'Fen', wave: 49, ticks: 51_000, hero: 'ranger' },
+];
+
+/** The ribbon's track: whether it runs, and where it is (its transform's x). */
+function ribbonTrack(page: Page) {
+  return page.locator('#lobby-ribbon .ribbon-track').evaluate((el) => ({
+    moving: el.classList.contains('moving'),
+    x: new DOMMatrixReadOnly(getComputedStyle(el).transform).m41,
+    rows: el.querySelectorAll('.rib-row').length,
+    text: el.textContent,
+  }));
+}
 
 for (const size of [
   { width: 412, height: 839 },
   { width: 360, height: 640 },
 ]) {
-  test(`Endless's board at ${size.width} × ${size.height}: the link keeps the Mode row's height, the card is one screen`, async ({ page }) => {
+  test(`today's champions at ${size.width} × ${size.height}: ten names run under Mode, Play solo does not move, one tap opens the board`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.addInitScript(() => {
       localStorage.setItem('tdt.endlessBest', JSON.stringify({ v: 2, bests: { ranger: 37 }, dropped: [] }));
@@ -869,35 +876,78 @@ for (const size of [
       localStorage.setItem('tdt.visitorKey', 'ab'.repeat(32));
     });
     let key: string | undefined;
-    await page.route('**/endless/today', (route) => {
+    let answer!: () => void;
+    const answered = new Promise<void>((ok) => (answer = ok));
+    await page.route('**/endless/today', async (route) => {
       key = route.request().headers()['x-data-key'];
+      await answered;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(true)) });
     });
+    await page.route('**/daily/today', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ day: '2026-10-29', seed: 1, closesAt: Date.now() + 3_600_000, runs: 12, champion: { name: 'Kael', heart: 82, ticks: 13_000 } }),
+      }),
+    );
     await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-daily')).toBeVisible();
     await page.locator('.lobby-card').evaluate((el) => el.scrollTo(0, 0));
     const before = await box(page, '#lobby-offline');
-    await expect(page.locator('#lobby-board-link')).toBeVisible();
-    await expect(page.locator('#lobby-board-link')).toHaveText("Today's top 10");
-    // On the Mode label's line with the best: Play solo has not moved, the segments still fit.
-    const link = await box(page, '#lobby-board-link');
-    const best = await box(page, '#lobby-mode-home-best');
-    const endless = await box(page, '#lobby-mode-home .mode-pick[data-mode="endless"]');
-    expect(link.bottom).toBeLessThanOrEqual(endless.top + 1);
-    expect(link.left).toBeGreaterThanOrEqual(best.right);
+    const overBefore = await overflow(page);
+    answer();
+    const ribbon = page.locator('#lobby-ribbon');
+    await expect(ribbon).toBeVisible();
+    // The Mode label has no link any more; the ribbon is one button for a screen reader, its moving text hidden.
+    await expect(page.locator('.mode-row .pick-label button')).toHaveCount(0);
+    await expect(ribbon).toHaveAttribute('aria-label', 'Endless, today’s top 10: open the board');
+    await expect(page.locator('#lobby-ribbon .ribbon-window')).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('#lobby-ribbon .ribbon-label')).toHaveText('Endless · today’s top 10');
+    // Between the Mode row and the Daily tile, about 30 px, the card's width; Play solo where it was, the card one screen.
+    const mode = await box(page, '#lobby-mode-home');
+    const r = await box(page, '#lobby-ribbon');
+    const tile = await box(page, '#lobby-daily');
+    expect(r.top).toBeGreaterThanOrEqual(mode.bottom - 1);
+    expect(tile.top).toBeGreaterThanOrEqual(r.bottom - 1);
+    expect(r.bottom - r.top).toBeGreaterThanOrEqual(28);
+    expect(r.bottom - r.top).toBeLessThanOrEqual(34);
+    expect(Math.abs(r.right - r.left - (tile.right - tile.left))).toBeLessThanOrEqual(1);
+    // A thumb's 44 px: a tap 6 px over or under the line still lands on it.
+    for (const y of [r.top - 6, r.bottom + 6]) {
+      const hit = await page.evaluate(([x, yy]) => document.elementFromPoint(x!, yy!)?.closest('button')?.id, [(r.left + r.right) / 2, y]);
+      expect(hit).toBe('lobby-ribbon');
+    }
     expect(Math.abs((await box(page, '#lobby-offline')).top - before.top)).toBeLessThanOrEqual(1);
-    await modeRowFits(page);
+    expect(await overflow(page)).toBeLessThanOrEqual(Math.max(0, overBefore));
     await onScreen(page, 'lobby-offline');
-
-    await page.locator('#lobby-board-link').click();
+    await modeRowFits(page);
+    expect((await box(page, '#lobby-stage')).bottom - (await box(page, '#lobby-stage')).top).toBeGreaterThanOrEqual(110);
+    // Text 11 px or more.
+    const sizes = await ribbon.evaluate((el) => [...el.querySelectorAll('*')].filter((e) => e.textContent?.trim()).map((e) => parseFloat(getComputedStyle(e).fontSize)));
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(11);
+    // Ten names (the set drawn twice for the loop), the first three in their medals, each with its face; they run.
+    expect(key).toBe('ab'.repeat(32));
+    await expect.poll(async () => (await ribbonTrack(page)).moving).toBe(true);
+    expect((await ribbonTrack(page)).rows).toBe(20);
+    await expect(page.locator('#lobby-ribbon .rib-row').first()).toHaveText('1Kaelwave 54');
+    await expect(page.locator('#lobby-ribbon .rib-row.gold')).toHaveCount(2);
+    await expect(page.locator('#lobby-ribbon .rib-row.silver')).toHaveCount(2);
+    await expect(page.locator('#lobby-ribbon .rib-row.bronze')).toHaveCount(2);
+    const faces = await page.locator('#lobby-ribbon .rib-face').evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundImage));
+    expect(faces).toHaveLength(20);
+    for (const f of faces) expect(f).toMatch(/\.webp/);
+    const x0 = (await ribbonTrack(page)).x;
+    await expect.poll(async () => (await ribbonTrack(page)).x).toBeLessThan(x0 - 10);
+    // One tap opens the board card.
+    await ribbon.click();
     await expect(page.locator('#lobby-board')).toBeVisible();
     await expect(page.locator('#lobby-home')).toBeHidden();
-    await expect(page.locator('#lobby-board-title')).toHaveText("Endless · Today's top 10");
+    await expect(page.locator('#lobby-board-title')).toHaveText('Endless · today’s top 10');
     await expect(page.locator('#lobby-board-day')).toHaveText(/^29 Oct · 3 h left today$/);
     await expect(page.locator('#lobby-board-rows li')).toHaveCount(10);
     await expect(page.locator('#lobby-board-rows li').first()).toHaveText('#1KaelWave 5441:40');
     // Your row, pinned under the ten.
     await expect(page.locator('#lobby-board-you li')).toHaveText('#27YouWave 3125:00');
-    expect(key).toBe('ab'.repeat(32));
     // One screen: the card does not scroll; the rows, the pinned row and Back are all on it.
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     const vp = page.viewportSize()!;
@@ -906,20 +956,160 @@ for (const size of [
       expect(b.top, sel).toBeGreaterThanOrEqual(0);
       expect(b.bottom, sel).toBeLessThanOrEqual(vp.height);
     }
-    // Every row's parts on its line: a long nickname is cut, not wrapped; the hero icons are drawn.
+    // Every row's parts on its line: a long nickname is cut, not wrapped; the heroes' faces are drawn.
     const rows = await page.locator('#lobby-board-rows li').evaluateAll((els) =>
       els.map((el) => ({ height: el.getBoundingClientRect().height, cut: el.scrollWidth - el.clientWidth, icon: getComputedStyle(el.querySelector('.hero-ico')!).backgroundImage })),
     );
-    for (const r of rows) {
-      expect(r.height).toBeLessThan(40);
-      expect(r.cut).toBeLessThanOrEqual(0);
-      expect(r.icon).not.toBe('none');
+    for (const row of rows) {
+      expect(row.height).toBeLessThan(40);
+      expect(row.cut).toBeLessThanOrEqual(0);
+      expect(row.icon).toMatch(/\.webp/);
     }
     await page.locator('#lobby-board-back').click();
     await expect(page.locator('#lobby-home')).toBeVisible();
     await expect(page.locator('#lobby-board')).toBeHidden();
   });
 }
+
+test.describe('today’s champions on a page opened again', () => {
+  // Each test opens the home card more than once: no service worker between the page and the stubbed board.
+  test.use({ serviceWorkers: 'block' });
+
+  test('a short day: today’s rows, then yesterday’s best, running; one row stands still, centred; none reads the empty line; your row is teal', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 839 });
+    const two = endlessToday(false);
+    two.top = two.top.slice(0, 2);
+    two.top[1]!.mine = true;
+    let body: unknown = { ...two, yesterday: YESTERDAY };
+    await page.route('**/endless/today', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-ribbon')).toBeVisible();
+    // One set: the two rows, "Yesterday", its three; wider than the window, so it runs (drawn twice).
+    const set = '1Kaelwave 542Mira the Boldwave 52youYesterday1Night Owlwave 612Sablewave 573Fenwave 49';
+    await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText(set + set);
+    expect((await ribbonTrack(page)).moving).toBe(true);
+    await expect(page.locator('#lobby-ribbon .rib-yday')).toHaveCount(2);
+    // Yesterday's are never marked as yours; today's is teal, with "you".
+    await expect(page.locator('#lobby-ribbon .rib-row.mine')).toHaveCount(2);
+    expect(await page.locator('#lobby-ribbon .rib-row.mine .rib-name').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(127, 252, 216)');
+    await expect(page.locator('#lobby-ribbon .rib-row.mine .rib-you').first()).toHaveText('you');
+
+    // One row and an older server's answer (no `yesterday`): it fits, so it stands, centred in the window.
+    body = { ...endlessToday(false), top: endlessToday(false).top.slice(0, 1) };
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText('1Kaelwave 54');
+    const track = await ribbonTrack(page);
+    expect(track.moving).toBe(false);
+    const win = await box(page, '#lobby-ribbon .ribbon-window');
+    const t = await box(page, '#lobby-ribbon .ribbon-track');
+    expect(Math.abs(t.left - win.left - (win.right - t.right))).toBeLessThanOrEqual(2);
+    await page.waitForTimeout(400);
+    expect((await ribbonTrack(page)).x).toBe(track.x);
+
+    // An empty day and an empty yesterday: the one line, standing, uncut.
+    body = { ...endlessToday(false), top: [], runs: 0, yesterday: [] };
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-ribbon .rib-empty')).toHaveText('No runs on the board yet. Play Endless to be the first.');
+    expect((await ribbonTrack(page)).moving).toBe(false);
+    const cut = await page.locator('#lobby-ribbon .rib-empty').evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(cut).toBeLessThanOrEqual(0);
+  });
+
+  test('today’s champions stay hidden in a build with no game server, when the server does not answer, and under 13', async ({ page }) => {
+    let asked = 0;
+    await page.route('**/endless/today', (route) => {
+      asked++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
+    });
+    await openHome(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('#lobby-ribbon')).toBeHidden();
+    expect(asked).toBe(0);
+    await page.unroute('**/endless/today');
+    await page.route('**/endless/today', (route) => route.fulfill({ status: 503, body: 'down' }));
+    await openHome(page, undefined, '&daily');
+    await page.waitForTimeout(500);
+    await expect(page.locator('#lobby-ribbon')).toBeHidden();
+    await expect(page.locator('#lobby-home')).not.toHaveClass(/has-ribbon/);
+    // Under 13: no request, no ribbon.
+    await page.unroute('**/endless/today');
+    await page.route('**/endless/today', (route) => {
+      asked++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
+    });
+    await page.addInitScript(() => localStorage.setItem('tdt.age', JSON.stringify({ age: 10, month: '2026-10' })));
+    await openHome(page, undefined, '&daily');
+    await page.waitForTimeout(500);
+    await expect(page.locator('#lobby-ribbon')).toBeHidden();
+    expect(asked).toBe(0);
+  });
+});
+
+test('the hero buttons wear the three faces, loaded; a tap picks another, whose face hops', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await serveBoard(page, endlessToday(false));
+  await openHome(page, 'skipped', '&daily');
+  await expect(page.locator('#lobby-ribbon')).toBeVisible();
+  const faces = page.locator('#lobby-heroes-home .hero-face');
+  await expect(faces).toHaveCount(3);
+  // Each face is its hero's picture, decoded.
+  const loaded = await page.locator('#lobby-heroes-home .face-img').evaluateAll((els) =>
+    Promise.all(
+      els.map(async (el) => {
+        const url = /url\("?([^")]+)"?\)/.exec(getComputedStyle(el).backgroundImage)?.[1] ?? '';
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        return { url, w: img.naturalWidth, hero: (el.closest('.hero-pick') as HTMLElement).dataset.hero };
+      }),
+    ),
+  );
+  for (const f of loaded) {
+    expect(f.url, f.hero).toContain(`${f.hero}`);
+    expect(f.url).toMatch(/\.webp$/);
+    expect(f.w).toBeGreaterThanOrEqual(120);
+  }
+  // The buttons keep their box: 44 px tall, three in a row, the names whole.
+  const buttons = await page.locator('#lobby-heroes-home .hero-pick').evaluateAll((els) =>
+    els.map((el) => {
+      const b = el.getBoundingClientRect();
+      const name = el.querySelector('.hero-pick-name')!;
+      return { top: b.top, height: b.height, cut: name.scrollWidth - name.clientWidth, over: name.getBoundingClientRect().right - b.right };
+    }),
+  );
+  for (const b of buttons) {
+    expect(b.height).toBeGreaterThanOrEqual(44);
+    expect(b.height).toBeLessThanOrEqual(48);
+    expect(b.top).toBe(buttons[0]!.top);
+    expect(b.cut).toBeLessThanOrEqual(0);
+    expect(b.over).toBeLessThanOrEqual(0);
+  }
+  // Alive: each face breathes on its own clock.
+  const running = () =>
+    page.locator('#lobby-heroes-home').evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length);
+  expect(await running()).toBeGreaterThan(6);
+  // A tap picks the Warden: his button lit, his face a step larger, one hop.
+  await page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"]').click();
+  await expect(page.locator('#lobby-heroes-home .hero-pick.selected')).toHaveAttribute('data-hero', 'warden');
+  await expect(page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"] .face-bust')).toHaveClass(/hop/);
+  await expect.poll(() => page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"] .face-bust').evaluate((el) => getComputedStyle(el).scale)).toBe('1.12');
+  await expect.poll(() => page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"] .hero-face').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.72');
+});
+
+test('reduced motion: nothing on the home card moves; the picked face keeps its ring and size; the ribbon stands, "+N more"', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await serveBoard(page, endlessToday(false));
+  await openHome(page, 'skipped', '&daily');
+  await expect(page.locator('#lobby-ribbon')).toBeVisible();
+  await expect(page.locator('#lobby-ribbon .rib-more')).toHaveText(/^\+\d+ more$/);
+  // The first rows that fit, at least one.
+  expect((await ribbonTrack(page)).rows).toBeGreaterThanOrEqual(1);
+  const still = await page.locator('#lobby-home').evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length);
+  expect(still).toBe(0);
+  expect((await ribbonTrack(page)).moving).toBe(false);
+  expect(await page.locator('#lobby-heroes-home .hero-pick.selected .face-bust').evaluate((el) => getComputedStyle(el).scale)).toBe('1.12');
+});
 
 test('Play solo on Endless: Hard with no last wave, "Wave 1" alone, "Fallen on wave 1", then the best on the Mode row', async ({ page }) => {
   await openHome(page, 'skipped');
@@ -1164,7 +1354,7 @@ async function fitsOneScreen(page: Page, viewport: { width: number; height: numb
 }
 
 for (const viewport of [null, { width: 412, height: 839 }]) {
-  test(`the room card: the code, seats with emblems, the host's mode and one docked main button${viewport ? ', one screen at 412 × 839' : ''}`, async ({ page }) => {
+  test(`the room card: the code, seats with faces, the host's mode and one docked main button${viewport ? ', one screen at 412 × 839' : ''}`, async ({ page }) => {
     if (viewport) await page.setViewportSize(viewport);
     await fakeRoom(page, 'p1', [HOST, GUEST, THIRD]);
     await openHome(page, 'skipped');
@@ -1175,7 +1365,7 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await expect(page.locator('#lobby-copy')).toBeVisible();
     await expect(page.locator('.lobby-card > .logo')).toBeHidden();
 
-    // One seat per lane, all three taken, each with its hero's emblem.
+    // One seat per lane, all three taken, each with its hero's face.
     const seats = page.locator('#lobby-players .seat');
     await expect(seats).toHaveCount(3);
     await expect(page.locator('#lobby-players .seat.open')).toHaveCount(0);
@@ -1187,8 +1377,9 @@ for (const viewport of [null, { width: 412, height: 839 }]) {
     await expect(seats.nth(1).locator('.state')).toHaveText('Not ready');
     await expect(seats.nth(2).locator('.state')).toHaveText('Ready');
     for (const i of [0, 1, 2]) {
+      // The hero's face (q13): his portrait, a picture of its own.
       const emblem = await seats.nth(i).locator('.hero-ico').evaluate((el) => getComputedStyle(el).backgroundImage);
-      expect(emblem).toContain('data:image/png');
+      expect(emblem).toMatch(/\.webp/);
     }
 
     // Your hero, as on the home card; the mode as one row. No difficulty, no modifiers.

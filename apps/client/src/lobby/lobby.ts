@@ -1,5 +1,5 @@
-// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode with Endless's
-// "Today's top 10" link, the Daily run's tile, Play solo, then nickname and create / join for friends), Endless's board
+// Lobby screens (HTML), each one phone screen: the home card (the hero stage, the hero buttons, Mode, today's
+// champions' ribbon (Endless's top 10, lobby/ribbon.ts), the Daily run's tile, Play solo, then nickname and create / join for friends), Endless's board
 // card (lobby/boardCard.ts), the room card (code + invite link, the seats, your hero, the host's mode, ready / start)
 // and a busy state. A build with no game server shows the home card alone, with no friends' controls, no Daily tile
 // and no board.
@@ -20,6 +20,7 @@ import { wantHero } from '../artLoad/order';
 import { readyAllowed, roomStart, seatState } from '../artLoad/rules';
 import { dailyTileLine, type DailyToday } from '../daily/text';
 import type { EndlessToday } from '../endless/board';
+import { RIBBON_REFRESH_MS, ribbonModel } from '../endless/ribbon';
 import { endlessBestLine } from '../endless/best';
 import { HERO_INFO } from '../heroInfo';
 import { storedRecord } from '../record/record';
@@ -31,6 +32,7 @@ import { linkless } from '../platform/embedHost';
 import { sharedSettings } from '../settings';
 import { lessonOffer, type SoloPick } from '../tutorial/logic';
 import { BoardCard } from './boardCard';
+import { ChampionsRibbon } from './ribbon';
 import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
 import { DEFAULT_MODE, dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
@@ -54,7 +56,7 @@ export interface DailyActions {
 
 /** Endless's board (a build with a game server). */
 export interface BoardActions {
-  /** Today's top 10, or null: the link stays hidden (the request failed). */
+  /** Today's top 10, or null: the ribbon stays hidden (the request failed). */
   today(): Promise<EndlessToday | null>;
 }
 
@@ -163,11 +165,13 @@ export class LobbyUi {
   /** Today's run as the tile last heard it, and which request is the latest (an older answer is dropped). */
   private dailyToday: DailyToday | null = null;
   private dailyAsk = 0;
-  private readonly boardLink = $('lobby-board-link');
+  private readonly ribbon: ChampionsRibbon;
   private readonly boardCard: BoardCard;
-  /** Endless's board as the link last heard it, and the latest request (as the Daily tile's). */
+  /** Endless's board as the ribbon last heard it, and the latest request (as the Daily tile's). */
   private boardToday: EndlessToday | null = null;
   private boardAsk = 0;
+  /** The ribbon's next ask while the home card is open and the page visible (every 5 minutes). */
+  private boardTimer: ReturnType<typeof setInterval> | null = null;
 
   /**
    * `room`, `daily` and `board` are null in a build with no game server: the home card has no friends' controls, no
@@ -233,7 +237,11 @@ export class LobbyUi {
       if (this.daily && this.dailyToday) this.daily.play(this.hero, this.dailyToday);
     });
     this.boardCard = new BoardCard(() => this.showHome());
-    this.boardLink.addEventListener('click', () => this.showBoard());
+    this.ribbon = new ChampionsRibbon($('lobby-ribbon') as HTMLButtonElement, () => this.showBoard());
+    // Asked again every 5 minutes while the home card is open and the page visible; at once when it comes back.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.homeOpen()) this.syncBoard();
+    });
     // The record's line is the longest that fits the stage, so a turned phone or a resized window fits it again.
     window.addEventListener('resize', () => this.syncRecordLine());
   }
@@ -267,31 +275,47 @@ export class LobbyUi {
     el.textContent = fit.text;
   }
 
+  private homeOpen(): boolean {
+    return !this.root.classList.contains('hidden') && !this.home.classList.contains('hidden');
+  }
+
   /**
-   * Asks for Endless's board and shows the Mode row's "Today's top 10" when it answers. Under 13 there is no board: no
-   * request, no link.
+   * Asks for Endless's board and shows today's champions' ribbon when it answers. Under 13 there is no board: no
+   * request, no ribbon.
    */
   private syncBoard(): void {
-    if (!this.board || currentAgeBand() === 'child') return this.showBoardLink(null);
+    if (!this.board || currentAgeBand() === 'child') return this.showRibbon(null);
     const ask = ++this.boardAsk;
     void this.board.today().then(
       (today) => {
-        if (ask === this.boardAsk) this.showBoardLink(today);
+        if (ask === this.boardAsk) this.showRibbon(today);
       },
       () => {
-        if (ask === this.boardAsk) this.showBoardLink(null);
+        if (ask === this.boardAsk) this.showRibbon(null);
       },
     );
   }
 
-  private showBoardLink(today: EndlessToday | null): void {
+  private showRibbon(today: EndlessToday | null): void {
     this.boardToday = today;
-    this.boardLink.classList.toggle('hidden', !today);
+    this.ribbon.render(ribbonModel(today, currentAgeBand() === 'child'));
+    this.home.classList.toggle('has-ribbon', this.ribbon.shown);
+  }
+
+  /** The ribbon's 5-minute ask runs while the home card is open (`on`), and only when the page is visible. */
+  private boardRefresh(on: boolean): void {
+    if (this.boardTimer !== null) clearInterval(this.boardTimer);
+    this.boardTimer = null;
+    if (!on || !this.board) return;
+    this.boardTimer = setInterval(() => {
+      if (document.visibilityState === 'visible' && this.homeOpen()) this.syncBoard();
+    }, RIBBON_REFRESH_MS);
   }
 
   /** The board card in place of the home card: the board as last heard, then fresh. Back is the home card. */
   showBoard(): void {
     if (!this.boardToday) return;
+    this.boardRefresh(false);
     this.stage.stop();
     this.home.classList.add('hidden');
     this.room.classList.add('hidden');
@@ -414,6 +438,7 @@ export class LobbyUi {
   hide(): void {
     this.root.classList.add('hidden');
     this.stage.stop();
+    this.boardRefresh(false);
   }
 
   showHome(error = ''): void {
@@ -433,6 +458,7 @@ export class LobbyUi {
     this.syncLesson();
     this.syncDaily();
     this.syncBoard();
+    this.boardRefresh(true);
     this.syncSeat();
     // A nickname typed on a Daily run's end screen fills the field.
     if (!this.name.value) this.name.value = storedName();

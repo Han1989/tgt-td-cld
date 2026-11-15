@@ -63,7 +63,10 @@ export async function fetchEndlessToday(server = dailyServer(), fetchFn: Fetch =
     });
     if (!res.ok) return null;
     const body = (await res.json()) as unknown;
-    return isToday(body) ? body : null;
+    if (!isToday(body)) return null;
+    // An older server sends no `yesterday`; a malformed one is dropped, never the board.
+    if (!Array.isArray(body.yesterday)) delete body.yesterday;
+    return body;
   } catch {
     return null;
   }

@@ -2572,11 +2572,11 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 6px 6px;
+  padding: 6px 4px;
 }
 
 .hero-tabs .hero-pick-head {
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -2587,6 +2587,269 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 .hero-tabs .hero-pick-name {
   font-size: 14px;
+}
+
+/* The hero buttons' faces (q13, docs/ART.md §12 "The heroes' faces"): each hero's portrait (render/art/portraits.ts) on
+   a round medallion in his own colour, the head standing a few px out of its top, inside the button's box (44 px tall,
+   three in a row at 360 px). Alive in CSS alone, transform and opacity only, each hero on his own clock so the three
+   never move as one: a breath; the eyes' glow pulsing and a blink (a lid over each measured eye); one signature each
+   (the Ranger's head tilts as if listening, a glint crosses the Warden's visor, the Oracle's eyes flare violet as motes
+   rise). Picked: the ring lights, the face a step larger, one hop with a squash and a stretch; the two others dim and
+   breathe slower. Reduced motion: none of it moves; the picked ring and size only. */
+.hero-face {
+  --tone: 127, 252, 216;
+  --breath: 3.6s;
+  --phase: 0s;
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, rgba(var(--tone), 0.42), rgba(var(--tone), 0.12) 62%, rgba(8, 12, 14, 0.9) 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(var(--tone), 0.45), 0 1px 2px rgba(0, 0, 8, 0.6);
+  transition: opacity 0.25s;
+}
+
+.hero-face[data-face='warden'] {
+  --tone: 255, 162, 74;
+  --breath: 4.4s;
+  --phase: -1.3s;
+}
+
+.hero-face[data-face='arcanist'] {
+  --tone: 125, 76, 192;
+  --breath: 3.9s;
+  --phase: -2.6s;
+}
+
+/* The ring of the picked hero's medallion lights; the face is a step larger. */
+.hero-pick.selected .hero-face {
+  box-shadow: inset 0 0 0 2px rgba(var(--tone), 1), 0 0 10px rgba(var(--tone), 0.55);
+}
+
+.hero-picks:has(.hero-pick.selected) .hero-pick:not(.selected) .hero-face {
+  --breath-slow: 1.6;
+  opacity: 0.72;
+}
+
+/* The bust: 40 px over the 32 px medallion, its foot on the medallion's foot. Below the medallion's middle it is
+   clipped to the circle; above, the head may stand out of it. */
+.face-bust {
+  position: absolute;
+  left: -4px;
+  bottom: 0;
+  width: 40px;
+  height: 40px;
+  transform-origin: 50% 100%;
+  scale: 1;
+  transition: scale 0.2s;
+  -webkit-mask:
+    radial-gradient(circle 16px at 50% 24px, #000 15.5px, transparent 16px),
+    linear-gradient(#000 0 24px, transparent 24px);
+  mask:
+    radial-gradient(circle 16px at 50% 24px, #000 15.5px, transparent 16px),
+    linear-gradient(#000 0 24px, transparent 24px);
+}
+
+.hero-pick.selected .face-bust {
+  scale: 1.12;
+}
+
+.face-bust.hop {
+  animation: face-hop 0.42s cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+@keyframes face-hop {
+  0% { transform: none; }
+  18% { transform: scale(1.1, 0.86); }
+  45% { transform: translateY(-5px) scale(0.93, 1.09); }
+  72% { transform: translateY(0) scale(1.06, 0.94); }
+  100% { transform: none; }
+}
+
+.face-breath,
+.face-head {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+
+.face-breath {
+  animation: face-breathe calc(var(--breath) * var(--breath-slow, 1)) ease-in-out var(--phase) infinite;
+}
+
+@keyframes face-breathe {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-0.6px) scale(1.012, 1.035); }
+}
+
+.hero-pick .face-img,
+.hero-tabs .hero-pick .face-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* An eye: its glow (::before) pulsing, its lid (::after) closing for a blink every few seconds. */
+.face-eye {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  pointer-events: none;
+}
+
+.face-eye::before,
+.face-eye::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+
+.face-eye::before {
+  inset: -2px;
+  background: radial-gradient(circle, rgba(255, 246, 200, 0.95), rgba(var(--eye, 255, 230, 140), 0.55) 45%, transparent 72%);
+  mix-blend-mode: screen;
+  opacity: 0.35;
+  animation: face-glow 2.7s ease-in-out var(--phase) infinite;
+}
+
+.face-eye::after {
+  inset: 0;
+  background: #0b1210;
+  opacity: 0;
+  transform: scaleY(0.4);
+  animation: face-blink 4.7s linear var(--phase) infinite;
+}
+
+.hero-face[data-face='ranger'] .face-eye {
+  --eye: 214, 255, 150;
+}
+
+.hero-face[data-face='warden'] .face-eye {
+  --eye: 255, 170, 70;
+}
+
+.hero-face[data-face='warden'] .face-eye::after {
+  animation-duration: 5.9s;
+}
+
+.hero-face[data-face='arcanist'] .face-eye {
+  --eye: 214, 150, 255;
+}
+
+.hero-face[data-face='arcanist'] .face-eye::after {
+  animation-duration: 5.3s;
+}
+
+@keyframes face-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.85; }
+}
+
+@keyframes face-blink {
+  0%, 95% { opacity: 0; transform: scaleY(0.4); }
+  96.5% { opacity: 1; transform: scaleY(1); }
+  98%, 100% { opacity: 0; transform: scaleY(0.4); }
+}
+
+/* The Ranger listens: his head tilts a little, holds, and comes back. */
+.hero-face[data-face='ranger'] .face-head {
+  animation: face-listen 7.4s ease-in-out -2s infinite;
+}
+
+@keyframes face-listen {
+  0%, 62% { transform: none; }
+  72%, 86% { transform: rotate(-6deg); }
+  96%, 100% { transform: none; }
+}
+
+/* A glint crosses the Warden's visor: a band of light, masked to his own silhouette. */
+.face-glint {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask: var(--ico) center / contain no-repeat;
+  mask: var(--ico) center / contain no-repeat;
+  pointer-events: none;
+}
+
+.face-glint::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.85) 50%, transparent 80%);
+  transform: translateX(-120%) skewX(-12deg);
+  animation: face-glint 6.6s ease-in-out -1s infinite;
+}
+
+@keyframes face-glint {
+  0%, 70% { transform: translateX(-120%) skewX(-12deg); }
+  86%, 100% { transform: translateX(300%) skewX(-12deg); }
+}
+
+/* The Oracle's eyes flare violet, and two or three motes rise from her hood. */
+.hero-face[data-face='arcanist'] .face-eye::before {
+  animation: face-flare 5.8s ease-in-out -0.8s infinite;
+}
+
+@keyframes face-flare {
+  0%, 100% { opacity: 0.3; transform: none; }
+  20% { opacity: 0.7; transform: none; }
+  58% { opacity: 0.35; transform: none; }
+  66% { opacity: 1; transform: scale(1.7); }
+  76% { opacity: 0.5; transform: scale(1.1); }
+}
+
+.face-mote {
+  position: absolute;
+  top: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f3e2ff, rgba(186, 132, 255, 0.7) 55%, transparent 75%);
+  opacity: 0;
+  pointer-events: none;
+  animation: face-mote 5.8s ease-out infinite;
+}
+
+.face-mote:nth-of-type(1) {
+  left: 9px;
+  animation-delay: -1.9s;
+}
+
+.face-mote:nth-of-type(2) {
+  left: 20px;
+  animation-delay: -1.5s;
+}
+
+.face-mote:nth-of-type(3) {
+  left: 25px;
+  animation-delay: -1.2s;
+}
+
+@keyframes face-mote {
+  0%, 60% { opacity: 0; transform: none; }
+  68% { opacity: 1; transform: translateY(-3px); }
+  100% { opacity: 0; transform: translateY(-15px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-face,
+  .hero-face *,
+  .hero-face *::before,
+  .hero-face *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .face-mote {
+    display: none;
+  }
 }
 
 /* The picked hero's role and one line about it. Room for the longest line, so the main button does
@@ -2662,6 +2925,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
    so Play solo does not move when the tile appears after the server answers. */
 #lobby-home {
   --daily-room: 66px;
+  --ribbon-room: 42px;
 }
 
 .daily-tile {
@@ -2728,6 +2992,208 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 #lobby-home.has-daily .hero-stage {
   height: clamp(124px, calc(100dvh - 530px - var(--daily-room)), calc(320px - var(--daily-room)));
+}
+
+/* Today's champions' ribbon takes its room (the ribbon and one gap) from the stage as the Daily tile does. */
+#lobby-home.has-ribbon .hero-stage {
+  height: clamp(124px, calc(100dvh - 530px - var(--ribbon-room)), calc(320px - var(--ribbon-room)));
+}
+
+#lobby-home.has-ribbon.has-daily .hero-stage {
+  height: clamp(110px, calc(100dvh - 530px - var(--daily-room) - var(--ribbon-room)), calc(320px - var(--daily-room) - var(--ribbon-room)));
+}
+
+/* Today's champions (q13, docs/ART.md §12 "The champions' ribbon"): one line, 30 px, the card's width, the Daily tile's
+   gold hairline. Left, standing: the crown and the label; right, in a window that clips them, the names running right
+   to left (a seamless loop: the set drawn twice, moved by one set's width, endless/ribbon.ts), held under a finger or
+   the mouse. A set that fits stands centred. */
+.champ-ribbon {
+  box-sizing: border-box;
+  height: 30px;
+  min-height: 30px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 9px;
+  position: relative;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  border-color: rgba(232, 185, 74, 0.55);
+  box-shadow: var(--stone-rim), inset 3px 0 0 rgba(255, 210, 74, 0.55);
+}
+
+/* A thumb's 44 px to tap it by: 7 px over and under the 30 px line (8 from inside its 1 px border), in the gaps beside
+   it (12 px each). */
+.champ-ribbon::after {
+  content: '';
+  position: absolute;
+  inset: -8px -1px;
+}
+
+.ribbon-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ribbon-crown {
+  width: 18px;
+  height: 18px;
+  --ico: var(--icon-laurel);
+}
+
+.ribbon-label {
+  font-family: var(--title-font);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--gold);
+}
+
+.ribbon-window {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(232, 185, 74, 0.25);
+  -webkit-mask: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 10px), transparent);
+  mask: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 10px), transparent);
+}
+
+.ribbon-track {
+  display: flex;
+  align-items: center;
+  flex: none;
+  column-gap: 14px;
+  min-width: 0;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.ribbon-track.moving {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  padding: 0;
+  padding-left: 14px;
+  animation: ribbon-run var(--dur, 20s) linear infinite;
+}
+
+.champ-ribbon:hover .ribbon-track.moving,
+.champ-ribbon.held .ribbon-track.moving {
+  animation-play-state: paused;
+}
+
+@keyframes ribbon-run {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-1 * var(--loop, 0px))); }
+}
+
+.rib-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+
+.rib-rank {
+  min-width: 11px;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+  color: var(--muted);
+}
+
+.rib-row.gold .rib-rank { color: var(--gold); }
+.rib-row.silver .rib-rank { color: #d7e2ec; }
+.rib-row.bronze .rib-rank { color: #e0965a; }
+
+.rib-face {
+  width: 20px;
+  height: 20px;
+}
+
+.rib-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rib-wave {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.rib-row.mine .rib-name,
+.rib-row.mine .rib-wave {
+  color: var(--rune);
+}
+
+.rib-you {
+  padding: 1px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #0b1512;
+  background: var(--rune);
+  border-radius: 6px;
+}
+
+.rib-yday,
+.rib-more {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The empty line wraps to two lines where one is too narrow (360 px). */
+.rib-empty {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-height: 26px;
+  padding: 0 4px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 13px;
+  white-space: normal;
+  color: var(--muted);
+}
+
+.champ-ribbon.empty .ribbon-window {
+  justify-content: flex-start;
+}
+
+.champ-ribbon.empty .ribbon-track {
+  flex: 1 1 auto;
+  padding: 0;
+  white-space: normal;
+}
+
+#lobby-home.invited .champ-ribbon {
+  order: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-track.moving {
+    animation: none;
+  }
 }
 
 #lobby-offline.big {
@@ -2806,6 +3272,14 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
     height: clamp(124px, calc(100dvh - 400px - var(--daily-room)), calc(320px - var(--daily-room)));
   }
 
+  #lobby-home.has-ribbon .hero-stage {
+    height: clamp(124px, calc(100dvh - 400px - var(--ribbon-room)), calc(320px - var(--ribbon-room)));
+  }
+
+  #lobby-home.has-ribbon.has-daily .hero-stage {
+    height: clamp(110px, calc(100dvh - 400px - var(--daily-room) - var(--ribbon-room)), calc(320px - var(--daily-room) - var(--ribbon-room)));
+  }
+
   .hero-blurb {
     min-height: calc(4 * 1.35em);
   }
@@ -2821,7 +3295,9 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
    Daily tile no longer takes its room from it, and the card scrolls inside the page (its max-height, below). */
 @media (max-height: 639px) {
   .hero-stage,
-  #lobby-home.has-daily .hero-stage {
+  #lobby-home.has-daily .hero-stage,
+  #lobby-home.has-ribbon .hero-stage,
+  #lobby-home.has-ribbon.has-daily .hero-stage {
     height: auto;
     aspect-ratio: 378 / 320;
     flex-shrink: 0;
@@ -2963,20 +3439,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 /* The hero's best Endless wave, on the Mode label's line (over the Endless segment on a phone). */
 .pick-label .mode-best {
   color: var(--gold);
-}
-
-/* "Today's top 10": Endless's board (lobby/boardCard.ts), on the same line, so the row keeps its height. */
-.pick-label .mode-board {
-  display: block;
-  padding: 0;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: inherit;
-  text-transform: none;
-  color: var(--rune);
-  text-underline-offset: 2px;
 }
 
 /* Endless's board card (lobby/boardCard.ts): one phone screen, only the list scrolls when the window is short. */
@@ -3286,14 +3748,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
   .mode-row .pick-label .mode-best {
     margin-left: auto;
-  }
-
-  .mode-row .pick-label .mode-board {
-    margin-left: auto;
-  }
-
-  .mode-row .pick-label .mode-best:not(.hidden) + .mode-board {
-    margin-left: 10px;
   }
 
   .pick-dock {
@@ -5101,7 +5555,7 @@ body.layout-rotate .rotate {
 }
 
 @media (pointer: coarse) {
-  .lobby .btn,
+  .lobby .btn:not(.champ-ribbon),
   .lobby input {
     min-height: 44px;
   }
@@ -5868,7 +6322,9 @@ body.layout-tall .mates {
   }
 
   #lobby-home .hero-stage,
-  #lobby-home.has-daily .hero-stage {
+  #lobby-home.has-daily .hero-stage,
+  #lobby-home.has-ribbon .hero-stage,
+  #lobby-home.has-ribbon.has-daily .hero-stage {
     position: absolute;
     left: 0;
     top: 0;

@@ -110,10 +110,10 @@ test('the consent card asks once, with the age and a nickname; after the yes a r
   await expect(page.locator('#end-board-place')).toHaveText('#3 today · top wave 54');
   expect(bodies[1]!.name).toBe('Wren');
 
-  // The home card's Mode row: Today's top 10 opens the board, one screen; Back is the home card.
+  // The home card's ribbon of today's champions opens the board, one screen; Back is the home card.
   await page.locator('#end-change-hero').click();
-  await expect(page.locator('#lobby-board-link')).toBeVisible();
-  await page.locator('#lobby-board-link').click();
+  await expect(page.locator('#lobby-ribbon')).toBeVisible();
+  await page.locator('#lobby-ribbon').click();
   await expect(page.locator('#lobby-board')).toBeVisible();
   await expect(page.locator('#lobby-board-rows li')).toHaveCount(10);
   await expect(page.locator('#lobby-board-rows li.mine')).toContainText('Wren');
@@ -181,7 +181,7 @@ test('under 13: no card, nothing posted, and no board in the lobby', async ({ pa
   await page.goto('/?lobby&daily');
   await waitForReady(page, 'online');
   await page.waitForTimeout(500);
-  await expect(page.locator('#lobby-board-link')).toBeHidden();
+  await expect(page.locator('#lobby-ribbon')).toBeHidden();
   await page.locator('#lobby-mode-home .mode-pick[data-mode="endless"]').click();
   await page.locator('#lobby-offline').click();
   await expect.poll(() => page.evaluate(() => window.__tdt?.latest()?.totalWaves ?? 0)).toBe(200);

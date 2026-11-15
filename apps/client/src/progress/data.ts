@@ -1026,6 +1026,15 @@ const items: ProgressItem[] = [
     proof: pr(194),
   },
   {
+    id: 'D-22',
+    title: 'The lobby: hero faces that live, and today’s champions on the first screen',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Client, and one field more in the board’s answer (the merge restarts the game server; protocol stays 28). The hero buttons show each hero’s own face, cut from his 3D stage picture, on a round medallion in his colour, alive: a breath, glowing eyes that blink, the Ranger listening, a glint on the Warden’s helm, the Oracle’s eyes flaring; a picked hero’s face hops. The same face everywhere a hero’s icon was. Under Mode a ribbon runs today’s Endless top 10 (rank, face, nickname, wave; your row in teal), yesterday’s best after a short day; one tap opens the board.',
+    proof: pr(196),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

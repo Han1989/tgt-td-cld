@@ -535,6 +535,8 @@ describe('privacy page and links', () => {
       'The post sends the nickname you give, the replay of your inputs in that run',
       "this browser's secret key, from which the server works out the same visitor id as above; the key itself is not kept",
       'public board under your nickname',
+      "The day's top names also show on the game's first screen, running in a line under Mode",
+      "the next day's first screen may show the day before's top three",
       'each day\'s board is kept 90 days',
       'it works whether play data is on or off',
       'turn off Post Endless runs to the board in ⚙ Settings → Play data',

@@ -1,6 +1,7 @@
 // Endless's daily board (docs/GAME_DESIGN.md "Endless", "The board"; docs/DEPLOY.md): HTTP only, no WebSocket message.
 //   GET  /endless/today            the day, when it closes, how many browsers are on its board, the top 10 (and, with
-//                                  this browser's data key in `x-data-key`, its own row marked and its rank)
+//                                  this browser's data key in `x-data-key`, its own row marked and its rank), and
+//                                  `yesterday`: the UTC day before's top 3, never marked (the first screen's ribbon)
 //   POST /endless/post             { key, name, file: { report, replay } }: checked, re-run by the server, ranked
 // Built on the Daily run's parts (../daily/): the guard, CORS and refusals (routing.ts), the file's checks and the
 // one-at-a-time re-run queue (verify.ts, the same queue as the Daily run's on the game server), the names
@@ -9,7 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { PROTOCOL_VERSION, type Replay } from '@tdt/protocol';
-import { dailyKey, endlessRefusal, endlessRunTicks, TUNING } from '@tdt/sim';
+import { dailyKey, endlessRefusal, shiftDailyKey, endlessRunTicks, TUNING } from '@tdt/sim';
 import { clientIp, readBody } from '../analytics/http';
 import { visitorFromKey } from '../analytics/dataKey';
 import { READ_BURST, READ_PER_SECOND } from '../daily/http';
@@ -17,7 +18,7 @@ import { boardName } from '../daily/names';
 import { allPostsBucket, guard, headerVisitor, json, parsePost, refuse, slowReads, take, type Buckets } from '../daily/routing';
 import { boardFileRefusal, reportMismatch, ReplayQueue, type PostedFile } from '../daily/verify';
 import type { TokenBucket } from '../rateLimit';
-import { endlessView, type EndlessEntry } from './board';
+import { endlessView, endlessYesterday, type EndlessEntry, type EndlessTodayView } from './board';
 import type { EndlessStore } from './store';
 
 const ROUTES = ['/endless/today', '/endless/post'];
@@ -74,7 +75,11 @@ export function createEndlessHttp(opts: EndlessHttpOptions): (req: IncomingMessa
 
   function today(req: IncomingMessage, res: ServerResponse): void {
     const day = dailyKey(now());
-    json(res, 200, endlessView(day, opts.store.entries(day), headerVisitor(req)));
+    const view: EndlessTodayView = {
+      ...endlessView(day, opts.store.entries(day), headerVisitor(req)),
+      yesterday: endlessYesterday(opts.store.entries(shiftDailyKey(day, -1))),
+    };
+    json(res, 200, view);
   }
 
   async function post(req: IncomingMessage, res: ServerResponse): Promise<void> {

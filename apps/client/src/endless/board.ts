@@ -39,6 +39,11 @@ export interface EndlessToday {
   runs: number;
   top: EndlessRow[];
   you: { rank: number; wave: number; ticks: number } | null;
+  /**
+   * The UTC day before's top 3 (q13: the first screen's ribbon shows them after today's when today has fewer than 3),
+   * never marked as this browser's. Absent from an older server's answer (read as none).
+   */
+  yesterday?: Omit<EndlessRow, 'mine'>[];
 }
 
 /** POST /endless/post's answer: the board as the poster sees it, the server's own re-run of the run, and whether it beat their best today. */
