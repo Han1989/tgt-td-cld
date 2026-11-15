@@ -37,6 +37,7 @@ import { HeroPicker, storedHero, storeHero } from './heroPicker';
 import { HeroStage } from './heroStage';
 import { DEFAULT_MODE, dropStoredDifficulty, ModePicker, storedMode, storeMode } from './modePicker';
 import { storedName, storeName } from './nickname';
+import { hostCopyInvite, hostOpenSeat, storeTypedName } from '../platform/hostBridge';
 
 /** The home card's solo controls (every build). */
 export interface SoloActions {
@@ -380,6 +381,8 @@ export class LobbyUi {
     this.start.addEventListener('click', () => actions.start());
     $('lobby-copy').addEventListener('click', () => {
       if (!this.current) return;
+      // CrazyGames' own invite link (the crazygames build with its SDK on, platform/crazygames/).
+      if (__EMBED__ && hostCopyInvite(this.current.code, (text) => this.flash(text))) return;
       // A hosted build's invite opens the real game, never the host's frame URL (docs/DEPLOY.md "Hosted builds").
       const link = __EMBED__ ? inviteLink(this.current.code, `${__EMBED__.canonical}/`) : inviteLink(this.current.code);
       navigator.clipboard?.writeText(link).then(
@@ -578,7 +581,9 @@ export class LobbyUi {
       this.name.focus();
       return null;
     }
-    storeName(name);
+    // A hosted build never stores the name CrazyGames gives (platform/hostBridge.ts).
+    if (__EMBED__) storeTypedName(name, storeName);
+    else storeName(name);
     return name;
   }
 }
@@ -628,6 +633,7 @@ function openSeat(): HTMLLIElement {
   const li = document.createElement('li');
   li.className = 'seat open';
   // A linkless host (CrazyGames) has no invite link: friends join by the code (platform/embedHost.ts `linkless`).
-  li.textContent = __EMBED__ && linkless(__EMBED__.host) ? 'Open seat: share the code' : 'Open seat: send the invite link';
+  // With CrazyGames' SDK on, their invite button (platform/hostBridge.ts `hostOpenSeat`).
+  li.textContent = __EMBED__ ? hostOpenSeat(linkless(__EMBED__.host)) : 'Open seat: send the invite link';
   return li;
 }

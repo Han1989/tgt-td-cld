@@ -1044,6 +1044,15 @@ const items: ProgressItem[] = [
     proof: pr(198),
   },
   {
+    id: 'D-24',
+    title: 'CrazyGames’ SDK: their invites and instant multiplayer, their mute and usernames, and a data key that stays in this browser',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'The CrazyGames build only; the site, itch.io and Newgrounds unchanged, no server restart, protocol stays 28. CrazyGames’ SDK in the page: their loading and gameplay events, their mute (the game goes silent, and Settings says so), a signed-in player’s CrazyGames name in a room, their invite link and button (an invite joins the room with no tap; during a match the game asks first), their instant multiplayer (a new room at once). The key that lets a player download or delete their play data stays in this browser, out of the copy CrazyGames makes of a signed-in player’s storage. With the SDK blocked the build is the one CrazyGames holds today. A new zip is Han’s to upload.',
+    proof: pr(200),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

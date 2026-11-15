@@ -20,7 +20,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CANONICAL_ORIGIN, EMBED_HOSTS, isEmbedHost } from '../src/platform/embedHost';
+import { asksCrazyGames, CANONICAL_ORIGIN, CG_STAND_IN, cgSdkTags, EMBED_HOSTS, isEmbedHost } from '../src/platform/embedHost';
 import { hostedLeavesOut, reportLines } from './embedReport';
 import { e2eZipName, HARNESS } from './embedServe';
 import { writeZip } from './zip';
@@ -99,7 +99,29 @@ const dist = join(root, outDir);
 for (const p of listFiles(dist)) if (hostedLeavesOut(p)) rmSync(join(dist, p));
 const files = new Map(listFiles(dist).map((p) => [p, readFileSync(join(dist, p))] as const));
 if (!files.has('index.html')) die(`${outDir} has no index.html`);
+// CrazyGames' SDK (q15): exactly one tag with their address in the crazygames build's page, none in the others; the
+// browser test's crazygames zip points it at the stand-in, which no normal zip may hold.
+const page = files.get('index.html')!.toString('utf8');
+const sdkProblem = sdkCheck(host, e2e, page, files.has(CG_STAND_IN));
+if (sdkProblem) die(`${outDir}/index.html: ${sdkProblem}`);
 const zip = writeZip([...files].map(([path, data]) => ({ path, data })));
 writeFileSync(join(root, zipName), zip);
 console.log('');
 for (const line of reportLines({ zipPath: `apps/client/${zipName}`, zipBytes: zip.length, files, host })) console.log(line);
+
+/** What is wrong with the page's SDK tag for this host and zip, or null. */
+function sdkCheck(h: string, forTest: boolean, html: string, standIn: boolean): string | null {
+  if (h !== 'crazygames') {
+    if (asksCrazyGames(html) || cgSdkTags(html, `./${CG_STAND_IN}`) > 0) return `the ${h} build must not load CrazyGames' SDK`;
+    return standIn ? `the ${h} zip must not hold ${CG_STAND_IN}` : null;
+  }
+  if (forTest) {
+    if (asksCrazyGames(html)) return "the browser test's page must not load CrazyGames' real SDK";
+    if (cgSdkTags(html, `./${CG_STAND_IN}`) !== 1) return `the browser test's page needs one tag for ${CG_STAND_IN}`;
+    return standIn ? null : `the browser test's zip has no ${CG_STAND_IN}`;
+  }
+  if (cgSdkTags(html) !== 1 || (html.match(/sdk\.crazygames\.com/g) ?? []).length !== 1) {
+    return "the crazygames build needs exactly one tag for CrazyGames' SDK at its real address";
+  }
+  return standIn ? `a normal zip must not hold ${CG_STAND_IN}` : null;
+}

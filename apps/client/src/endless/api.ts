@@ -12,6 +12,7 @@ import { localIdStore } from '../analytics/myData';
 import { analyticsEndpoint } from '../analytics/session';
 import { dailyServer } from '../daily/api';
 import type { EndlessPostResult, EndlessToday } from './board';
+import { hostIdStore } from '../platform/hostBridge';
 
 /** The days this browser posted an Endless run (the last few), so a read knows whether to send its key. */
 export const ENDLESS_POSTED_KEY = 'tdt.endlessPosted';
@@ -53,7 +54,7 @@ export async function fetchEndlessToday(server = dailyServer(), fetchFn: Fetch =
   try {
     const url = analyticsEndpoint(server, '/endless/today');
     if (!url) return null;
-    const key = postedDays().includes(dailyKey(now)) ? storedDataKey(localIdStore()) : null;
+    const key = postedDays().includes(dailyKey(now)) ? storedDataKey(__EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore()) : null;
     const res = await fetchFn(url, {
       method: 'GET',
       headers: key ? { 'x-data-key': key } : {},
@@ -87,7 +88,7 @@ export async function postEndlessRun(
   try {
     const url = analyticsEndpoint(server, '/endless/post');
     if (!url) return { ok: false, code: 'network' };
-    const store = localIdStore();
+    const store = __EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore();
     ensureVisitor(store);
     const key = storedDataKey(store);
     if (!key) return { ok: false, code: 'network' };

@@ -270,4 +270,13 @@ describe('privacy page: a game site', () => {
       expect(text, sentence).toContain(sentence);
     }
   });
+
+  it('says the data key stays out of that copy, and that a CrazyGames username is the name in a room (q15)', () => {
+    for (const sentence of [
+      'The data key that lets you download or delete your play data is kept apart, in this browser only: it is not part of that copy.',
+      'When you are signed in to CrazyGames, the game uses your CrazyGames username as your name in a room, as if you had typed it as your nickname.',
+    ]) {
+      expect(text, sentence).toContain(sentence);
+    }
+  });
 });

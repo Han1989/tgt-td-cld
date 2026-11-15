@@ -18,6 +18,7 @@ import { beginSolo, soloMatch, type SoloPick, type SoloStart } from './tutorial/
 import { LocalTransport } from './transport/localTransport';
 import { NetworkTransport, RECONNECTING_LONG, sessionStore, VERSION_MISMATCH, type NetStatus } from './transport/networkTransport';
 import { forgetsSeat, seatStore } from './transport/seat';
+import { hostRoom, setHostRooms } from './platform/hostBridge';
 
 export class OnlineController {
   private transport: NetworkTransport | null = null;
@@ -75,6 +76,31 @@ export class OnlineController {
       { today: () => fetchEndlessToday() },
     );
     view.onLeave = () => this.leave();
+    // CrazyGames' SDK (the crazygames build, platform/crazygames/): its invites join a room and its instant start
+    // creates one, through the same steps as the home card's buttons.
+    if (__EMBED__) {
+      setHostRooms({
+        place: () => {
+          const phase = this.view.buffer.latest?.phase;
+          const running = phase === 'build' || phase === 'waves';
+          if ((soloTransport || this.lobby?.phase === 'playing') && running) return 'match';
+          if (this.lobby?.phase === 'lobby') return 'room-lobby';
+          if (this.transport && !this.lobby) return 'busy';
+          return 'home';
+        },
+        join: (code, name, hero) =>
+          gated(() => {
+            if (soloTransport) endSolo(this.view);
+            if (this.transport) this.leave();
+            this.connect({ t: 'join', v: PROTOCOL_VERSION, code, name, hero }, `Joining ${code}…`);
+          }),
+        create: (name, hero, mode) =>
+          gated(() => {
+            this.connect({ t: 'create', v: PROTOCOL_VERSION, name, hero }, 'Creating room…');
+            this.createMode = mode;
+          }),
+      });
+    }
     // ⚙ → Learn to play: the lesson at once, leaving an online room or ending a solo match first.
     view.onLearnToPlay = () => playGate(() => this.playSolo('lesson', { hero: storedHero(), mode: storedMode() }));
   }
@@ -155,6 +181,7 @@ export class OnlineController {
         const started = lobby.phase === 'playing' && this.lobby?.phase !== 'playing';
         this.lobby = lobby;
         this.view.hud.setRoom(lobby);
+        if (__EMBED__) hostRoom(lobby, this.view.me);
         if (lobby.phase === 'lobby') {
           artGate.cancel();
           this.view.resetView();
@@ -242,6 +269,7 @@ export class OnlineController {
     this.view.detach();
     this.view.hud.setRoom(null);
     this.view.hud.setReconnecting(false);
+    if (__EMBED__) hostRoom(null, null);
   }
 
   /**

@@ -1,11 +1,11 @@
 {
  "sizes": {
   "zip": "apps/client/embed-e2e-crazygames.zip",
-  "zipBytes": 16599890,
-  "unzipped": 17770993,
-  "files": 86,
-  "initial": 1365549,
-  "initialFiles": 15
+  "zipBytes": 16640928,
+  "unzipped": 17854647,
+  "files": 92,
+  "initial": 1406917,
+  "initialFiles": 16
  },
  "keys": [
   {

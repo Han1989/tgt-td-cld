@@ -6,6 +6,7 @@ import { browserFamily, buildId, cleanErrorMessage, trimStack } from './errors';
 import { detectPlatform, type Platform } from './platform';
 import { AGE_KEY } from './age';
 import { DATA_KEY_KEY, ensureVisitor } from './dataKey';
+import { hostIdsKept, hostIdStore } from '../platform/hostBridge';
 import { CHANNEL_KEY } from './myData';
 import type { BootReason } from '../startup/boot';
 import type { MatchCountKind } from './matchCounts';
@@ -197,7 +198,8 @@ export function installAnalytics(serverUrl: string): void {
       if (choice.save) store.setItem(CHANNEL_KEY, choice.channel);
       else if (choice.clear) store.removeItem(CHANNEL_KEY);
     }
-    const visitor = () => ensureVisitor(store);
+    // The crazygames build keeps the data key and the id in IndexedDB (platform/hostBridge.ts `hostIdStore`).
+    const visitor = __EMBED__ ? () => ensureVisitor(hostIdStore(__EMBED__.host)) : () => ensureVisitor(store);
     const channel: Channel = choice.channel;
     const platform: Platform = detectPlatform({
       userAgent: navigator.userAgent,
@@ -222,7 +224,7 @@ export function installAnalytics(serverUrl: string): void {
       post: (body, beacon) => post(endpoint, body, beacon),
       // A hosted build in a frame that may keep nothing (a sandbox, third-party storage blocked): an id can't outlast
       // this page, so no play data goes at all; the anonymous counts still do (docs/ANALYTICS.md "Hosted builds").
-      allowed: __EMBED__ && !storageKept() ? () => false : analyticsOn,
+      allowed: __EMBED__ && !(storageKept() && hostIdsKept(__EMBED__.host)) ? () => false : analyticsOn,
       build: buildId(typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'),
       browser,
     });

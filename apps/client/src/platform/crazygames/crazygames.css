@@ -1,0 +1,64 @@
+/* CrazyGames' SDK in the crazygames build (platform/crazygames/install.ts): loaded only there, only once the SDK is on. */
+
+/* ⚙ → Sound while CrazyGames mutes the game: beside the heading, on its line, so no box changes size. */
+.cg-muted {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+/* The home card's field holding the CrazyGames username: not editable. */
+#lobby-name.cg-locked {
+  opacity: 0.85;
+  cursor: default;
+}
+
+/* The room card: Copy invite link back beside the code, the code line under it. */
+.cg-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.cg-invite .room-code-hint {
+  margin: 0;
+  font-size: 11px;
+  text-align: right;
+}
+
+/* A running match's question when a friend's invite is accepted (the look of ⚙ → Match → Back to lobby's). */
+.cg-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 45%);
+  pointer-events: auto;
+}
+
+.cg-ask-box {
+  max-width: 320px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--panel-shadow);
+  color: var(--text);
+}
+
+.cg-ask-box p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--moon);
+}
+
+.cg-ask-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

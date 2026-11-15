@@ -10,6 +10,7 @@ import { ensureVisitor, storedDataKey } from '../analytics/dataKey';
 import { localIdStore } from '../analytics/myData';
 import { analyticsEndpoint } from '../analytics/session';
 import type { DailyToday, PostResult } from './text';
+import { hostIdStore } from '../platform/hostBridge';
 
 /** The days this browser posted a run (the last few), so a read knows whether to send its key. */
 export const POSTED_KEY = 'tdt.dailyPosted';
@@ -58,7 +59,7 @@ export async function fetchToday(server = dailyServer(), fetchFn: Fetch = fetch,
   try {
     const url = analyticsEndpoint(server, '/daily/today');
     if (!url) return null;
-    const key = postedLately(now) ? storedDataKey(localIdStore()) : null;
+    const key = postedLately(now) ? storedDataKey(__EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore()) : null;
     const res = await fetchFn(url, {
       method: 'GET',
       headers: key ? { 'x-data-key': key } : {},
@@ -89,7 +90,7 @@ export async function postRun(
   try {
     const url = analyticsEndpoint(server, '/daily/post');
     if (!url) return { ok: false, code: 'network' };
-    const store = localIdStore();
+    const store = __EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore();
     ensureVisitor(store);
     const key = storedDataKey(store);
     if (!key) return { ok: false, code: 'network' };

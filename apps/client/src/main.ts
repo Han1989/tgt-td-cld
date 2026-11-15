@@ -9,6 +9,7 @@ import { LobbyUi } from './lobby/lobby';
 import { storedMode } from './lobby/modePicker';
 import { afterArt, allyOf, OnlineController, playSolo } from './online';
 import { playGate } from './privacy/ageCheck';
+import { hostFirstScreen, hostShown, loadHostIds, startHostSdk } from './platform/hostBridge';
 import { setupPwa } from './platform/pwa';
 import { installIcons } from './render/art/icons';
 import { BOOT_COPY, createBootWatchdog, GraphicsUnavailableError, type BootReason } from './startup/boot';
@@ -60,6 +61,9 @@ function ready(screen: 'showcase' | 'ogcard' | 'progress' | 'stress' | 'solo' | 
 }
 
 async function main(): Promise<void> {
+  // CrazyGames' SDK (the crazygames build only, platform/crazygames/): `init()` starts first, beside the game view,
+  // never after it. Everything it does is skipped when the SDK is off.
+  if (__EMBED__ && import.meta.env.VITE_EMBED_HOST === 'crazygames') startHostSdk(() => import('./platform/crazygames/install'));
   setupPwa();
   // A hosted build in a game site's frame (platform/embed.ts; docs/DEPLOY.md "Hosted builds"). Never in the site's own.
   if (__EMBED__) {
@@ -99,6 +103,8 @@ async function main(): Promise<void> {
   // counts, and, once the age is known, as a visit with its error.
   // Analytics needs the server (docs/ANALYTICS.md); local solo sends nothing. Browser tests (`?analytics`,
   // e2e builds only) post to this page's own origin to watch every event, also on the `?lobby` card.
+  // The crazygames build keeps this browser's data key in IndexedDB, read before analytics starts (at most 500 ms).
+  if (__EMBED__) await loadHostIds(__EMBED__.host);
   if (!(stress > 0)) {
     if (!localSolo && !e2eLobby) installAnalytics(serverUrl);
     else if (import.meta.env.MODE === 'e2e' && params.has('analytics')) installAnalytics(location.origin);
@@ -153,8 +159,12 @@ async function main(): Promise<void> {
     ready('solo');
     return;
   }
+  // The first screen waits for CrazyGames' SDK at most 1.5 s behind the boot splash, so an invite or an instant start
+  // does not flash the home card first; a later answer still applies while the player has not started anything.
+  if (__EMBED__) await hostFirstScreen();
   new OnlineController(view, serverUrl).start();
   ready('online');
+  if (__EMBED__) hostShown(view);
 }
 
 main().catch((err: unknown) => {

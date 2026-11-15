@@ -136,8 +136,8 @@ the unzipped files of `build:embed -- crazygames`.
 - **Passed:** the game is live to a share of CrazyGames' players. From then on a change to `PROTOCOL_VERSION` needs a
   new upload within the same hour as the server deploy, or the uploaded copy cannot play online ("This copy is being
   updated").
-- **They ask for the invite and instant-multiplayer features:** that is the SDK work (their invite link and button,
-  `IsInstantMultiplayer`, a room joined from their link): a task of its own for the advisor to write.
+- **They ask for the invite and instant-multiplayer features:** built in q15 ("Version 2: with their SDK", below):
+  upload version 2.
 - **They mind the orientation:** upload a new version with **Portrait** as the orientation. Today a phone held sideways
   shows the game's own "Rotate to portrait" card, which "Both" does not promise.
 
@@ -146,3 +146,69 @@ the unzipped files of `build:embed -- crazygames`.
 The heroes', creeps', towers' and buildings' 3D models were generated with Meshy from the game's own designs, and the
 code was written with Claude Code. CrazyGames asks for no AI label; itch.io and Steam do. The music was generated with
 Google Gemini ([docs/SOUND_CREDITS.md](../SOUND_CREDITS.md): confirm Gemini's terms allow use in a paid game).
+
+## Version 2: with their SDK
+
+q15 (15 Nov 2026) adds CrazyGames' SDK v3 to the crazygames build, so their four SDK rows ("Not detected" in the
+first upload's QA) are met. Nothing changes on the site or in the itch.io and Newgrounds builds; the protocol stays 28
+and the game server is not restarted. Build the zip again after the merge (`VITE_SERVER_URL=wss://… npm run
+build:embed -w @tdt/client -- crazygames`) and upload the contents of `apps/client/dist-embed-crazygames/`: that
+upload is Han's.
+
+**What changed** (`docs/DEPLOY.md` §10, "CrazyGames' SDK"):
+
+- The SDK's script in the page's head; `init()` at start-up, the first screen waiting for it at most 1.5 s.
+- `loadingStart` / `loadingStop` around the first screen and the wait before a match; `gameplayStart` / `gameplayStop`
+  around play (the end card, the lobby, a lost connection and the invite's question are breaks); `happytime` on a
+  victory or a new Endless best, once a match.
+- Their mute: `muteAudio` silences the game whatever its own Sound switch says; ⚙ → Sound says "Muted by CrazyGames".
+- **`disableChat`: the game has no chat to disable.** Its quick chat is six fixed emotes and team pings, with no free
+  text anywhere, so there is nothing the setting could turn off.
+- Their usernames: a signed-in player's name in a room is the CrazyGames username (the home card's field shows it as
+  "CrazyGames name", not editable). The profile picture is never loaded or shown.
+- Rooms: `updateRoom` with the room's code (joinable while it waits in its lobby with a free seat), `leftRoom` on
+  leaving; **Copy invite link** copies their invite link, the code still under it; their invite joins the room with no
+  tap; an invite accepted during a match asks "Join your friend's room? You leave this match." first; their instant
+  multiplayer opens a new room at once as its host.
+- The data key that lets a player download or delete their play data is kept in IndexedDB, out of the localStorage
+  their Automatic Progress Save copies (the privacy page says so).
+
+**In the portal, for the new upload:**
+
+- Tick **muting through the SDK**.
+- Mobile orientation: **Portrait**.
+- Multiplayer: instant multiplayer **yes**; friends' invitations **yes**; the invite through **room data**
+  (`updateRoom`) **and the invite link** (`inviteLink`).
+
+**Checking it in their preview before submitting** (on the laptop, in the portal's preview of the new upload):
+
+1. Load: the home card comes up; their QA panel shows the SDK detected and `loadingStart` then `loadingStop`.
+2. A solo match to its end: Play solo, play a wave or two, lose or win: `gameplayStart` when the match starts,
+   `gameplayStop` on the end card (a victory also `happytime`).
+3. Their invite into a second window: Create room, then their "invite friends" (or Copy invite link) and open the link
+   in a second, private window: it lands in the room with no tap; both seats show their names.
+4. Their instant-multiplayer switch: the game opens straight on a new room's card, as its host.
+5. Their mute switch: the game goes silent, ⚙ → Sound says "Muted by CrazyGames"; switching it back brings the sound
+   back as the game's own switch had it.
+
+**What stays in localStorage** (copied by their Automatic Progress Save to a signed-in player's account, as their docs
+say: they name localStorage only, and IndexedDB only for Unity's PlayerPrefs, so IndexedDB staying out of their copy is
+what their docs say, not something a session could test):
+
+| Key | What it is |
+| --- | --- |
+| `tdt.settings` | ⚙ Settings: controls, sound, graphics, the one-time hints and lesson flags |
+| `tdt.record` | Each hero's matches, wins and bests, kept here only and never sent |
+| `tdt.endlessBest` | The best Endless wave per hero |
+| `tdt.name` | The nickname the player typed (never the CrazyGames username) |
+| `tdt.age` | The age question's answer, never sent |
+| `tdt.analytics` | The Play data switch |
+| `tdt.dailyPosted`, `tdt.endlessPosted` | The days a run was posted to a board |
+| `tdt.firstDay` | The day of the first counted open, for the day-1 and day-7 return counts; never sent |
+| `tdt.seat` | A remembered seat in a running match (forgotten at its end, after 2 h) |
+| `tdt.hero`, `tdt.mode` | The picked hero and mode |
+| `tdt.channel` | The link tag the game was first opened from |
+| `tdt.musicGain` | The last measured level of a music file (sound) |
+
+Not there: `tdt.visitorKey` and `tdt.visitor` (the data key and the id made from it) are in IndexedDB; one found in
+localStorage from the first upload moves there and leaves localStorage at the first load of version 2.
