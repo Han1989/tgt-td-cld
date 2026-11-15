@@ -1,0 +1,114 @@
+{
+  "before": [
+    {
+      "hero": "ranger",
+      "picked": true,
+      "bust": 48.2,
+      "face": 52.4,
+      "button": 38.5,
+      "eyes": 92.2,
+      "helm": 20.9
+    },
+    {
+      "hero": "warden",
+      "picked": false,
+      "bust": 25.8,
+      "face": 35.7,
+      "button": 28,
+      "eyes": 47.4,
+      "helm": 22.7
+    },
+    {
+      "hero": "arcanist",
+      "picked": false,
+      "bust": 26.4,
+      "face": 31.4,
+      "button": 28.4,
+      "eyes": 72.1,
+      "helm": 18.7
+    },
+    {
+      "hero": "ranger",
+      "picked": false,
+      "bust": 37,
+      "face": 40.1,
+      "button": 27.9,
+      "eyes": 75.2,
+      "helm": 23.6
+    },
+    {
+      "hero": "warden",
+      "picked": true,
+      "bust": 38.3,
+      "face": 46.3,
+      "button": 36.1,
+      "eyes": 55.5,
+      "helm": 20
+    },
+    {
+      "hero": "arcanist",
+      "picked": true,
+      "bust": 38.5,
+      "face": 38.8,
+      "button": 34,
+      "eyes": 89.3,
+      "helm": 13.8
+    }
+  ],
+  "after": [
+    {
+      "hero": "ranger",
+      "picked": true,
+      "bust": 48.2,
+      "face": 52.4,
+      "button": 38.5,
+      "eyes": 92.2,
+      "helm": 20.9
+    },
+    {
+      "hero": "warden",
+      "picked": false,
+      "bust": 37.6,
+      "face": 21.7,
+      "button": 28,
+      "eyes": 68,
+      "helm": 32.3
+    },
+    {
+      "hero": "arcanist",
+      "picked": false,
+      "bust": 26.3,
+      "face": 31.3,
+      "button": 28.4,
+      "eyes": 72.1,
+      "helm": 18.7
+    },
+    {
+      "hero": "ranger",
+      "picked": false,
+      "bust": 36.8,
+      "face": 40.1,
+      "button": 27.9,
+      "eyes": 75.2,
+      "helm": 23.6
+    },
+    {
+      "hero": "warden",
+      "picked": true,
+      "bust": 53.8,
+      "face": 23.5,
+      "button": 36.1,
+      "eyes": 83.5,
+      "helm": 33.2
+    },
+    {
+      "hero": "arcanist",
+      "picked": true,
+      "bust": 38.5,
+      "face": 38.8,
+      "button": 34,
+      "eyes": 89.3,
+      "helm": 13.8
+    }
+  ]
+}
