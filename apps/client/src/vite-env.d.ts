@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   /** Game server WebSocket URL, e.g. wss://tgt-td-server.onrender.com. Unset = local solo mode. */
   readonly VITE_SERVER_URL?: string;
+  /** The hosted build's host (`npm run build:embed -- <host>`); unset in the site's build. */
+  readonly VITE_EMBED_HOST?: string;
 }
 
 /** The client's build (Vercel's git commit, or 'dev'), set by vite.config.ts. */

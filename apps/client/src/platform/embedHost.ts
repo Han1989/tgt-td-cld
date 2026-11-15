@@ -92,13 +92,41 @@ export function markPrivacy(path: string): string {
  * The page's HTML in a hosted build: links to the site's own pages (`href="/privacy.html…"`, `href="/"`) point at the
  * real game (a linkless host's privacy links marked, `markPrivacy`), and the web app manifest goes (a host's upload is
  * never installed: its start page would be the host's root). Everything else Vite makes relative itself (`base: './'`).
+ * The crazygames build's head also gets CrazyGames' SDK tag (`sdk`: its address, or the e2e zip's stand-in).
  */
-export function hostedHtml(html: string, canonical: string, host?: EmbedHost): string {
+export function hostedHtml(html: string, canonical: string, host?: EmbedHost, sdk: string = CG_SDK_URL): string {
   const mark = host !== undefined && linkless(host);
-  return html
+  const page = html
     .replace(/(<a\b[^>]*\bhref=")\/(privacy\.html[^"]*|)"/g, (_m, head: string, rest: string) => {
       const url = `${canonical}/${rest}`;
       return `${head}${mark ? markPrivacy(url) : url}"`;
     })
     .replace(/\s*<link rel="manifest"[^>]*>/g, '');
+  // CrazyGames' SDK in the head before the game's code (their docs): the crazygames build only, never itch.io's or
+  // Newgrounds'. `sdk` is the e2e zip's stand-in (CG_STAND_IN) in the browser test's build.
+  return host === 'crazygames' ? page.replace(/<head>/, `<head>\n    ${cgSdkTag(sdk)}`) : page;
+}
+
+/** CrazyGames' SDK (v3), loaded in the head of the crazygames build's page only (platform/crazygames/). */
+export const CG_SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
+
+/**
+ * The browser test's stand-in for CrazyGames' SDK (e2e/cgStandIn.js): shipped only in the crazygames build's e2e zip,
+ * at the zip's root, so the test never loads the real SDK.
+ */
+export const CG_STAND_IN = 'cg-sdk-stand-in.js';
+
+/** The SDK's script tag: CrazyGames' address, or `src` (the e2e zip's stand-in). */
+export function cgSdkTag(src: string = CG_SDK_URL): string {
+  return `<script src="${src}"></script>`;
+}
+
+/** How many tags in `html` load CrazyGames' SDK from `src` (the real address by default); the build script checks it. */
+export function cgSdkTags(html: string, src: string = CG_SDK_URL): number {
+  return html.split(cgSdkTag(src)).length - 1;
+}
+
+/** Any script tag in `html` that asks sdk.crazygames.com for something. */
+export function asksCrazyGames(html: string): boolean {
+  return /<script\b[^>]*\bsrc="[^"]*sdk\.crazygames\.com/.test(html);
 }

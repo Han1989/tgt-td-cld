@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { listSoundFiles, MUSIC_LEVELS, readMusicLevels } from './scripts/soundFiles.ts';
 import { CHANNELS } from './src/analytics/channel.ts';
-import { embedConfigFromEnv, hostedHtml, type EmbedConfig } from './src/platform/embedHost.ts';
+import { CG_STAND_IN, embedConfigFromEnv, hostedHtml, type EmbedConfig } from './src/platform/embedHost.ts';
 import { swSource } from './src/platform/swSource.ts';
 
 /** The site's pages: the game, and the static privacy notice (docs/ANALYTICS.md), which loads none of the game. */
@@ -225,11 +225,22 @@ const BUILD = /^[0-9A-Za-z._-]{1,64}$/.test(COMMIT) ? COMMIT : 'dev';
  * A hosted build's page (docs/DEPLOY.md "Hosted builds"): links to the site's own pages point at the real game, and
  * there is no web app manifest (a host's upload is never installed).
  */
-function hostedPage(embed: EmbedConfig): Plugin {
+function hostedPage(embed: EmbedConfig, e2e: boolean): Plugin {
+  // The crazygames build's browser test never loads CrazyGames' real SDK: its zip carries a stand-in at its root
+  // (e2e/cgStandIn.js) and the page's tag points there. A normal zip has no stand-in (scripts/buildEmbed.ts checks).
+  const standIn = e2e && embed.host === 'crazygames';
   return {
     name: 'tdt-hosted-page',
     apply: 'build',
-    transformIndexHtml: { order: 'post', handler: (html) => hostedHtml(html, embed.canonical, embed.host) },
+    transformIndexHtml: {
+      order: 'post',
+      handler: (html) => (standIn ? hostedHtml(html, embed.canonical, embed.host, `./${CG_STAND_IN}`) : hostedHtml(html, embed.canonical, embed.host)),
+    },
+    generateBundle() {
+      if (!standIn) return;
+      const source = readFileSync(fileURLToPath(new URL('./e2e/cgStandIn.js', import.meta.url)), 'utf8');
+      this.emitFile({ type: 'asset', fileName: CG_STAND_IN, source });
+    },
   };
 }
 
@@ -238,7 +249,7 @@ export default defineConfig(({ mode }) => {
   return {
     // A hosted build resolves every asset, page, worker and the service worker from wherever the host puts it.
     ...(EMBED ? { base: './' } : {}),
-    plugins: [soundFiles(), artBytes(), serviceWorker(), ...(EMBED ? [hostedPage(EMBED)] : [])],
+    plugins: [soundFiles(), artBytes(), serviceWorker(), ...(EMBED ? [hostedPage(EMBED, mode === 'e2e')] : [])],
     define: { __BUILD__: JSON.stringify(BUILD), __EMBED__: JSON.stringify(EMBED) },
     worker: { format: 'es' as const },
     build: {

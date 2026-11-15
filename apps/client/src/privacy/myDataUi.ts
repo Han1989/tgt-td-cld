@@ -4,6 +4,7 @@
 import { resetAnalytics } from '../analytics/install';
 import { analyticsServer, copyMyData, deleteMyData, localIdStore, myDataLine } from '../analytics/myData';
 import { saveMatchFile } from '../hud/matchFile';
+import { hostIdStore } from '../platform/hostBridge';
 
 const CONFIRM_MS = 5000;
 
@@ -33,7 +34,7 @@ export function wireMyData({ copy, erase, state, onDeleted }: MyDataControls): v
     disarm();
     busy(true);
     state.textContent = 'Asking the game server…';
-    void copyMyData(analyticsServer(), localIdStore()).then(async (result) => {
+    void copyMyData(analyticsServer(), __EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore()).then(async (result) => {
       if (result.kind === 'file') await saveMatchFile({ name: result.name, text: result.text }).catch(() => {});
       state.textContent = myDataLine(result);
       busy(false);
@@ -51,7 +52,7 @@ export function wireMyData({ copy, erase, state, onDeleted }: MyDataControls): v
     disarm();
     busy(true);
     state.textContent = 'Deleting…';
-    void deleteMyData(analyticsServer(), localIdStore(), resetAnalytics).then((result) => {
+    void deleteMyData(analyticsServer(), __EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore(), resetAnalytics).then((result) => {
       state.textContent = myDataLine(result);
       busy(false);
       if (result.kind === 'deleted' || result.kind === 'cleared') onDeleted?.();

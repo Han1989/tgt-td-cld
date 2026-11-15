@@ -9,6 +9,7 @@ import { applyAnalytics, currentAnalytics, resetAnalytics } from '../analytics/i
 import { analyticsServer, deleteMyData, localIdStore } from '../analytics/myData';
 import { browserSignals, readAnalyticsChoice, wouldSend } from '../analytics/preference';
 import { gateAtPlay } from './askAt';
+import { hostIdStore } from '../platform/hostBridge';
 
 let open: Promise<AgeBand> | null = null;
 
@@ -72,7 +73,7 @@ export function askAge(): Promise<AgeBand> {
 /** Under 13: anything this browser sent before is deleted and its id cleared. Then the new rule applies at once. */
 function afterAnswer(band: AgeBand): void {
   if (band === 'child') {
-    void deleteMyData(analyticsServer(), localIdStore(), resetAnalytics);
+    void deleteMyData(analyticsServer(), __EMBED__ ? hostIdStore(__EMBED__.host) : localIdStore(), resetAnalytics);
   }
   applyAnalytics();
 }

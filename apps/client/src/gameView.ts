@@ -18,6 +18,7 @@ import {
 import { findPath, getMap, nearestWalkable, TILE_PX, TUNING } from '@tdt/sim';
 import { Application, isWebGLSupported, UPDATE_PRIORITY, type TextureSource } from 'pixi.js';
 import { createAudio, type Audio } from './audio';
+import { hostMuted, onHostMute } from './platform/hostBridge';
 import { countMatch, currentAnalytics } from './analytics/install';
 import { MatchTracker } from './analytics/matchTracker';
 import { MatchCounts } from './analytics/matchCounts';
@@ -310,10 +311,12 @@ export class GameView {
     const audio = createAudio();
     const applySound = () => {
       const s = settings.get();
-      audio.engine.setMix({ music: s.music, sfx: s.sfx, muted: s.muted });
+      // CrazyGames' mute (the crazygames build, platform/hostBridge.ts) silences the game whatever ⚙ → Sound says.
+      audio.engine.setMix({ music: s.music, sfx: s.sfx, muted: __EMBED__ ? hostMuted(s.muted) : s.muted });
     };
     applySound();
     settings.onChange(applySound);
+    if (__EMBED__) onHostMute(applySound);
     renderer.onTowerShot = (t) => audio.game.towerShot(t, performance.now());
     renderer.onMeleeImpact = (heroId, x, y) => audio.game.meleeHit(heroId, x, y, performance.now());
     renderer.onMeteorFall = (kind, finale) => audio.game.meteorFall(kind, finale, performance.now());
