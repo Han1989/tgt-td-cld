@@ -22,7 +22,7 @@ is live").
 | q5 | [CrazyGames prep: their build, an audit against their rules, the submission kit](q5-crazygames-prep.md) | autopilot | done | #177 | q3, q4 | After it merges the advisor writes the audit's fix as a new task. |
 | q6 | [A bot teammate in solo](q6-bot-teammate.md) | Han | done | #181 | q5 | Han reviews the balance tables and plays it before merging. |
 
-## Build tasks, continued (13 Nov: the fixes from the CrazyGames audit; 14 Nov: the previews, then the fixes from Han's three-device match)
+## Build tasks, continued (13 Nov: the fixes from the CrazyGames audit; 14 Nov: the previews, then the fixes from Han's three-device match; 15 Nov: the lobby)
 
 One list with the table above: a session reads both, top to bottom. They are in a table of their own only so that
 adding them did not touch the lines a claimed task's branch is changing.
@@ -35,6 +35,7 @@ adding them did not touch the lines a claimed task's branch is changing.
 | q10 | [Previews, round 2: the hero alive at the end, and the kill count clear of the combo band](q10-previews-round-2.md) | autopilot | done | #191 | q9 | Client HUD (one small change), the script, two videos. Merge condition in the file. |
 | q11 | [iPhone fix: a finger iOS takes away never leaves the stick held](q11-stick-never-stuck.md) | autopilot | done | #193 | q10 | Client only. From Han's three-device match of 14 Nov. Merge condition in the file; Han then tries it on the iPhone in Safari. |
 | q12 | [Coming back to a running match: at any time, and by the room code too](q12-come-back-to-a-match.md) | autopilot | done | #194 | q11 | Sim, protocol (28), server and client: the merge restarts the game server and every hosted zip is built again. Han confirmed the rule by merging the brief. Merge condition in the file; Han tries it on the live site after the merge. |
+| q13 | [The lobby: hero faces that live, and today's champions on the first screen](q13-lobby-faces-and-champions.md) | Han | todo |  | q12 | Client, and one field more in GET /endless/today (the merge restarts the game server; the protocol stays 28). Han judges it on his phone from the pictures and clips in the pull request. |
 
 ## Han's own steps (the autopilot skips these)
 
@@ -42,4 +43,4 @@ adding them did not touch the lines a claimed task's branch is changing.
 | --- | --- | --- | --- | --- | --- | --- |
 | h1 | One room across three devices (Pixel, iPhone, laptop): a Quick match to the end |  | done |  |  | Played 14 Nov: won. It found q11 (the stuck stick on the iPhone) and q12 (no way back into a running match). |
 | h2 | Render origins, the itch zip, the itch.io Draft and its check |  | han |  |  |  |
-| h3 | Submit to CrazyGames with the kit in docs/crazygames/ |  | han |  |  | After q11 and q12 (the fixes from the three-device match) and a fresh zip, with Han's own checks in Edge and Safari. |
+| h3 | Submit to CrazyGames with the kit in docs/crazygames/ |  | han |  |  | After q13 (the lobby) and a fresh zip. Han's checks of q11 and q12 (iPhone Safari, two devices) and Edge are done (15 Nov). |
