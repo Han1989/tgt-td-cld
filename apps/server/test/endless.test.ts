@@ -29,7 +29,7 @@ import {
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { visitorFromKey } from '../src/analytics/dataKey';
 import { ReplayQueue } from '../src/daily/verify';
-import { endlessView, type EndlessEntry } from '../src/endless/board';
+import { endlessView, endlessYesterday, type EndlessEntry } from '../src/endless/board';
 import { createEndlessHttp, ENDLESS_BODY_LIMIT } from '../src/endless/http';
 import { EndlessStore } from '../src/endless/store';
 import type { GameServer } from '../src/server';
@@ -146,6 +146,14 @@ describe('the board', () => {
     expect(top.top.filter((r) => r.mine).map((r) => r.name)).toEqual(['C']);
     expect(top.you).toMatchObject({ rank: 2, wave: 46 });
     expect(endlessView(today, entries, null).you).toBeNull();
+    // Yesterday's top 3 for the first screen's ribbon: ranked as the board is, no row marked, none on an empty day.
+    expect(endlessYesterday(entries)).toEqual([
+      { rank: 1, name: 'B', wave: 54, ticks: 50_000, hero: 'warden' },
+      { rank: 2, name: 'C', wave: 46, ticks: 38_000, hero: 'warden' },
+      { rank: 2, name: 'D', wave: 46, ticks: 38_000, hero: 'warden' },
+    ]);
+    expect(endlessYesterday(entries).some((r) => 'mine' in r)).toBe(false);
+    expect(endlessYesterday([])).toEqual([]);
     expect(view.closesAt).toBe(Date.parse(`${today}T00:00:00Z`) + 24 * 3600 * 1000);
   });
 });
@@ -425,12 +433,22 @@ describe('the day rollover and the 90-day files', () => {
     await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
     const http = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     const post = poster(http);
-    const res = await post({ key: newKey(), name: 'Night Owl', file: short });
+    const owl = newKey();
+    const res = await post({ key: owl, name: 'Night Owl', file: short });
     expect(res.body).toMatchObject({ day: '2026-10-28', runs: 1, closesAt: Date.parse('2026-10-29T00:00:00Z') });
+    // The day before has no file: yesterday is an empty list.
+    expect(((await (await fetch(`${http}/endless/today`)).json()) as { yesterday: unknown }).yesterday).toEqual([]);
 
     clock.now = Date.parse('2026-10-29T00:01:00Z');
     const view = (await (await fetch(`${http}/endless/today`)).json()) as Posted['body'];
     expect(view).toMatchObject({ day: '2026-10-29', runs: 0, top: [], you: null });
+    // Yesterday's best follow, never marked, not even for the browser that posted it.
+    const owlView = (await (await fetch(`${http}/endless/today`, { headers: { 'x-data-key': owl } })).json()) as {
+      yesterday: Record<string, unknown>[];
+    };
+    expect(owlView.yesterday).toEqual([
+      { rank: 1, name: 'Night Owl', wave: short.replay.end.wave, ticks: expect.any(Number), hero: 'arcanist' },
+    ]);
     // Any seed counts (Endless has no seed of the day): the same run posts on the new day.
     expect((await post({ key: newKey(), name: 'Early Bird', file: short })).body).toMatchObject({ day: '2026-10-29', runs: 1 });
     await store.flush();

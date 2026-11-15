@@ -35,6 +35,17 @@ export interface EndlessView {
   you: { rank: number; wave: number; ticks: number } | null;
 }
 
+/** A row of yesterday's top 3 (q13: the first screen's ribbon shows them when today has fewer than 3). Never `mine`. */
+export type EndlessYesterdayRow = Omit<EndlessRow, 'mine'>;
+
+/** How many of yesterday's best GET /endless/today carries. */
+export const YESTERDAY_SIZE = 3;
+
+/** GET /endless/today: today's view and yesterday's top 3 (an empty list when that day has no file). */
+export interface EndlessTodayView extends EndlessView {
+  yesterday: EndlessYesterdayRow[];
+}
+
 export function endlessSort(entries: Iterable<EndlessEntry>): EndlessEntry[] {
   return sortBy(entries, endlessRankOrder);
 }
@@ -60,6 +71,15 @@ export function endlessView(day: string, entries: Iterable<EndlessEntry>, visito
     top,
     you: me ? { rank: ranks[mine]!, wave: me.wave, ticks: me.ticks } : null,
   };
+}
+
+/** A day's top 3, with no row marked: the ribbon's "Yesterday". */
+export function endlessYesterday(entries: Iterable<EndlessEntry>): EndlessYesterdayRow[] {
+  const sorted = endlessSort(entries);
+  const ranks = ranksBy(sorted, endlessRankOrder);
+  return sorted
+    .slice(0, YESTERDAY_SIZE)
+    .map((e, i) => ({ rank: ranks[i]!, name: e.name, wave: e.wave, ticks: e.ticks, hero: e.hero }));
 }
 
 /** The day's top wave, or null on an empty board. */
