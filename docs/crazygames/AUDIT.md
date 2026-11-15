@@ -1,15 +1,15 @@
 # CrazyGames audit (q5, frames q7)
 
-Made by `npm run cg-audit -w @tdt/client` on 2026-11-13 from the crazygames build's e2e zip (`embed-e2e-crazygames.zip`: the crazygames build with the e2e hook), served as a host serves it (scripts/embedServe.ts), in headless Chromium on a software GPU. The rules are the advisor's reading of CrazyGames' pages on 10 Nov 2026 (docs/queue/q5-crazygames-prep.md) and, for the frames, on 13 Nov 2026 (docs/queue/q7-crazygames-frames.md): this machine cannot open docs.crazygames.com, so none was checked against the live pages.
+Made by `npm run cg-audit -w @tdt/client` on 2026-11-15 from the crazygames build's e2e zip (`embed-e2e-crazygames.zip`: the crazygames build with the e2e hook), served as a host serves it (scripts/embedServe.ts), in headless Chromium on a software GPU. The rules are the advisor's reading of CrazyGames' pages on 10 Nov 2026 (docs/queue/q5-crazygames-prep.md) and, for the frames, on 13 Nov 2026 (docs/queue/q7-crazygames-frames.md): this machine cannot open docs.crazygames.com, so none was checked against the live pages.
 
 ## Every requirement
 
 | | Requirement | Result | Evidence |
 | --- | --- | --- | --- |
-| Technical | Total size 250 MB or less | **PASS** | 17.77 MB unzipped (apps/client/embed-e2e-crazygames.zip) |
-| Technical | 1,500 files or less | **PASS** | 86 files |
-| Technical | Initial download 50 MB or less (no SDK: the whole build counts) | **PASS** | the whole zip 16.6 MB; the page's own first download 1.37 MB in 15 files |
-| Technical | 20 MB or less to be on the phone homepage | **PASS** | zip 16.6 MB |
+| Technical | Total size 250 MB or less | **PASS** | 17.85 MB unzipped (apps/client/embed-e2e-crazygames.zip) |
+| Technical | 1,500 files or less | **PASS** | 92 files |
+| Technical | Initial download 50 MB or less (no SDK: the whole build counts) | **PASS** | the whole zip 16.64 MB; the page's own first download 1.41 MB in 16 files |
+| Technical | 20 MB or less to be on the phone homepage | **PASS** | zip 16.64 MB |
 | Technical | Relative paths only | **PASS** | index.html names no root path (`base: './'`); e2e/embed.spec.ts serves the zip under a deep path with no 404 |
 | Technical | Time to gameplay 20 s or less | **PASS** | cold, unthrottled: 2.8 s; cold, Fast 4G, CPU 4×: 6.5 s; 30 s on the home card, unthrottled: 2.9 s; 30 s on the home card, Fast 4G, CPU 4×: 5.9 s |
 | Technical | Chrome and Edge work | **NOT CHECKED** | Chromium (headless) only here: every browser test and this audit; Edge is Chromium but was not run |
@@ -53,10 +53,10 @@ Made by `npm run cg-audit -w @tdt/client` on 2026-11-13 from the crazygames buil
 
 | | Measured | Limit |
 | --- | --- | --- |
-| Zip | 16.6 MB | 20 MB (phone homepage), 50 MB (initial) |
-| Unzipped | 17.77 MB | 250 MB |
-| Files | 86 | 1,500 |
-| The page's first download | 1.37 MB in 15 files | (the whole build counts with no SDK) |
+| Zip | 16.64 MB | 20 MB (phone homepage), 50 MB (initial) |
+| Unzipped | 17.85 MB | 250 MB |
+| Files | 92 | 1,500 |
+| The page's first download | 1.41 MB in 16 files | (the whole build counts with no SDK) |
 
 ## Time to gameplay
 
