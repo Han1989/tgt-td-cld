@@ -19,9 +19,14 @@
 //   npm run build:e2e -w @tdt/client && npm run cg-previews -w @tdt/client [-- --only landscape,portrait] [--out DIR]
 //
 // `CHROMIUM_PATH` for a Chromium of another revision than Playwright's. About 10 minutes. Look at both before committing.
+//
+//   npm run cg-previews -w @tdt/client -- --sheet-only [--only …] [--out DIR]
+//
+// (q14) makes only previews-sheet.jpg from the videos already in --out, with no build and no recording: the moments
+// from this machine's last run's cut log (dist-previews/<kind>-log.json), else the uploaded previews' (UPLOADED_TIMES).
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type CDPSession, type Page } from '@playwright/test';
@@ -554,21 +559,40 @@ function cut0(cuts: Shot[][]): string {
   return cuts.at(-1)!.at(-1)!.file;
 }
 
+/** A video's length (s). */
+function lengthOf(file: string): number {
+  return Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
+}
+
+/** The sheet's seven moments in a recorded video (the cover, the build, the wave, the cast, the fuse, the boss, the end). */
+function sheetTimes(log: CutLog, length: number): number[] {
+  const [build, wave, combo] = log.cuts as [number, number, number, number];
+  const at = 1 + build + wave;
+  // q10: the video's last frame as a seventh.
+  return [0.5, 1 + build / 2, 1 + build + wave / 2, at + log.cast + 0.1, at + log.fuse + 1.8, at + combo + 2, length - 0.05];
+}
+
+/**
+ * q14: the moments of the previews Han uploaded on 15 Nov 2026 (the times on the sheet the q10 run made; the advisor
+ * then rebuilt only their first second, the cover), for `--sheet-only` when this machine has no cut log of its own.
+ * The last moment is the video's end.
+ */
+const UPLOADED_TIMES: Record<Kind, number[]> = {
+  landscape: [0.5, 2.7, 6.2, 8.6, 10.8, 15.6],
+  portrait: [0.5, 2.6, 6.1, 8.6, 11.1, 15.5],
+};
+
 /**
  * The contact sheet for Han's phone: seven frames a video in order (the cover, the build, the wave, the cast, the fuse,
  * the boss, the last frame), each frame's time under it, the landscape row over the portrait row, 2380 px wide.
  */
-function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void {
+function sheet(made: Partial<Record<Kind, { file: string; times: number[] }>>): void {
   const rows: string[] = [];
   const font = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
   for (const kind of ['landscape', 'portrait'] as const) {
     const m = made[kind];
     if (!m) continue;
-    const [build, wave, combo] = m.log.cuts as [number, number, number, number];
-    const at = 1 + build + wave;
-    const length = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', m.file]).toString().trim());
-    // q10: the video's last frame as a seventh.
-    const times = [0.5, 1 + build / 2, 1 + build + wave / 2, at + m.log.cast + 0.1, at + m.log.fuse + 1.8, at + combo + 2, length - 0.05];
+    const times = m.times;
     const tiles = times.map((time, i) => {
       const f = join(work, `${kind}-sheet-${i}.png`);
       const w = 340;
@@ -591,10 +615,29 @@ function sheet(made: Partial<Record<Kind, { file: string; log: CutLog }>>): void
   console.log(`${out}: ${(statSync(out).size / 1e6).toFixed(2)} MB`);
 }
 
-if (!existsSync(join(dist, 'index.html'))) throw new Error('build the e2e client first: npm run build:e2e -w @tdt/client');
 mkdirSync(work, { recursive: true });
+if (process.argv.includes('--sheet-only')) {
+  // q14: the sheet from the videos already in --out, with no recording: each video's cut log from this machine's last
+  // run (dist-previews/<kind>-log.json) when there is one, else the uploaded previews' moments.
+  const made: Partial<Record<Kind, { file: string; times: number[] }>> = {};
+  for (const kind of ['landscape', 'portrait'] as const) {
+    if (!only.has(kind)) continue;
+    const file = join(outDir, VIDEOS[kind].file);
+    if (!existsSync(file)) throw new Error(`no ${file}`);
+    const logFile = join(work, `${kind}-log.json`);
+    const length = lengthOf(file);
+    const times = existsSync(logFile)
+      ? sheetTimes(JSON.parse(readFileSync(logFile, 'utf8')) as CutLog, length)
+      : [...UPLOADED_TIMES[kind], length - 0.05];
+    console.log(`${kind}: ${existsSync(logFile) ? logFile : 'the uploaded previews\' moments'}`);
+    made[kind] = { file, times };
+  }
+  sheet(made);
+  process.exit(0);
+}
+if (!existsSync(join(dist, 'index.html'))) throw new Error('build the e2e client first: npm run build:e2e -w @tdt/client');
 const server = await preview({ root, logLevel: 'warn', build: { outDir: dist }, preview: { port: 0, host: '127.0.0.1' } });
-const made: Partial<Record<Kind, { file: string; log: CutLog }>> = {};
+const made: Partial<Record<Kind, { file: string; times: number[] }>> = {};
 try {
   const url = server.resolvedUrls?.local[0];
   if (!url) throw new Error('the preview server has no URL');
@@ -610,7 +653,9 @@ try {
     });
     try {
       const { cuts, log } = await shoot(browser, url, kind);
-      made[kind] = { file: encode(kind, cuts), log };
+      const file = encode(kind, cuts);
+      writeFileSync(join(work, `${kind}-log.json`), JSON.stringify(log));
+      made[kind] = { file, times: sheetTimes(log, lengthOf(file)) };
       console.log(`  ${kind}: ${JSON.stringify(log)}`);
     } finally {
       await browser.close();

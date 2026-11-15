@@ -1035,6 +1035,15 @@ const items: ProgressItem[] = [
     proof: pr(196),
   },
   {
+    id: 'D-23',
+    title: 'After the CrazyGames submission: the kit as uploaded, the label zone, one privacy line',
+    owner: 'Team',
+    status: 'done',
+    section: 'discovery',
+    note: 'Scripts, the privacy page and docs; nothing in the game changed. The cover script keeps the title clear of the corner where CrazyGames puts its own tag, and stops if it is not. The covers and previews in the repo are the ones Han uploaded. The submission kit records what was submitted and what to do when the review answers, and the privacy page says that CrazyGames copies what the game keeps in the browser to a signed-in player\'s CrazyGames account.',
+    proof: pr(198),
+  },
+  {
     id: 'D-05',
     title: 'CrazyGames Basic Launch',
     owner: 'Han',

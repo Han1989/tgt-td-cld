@@ -254,3 +254,20 @@ describe('analytics client reset', () => {
     ]);
   });
 });
+
+describe('privacy page: a game site', () => {
+  // q14: on CrazyGames, their Automatic Progress Save copies this browser's storage to a signed-in player's account.
+  const page = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
+  const hosted = /<p id="hosted">([\s\S]*?)<\/p>/.exec(page)?.[1] ?? '';
+  const text = hosted.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+  it('says CrazyGames copies what the game keeps here to a signed-in account, and that the game does not send it', () => {
+    for (const sentence of [
+      'On CrazyGames, when you are signed in to CrazyGames, their site copies what the game keeps in this browser to your ' +
+        'CrazyGames account, so that it follows you to your other devices (their "Automatic Progress Save").',
+      'The game does not send that copy: CrazyGames makes it, and their own privacy policy covers it.',
+    ]) {
+      expect(text, sentence).toContain(sentence);
+    }
+  });
+});
