@@ -1,4 +1,4 @@
-// UI icons (docs/ART.md §12): towers, every hero skill, hero emblems and the HUD's glyphs, drawn in
+// UI icons (docs/ART.md §12): towers, every hero skill and the HUD's glyphs, drawn in
 // code with the Runelight painter and tokens (no icon packs, no image files). They are baked once
 // at start-up into small PNG data URLs and published as CSS custom properties
 // (`--icon-<id>`), so any DOM element shows one with `background-image: var(--icon-<id>)`.
@@ -8,6 +8,7 @@
 
 import { HERO_KINDS, SKILL_SLOTS, TOWER_KINDS, type HeroKind, type SkillSlot, type TowerKind } from '@tdt/protocol';
 import { box, circle, createPainter, css, ellipse, ngon, pathLine, poly, rrect, type Ctx, type Painter } from './paint';
+import { HERO_PORTRAITS } from './portraits';
 import { LIGHTING, RL, type Tokens } from './tokens';
 
 type IconDraw = (c: Ctx, p: Painter, k: Tokens) => void;
@@ -273,36 +274,6 @@ const SKILL_ICONS: Record<HeroKind, Record<SkillSlot, IconDraw>> = {
       p.accent(c, pathLine([-9, 2, -4, 5, -6, 9]), k.ember);
       p.line(c, pathLine([-9, 2, -4, 5, -6, 9]), k.ember, 1.4);
     },
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Heroes (lobby, hero panel)
-// ---------------------------------------------------------------------------
-
-const HERO_ICONS: Record<HeroKind, IconDraw> = {
-  ranger: (c, p, k) => {
-    // A deep hood; eyes glowing in its shadow.
-    p.part(c, poly([0, -18, 14, -2, 15, 16, -15, 16, -14, -2], 5), k.leaf, box(-15, -18, 15, 16));
-    p.part(c, ellipse(0, 3, 8.5, 9.5), k.hoodShadow, box(-8.5, -6.5, 8.5, 12.5), { line: 0.8, flat: true });
-    p.accent(c, ellipse(-3.3, 3, 1.5, 1.2), k.heroEye);
-    p.accent(c, ellipse(3.3, 3, 1.5, 1.2), k.heroEye);
-  },
-  warden: (c, p, k) => {
-    // A great helm with a visor slit and a gold crest.
-    p.part(c, rrect(-3, -18, 6, 8, 2), k.gold, box(-3, -18, 3, -10), { line: 0.8 });
-    p.part(c, poly([-13, -9, 13, -9, 14, 10, 7, 17, -7, 17, -14, 10], 5), k.iron, box(-14, -11, 14, 17));
-    p.detail(c, rrect(-10, -1, 20, 3.6, 1.5), k.hole);
-    p.accent(c, ellipse(-5, 0.8, 1.8, 1.1), k.visorEye);
-    p.accent(c, ellipse(5, 0.8, 1.8, 1.1), k.visorEye);
-    p.line(c, pathLine([0, 4, 0, 15]), k.ironDark, 1.6);
-  },
-  arcanist: (c, p, k) => {
-    // A pointed hat with a glowing star over a shadowed face.
-    p.part(c, ellipse(0, 10, 16, 5), k.amethyst, box(-16, 5, 16, 15));
-    p.part(c, poly([-10, 9, 3, -18, 10, 9], 2), k.amethyst, box(-10, -18, 10, 9));
-    p.accent(c, star(1, -1, 4.4, 1.9, 4), k.eye);
-    p.line(c, pathLine([-9, 6, 9, 6]), k.gold, 1.6);
   },
 };
 
@@ -612,14 +583,11 @@ export type LessonGlyph =
   | 'gestureHold'
   | 'gestureChat';
 
-/** Every icon, by id. */
+/** Every code-drawn icon, by id (the heroes' are their portraits: `heroIcon`). */
 export const ICONS: ReadonlyMap<string, IconDraw> = (() => {
   const m = new Map<string, IconDraw>();
   for (const t of TOWER_KINDS) m.set(`tower-${t}`, TOWER_ICONS[t]);
-  for (const h of HERO_KINDS) {
-    m.set(`hero-${h}`, HERO_ICONS[h]);
-    for (const s of SKILL_SLOTS) m.set(`skill-${h}-${s}`, SKILL_ICONS[h][s]);
-  }
+  for (const h of HERO_KINDS) for (const s of SKILL_SLOTS) m.set(`skill-${h}-${s}`, SKILL_ICONS[h][s]);
   for (const [id, d] of Object.entries(UI_ICONS)) m.set(id, d);
   for (const [id, d] of Object.entries(LESSON_ICONS)) m.set(id, d);
   return m;
@@ -627,6 +595,7 @@ export const ICONS: ReadonlyMap<string, IconDraw> = (() => {
 
 export const towerIcon = (kind: TowerKind): IconId => `tower-${kind}`;
 export const skillIcon = (hero: HeroKind, slot: SkillSlot): IconId => `skill-${hero}-${slot}`;
+/** A hero's icon is his face, cut from his stage poster (portraits.ts, q13): the one icon that is a picture. */
 export const heroIcon = (hero: HeroKind): IconId => `hero-${hero}`;
 
 /** `var(--icon-<id>)`, for inline styles: `style="--ico: ${iconVar(id)}"`. */
@@ -647,9 +616,13 @@ export function bakeIcon(id: string, px = ICON_PX): string {
 
 let installed = false;
 
-/** Bakes every icon once and publishes it as `--icon-<id>` on the document root. */
+/**
+ * Bakes every icon once and publishes it as `--icon-<id>` on the document root; the heroes' faces as `--icon-hero-<kind>`
+ * from their pictures.
+ */
 export function installIcons(root: HTMLElement = document.documentElement): void {
   if (installed) return;
   installed = true;
   for (const id of ICONS.keys()) root.style.setProperty(`--icon-${id}`, `url("${bakeIcon(id)}")`);
+  for (const h of HERO_KINDS) root.style.setProperty(`--icon-${heroIcon(h)}`, `url("${HERO_PORTRAITS[h].url}")`);
 }
