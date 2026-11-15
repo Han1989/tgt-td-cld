@@ -55,12 +55,12 @@ tower defense, strategy, co-op, multiplayer
 ## Orientation
 
 Portrait on phones and tablets. On desktop the portrait map stands in the middle with the game's panels and background
-at its sides.
+at its sides. (The portal's answer was "Both": see "What was submitted" and "When the review answers".)
 
 ## Multiplayer
 
 Yes: 1 to 3 players (one per lane). A room is joined by its 5-letter code (Create room, then friends tap Join room and
-type it); there is no invite link in this build. Solo is the home screen's main button.
+type it); there is no invite link in this build. Solo is the home screen's main button. (The portal's answer was "Online with Friends", a lobby of 2 to 3: see "What was submitted".)
 
 ## Notes for the age rating (PEGI 12)
 
