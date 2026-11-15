@@ -80,6 +80,8 @@ describe('the ribbon', () => {
     expect(ribbonStill([60, 60, 60], 200, 50)).toEqual({ shown: 3, more: 0 });
     expect(ribbonStill([60, 60, 60, 60], 200, 50)).toEqual({ shown: 2, more: 2 });
     expect(ribbonStill([300], 200, 50)).toEqual({ shown: 0, more: 1 });
+    // The first alone when it fits but not with the tag.
+    expect(ribbonStill([170, 60], 200, 50)).toEqual({ shown: 1, more: 1 });
     expect(moreText(8)).toBe('+8 more');
   });
 });

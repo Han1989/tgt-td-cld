@@ -863,35 +863,6 @@ function ribbonTrack(page: Page) {
   }));
 }
 
-test('today’s champions stay hidden in a build with no game server, when the server does not answer, and under 13', async ({ page }) => {
-  let asked = 0;
-  await page.route('**/endless/today', (route) => {
-    asked++;
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
-  });
-  await openHome(page);
-  await page.waitForTimeout(500);
-  await expect(page.locator('#lobby-ribbon')).toBeHidden();
-  expect(asked).toBe(0);
-  await page.unroute('**/endless/today');
-  await page.route('**/endless/today', (route) => route.fulfill({ status: 503, body: 'down' }));
-  await openHome(page, undefined, '&daily');
-  await page.waitForTimeout(500);
-  await expect(page.locator('#lobby-ribbon')).toBeHidden();
-  await expect(page.locator('#lobby-home')).not.toHaveClass(/has-ribbon/);
-  // Under 13: no request, no ribbon.
-  await page.unroute('**/endless/today');
-  await page.route('**/endless/today', (route) => {
-    asked++;
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
-  });
-  await page.addInitScript(() => localStorage.setItem('tdt.age', JSON.stringify({ age: 10, month: '2026-10' })));
-  await openHome(page, undefined, '&daily');
-  await page.waitForTimeout(500);
-  await expect(page.locator('#lobby-ribbon')).toBeHidden();
-  expect(asked).toBe(0);
-});
-
 for (const size of [
   { width: 412, height: 839 },
   { width: 360, height: 640 },
@@ -995,43 +966,81 @@ for (const size of [
   });
 }
 
-test('today’s champions: two rows stand still with yesterday’s best after them; none reads the empty line; your row is teal', async ({ page }) => {
-  await page.setViewportSize({ width: 412, height: 839 });
-  const two = endlessToday(false);
-  two.top = two.top.slice(0, 2);
-  two.top[1]!.mine = true;
-  let body: unknown = { ...two, yesterday: YESTERDAY.slice(0, 1) };
-  await page.route('**/endless/today', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
-  await openHome(page, undefined, '&daily');
-  await expect(page.locator('#lobby-ribbon')).toBeVisible();
-  await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText('1Kaelwave 542Mira the Boldwave 52youYesterday1Night Owlwave 61');
-  const track = await ribbonTrack(page);
-  expect(track.moving).toBe(false);
-  expect(track.rows).toBe(3);
-  // Standing centred in the window.
-  const win = await box(page, '#lobby-ribbon .ribbon-window');
-  const t = await box(page, '#lobby-ribbon .ribbon-track');
-  expect(Math.abs((t.left - win.left) - (win.right - t.right))).toBeLessThanOrEqual(2);
-  expect(await page.locator('#lobby-ribbon .rib-row.mine .rib-name').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(127, 252, 216)');
-  await expect(page.locator('#lobby-ribbon .rib-row.mine .rib-you')).toHaveText('you');
-  // Still after a moment.
-  await page.waitForTimeout(400);
-  expect((await ribbonTrack(page)).x).toBe(track.x);
+test.describe('today’s champions on a page opened again', () => {
+  // Each test opens the home card more than once: no service worker between the page and the stubbed board.
+  test.use({ serviceWorkers: 'block' });
 
-  // An empty day and an empty yesterday: the one line, standing, uncut.
-  body = { ...endlessToday(false), top: [], runs: 0, yesterday: [] };
-  await openHome(page, undefined, '&daily');
-  await expect(page.locator('#lobby-ribbon .rib-empty')).toHaveText('No runs on the board yet. Play Endless to be the first.');
-  expect((await ribbonTrack(page)).moving).toBe(false);
-  const cut = await page.locator('#lobby-ribbon .rib-empty').evaluate((el) => el.scrollHeight - el.clientHeight);
-  expect(cut).toBeLessThanOrEqual(0);
-  // An older server's answer with no `yesterday`: today's rows alone.
-  body = { ...endlessToday(false), top: endlessToday(false).top.slice(0, 1) };
-  await openHome(page, undefined, '&daily');
-  await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText('1Kaelwave 54');
+  test('a short day: today’s rows, then yesterday’s best, running; one row stands still, centred; none reads the empty line; your row is teal', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 839 });
+    const two = endlessToday(false);
+    two.top = two.top.slice(0, 2);
+    two.top[1]!.mine = true;
+    let body: unknown = { ...two, yesterday: YESTERDAY };
+    await page.route('**/endless/today', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-ribbon')).toBeVisible();
+    // One set: the two rows, "Yesterday", its three; wider than the window, so it runs (drawn twice).
+    const set = '1Kaelwave 542Mira the Boldwave 52youYesterday1Night Owlwave 612Sablewave 573Fenwave 49';
+    await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText(set + set);
+    expect((await ribbonTrack(page)).moving).toBe(true);
+    await expect(page.locator('#lobby-ribbon .rib-yday')).toHaveCount(2);
+    // Yesterday's are never marked as yours; today's is teal, with "you".
+    await expect(page.locator('#lobby-ribbon .rib-row.mine')).toHaveCount(2);
+    expect(await page.locator('#lobby-ribbon .rib-row.mine .rib-name').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(127, 252, 216)');
+    await expect(page.locator('#lobby-ribbon .rib-row.mine .rib-you').first()).toHaveText('you');
+
+    // One row and an older server's answer (no `yesterday`): it fits, so it stands, centred in the window.
+    body = { ...endlessToday(false), top: endlessToday(false).top.slice(0, 1) };
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-ribbon .ribbon-track')).toHaveText('1Kaelwave 54');
+    const track = await ribbonTrack(page);
+    expect(track.moving).toBe(false);
+    const win = await box(page, '#lobby-ribbon .ribbon-window');
+    const t = await box(page, '#lobby-ribbon .ribbon-track');
+    expect(Math.abs(t.left - win.left - (win.right - t.right))).toBeLessThanOrEqual(2);
+    await page.waitForTimeout(400);
+    expect((await ribbonTrack(page)).x).toBe(track.x);
+
+    // An empty day and an empty yesterday: the one line, standing, uncut.
+    body = { ...endlessToday(false), top: [], runs: 0, yesterday: [] };
+    await openHome(page, undefined, '&daily');
+    await expect(page.locator('#lobby-ribbon .rib-empty')).toHaveText('No runs on the board yet. Play Endless to be the first.');
+    expect((await ribbonTrack(page)).moving).toBe(false);
+    const cut = await page.locator('#lobby-ribbon .rib-empty').evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(cut).toBeLessThanOrEqual(0);
+  });
+
+  test('today’s champions stay hidden in a build with no game server, when the server does not answer, and under 13', async ({ page }) => {
+    let asked = 0;
+    await page.route('**/endless/today', (route) => {
+      asked++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
+    });
+    await openHome(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('#lobby-ribbon')).toBeHidden();
+    expect(asked).toBe(0);
+    await page.unroute('**/endless/today');
+    await page.route('**/endless/today', (route) => route.fulfill({ status: 503, body: 'down' }));
+    await openHome(page, undefined, '&daily');
+    await page.waitForTimeout(500);
+    await expect(page.locator('#lobby-ribbon')).toBeHidden();
+    await expect(page.locator('#lobby-home')).not.toHaveClass(/has-ribbon/);
+    // Under 13: no request, no ribbon.
+    await page.unroute('**/endless/today');
+    await page.route('**/endless/today', (route) => {
+      asked++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endlessToday(false)) });
+    });
+    await page.addInitScript(() => localStorage.setItem('tdt.age', JSON.stringify({ age: 10, month: '2026-10' })));
+    await openHome(page, undefined, '&daily');
+    await page.waitForTimeout(500);
+    await expect(page.locator('#lobby-ribbon')).toBeHidden();
+    expect(asked).toBe(0);
+  });
 });
 
-test('the hero buttons wear the three faces, loaded; a tap picks another, whose face hops; reduced motion stills the home card', async ({ page }) => {
+test('the hero buttons wear the three faces, loaded; a tap picks another, whose face hops', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await serveBoard(page, endlessToday(false));
   await openHome(page, 'skipped', '&daily');
@@ -1080,12 +1089,17 @@ test('the hero buttons wear the three faces, loaded; a tap picks another, whose 
   await expect(page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"] .face-bust')).toHaveClass(/hop/);
   await expect.poll(() => page.locator('#lobby-heroes-home .hero-pick[data-hero="warden"] .face-bust').evaluate((el) => getComputedStyle(el).scale)).toBe('1.12');
   await expect.poll(() => page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"] .hero-face').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.72');
+});
 
-  // Reduced motion: nothing on the home card animates; the picked ring and size stay; the ribbon stands with "+N more".
+test('reduced motion: nothing on the home card moves; the picked face keeps its ring and size; the ribbon stands, "+N more"', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await serveBoard(page, endlessToday(false));
   await openHome(page, 'skipped', '&daily');
   await expect(page.locator('#lobby-ribbon')).toBeVisible();
   await expect(page.locator('#lobby-ribbon .rib-more')).toHaveText(/^\+\d+ more$/);
+  // The first rows that fit, at least one.
+  expect((await ribbonTrack(page)).rows).toBeGreaterThanOrEqual(1);
   const still = await page.locator('#lobby-home').evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length);
   expect(still).toBe(0);
   expect((await ribbonTrack(page)).moving).toBe(false);

@@ -73,7 +73,8 @@ export function ribbonMotion(set: number, window: number, speed = RIBBON_SPEED):
 
 /**
  * Under reduced motion: how many of the rows (`widths`, each with its gap) fit in `window` px with room for the
- * "+N more" tag (`more` px wide), and N. All of them when they fit without it.
+ * "+N more" tag (`more` px wide), and N. All of them when they fit without it; at least the first when it fits alone
+ * (the tag is then cut at the window's edge rather than show no name).
  */
 export function ribbonStill(widths: readonly number[], window: number, more: number): { shown: number; more: number } {
   const total = widths.reduce((s, w) => s + w, 0);
@@ -85,6 +86,7 @@ export function ribbonStill(widths: readonly number[], window: number, more: num
     used += w;
     shown++;
   }
+  if (shown === 0 && widths.length > 0 && widths[0]! <= window) shown = 1;
   return { shown, more: widths.length - shown };
 }
 
