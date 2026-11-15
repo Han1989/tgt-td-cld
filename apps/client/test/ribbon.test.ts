@@ -173,12 +173,22 @@ describe('the ribbon', () => {
     expect(RIBBON_SPEED).toBe(36);
   });
 
-  it('under reduced motion: the first rows that fit with "+N more", or all of them', () => {
-    expect(ribbonStill([60, 60, 60], 200, 50)).toEqual({ shown: 3, more: 0 });
-    expect(ribbonStill([60, 60, 60, 60], 200, 50)).toEqual({ shown: 2, more: 2 });
-    expect(ribbonStill([300], 200, 50)).toEqual({ shown: 0, more: 1 });
+  it('under reduced motion: the first items that fit with "+N more", or all of them; a label never stands alone', () => {
+    const r = (width: number) => ({ width, row: true });
+    const l = (width: number) => ({ width, row: false });
+    expect(ribbonStill([r(60), r(60), r(60)], 200, 50)).toEqual({ shown: 3, more: 0 });
+    expect(ribbonStill([r(60), r(60), r(60), r(60)], 200, 50)).toEqual({ shown: 2, more: 2 });
+    expect(ribbonStill([r(300)], 200, 50)).toEqual({ shown: 0, more: 1 });
     // The first alone when it fits but not with the tag.
-    expect(ribbonStill([170, 60], 200, 50)).toEqual({ shown: 1, more: 1 });
+    expect(ribbonStill([r(170), r(60)], 200, 50)).toEqual({ shown: 1, more: 1 });
+    // A board's label goes with its first name: "Endless" and Kael, "+3 more" (the names), never "Endless +4 more".
+    expect(ribbonStill([l(50), r(80), r(80), l(60), r(70), r(70)], 214, 50)).toEqual({ shown: 2, more: 3 });
+    // The label and its first name fit only without the tag: both, the tag cut.
+    expect(ribbonStill([l(50), r(140), r(80)], 214, 50)).toEqual({ shown: 2, more: 1 });
+    // The second board's label never last: "Endless" Kael Mira, then "+2 more" rather than "Daily run +2 more".
+    expect(ribbonStill([l(50), r(60), r(60), l(60), r(70), r(70)], 280, 50)).toEqual({ shown: 3, more: 2 });
+    // All of them fit: labels and names.
+    expect(ribbonStill([l(50), r(60), l(60), r(70)], 280, 50)).toEqual({ shown: 4, more: 0 });
     expect(moreText(8)).toBe('+8 more');
   });
 });

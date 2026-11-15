@@ -135,14 +135,19 @@ export class ChampionsRibbon {
     const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
     const widths = items.map((el) => el.getBoundingClientRect().width + gap);
     const set = widths.reduce((s, w) => s + w, 0);
+    const rows = items.filter((el) => el.classList.contains('rib-row')).length;
     if (this.reduced.matches) {
       const tag = document.createElement('span');
       tag.className = 'rib-more';
-      tag.textContent = moreText(items.length);
+      tag.textContent = moreText(rows);
       track.append(tag);
       const more = tag.getBoundingClientRect().width;
       tag.remove();
-      const still = ribbonStill(widths, width, more);
+      const still = ribbonStill(
+        items.map((el, k) => ({ width: widths[k]!, row: el.classList.contains('rib-row') })),
+        width,
+        more,
+      );
       if (still.more > 0) {
         items.slice(still.shown).forEach((el) => el.remove());
         tag.textContent = moreText(still.more);

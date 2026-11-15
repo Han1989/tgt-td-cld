@@ -1169,8 +1169,12 @@ test('reduced motion: nothing on the home card moves; the picked face keeps its 
   await openHome(page, 'skipped', '&daily');
   await expect(page.locator('#lobby-ribbon')).toBeVisible();
   await expect(page.locator('#lobby-ribbon .rib-more')).toHaveText(/^\+\d+ more$/);
-  // The first rows that fit, at least one.
+  // The first rows that fit, at least one, after Endless's label; never a label standing just before the tag (q17).
   expect((await ribbonTrack(page)).rows).toBeGreaterThanOrEqual(1);
+  const order = await page.locator('#lobby-ribbon .ribbon-track').evaluate((el) => [...el.children].map((c) => c.className.split(' ')[0]));
+  expect(order[0]).toBe('rib-yday');
+  expect(order.at(-1)).toBe('rib-more');
+  expect(order.at(-2)).toBe('rib-row');
   const still = await page.locator('#lobby-home').evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length);
   expect(still).toBe(0);
   expect((await ribbonTrack(page)).moving).toBe(false);

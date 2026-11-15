@@ -137,23 +137,41 @@ export function ribbonMotion(set: number, window: number, speed = RIBBON_SPEED):
   return { moving: true, loop: set, seconds: set / speed };
 }
 
+/** One item of a set as drawn: its width (its gap included), and whether it is a name (else a board's small label). */
+export interface StillItem {
+  width: number;
+  row: boolean;
+}
+
 /**
- * Under reduced motion: how many of the rows (`widths`, each with its gap) fit in `window` px with room for the
- * "+N more" tag (`more` px wide), and N. All of them when they fit without it; at least the first when it fits alone
+ * Under reduced motion: how many of the items (in order) fit in `window` px with room for the "+N more" tag (`more`
+ * px wide), and N, the names left out. All of them when they fit without it. A board's label is shown only with its
+ * first name after it (never alone before the tag), and the first label and name are shown when they fit together
  * (the tag is then cut at the window's edge rather than show no name).
  */
-export function ribbonStill(widths: readonly number[], window: number, more: number): { shown: number; more: number } {
-  const total = widths.reduce((s, w) => s + w, 0);
-  if (total <= window) return { shown: widths.length, more: 0 };
+export function ribbonStill(items: readonly StillItem[], window: number, more: number): { shown: number; more: number } {
+  const rows = items.filter((i) => i.row).length;
+  const total = items.reduce((s, i) => s + i.width, 0);
+  if (total <= window) return { shown: items.length, more: 0 };
   let used = 0;
   let shown = 0;
-  for (const w of widths) {
-    if (used + w + more > window) break;
-    used += w;
+  for (let k = 0; k < items.length; k++) {
+    const item = items[k]!;
+    // A label goes in with the name after it.
+    const next = !item.row && items[k + 1]?.row ? items[k + 1]!.width : 0;
+    if (used + item.width + next + more > window) break;
+    used += item.width;
     shown++;
   }
-  if (shown === 0 && widths.length > 0 && widths[0]! <= window) shown = 1;
-  return { shown, more: widths.length - shown };
+  // Never a label last: it would stand with none of its names.
+  while (shown > 0 && !items[shown - 1]!.row) shown--;
+  if (shown === 0) {
+    // The first name alone (with its label before it) when it fits without the tag.
+    const first = items.findIndex((i) => i.row);
+    if (first >= 0 && items.slice(0, first + 1).reduce((s, i) => s + i.width, 0) <= window) shown = first + 1;
+  }
+  const shownRows = items.slice(0, shown).filter((i) => i.row).length;
+  return { shown, more: rows - shownRows };
 }
 
 /** The "+N more" tag. */
