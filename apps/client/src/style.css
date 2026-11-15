@@ -2572,11 +2572,11 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 6px 6px;
+  padding: 6px 4px;
 }
 
 .hero-tabs .hero-pick-head {
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -2925,6 +2925,7 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
    so Play solo does not move when the tile appears after the server answers. */
 #lobby-home {
   --daily-room: 66px;
+  --ribbon-room: 42px;
 }
 
 .daily-tile {
@@ -2991,6 +2992,199 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
 #lobby-home.has-daily .hero-stage {
   height: clamp(124px, calc(100dvh - 530px - var(--daily-room)), calc(320px - var(--daily-room)));
+}
+
+/* Today's champions' ribbon takes its room (the ribbon and one gap) from the stage as the Daily tile does. */
+#lobby-home.has-ribbon .hero-stage {
+  height: clamp(124px, calc(100dvh - 530px - var(--ribbon-room)), calc(320px - var(--ribbon-room)));
+}
+
+#lobby-home.has-ribbon.has-daily .hero-stage {
+  height: clamp(110px, calc(100dvh - 530px - var(--daily-room) - var(--ribbon-room)), calc(320px - var(--daily-room) - var(--ribbon-room)));
+}
+
+/* Today's champions (q13, docs/ART.md §12 "The champions' ribbon"): one line, 30 px, the card's width, the Daily tile's
+   gold hairline. Left, standing: the crown and the label; right, in a window that clips them, the names running right
+   to left (a seamless loop: the set drawn twice, moved by one set's width, endless/ribbon.ts), held under a finger or
+   the mouse. A set that fits stands centred. */
+.champ-ribbon {
+  box-sizing: border-box;
+  height: 30px;
+  min-height: 30px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 9px;
+  overflow: hidden;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  border-color: rgba(232, 185, 74, 0.55);
+  box-shadow: var(--stone-rim), inset 3px 0 0 rgba(255, 210, 74, 0.55);
+}
+
+.ribbon-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ribbon-crown {
+  width: 18px;
+  height: 18px;
+  --ico: var(--icon-laurel);
+}
+
+.ribbon-label {
+  font-family: var(--title-font);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--gold);
+}
+
+.ribbon-window {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(232, 185, 74, 0.25);
+  -webkit-mask: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 10px), transparent);
+  mask: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 10px), transparent);
+}
+
+.ribbon-track {
+  display: flex;
+  align-items: center;
+  flex: none;
+  column-gap: 14px;
+  min-width: 0;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.ribbon-track.moving {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  padding: 0;
+  padding-left: 14px;
+  animation: ribbon-run var(--dur, 20s) linear infinite;
+}
+
+.champ-ribbon:hover .ribbon-track.moving,
+.champ-ribbon.held .ribbon-track.moving {
+  animation-play-state: paused;
+}
+
+@keyframes ribbon-run {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-1 * var(--loop, 0px))); }
+}
+
+.rib-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+
+.rib-rank {
+  min-width: 11px;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+  color: var(--muted);
+}
+
+.rib-row.gold .rib-rank { color: var(--gold); }
+.rib-row.silver .rib-rank { color: #d7e2ec; }
+.rib-row.bronze .rib-rank { color: #e0965a; }
+
+.rib-face {
+  width: 20px;
+  height: 20px;
+}
+
+.rib-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rib-wave {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.rib-row.mine .rib-name,
+.rib-row.mine .rib-wave {
+  color: var(--rune);
+}
+
+.rib-you {
+  padding: 1px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #0b1512;
+  background: var(--rune);
+  border-radius: 6px;
+}
+
+.rib-yday,
+.rib-more {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The empty line wraps to two lines where one is too narrow (360 px). */
+.rib-empty {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  padding: 0 4px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: normal;
+  color: var(--muted);
+}
+
+.champ-ribbon.empty .ribbon-window {
+  justify-content: flex-start;
+}
+
+.champ-ribbon.empty .ribbon-track {
+  flex: 1 1 auto;
+  padding: 0;
+  white-space: normal;
+}
+
+#lobby-home.invited .champ-ribbon {
+  order: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-track.moving {
+    animation: none;
+  }
 }
 
 #lobby-offline.big {
@@ -3069,6 +3263,14 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
     height: clamp(124px, calc(100dvh - 400px - var(--daily-room)), calc(320px - var(--daily-room)));
   }
 
+  #lobby-home.has-ribbon .hero-stage {
+    height: clamp(124px, calc(100dvh - 400px - var(--ribbon-room)), calc(320px - var(--ribbon-room)));
+  }
+
+  #lobby-home.has-ribbon.has-daily .hero-stage {
+    height: clamp(110px, calc(100dvh - 400px - var(--daily-room) - var(--ribbon-room)), calc(320px - var(--daily-room) - var(--ribbon-room)));
+  }
+
   .hero-blurb {
     min-height: calc(4 * 1.35em);
   }
@@ -3084,7 +3286,9 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
    Daily tile no longer takes its room from it, and the card scrolls inside the page (its max-height, below). */
 @media (max-height: 639px) {
   .hero-stage,
-  #lobby-home.has-daily .hero-stage {
+  #lobby-home.has-daily .hero-stage,
+  #lobby-home.has-ribbon .hero-stage,
+  #lobby-home.has-ribbon.has-daily .hero-stage {
     height: auto;
     aspect-ratio: 378 / 320;
     flex-shrink: 0;
@@ -3226,20 +3430,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 /* The hero's best Endless wave, on the Mode label's line (over the Endless segment on a phone). */
 .pick-label .mode-best {
   color: var(--gold);
-}
-
-/* "Today's top 10": Endless's board (lobby/boardCard.ts), on the same line, so the row keeps its height. */
-.pick-label .mode-board {
-  display: block;
-  padding: 0;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: inherit;
-  text-transform: none;
-  color: var(--rune);
-  text-underline-offset: 2px;
 }
 
 /* Endless's board card (lobby/boardCard.ts): one phone screen, only the list scrolls when the window is short. */
@@ -3549,14 +3739,6 @@ body.layout-tall:has(#tutorial:not(.hidden)):has(#match-flags:not(.hidden)) .air
 
   .mode-row .pick-label .mode-best {
     margin-left: auto;
-  }
-
-  .mode-row .pick-label .mode-board {
-    margin-left: auto;
-  }
-
-  .mode-row .pick-label .mode-best:not(.hidden) + .mode-board {
-    margin-left: 10px;
   }
 
   .pick-dock {
@@ -6131,7 +6313,9 @@ body.layout-tall .mates {
   }
 
   #lobby-home .hero-stage,
-  #lobby-home.has-daily .hero-stage {
+  #lobby-home.has-daily .hero-stage,
+  #lobby-home.has-ribbon .hero-stage,
+  #lobby-home.has-ribbon.has-daily .hero-stage {
     position: absolute;
     left: 0;
     top: 0;

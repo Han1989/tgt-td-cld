@@ -1,5 +1,5 @@
-// Endless's board in the lobby (docs/GAME_DESIGN.md "Endless", "The board"): the Mode row's "Today's top 10" link opens
-// it in place of the home card, in the lobby's look, one phone screen (412 × 839 and 360 × 640: only the list scrolls,
+// Endless's board in the lobby (docs/GAME_DESIGN.md "Endless", "The board"): the home card's ribbon of today's
+// champions (lobby/ribbon.ts) opens it in place of the home card, in the lobby's look, one phone screen (412 × 839 and 360 × 640: only the list scrolls,
 // if anything does): the day and the time left, the ten rows (rank, nickname, hero icon, wave, time), this browser's
 // own row pinned under them when it is not in the ten, and Back. The words are endless/board.ts's.
 

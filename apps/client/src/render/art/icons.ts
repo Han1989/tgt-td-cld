@@ -282,6 +282,17 @@ const SKILL_ICONS: Record<HeroKind, Record<SkillSlot, IconDraw>> = {
 // ---------------------------------------------------------------------------
 
 const UI_ICONS: Record<string, IconDraw> = {
+  // Today's champions (q13, the home card's ribbon): a gold crown inside a laurel.
+  laurel: (c, p, k) => {
+    for (const s of [-1, 1]) {
+      p.line(c, pathLine([s * 4, 15, s * 12, 9, s * 16, -1, s * 15, -11]), k.leafDark, 2.2);
+      for (const [x, y, a] of [[11, 10, 0.5], [15, 1, 0.2], [15, -8, -0.2]] as const) {
+        p.part(c, ellipse(s * x, y, 2.4, 4.6, s * a), k.leaf, box(s * x - 3, y - 5, s * x + 3, y + 5), { line: 0.6 });
+      }
+    }
+    p.part(c, poly([-9, 6, -10, -7, -5, -2, 0, -10, 5, -2, 10, -7, 9, 6], 1.2), k.gold, box(-10, -10, 10, 6), { line: 0.9 });
+    p.accent(c, circle(0, 1, 1.8), k.ember);
+  },
   coin: (c, p, k) => {
     p.part(c, circle(0, 0, 15), k.gold, box(-15, -15, 15, 15));
     p.line(c, circle(0, 0, 10.5), k.woodDark, 1.4, 0.55);
@@ -555,6 +566,7 @@ export type IconId =
   | `skill-${HeroKind}-${SkillSlot}`
   | `hero-${HeroKind}`
   | 'coin'
+  | 'laurel'
   | 'heart'
   | 'heartCracked'
   | 'wave'

@@ -26,7 +26,7 @@
 //      4 rampart-slam    Full wave 8 (`?lab&ult`, the gold spent, the Warden at level 7): he taunts a pack on the Mid
 //                        road and slams it: his guard ring and heal, the pack falling, "Rampart Slam: N".
 //      5 victory         A won Quick match (waves played with their kills, then `__tdt.win()`), the stats counted up.
-//      6 endless-board   Endless's "Today's top 10" card with ten made-up rows (`/endless/today` answered here, as
+//      6 endless-board   Endless's "today's top 10" card with ten made-up rows (`/endless/today` answered here, as
 //                        e2e/lobby.spec.ts does), this browser's row pinned under them.
 //      7 desktop-1280x800  The match at desktop size, Full wave 10, the Ironhorn down its road, the Warden fighting.
 //    A frame is held: the simulation paused (solo), the page's CSS animations stopped and the canvas left on the frame it
@@ -1050,7 +1050,7 @@ async function shot6(browser: Browser, url: string): Promise<void> {
   await page.goto(`${url}?lobby&daily`);
   await page.waitForSelector('html[data-ready="online"]', { timeout: 60_000 });
   await page.locator('#lobby-heroes-home .hero-pick[data-hero="ranger"]').click();
-  await page.locator('#lobby-board-link').click();
+  await page.locator('#lobby-ribbon').click();
   await page.waitForSelector('#lobby-board-rows li:nth-child(10)');
   await page.waitForSelector('#lobby-board-you li');
   await page.evaluate(() => document.fonts.ready.then(() => undefined));

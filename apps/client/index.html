@@ -155,9 +155,15 @@
           <div id="lobby-heroes-home" class="hero-picks hero-tabs" role="group" aria-label="Hero"></div>
           <p class="hero-blurb" aria-live="polite"><b id="lobby-hero-role" class="hero-role"></b><span id="lobby-hero-blurb"></span></p>
           <div class="pick-row mode-row">
-            <span class="pick-label">Mode<small id="lobby-mode-home-best" class="mode-best hidden"></small><button id="lobby-board-link" class="link mode-board hidden" type="button">Today's top 10</button></span>
+            <span class="pick-label">Mode<small id="lobby-mode-home-best" class="mode-best hidden"></small></span>
             <div id="lobby-mode-home" class="segmented"></div>
           </div>
+          <!-- Today's champions (q13, docs/ART.md §12): Endless's top 10 running in one line; one tap opens the board.
+               Shown once the game server answers; it takes its height from the stage, so Play solo stays where it is. -->
+          <button id="lobby-ribbon" class="btn champ-ribbon hidden" type="button">
+            <span class="ribbon-head" aria-hidden="true"><i class="ico ribbon-crown"></i><span class="ribbon-label">Endless · today’s top 10</span></span>
+            <span class="ribbon-window" aria-hidden="true"><span class="ribbon-track"></span></span>
+          </button>
           <!-- The Daily run (docs/GAME_DESIGN.md "Daily run"): shown once the game server answers; it takes its height
                from the stage, so Play solo stays where it is. -->
           <button id="lobby-daily" class="btn daily-tile hidden" type="button" aria-describedby="lobby-daily-line">
@@ -219,7 +225,7 @@
         <section id="lobby-board" class="board-card hidden" aria-labelledby="lobby-board-title">
           <!-- Endless's daily board (lobby/boardCard.ts): today's top 10, your row under them, Back. -->
           <div class="board-head">
-            <h2 id="lobby-board-title" class="board-title">Endless · Today's top 10</h2>
+            <h2 id="lobby-board-title" class="board-title">Endless · today’s top 10</h2>
             <p id="lobby-board-day" class="board-day"></p>
           </div>
           <ol id="lobby-board-rows" class="board-rows"></ol>
