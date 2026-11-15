@@ -86,7 +86,7 @@ test.describe.configure({ mode: 'serial' });
 
 /** The game's frame on the host page, once its first screen is up. */
 async function openGame(page: Page, mobile: boolean, sandboxed = false, frameQuery = ''): Promise<Frame> {
-  await page.goto(`${HARNESS.hostOrigin}${mobile ? '' : '/desktop'}${sandboxed ? '/sandboxed' : '/'}${frameQuery ? `?frame=${frameQuery}` : ''}`);
+  await page.goto(`${HARNESS.hostOrigin}${mobile ? '' : '/desktop'}${sandboxed ? '/sandboxed' : '/'}${frameQuery ? `?frame=${encodeURIComponent(frameQuery)}` : ''}`);
   const handle = await page.locator('#game').elementHandle();
   const frame = await handle!.contentFrame();
   await expect(frame!.locator('html')).toHaveAttribute('data-ready', 'online', { timeout: 60_000 });
@@ -160,9 +160,17 @@ test('in a host page\'s frame: the first screen, Play solo, wave 1 and a tower; 
   page.on('response', (r) => {
     if (r.url().startsWith(HARNESS.frameOrigin) && r.status() >= 400) missing.push(`${r.status()} ${r.url()}`);
   });
+  const cgAsks: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().includes('sdk.crazygames.com')) cgAsks.push(r.url());
+  });
   const frame = await openGame(page, isMobile);
   const html = frame.locator('html');
   await expect(html).toHaveAttribute('data-embed', 'framed');
+  // CrazyGames' SDK (q15): never asked for anywhere; the crazygames zip's page loads the browser test's stand-in.
+  expect(cgAsks).toEqual([]);
+  expect(await frame.locator('script[src*="crazygames"]').count()).toBe(0);
+  expect(await frame.locator('script[src$="cg-sdk-stand-in.js"]').count()).toBe(LINKLESS ? 1 : 0);
   expect(await frame.evaluate(() => [location.origin, location.pathname, location.search])).toEqual([HARNESS.frameOrigin, `${HARNESS.path}index.html`, '']);
 
   // A host's upload is never installed and never offers an update: no manifest, no banner, no Add to Home Screen.
@@ -413,7 +421,8 @@ test('CrazyGames: a room made in the frame shows its code and no link; a friend 
   isMobile,
 }) => {
   test.skip(!LINKLESS, 'CrazyGames\' build only (TDT_EMBED_HOST=crazygames)');
-  const frame = await openGame(page, isMobile);
+  // With no SDK (q15: the script blocked): the linkless build as it was.
+  const frame = await openGame(page, isMobile, false, 'cgInit=absent');
   await frame.locator('#lobby-name').fill('Framed');
   await frame.locator('#lobby-create').click();
   await expect(frame.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
@@ -429,7 +438,7 @@ test('CrazyGames: a room made in the frame shows its code and no link; a friend 
   const friendContext = await browser.newContext(isMobile ? { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true } : {});
   try {
     const friendPage = await friendContext.newPage();
-    const friend = await openGame(friendPage, isMobile);
+    const friend = await openGame(friendPage, isMobile, false, 'cgInit=absent');
     await friend.locator('#lobby-name').fill('Friend');
     await friend.locator('#lobby-code').fill(code);
     await friend.locator('#lobby-join').click();
@@ -561,4 +570,230 @@ test('a Daily run in the frame starts with no question, and Post my run still as
   expect(posts.map((p) => p.path).filter((path) => path !== '/analytics/count')).toEqual([]);
   await answerAge(frame);
   await expect(frame.locator('#end-daily-msg')).toContainText('Pick a nickname');
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// CrazyGames' SDK (q15), with the stand-in the e2e zip carries (e2e/cgStandIn.js): never the real SDK.
+// ---------------------------------------------------------------------------------------------------------------------
+
+interface CgCall {
+  name: string;
+  args: unknown[];
+}
+
+/** Every SDK call the stand-in recorded (null: no SDK on the page). */
+function cgCalls(frame: Frame): Promise<CgCall[] | null> {
+  return frame.evaluate(() => (window as unknown as { __cg?: { calls: CgCall[] } }).__cg?.calls.slice() ?? null);
+}
+
+async function cgNames(frame: Frame): Promise<string[]> {
+  return ((await cgCalls(frame)) ?? []).map((c) => c.name);
+}
+
+/** The last `updateRoom` the stand-in heard. */
+async function lastRoom(frame: Frame): Promise<{ roomId: string; isJoinable: boolean; inviteParams: { room: string } } | null> {
+  const calls = ((await cgCalls(frame)) ?? []).filter((c) => c.name === 'updateRoom');
+  return (calls.at(-1)?.args[0] as { roomId: string; isJoinable: boolean; inviteParams: { room: string } }) ?? null;
+}
+
+/** No gameplay event twice in a row. */
+function noRepeats(names: string[]): void {
+  const play = names.filter((n) => n === 'gameplayStart' || n === 'gameplayStop');
+  for (let i = 1; i < play.length; i++) expect(play[i], `${play.join(', ')}`).not.toBe(play[i - 1]);
+}
+
+test.describe('CrazyGames\' SDK', () => {
+  test.skip(!LINKLESS, 'CrazyGames\' build only (TDT_EMBED_HOST=crazygames)');
+
+  test('a solo match: loading around the first screen, gameplay start and stop, happytime on a victory', async ({ page, isMobile }) => {
+    const frame = await openGame(page, isMobile);
+    await expect(frame.locator('html')).toHaveAttribute('data-cg-sdk', 'on');
+    await expect.poll(() => cgNames(frame)).toContain('loadingStop');
+    const first = await cgNames(frame);
+    expect(first.indexOf('init')).toBe(0);
+    expect(first.indexOf('loadingStart')).toBeLessThan(first.indexOf('loadingStop'));
+    expect(first.filter((n) => n === 'loadingStart')).toHaveLength(1);
+    expect(first).not.toContain('gameplayStart');
+
+    await frame.locator('#lobby-offline').click();
+    await expect.poll(() => cgNames(frame), { timeout: 30_000 }).toContain('gameplayStart');
+    await frame.evaluate(() => window.__tdt.lose());
+    await expect(frame.locator('#end-screen')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => (await cgNames(frame)).at(-1)).toBe('gameplayStop');
+    expect(await cgNames(frame)).not.toContain('happytime');
+
+    // Play again, then a victory: one happytime.
+    await frame.locator('#restart').click();
+    await expect.poll(async () => (await cgNames(frame)).filter((n) => n === 'gameplayStart').length, { timeout: 30_000 }).toBe(2);
+    await frame.evaluate(() => window.__tdt.win());
+    await expect(frame.locator('#end-screen')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => (await cgNames(frame)).filter((n) => n === 'happytime').length).toBe(1);
+    await page.waitForTimeout(600);
+    const names = await cgNames(frame);
+    expect(names.filter((n) => n === 'happytime')).toHaveLength(1);
+    noRepeats(names);
+  });
+
+  test('rooms: the CrazyGames name, updateRoom, their invite link, an invite that joins with no tap, leftRoom', async ({
+    page,
+    browser,
+    isMobile,
+  }) => {
+    const frame = await openGame(page, isMobile, false, 'cgUser=Mira');
+    const name = frame.locator('#lobby-name');
+    await expect(name).toHaveValue('Mira');
+    expect(await name.evaluate((el) => (el as HTMLInputElement).readOnly)).toBe(true);
+    await expect(frame.locator('#lobby-friends')).toContainText('CrazyGames name');
+    await frame.locator('#lobby-create').click();
+    await expect(frame.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+    const code = (await frame.locator('#lobby-room-code').textContent())!.trim();
+    await expect.poll(() => lastRoom(frame)).toEqual({ roomId: code, isJoinable: true, inviteParams: { room: code } });
+    // Never stored as the nickname.
+    expect(await frame.evaluate(() => localStorage.getItem('tdt.name'))).toBeNull();
+    await expect(frame.locator('#lobby-players')).toContainText('Mira');
+    await expect(frame.locator('#lobby-players')).toContainText('Open seat: invite a friend');
+
+    // Copy invite link: CrazyGames' link, the code line under it.
+    await expect(frame.locator('#lobby-copy')).toBeVisible();
+    await expect(frame.locator('#lobby-code-hint')).toHaveText('or type this code in Join room');
+    await frame.evaluate(() => {
+      const w = window as unknown as { __copied?: string };
+      const clip = navigator.clipboard;
+      clip.writeText = (text: string) => {
+        w.__copied = text;
+        return Promise.resolve();
+      };
+    });
+    await frame.locator('#lobby-copy').click();
+    await expect.poll(() => frame.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '')).toBe(
+      `https://www.crazygames.com/game/tower-defense-together?room=${code}`,
+    );
+
+    // A friend opened by the invite is in the room with no tap.
+    const friendContext = await browser.newContext(isMobile ? { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true } : {});
+    try {
+      const friendPage = await friendContext.newPage();
+      const friend = await openGame(friendPage, isMobile, false, `cgInvite=${code}&cgUser=Bo`);
+      await expect(friend.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+      await expect(friend.locator('#lobby-players')).toContainText('Mira');
+      await expect(friend.locator('#lobby-players')).toContainText('Bo');
+      await expect(frame.locator('#lobby-players')).toContainText('Bo');
+      // The friend leaves: leftRoom.
+      await friend.locator('#lobby-leave').click();
+      await expect.poll(() => cgNames(friend)).toContain('leftRoom');
+    } finally {
+      await friendContext.close();
+    }
+
+    // The match starts: no longer joinable.
+    await expect(frame.locator('#lobby-start')).toBeEnabled({ timeout: 15_000 });
+    await frame.locator('#lobby-start').click();
+    await expect.poll(async () => (await lastRoom(frame))?.isJoinable, { timeout: 30_000 }).toBe(false);
+  });
+
+  test('instant multiplayer: a room at once, as its host, joinable, under a made-up guest name', async ({ page, isMobile }) => {
+    const frame = await openGame(page, isMobile, false, 'cgInstant=1');
+    await expect(frame.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+    await expect(frame.locator('#lobby-start')).toBeVisible();
+    const code = (await frame.locator('#lobby-room-code').textContent())!.trim();
+    await expect.poll(() => lastRoom(frame)).toEqual({ roomId: code, isJoinable: true, inviteParams: { room: code } });
+    await expect(frame.locator('#lobby-players')).toContainText(/Guest\d{4}/);
+    // A made-up name is never stored until the player edits it.
+    expect(await frame.evaluate(() => localStorage.getItem('tdt.name'))).toBeNull();
+  });
+
+  test('their mute silences the game whatever ⚙ → Sound says, and gives the player\'s setting back', async ({ page, isMobile }) => {
+    const frame = await openGame(page, isMobile, false, 'cgMute=1');
+    const muted = () => frame.evaluate(() => window.__tdt.audio().muted);
+    await expect.poll(muted).toBe(true);
+    await expect(frame.locator('#settings-cg-muted')).toHaveText('Muted by CrazyGames');
+    expect(await frame.locator('#settings-cg-muted').evaluate((el) => el.classList.contains('hidden'))).toBe(false);
+    expect(await frame.evaluate(() => JSON.parse(localStorage.getItem('tdt.settings') ?? '{}').muted ?? false)).toBe(false);
+    await frame.evaluate(() => (window as unknown as { __cg: { settings(s: object): void } }).__cg.settings({ muteAudio: false }));
+    await expect.poll(muted).toBe(false);
+    expect(await frame.locator('#settings-cg-muted').evaluate((el) => el.classList.contains('hidden'))).toBe(true);
+  });
+
+  for (const how of ['absent', 'fail', 'hang'] as const) {
+    test(`with init ${how}: the first screen, the code-only room card, a solo match, and no SDK call after`, async ({ page, isMobile }) => {
+      const frame = await openGame(page, isMobile, false, `cgInit=${how}`);
+      expect(await frame.locator('html').getAttribute('data-cg-sdk')).toBeNull();
+      // A hanging init holds the first screen for its cap (1.5 s) behind the splash, and no more: the page is up
+      // before the init's own 3 s run out (the stand-in's init never settles).
+      if (how === 'hang') {
+        const readyAt = await frame.evaluate(() => performance.getEntriesByName('tdt:ready')[0]?.startTime ?? 0);
+        const loaded = await frame.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).domInteractive);
+        expect(readyAt - loaded).toBeGreaterThanOrEqual(1400);
+        expect(readyAt - loaded).toBeLessThan(1500 + 6000);
+      }
+      await frame.locator('#lobby-offline').click();
+      await expect.poll(() => frame.evaluate(() => window.__tdt?.latest()?.heroes.length ?? 0), { timeout: 30_000 }).toBeGreaterThan(0);
+      await page.waitForTimeout(3500);
+      const calls = await cgCalls(frame);
+      if (how === 'absent') expect(calls).toBeNull();
+      else expect(calls!.map((c) => c.name)).toEqual(['init']);
+      await expect(frame.locator('#lobby-copy')).toBeHidden();
+    });
+  }
+
+  test('an invite accepted during a solo match: Join or Stay, and Join leaves the match for the room', async ({ page, browser, isMobile }) => {
+    const hostContext = await browser.newContext(isMobile ? { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true } : {});
+    try {
+      const hostPage = await hostContext.newPage();
+      const host = await openGame(hostPage, isMobile, false, 'cgUser=Host');
+      await host.locator('#lobby-create').click();
+      await expect(host.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+      const code = (await host.locator('#lobby-room-code').textContent())!.trim();
+
+      const frame = await openGame(page, isMobile, false, 'cgUser=Solo');
+      await frame.locator('#lobby-offline').click();
+      await expect.poll(() => cgNames(frame), { timeout: 30_000 }).toContain('gameplayStart');
+      const invite = () =>
+        frame.evaluate((room) => (window as unknown as { __cg: { join(p: object): void } }).__cg.join({ room }), code);
+      await invite();
+      await expect(frame.locator('#cg-ask')).toBeVisible();
+      await expect(frame.locator('#cg-ask')).toContainText("Join your friend's room? You leave this match.");
+      await expect.poll(async () => (await cgNames(frame)).at(-1)).toBe('gameplayStop');
+      await frame.locator('#cg-ask-stay').click();
+      await expect(frame.locator('#cg-ask')).toHaveCount(0);
+      const tick = await frame.evaluate(() => window.__tdt.latest()!.tick);
+      await expect.poll(() => frame.evaluate(() => window.__tdt.latest()?.tick ?? 0)).toBeGreaterThan(tick);
+      await expect.poll(async () => (await cgNames(frame)).at(-1)).toBe('gameplayStart');
+
+      await invite();
+      await frame.locator('#cg-ask-join').click();
+      await expect(frame.locator('#lobby-room')).toBeVisible({ timeout: 30_000 });
+      await expect(host.locator('#lobby-players')).toContainText('Solo');
+      noRepeats(await cgNames(frame));
+    } finally {
+      await hostContext.close();
+    }
+  });
+
+  test('the data key stays in this browser: one found in localStorage moves to IndexedDB', async ({ page, isMobile }) => {
+    const key = 'ab'.repeat(32);
+    await page.context().addInitScript(
+      ({ origin, value }) => {
+        if (location.origin !== origin || sessionStorage.getItem('planted')) return;
+        sessionStorage.setItem('planted', '1');
+        localStorage.setItem('tdt.visitorKey', value);
+      },
+      { origin: HARNESS.frameOrigin, value: key },
+    );
+    const frame = await openGame(page, isMobile);
+    expect(await frame.evaluate(() => localStorage.getItem('tdt.visitorKey'))).toBeNull();
+    const kept = await frame.evaluate(
+      () =>
+        new Promise<string | null>((resolve) => {
+          const req = indexedDB.open('tdt', 1);
+          req.onsuccess = () => {
+            const get = req.result.transaction('ids', 'readonly').objectStore('ids').get('tdt.visitorKey');
+            get.onsuccess = () => resolve((get.result as string | undefined) ?? null);
+            get.onerror = () => resolve(null);
+          };
+          req.onerror = () => resolve(null);
+        }),
+    );
+    expect(kept).toBe(key);
+  });
 });

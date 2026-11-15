@@ -184,7 +184,7 @@ export async function startHarness(
       res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found\n');
       return;
     }
-    const query = /^[a-z0-9=&]{1,64}$/.test(frameQuery) ? `?${frameQuery}` : '';
+    const query = /^[A-Za-z0-9=&]{1,96}$/.test(frameQuery) ? `?${frameQuery}` : '';
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(hostPage(...page, query));
   });
   const servers = [frame, host];

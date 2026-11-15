@@ -3,11 +3,14 @@
 // this module whole, and with no SDK (itch.io, Newgrounds, or CrazyGames' SDK off) each one does what the shared code
 // did before: nothing, or its own default.
 
+//
+// No runtime import but keptIds.ts (itself import-free): a module the shared code imports changes the order the
+// site's bundle lists its modules in, even when every use of it folds away, and the site's build must stay byte for
+// byte the same.
+
 import type { GameMode, HeroKind, LobbyState, PlayerId } from '@tdt/protocol';
-import { DATA_KEY_KEY, VISITOR_KEY, type IdStore } from '../analytics/dataKey';
-import { idbBackend, keptIdStore, type KvBackend } from '../analytics/keptIds';
-import { localIdStore } from '../analytics/myData';
-import { storeName } from '../lobby/nickname';
+import type { IdStore } from '../analytics/dataKey';
+import { idbBackend, KEPT_KEYS, keptIdStore, type KvBackend } from '../analytics/keptIds';
 
 /** What the online controller lends the SDK module (online.ts, in its constructor under `__EMBED__`). */
 export interface HostRooms {
@@ -63,8 +66,8 @@ export function hostMuteChanged(): void {
   for (const apply of muteListeners) apply();
 }
 
-/** lobby.ts's `validName`: the name is stored as typed, unless it is one the host gave. */
-export function storeTypedName(name: string): void {
+/** lobby.ts's `validName`: the name is stored as typed (`storeName`), unless it is one the host gave. */
+export function storeTypedName(name: string, storeName: (name: string) => void): void {
   let keep = true;
   try {
     keep = hooks.storesName?.(name) ?? true;
@@ -118,10 +121,10 @@ export function hostRooms(): HostRooms | null {
  * hosted build, stays in localStorage.
  */
 export function hostIdStore(host: string): IdStore {
-  const local = localIdStore();
+  const local = pageStorage();
   if (host !== 'crazygames') return local;
   const kept = keptIdStore();
-  const own = (key: string) => key === DATA_KEY_KEY || key === VISITOR_KEY;
+  const own = (key: string) => (KEPT_KEYS as readonly string[]).includes(key);
   return {
     getItem: (key) => (own(key) ? kept.getItem(key) : local.getItem(key)),
     setItem: (key, value) => (own(key) ? kept.setItem(key, value) : local.setItem(key, value)),
@@ -152,7 +155,7 @@ export async function loadHostIds(host: string): Promise<void> {
     } catch {
       backend = null;
     }
-    await keptIdStore().load(backend, localIdStore());
+    await keptIdStore().load(backend, pageStorage());
   } catch {
     // Memory only for this page.
   }
@@ -197,4 +200,13 @@ export function hostShown(view: import('../gameView').GameView): void {
       // Nothing the SDK's wiring does may stop the game.
     }
   });
+}
+
+/** This page's localStorage, or an empty store when it is blocked (myData.ts `localIdStore`, which this may not import). */
+function pageStorage(): IdStore {
+  try {
+    return window.localStorage;
+  } catch {
+    return { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  }
 }

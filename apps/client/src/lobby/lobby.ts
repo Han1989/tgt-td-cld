@@ -582,7 +582,7 @@ export class LobbyUi {
       return null;
     }
     // A hosted build never stores the name CrazyGames gives (platform/hostBridge.ts).
-    if (__EMBED__) storeTypedName(name);
+    if (__EMBED__) storeTypedName(name, storeName);
     else storeName(name);
     return name;
   }

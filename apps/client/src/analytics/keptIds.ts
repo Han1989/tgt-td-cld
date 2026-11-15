@@ -4,10 +4,13 @@
 // A key found in localStorage (the build CrazyGames held before) moves here and leaves localStorage.
 // Read and written only through platform/hostBridge.ts `hostIdStore`, under `__EMBED__`.
 
-import { DATA_KEY_KEY, VISITOR_KEY, type IdStore } from './dataKey';
+import type { IdStore } from './dataKey';
 
-/** The two keys kept here. */
-export const KEPT_KEYS = [DATA_KEY_KEY, VISITOR_KEY] as const;
+/**
+ * The two keys kept here: dataKey.ts's `DATA_KEY_KEY` and `VISITOR_KEY`, written out because this module may import
+ * nothing at run time (platform/hostBridge.ts says why; a test checks they are the same).
+ */
+export const KEPT_KEYS = ['tdt.visitorKey', 'tdt.visitor'] as const;
 /** The database and its one store. */
 export const KEPT_DB = 'tdt';
 export const KEPT_STORE = 'ids';
