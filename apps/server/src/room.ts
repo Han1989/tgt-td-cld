@@ -34,6 +34,7 @@ import {
   type Match,
 } from '@tdt/sim';
 import type { ServerConfig } from './config';
+import { seatName } from './names';
 import { RollingAverage } from './stats';
 
 /** The part of a WebSocket a room needs; lets tests use fakes. */
@@ -162,7 +163,8 @@ export class Room {
     while (this.activeMembers.some((m) => m.id === `p${slot}`)) slot++;
     const member: Member = {
       id: `p${slot}`,
-      name,
+      // A name the filter refuses is "Player" ("Player 2"…), with no refusal (q16, names.ts).
+      name: seatName(name, this.activeMembers.map((m) => m.name)),
       hero,
       ready: false,
       art: 0,
@@ -201,8 +203,9 @@ export class Room {
     if (typeof seat === 'string') return seat;
     if (!seat.freed) this.takenTokens.add(seat.token);
     seat.token = newToken();
-    if (this.match) matchRename(this.match, seat.id, name);
-    seat.name = name;
+    const named = seatName(name, this.activeMembers.filter((m) => m !== seat).map((m) => m.name));
+    if (this.match) matchRename(this.match, seat.id, named);
+    seat.name = named;
     return this.seat(seat, socket);
   }
 

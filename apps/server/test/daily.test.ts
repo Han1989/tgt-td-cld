@@ -14,7 +14,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { visitorFromKey } from '../src/analytics/dataKey';
 import { boardView, ranksOf, sortBoard, type DailyEntry } from '../src/daily/board';
 import { createDailyHttp, POST_BODY_LIMIT } from '../src/daily/http';
-import { boardName, nameBlocked } from '../src/daily/names';
+import { boardName, nameBlocked } from '../src/names';
 import { DailyStore } from '../src/daily/store';
 import { ReplayQueue } from '../src/daily/verify';
 import type { GameServer } from '../src/server';

@@ -14,7 +14,7 @@ import { dailyKey, endlessRefusal, shiftDailyKey, endlessRunTicks, TUNING } from
 import { clientIp, readBody } from '../analytics/http';
 import { visitorFromKey } from '../analytics/dataKey';
 import { READ_BURST, READ_PER_SECOND } from '../daily/http';
-import { boardName } from '../daily/names';
+import { boardName } from '../names';
 import { allPostsBucket, guard, headerVisitor, json, parsePost, refuse, slowReads, take, type Buckets } from '../daily/routing';
 import { boardFileRefusal, reportMismatch, ReplayQueue, type PostedFile } from '../daily/verify';
 import type { TokenBucket } from '../rateLimit';
